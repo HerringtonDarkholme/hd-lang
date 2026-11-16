@@ -1,0 +1,86 @@
+# test: supertrait row adapters preserve whole generic keys
+# Spec lang/11-requirements-and-suspension.md: req.row.subsume.adapt.
+# expect-stdout: 4
+# expect-stdout: 5
+# expect-stdout: six
+# expect-stdout: 4
+# expect-stdout: 4
+# expect-stdout: six
+# expect-stdout: 4
+
+trait Store[T]:
+    fn get(&self) -> T
+
+trait NamedStore[T] < Store[T]:
+    fn name(&self) -> string
+
+struct Source[T]:
+    value: T
+
+impl[T] Store[T] for Source[T]:
+    fn get(&self) -> T:
+        self.value
+
+impl[T] NamedStore[T] for Source[T]:
+    fn name(&self) -> string:
+        "source"
+
+fn signed() -> i32 $ Store[i32]:
+    $.use(Store[i32]).get()
+
+fn unsigned() -> u32 $ Store[u32]:
+    $.use(Store[u32]).get()
+
+fn text() -> string $ Store[string]:
+    $.use(Store[string]).get()
+
+fn adapt[T](callback: fn() -> T $ Store[T]) -> (fn() -> T $ NamedStore[T]):
+    callback
+
+trait Worker[T]:
+    fn fetch(&self) -> T $ Store[T]
+
+impl[T] Worker[T] for Source[T]:
+    fn fetch(&self) -> T $ Store[T]:
+        $.use(Store[T]).get()
+
+struct Client[T]:
+    value: T
+
+impl[T] Client[T]:
+    fn fetch(&self) -> T $ Store[T]:
+        $.use(Store[T]).get()
+    fn own[U](&self, _value: U) -> U $ Store[U]:
+        $.use(Store[U]).get()
+
+fn through_worker(worker: &dyn Worker[i32]) -> i32 $ NamedStore[i32]:
+    worker.fetch()
+
+fn through_client(client: &Client[i32]) -> i32 $ NamedStore[i32]:
+    client.fetch()
+
+fn through_own(client: &Client[i32]) -> string $ NamedStore[string]:
+    client.own("ignored")
+
+fn through_bound[W < Worker[i32]](worker: &W) -> i32 $ NamedStore[i32]:
+    worker.fetch()
+
+pub fn main() -> void $ Console:
+    let worker: *dyn Worker[i32] = box(Source { value: +0 })
+    client := Client { value: +0 }
+    source := Source { value: +0 }
+    a := adapt(signed)
+    b := adapt(unsigned)
+    c := adapt(text)
+    $.with(
+        NamedStore[i32]=box(Source { value: +4 }),
+        NamedStore[u32]=box(Source { value: 5u32 }),
+        NamedStore[string]=box(Source { value: "six" }),
+    ):
+        println(a())
+        println(b())
+        println(c())
+        println(through_worker(worker))
+        println(through_client(&client))
+        println(through_own(&client))
+        println(through_bound(&source))

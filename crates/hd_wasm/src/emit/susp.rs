@@ -656,8 +656,7 @@ impl Em<'_, '_, '_> {
         match self.b.tags[i as usize] {
             Tag::AwaitValue => self.await_stored(i, k, false, &|em| em.comp(a, 0)),
             Tag::Await => {
-                let rec = self.rec(bw);
-                let args = rec[..rec.len().saturating_sub(3)].to_vec();
+                let args = self.b.call_args(i as usize).to_vec();
                 let target = self.calls.get(&i).cloned();
                 if let Some(Target::Call(t)) = target {
                     // ruled out: checking calls with `!` only a suspending function
@@ -716,7 +715,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(ch);
         self.push_cold_args(i, args, item, targs, Some(ch))?;
-        let c = self.push_call_providers(i, item, targs);
+        let c = self.push_call_providers(i, item, targs)?;
         self.f.call(Sym::Part(key, Part::Body));
         self.f.set(nc);
         for l in tmp.iter().rev() {

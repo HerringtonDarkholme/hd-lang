@@ -53,6 +53,8 @@ impl IdWord {
 enum Holder {
     /// Data word `k` of instruction `i`.
     Data(usize, usize),
+    /// A footer payload word inside a reached record.
+    Extra(u32),
     /// A sub-body's parameter record (`Body::sub_params`).
     SubParams(usize),
     /// A suspension row's scope list (`SuspRow::scopes`).
@@ -176,6 +178,21 @@ fn inst_refs(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
             record_span(b, Holder::Data(i, k), word, f)?;
         }
     }
+    if let crate::ir::Providers::Pairs(r) = b.call_providers(i)
+        && r.len > 0
+    {
+        let footer = b.call_footer(i).ok_or_else(|| {
+            NotImplemented::bug(Stage::ModuleFinish, "provider pairs have no call footer")
+        })?;
+        f(Reach::Span {
+            at: Holder::Extra(crate::ir::u32_of(footer + 1)),
+            start: r.start,
+            end: bounded(b, r.start, r.len)?,
+        });
+        for k in (0..r.len).step_by(2) {
+            f(Reach::Id(IdWord::Ty((r.start + k) as usize)));
+        }
+    }
     tag_ids(b, i, f)
 }
 
@@ -186,16 +203,9 @@ fn tag_ids(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
     match b.tags[i] {
         Tag::Call | Tag::Await => {
             call_ids(b, a as usize + 1, &mut id)?;
-            // `Providers::Pairs` points at a range of its own; nothing
-            // builds one, so its words are not mapped yet.
-            let args = b.data[i][1] as usize;
-            let n = b.extra.get(args).copied().unwrap_or(0) as usize;
-            if n >= 3 && b.extra.get(args + 1 + n - 3) == Some(&1) {
-                return Err(NotImplemented::bug(
-                    Stage::ModuleFinish,
-                    "wire form of a call's provider pairs",
-                ));
-            }
+        }
+        Tag::Coerce if b.row_adaptation(i).is_some() => {
+            id(IdWord::List(b.data[i][1] as usize + 2));
         }
         Tag::ProviderGet => id(IdWord::Ty(a as usize + 1)),
         // `With` and `ContextNew`: (key type, provider) pairs.
@@ -204,6 +214,10 @@ fn tag_ids(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
             for k in 0..n / 2 {
                 id(IdWord::Ty(a as usize + 1 + 2 * k));
             }
+        }
+        Tag::CallDyn => {
+            id(IdWord::Def(b.data[i][1] as usize + 1));
+            id(IdWord::List(b.data[i][1] as usize + 2));
         }
         Tag::DefaultCall => {
             id(IdWord::Def(a as usize + 1));
@@ -376,6 +390,7 @@ fn compact(b: &Body) -> StageResult<std::borrow::Cow<'_, Body>> {
         let to = moved(start);
         match at {
             Holder::Data(i, k) => out.data[i][k] = to,
+            Holder::Extra(at) => out.extra[moved(at) as usize] = to,
             Holder::SubParams(s) => out.sub_params[s].start = to,
             Holder::Susp(s) => out.susp[s].scopes.start = to,
             Holder::StableList(r) => out.stable_lists[r].1 = to,
@@ -423,9 +438,11 @@ fn encode(
     let mut extra = b.extra.clone();
     for i in 0..b.len() {
         if b.tags[i] == Tag::Coerce {
-            // The evidence word would be an ID; none is written today, and a
-            // future one must be remapped like `Impl` before it can leak.
-            if b.record(b.data[i][1]).get(1).copied() != Some(crate::ir::NONE) {
+            // RowAdapt evidence is remapped by tag_ids. Other coercions
+            // still carry no evidence.
+            if b.row_adaptation(i).is_none()
+                && b.record(b.data[i][1]).get(1).copied() != Some(crate::ir::NONE)
+            {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
                     "wire form of coercion evidence",

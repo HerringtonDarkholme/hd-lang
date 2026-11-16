@@ -2396,6 +2396,9 @@ impl Ck<'_, '_> {
             _ => None,
         };
         if tag == Tag::Coerce {
+            // This traces written signature lifetimes, not value identity.
+            // RowAdapt changes only the effect row: its parameters and result
+            // retain the source callable's written lifetime relationships.
             stack.push(Trace::Value(b.data[i][0], path));
         } else if tag == Tag::Closure && path.is_empty() {
             let rec = b.syn.get(i).and_then(|n| self.closure_lifetimes.get(n));
@@ -4344,7 +4347,12 @@ fn site(b: &Body, has: &dyn Fn(u32, Origin) -> bool, v: u32, o: Origin) -> NodeI
         }
         let mut inner = None;
         if matches!(b.tags[v as usize], Tag::Coerce) {
-            inner = Some(b.data[v as usize][0]);
+            // A wrapper's captured origins still diagnose at their source,
+            // but its own storage origin must stop at the allocation.
+            let source = b.data[v as usize][0];
+            if b.row_adaptation(v as usize).is_none() || has(source, o) {
+                inner = Some(source);
+            }
         } else if !matches!(
             b.tags[v as usize],
             Tag::Read | Tag::Ref | Tag::Call | Tag::Await | Tag::CallDyn

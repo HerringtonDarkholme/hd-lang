@@ -59,7 +59,16 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     let built = super::inspection::build(p, at);
     let mut out = String::from("(module\n");
     if let Some(wasm) = &built.wasm {
-        let module = Module::read(wasm);
+        let mut module = Module::read(wasm);
+        // Release name sections omit runtime helpers. Inspection retains their
+        // names: use them for static vtable labels instead of feature-dependent
+        // numeric function indices. One insertion per inspected function.
+        for function in &built.instruction_origins {
+            module
+                .names
+                .entry(function.index)
+                .or_insert_with(|| function.name.clone());
+        }
         let mut storage = String::new();
         let (stripped, shifts) = strip_custom(wasm);
         // Printed offsets are the stripped module's; origins are the

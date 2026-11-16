@@ -51,7 +51,7 @@
       end
     end
     local.get $t0
-    i32.const 276 ;; &vtable[func53, func52]
+    i32.const 276 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
     local.tee $t1
     ;; 30 |         _ := tick(a)
     local.set $t2

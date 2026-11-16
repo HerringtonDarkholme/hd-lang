@@ -83,7 +83,7 @@ fn call_args(body: &Body, i: usize) -> Option<&[u32]> {
     if body.ty[i] != Ty::VOID || !matches!(body.record(body.data[i][0]), [0, _, _]) {
         return None;
     }
-    body.record(body.data[i][1]).strip_suffix(&[0, 0, 0])
+    (body.call_providers(i) == crate::ir::Providers::None).then(|| body.call_args(i))
 }
 
 impl ElementChecks {

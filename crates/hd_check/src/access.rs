@@ -84,25 +84,7 @@ impl Ck<'_, '_> {
     /// `&mut self` method: a mutable requirement trait
     /// (`req.mut.trait-changing`).
     pub(crate) fn trait_is_mutable(&self, tr: hd_base::DefId) -> bool {
-        crate::body::walk_supertraits(
-            self.cx.lookup,
-            self.pool(),
-            (tr, hd_types::TyList::EMPTY),
-            crate::body::Fill::No,
-            |_, _, t| {
-                t.methods
-                    .iter()
-                    .any(|(_, m)| {
-                        self.cx
-                            .lookup
-                            .item(*m)
-                            .and_then(|i| i.sig())
-                            .is_some_and(|sig| self.changes_receiver(sig))
-                    })
-                    .then_some(())
-            },
-        )
-        .is_some()
+        trait_is_mutable(self.cx, tr)
     }
 
     /// Whether a method's receiver is `mut self` or `&mut self`
@@ -257,4 +239,34 @@ impl Ck<'_, '_> {
         }
         None
     }
+}
+
+/// Whether any receiver in the trait graph needs write permission.
+pub(crate) fn trait_is_mutable(cx: &crate::BodyCx<'_>, tr: hd_base::DefId) -> bool {
+    cx.global.trait_mutability(tr, || {
+        crate::body::walk_supertraits(
+            cx.lookup,
+            cx.names.pool.types(),
+            (tr, hd_types::TyList::EMPTY),
+            crate::body::Fill::No,
+            |_, _, t| {
+                t.methods
+                    .iter()
+                    .any(|(_, m)| {
+                        cx.lookup.item(*m).and_then(|i| i.sig()).is_some_and(|sig| {
+                            sig.mut_self
+                                || sig.params.first().is_some_and(|(s, st)| {
+                                    cx.names.text(*s) == "self"
+                                        && matches!(
+                                            cx.names.pool.get(*st),
+                                            TyData::Ref { mutable: true, .. }
+                                        )
+                                })
+                        })
+                    })
+                    .then_some(())
+            },
+        )
+        .is_some()
+    })
 }

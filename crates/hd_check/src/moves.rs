@@ -495,7 +495,8 @@ impl Ck<'_, '_> {
             .map(|i| {
                 let b = self.b.body();
                 let (tag, ty) = (b.tags[i], b.ty[i]);
-                matches!(tag, Tag::Read | Tag::Coerce) && self.copies_in(q, ty)
+                (tag == Tag::Read || tag == Tag::Coerce && b.row_adaptation(i).is_none())
+                    && self.copies_in(q, ty)
             })
             .collect()
     }
@@ -835,7 +836,7 @@ impl Ck<'_, '_> {
             for &(u, role) in &cx.users[v as usize] {
                 let i = u as usize;
                 let found = match (b.tags[i], role) {
-                    (Tag::Coerce, _) => {
+                    (Tag::Coerce, _) if b.row_adaptation(i).is_none() => {
                         if is_mut_ref(pool, b.ty[i]) && seen.insert(u) {
                             stack.push(u);
                         }
@@ -882,7 +883,9 @@ impl Ck<'_, '_> {
         while let Some(v) = next.take().or_else(|| stack.pop()) {
             for &(u, role) in &cx.users[v as usize] {
                 let i = u as usize;
-                if b.tags[i] == Tag::Coerce {
+                // A row adapter consumes its source into a new capture, rather
+                // than passing the same value on to the wrapper's users.
+                if b.tags[i] == Tag::Coerce && b.row_adaptation(i).is_none() {
                     // A coercion to `&T` reborrows; one that keeps a type
                     // that is not copied passes the value on.
                     if !cx.copied[i] {

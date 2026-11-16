@@ -1,0 +1,44 @@
+# @dump: stdout wat counts
+# @build: dev | checked | release | release checked
+# expected: 47, 69, 47; opaque tails forward exactly and do not reselect Base.
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+trait Extra:
+    fn extra(&self) -> i32
+
+struct Source:
+    n: i32
+
+impl Base for Source:
+    fn base(&self) -> i32:
+        self.n * 10
+
+impl Named for Source:
+    fn name(&self) -> i32:
+        self.n
+
+impl Extra for Source:
+    fn extra(&self) -> i32:
+        self.n
+
+fn original() -> i32 $ Base + Extra:
+    $.use(Base).base() + $.use(Extra).extra()
+
+# subject
+fn widen[$ R](callback: fn() -> i32 $ Base + R) -> (fn() -> i32 $ Named + R):
+    callback
+
+pub fn main() -> void $ Console:
+    callback := widen::[$ Extra](original)
+    overlap := widen::[$ Base + Extra](original)
+    $.with(Named=box(Source { n: 4 }), Extra=box(Source { n: 7 })):
+        println(callback())
+    $.with(Named=box(Source { n: 6 }), Extra=box(Source { n: 9 })):
+        println(callback())
+    $.with(Base=box(Source { n: 9 }), Named=box(Source { n: 4 }), Extra=box(Source { n: 7 })):
+        println(overlap())

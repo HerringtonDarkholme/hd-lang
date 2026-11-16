@@ -64,7 +64,8 @@ mod tests {
         };
         b.call(&callee, &[], Providers::None, Ty::I32, NodeIdx::NONE);
         let suspension = b.const_value(Ty(42), 0);
-        b.emit(Tag::AwaitValue, suspension.0, NONE, Ty::I32, NodeIdx::NONE);
+        let args = b.call_args_record(&[], crate::ir::Providers::None);
+        b.emit(Tag::AwaitValue, suspension.0, args, Ty::I32, NodeIdx::NONE);
         let children = b.refs_record(&[]);
         b.emit(Tag::AwaitAll, NONE, children, Ty::VOID, NodeIdx::NONE);
         b.call(&callee, &[], Providers::None, Ty::VOID, NodeIdx::NONE);
@@ -331,7 +332,8 @@ mod tests {
                 let inside = b.open_block();
                 let cleanup = b.open_block();
                 let child = b.const_value(Ty(42), 0);
-                b.emit(Tag::AwaitValue, child.0, NONE, Ty::VOID, NodeIdx::NONE);
+                let args = b.call_args_record(&[], crate::ir::Providers::None);
+                b.emit(Tag::AwaitValue, child.0, args, Ty::VOID, NodeIdx::NONE);
                 let cleanup = b.close_block(cleanup, None, Ty::VOID, NodeIdx::NONE);
                 b.defer(cleanup, NodeIdx::NONE);
                 let inside = b.close_block(inside, None, Ty::VOID, NodeIdx::NONE);

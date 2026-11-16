@@ -1,0 +1,46 @@
+# test: supertrait row adapters cold frames keep providers after construction scopes end
+# Spec lang/11-requirements-and-suspension.md: Construction-Time Requirement Binding.
+# expect-stdout: 40
+# expect-stdout: 60
+use std.task.block_on
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+struct Source:
+    n: i32
+
+impl Base for Source:
+    fn base(&self) -> i32:
+        self.n * 10
+
+impl Named for Source:
+    fn name(&self) -> i32:
+        self.n
+
+fn read!() -> i32 $ Base:
+    $.use(Base).base()
+
+fn construct() -> Suspend[i32] $ Named:
+    read()
+
+fn report(job: Suspend[i32]) -> void $ Console:
+    match block_on(job):
+        .Completed(value) => println(value)
+        .Cancelled => println("cancelled")
+        .Abandoned => println("abandoned")
+
+pub fn main() -> void $ Console:
+    let adapted: fn!() -> i32 $ Named = read
+    let direct: Suspend[i32] = $.with(Named=box(Source { n: 4 })):
+        construct()
+    let converted: Suspend[i32] = $.with(Named=box(Source { n: 6 })):
+        adapted()
+    let unpolled: Suspend[i32] = $.with(Named=box(Source { n: 8 })):
+        adapted()
+    report(direct)
+    report(converted)
+    _ := unpolled

@@ -339,7 +339,7 @@ fn fact_list_steps(
             // the `Structure`'s own, and its items.
             FactSource::Body(def, targs) => {
                 let a = ck.b.refs_record(&[Ref(def.raw()), Ref(targs.0)]);
-                let earlier = ck.b.refs_record(&[]);
+                let earlier = ck.b.call_args_record(&[], hd_tir::ir::Providers::None);
                 let call =
                     ck.b.emit(Tag::DefaultCall, a, earlier, facts_ty, at.index());
                 let items = ck.b.field(call, 0, items_ty, at.index());
@@ -1549,7 +1549,7 @@ impl Ck<'_, '_> {
         let body = self.cx.names.member(def, PathKind::Hidden, "facts");
         let targs = pool.list(&[]);
         let a = self.b.refs_record(&[Ref(body.raw()), Ref(targs.0)]);
-        let earlier = self.b.refs_record(&[]);
+        let earlier = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
         let call = self
             .b
             .emit(Tag::DefaultCall, a, earlier, facts_ty, n.index());

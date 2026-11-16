@@ -2065,8 +2065,18 @@ impl Cx<'_> {
             Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => true,
             Tag::Coerce => {
                 let kind = body.record(body.data[i][1]).first().copied();
-                matches!(kind, Some(k) if k == Coercion::RefToTraitValue as u32)
-                    && pool.has_param(value_ty(body, body.data[i][0]))
+                match kind {
+                    Some(k) if k == Coercion::RowAdapt as u32 => {
+                        // A row wrapper embeds whole key IDs and projections;
+                        // equal two-word function layouts cannot erase those.
+                        pool.has_param(value_ty(body, body.data[i][0]))
+                            || pool.has_param(body.ty[i])
+                    }
+                    Some(k) if k == Coercion::RefToTraitValue as u32 => {
+                        pool.has_param(value_ty(body, body.data[i][0]))
+                    }
+                    _ => false,
+                }
             }
             Tag::Call | Tag::Await => match Callee::from_words(body.record(body.data[i][0])) {
                 Some(Callee::TraitMethod { self_ty, targs, .. }) => {
@@ -3829,7 +3839,8 @@ pub fn default_returns_new_object(body: &Body) -> bool {
         let [a, w] = body.data[i];
         match body.tags[i] {
             Tag::Block => v = w,
-            Tag::Scope | Tag::Coerce => v = a,
+            Tag::Scope => v = a,
+            Tag::Coerce if body.row_adaptation(i).is_none() => v = a,
             Tag::Ref => {
                 let p = body.view(a);
                 return p.whole()

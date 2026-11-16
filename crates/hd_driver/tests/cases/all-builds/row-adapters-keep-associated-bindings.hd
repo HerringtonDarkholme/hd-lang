@@ -1,0 +1,42 @@
+# @dump: stdout wat counts
+# @build: dev | checked | release | release checked
+# expected: four 7s, covering inherited bindings and both spelling directions.
+
+trait Feed:
+    type Item
+    fn latest(&self) -> Self::Item
+
+trait PriceFeed < Feed[Item = i32]:
+    fn label(&self) -> string
+
+struct Quotes:
+    price: i32
+
+impl Feed for Quotes:
+    type Item = i32
+    fn latest(&self) -> i32:
+        self.price
+
+impl PriceFeed for Quotes:
+    fn label(&self) -> string:
+        "quotes"
+
+fn read() -> i32 $ Feed[Item = i32]:
+    $.use(Feed[Item = i32]).latest()
+
+# subject
+fn short() -> i32 $ PriceFeed:
+    read()
+
+fn long() -> i32 $ PriceFeed[Item = i32]:
+    read()
+
+pub fn main() -> void $ Console:
+    let inherited: fn() -> i32 $ PriceFeed = read
+    let to_short: fn() -> i32 $ PriceFeed = long
+    let to_long: fn() -> i32 $ PriceFeed[Item = i32] = short
+    $.with(PriceFeed=box(Quotes { price: 7 })):
+        println(short())
+        println(inherited())
+        println(to_short())
+        println(to_long())

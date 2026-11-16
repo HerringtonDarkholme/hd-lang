@@ -39,6 +39,8 @@ pub fn direct_supers(
 pub struct DynPaths {
     predecessors: Vec<Option<(usize, u32)>>,
     exact: HashMap<(DefId, TyList), usize>,
+    whole: HashMap<Ty, usize>,
+    bindings: HashMap<(DefId, TyList), HashMap<DefId, Ty>>,
     fallback: HashMap<DefId, usize>,
 }
 
@@ -51,13 +53,22 @@ impl DynPaths {
             if !seen.insert(at) {
                 continue;
             }
-            let TyData::TraitValue { def, args, .. } = pool.get(at) else {
+            let TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } = pool.get(at)
+            else {
                 continue;
             };
             crate::work::dyn_path(1);
             let index = out.predecessors.len();
             out.predecessors.push(predecessor);
             out.exact.entry((def, args)).or_insert(index);
+            out.whole.entry(at).or_insert(index);
+            out.bindings
+                .entry((def, args))
+                .or_insert_with(|| bindings.into_iter().collect());
             out.fallback.entry(def).or_insert(index);
             let own = slot_methods(env, def).len();
             let supers = direct_supers(pool, env, def, args, at);
@@ -83,9 +94,42 @@ impl DynPaths {
         Ok(out)
     }
 
+    /// A checked whole key, without the legacy definition-only fallback.
+    #[must_use]
+    pub fn exact_path(&self, to: Ty) -> Option<Vec<u32>> {
+        Some(self.path_from_index(*self.whole.get(&to)?))
+    }
+
+    /// Whole arguments and every requested associated binding must match.
+    /// A row may omit an associated binding it never uses; weakening that
+    /// constraint does not change a vtable's parent path. Valid trait
+    /// declarations cannot give one trait instance contradictory bindings.
+    #[must_use]
+    pub fn key_path(&self, pool: &InternPool, to: Ty) -> Option<Vec<u32>> {
+        if let Some(path) = self.exact_path(to) {
+            return Some(path);
+        }
+        let TyData::TraitValue {
+            def,
+            args,
+            bindings,
+        } = pool.get(to)
+        else {
+            return None;
+        };
+        let have = self.bindings.get(&(def, args))?;
+        if bindings.iter().any(|(name, ty)| have.get(name) != Some(ty)) {
+            return None;
+        }
+        Some(self.path_from_index(*self.exact.get(&(def, args))?))
+    }
+
     #[must_use]
     pub fn path(&self, to: (DefId, TyList)) -> Option<Vec<u32>> {
-        let mut index = *self.exact.get(&to).or_else(|| self.fallback.get(&to.0))?;
+        Some(self.path_from_index(*self.exact.get(&to).or_else(|| self.fallback.get(&to.0))?))
+    }
+
+    fn path_from_index(&self, mut index: usize) -> Vec<u32> {
         let mut path = Vec::new();
         while let Some((parent, offset)) = self.predecessors[index] {
             crate::work::dyn_path(1);
@@ -93,6 +137,6 @@ impl DynPaths {
             index = parent;
         }
         path.reverse();
-        Some(path)
+        path
     }
 }

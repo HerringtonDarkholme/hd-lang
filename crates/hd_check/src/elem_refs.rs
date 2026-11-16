@@ -167,7 +167,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             match tag {
-                Tag::Coerce => cur = Ref(data[0]),
+                Tag::Coerce if self.b.body().row_adaptation(i).is_none() => cur = Ref(data[0]),
                 _ => return None,
             }
         }
@@ -241,7 +241,7 @@ impl Ck<'_, '_> {
             };
             // A map value's entry number stands for its key.
             r = match (tag, IntrinsicOp::from_u32(data[0])) {
-                (Tag::Coerce, _) => Ref(data[0]),
+                (Tag::Coerce, _) if self.b.body().row_adaptation(i).is_none() => Ref(data[0]),
                 (Tag::Intrinsic, Some(IntrinsicOp::MapEntry)) => {
                     Ref(self.b.body_mut().record(data[1])[1])
                 }

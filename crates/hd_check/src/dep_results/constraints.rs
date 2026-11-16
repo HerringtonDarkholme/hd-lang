@@ -288,7 +288,10 @@ impl Gen<'_, '_> {
     /// coercions: that place (`ref.dep.origin.element`).
     fn read_of(&self, mut v: u32) -> Option<u32> {
         let b = self.s.b;
-        while self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Coerce {
+        while self.s.ty(v).is_some()
+            && b.tags[v as usize] == Tag::Coerce
+            && b.row_adaptation(v as usize).is_none()
+        {
             v = b.data[v as usize][0];
         }
         (self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Read).then_some(v)
@@ -533,7 +536,10 @@ impl Gen<'_, '_> {
                 continue;
             }
             let mut v = a as usize;
-            while b.tags[v] == Tag::Coerce && self.s.ty(b.data[v][0]).is_some() {
+            while b.tags[v] == Tag::Coerce
+                && b.row_adaptation(v).is_none()
+                && self.s.ty(b.data[v][0]).is_some()
+            {
                 v = b.data[v][0] as usize;
             }
             // A construction is lent from its parts (`ref.dep.origin.parts`).
@@ -1183,10 +1189,13 @@ impl Gen<'_, '_> {
             let [x, y] = b.data[v as usize];
             match b.tags[v as usize] {
                 Tag::Block => v = y,
-                Tag::Coerce if local_ref(self.s.pool, self.s.ty(x)?) == Some((false, false)) => {
+                Tag::Coerce
+                    if b.row_adaptation(v as usize).is_none()
+                        && local_ref(self.s.pool, self.s.ty(x)?) == Some((false, false)) =>
+                {
                     return self.val(x);
                 }
-                Tag::Coerce => v = x,
+                Tag::Coerce if b.row_adaptation(v as usize).is_none() => v = x,
                 _ => return None,
             }
         }
@@ -1339,6 +1348,15 @@ impl Gen<'_, '_> {
                             self.each_into(&held, &me.0);
                         }
                     }
+                }
+            }
+            Tag::Coerce if b.row_adaptation(iu).is_some() => {
+                // Like a closure capturing a local function, the fresh wrapper
+                // owns the source callable and holds all of its capture origins.
+                // Do not relate its storage or signature slots as an alias.
+                if let Some(v) = self.val(a) {
+                    let held = self.split(&v).0;
+                    self.each_into(&held, &me.0);
                 }
             }
             Tag::Coerce => {

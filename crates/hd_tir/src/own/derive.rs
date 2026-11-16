@@ -1542,11 +1542,7 @@ fn lend_copied_parameters_with(
                 Role::Dropped => false,
                 Role::Arg(k) => match b.tags[i] {
                     Tag::Call => Callee::from_words(b.record(b.data[i][0])).is_none_or(|c| {
-                        cx.pass(
-                            &c,
-                            k as usize,
-                            b.record(b.data[i][1]).len().saturating_sub(3),
-                        ) == Pass::Owned
+                        cx.pass(&c, k as usize, b.call_args(i).len()) == Pass::Owned
                             || cx.retains_result(&c)
                     }),
                     _ => true,

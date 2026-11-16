@@ -824,7 +824,7 @@ impl Em<'_, '_, '_> {
         // noncopy values retain their ownership transfer.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
         self.push_args(i, args, Some(&tys), None, copy)?;
-        let c = self.push_fn_ctx(i, ft);
+        let c = self.push_fn_ctx(i, ft)?;
         ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;
         if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {

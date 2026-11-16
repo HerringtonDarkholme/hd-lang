@@ -191,6 +191,10 @@ fn row_changed(before: Option<RowId>, after: Option<RowId>) -> bool {
 }
 
 impl Results {
+    pub(crate) fn inferring(&self) -> bool {
+        !self.active.is_empty()
+    }
+
     /// The native body-check depth, observed only by opt-in work tests.
     pub(crate) fn active_depth(&self) -> usize {
         self.active.len()
@@ -1540,7 +1544,14 @@ pub(crate) fn add_waits(cx: &BodyCx<'_>, owner: DefId, waits: Vec<(RowEdge, RowI
 
 /// The body M1 checked for `def` and its diagnostics, once.
 pub fn take(cx: &BodyCx<'_>, def: DefId) -> Option<(StageResult<Body>, DiagBuf)> {
-    cx.results.borrow_mut().bodies.remove(&def).map(|b| *b)
+    let (checked, diags) = *cx.results.borrow_mut().bodies.remove(&def)?;
+    let checked = match checked {
+        Ok(mut body) if !diags.has_errors() => {
+            crate::providers::finalize(cx, &mut body).map(|()| body)
+        }
+        other => other,
+    };
+    Some((checked, diags))
 }
 
 /// The module-level reports, once: the cycles, and the top-level

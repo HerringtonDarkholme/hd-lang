@@ -20,6 +20,50 @@ use hd_types::Ty;
 use super::Loc;
 use crate::ir::{Body, NONE, Ref, Tag, Topology, slots, u32_of};
 
+/// A checked-body insertion before member `pos` of `block` (the member
+/// count means its end). Operands use the old body's numbering; insertion
+/// `k` may be referenced as `old_len + k` by later insertions or records.
+#[derive(Clone, Copy, Debug)]
+pub struct BatchInsert {
+    pub block: u32,
+    pub pos: u32,
+    pub tag: Tag,
+    pub data: [u32; 2],
+    pub ty: Ty,
+    pub syn: NodeIdx,
+}
+
+/// Splices a batch once, returning old-to-new instruction numbers followed
+/// by inserted-to-new numbers, in batch order. `topo` describes the original
+/// instruction structure. No ownership or provider construction is added.
+///
+/// # Errors
+/// An invalid insertion position or a malformed operand during renumbering.
+pub fn insert_batch(
+    b: &mut Body,
+    topo: &Topology,
+    inserts: &[BatchInsert],
+) -> Result<Vec<u32>, String> {
+    if inserts.is_empty() {
+        return Ok((0..u32_of(b.len())).collect());
+    }
+    let mut tables = Tables::default();
+    for edit in inserts {
+        let block = edit.block as usize;
+        if b.tags.get(block) != Some(&Tag::Block)
+            || edit.pos as usize > b.record(b.data[block][0]).len()
+        {
+            return Err(format!(
+                "invalid insertion position {} in block %{}",
+                edit.pos, edit.block
+            ));
+        }
+        tables.insert(edit.block, edit.pos, edit.tag, edit.data, edit.ty, edit.syn);
+    }
+    apply(b, topo, &mut tables)?;
+    Ok(tables.new_of)
+}
+
 /// One new instruction: it stands in block `blk` before position `pos`
 /// (`pos` = the block's length: at its end).
 #[derive(Clone, Copy, Debug)]
@@ -312,18 +356,21 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     t.done.clear();
     t.done.resize(b.extra.len(), false);
     for i in 0..b.len() {
-        let w = b.data[i][1];
-        match b.tags[i] {
-            Tag::Call | Tag::Await if w != NONE => {
-                if let Some(&kind @ 3..) = b.record(w).iter().rev().nth(2) {
-                    return Err(format!("call providers of kind {kind}"));
-                }
-            }
-            _ => {}
-        }
         t.locs.clear();
         slots(b, i, |at, _, _| t.locs.push(at));
         for x in 0..t.locs.len() {
+            let word = match t.locs[x] {
+                Loc::Data(k) => b.data[i][usize::from(k)],
+                Loc::Extra(p) => *b
+                    .extra
+                    .get(p as usize)
+                    .ok_or_else(|| format!("operand record {p} out of range"))?,
+            };
+            if word != NONE && word & Ref::CONST_BIT == 0 && word as usize >= t.new_of.len() {
+                return Err(format!(
+                    "instruction operand %{word} out of range while splicing"
+                ));
+            }
             match t.locs[x] {
                 Loc::Data(k) => {
                     let k = usize::from(k);

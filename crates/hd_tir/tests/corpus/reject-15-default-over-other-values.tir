@@ -3,7 +3,7 @@ body 1 Fn
 labels
 caps
 modes
-extra 1 2147483648 4 0 0 0 0
+extra 2 70 16 4 2147483648 0 0 0 3 0 71 16 4 0 0 0 0
 const 4 0
-%0 = DefaultCall 0 0 : 4 @-
-%1 = Call 0 2 : 4 @-
+%0 = DefaultCall 0 3 : 4 @-
+%1 = Call 8 12 : 4 @-

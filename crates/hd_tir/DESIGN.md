@@ -64,13 +64,13 @@ top-level binding's class closes at the end of its statement
 statement reaches therefore sees the binding's type.
 
 **M3: inferred rows.** A row is final before the module's items are
-written: codegen picks a call's providers from the callee's signature
-row. A private function or inherent method without a `$` clause joins
+written. The checker freezes nonidentity provider evidence before body
+publication; codegen keeps exact-key lookup for identity entries. A private function or inherent method without a `$` clause joins
 the same registry (local `fn`s are closures, §4.13.4). Its body's bottom
 frame is `Inferred`: it takes each key and row parameter the body uses
 outside its own `$.with` blocks. Solving rows before any caller reads
-them keeps pending rows out of types and the TIR, so no row tier and no
-provider patch is needed.
+them keeps pending rows out of published types. A final indexed pass
+records checked supertrait suppliers without changing row inference.
 
 - **Order.** Rows never order checking. A body is checked early only for
   an omitted result, or when a closure, a test case or a function value
@@ -217,10 +217,10 @@ design:
   (`req.row.union.literal.expected`, `req.row.subsume.missing`). An
   unsolved type variable, such as a generic argument's, is no expected
   type: the site joins on its own and the caller solves the variable
-  from the result. No TIR node records the widening: the callable ABI
-  passes the key ids with the providers, so subsumption is no
-  instruction (crates/hd_mono/DESIGN.md §12.4), and a call through the
-  joined value passes the union's providers. Loop `break`/`else` joins
+  from the result. Exact-key subsumption preserves representation.
+  Supertrait-only entailment records `Coerce RowAdapt` with a typed
+  supplier recipe. Its wrapper projects the invocation's providers,
+  never providers captured where the value was converted. Loop `break`/`else` joins
   are not a `types.lct.sites` site and take no union.
 
 **Context values.** `$.Context[$ R]` is `TyData::Context(row)` with a
@@ -624,12 +624,12 @@ is readonly; `Read [@g]` has the binding's type.
 | `Prim` | a: `PrimOp`, b: `[operands]` (one or two) | arithmetic, bitwise and shifts: the operand type; comparisons: `bool`; conversions: the target. Only on primitive types |
 | `And`, `Or` | a: left, b: right `Block` | `bool`; the right block runs only when needed |
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `Suspend[T]` when the callee suspends and the call is plain (a cold call) |
-| `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
+| `CallValue` | a: function value, b: `[arguments, providers]` | the function type's result |
 | `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call. Codegen does not read it: a generic method gets a type witness built from the type arguments (crates/hd_mono/DESIGN.md §13.5.1), so dropping the operand is a frontend cleanup |
 | `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (`&T`, `&mut T`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on a struct, list, map, enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm/DESIGN.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
-| `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
+| `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values, providers]` | the parameter's or field's type, substituted. One per omitted argument, per call |
 | `Coerce` | a: value, b: `[kind, evidence or NONE]` | the target type in `ty`; the kinds are in the table below |
 
 **Coercion kinds** (crates/hd_check/DESIGN.md (type checking) §4.2). Each
@@ -642,7 +642,8 @@ holds.
 | `Weaken` | `&mut T` → `&T`, `*mut T` → `*T` | none | none: a static permission change |
 | `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
 | `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
-| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` (crates/hd_mono/DESIGN.md §12.4) |
+| `RowSubsume` | `fn ... $ R1` → `fn ... $ R2`, exact-key entailment | none | none: the invocation context already holds the source's keys |
+| `RowAdapt` | `fn ... $ R1` → `fn ... $ R2`, supertrait-only entailment | typed `TyList` of `(required K, whole supplier H)` pairs | wrap the callable, projecting checked suppliers from its invocation context and forwarding uncovered row-tail entries |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
@@ -650,8 +651,9 @@ holds.
 | `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider slot of a requirement key | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm/DESIGN.md §15.2, "Providers of reference traits") |
 | `ProviderAsRef` | `K` → `&dyn K` or `&mut dyn K`, at `$.use(K)` | none | cast the payload back to the reference |
 
-Today every `Coerce` writes `NONE` as its evidence word; the wire writer
-refuses any other value until it is remapped.
+`RowAdapt` evidence is type metadata, never an SSA operand. Type mapping,
+inlining and wire caching remap its whole keys through the type pool;
+other coercions keep their existing evidence representation.
 
 **Default calls.** A default is evaluated at each call that omits it,
 after every explicit argument, in parameter declaration order
@@ -716,17 +718,20 @@ plus the canonical self type in its instance key. **Arguments** are
 listed in parameter order; their instructions appear earlier in the
 enclosing block's list in source order, which is how named arguments
 keep their evaluation order. **Providers** (`Providers`, 3 words) are
-`None`, `(key, provider Ref)` pairs, or one context `Ref` for a
-row-polymorphic callee. Since rows are solved before callers read them
-(§4.13.1), every call today writes `Providers::None` and codegen picks
-providers from the callee's signature row; the `Pending` form is unused.
+`None`, `(required key, borrowed FnDyn)` pairs, or one context `Ref`.
+`Call`, `CallValue`, `DefaultCall`, `Await` and `AwaitValue` share that
+footer; a stored suspension has an empty argument prefix. Identity keys
+keep exact signature-row lookup. Projected keys carry checked borrowed
+providers; the inliner preserves their packet rather than resolving it
+again. Finalization runs after row solving and before publication,
+ownership analysis or caching. `Pending` cannot escape that boundary.
 
 **Suspension and hooks**
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Await` | a: `[callee]`, b: `[arguments, providers]` | the callee's result `T`. A bang call: a suspension point |
-| `AwaitValue` | a: a `Suspend[T]` value | `T`. `s!()` on a stored suspension: a suspension point |
+| `AwaitValue` | a: a `Suspend[T]` value, b: `[arguments, providers]` | `T`. `s!()` on a stored suspension: a suspension point |
 | `AwaitAll` | b: `[children]`, each `Suspend[X_i]` | `(X_1, ..., X_n)`. `join!`: one suspension point |
 | `AwaitRace` | a: a `List[Suspend[T]]` | `T`. `race!`: one suspension point |
 | `Hook` | a: `HookKind`, b: the instruction it observes | `void`; normal emission drops it |
@@ -1064,9 +1069,9 @@ The verifier checks each of these:
    one that source writes in a `defer` suite.
 7. Every suspension point's side record lists exactly the `Scope`s that
    enclose it.
-8. Every call to a callee with a row has providers for exactly its keys.
-   A `NONE` provider names a key that the enclosing sub-body's own row
-   holds.
+8. Every projected call key has checked borrowed provider evidence.
+   Identity entries use exact-key lookup; open tails use the invocation
+   context, never a trait search in the emitter.
 9. `CallHost` occurs only in std's provider bodies; an `Intrinsic` only
    where it is declared.
 10. A `Closure`'s captures name locals of its enclosing sub-bodies, and
@@ -1198,11 +1203,9 @@ Those test-only queries do not require a second checker-facing fact API.
     a map value read for a change. A changing parameter that owns its
     collection value is first read to be copied and stored back; a
     receiver borrowing collection storage changes that storage directly.
-- **8.** Every call writes `Providers::None` today, and codegen reads
-  providers from the callee's signature. So the check rejects a
-  `Pending` form after `finish`, and pairs whose count is not the
-  callee's closed row's key count. The `NONE`-provider half is not
-  checked.
+- **8.** The verifier rejects pending provider packets, malformed pair
+  ranges and providers of the wrong reference kind. Explicit pairs may
+  cover only projected keys: remaining keys retain exact lookup.
 - **9.** Std's provider bodies are generated in Wasm (`hd_wasm`), never
   TIR, so a `CallHost` in any TIR body is rejected. An `Intrinsic` must
   name a known `IntrinsicOp`.

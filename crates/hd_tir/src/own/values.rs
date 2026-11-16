@@ -1004,7 +1004,9 @@ pub(crate) fn forward(
         let (to, member) = (&mut t.to, b.tags[i] == Tag::Block);
         crate::ir::slots(b, i, |_, value, slot| {
             let named = match slot {
-                crate::ir::Word::Value(_) | crate::ir::Word::Provider => false,
+                crate::ir::Word::Value(_)
+                | crate::ir::Word::Provider
+                | crate::ir::Word::ProviderRef => false,
                 crate::ir::Word::Inst => !member,
                 crate::ir::Word::Block => true,
             };
@@ -1032,8 +1034,12 @@ pub(crate) fn forward(
     let mut writes = Vec::new();
     for i in 0..b.len() {
         crate::ir::slots(b, i, |at, value, slot| {
-            if matches!(slot, crate::ir::Word::Value(_) | crate::ir::Word::Provider)
-                && t.to.get(value as usize).is_some_and(|&w| w != NONE)
+            if matches!(
+                slot,
+                crate::ir::Word::Value(_)
+                    | crate::ir::Word::Provider
+                    | crate::ir::Word::ProviderRef
+            ) && t.to.get(value as usize).is_some_and(|&w| w != NONE)
             {
                 writes.push((i, at, resolve(&t.to, value)));
             }

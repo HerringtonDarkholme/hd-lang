@@ -382,7 +382,7 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
                 return memory;
             }
             match (b.tags[r], b.decode_place(b.data[r][0])) {
-                (Tag::Coerce, _) => v = b.data[r][0],
+                (Tag::Coerce, _) if b.row_adaptation(r).is_none() => v = b.data[r][0],
                 (Tag::Read, Some(p)) => match p.root {
                     PlaceRoot::Value(u) => {
                         memory |= in_memory(&p);

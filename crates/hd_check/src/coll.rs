@@ -51,6 +51,8 @@ impl Ck<'_, '_> {
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
             Tag::CallValue | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::Intrinsic => IntrinsicOp::from_u32(data[0]) == Some(IntrinsicOp::Item),
+            // A row adapter allocates its own closure environment.
+            Tag::Coerce if self.b.body().row_adaptation(i.0 as usize).is_some() => true,
             Tag::Coerce => self.is_fresh(Ref(data[0])),
             _ => false,
         }
@@ -97,7 +99,9 @@ impl Ck<'_, '_> {
                 continue;
             }
             match tag {
-                Tag::Coerce => cur = Ref(data[0]),
+                Tag::Coerce if self.b.body().row_adaptation(i.0 as usize).is_none() => {
+                    cur = Ref(data[0]);
+                }
                 Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                     return self.mut_locals.contains(&l);
                 }
@@ -132,7 +136,9 @@ impl Ck<'_, '_> {
                 continue;
             }
             match tag {
-                Tag::Coerce => cur = Ref(data[0]),
+                Tag::Coerce if self.b.body().row_adaptation(i.0 as usize).is_none() => {
+                    cur = Ref(data[0]);
+                }
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
                 Tag::Read => {
                     let (src, m, _) = self.read_through(cur)?;
@@ -163,7 +169,9 @@ impl Ck<'_, '_> {
                 continue;
             }
             match tag {
-                Tag::Coerce => cur = Ref(data[0]),
+                Tag::Coerce if self.b.body().row_adaptation(i.0 as usize).is_none() => {
+                    cur = Ref(data[0]);
+                }
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
                 Tag::Read => return self.b.body_mut().local_read(i.0 as usize),
                 _ => return None,

@@ -124,7 +124,7 @@ tags! {
     Coerce: Value, Record;
     // suspension and hooks
     Await: Record, Values;
-    AwaitValue: Value, None;
+    AwaitValue: Value, Values;
     AwaitAll: None, Values;
     AwaitRace: Value, None;
     Hook: Meta, Meta;
@@ -353,6 +353,10 @@ pub enum Coercion {
     /// The inverse of `RefAsProvider` at `$.use(K)`: the provider's payload
     /// read back as the trait value reference.
     ProviderAsRef,
+    /// A checked function-row wrapper. Evidence is an interned type list
+    /// of flat `(required key K, whole supplier H)` pairs, not SSA values.
+    /// Unlike `RowSubsume`, this allocates a new callable environment.
+    RowAdapt = 13,
 }
 
 /// A callee's choice: two words, a kind and a full 32-bit value.
@@ -440,13 +444,12 @@ impl Callee {
     }
 }
 
-/// Providers of a call: pairs, a context, or pending until M3 (3 words).
+/// Providers of a call: pairs or an explicit context (3 words).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Providers {
     None,
     Pairs(Range32),
     Context(Ref),
-    Pending { call: u32 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -1116,6 +1119,100 @@ impl Body {
                 })
     }
 
+    /// The explicit arguments of any call form. Dynamic calls retain their
+    /// method/type/evidence header; host calls have no provider footer.
+    /// Noncalls and empty argument records have no arguments.
+    #[must_use]
+    pub fn call_args(&self, i: usize) -> &[u32] {
+        let Some(&tag) = self.tags.get(i) else {
+            return &[];
+        };
+        if tag == Tag::CallHost {
+            return self.record(self.data[i][1]);
+        }
+        let Some(footer) = self.call_footer(i) else {
+            return &[];
+        };
+        let start = self.data[i][1] as usize + 1;
+        let start = if tag == Tag::CallDyn {
+            let Some(&evidence) = self.extra.get(start + 2) else {
+                return &[];
+            };
+            let Some(start) = start.checked_add(3 + evidence as usize) else {
+                return &[];
+            };
+            start
+        } else {
+            start
+        };
+        self.extra.get(start..footer).unwrap_or(&[])
+    }
+
+    /// The provider footer of any call form; noncalls and empty records
+    /// have none. Footer kinds and range words are metadata, not SSA values.
+    #[must_use]
+    pub fn call_providers(&self, i: usize) -> Providers {
+        let Some(at) = self.call_footer(i) else {
+            return Providers::None;
+        };
+        match self.extra.get(at..at + 3) {
+            Some(&[1, start, len]) => Providers::Pairs(Range32 { start, len }),
+            Some(&[2, value, _]) => Providers::Context(Ref(value)),
+            _ => Providers::None,
+        }
+    }
+
+    /// Replaces an existing call footer without changing argument records.
+    /// Returns false for a noncall or malformed call record.
+    pub fn set_call_providers(&mut self, i: usize, providers: Providers) -> bool {
+        let Some(at) = self.call_footer(i) else {
+            return false;
+        };
+        let words = match providers {
+            Providers::None => [0, 0, 0],
+            Providers::Pairs(range) => [1, range.start, range.len],
+            Providers::Context(value) => [2, value.0, 0],
+        };
+        self.extra[at..at + 3].copy_from_slice(&words);
+        true
+    }
+
+    /// The absolute `extra` position of the provider kind word.
+    pub(crate) fn call_footer(&self, i: usize) -> Option<usize> {
+        if !matches!(
+            self.tags.get(i)?,
+            Tag::Call
+                | Tag::Await
+                | Tag::CallValue
+                | Tag::AwaitValue
+                | Tag::DefaultCall
+                | Tag::CallDyn
+        ) {
+            return None;
+        }
+        let at = self.data.get(i)?[1] as usize;
+        let len = *self.extra.get(at)? as usize;
+        if len < 3 {
+            return None;
+        }
+        let end = at.checked_add(1)?.checked_add(len)?;
+        self.extra.get(at..end)?;
+        Some(end - 3)
+    }
+
+    /// The checked `(required key K, whole supplier H)` recipe of a row
+    /// adapter. The list's type words are metadata, never value operands.
+    #[must_use]
+    pub fn row_adaptation(&self, i: usize) -> Option<TyList> {
+        if self.tags.get(i) != Some(&Tag::Coerce) {
+            return None;
+        }
+        let at = self.data.get(i)?[1] as usize;
+        let record = self.extra.get(at..at.checked_add(3)?)?;
+        (record[0] == 2 && record[1] == Coercion::RowAdapt as u32 && record[2] != NONE)
+            .then_some(TyList(record[2]))
+    }
+
     /// Whether instruction `v` is a `ProviderAsRef` coercion of a
     /// `ProviderGet` (`$.use(K)`): a reference to a provider the body
     /// received, which its caller's scope holds for the whole body. It
@@ -1749,6 +1846,18 @@ impl TirBuilder {
         self.record(words)
     }
 
+    /// The common argument/footer record of a call. A dynamic call embeds
+    /// its contents after its method, type arguments and evidence header.
+    pub fn call_args_record(&mut self, args: &[Ref], prov: Providers) -> u32 {
+        let mut words = Self::refs(args);
+        words.extend(match prov {
+            Providers::None => [0, 0, 0],
+            Providers::Pairs(r) => [1, r.start, r.len],
+            Providers::Context(c) => [2, c.0, 0],
+        });
+        self.record(&words)
+    }
+
     /// A record of values or blocks in `extra` (the `Values`/`Blocks`
     /// operand of `If`, `CallHost` and others).
     pub fn refs_record(&mut self, refs: &[Ref]) -> u32 {
@@ -1951,14 +2060,7 @@ impl TirSink for TirBuilder {
         syn: NodeIdx,
     ) -> Ref {
         let c = self.record(&callee.words());
-        let mut w = Self::refs(args);
-        w.extend(match prov {
-            Providers::None => [0, 0, 0],
-            Providers::Pairs(r) => [1, r.start, r.len],
-            Providers::Context(c) => [2, c.0, 0],
-            Providers::Pending { call } => [3, call, 0],
-        });
-        let a = self.record(&w);
+        let a = self.call_args_record(args, prov);
         self.push(Tag::Call, c, a, ty, syn)
     }
     fn coerce(&mut self, kind: Coercion, evidence: u32, v: Ref, to: Ty, syn: NodeIdx) -> Ref {
@@ -2163,16 +2265,10 @@ pub fn verify_checked(b: &Body) -> Vec<VerifyError> {
             Tag::Intrinsic if IntrinsicOp::from_u32(a).is_none() => {
                 err(9, format!("unknown intrinsic {a}"));
             }
-            Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                if b.record(w).last().is_none_or(|d| *d == NONE) {
-                    err(11, format!("{} without a default", tag.name()));
-                }
-            }
-            Tag::Call | Tag::Await => {
-                let r = b.record(w);
-                if matches!(r[r.len().saturating_sub(3)..], [3, ..]) {
-                    err(8, "providers still pending".into());
-                }
+            Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
+                if b.record(w).last().is_none_or(|d| *d == NONE) =>
+            {
+                err(11, format!("{} without a default", tag.name()));
             }
             _ => {}
         }
@@ -2192,7 +2288,7 @@ pub use context::{VerifyCx, verify_in};
 /// through `list`: the instruction and local columns, the constants, and
 /// the types and type lists kept in records (callees, `ItemRef`,
 /// `DefaultCall`, instantiated closures, `ProviderGet`, `With` and
-/// `ContextNew`). The checker lowers reference types this way
+/// `ContextNew`, and `RowAdapt` evidence). The checker lowers reference types this way
 /// (`hd_check/src/refs.rs`).
 pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList) -> TyList) {
     for t in &mut b.ty {
@@ -2222,6 +2318,10 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
                     _ => {}
                 }
             }
+            Tag::Coerce if b.row_adaptation(i).is_some() => {
+                let at = w as usize + 2;
+                b.extra[at] = list(TyList(b.extra[at])).0;
+            }
             Tag::ProviderGet => {
                 let at = a as usize + 1;
                 b.extra[at] = ty(Ty(b.extra[at])).0;
@@ -2237,6 +2337,10 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
                 let at = w as usize + 1;
                 b.extra[at] = list(TyList(b.extra[at])).0;
             }
+            Tag::CallDyn => {
+                let at = w as usize + 2;
+                b.extra[at] = list(TyList(b.extra[at])).0;
+            }
             Tag::DefaultCall => {
                 let at = a as usize + 2;
                 b.extra[at] = list(TyList(b.extra[at])).0;
@@ -2247,6 +2351,17 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
             }
             _ => {}
         }
+    }
+    let mut keys = Vec::new();
+    for i in 0..b.len() {
+        if let Providers::Pairs(r) = b.call_providers(i) {
+            keys.extend((0..r.len).step_by(2).map(|k| (r.start + k) as usize));
+        }
+    }
+    keys.sort_stable();
+    keys.dedup();
+    for at in keys {
+        b.extra[at] = ty(Ty(b.extra[at])).0;
     }
     // A global root's type; instructions may share a place record, which
     // is mapped once.
@@ -2404,6 +2519,15 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
             errs.push(err(14, "reserved slot never filled".into()));
             continue;
         }
+        let call = matches!(
+            tag,
+            Tag::Call
+                | Tag::Await
+                | Tag::CallValue
+                | Tag::AwaitValue
+                | Tag::DefaultCall
+                | Tag::CallDyn
+        );
         for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
             match op {
                 Op::Inst if word >= n => {
@@ -2412,6 +2536,7 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
                 Op::Value if word != NONE && word & Ref::CONST_BIT == 0 && word >= i => {
                     errs.push(err(1, format!("value %{word} used before it is defined")));
                 }
+                Op::Values if call => {} // Arguments and providers are checked via slots below.
                 Op::Values => {
                     if (word as usize) >= b.extra.len() {
                         errs.push(err(1, "operand record out of range".into()));
@@ -2432,6 +2557,60 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
                 Op::Place => errs.extend(place_errors(b, i, word)),
                 _ => {}
             }
+        }
+        if call {
+            slots(b, i as usize, |loc, v, slot| {
+                if matches!(loc, Loc::Extra(_))
+                    && matches!(slot, Word::Value(_) | Word::Provider | Word::ProviderRef)
+                    && v != NONE
+                    && v & Ref::CONST_BIT == 0
+                    && v >= i
+                {
+                    errs.push(err(1, format!("value %{v} used before it is defined")));
+                }
+            });
+            // Empty synthetic records have no footer. Every nonempty call
+            // record carries the same three-word provider footer.
+            if w != NONE && b.extra.get(w as usize).is_some_and(|&n| n > 0) {
+                match b.call_footer(i as usize) {
+                    Some(at) => {
+                        let (kind, payload, len) = (b.extra[at], b.extra[at + 1], b.extra[at + 2]);
+                        let valid = match kind {
+                            0 => payload == 0 && len == 0,
+                            1 => {
+                                len % 2 == 0
+                                    && payload
+                                        .checked_add(len)
+                                        .is_some_and(|end| end as usize <= b.extra.len())
+                            }
+                            2 => len == 0,
+                            _ => false,
+                        };
+                        if !valid {
+                            errs.push(err(8, "malformed call provider footer".into()));
+                        }
+                        if tag == Tag::CallDyn {
+                            let start = w as usize + 1;
+                            if b.extra
+                                .get(start + 2)
+                                .is_none_or(|&count| start + 3 + count as usize > at)
+                            {
+                                errs.push(err(17, "malformed dynamic call header".into()));
+                            }
+                        }
+                    }
+                    None => errs.push(err(8, "missing call provider footer".into())),
+                }
+            }
+        }
+        if tag == Tag::Coerce
+            && b.extra.get(w as usize + 1) == Some(&(Coercion::RowAdapt as u32))
+            && b.row_adaptation(i as usize).is_none()
+        {
+            errs.push(err(
+                4,
+                "RowAdapt requires a two-word coercion record with type-list evidence".into(),
+            ));
         }
         if tag == Tag::Block {
             for &child in b.record(a) {
@@ -2498,13 +2677,13 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
             });
         }
         if matches!(tag, Tag::Call | Tag::Await) {
-            let args = call_args(b, i);
+            let args = b.call_args(i);
             for (k, &v) in args.iter().enumerate() {
                 let d = v as usize;
                 if v & Ref::CONST_BIT != 0 || b.tags.get(d) != Some(&Tag::DefaultCall) {
                     continue;
                 }
-                if b.record(b.data[d][1]) != &args[..k] {
+                if b.call_args(d) != &args[..k] {
                     errs.push(VerifyError {
                         invariant: 15,
                         inst: v,
@@ -2635,14 +2814,10 @@ fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
     out
 }
 
-/// A call's arguments: its value record without the three provider words.
-fn call_args(b: &Body, i: usize) -> &[u32] {
-    let r = b.record(b.data[i][1]);
-    &r[..r.len().saturating_sub(3)]
-}
-
 /// An instruction number or column length as the `u32` the columns hold.
-pub(crate) fn u32_of(i: usize) -> u32 {
+/// Converts a checked TIR column or record position to its encoded index.
+#[must_use]
+pub fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("insts")
 }
 
@@ -2748,7 +2923,9 @@ fn suspension_scopes(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
 /// The row's type against its position is invariant 4's.
 fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
     for i in 0..b.len() {
-        let mut rows = slot_words(b, i, |s| matches!(s, Word::Value(_) | Word::Provider));
+        let mut rows = slot_words(b, i, |s| {
+            matches!(s, Word::Value(_) | Word::Provider | Word::ProviderRef)
+        });
         rows.retain(|&v| v != NONE && v & Ref::CONST_BIT != 0);
         // A constant can fill two slots.
         rows.sort_stable();
@@ -3222,7 +3399,7 @@ mod tests {
 
     /// The checker's facts for the context checks: enum type 77 has three
     /// variants, builtin impl 3 answers trait 50, method 60 has two
-    /// bounds, and item 70's row has one key.
+    /// bounds, item 70's row has one key, and item 71's row has two.
     struct Facts;
 
     impl VerifyCx for Facts {
@@ -3236,7 +3413,11 @@ mod tests {
             (method == DefId::from_raw(60)).then_some(2)
         }
         fn row_keys(&self, callee: &Callee) -> Option<u32> {
-            matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(70)).then_some(1)
+            match callee {
+                Callee::Item { def, .. } if *def == DefId::from_raw(70) => Some(1),
+                Callee::Item { def, .. } if *def == DefId::from_raw(71) => Some(2),
+                _ => None,
+            }
         }
     }
 
@@ -3352,11 +3533,10 @@ mod tests {
 
     #[test]
     fn verifier_checks_provider_pairs_against_the_row() {
-        // 8: a call of item 70 with two provider pairs for its one key,
-        // and one still pending.
-        let call = |prov: [u32; 3]| {
+        // 8: projected pairs cover at most the row; lengths count words.
+        let call = |mut prov: [u32; 3], item| {
             let c = Callee::Item {
-                def: DefId::from_raw(70),
+                def: DefId::from_raw(item),
                 targs: TyList::EMPTY,
             };
             let mut b = sample();
@@ -3364,6 +3544,15 @@ mod tests {
             let ra = u32::try_from(b.extra.len()).expect("extra");
             b.extra.push(u32::try_from(words.len()).expect("len"));
             b.extra.extend_from_slice(&words);
+            if prov[0] == 1 {
+                prov[1] = u32::try_from(b.extra.len()).expect("extra");
+                b.extra.extend([
+                    Ty::I32.0,
+                    super::Ref::CONST_BIT,
+                    Ty::STRING.0,
+                    super::Ref::CONST_BIT,
+                ]);
+            }
             let rw = u32::try_from(b.extra.len()).expect("extra");
             b.extra.push(3);
             b.extra.extend_from_slice(&prov);
@@ -3376,10 +3565,13 @@ mod tests {
                 .filter(|e| e.invariant == 8)
                 .count()
         };
-        assert_eq!(call([1, 0, 2]), 1);
-        assert_eq!(call([1, 0, 1]), 0);
-        assert_eq!(call([3, 0, 0]), 1);
-        assert_eq!(call([0, 0, 0]), 0);
+        assert_eq!(call([1, 0, 4], 70), 1);
+        assert_eq!(call([1, 0, 2], 70), 0);
+        assert_eq!(call([1, 0, 2], 71), 0); // The other key uses exact lookup.
+        assert_eq!(call([1, 0, 0], 70), 0); // Identity-only keys need no explicit pair.
+        assert!(call([1, 0, 1], 70) > 0);
+        assert_eq!(call([3, 0, 0], 70), 1);
+        assert_eq!(call([0, 0, 0], 70), 0);
     }
 
     #[test]

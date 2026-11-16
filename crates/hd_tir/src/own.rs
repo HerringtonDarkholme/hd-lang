@@ -99,6 +99,7 @@ pub use retains::{provider_view, took_source};
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
+pub use splice::{BatchInsert, insert_batch};
 mod storage;
 mod temporaries;
 pub use storage::RecursiveBindings;
@@ -512,7 +513,7 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
                 };
                 Role::Arg((at - b.data[i][0] - 2) / 2)
             }
-            Word::Provider => Role::Lend,
+            Word::Provider | Word::ProviderRef => Role::Lend,
             Word::Block | Word::Inst => return,
         };
         if Ref(value).as_inst().is_some() && (value as usize) < b.len() {
@@ -759,12 +760,11 @@ pub fn kept_args(b: &Body, cx: &dyn OwnCx, out: &mut Vec<(u32, u32)>) {
 /// Whether call `i` (a `Call` or `CallValue`) may keep its
 /// argument `k` past it, as [`kept_args`] lists it.
 pub(crate) fn keeps_arg(b: &Body, cx: &dyn OwnCx, i: usize, k: u32) -> bool {
-    let [a, w] = b.data[i];
     if b.tags[i] != Tag::Call {
         return true;
     }
-    let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
-    Callee::from_words(b.record(a)).is_none_or(|c| cx.keeps(&c, k as usize, n.saturating_sub(3)))
+    Callee::from_words(b.record(b.data[i][0]))
+        .is_none_or(|c| cx.keeps(&c, k as usize, b.call_args(i).len()))
 }
 
 pub(crate) fn argument_lends_counts(b: &Body, cx: &dyn OwnCx, i: usize, op: &Operand) -> bool {
@@ -779,7 +779,7 @@ pub(crate) fn argument_lends_counts(b: &Body, cx: &dyn OwnCx, i: usize, op: &Ope
         Some(value) => b.ty[value.0 as usize],
         None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
     };
-    cx.function_lends_counts(ty, k as usize, b.record(b.data[i][1]).len())
+    cx.function_lends_counts(ty, k as usize, b.call_args(i).len())
 }
 
 /// Consuming native components need not end the carrier's borrowed count
@@ -820,8 +820,8 @@ fn consumes_operand(
         }
         Role::Tail => owner == NONE || owner_takes_tail(b, owner, u32::try_from(i).expect("insts")),
         Role::Arg(k) => {
-            let [a, w] = b.data[i];
-            let n = b.extra.get(w as usize).copied().unwrap_or(0) as usize;
+            let a = b.data[i][0];
+            let n = b.call_args(i).len();
             match b.tags[i] {
                 Tag::Call | Tag::Await => {
                     let Some(callee) = Callee::from_words(b.record(a)) else {
@@ -829,15 +829,14 @@ fn consumes_operand(
                     };
                     // A default argument's body reads the earlier arguments
                     // themselves (invariant 15), so the call lends those.
-                    let args = &b.record(w)[..n.saturating_sub(3)];
+                    let args = b.call_args(i);
                     let read_by_default = check_defaults
                         && args.iter().any(|&d| {
                             Ref(d).as_inst().is_some()
                                 && b.tags.get(d as usize) == Some(&Tag::DefaultCall)
-                                && b.record(b.data[d as usize][1]).contains(&op.value)
+                                && b.call_args(d as usize).contains(&op.value)
                         });
-                    !read_by_default
-                        && cx.pass(&callee, k as usize, n.saturating_sub(3)) == Pass::Owned
+                    !read_by_default && cx.pass(&callee, k as usize, n) == Pass::Owned
                 }
                 Tag::ContextNew => b
                     .record(a)
@@ -1221,8 +1220,7 @@ pub fn exclusive_call(b: &Body, call: usize, relies: u64, own: u64) -> bool {
         let p = (b.tags[i] == Tag::Read).then(|| b.view(b.data[i][0]))?;
         if p.whole() { p.local() } else { None }
     };
-    let words = b.record(b.data[call][1]);
-    let args = &words[..words.len().saturating_sub(3)];
+    let args = b.call_args(call);
     (0..64).filter(|k| relies & (1 << k) != 0).all(|k| {
         let Some(i) = args
             .get(k)
@@ -1382,8 +1380,7 @@ impl<'a> AllocationOrigins<'a> {
     }
 
     fn call_args(&self, i: usize) -> &[u32] {
-        let words = self.body.record(self.body.data[i][1]);
-        &words[..words.len().saturating_sub(3)]
+        self.body.call_args(i)
     }
 
     fn owns_pointer_place(&mut self, word: u32, before: usize) -> bool {
@@ -1502,7 +1499,7 @@ impl<'a> AllocationOrigins<'a> {
             {
                 self.derived(self.body.record(w).to_vec())
             }
-            Tag::Coerce => self.value(a),
+            Tag::Coerce if self.body.row_adaptation(i).is_none() => self.value(a),
             Tag::NewStruct | Tag::NewTuple | Tag::CopyStruct => self
                 .body
                 .value_operands(i)
@@ -1700,8 +1697,8 @@ impl<'a> WriteEffects<'a> {
             if b.tags[i] == Tag::Call {
                 if let Some(callee) = Callee::from_words(b.record(a)) {
                     if cx.call_memory(&callee) == CallMemory::None {
-                        let arguments = b.record(b.data[i][1]);
-                        let arguments = arguments[..arguments.len().saturating_sub(3)]
+                        let arguments = b
+                            .call_args(i)
                             .iter()
                             .take(64)
                             .map(|&value| self.places.reference_source(value))

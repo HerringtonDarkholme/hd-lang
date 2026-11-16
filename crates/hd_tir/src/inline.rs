@@ -27,6 +27,9 @@ pub use closures::{called_parameters, inline_local_closures, literal_arguments};
 /// still contain an omitted argument's `DefaultCall`.
 #[must_use]
 pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
+    if b.call_providers(i) != crate::ir::Providers::None {
+        return None;
+    }
     if b.tags[i] == Tag::DefaultCall {
         let [def, targs] = b.record(b.data[i][0]) else {
             return None;
@@ -39,23 +42,13 @@ pub fn known_call(b: &Body, i: usize) -> Option<Callee> {
     if b.tags[i] != Tag::Call {
         return None;
     }
-    let r = b.record(b.data[i][1]);
-    let (_, prov) = r.split_at(r.len().checked_sub(3)?);
-    if prov[0] != 0 {
-        return None;
-    }
     Callee::from_words(b.record(b.data[i][0]))
 }
 
-/// Arguments of a known call. Default calls have no provider trailer.
+/// Arguments of any call, excluding its provider footer and dynamic header.
 #[must_use]
 pub fn arguments(b: &Body, i: usize) -> &[u32] {
-    let r = b.record(b.data[i][1]);
-    if matches!(b.tags[i], Tag::DefaultCall | Tag::CallValue) {
-        r
-    } else {
-        &r[..r.len().saturating_sub(3)]
-    }
+    b.call_args(i)
 }
 
 /// The callee of call `i` under the ordinary inlining rule: a
@@ -161,7 +154,10 @@ pub fn inlinable(c: &Body, limit: usize) -> bool {
             Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
         ) {
             slots(c, i, |_, _, word| {
-                if matches!(word, Word::Value(Role::Arg(_)) | Word::Provider) {
+                if matches!(
+                    word,
+                    Word::Value(Role::Arg(_)) | Word::Provider | Word::ProviderRef
+                ) {
                     size += 1;
                 }
             });
@@ -245,11 +241,7 @@ fn inline_bound_calls(
     sites: Vec<(Site, Vec<(u32, u32)>)>,
 ) -> Result<Vec<bool>, String> {
     let mut copied = vec![false; sites.len()];
-    let refused = |i: usize| {
-        let kind = || b.record(b.data[i][1]).iter().rev().nth(2).copied();
-        matches!(b.tags[i], Tag::Call | Tag::Await) && kind().is_some_and(|p| p > 2)
-    };
-    if sites.is_empty() || (0..b.len()).any(refused) {
+    if sites.is_empty() {
         return Ok(copied);
     }
     // Each instruction's block, the first that lists it.
@@ -799,6 +791,19 @@ fn relocate(
     label: u32,
     environment: &[(u32, u32)],
 ) {
+    let mut pairs = Vec::new();
+    for i in 0..k.len() {
+        if let Some(footer) = k.call_footer(i)
+            && matches!(k.call_providers(i), crate::ir::Providers::Pairs(r) if r.len > 0)
+        {
+            pairs.push(footer + 1);
+        }
+    }
+    pairs.sort_stable();
+    pairs.dedup();
+    for at in pairs {
+        k.extra[at] += xbase;
+    }
     let mut places = Vec::new();
     for i in 0..k.len() {
         let (oa, ob) = k.tags[i].operands();
@@ -1460,7 +1465,7 @@ mod tests {
             let target = caller.refs_record(&[Ref(3), Ref(TyList::EMPTY.0)]);
             let mut args = vec![text; entries as usize];
             *args.last_mut().expect("at least four arguments") = effect;
-            let earlier = caller.refs_record(&args);
+            let earlier = caller.call_args_record(&args, Providers::None);
             let call = caller.emit(Tag::DefaultCall, target, earlier, Ty::STRING, N);
             let root = caller.close_block(block, Some(call), Ty::STRING, N);
             let mut body = caller.finish(root, &[]).expect("caller verifies");

@@ -201,7 +201,7 @@ fn returned_ends_with(
     }
     for &(i, k) in &candidates {
         visit();
-        let Some(&arg) = b.record(b.data[i][1]).get(k) else {
+        let Some(&arg) = b.call_args(i).get(k) else {
             continue;
         };
         let Some(source) = Ref(arg).as_inst().map(|r| r.0 as usize) else {
@@ -260,7 +260,7 @@ fn returned_ends_with(
             owned[i] = false;
             continue;
         }
-        let Some(&arg) = b.record(b.data[i][1]).get(k) else {
+        let Some(&arg) = b.call_args(i).get(k) else {
             continue;
         };
         let Some(next) = next_after(b, topo, i) else {
@@ -355,13 +355,7 @@ fn returned_lending_use(b: &Body, cx: &dyn OwnCx, i: usize, op: &super::Operand)
     match op.role {
         super::Role::Lend | super::Role::Dropped => true,
         super::Role::Arg(k) if b.tags[i] == Tag::Call => Callee::from_words(b.record(b.data[i][0]))
-            .is_some_and(|c| {
-                cx.pass(
-                    &c,
-                    k as usize,
-                    b.record(b.data[i][1]).len().saturating_sub(3),
-                ) == super::Pass::Lent
-            }),
+            .is_some_and(|c| cx.pass(&c, k as usize, b.call_args(i).len()) == super::Pass::Lent),
         _ => false,
     }
 }
@@ -481,7 +475,7 @@ fn owns_its_count(b: &Body, cx: &dyn OwnCx, results: &[bool], v: u32, depth: u32
             .is_none_or(|c| cx.returned_loan(&c).is_none()),
         Tag::CallValue => true,
         // A result that takes a count, stated or its source's.
-        Tag::Coerce if result(b, cx, i) => true,
+        Tag::Coerce if b.row_adaptation(i).is_some() || result(b, cx, i) => true,
         Tag::Coerce => {
             b.same_value_coercion(i) && owns_its_count(b, cx, results, b.data[i][0], depth - 1)
         }

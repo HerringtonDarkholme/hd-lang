@@ -80,7 +80,7 @@
     local.get $u.name.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 196 ;; &vtable[func44, func45]
+    i32.const 196 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
   )
   (func $local_mut (param $u.name.0 i32) (param $u.name.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32) (local $v i32) (local $t0 i32)
     ;; 34 |     let mut v = u
@@ -127,7 +127,7 @@
     i32.store $heap offset=4
     local.get $v
     ;; 35 |     through_mut(&mut v, n)
-    i32.const 196 ;; &vtable[func44, func45]
+    i32.const 196 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
     local.get $n.0
     local.get $n.1
     call $through_mut

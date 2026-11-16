@@ -47,6 +47,9 @@ pub enum Word {
     /// `own::operands` gives constructor entries argument roles; calls
     /// and lexical scopes borrow their providers.
     Provider,
+    /// A call's checked `(key type, borrowed FnDyn)` supplier. It lends
+    /// the callable; unlike `ContextNew` providers it never transfers a count.
+    ProviderRef,
     /// A block the instruction runs.
     Block,
     /// An instruction that is no operand value: a block's statement, the
@@ -65,8 +68,6 @@ enum Layout {
     Place(Role),
     /// A record, each word the same: values, blocks or statements.
     Each(Word),
-    /// A record of arguments.
-    Args,
     /// A call's record: its arguments, then three provider words: none
     /// (0), `(key, value)` pairs in an `extra` range (1), or a context
     /// value (2).
@@ -103,9 +104,10 @@ fn layout(tag: Tag) -> [Layout; 2] {
         Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
-        Tag::Call | Tag::Await => [a, L::Call],
+        Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {
+            [a, L::Call]
+        }
         Tag::CallDyn => [a, L::DynCall],
-        Tag::CallValue => [a, L::Args],
         Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::NewList => [a, L::Each(consume)],
         Tag::NewTuple => [L::One(consume), L::Each(consume)],
         Tag::CopyStruct => [a, L::Pairs(consume)],
@@ -130,8 +132,9 @@ pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
     if tag == Tag::Return && b.data[i][1] == super::return_word::BORROWED {
         layouts[0] = L::One(Word::Value(Role::Lend));
     }
-    // A coercion that keeps its operand's values takes its count.
-    if b.same_value_coercion(i) {
+    // Same-value coercions transfer the count; a row adapter owns its
+    // original callable in its new environment. Its evidence is opaque.
+    if b.same_value_coercion(i) || b.row_adaptation(i).is_some() {
         layouts[0] = L::One(Word::Value(Role::Consume));
     }
     for k in if tag == Tag::NewTuple { [1, 0] } else { [0, 1] } {
@@ -180,39 +183,25 @@ pub fn slots(b: &Body, i: usize, mut f: impl FnMut(Loc, u32, Word)) {
                     put(rec + x, Word::Value(role));
                 }
             }
-            L::DynCall => {
-                // `[method, type arguments, evidence count, evidence...,
-                // arguments, providers]`.
-                let evidence = at(rec + 2).min(n.saturating_sub(6));
-                (0..evidence).for_each(|x| put(rec + 3 + x, Word::Value(Role::Lend)));
-                let args = n.saturating_sub(6 + evidence);
-                (0..args).for_each(|x| {
-                    put(rec + 3 + evidence + x, Word::Value(Role::Arg(x)));
-                });
-                let p = rec + n.saturating_sub(3);
-                match at(p) {
-                    1 => (1..at(p + 2))
-                        .step_by(2)
-                        .for_each(|y| put(at(p + 1) + y, Word::Provider)),
-                    2 => put(p + 1, Word::Provider),
-                    _ => {}
-                }
-            }
-            L::Args | L::Call => {
-                let args = if layouts[k] == L::Call {
-                    n.saturating_sub(3)
+            L::DynCall | L::Call => {
+                let head = if layouts[k] == L::DynCall {
+                    let evidence = at(rec + 2).min(n.saturating_sub(6));
+                    (0..evidence).for_each(|x| put(rec + 3 + x, Word::Value(Role::Lend)));
+                    3 + evidence
                 } else {
-                    n
+                    0
                 };
-                (0..args).for_each(|x| put(rec + x, Word::Value(Role::Arg(x))));
-                let p = rec + args;
-                match at(p) {
-                    _ if layouts[k] == L::Args || n < 3 => {}
-                    1 => (1..at(p + 2))
-                        .step_by(2)
-                        .for_each(|y| put(at(p + 1) + y, Word::Provider)),
-                    2 => put(p + 1, Word::Provider),
-                    _ => {}
+                let args = super::u32_of(b.call_args(i).len());
+                (0..args).for_each(|x| put(rec + head + x, Word::Value(Role::Arg(x))));
+                if let Some(p) = b.call_footer(i) {
+                    let p = super::u32_of(p);
+                    match b.call_providers(i) {
+                        super::Providers::Pairs(r) => (1..r.len)
+                            .step_by(2)
+                            .for_each(|y| put(r.start + y, Word::ProviderRef)),
+                        super::Providers::Context(_) => put(p + 1, Word::Provider),
+                        super::Providers::None => {}
+                    }
                 }
             }
         }

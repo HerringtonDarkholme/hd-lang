@@ -1124,6 +1124,8 @@ fn vtable_hash((slots, parents, drives): &VTable) -> Hash128 {
 
 /// The module under construction.
 pub struct Module {
+    /// Instantiated whole-key vtable graph, once per supplier (never per K).
+    pub(crate) row_key_graphs: hd_base::HashMap<hd_types::Ty, hd_mono::dyn_graph::DynPaths>,
     pub track_origins: bool,
     #[cfg(feature = "checked-report")]
     pub count_audit: bool,
@@ -1303,6 +1305,7 @@ pub struct Module {
 impl Module {
     pub fn new(runtime: &crate::Runtime) -> Self {
         Self {
+            row_key_graphs: hd_base::HashMap::default(),
             track_origins: Default::default(),
             #[cfg(feature = "checked-report")]
             count_audit: Default::default(),

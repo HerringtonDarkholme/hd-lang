@@ -1066,7 +1066,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let t = self.adt(self.std("Facts"), &[]);
         let targs = self.facts_args(def);
         let a = self.b.refs_record(&[Ref(def.raw()), Ref(targs.0)]);
-        let earlier = self.b.refs_record(&[]);
+        let earlier = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
         self.b.emit(Tag::DefaultCall, a, earlier, t, SYN)
     }
 
@@ -1708,7 +1708,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         // ruled out: checker defaults belong to ADTs; tuple/union_target set none.
         let (_, args) = self.names.pool.adt_parts(self.target);
         let a = self.b.refs_record(&[Ref(body.raw()), Ref(args.0)]);
-        let bw = self.b.refs_record(&[]);
+        let bw = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
         self.b.emit(Tag::DefaultCall, a, bw, t, SYN)
     }
 

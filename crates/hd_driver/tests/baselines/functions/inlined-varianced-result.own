@@ -55,7 +55,7 @@ fn use_view(value: *i32) -> i32:
 >     uses $0: entry -> %6 lend, %10 lend last
 >   %0 = Release %14 Exit local $0 #2 : ()
     view()(value) + control()(value)
->   %1 = ItemRef #31 [..] : fn(&i32) -> i32
+>   %1 = ItemRef #37 [..] : fn(&i32) -> i32
 >   %2 = Coerce %1 [Weaken -] : fn(*i32) -> i32
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : fn(*i32) -> i32
@@ -84,12 +84,12 @@ fn use_early_view(first: bool, value: *i32) -> i32:
 >   %1 = Read copy [$0] : bool
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read copy [$2] : bool
->   %4 = ItemRef #16 [..] : fn(&i32) -> i32
+>   %4 = ItemRef #19 [..] : fn(&i32) -> i32
 >   %5 = Coerce %4 [Weaken -] : fn(*i32) -> i32
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : never
 >   %8 = If %3 [%7 -] : ()
->   %9 = ItemRef #30 [..] : fn(&i32) -> i32
+>   %9 = ItemRef #33 [..] : fn(&i32) -> i32
 >   %10 = Coerce %9 [Weaken -] : fn(*i32) -> i32
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : fn(*i32) -> i32

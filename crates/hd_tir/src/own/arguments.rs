@@ -20,7 +20,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             Some(v) => b.ty[v.0 as usize],
             None => b.consts[(callee.0 & !Ref::CONST_BIT) as usize].0,
         };
-        let n = b.record(b.data[i][1]).len();
+        let n = b.call_args(i).len();
         if cx.function_spreads_arguments(ty, n) {
             out.push((
                 Tag::Retain,
@@ -103,7 +103,7 @@ mod tests {
             b.get(l, ty, NodeIdx::NONE)
         };
         let arg = b.const_value(Ty::I32, 0);
-        let args = b.refs_record(&vec![arg; n]);
+        let args = b.call_args_record(&vec![arg; n], crate::ir::Providers::None);
         b.emit(Tag::CallValue, callee.0, args, Ty::I32, NodeIdx::NONE);
         let root = b.close_block(block, None, Ty::VOID, NodeIdx::NONE);
         let mut b = b.finish(root, &[]).unwrap();

@@ -175,7 +175,7 @@
           end
         end
         local.get $s.0
-        i32.const 388 ;; &vtable[func93]
+        i32.const 388 ;; &vtable[rt:dyn_read]
         local.set $pending
         local.tee $s.0
     ;; 43 |         tagged()

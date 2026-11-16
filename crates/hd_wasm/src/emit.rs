@@ -59,6 +59,7 @@ pub use promote::{lent_referent, promotable_referent, rooted_referent};
 mod parameter_uses;
 pub(crate) mod ref_slots;
 mod refs;
+mod row;
 mod scope;
 mod shape;
 mod susp;
@@ -1426,6 +1427,8 @@ struct Em<'i, 'a, 'm> {
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
     providers: Vec<(Ty, [u32; 2])>,
+    /// Checked whole-key provider operand index, built once per call.
+    call_provider_pairs: HashMap<u32, HashMap<Ty, u32>>,
     /// Scoped provider locals whose final owner may move to a tail context.
     provider_owners: HashMap<[u32; 2], (u32, u32)>,
     /// Exact tail call for each verified scoped provider candidate.
@@ -1733,6 +1736,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             short_holders: hd_base::HashSet::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
+            call_provider_pairs: HashMap::default(),
             provider_owners: HashMap::default(),
             provider_transfer_calls: std::sync::Arc::clone(&facts.transfers),
             rows: std::sync::Arc::clone(&facts.rows[sub as usize]),
@@ -2761,6 +2765,7 @@ impl Em<'_, '_, '_> {
                         // operand's count, or none of a borrow.
                         self.same_value(i, a)?;
                     }
+                    k if k == Coercion::RowAdapt as u32 => self.row_adapt(i, a)?,
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
                     }
@@ -2996,7 +3001,7 @@ impl Em<'_, '_, '_> {
                 self.store_owned(i)?;
             }
             Tag::CallValue => {
-                let args = self.rec(bw);
+                let args = self.b.call_args(i as usize).to_vec();
                 self.call_value(i, a, &args)?;
             }
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace => {
@@ -3389,7 +3394,12 @@ impl Em<'_, '_, '_> {
             at += vs.len();
         }
         // ruled out: check_args rejects surplus spread components.
-        assert_eq!(at, flat.len());
+        assert_eq!(
+            at,
+            flat.len(),
+            "{} %{i}: params={params:?}, args={args:?}",
+            (self.input.path)(self.b.item)
+        );
         for r in args {
             self.push(*r)?;
         }
@@ -3443,7 +3453,7 @@ impl Em<'_, '_, '_> {
                 self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
             }
         }
-        let c = self.push_call_providers(i, ct.item, ct.args);
+        let c = self.push_call_providers(i, ct.item, ct.args)?;
         if let Some(d) = &dest {
             self.push_dest(d);
         }
@@ -3478,9 +3488,8 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        let mut args = self.rec(bw);
-        args.truncate(args.len().saturating_sub(3));
+    fn call(&mut self, i: u32, a: u32, _bw: u32) -> StageResult<()> {
+        let args = self.b.call_args(i as usize).to_vec();
         if self.string_slice_comparisons.contains_key(&i) {
             // `string.slice(self, start, end)`.
             return self.compared_str_slice(i, args[0], args[1], args[2]);
@@ -3612,7 +3621,7 @@ impl Em<'_, '_, '_> {
         self.f.origin_at = origin;
         self.f.i32(0);
         self.push_cold_args(i, args, target.item, target.args, None)?;
-        let context = self.push_call_providers(i, target.item, target.args);
+        let context = self.push_call_providers(i, target.item, target.args)?;
         self.f.call(Sym::Part(target.key, Part::Body));
         self.f.set(frame);
         for value in values.iter().rev() {
@@ -3744,7 +3753,7 @@ impl Em<'_, '_, '_> {
         }
         let c = if takes_ctx {
             params.push(Val::I32);
-            self.push_dyn_ctx(i, method, targs)
+            self.push_dyn_ctx(i, method, targs)?
         } else {
             None
         };
@@ -3785,7 +3794,7 @@ impl Em<'_, '_, '_> {
 
     /// An omitted argument: its default body's instance, called with the
     /// earlier arguments, or a constant default inlined.
-    fn default_call(&mut self, i: u32, bw: u32) -> StageResult<()> {
+    fn default_call(&mut self, i: u32, _bw: u32) -> StageResult<()> {
         let target = self.calls.get(&i).cloned();
         // A default body that is one constant, as a literal's.
         if let Some(Target::ConstDefault(bits)) = target {
@@ -3806,11 +3815,11 @@ impl Em<'_, '_, '_> {
         // ConstDefault or its default body's actual instance and flags.
         assert!(target.is_some());
         let (call, bracket, owned) = target.as_slice()[0].clone();
-        let args = self.rec(bw);
+        let args = self.b.call_args(i as usize).to_vec();
         let params = self.param_tys(call.key, call.item, call.args);
         let lends = self.env().lends(call.item, call.args);
         self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
-        let c = self.push_call_providers(i, call.item, call.args);
+        let c = self.push_call_providers(i, call.item, call.args)?;
         if bracket {
             self.forbid_by(1);
         }

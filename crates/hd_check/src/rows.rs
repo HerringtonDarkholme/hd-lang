@@ -114,37 +114,49 @@ pub(crate) fn supertrait_keys(
     })
 }
 
+/// The whole-argument index of a key's strict superkeys, shared by all
+/// bodies and lexical scopes. The builder runs only once per whole key.
+pub(crate) fn supertrait_key_index(
+    cx: &BodyCx<'_>,
+    pool: hd_types::Types<'_>,
+    have: Ty,
+) -> std::sync::Arc<hd_types::solver::SupertraitKeyIndex> {
+    cx.global.supertrait_key_index(have, pool, || {
+        let mut index: hd_types::solver::SupertraitKeyIndex = hd_base::HashMap::default();
+        for &key in supertrait_keys(cx, pool, have).iter() {
+            if let TyData::TraitValue { def, args, .. } = pool.get(key) {
+                crate::work::scan_work(1);
+                index.entry((def, args)).or_default().push(key);
+            }
+        }
+        index
+    })
+}
+
 /// Whether `inst`, the listed key `have` itself or one of its
 /// [`supertrait_keys`], is the needed key `want`: the same trait and
 /// arguments (`req.row.entail.super.arguments`), and each binding `want`
 /// writes fixed so by `inst` (`req.key.binding.identity`). The listed key
 /// itself also fits a key that binds nothing.
-fn key_is(pool: hd_types::Types<'_>, have: Ty, inst: Ty, want: Ty) -> bool {
+pub(crate) fn key_is(pool: hd_types::Types<'_>, have: Ty, inst: Ty, want: Ty) -> bool {
     if inst == want {
         return true;
     }
-    let (
-        TyData::TraitValue {
-            def: d1,
-            args: a1,
-            bindings: b1,
-        },
-        TyData::TraitValue {
-            def: d2,
-            args: a2,
-            bindings: b2,
-        },
-    ) = (pool.get(inst), pool.get(want))
-    else {
+    if pool.trait_value(inst) != pool.trait_value(want) || pool.trait_value(inst).is_none() {
+        return false;
+    }
+    let (Some(have_bindings), Some(mut want_bindings)) = (
+        pool.trait_value_bindings(inst),
+        pool.trait_value_bindings(want),
+    ) else {
         return false;
     };
-    if d1 != d2 || a1 != a2 {
-        return false;
-    }
     if inst == have {
-        return b1.is_empty() || b2.is_empty() || b1 == b2;
+        return have_bindings.len() == 0
+            || want_bindings.len() == 0
+            || have_bindings.eq(want_bindings);
     }
-    b2.iter().all(|b| b1.contains(b))
+    want_bindings.all(|(name, ty)| pool.trait_value_binding(inst, name) == Some(ty))
 }
 
 /// Whether the listed key `have` supplies the needed key `want`: the same
@@ -172,13 +184,92 @@ pub(crate) fn key_supplies(cx: &BodyCx<'_>, pool: hd_types::Types<'_>, have: Ty,
 /// Cost: one memo ask per key to build, and for an indexed row one entry
 /// per supertrait key; then one probe and the candidates' comparisons per
 /// question, where asking each key would compare all its supertrait keys.
+/// Ordered candidates, narrowed by the least-populated requested binding.
+/// Like rustc's typed impl buckets, this filters before checking candidates.
+#[derive(Default)]
+pub(crate) struct KeyCandidates {
+    values: Vec<(Ty, Ty)>,
+    bindings: hd_base::HashMap<(hd_base::DefId, Ty), Vec<Ty>>,
+    groups: hd_base::HashMap<Ty, (usize, Option<usize>)>,
+    direct: Option<Ty>,
+    plain: Option<usize>,
+}
+
+impl KeyCandidates {
+    fn push(&mut self, pool: hd_types::Types<'_>, have: Ty, inst: Ty) {
+        let at = self.values.len();
+        self.values.push((have, inst));
+        let Some(bindings) = pool.trait_value_bindings(inst) else {
+            return;
+        };
+        if have == inst {
+            self.direct.get_or_insert(have);
+            if bindings.len() == 0 {
+                self.plain.get_or_insert(at);
+            }
+        }
+        if let Some(group) = self.groups.get_mut(&inst) {
+            if have != inst {
+                group.1.get_or_insert(at);
+            }
+            return;
+        }
+        self.groups.insert(inst, (at, (have != inst).then_some(at)));
+        // A shared superkey's binding facts are indexed once, not per H.
+        for binding in bindings {
+            crate::work::scan_work(1);
+            self.bindings.entry(binding).or_default().push(inst);
+        }
+    }
+
+    fn supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
+        if let Some(&(have, inst)) = self.values.first() {
+            crate::work::scan_work(1);
+            if key_is(pool, have, inst, want) {
+                return Some(have);
+            }
+        }
+        let bindings = pool.trait_value_bindings(want)?;
+        if bindings.len() == 0 {
+            return None;
+        }
+        let mut best = self.plain;
+        let mut smallest: Option<&[Ty]> = None;
+        for binding in bindings {
+            crate::work::scan_work(1);
+            let Some(keys) = self.bindings.get(&binding) else {
+                return best.map(|at| self.values[at].0);
+            };
+            if smallest.is_none_or(|old| keys.len() < old.len()) {
+                smallest = Some(keys);
+            }
+        }
+        for &inst in smallest.unwrap_or(&[]) {
+            let (first, projected) = self.groups[&inst];
+            // Groups occur in first-value order; no later group can beat best.
+            if best.is_some_and(|at| at <= first) {
+                break;
+            }
+            let Some(at) = (inst == want).then_some(first).or(projected) else {
+                continue;
+            };
+            let have = self.values[at].0;
+            crate::work::scan_work(1);
+            if key_is(pool, have, inst, want) && best.is_none_or(|old| at < old) {
+                best = Some(at);
+            }
+        }
+        best.map(|at| self.values[at].0)
+    }
+}
+
 pub(crate) enum KeyIndex {
-    Small(Vec<(Ty, std::sync::Arc<[Ty]>)>),
+    Small(Vec<(Ty, std::sync::Arc<hd_types::solver::SupertraitKeyIndex>)>),
     Indexed {
         all: hd_base::HashSet<Ty>,
         /// Under each trait, the listed keys that are or supply a key of
         /// it, each with that key, in the row's order.
-        by_trait: hd_base::HashMap<hd_base::DefId, Vec<(Ty, Ty)>>,
+        by_trait: hd_base::HashMap<(hd_base::DefId, hd_types::TyList), KeyCandidates>,
     },
 }
 
@@ -191,19 +282,19 @@ impl KeyIndex {
         if keys.len() <= Self::SMALL {
             return Self::Small(
                 keys.iter()
-                    .map(|&h| (h, supertrait_keys(cx, pool, h)))
+                    .map(|&h| (h, supertrait_key_index(cx, pool, h)))
                     .collect(),
             );
         }
         let mut all = hd_base::HashSet::default();
-        let mut by_trait: hd_base::HashMap<hd_base::DefId, Vec<(Ty, Ty)>> =
+        let mut by_trait: hd_base::HashMap<(hd_base::DefId, hd_types::TyList), KeyCandidates> =
             hd_base::HashMap::default();
         for &h in keys {
             all.insert(h);
             for &inst in std::iter::once(&h).chain(supertrait_keys(cx, pool, h).iter()) {
-                if let TyData::TraitValue { def, .. } = pool.get(inst) {
+                if let TyData::TraitValue { def, args, .. } = pool.get(inst) {
                     crate::work::scan_work(1);
-                    by_trait.entry(def).or_default().push((h, inst));
+                    by_trait.entry((def, args)).or_default().push(pool, h, inst);
                 }
             }
         }
@@ -213,24 +304,57 @@ impl KeyIndex {
     /// The first key, in the row's order, that supplies `want`.
     pub(crate) fn supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
         match self {
-            Self::Small(keys) => {
-                crate::work::scan_work(keys.len());
-                keys.iter()
-                    .find(|(h, supers)| {
-                        key_is(pool, *h, *h, want)
-                            || supers.iter().any(|&s| key_is(pool, *h, s, want))
-                    })
-                    .map(|(h, _)| *h)
-            }
+            Self::Small(keys) => keys
+                .iter()
+                .find(|(h, supers)| {
+                    crate::work::scan_work(1);
+                    key_is(pool, *h, *h, want)
+                        || match pool.get(want) {
+                            TyData::TraitValue { def, args, .. } => {
+                                supers.get(&(def, args)).is_some_and(|keys| {
+                                    keys.iter().any(|&s| {
+                                        crate::work::scan_work(1);
+                                        key_is(pool, *h, s, want)
+                                    })
+                                })
+                            }
+                            _ => false,
+                        }
+                })
+                .map(|(h, _)| *h),
             Self::Indexed { all, by_trait } => match pool.get(want) {
-                TyData::TraitValue { def, .. } => by_trait.get(&def).and_then(|held| {
-                    crate::work::scan_work(held.len());
-                    held.iter()
-                        .find(|(h, inst)| key_is(pool, *h, *inst, want))
-                        .map(|(h, _)| *h)
-                }),
+                TyData::TraitValue { def, args, .. } => by_trait
+                    .get(&(def, args))
+                    .and_then(|held| held.supplier(pool, want)),
                 _ => all.contains(&want).then_some(want),
             },
+        }
+    }
+
+    /// A key explicitly listed for this trait instance, not supplied by
+    /// another trait. Exact lexical bindings keep their identity even when
+    /// a nearer scope binds a subtrait that could supply them.
+    pub(crate) fn direct_supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
+        match self {
+            Self::Small(keys) => keys.iter().find_map(|(have, _)| {
+                crate::work::scan_work(1);
+                key_is(pool, *have, *have, want).then_some(*have)
+            }),
+            Self::Indexed { all, by_trait } => {
+                if all.contains(&want) {
+                    return Some(want);
+                }
+                let TyData::TraitValue { def, args, .. } = pool.get(want) else {
+                    return None;
+                };
+                let held = by_trait.get(&(def, args))?;
+                let bindings = pool.trait_value_bindings(want)?;
+                if bindings.len() == 0 {
+                    held.direct
+                } else {
+                    held.plain.map(|at| held.values[at].0)
+                }
+            }
         }
     }
 
@@ -695,17 +819,108 @@ impl Ck<'_, '_> {
 
     /// The first key of `row` that supplies `k`, from the body's index of
     /// the row's keys ([`KeyIndex`]), made on the row's first question.
-    fn row_key_supplier(&self, row: RowId, k: Ty) -> Option<Ty> {
+    fn row_key_index(&self, row: RowId) -> std::rc::Rc<KeyIndex> {
         let pool = self.pool();
         let index = self.row_keys.borrow().get(&row).cloned();
-        let index = index.unwrap_or_else(|| {
+        index.unwrap_or_else(|| {
             let built = std::rc::Rc::new(KeyIndex::new(self.cx, pool, &pool.row_data(row).keys));
             self.row_keys
                 .borrow_mut()
                 .insert(row, std::rc::Rc::clone(&built));
             built
-        });
-        index.supplier(pool, k)
+        })
+    }
+
+    fn row_key_supplier(&self, row: RowId, k: Ty) -> Option<Ty> {
+        self.row_key_index(row).supplier(self.pool(), k)
+    }
+
+    /// Freeze the whole supplier key while its lexical checking scopes are
+    /// present. Inferred closures stop here: their own row must record `k`,
+    /// rather than silently capture a provider from an enclosing function.
+    pub(crate) fn selected_key_supplier(&self, key: Ty) -> Ty {
+        let mut supplied = None;
+        for frame in self.rows.iter().rev() {
+            let (row, boundary) = match frame {
+                RowFrame::With(row) => (*row, false),
+                RowFrame::Declared(row)
+                | RowFrame::Profile { row, .. }
+                | RowFrame::Closure {
+                    written: Some(row), ..
+                } => (*row, true),
+                RowFrame::Any
+                | RowFrame::Inferred { .. }
+                | RowFrame::Closure { written: None, .. } => return supplied.unwrap_or(key),
+            };
+            let index = self.row_key_index(row);
+            if let Some(exact) = index.direct_supplier(self.pool(), key) {
+                return exact;
+            }
+            if supplied.is_none() {
+                supplied = index.supplier(self.pool(), key);
+            }
+            if boundary {
+                break;
+            }
+        }
+        supplied.unwrap_or(key)
+    }
+
+    /// Final checked evidence for function-row adaptation. All producers
+    /// reserve `RowSubsume` while inference is open; one final pass chooses
+    /// the allocating wrapper only when a source key needs projection.
+    pub(crate) fn finalize_row_adaptations(&mut self) {
+        use hd_tir::ir::{Coercion, Ref, Tag};
+        use hd_types::TyList;
+        let pool = self.pool();
+        let mut recipes: hd_base::HashMap<(RowId, RowId), Option<TyList>> =
+            hd_base::HashMap::default();
+        for i in 0..self.b.body().len() {
+            let body = self.b.body();
+            if body.tags[i] != Tag::Coerce {
+                continue;
+            }
+            let record = body.data[i][1] as usize + 1;
+            if ![Coercion::RowSubsume as u32, Coercion::Variance as u32]
+                .contains(&body.extra[record])
+            {
+                continue;
+            }
+            let source = Ref(body.data[i][0]);
+            let got = source.as_inst().map_or_else(
+                || body.consts[(source.0 & !Ref::CONST_BIT) as usize].0,
+                |inst| body.ty[inst.0 as usize],
+            );
+            let (TyData::Fn { row: source, .. }, TyData::Fn { row: target, .. }) =
+                (pool.get(got), pool.get(body.ty[i]))
+            else {
+                continue;
+            };
+            if source == target {
+                continue;
+            }
+            let recipe = *recipes.entry((source, target)).or_insert_with(|| {
+                let keys = pool.row_data(source).keys;
+                let index = self.row_key_index(target);
+                let mut pairs = Vec::with_capacity(keys.len() * 2);
+                let mut projects = false;
+                for key in keys {
+                    // A failed fit already has type-mismatch; its recovery
+                    // conversion must not manufacture unchecked evidence.
+                    let supplier = index
+                        .direct_supplier(pool, key)
+                        .or_else(|| index.supplier(pool, key))?;
+                    projects |= supplier != key;
+                    pairs.extend([key, supplier]);
+                }
+                projects.then(|| pool.list(&pairs))
+            });
+            if let Some(recipe) = recipe {
+                let body = self.b.body_mut();
+                body.extra[record] = Coercion::RowAdapt as u32;
+                body.extra[record + 1] = recipe.0;
+            }
+        }
     }
 
     /// Finds `need` in the available-keys stack (`req.row.entail`); a
@@ -1279,5 +1494,60 @@ impl Ck<'_, '_> {
             *t = self.zonk(*t);
         }
         e
+    }
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::{KeyCandidates, key_is};
+    use hd_base::DefId;
+    use hd_types::{InternPool, Ty, TyData, TyList};
+
+    #[test]
+    fn candidate_binding_index_preserves_the_first_matching_supplier() {
+        let pool = InternPool::new();
+        let make = |def, bindings| {
+            pool.intern_ty(&TyData::TraitValue {
+                def: DefId::from_raw(def),
+                args: TyList::EMPTY,
+                bindings,
+            })
+        };
+        let a = DefId::from_raw(50);
+        let b = DefId::from_raw(51);
+        let first = make(20, vec![(a, Ty::I32), (b, Ty::STRING)]);
+        let second = make(20, vec![(a, Ty::I32), (b, Ty::I32)]);
+        let h1 = make(21, vec![]);
+        let h2 = make(22, vec![]);
+        let plain = make(20, vec![]);
+        let cases = [
+            vec![(first, first), (h2, second), (h1, first)],
+            vec![(h1, first), (h2, second), (plain, plain)],
+            vec![(plain, plain), (h2, second), (h1, first)],
+        ];
+        let wants = [
+            plain,
+            first,
+            second,
+            make(20, vec![(a, Ty::I32)]),
+            make(20, vec![(a, Ty::STRING)]),
+            make(20, vec![(b, Ty::STRING)]),
+        ];
+        for values in cases {
+            let mut index = KeyCandidates::default();
+            for &(have, inst) in &values {
+                index.push(pool.types(), have, inst);
+            }
+            for &want in &wants {
+                let expected = values.iter().find_map(|&(have, inst)| {
+                    key_is(pool.types(), have, inst, want).then_some(have)
+                });
+                assert_eq!(
+                    index.supplier(pool.types(), want),
+                    expected,
+                    "{values:?}, {want:?}"
+                );
+            }
+        }
     }
 }

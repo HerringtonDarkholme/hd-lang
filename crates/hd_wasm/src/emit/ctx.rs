@@ -2,9 +2,9 @@
 //! §23.26, `crates/hd_mono/DESIGN.md` §12.4). A provider is a trait value,
 //! `(data, vtable)`. A function with row parameters takes one provider per
 //! key its row lists itself, then one context of its row parameters' keys;
-//! a function value's code takes one context, whatever its row, so row
-//! subsumption is no instruction. A context is a counted list buffer of
-//! entries (`rt::ctx_elem`), each a key id and a provider holding a count
+//! a function value's code takes one context, whatever its row. Identity
+//! subsumption is no instruction; checked nonidentity recipes use row.rs.
+//! A context is a counted list buffer of entries (`rt::ctx_elem`), each a key id and a provider holding a count
 //! of its data; 0 is the empty context. A key is looked up by its id and
 //! the first entry wins, so a context built in front of an open one shadows
 //! it. A `$.Context` value is one such buffer, its entries in key order.
@@ -12,7 +12,7 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{CanonMemo, canon};
-use hd_tir::ir::{Tag, count::Part};
+use hd_tir::ir::{Providers, Tag, count::Part};
 use hd_types::{Ty, TyData, TyList};
 
 use super::Em;
@@ -92,6 +92,41 @@ pub(crate) fn ctx_lookup(f: &mut Func, c: u32, id: i64) -> [u32; 2] {
 }
 
 impl Em<'_, '_, '_> {
+    /// Consume the checker's selected provider operands. Never rediscover a
+    /// supplier by trait: the key is whole and an explicit coercion operand
+    /// already projects the selected H's vtable to K.
+    fn call_provider(&mut self, i: u32, key: Ty) -> StageResult<[u32; 2]> {
+        let providers = self.b.call_providers(i as usize);
+        if let Providers::Context(value) = providers {
+            let context = self.f.local(Val::I32);
+            self.comp(value.0, 0)?;
+            self.f.set(context);
+            return Ok(ctx_lookup(&mut self.f, context, key_id(self.input, key)));
+        }
+        if !self.call_provider_pairs.contains_key(&i) {
+            let mut pairs = hd_base::HashMap::default();
+            if let Providers::Pairs(range) = providers {
+                let start = range.start as usize;
+                for pair in self.b.extra[start..start + range.len as usize].chunks_exact(2) {
+                    pairs.entry(self.sub(Ty(pair[0]))).or_insert(pair[1]);
+                }
+            }
+            self.call_provider_pairs.insert(i, pairs);
+        }
+        if let Some(&value) = self.call_provider_pairs[&i].get(&key) {
+            let locals = [self.f.local(Val::I32), self.f.local(Val::I32)];
+            for (component, &local) in locals.iter().enumerate() {
+                self.comp(value, component)?;
+                self.f.set(local);
+            }
+            Ok(locals)
+        } else {
+            // Open-tail and lexical keys not explicitly named in the call's
+            // recipe still use exact-key lexical/context lookup.
+            Ok(self.provider(key))
+        }
+    }
+
     /// Only the exact final value Drop covered by a consumed scope packet
     /// is replaced by the selected context entry's owner.
     pub(super) fn provider_transferred_drop(&self, i: u32) -> bool {
@@ -164,9 +199,10 @@ impl Em<'_, '_, '_> {
         if self.open_ctx.is_none() {
             return;
         }
+        let mut seen: hd_base::HashSet<Ty> = keys.iter().copied().collect();
         for at in (self.open_base..self.providers.len()).rev() {
             let k = self.providers[at].0;
-            if !keys.contains(&k) {
+            if seen.insert(k) {
                 keys.push(k);
             }
         }
@@ -177,14 +213,25 @@ impl Em<'_, '_, '_> {
     /// when no key goes in front, 0 when there is neither. Returns the
     /// local of a context it built, which the caller releases once the
     /// call has returned; a callee that keeps it takes a count of its own.
-    fn push_ctx_of(&mut self, i: u32, keys: &[Ty], open: bool) -> Option<u32> {
-        let base = if open { self.open_ctx } else { None };
+    fn push_ctx_of(&mut self, i: u32, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
+        let base = if open {
+            if let Providers::Context(value) = self.b.call_providers(i as usize) {
+                let context = self.f.local(Val::I32);
+                self.comp(value.0, 0)?;
+                self.f.set(context);
+                Some(context)
+            } else {
+                self.open_ctx
+            }
+        } else {
+            None
+        };
         if keys.is_empty() {
             match base {
                 Some(c) => self.f.get(c),
                 None => self.f.i32(0),
             }
-            return None;
+            return Ok(None);
         }
         // ruled out: the driver roots std runtime items before collecting a program.
 
@@ -196,7 +243,7 @@ impl Em<'_, '_, '_> {
         );
         let mut provs = Vec::new();
         for k in keys {
-            provs.push(self.provider(*k));
+            provs.push(self.call_provider(i, *k)?);
         }
         let c = self.f.local(Val::I32);
         self.f.u32(u32::try_from(keys.len()).expect("keys"));
@@ -222,7 +269,7 @@ impl Em<'_, '_, '_> {
             }
         }
         self.f.get(c);
-        Some(c)
+        Ok(Some(c))
     }
 
     /// Writes entry `j` of the new context in local `c`: key id `id` and
@@ -260,7 +307,7 @@ impl Em<'_, '_, '_> {
     /// Pushes the context a call of a function value of type `ft` passes:
     /// the providers of its row's keys, in front of the open context when
     /// the row lists the open row (§12.4, one callable ABI).
-    pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> Option<u32> {
+    pub(super) fn push_fn_ctx(&mut self, i: u32, ft: Ty) -> StageResult<Option<u32>> {
         let (mut keys, open) = self.fn_row(ft);
         if open {
             self.scope_keys(&mut keys);
@@ -293,15 +340,15 @@ impl Em<'_, '_, '_> {
         i: u32,
         item: hd_base::DefId,
         args: hd_types::TyList,
-    ) -> Option<u32> {
+    ) -> StageResult<Option<u32>> {
         let (pool, env) = (self.input.pool, self.input.env);
         for key in hd_mono::declared_row_keys(pool, env, item, args) {
-            let [d, v] = self.provider(key);
+            let [d, v] = self.call_provider(i, key)?;
             self.f.get(d);
             self.f.get(v);
         }
         if !hd_mono::has_row_params(env, item) {
-            return None;
+            return Ok(None);
         }
         let mut keys = hd_mono::row_param_keys(pool, env, item, args);
         let open = hd_mono::row_args_open(pool, env, item, args);
@@ -320,7 +367,7 @@ impl Em<'_, '_, '_> {
         i: u32,
         method: hd_base::DefId,
         targs: hd_types::TyList,
-    ) -> Option<u32> {
+    ) -> StageResult<Option<u32>> {
         let mut keys = self.env().row_keys(method, with_self(self.pool(), targs));
         let pool = self.pool();
         let open = (pool.list_items(targs).iter()).any(|t| hd_mono::arg_is_open(pool, *t));

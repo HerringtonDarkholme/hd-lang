@@ -288,10 +288,12 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             Tag::Drop | Tag::IsUnique | Tag::FlagSet | Tag::FlagClear => {
                 return Err(format!("an ownership statement `{}` at %{i}", tag.name()));
             }
-            Tag::Call | Tag::Await => {
-                let r = b.record(b.data[i][1]);
-                if r.len() < 3 || r[r.len() - 3] > 2 {
-                    return Err(format!("pending call providers at %{i}"));
+            Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {
+                let Some(footer) = b.call_footer(i) else {
+                    return Err(format!("missing call provider footer at %{i}"));
+                };
+                if b.extra[footer] > 2 {
+                    return Err(format!("malformed call provider footer at %{i}"));
                 }
             }
             _ => {}
@@ -1334,7 +1336,7 @@ fn through(
         };
         let i = at.0 as usize;
         match b.tags[i] {
-            Tag::Coerce => cur = b.data[i][0],
+            Tag::Coerce if b.row_adaptation(i).is_none() => cur = b.data[i][0],
             Tag::Read if topo.blk[i] != NONE => {
                 let word = b.data[i][0];
                 let deref = path_lists(b, t, word);

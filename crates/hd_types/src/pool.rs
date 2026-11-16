@@ -1800,7 +1800,7 @@ impl<'a> Types<'a> {
     }
 
     /// A trait value's trait and argument-list identity, without allocating
-    /// associated bindings. Callers that need bindings still use `get`.
+    /// associated bindings. `trait_value_bindings` borrows the bindings.
     #[must_use]
     pub fn trait_value(self, t: Ty) -> Option<(DefId, TyList)> {
         let (c, i) = self.at(t.0);
@@ -1809,6 +1809,46 @@ impl<'a> Types<'a> {
         }
         let off = c.data[i];
         Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
+    }
+
+    /// Borrow the canonical, DefId-sorted associated bindings without a clone.
+    /// `intern_ty` sorts these words before interning every trait value.
+    #[must_use]
+    pub fn trait_value_bindings(
+        self,
+        t: Ty,
+    ) -> Option<impl ExactSizeIterator<Item = (DefId, Ty)> + 'a> {
+        self.trait_binding_words(t).map(|words| {
+            words
+                .chunks_exact(2)
+                .map(|pair| (DefId::from_raw(pair[0]), Ty(pair[1])))
+        })
+    }
+
+    /// Find one associated binding in O(log bindings), with no allocation.
+    #[must_use]
+    pub fn trait_value_binding(self, t: Ty, name: DefId) -> Option<Ty> {
+        let words = self.trait_binding_words(t)?;
+        let (mut lo, mut hi) = (0, words.len() / 2);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            match words[2 * mid].cmp(&name.raw()) {
+                std::cmp::Ordering::Less => lo = mid + 1,
+                std::cmp::Ordering::Greater => hi = mid,
+                std::cmp::Ordering::Equal => return Some(Ty(words[2 * mid + 1])),
+            }
+        }
+        None
+    }
+
+    fn trait_binding_words(self, t: Ty) -> Option<&'a [u32]> {
+        let (c, i) = self.at(t.0);
+        if c.tag[i] != PoolTag::TraitValue {
+            return None;
+        }
+        let off = c.data[i];
+        let len = c.extra[off + 2];
+        Some(c.extra.run(off + 3, 2 * len))
     }
 
     /// The trait and argument-list identity of a type its producer made a
@@ -3703,5 +3743,27 @@ mod tests {
         assert_eq!(types.sole_arg(one, def), Some(Ty::I32));
         assert_eq!(types.sole_arg(two, def), None);
         assert_eq!(types.sole_arg(one, other), None);
+    }
+    #[test]
+    fn trait_bindings_are_borrowed_in_name_order_and_binary_searched() {
+        let pool = InternPool::new();
+        let names = [hd_base::DefId::from_raw(30), hd_base::DefId::from_raw(10)];
+        let key = pool.intern_ty(&TyData::TraitValue {
+            def: hd_base::DefId::from_raw(7),
+            args: TyList::EMPTY,
+            bindings: vec![(names[0], Ty::STRING), (names[1], Ty::I32)],
+        });
+        let types = pool.types();
+        assert_eq!(
+            types.trait_value_bindings(key).unwrap().collect::<Vec<_>>(),
+            [(names[1], Ty::I32), (names[0], Ty::STRING)]
+        );
+        assert_eq!(types.trait_value_binding(key, names[0]), Some(Ty::STRING));
+        assert_eq!(types.trait_value_binding(key, names[1]), Some(Ty::I32));
+        assert_eq!(
+            types.trait_value_binding(key, hd_base::DefId::from_raw(20)),
+            None
+        );
+        assert!(types.trait_value_bindings(Ty::I32).is_none());
     }
 }

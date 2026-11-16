@@ -1,0 +1,44 @@
+# test: supertrait row adapters preserve associated bindings
+# Spec lang/11-requirements-and-suspension.md: req.row.subsume.adapt.
+# expect-stdout: 7
+# expect-stdout: 7
+# expect-stdout: 7
+# expect-stdout: 7
+
+trait Feed:
+    type Item
+    fn latest(&self) -> Self::Item
+
+trait PriceFeed < Feed[Item = i32]:
+    fn label(&self) -> string
+
+struct Quotes:
+    price: i32
+
+impl Feed for Quotes:
+    type Item = i32
+    fn latest(&self) -> i32:
+        self.price
+
+impl PriceFeed for Quotes:
+    fn label(&self) -> string:
+        "quotes"
+
+fn read() -> i32 $ Feed[Item = i32]:
+    $.use(Feed[Item = i32]).latest()
+
+fn short() -> i32 $ PriceFeed:
+    read()
+
+fn long() -> i32 $ PriceFeed[Item = i32]:
+    read()
+
+pub fn main() -> void $ Console:
+    let inherited: fn() -> i32 $ PriceFeed = read
+    let to_short: fn() -> i32 $ PriceFeed = long
+    let to_long: fn() -> i32 $ PriceFeed[Item = i32] = short
+    $.with(PriceFeed=box(Quotes { price: 7 })):
+        println(short())
+        println(inherited())
+        println(to_short())
+        println(to_long())

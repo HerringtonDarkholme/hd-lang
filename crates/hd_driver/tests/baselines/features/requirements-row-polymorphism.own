@@ -117,7 +117,7 @@ fn run(s: string) -> usize:
 >   %16 = Coerce %14 [RefAsProvider -] : Tag
 >   %17 = LoanEnd [%14] : ()
 >   %18 = Read borrow [$2] : fn() -> usize
->   %19 = ProviderGet #80 : Tag
+>   %19 = ProviderGet #79 : Tag
 >   %20 = Coerce %19 [ProviderAsRef -] : &dyn Tag
 >   %21 = Read borrow [*%20] : Tag
 >   %22 = Drop [%20] : ()

@@ -369,7 +369,7 @@ fn plain_controls() -> void:
 >   %83 = Block - : ()
 >   %84 = Scope %83 [] : ()
     returned := identity(keep, Resource { seen: seen, owned: UniqList::new() })
->   %85 = ItemRef #129 [..] : fn(Resource) -> Resource
+>   %85 = ItemRef #135 [..] : fn(Resource) -> Resource
 >   %86 = Read copy [$1] : *mut i32
 >   %87 = Store [$53] 0:usize : ()
 >   %88 = Read copy [$53] : usize
@@ -428,7 +428,7 @@ fn plain_controls() -> void:
 >   %136 = Block - : ()
 >   %137 = Scope %136 [] : ()
     assert_equal(read(ignore, Resource { seen: seen, owned: UniqList::new() }), 0)
->   %138 = ItemRef #214 [..] : fn(Resource) -> usize
+>   %138 = ItemRef #223 [..] : fn(Resource) -> usize
 >   %139 = Read copy [$1] : *mut i32
 >   %140 = Store [$42] 0:usize : ()
 >   %141 = Read copy [$42] : usize
@@ -473,7 +473,7 @@ fn plain_controls() -> void:
 >   %200 = Scope %199 [] : string
 >   %201 = Call std/testing/assert_equal[usize] (%197, 0:usize, %200) : ()
         read_conditional(conditional_size, .Live(Resource { seen: seen, owned: UniqList::new() })),
->   %175 = ItemRef #271 [..] : fn(Conditional) -> usize
+>   %175 = ItemRef #283 [..] : fn(Conditional) -> usize
 >   %176 = Read copy [$1] : *mut i32
 >   %177 = Store [$34] 0:usize : ()
 >   %178 = Read copy [$34] : usize
@@ -512,7 +512,7 @@ fn plain_controls() -> void:
 >   %211 = Block - : ()
 >   %212 = Scope %211 [] : ()
     assert_equal(read_conditional(conditional_size, .Empty), 0)
->   %213 = ItemRef #330 [..] : fn(Conditional) -> usize
+>   %213 = ItemRef #345 [..] : fn(Conditional) -> usize
 >   %214 = NewVariant #0 [] : Conditional
 >   %215 = Call std/rt_tests.stage_case/read_conditional[] (%213, %214) : usize
 >   %215 keeps %213
@@ -561,7 +561,7 @@ fn plain_controls() -> void:
 >   %254 = Read copy [$6] : *mut Resource
 >   %255 = Store [$7] %254 : ()
     assert_equal(read_boxed(boxed_size, owner), 0)
->   %256 = ItemRef #388 [..] : fn(*Resource) -> usize
+>   %256 = ItemRef #406 [..] : fn(*Resource) -> usize
 >   %257 = Read move [$6] : *mut Resource
 >   %258 = Coerce %257 [Weaken -] : *Resource
 >   %259 = Call std/rt_tests.stage_case/read_boxed[] (%256, %258) : usize
@@ -878,7 +878,7 @@ fn empty_controls() -> void:
 >   %111 = Call std/rt_tests.stage_case/read_spread[(EmptyResource, Resource, (), string, EmptyResource)] (%102, %110) : usize
 >   %111 keeps %102
             mixed_size,
->   %102 = ItemRef #128 [..] : fn(EmptyResource, Resource, (), string, EmptyResource) -> usize
+>   %102 = ItemRef #134 [..] : fn(EmptyResource, Resource, (), string, EmptyResource) -> usize
             (EmptyResource {}, Resource { seen: seen, owned: owned }, (), label, EmptyResource {}),
 >   %103 = NewStruct [] : EmptyResource
 >   %104 = Read copy [$3] : *mut i32

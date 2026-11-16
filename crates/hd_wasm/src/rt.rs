@@ -18,6 +18,8 @@ use crate::module::{
 };
 use crate::{Entry, Input};
 
+mod row;
+pub use row::{RowAdapter, RowEntry};
 /// A test program's unit graph in static memory ([`test_graph`]), read
 /// by [`Helper::TestInitWalk`]. `at` holds `u32` words: the group offsets
 /// (`groups + 1` words from word 0), each group's root units, the unit
@@ -355,6 +357,8 @@ pub enum Helper {
     /// fills, then the entries of context `base` (0 for none), which take
     /// counts of their own.
     CtxNew,
+    /// A checked function-row evidence wrapper, using the function-value ABI.
+    RowAdapter(RowAdapter),
     /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
     /// keeps them too, take their own counts; each collection among an
     /// element's values becomes its copy ([`Helper::CollCopy`]).
@@ -2057,6 +2061,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::WakerLive
         | H::TestPoll { .. }
         | H::TestPollPart { .. } => (2, 1),
+        H::RowAdapter(row) => (row.params.len(), row.results.len()),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
         H::ReleaseAt(_) => (1, 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
@@ -2489,6 +2494,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
+        Helper::RowAdapter(row) => row::build(m, row),
         Helper::CtxFind => ctx_find(m),
         Helper::CtxNew => ctx_new(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),

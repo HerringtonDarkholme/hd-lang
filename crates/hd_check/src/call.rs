@@ -1693,7 +1693,8 @@ impl Ck<'_, '_> {
         {
             let t = pool.list_items(sa).first().copied().unwrap_or(Ty::POISON);
             self.check_bang(true, n);
-            return Ok((self.b.emit(Tag::AwaitValue, f.0, NONE, t, n.index()), t));
+            let empty = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
+            return Ok((self.b.emit(Tag::AwaitValue, f.0, empty, t, n.index()), t));
         }
         if !matches!(pool.get(ft), TyData::Fn { .. })
             && let Some((bound, only_mut)) = self.fn_bound_type(ft)?
@@ -1831,7 +1832,7 @@ impl Ck<'_, '_> {
             self.local_call_defaults(call.local, vars);
         }
         self.check_row(row, n);
-        let rec = self.b.refs_record(&refs);
+        let rec = self.b.call_args_record(&refs, Providers::None);
         if !suspends {
             if bang {
                 self.check_bang(false, n);
@@ -1853,9 +1854,10 @@ impl Ck<'_, '_> {
         let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
         if bang {
             self.check_bang(true, n);
+            let empty = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
             return Ok((
                 self.b
-                    .emit(Tag::AwaitValue, cold.0, NONE, result, n.index()),
+                    .emit(Tag::AwaitValue, cold.0, empty, result, n.index()),
                 result,
             ));
         }
@@ -2426,7 +2428,7 @@ impl Ck<'_, '_> {
                         None => self.read_local(l, d, n),
                     };
                     let t = self.normalize_deep(rest[i].1)?;
-                    let earlier = self.b.refs_record(&out);
+                    let earlier = self.b.call_args_record(&out, Providers::None);
                     out.push(self.b.emit(Tag::CallValue, c.0, earlier, t, n.index()));
                 }
                 // `DefaultCall` of the parameter's default body, after every
@@ -2441,7 +2443,7 @@ impl Ck<'_, '_> {
                     let a = self.b.refs_record(&[Ref(body.raw()), Ref(targs.0)]);
                     let mut earlier = prefix.clone();
                     earlier.extend(&out);
-                    let bw = self.b.refs_record(&earlier);
+                    let bw = self.b.call_args_record(&earlier, Providers::None);
                     let t = self.normalize_deep(rest[i].1)?;
                     out.push(self.b.emit(Tag::DefaultCall, a, bw, t, n.index()));
                 }
@@ -3208,7 +3210,7 @@ impl Ck<'_, '_> {
             def: self.cx.names.known.suspend,
             args: pool.list(&[result]),
         });
-        let args = self.b.refs_record(children);
+        let args = self.b.call_args_record(children, Providers::None);
         (
             self.b
                 .emit(Tag::CallValue, function.0, args, suspension, syn),
@@ -3298,7 +3300,7 @@ impl Ck<'_, '_> {
             def: self.cx.names.known.suspend,
             args: pool.list(&[ret]),
         });
-        let args = self.b.refs_record(&[r]);
+        let args = self.b.call_args_record(&[r], Providers::None);
         Ok((
             self.b
                 .emit(Tag::CallValue, function.0, args, suspension, n.index()),
@@ -3397,7 +3399,7 @@ impl Ck<'_, '_> {
             ("fn_call" | "fn_mut_call", [receiver, args @ ..]) => {
                 let receiver_ty = self.b.ty_of(*receiver);
                 let (function, _) = self.emit_deref(*receiver, receiver_ty, n.index());
-                let rec = self.b.refs_record(args);
+                let rec = self.b.call_args_record(args, Providers::None);
                 if bang {
                     self.check_bang(false, n);
                 }

@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use hd_resolve::{Names, show_ty_full};
 use hd_tir::Body;
-use hd_tir::ir::{Callee, Coercion, NONE, Op, Ref, Tag};
+use hd_tir::ir::{Callee, Coercion, NONE, Op, Ref, Tag, slots};
 use hd_types::{Ty, TyList};
 
 fn ty(names: &Names<'_>, t: Ty) -> String {
@@ -65,6 +65,7 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
         Coercion::Variance,
         Coercion::WrapSome,
         Coercion::RowSubsume,
+        Coercion::RowAdapt,
         Coercion::Supertrait,
         Coercion::SuspendFnToCtor,
         Coercion::Identity,
@@ -76,7 +77,19 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
         .first()
         .and_then(|&k| kinds.iter().find(|c| **c as u32 == k))
         .map_or_else(|| "?kind".to_owned(), |c| format!("{c:?}"));
-    let evidence = r.get(1).map_or("-".to_owned(), |&e| value(names, b, e));
+    let evidence = r.get(1).map_or("-".to_owned(), |&e| {
+        if r.first() == Some(&(Coercion::RowAdapt as u32)) {
+            names
+                .pool
+                .list_items(hd_types::TyList(e))
+                .chunks_exact(2)
+                .map(|pair| format!("{} <- {}", ty(names, pair[0]), ty(names, pair[1])))
+                .collect::<Vec<_>>()
+                .join(", ")
+        } else {
+            value(names, b, e)
+        }
+    });
     format!("[{kind} {evidence}]")
 }
 
@@ -234,29 +247,15 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         if !read[i] {
             continue;
         }
-        let [a, w] = b.data[i];
-        for (word, op) in [(a, b.tags[i].operands().0), (w, b.tags[i].operands().1)] {
-            let words: Vec<u32> = match op {
-                Op::Value | Op::Inst | Op::Block => vec![word],
-                // A `defer`'s suite and a `Hook`'s observed instruction
-                // sit in meta words.
-                Op::Meta if matches!(b.tags[i], Tag::Defer | Tag::Hook) => vec![word],
-                // Count descriptors and closure records contain metadata, not values.
-                Op::Record if matches!(b.tags[i], Tag::Retain | Tag::Release | Tag::Closure) => {
-                    Vec::new()
-                }
-                Op::Values | Op::Blocks | Op::Record if word != NONE => b.record(word).to_vec(),
-                Op::Place => b.place_values(word),
-                _ => Vec::new(),
-            };
-            for v in words {
-                if Ref(v).as_inst().is_some()
-                    && let Some(x) = read.get_mut(v as usize)
-                {
-                    *x = true;
-                }
+        // Share the operand schema with ownership and renumbering: footer
+        // kinds, key types and range offsets are never instruction reads.
+        slots(b, i, |_, word, _| {
+            if Ref(word).as_inst().is_some()
+                && let Some(x) = read.get_mut(word as usize)
+            {
+                *x = true;
             }
-        }
+        });
     }
     for (i, &shown) in read.iter().enumerate() {
         if !shown {
@@ -289,9 +288,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 }
                 None => ops.push("?callee".into()),
             }
-            let args = b.record(w);
-            let n = args.len().saturating_sub(3);
-            let vals: Vec<String> = args[..n].iter().map(|x| value(names, b, *x)).collect();
+            let vals: Vec<String> = b.call_args(i).iter().map(|x| value(names, b, *x)).collect();
             ops.push(format!("({})", vals.join(", ")));
         } else if tag == Tag::CopyStruct {
             // `base` with each replaced field `.name = value`.
@@ -404,6 +401,16 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                             let ks: Vec<String> =
                                 b.record(word).iter().map(|x| format!("#{x}")).collect();
                             ops.push(format!("[{}]", ks.join(" ")));
+                        } else if side == 1
+                            && matches!(tag, Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall)
+                        {
+                            let args = b.call_args(i);
+                            // A stored suspension keeps its argument-free form.
+                            if tag != Tag::AwaitValue || !args.is_empty() {
+                                let vals: Vec<String> =
+                                    args.iter().map(|x| value(names, b, *x)).collect();
+                                ops.push(format!("[{}]", vals.join(" ")));
+                            }
                         } else if tag == Tag::ProviderGet || tag == Tag::ItemRef {
                             ops.push("[..]".into());
                         } else if tag == Tag::Closure {

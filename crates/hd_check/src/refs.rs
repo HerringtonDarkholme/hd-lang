@@ -439,7 +439,7 @@ impl Ck<'_, '_> {
             let i = i.0 as usize;
             let body = self.b.body_mut();
             match body.tags[i] {
-                Tag::Coerce => cur = Ref(body.data[i][0]),
+                Tag::Coerce if body.row_adaptation(i).is_none() => cur = Ref(body.data[i][0]),
                 Tag::Read => {
                     let Some(l) = body.local_read(i) else {
                         return;

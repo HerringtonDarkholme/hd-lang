@@ -1062,6 +1062,13 @@ pub struct InlineDecl {
 /// [`InlineDecl`] by declaration.
 pub type InlineDecls = HashMap<DefId, InlineDecl>;
 
+/// Requirement superkeys grouped by whole trait arguments, shared per key.
+pub type SupertraitKeyIndex = HashMap<(DefId, TyList), Vec<Ty>>;
+type SharedKeyIndex = Arc<std::sync::OnceLock<Arc<SupertraitKeyIndex>>>;
+type KeySuppliers = Arc<Mutex<Vec<(Ty, Ty)>>>;
+type SharedKeySuppliers = Arc<std::sync::OnceLock<KeySuppliers>>;
+type BoundTraitInstance = ((DefId, TyList), (DefId, Ty));
+
 /// The run's global memo: completed, context-free answers only (rule
 /// TS-4), shared by every body and thread. Entries and records are
 /// append-only, so a published entry never changes and a reader holds it
@@ -1084,6 +1091,11 @@ pub struct GlobalMemo {
     /// beside itself (`req.row.entail.super`): a function of the key and
     /// the run's trait declarations, so every body shares one walk per key.
     supertrait_keys: Mutex<HashMap<Ty, Arc<[Ty]>>>,
+    supertrait_key_indexes: Mutex<HashMap<Ty, SharedKeyIndex>>,
+    supertrait_key_suppliers: Mutex<HashMap<(DefId, TyList), KeySuppliers>>,
+    supertrait_instance_suppliers: Mutex<HashMap<Ty, SharedKeySuppliers>>,
+    supertrait_binding_suppliers: Mutex<HashMap<BoundTraitInstance, Vec<KeySuppliers>>>,
+    trait_mutability: Mutex<HashMap<DefId, bool>>,
     /// The closed types whose containment walk (the checker's
     /// `ProjectionCycles`) found no projection cycle and no projection
     /// past the depth limit, by the impl universe it normalized in: a
@@ -1250,6 +1262,121 @@ impl GlobalMemo {
                 .entry(key)
                 .or_insert(keys),
         )
+    }
+
+    /// Index a whole key once, publishing its inverse buckets for lexical
+    /// evidence selection. No body copies or rewalks the key's graph.
+    pub fn supertrait_key_index(
+        &self,
+        key: Ty,
+        pool: Types<'_>,
+        make: impl FnOnce() -> SupertraitKeyIndex,
+    ) -> Arc<SupertraitKeyIndex> {
+        let entry = Arc::clone(
+            self.supertrait_key_indexes
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(key)
+                .or_default(),
+        );
+        Arc::clone(entry.get_or_init(|| {
+            let index = make();
+            for (&instance, values) in &index {
+                let bucket = Arc::clone(
+                    self.supertrait_key_suppliers
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .entry(instance)
+                        .or_default(),
+                );
+                bucket
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .extend(values.iter().map(|&instance| (key, instance)));
+                for &value in values {
+                    let entry = Arc::clone(
+                        self.supertrait_instance_suppliers
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .entry(value)
+                            .or_default(),
+                    );
+                    let bucket = entry.get_or_init(|| {
+                        let bucket = KeySuppliers::default();
+                        // Register each canonical superkey's bindings once, even
+                        // when many suppliers share that whole superkey.
+                        if let Some(bindings) = pool.trait_value_bindings(value) {
+                            for binding in bindings {
+                                self.supertrait_binding_suppliers
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .entry((instance, binding))
+                                    .or_default()
+                                    .push(Arc::clone(&bucket));
+                            }
+                        }
+                        bucket
+                    });
+                    bucket
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .push((key, value));
+                }
+            }
+            Arc::new(index)
+        }))
+    }
+
+    /// Borrow the narrowest binding bucket without cloning all its groups.
+    /// The callback holds at most one supplier bucket lock at a time and must
+    /// not publish another key index. Writers never hold a supplier bucket
+    /// while taking the binding index lock, so this ordering has no cycle.
+    pub fn with_supertrait_key_suppliers<R>(
+        &self,
+        instance: (DefId, TyList),
+        bindings: &[(DefId, Ty)],
+        read: impl FnOnce(&[KeySuppliers]) -> R,
+    ) -> R {
+        if bindings.is_empty() {
+            let buckets = self
+                .supertrait_key_suppliers
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            return read(buckets.get(&instance).map_or(&[], std::slice::from_ref));
+        }
+        let buckets = self
+            .supertrait_binding_suppliers
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut best: Option<&Vec<KeySuppliers>> = None;
+        for &binding in bindings {
+            let Some(bucket) = buckets.get(&(instance, binding)) else {
+                return read(&[]);
+            };
+            if best.is_none_or(|old| bucket.len() < old.len()) {
+                best = Some(bucket);
+            }
+        }
+        read(best.map_or(&[], Vec::as_slice))
+    }
+
+    /// Receiver permission depends only on immutable trait declarations.
+    pub fn trait_mutability(&self, def: DefId, make: impl FnOnce() -> bool) -> bool {
+        if let Some(&value) = self
+            .trait_mutability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&def)
+        {
+            return value;
+        }
+        let value = make();
+        *self
+            .trait_mutability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(def)
+            .or_insert(value)
     }
 
     /// The fields of struct `def` by name, as `names` lists them in
@@ -3681,6 +3808,99 @@ fn project_concrete(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn whole_key_indexes_are_shared_and_unrelated_state_does_not_rebuild_them() {
+        let memo = super::GlobalMemo::default();
+        let builds = std::sync::atomic::AtomicUsize::new(0);
+        let key = crate::Ty(10);
+        let gp = InternPool::new();
+        let instance = (hd_base::DefId::from_raw(20), crate::TyList::EMPTY);
+        std::thread::scope(|scope| {
+            for _ in 0..4 {
+                // cost: four fixed workers contend on one memoized key.
+                scope.spawn(|| {
+                    let index = memo.supertrait_key_index(key, Types::of(&gp), || {
+                        builds.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        [(instance, vec![crate::Ty::I32])].into_iter().collect()
+                    });
+                    assert_eq!(index[&instance], [crate::Ty::I32]);
+                });
+            }
+        });
+        for i in 0..10_000 {
+            memo.supertrait_key_index(crate::Ty(1000 + i), Types::of(&gp), || {
+                [(
+                    (hd_base::DefId::from_raw(1000 + i), crate::TyList::EMPTY),
+                    vec![crate::Ty::I32],
+                )]
+                .into_iter()
+                .collect()
+            });
+        }
+        memo.supertrait_key_index(key, Types::of(&gp), || panic!("cached key rebuilt"));
+        assert_eq!(builds.load(std::sync::atomic::Ordering::Relaxed), 1);
+        memo.with_supertrait_key_suppliers(instance, &[], |suppliers| {
+            assert_eq!(*suppliers[0].lock().unwrap(), [(key, crate::Ty::I32)]);
+        });
+    }
+
+    #[test]
+    fn shared_superkey_binding_facts_grow_once_not_per_supplier() {
+        for n in [100u32, 1000] {
+            let pool = InternPool::new();
+            let memo = GlobalMemo::default();
+            let instance = (hd_base::DefId::from_raw(20), TyList::EMPTY);
+            let key = pool.intern_ty(&TyData::TraitValue {
+                def: instance.0,
+                args: instance.1,
+                bindings: (0..n)
+                    .map(|i| (hd_base::DefId::from_raw(100 + i), Ty::I32))
+                    .collect(),
+            });
+            for i in 0..n {
+                memo.supertrait_key_index(Ty(20000 + i), pool.types(), || {
+                    [(instance, vec![key])].into_iter().collect()
+                });
+            }
+            let bindings = memo.supertrait_binding_suppliers.lock().unwrap();
+            assert_eq!(bindings.len(), n as usize);
+            assert_eq!(bindings.values().map(Vec::len).sum::<usize>(), n as usize);
+            drop(bindings);
+            memo.with_supertrait_key_suppliers(
+                instance,
+                &[(hd_base::DefId::from_raw(100), Ty::I32)],
+                |groups| {
+                    assert_eq!(groups.len(), 1);
+                    assert_eq!(groups[0].lock().unwrap().len(), n as usize);
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn supplier_queries_borrow_groups_without_copying_the_candidate_set() {
+        for n in [100, 1000] {
+            let memo = GlobalMemo::default();
+            let instance = (hd_base::DefId::from_raw(20), TyList::EMPTY);
+            let binding = (hd_base::DefId::from_raw(21), Ty::I32);
+            let groups: Vec<_> = (0..n)
+                .map(|_| std::sync::Arc::new(std::sync::Mutex::new(vec![(Ty::I32, Ty::I32)])))
+                .collect();
+            let address = groups.as_ptr();
+            memo.supertrait_binding_suppliers
+                .lock()
+                .unwrap()
+                .insert((instance, binding), groups);
+            for _ in 0..n {
+                memo.with_supertrait_key_suppliers(instance, &[binding], |buckets| {
+                    assert_eq!(buckets.as_ptr(), address);
+                    assert_eq!(buckets.len(), n);
+                    assert_eq!(buckets[0].lock().unwrap().len(), 1);
+                });
+            }
+        }
+    }
+
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
         ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,

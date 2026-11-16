@@ -526,9 +526,8 @@ impl dyn InlineEnv + '_ {
     /// an item (`ItemRef`), directly or through a local stored once with
     /// one, into a `Call` of that item (#1385): the value's code is the
     /// item's adapter, which only calls it. Not for a trait method's
-    /// reference or an item that suspends. A row-bearing reference uses the
-    /// current call-site providers, just as a direct call with the empty
-    /// provider trailer does; copying later keeps lexical `With` scopes.
+    /// reference or an item that suspends. Preserve the call's checked
+    /// provider packet: later copying cannot rediscover lexical suppliers.
     /// Whether any changed.
     fn direct_item_calls(&self, body: &mut Body) -> bool {
         if !body.tags.contains(&Tag::ItemRef) {
@@ -584,10 +583,10 @@ impl dyn InlineEnv + '_ {
             {
                 continue;
             }
-            let mut args = body.record(body.data[i][1]).to_vec();
-            args.extend([0, 0, 0]);
+            // CallValue and Call use the same argument/footer record.
+            // Keep the checker's provider evidence, not a second trailer.
+            let args = body.data[i][1];
             let callee = push_record(body, &[0, d, targs]);
-            let args = push_record(body, &args);
             body.tags[i] = Tag::Call;
             body.data[i] = [callee, args];
             changed = true;

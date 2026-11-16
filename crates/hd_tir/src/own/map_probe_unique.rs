@@ -20,7 +20,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             {
                 return None;
             }
-            let args = b.record(b.data[i][1]).len().saturating_sub(3);
+            let args = b.call_args(i).len();
             (args == 3).then_some((
                 Tag::MakeUnique,
                 u32_of(i),

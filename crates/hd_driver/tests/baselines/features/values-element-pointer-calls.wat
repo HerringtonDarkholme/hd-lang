@@ -138,7 +138,7 @@
     ;; 39 |     let mut total = Total { sum: 0 }
     local.get $t1
     ;; 40 |     walk(root, &mut total)
-    i32.const 320 ;; &vtable[func44]
+    i32.const 320 ;; &vtable[rt:dyn_slot]
     call $walk
     ;; 41 |     let mut keeper = Keeper { saved: [] }
     local.get $t0

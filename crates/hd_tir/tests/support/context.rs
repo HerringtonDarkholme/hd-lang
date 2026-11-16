@@ -17,14 +17,14 @@ pub trait VerifyCx {
     /// How many method-level bounds trait method `method` has
     /// (invariant 17).
     fn method_bounds(&self, method: DefId) -> Option<u32>;
-    /// How many row keys a call of `callee` supplies providers for, when
-    /// the callee's row is closed (invariant 8).
+    /// The number of keys in a closed callee row (invariant 8). A packet
+    /// may name fewer: identity keys retain exact-key lookup.
     fn row_keys(&self, callee: &Callee) -> Option<u32>;
 }
 
 /// [`verify_checked`], then relationships against independent raw-corpus facts:
-/// - 8: a call's provider pairs, one per key of the callee's closed row,
-///   and no `Pending` providers after `finish`;
+/// - 8: no more projected provider pairs than keys in a closed callee row,
+///   and no invalid provider kinds after `finish`;
 /// - 11: a `SwitchTag` with no default has a case for every variant, and
 ///   `SwitchInt`, `SwitchChar` and `SwitchStr` have a default;
 /// - 13: a `Builtin` choice that names a `BuiltinImpl` (its value is the
@@ -82,9 +82,9 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
                 let r = b.record(w);
                 if let [1, _, len] = r[r.len().saturating_sub(3)..]
                     && let Some(n) = callee.as_ref().and_then(|c| cx.row_keys(c))
-                    && n != len
+                    && len / 2 > n
                 {
-                    err(8, format!("{len} provider pairs for {n} row keys"));
+                    err(8, format!("{} provider pairs for {n} row keys", len / 2));
                 }
             }
             Tag::CallDyn => {

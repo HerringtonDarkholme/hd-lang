@@ -366,8 +366,7 @@ impl Em<'_, '_, '_> {
         // needs a count before the equality instruction consumes it.
         let compared_slices: Vec<u32> = self.string_slice_comparisons.keys().copied().collect();
         for call in compared_slices {
-            let mut args = self.rec(self.b.data[call as usize][1]);
-            args.truncate(args.len().saturating_sub(3));
+            let args = self.b.call_args(call as usize).to_vec();
             let Some(&text) = args.first() else {
                 continue;
             };
@@ -1255,8 +1254,8 @@ impl Em<'_, '_, '_> {
         if !matches!(tag, Some(Tag::Call | Tag::CallValue)) {
             return hd_base::HashSet::default();
         }
-        let [callee, arguments] = self.b.data[c as usize];
-        let mut args = self.rec(arguments);
+        let [callee, _] = self.b.data[c as usize];
+        let args = self.b.call_args(c as usize).to_vec();
         crate::work::loan_queries(args.len());
         let passes: Vec<bool> = if tag == Some(Tag::CallValue) {
             let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip(
@@ -1278,75 +1277,67 @@ impl Em<'_, '_, '_> {
                         && matches!(self.argument_pass(None, 0, t), Pass::Borrowed)
                 })
                 .collect()
+        } else if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
+            let Some(hd_tir::ir::Callee::TraitMethod { method, targs, .. }) =
+                hd_tir::ir::Callee::from_words(self.b.record(callee))
+            else {
+                return hd_base::HashSet::default();
+            };
+            let Some(&receiver) = args.first() else {
+                return hd_base::HashSet::default();
+            };
+            // Match push_dyn's instantiated slot signature. A slot lends
+            // its erased receiver, but owning cold arguments and native
+            // Drop values arrive with their counts: the slot does not
+            // acquire those from the caller a second time.
+            let targs: Vec<_> = self
+                .pool()
+                .list_items(targs)
+                .iter()
+                .map(|&ty| self.sub(ty))
+                .collect();
+            let value_ty = self.dyn_value_ty(self.ty_of(receiver));
+            let slot_args = self.pool().list(&[&[value_ty], &targs[..]].concat());
+            let declared = self.env().params(method).unwrap_or_default();
+            let suspends = self.env().suspends(method);
+            // cost: fetch/substitute the signature once per cached call;
+            // classify its argument slots once, never clone it per slot.
+            crate::work::loan_queries(targs.len() + declared.len() + args.len());
+            args.iter()
+                .enumerate()
+                .map(|(k, &argument)| {
+                    k == 0
+                        || !(crate::layout::holds_drop(
+                            self.pool(),
+                            self.env(),
+                            self.ty_of(argument),
+                        ) || suspends
+                            && declared.get(k).is_some_and(|&ty| {
+                                let ty =
+                                    hd_mono::subst(self.pool(), self.env(), method, slot_args, ty);
+                                self.env().cold_transfers(method, ty)
+                            }))
+                })
+                .collect()
         } else {
-            args.truncate(args.len().saturating_sub(3));
-            if matches!(self.calls.get(&c), Some(hd_mono::Target::Dyn)) {
-                let Some(hd_tir::ir::Callee::TraitMethod { method, targs, .. }) =
-                    hd_tir::ir::Callee::from_words(self.b.record(callee))
-                else {
-                    return hd_base::HashSet::default();
-                };
-                let Some(&receiver) = args.first() else {
-                    return hd_base::HashSet::default();
-                };
-                // Match push_dyn's instantiated slot signature. A slot lends
-                // its erased receiver, but owning cold arguments and native
-                // Drop values arrive with their counts: the slot does not
-                // acquire those from the caller a second time.
-                let targs: Vec<_> = self
-                    .pool()
-                    .list_items(targs)
-                    .iter()
-                    .map(|&ty| self.sub(ty))
-                    .collect();
-                let value_ty = self.dyn_value_ty(self.ty_of(receiver));
-                let slot_args = self.pool().list(&[&[value_ty], &targs[..]].concat());
-                let declared = self.env().params(method).unwrap_or_default();
-                let suspends = self.env().suspends(method);
-                // cost: fetch/substitute the signature once per cached call;
-                // classify its argument slots once, never clone it per slot.
-                crate::work::loan_queries(targs.len() + declared.len() + args.len());
-                args.iter()
-                    .enumerate()
-                    .map(|(k, &argument)| {
-                        k == 0
-                            || !(crate::layout::holds_drop(
-                                self.pool(),
-                                self.env(),
-                                self.ty_of(argument),
-                            ) || suspends
-                                && declared.get(k).is_some_and(|&ty| {
-                                    let ty = hd_mono::subst(
-                                        self.pool(),
-                                        self.env(),
-                                        method,
-                                        slot_args,
-                                        ty,
-                                    );
-                                    self.env().cold_transfers(method, ty)
-                                }))
-                    })
-                    .collect()
-            } else {
-                let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
-                    return hd_base::HashSet::default();
-                };
-                if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
-                    return hd_base::HashSet::default();
-                }
-                let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
-                    return hd_base::HashSet::default();
-                };
-                if params.len() != args.len() {
-                    return hd_base::HashSet::default();
-                }
-                let lends = self.env().lends(ct.item, ct.args);
-                params
-                    .iter()
-                    .enumerate()
-                    .map(|(k, &t)| matches!(self.pass_at(lends, k, t), Pass::Borrowed))
-                    .collect()
+            let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
+                return hd_base::HashSet::default();
+            };
+            if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
+                return hd_base::HashSet::default();
             }
+            let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
+                return hd_base::HashSet::default();
+            };
+            if params.len() != args.len() {
+                return hd_base::HashSet::default();
+            }
+            let lends = self.env().lends(ct.item, ct.args);
+            params
+                .iter()
+                .enumerate()
+                .map(|(k, &t)| matches!(self.pass_at(lends, k, t), Pass::Borrowed))
+                .collect()
         };
         crate::work::loan_queries(args.len() * 2);
         let mut seen = hd_base::HashSet::default();

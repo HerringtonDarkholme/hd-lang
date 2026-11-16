@@ -271,7 +271,7 @@
         call $rt:release_ref
       end
     ;; 30 |         @source
-      i32.const 468 ;; &vtable[func69]
+      i32.const 468 ;; &vtable[rt:dyn_slot]
     ;; 27 |     @error("cannot read $path")
       local.set $t1
     else
@@ -302,7 +302,7 @@
           call $rt:release_ref
         end
     ;; 35 |         @from
-        i32.const 492 ;; &vtable[func67]
+        i32.const 492 ;; &vtable[rt:dyn_slot]
     ;; 33 |     @error("bad config")
         local.set $t3
       else

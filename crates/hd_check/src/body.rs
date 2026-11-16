@@ -5402,6 +5402,7 @@ impl Ck<'_, '_> {
             let l = TyList(self.b.body_mut().extra[list_at]);
             self.b.body_mut().extra[list_at] = self.zonk_list(l).0;
         }
+        self.finalize_row_adaptations();
         // A global place root's type: an init stores its bindings before
         // their types are settled.
         for at in hd_tir::ir::global_place_types(self.b.body_mut()) {
@@ -5527,6 +5528,11 @@ impl Ck<'_, '_> {
         // its root block included.
         let body = self.b.body_mut();
         body.sub_root[0] = root.0;
+        // M1's cached bodies wait for solved rows in results::take. Other
+        // bodies freeze their checked call evidence before verification.
+        if !errors && !self.cx.results.borrow().inferring() {
+            crate::providers::finalize(self.cx, body)?;
+        }
         // No call is known pure here: the driver roots again across the
         // calls that write nothing, before the ownership passes.
         ROOTS.with(|r| hd_tir::ir::root_places(body, None, &mut r.borrow_mut()));

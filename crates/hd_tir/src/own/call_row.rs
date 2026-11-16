@@ -254,7 +254,7 @@ mod tests {
             let l = b.local(ty, Symbol::from_raw(0), local_flags::PARAM, NodeIdx::NONE);
             b.get(l, ty, NodeIdx::NONE)
         };
-        let args = b.refs_record(&[]);
+        let args = b.call_args_record(&[], crate::ir::Providers::None);
         b.emit(Tag::CallValue, callee.0, args, Ty::I32, NodeIdx::NONE);
         let root = b.close_block(block, None, Ty::VOID, NodeIdx::NONE);
         let mut b = b.finish(root, &[]).unwrap();
@@ -292,7 +292,7 @@ mod tests {
             layers.push(b.open_block());
         }
         let callback = b.const_value(Ty(45), 0);
-        let args = b.words_record(&[]);
+        let args = b.call_args_record(&[], crate::ir::Providers::None);
         let mut tail = b.emit(Tag::CallValue, callback.0, args, Ty::I32, n);
         while let Some(layer) = layers.pop() {
             let block = b.close_block(layer, Some(tail), Ty::I32, n);
@@ -308,7 +308,7 @@ mod tests {
         let block = b.close_block(inner, Some(tail), Ty::I32, n);
         let scope = b.emit(Tag::With, pairs, block.0, Ty::I32, n);
         if later {
-            let args = b.words_record(&[]);
+            let args = b.call_args_record(&[], crate::ir::Providers::None);
             b.emit(Tag::CallValue, callback.0, args, Ty::I32, n);
         }
         for value in values {
@@ -404,7 +404,7 @@ mod tests {
                     let def = DefId::from_raw(if needed { 7 } else { 8 });
                     if tag == Tag::DefaultCall {
                         let call = builder.words_record(&[def.raw(), TyList::EMPTY.0]);
-                        let args = builder.refs_record(&[]);
+                        let args = builder.call_args_record(&[], crate::ir::Providers::None);
                         builder.emit(tag, call, args, Ty::I32, NodeIdx::NONE);
                     } else {
                         let callee = if dynamic {

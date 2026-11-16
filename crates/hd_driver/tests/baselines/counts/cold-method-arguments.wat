@@ -729,7 +729,7 @@
     call $rt:forbid_check
     i32.const 0
     local.get $reader
-    i32.const 508 ;; &vtable[func98, func100]
+    i32.const 508 ;; &vtable[rt:dyn_slot, rt:drive]
     local.get $t4
     local.get $provider0
     local.get $provider0.vtable

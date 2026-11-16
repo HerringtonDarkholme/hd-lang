@@ -6964,6 +6964,13 @@ lang/references/dependent-results/dependent-result-loan-covers-later-arguments.h
 lang/references/dependent-results/dependent-result-arguments-permit-disjoint-branch-access.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 lang/references/dependent-results/dependent-result-loan-ends-on-argument-early-return.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 lang/references/dependent-results/dependent-result-mutable-loan-allows-disjoint-access.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan
+lang/requirements/requirement-rows/row-subsumption/supertrait-call-evidence-preserves-exact-key-shadowing.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.entail.super
+lang/requirements/requirement-rows/row-subsumption/supertrait-function-row-adapter-uses-invocation-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.subsume.adapt
+lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-cover-every-conversion-site.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.subsume.sites
+lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-preserve-whole-generic-keys.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.subsume.adapt
+lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-preserve-associated-bindings.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.subsume.adapt
+lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-forward-open-tails.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.row.subsume.adapt
+lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-cold-frames-keep-providers.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-ptr-drop.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.root
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-field-replace.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.call-loan

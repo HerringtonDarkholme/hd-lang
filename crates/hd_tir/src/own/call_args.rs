@@ -24,8 +24,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32
         let Some(callee) = Callee::from_words(b.record(b.data[i][0])) else {
             continue;
         };
-        let record = b.record(b.data[i][1]);
-        let args = &record[..record.len().saturating_sub(3)];
+        let args = b.call_args(i);
         for (k, &arg) in args.iter().enumerate() {
             let Some(value) = Ref(arg).as_inst() else {
                 continue;

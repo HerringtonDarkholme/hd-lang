@@ -51,6 +51,7 @@ mod module_row_work;
 mod parallel_bodies;
 mod pathological;
 mod profile_handles;
+mod provider_evidence_work;
 mod recursive_layouts;
 mod release_profile_run;
 mod resume_dispatch;

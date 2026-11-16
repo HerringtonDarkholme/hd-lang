@@ -3702,7 +3702,7 @@ impl Ck<'_, '_> {
                     let fname = self.cx.names.text(f.name).to_owned();
                     let body = self.cx.names.member(def, PathKind::Hidden, &fname);
                     let a = self.b.refs_record(&[Ref(body.raw()), Ref(targ_list.0)]);
-                    let bw = self.b.refs_record(&[]);
+                    let bw = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
                     let ft = inst(f.ty);
                     vals[i] = self.b.emit(Tag::DefaultCall, a, bw, ft, n.index());
                     continue;
@@ -6023,15 +6023,33 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         };
         self.require_key(key, n, kn);
-        let at = self.b.refs_record(&[Ref(key.0)]);
+        let supplier = self.selected_key_supplier(key);
+        let TyData::TraitValue {
+            def: supplier_trait,
+            ..
+        } = self.pool().get(supplier)
+        else {
+            return Ok((Ref(NONE), Ty::POISON));
+        };
+        let at = self.b.refs_record(&[Ref(supplier.0)]);
         let (pt, by_ref) = self.provider_ty(key, key_trait, counted);
         if by_ref {
             // The provider holds the trait value reference itself
             // (`Coercion::RefAsProvider`).
-            let p = self.b.emit(Tag::ProviderGet, at, NONE, key, n.index());
-            let r = self
+            let (source, _) = self.provider_ty(supplier, supplier_trait, counted);
+            let p = self.b.emit(Tag::ProviderGet, at, NONE, supplier, n.index());
+            let mut r = self
                 .b
-                .coerce(Coercion::ProviderAsRef, NONE, p, pt, n.index());
+                .coerce(Coercion::ProviderAsRef, NONE, p, source, n.index());
+            if supplier != key {
+                r = self.build_dyn_ref_kind(
+                    r,
+                    source,
+                    (key, self.trait_is_mutable(key_trait), counted),
+                    Coercion::Supertrait,
+                    n,
+                );
+            }
             return Ok((r, pt));
         }
         Ok((self.b.emit(Tag::ProviderGet, at, NONE, pt, n.index()), pt))

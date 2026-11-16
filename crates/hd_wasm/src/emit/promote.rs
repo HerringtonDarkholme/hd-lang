@@ -105,8 +105,7 @@ pub(super) fn promoted_refs(
         let Some(Target::Call(ct)) = targets.get(&u32::try_from(i).expect("insts")) else {
             continue;
         };
-        let words = b.record(b.data[i][1]);
-        let operands = &words[..words.len().saturating_sub(3)];
+        let operands = b.call_args(i);
         let arg_ty = |a: usize| subst(pool, env, item, args, b.ty[a]);
         match &ct.kind {
             TargetKind::Instance => {

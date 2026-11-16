@@ -66,23 +66,51 @@ impl Ck<'_, '_> {
             };
             return match pool.get(inner) {
                 TyData::Infer(_) | TyData::Poison | TyData::Never => None,
-                TyData::TraitValue {
-                    def: from,
-                    args: from_args,
-                    ..
-                } => {
+                TyData::TraitValue { def: from, .. } => {
                     let TyData::TraitValue { def: to, .. } = pool.get(tv) else {
                         return None;
                     };
                     if from == to {
                         return None;
                     }
-                    let Some(widened) =
-                        supertrait_args(self.cx.lookup, pool, (from, from_args), None, to)
+                    // A trait can reach two instances of the same supertrait.
+                    // Match the complete target, not the first trait name.
+                    let supers = crate::rows::supertrait_keys(self.cx, pool, inner);
+                    let TyData::TraitValue {
+                        bindings: target_bindings,
+                        ..
+                    } = pool.get(tv)
                     else {
-                        // An edge the resolver cut from a supertrait cycle,
-                        // reported there, is no second error
-                        // (`trait.super.cycle-report`).
+                        return None;
+                    };
+                    let found = supers.iter().copied().any(|candidate| {
+                        let TyData::TraitValue {
+                            def,
+                            args,
+                            bindings,
+                        } = pool.get(candidate)
+                        else {
+                            return false;
+                        };
+                        if def != to {
+                            return false;
+                        }
+                        let mut selected = Vec::new();
+                        for &(name, _) in &target_bindings {
+                            let Some(binding) = bindings.iter().find(|b| b.0 == name) else {
+                                return false;
+                            };
+                            selected.push(*binding);
+                        }
+                        let candidate = pool.intern_ty(&TyData::TraitValue {
+                            def,
+                            args,
+                            bindings: selected,
+                        });
+                        self.can_unify(candidate, tv)
+                    });
+                    if !found {
+                        // Resolver-cut cycle edges already have their diagnostic.
                         if self.crosses_cut_supertrait(from) {
                             return Some(self.build_dyn_ref_kind(
                                 r,
@@ -92,14 +120,6 @@ impl Ck<'_, '_> {
                                 n,
                             ));
                         }
-                        return None;
-                    };
-                    let widened = pool.intern_ty(&TyData::TraitValue {
-                        def: to,
-                        args: widened,
-                        bindings: vec![],
-                    });
-                    if !self.can_unify(widened, tv) {
                         return None;
                     }
                     Some(self.build_dyn_ref_kind(

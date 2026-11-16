@@ -1,0 +1,141 @@
+# @dump: stdout counts
+# @build: dev | checked | release | release checked
+# expected: final 58 covers the large-struct worker ABI; otherwise every conversion uses the invocation's Named provider; captures survive.
+
+trait Base:
+    fn base(&self) -> i32
+
+trait Named < Base:
+    fn name(&self) -> i32
+
+struct Source:
+    n: i32
+
+impl Base for Source:
+    fn base(&self) -> i32:
+        self.n * 10
+
+impl Named for Source:
+    fn name(&self) -> i32:
+        self.n
+
+type Callback = fn() -> i32 $ Named
+type Wrapped(Callback)
+
+enum Choice:
+    Callback(callback: Callback)
+
+struct Holder:
+    callback: fn() -> i32 $ Named
+
+fn original() -> i32 $ Base:
+    $.use(Base).base()
+
+fn returned() -> (fn() -> i32 $ Named):
+    original
+
+fn apply(callback: fn() -> i32 $ Named) -> i32 $ Named:
+    callback()
+
+fn via_row[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
+    callback()
+
+fn apply_default(callback: fn() -> i32 $ Named = original) -> i32 $ Named:
+    callback()
+
+fn generic_factory[T](callback: fn(T) -> i32 $ Base) -> (fn(T) -> i32 $ Named):
+    callback
+
+fn number(n: i32) -> i32 $ Base:
+    original() + n
+
+fn text(s: string) -> i32 $ Base:
+    original() + i32(s.len())
+
+struct Wide:
+    a0: i32
+    a1: i32
+    a2: i32
+    a3: i32
+    a4: i32
+    a5: i32
+    a6: i32
+    a7: i32
+    a8: i32
+    a9: i32
+    a10: i32
+    a11: i32
+    a12: i32
+    a13: i32
+    a14: i32
+    a15: i32
+    a16: i32
+
+fn wide(value: Wide) -> Wide $ Base:
+    Wide { ...value, a0: original() + value.a0 }
+
+pub fn main() -> void $ Console:
+    let assigned: fn() -> i32 $ Named = original
+    assigned = fn() -> i32 $ Base: original()
+    holder := Holder { callback: original }
+    let callbacks: List[fn() -> i32 $ Named] = [original, fn() -> i32 $ Base: original()]
+    let branch: fn() -> i32 $ Named = if true: original else: fn() -> i32 $ Base: original()
+    captured := "x"
+    closure := fn() -> i32 $ Base: original() + i32(captured.len())
+    let converted: fn() -> i32 $ Named = closure
+    saved := returned()
+    let optional: Callback? = .Some(original)
+    let pair: (Callback, i32) = (original, +0)
+    let mapping: Map[string, Callback] = { "key": original }
+    let boxed_callback: Callback = original
+    boxed := box(boxed_callback)
+    wrapped := Wrapped(original)
+    choice := Choice.Callback(original)
+    numeric := generic_factory(number)
+    textual := generic_factory(text)
+    let large: fn(Wide) -> Wide $ Named = wide
+    $.with(Named=box(Source { n: 4 })):
+        println(assigned())
+        println((holder.callback)())
+        println(callbacks[0]())
+        println(callbacks[1]())
+        println(branch())
+        println(saved())
+        println(apply(original))
+        println(apply_default())
+        println(via_row::[$ Named](original))
+        println(converted())
+        println(closure())
+        println(numeric(2))
+        println(textual("abc"))
+        match optional:
+            .Some(callback) => println(callback())
+            .None => panic("missing callback")
+        println((pair._0)())
+        println((mapping["key"])())
+        println((*boxed)())
+        println(Callback(wrapped)())
+        match choice:
+            .Callback(callback) => println(callback())
+        result := large(
+            Wide {
+                a0: +1,
+                a1: +2,
+                a2: +3,
+                a3: +4,
+                a4: +5,
+                a5: +6,
+                a6: +7,
+                a7: +8,
+                a8: +9,
+                a9: +10,
+                a10: +11,
+                a11: +12,
+                a12: +13,
+                a13: +14,
+                a14: +15,
+                a15: +16,
+                a16: +17,
+            },
+        )
+        println(result.a0 + result.a16)

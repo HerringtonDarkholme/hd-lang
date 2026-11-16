@@ -48,6 +48,7 @@ mod opaque;
 mod pat;
 mod privacy;
 mod promote;
+mod providers;
 mod receiver;
 mod refs;
 mod regions;

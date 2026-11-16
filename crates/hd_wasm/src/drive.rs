@@ -34,8 +34,7 @@ pub fn callee(b: &Body, a: u32) -> Option<(DefId, DefId)> {
 
 /// The arguments of call or await `i`, without the trailing words.
 fn args(b: &Body, i: u32) -> &[u32] {
-    let r = b.record(b.data[i as usize][1]);
-    &r[..r.len().saturating_sub(3)]
+    b.call_args(i as usize)
 }
 
 fn is_block_on(calls: &HashMap<u32, Target>, i: u32) -> bool {

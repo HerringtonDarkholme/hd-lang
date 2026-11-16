@@ -220,8 +220,7 @@ pub fn held_args(b: &Body, call: usize) -> u64 {
     if b.tags[call] != Tag::Call {
         return 0;
     }
-    let words = b.record(b.data[call][1]);
-    let args = &words[..words.len().saturating_sub(3)];
+    let args = b.call_args(call);
     (args.iter().enumerate().take(64))
         .filter(|&(_, &v)| {
             Ref(v).as_inst().is_some_and(|i| {
@@ -462,8 +461,7 @@ pub fn inline_args(
     if b.tags[call] != Tag::Call || effects.suspends {
         return 0;
     }
-    let words = b.record(b.data[call][1]);
-    let args = &words[..words.len().saturating_sub(3)];
+    let args = b.call_args(call);
     let facts = effects.promotion.get_or_init(|| Census::new(b));
     (args.iter().enumerate().take(64))
         .filter(|&(k, &v)| {

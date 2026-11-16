@@ -503,7 +503,7 @@ impl Flow {
         for i in 0..n {
             work!(1);
             slots(body, i, |loc, value, kind| {
-                if !matches!(kind, Word::Value(_) | Word::Provider) {
+                if !matches!(kind, Word::Value(_) | Word::Provider | Word::ProviderRef) {
                     return;
                 }
                 let Some(value) = Ref(value).as_inst() else {
@@ -1008,7 +1008,7 @@ mod tests {
                 b.set(local, value, n);
                 value = b.get(local, fn_ty, n);
             }
-            let args = b.refs_record(&[]);
+            let args = b.call_args_record(&[], crate::ir::Providers::None);
             b.emit(Tag::CallValue, value.0, args, Ty::I32, n);
         }
         let root = b.close_block(block, None, Ty::VOID, n);
@@ -1253,7 +1253,7 @@ mod tests {
             b.emit(Tag::NewStruct, NONE, values, fn_ty, n);
         }
         if control != 4 {
-            let args = b.refs_record(&[]);
+            let args = b.call_args_record(&[], crate::ir::Providers::None);
             b.emit(Tag::CallValue, value.0, args, Ty::VOID, n);
         }
         let root = b.close_block(

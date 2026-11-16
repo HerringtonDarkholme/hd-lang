@@ -4,7 +4,7 @@
 //! The context supplies program facts; this pass alone computes source-deduplicated
 //! accesses, transitive call effects, trait payload types and kept loan sites.
 
-use crate::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag, Word, slots};
+use crate::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag};
 use hd_base::{DefId, HashMap, HashSet, InstId, NodeIdx, SliceSort as _};
 use hd_types::{Ty, TyList};
 
@@ -737,16 +737,11 @@ fn direct_value(b: &Body, a: u32) -> Option<usize> {
 }
 
 fn call_args(b: &Body, i: usize) -> Vec<u32> {
-    if b.tags[i] == Tag::CallValue {
-        return b.record(b.data[i][1]).to_vec();
-    }
-    let mut args = Vec::new();
-    slots(b, i, |_, v, word| {
-        if matches!(word, Word::Value(_)) && v < u32::try_from(i).expect("insts") {
-            args.push(v);
-        }
-    });
-    args
+    b.call_args(i)
+        .iter()
+        .copied()
+        .filter(|&v| v < crate::ir::u32_of(i))
+        .collect()
 }
 
 #[cfg(test)]

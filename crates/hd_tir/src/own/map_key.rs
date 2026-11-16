@@ -16,8 +16,7 @@ pub(super) fn needed(b: &Body, cx: &dyn OwnCx, i: usize, k: usize) -> bool {
         Some(Tag::Call)
             if Callee::from_words(b.record(b.data[i][0])).is_some_and(|c| cx.is_map_probe(&c)) =>
         {
-            let record = b.record(b.data[i][1]);
-            &record[..record.len().saturating_sub(3)]
+            b.call_args(i)
         }
         _ => return false,
     };

@@ -142,7 +142,7 @@
     i32.const 1
     i32.store $heap
     local.get $seen
-    i32.const 412 ;; &vtable[func60]
+    i32.const 412 ;; &vtable[rt:dyn_slot]
     local.set $t1
     local.tee $t3
     local.tee $step

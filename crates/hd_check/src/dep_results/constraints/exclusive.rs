@@ -38,7 +38,10 @@ pub(super) fn path_of(b: &Body, word: u32) -> Option<Path> {
         PlaceRoot::Local(l) => Some((l.raw(), p.proj)),
         PlaceRoot::Value(v) => {
             let mut v = v.0;
-            while b.ty.get(v as usize).is_some() && b.tags[v as usize] == Tag::Coerce {
+            while b.ty.get(v as usize).is_some()
+                && b.tags[v as usize] == Tag::Coerce
+                && b.row_adaptation(v as usize).is_none()
+            {
                 v = b.data[v as usize][0];
             }
             if b.ty.get(v as usize).is_none() || b.tags[v as usize] != Tag::Read {
@@ -330,7 +333,7 @@ pub(super) fn reborrow(s: &Inputs<'_>, i: u32) -> bool {
     let (b, iu) = (s.b, i as usize);
     let read = match b.tags[iu] {
         Tag::Read => s.reborrows.contains(&i),
-        Tag::Coerce => {
+        Tag::Coerce if b.row_adaptation(iu).is_none() => {
             let v = b.data[iu][0] as usize;
             b.ty.get(v).is_some() && b.tags[v] == Tag::Read && local_mut(s.pool, b.ty[v])
         }
@@ -353,7 +356,10 @@ fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
         return false;
     }
     let mut v = u;
-    while (v as usize) < b.tags.len() && b.tags[v as usize] == Tag::Coerce {
+    while (v as usize) < b.tags.len()
+        && b.tags[v as usize] == Tag::Coerce
+        && b.row_adaptation(v as usize).is_none()
+    {
         v = b.data[v as usize][0];
     }
     (v as usize) < b.tags.len()
@@ -377,7 +383,10 @@ fn local_mut(pool: Types<'_>, t: Ty) -> bool {
 /// `:=` binding, which nothing reassigns.
 fn same_key(b: &Body, x: u32, y: u32) -> bool {
     let strip = |mut v: u32| {
-        while (v as usize) < b.tags.len() && b.tags[v as usize] == Tag::Coerce {
+        while (v as usize) < b.tags.len()
+            && b.tags[v as usize] == Tag::Coerce
+            && b.row_adaptation(v as usize).is_none()
+        {
             v = b.data[v as usize][0];
         }
         v
@@ -566,7 +575,8 @@ impl Gen<'_, '_> {
                 && let PlaceRoot::Value(v) = p.root
             {
                 let mut v = v.0 as usize;
-                while v < b.tags.len() && b.tags[v] == Tag::Coerce {
+                while v < b.tags.len() && b.tags[v] == Tag::Coerce && b.row_adaptation(v).is_none()
+                {
                     base[v] = true;
                     v = b.data[v][0] as usize;
                 }

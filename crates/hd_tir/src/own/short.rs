@@ -168,8 +168,8 @@ impl Pass<'_> {
         let i = x as usize;
         match self.b.tags[i] {
             Tag::Call if self.cx.call_kind(x) == CallKind::MapProbe => {
-                let args = self.b.record(self.b.data[i][1]);
-                (args.len().saturating_sub(3) == 3).then_some((x, true, Vec::new()))
+                let args = self.b.call_args(i);
+                (args.len() == 3).then_some((x, true, Vec::new()))
             }
             Tag::Call if self.cx.call_kind(x) == CallKind::PointerRef => {
                 Some((x, false, Vec::new()))
@@ -620,7 +620,9 @@ impl Pass<'_> {
         }
         let k = v as usize;
         match self.b.tags[k] {
-            Tag::Coerce => self.root_value(self.b.data[k][0], roots, depth + 1),
+            Tag::Coerce if self.b.row_adaptation(k).is_none() => {
+                self.root_value(self.b.data[k][0], roots, depth + 1);
+            }
             Tag::Read | Tag::Ref => {
                 let root = self.b.view(self.b.data[k][0]).root;
                 self.root_place(root, roots, depth + 1);

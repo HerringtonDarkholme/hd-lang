@@ -312,7 +312,8 @@ fn returned(b: &Body, t: &mut Tables) {
             let [a, w] = b.data[v as usize];
             v = match b.tags[v as usize] {
                 Tag::Block => w,
-                Tag::Scope | Tag::Coerce => a,
+                Tag::Scope => a,
+                Tag::Coerce if b.row_adaptation(v as usize).is_none() => a,
                 _ => break,
             };
         }
