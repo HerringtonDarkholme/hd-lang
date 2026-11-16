@@ -379,11 +379,16 @@ obj/
   applied changes nothing. Once a shard's records pass 4,096 bytes (about
   one page), the writer that crosses it folds them under the lock: it
   applies them to the pages with the split and merge below, writes the
-  changed pages, table and head stamped with the next epoch, shortens the
-  log, and writes a header naming that epoch and head. A collection folds
-  every log. A reader reads a shard's log once, header and all, instead of
-  a head; a change in it wins over a page no later fold wrote, and a page
-  a later fold wrote already holds the change. A torn header is rebuilt by
+  changed pages, table and head stamped with the next epoch, writes a
+  header naming that epoch and head, and then shortens the log, so a log
+  never shows an old epoch without the records its fold applied (#2054).
+  A collection folds every log. A reader reads a shard's log once, header
+  and all, instead of a head; a change in it wins over a page no later
+  fold wrote, and a page a later fold wrote already holds the change. A
+  page newer than the reader's log, or gone, that lacks the key is
+  checked as a seqlock reader checks: the log is read again, and an
+  unchanged epoch means the fold is still writing, so the log's answer
+  stands; a changed one means a fold committed, and the read starts over. A torn header is rebuilt by
   the next writer from the head file, with the total unknown.
 - **The paged index (#1502)** is a linear hash table. Bucket `b` holds the
   rows whose key's low `i` bits are `b`, or low `i + 1` bits once `b` is

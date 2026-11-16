@@ -59,6 +59,8 @@ mod cost {
         /// Contested misses a task computed instead of waiting, because a
         /// task suspended below it on the thread holds a claim.
         pub claim_nested: u64,
+        /// Shard logs a reader read, each a view of its shard.
+        pub views_read: u64,
     }
 
     thread_local! {
@@ -2406,19 +2408,26 @@ mod packed {
                     let _ = write(&h);
                 },
                 |head| {
-                    // Shorten first: a crash before the header leaves the
-                    // old epoch's header with no records, all of them in
-                    // the pages, whose split buckets still hold the rows
-                    // they gave away.
-                    file.set_len(LOG_HEADER as u64)?;
                     #[cfg(test)]
                     if let Some(pause) = &on_pause {
-                        pause("shortened");
+                        pause("paged");
                     }
+                    // The header first (#2054): a reader of the log never
+                    // sees an old epoch without the records the fold
+                    // applied, so a page newer than the epoch it reads
+                    // means the fold's header is still to come. A reader or
+                    // a crash before the shortening finds the new head with
+                    // the records it already holds; applying them again
+                    // changes nothing.
                     let mut h = header.borrow_mut();
                     h.epoch = epoch;
                     h.head = head;
-                    write(&h)
+                    write(&h)?;
+                    #[cfg(test)]
+                    if let Some(pause) = &on_pause {
+                        pause("headed");
+                    }
+                    file.set_len(LOG_HEADER as u64)
                 },
             )?;
             self.header = header.into_inner();
@@ -2573,6 +2582,7 @@ mod packed {
 
         /// Shard `shard` as a reader sees it, taking no lock.
         fn read_view(&self, shard: u8) -> View {
+            count!(views_read, 1);
             let Ok(Some(bytes)) = read_small(&self.log_path(shard), MAX_INDEX) else {
                 return View::default();
             };
@@ -2581,12 +2591,12 @@ mod packed {
             // file names the last fold, and the batches, checksummed on
             // their own, still apply.
             let (epoch, head) = if let Some(header) = log.header {
-                // A shard's first fold writes its head file, shortens the
-                // log, then rewrites the header: a log read in between
-                // names no head and holds none of the changes the fold
-                // moved to the pages (#1977). The head file names them.
-                // Cost: one missing-file check per view of a shard never
-                // folded.
+                // A fold now rewrites the header before it shortens the
+                // log (#2054), but an earlier hd shortened first, and a
+                // crash in between left a log that names no head and
+                // holds none of the changes its fold moved to the pages
+                // (#1977). The head file names them. Cost: one
+                // missing-file check per view of a shard never folded.
                 let head = header
                     .head
                     .or_else(|| read_head(&self.index_dir(shard)).ok().flatten());
@@ -2706,11 +2716,24 @@ mod packed {
         /// `key`'s location in the snapshot, reading its shard's log once
         /// and its page once. The log's change wins over a page no later
         /// fold wrote; a page a later fold wrote already holds it.
+        ///
+        /// A page newer than the view, or gone, that lacks the key is
+        /// checked as a seqlock reader checks its sequence (#2054): the
+        /// shard's log is read again. A fold writes its pages, its head,
+        /// then the log's header, and removes a merged page last. An epoch
+        /// unchanged since the view means the fold that wrote the page has
+        /// not rewritten the header: the view's log still holds every
+        /// record it applies, and a split bucket still holds the rows it
+        /// gives away, so the view's answer stands and the page is stamped
+        /// as read under it. A changed epoch means a fold committed since:
+        /// the read starts over on the new view. Cost: a hit or a miss on
+        /// pages no newer than the view reads nothing more; otherwise one
+        /// log read, plus one per fold another writer commits meanwhile.
         fn locate(&self, state: &mut Snapshot, key: Key) -> Option<Location> {
             let shard = shard_of(key.1);
             let dir = self.index_dir(shard);
-            for fresh in [false, true] {
-                let Snapshot { views, pages, .. } = &mut *state;
+            let Snapshot { views, pages, .. } = state;
+            loop {
                 let view = views.entry(shard).or_insert_with(|| self.read_view(shard));
                 let change = view.overlay.rows.get(&key).copied();
                 if view.head.is_none() && change.is_some() && !view.probed {
@@ -2724,27 +2747,28 @@ mod packed {
                 };
                 let bucket = head.bucket(key.1);
                 let (rows, epoch) = pages.entry((shard, bucket)).or_insert_with(|| {
+                    // A page the head names but no file holds was removed
+                    // by a later merge: newer than any view.
                     read_page(&dir, bucket)
                         .ok()
                         .flatten()
-                        .map(|(rows, _, epoch)| (rows, epoch))
-                        .unwrap_or_default()
+                        .map_or((Entries::new(), u32::MAX), |(rows, _, epoch)| (rows, epoch))
                 });
                 let newer = *epoch > view.epoch;
                 match (change, rows.get(&key)) {
                     (Some(change), _) if !newer => return change,
                     (_, Some(loc)) => return Some(*loc),
-                    // A page a later fold wrote, without the key: the fold
-                    // may have moved it to a bucket this view's head does
-                    // not have. Read the shard again, once.
-                    _ if newer && !fresh => {
-                        views.remove(&shard);
-                        pages.retain(|(s, _), _| *s != shard);
-                    }
-                    _ => return None,
+                    _ if !newer => return None,
+                    _ => {}
                 }
+                let fresh = self.read_view(shard);
+                if fresh.epoch == view.epoch {
+                    *epoch = view.epoch;
+                    return change.flatten();
+                }
+                *view = fresh;
+                pages.retain(|(s, _), _| *s != shard);
             }
-            None
         }
 
         fn snapshot<'a>(guard: &'a mut MutexGuard<'_, Option<Snapshot>>) -> &'a mut Snapshot {
@@ -5313,7 +5337,7 @@ mod packed {
             let mut collector = Store::new(&root);
             collector.on_pause = Some(Arc::new(move |stop| {
                 // Its folds stop inside the writer lock.
-                if stop == "shortened" {
+                if matches!(stop, "paged" | "headed") {
                     return;
                 }
                 at.send(stop).unwrap();
@@ -5640,18 +5664,17 @@ mod packed {
         }
 
         /// A reader that reads a shard's log while its first fold has
-        /// shortened it but not yet rewritten its header (#1977) sees the
-        /// old header, which names no pages, and no records: it finds the
-        /// key in the pages that fold just wrote.
+        /// rewritten its header but not yet shortened it (#1977) sees the
+        /// new head with the records already folded: it finds the key.
         #[test]
-        fn a_reader_between_a_first_folds_shortening_and_its_header_finds_the_key() {
+        fn a_reader_between_a_first_folds_header_and_its_shortening_finds_the_key() {
             let root = scratch("fold-shortened");
             let mut writer = Store::new(&root);
             let reader_root = root.clone();
             let found = Arc::new(Mutex::new(Vec::new()));
             let seen = Arc::clone(&found);
             writer.on_pause = Some(Arc::new(move |stop| {
-                if stop == "shortened" {
+                if stop == "headed" {
                     let got = Store::new(&reader_root).get(EntryKind::Check, &Hash128(1));
                     seen.lock()
                         .unwrap()
@@ -5690,12 +5713,98 @@ mod packed {
                 .find(|&k| head.bucket(key(k)) == 1)
                 .expect("a key the split moved");
             drop(shard);
+            cost::take();
             assert_eq!(
                 reader
                     .get(EntryKind::Check, &Hash128(key(moved)))
                     .as_deref(),
                 Some(moved.to_le_bytes().as_slice())
             );
+            // One committed fold since the view: one more read of the log.
+            assert_eq!(cost::take().views_read, 1);
+        }
+
+        /// A reader whose view predates a fold that merged a bucket away
+        /// (#2054) finds a key the merge moved: the page its head names is
+        /// gone, which a fold that committed since does, so it reads the
+        /// shard again, once. Before, the missing page read as an old,
+        /// empty one, and the key missed.
+        #[test]
+        fn a_reader_finds_a_key_a_later_fold_merged_out_of_a_removed_bucket() {
+            let root = scratch("fold-merge");
+            let writer = Store::new(&root);
+            let key = |k: u128| k.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let batch = |from: u128, to: u128| -> Vec<_> {
+                (from..to).map(|k| item(key(k), &k.to_le_bytes())).collect()
+            };
+            writer.publish(&batch(0, 30)).unwrap();
+            writer.open_shard(0).unwrap().fold().unwrap();
+            writer.publish(&batch(30, 60)).unwrap();
+            let mut shard = writer.open_shard(0).unwrap();
+            shard.fold().unwrap();
+            let head = shard.txn().unwrap().head;
+            assert_eq!(head.buckets(), 2);
+            drop(shard);
+            let survivor = (0..60).find(|&k| head.bucket(key(k)) == 1).unwrap();
+            let reader = Store::new(&root);
+            let view = reader.read_view(0);
+            Store::snapshot(&mut reader.state()).views.insert(0, view);
+            let mut shard = writer.open_shard(0).unwrap();
+            for k in (0..60).filter(|&k| k != survivor) {
+                shard.remove((EntryKind::Check as u16, key(k))).unwrap();
+            }
+            shard.commit(0, || Ok(())).unwrap();
+            shard.fold().unwrap();
+            assert_eq!(shard.txn().unwrap().head.buckets(), 1, "the fold merged");
+            drop(shard);
+            cost::take();
+            assert_eq!(
+                reader
+                    .get(EntryKind::Check, &Hash128(key(survivor)))
+                    .as_deref(),
+                Some(survivor.to_le_bytes().as_slice())
+            );
+            assert_eq!(cost::take().views_read, 1);
+        }
+
+        /// A reader between a splitting fold's pages and its log header
+        /// (#2054) reads the old epoch, whose log still holds the keys
+        /// the fold moves, and a page that fold wrote without them: the
+        /// log, read again at the same epoch, shows no fold committed, so
+        /// the log's change stands. Before, it read the log once more and
+        /// missed every key the split moved. One more log read in all:
+        /// the stale page is then taken as read under the view.
+        #[test]
+        fn a_reader_between_a_folds_pages_and_its_header_finds_every_key() {
+            let root = scratch("fold-paged");
+            let mut writer = Store::new(&root);
+            let key = |k: u128| k.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let batch = |from: u128, to: u128| -> Vec<_> {
+                (from..to).map(|k| item(key(k), &k.to_le_bytes())).collect()
+            };
+            writer.publish(&batch(0, 30)).unwrap();
+            writer.open_shard(0).unwrap().fold().unwrap();
+            writer.publish(&batch(30, 60)).unwrap();
+            let reader_root = root.clone();
+            let found = Arc::new(Mutex::new(Vec::new()));
+            let seen = Arc::clone(&found);
+            writer.on_pause = Some(Arc::new(move |stop| {
+                if stop == "paged" {
+                    let reader = Store::new(&reader_root);
+                    cost::take();
+                    let hits = (0..60)
+                        .filter(|&k| {
+                            reader.get(EntryKind::Check, &Hash128(key(k))).as_deref()
+                                == Some(k.to_le_bytes().as_slice())
+                        })
+                        .count();
+                    seen.lock().unwrap().push((hits, cost::take().views_read));
+                }
+            }));
+            let mut shard = writer.open_shard(0).unwrap();
+            shard.fold().unwrap();
+            assert_eq!(shard.txn().unwrap().head.buckets(), 2, "the fold split");
+            assert_eq!(*found.lock().unwrap(), [(60, 2)]);
         }
 
         /// A torn tail of a shard's log is skipped by readers and cut by
