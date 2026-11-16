@@ -66,6 +66,7 @@ impl Drop for Outer:
 struct Plain:
     big: Big
     w: i32
+    tag: string
 
 impl !Copy for Plain
 
@@ -139,6 +140,99 @@ fn parse(x: i32) -> Result[i32, string]:
 fn local(x: i32) -> i32:
     let b = mk(x, "l")
     b.f2 + b.f3
+
+# A last-use read of a copied field of a value with a hook copies: the
+# value stays whole, so its hook runs once and sees the field
+# (module.rt.drop.glue); only `ref.move.field`'s sites move a field.
+@inline(.Never)
+fn local_name(x: i32) -> i32:
+    let b = mk(x, "l")
+    b.f2 + i32(b.name.len())
+
+@inline(.Never)
+fn local_deep_name(x: i32) -> i32:
+    let o = mk_outer(x)
+    o.v + i32(o.big.name.len())
+
+@inline(.Never)
+fn local_part_id(x: i32) -> i32:
+    let b = mk(x, "d")
+    b.f1 + i32(b.part.id.len())
+
+@inline(.Never)
+fn plain_name(x: i32) -> i32:
+    let p = Plain { big: mk(x, "n"), w: 1, tag: "tg" }
+    p.w + i32(p.big.name.len())
+
+# A struct with no hook of its own moves its other field: the field
+# that holds a hook stays whole.
+@inline(.Never)
+fn plain_tag(x: i32) -> i32:
+    let p = Plain { big: mk(x, "m"), w: 1, tag: "tg" }
+    p.w + i32(p.tag.len())
+
+@inline(.Never)
+fn temp_name(x: i32) -> i32: i32(mk(x, "t").name.len())
+
+@inline(.Never)
+fn param_name(b: Big) -> i32: b.f0 + i32(b.name.len())
+
+@inline(.Never)
+fn looped_name(n: i32) -> i32:
+    let acc = 0
+    for k in 0..n:
+        let b = mk(k, "r")
+        acc += i32(b.name.len())
+    acc
+
+@inline(.Never)
+fn gen_name[T](x: i32, e: T) -> i32:
+    let g = Gen { big: mk(x, "g"), extra: e }
+    i32(g.big.name.len())
+
+enum Tagged:
+    Named(string)
+    Empty
+
+impl !Copy for Tagged
+
+impl Drop for Tagged:
+    fn drop(&mut self) -> void:
+        match self:
+            .Named(s) => trace = "${trace} tagged:${s}"
+            .Empty => trace = "${trace} tagged"
+
+@inline(.Never)
+fn mk_tagged(s: string) -> Tagged: .Named(s)
+
+@inline(.Never)
+fn tagged_len(s: string) -> i32:
+    let t = mk_tagged(s)
+    match t:
+        .Named(n) => i32(n.len())
+        .Empty => 0
+
+# A newtype with no hook of its own over a value with one: the base's
+# hook makes the read a copy.
+type Wrapped(Big)
+
+@inline(.Never)
+fn newtype_name(x: i32) -> i32:
+    let w = Wrapped(mk(x, "v"))
+    i32(Big(w).name.len())
+
+# An enum with no hook of its own moves a copied payload field out: the
+# payload field that holds a hook stays whole.
+enum Wrap:
+    W(Big, string)
+
+impl !Copy for Wrap
+
+@inline(.Never)
+fn wrapped_len(x: i32) -> i32:
+    let w = Wrap.W(mk(x, "w"), "abc")
+    match w:
+        .W(_, s) => i32(s.len())
 
 @inline(.Never)
 fn early(x: i32) -> i32:
@@ -248,6 +342,35 @@ tests:
         assert_equal(boom(7), 7)
         assert_equal(taken(), " big:b7 pb!")
 
+    it("a last-use read of a copied field keeps the value whole for its hook"):
+        _ := taken()
+        assert_equal(local_name(2), 6)
+        assert_equal(taken(), " big:l2 pl!")
+        assert_equal(local_deep_name(3), 5)
+        assert_equal(taken(), " outer:3 big:o3 po! tail")
+        assert_equal(local_part_id(4), 7)
+        assert_equal(taken(), " big:d4 pd!")
+        assert_equal(plain_name(5), 3)
+        assert_equal(taken(), " big:n5 pn!")
+        assert_equal(plain_tag(6), 3)
+        assert_equal(taken(), " big:m6 pm!")
+        assert_equal(temp_name(7), 2)
+        assert_equal(taken(), " big:t7 pt!")
+        assert_equal(param_name(mk(8, "a")), 10)
+        assert_equal(taken(), " big:a8 pa!")
+        assert_equal(looped_name(2), 4)
+        assert_equal(taken(), " big:r0 pr! big:r1 pr!")
+        assert_equal(gen_name(9, "e"), 2)
+        assert_equal(taken(), " big:g9 pg!")
+        assert_equal(gen_name(1, 6), 2)
+        assert_equal(taken(), " big:g1 pg!")
+        assert_equal(tagged_len("abc"), 3)
+        assert_equal(taken(), " tagged:abc")
+        assert_equal(wrapped_len(2), 3)
+        assert_equal(taken(), " big:w2 pw!")
+        assert_equal(newtype_name(3), 2)
+        assert_equal(taken(), " big:v3 pv!")
+
     it("a value that counts nothing runs its hook from the heap copy"):
         _ := taken()
         assert_equal(quiet(mk_quiet(3)), 7)
@@ -263,7 +386,7 @@ tests:
         assert_equal(taken(), " big:o4 po! tail")
         assert_equal(moved_deep(mk_outer(5)), 7)
         assert_equal(taken(), " po tail")
-        assert_equal(moved_plain(Plain { big: mk(6, "x"), w: 1 }), 3)
+        assert_equal(moved_plain(Plain { big: mk(6, "x"), w: 1, tag: "t" }), 3)
         assert_equal(taken(), " px")
 
     it("a frame local's moved field skips the same hooks"):

@@ -467,6 +467,33 @@ impl OwnCx for Env<'_> {
         }
     }
 
+    fn own_drop(&self, ty: Ty) -> Tri {
+        // Each newtype layer down to `strip`'s base, then the base: one
+        // `strip_newtype` step each, as `hd_wasm::layout::newtype_layers`.
+        let pool = &self.run.pool;
+        let base = hd_wasm::strip_type(pool, self, ty);
+        let mut layer = ty;
+        loop {
+            let TyData::Adt { def, args } = pool.get(layer) else {
+                return if self.is_open(layer) {
+                    Tri::Maybe
+                } else {
+                    Tri::No
+                };
+            };
+            if self.has_drop(def) {
+                return Tri::Yes;
+            }
+            if layer == base {
+                return Tri::No;
+            }
+            let Some(inner) = self.newtype_base(def) else {
+                return Tri::No;
+            };
+            layer = hd_mono::subst(pool, self, def, args, inner);
+        }
+    }
+
     fn function_suspends(&self, ty: Ty) -> bool {
         matches!(self.run.pool.get(ty), TyData::Fn { suspends: true, .. })
     }

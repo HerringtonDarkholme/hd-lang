@@ -171,6 +171,14 @@ pub trait OwnCx {
         let _ = ty;
         Tri::Maybe
     }
+    /// Whether `ty` has a `Drop` implementation of its own, on it or on a
+    /// newtype layer of it, not only on a part: moving a part out of a
+    /// value of `ty` skips that hook (`module.rt.drop.glue`). A type
+    /// parameter may be unknown. The default answers no.
+    fn own_drop(&self, ty: Ty) -> Tri {
+        let _ = ty;
+        Tri::No
+    }
     /// Whether a function type declares a suspending body. This is a type
     /// fact, including for a closure whose item is its creator's item.
     fn function_suspends(&self, ty: Ty) -> bool {

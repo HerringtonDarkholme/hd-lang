@@ -124,6 +124,9 @@ impl OwnCx for View<'_, '_> {
             Tri::No
         }
     }
+    fn own_drop(&self, ty: Ty) -> Tri {
+        OwnCx::own_drop(self.env, self.ty(ty))
+    }
     fn holds_ref(&self, ty: Ty) -> bool {
         OwnCx::holds_ref(self.env, self.ty(ty))
     }

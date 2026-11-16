@@ -25,7 +25,11 @@
 //!    temporary or a local (`[%v as .Ok .0]`, `[$l .a]`) at the last use
 //!    of the base moves, when the part holds a counted leaf (a scalar part
 //!    copies for free). The base's `Drop` stays whole and releases what the
-//!    move left, the moved part being zero.
+//!    move left, the moved part being zero. A copied part stays a copy
+//!    when the base, or a part on the way to it, has a `Drop` hook of its
+//!    own ([`Hooks`]): a move would leave that value partly moved, and its
+//!    hook would not run (`module.rt.drop.glue`). A part no instance
+//!    copies moves there all the same, at `ref.move.field`'s sites.
 //! 4. **References at last access.** A `Ref` of a whole local that lives
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
@@ -66,6 +70,7 @@ use super::{
 use crate::ir::{
     Body, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, is_suspension, place, u32_of,
 };
+use hd_types::Ty;
 
 /// A decision of [`Tables::decide`].
 const UNSEEN: u8 = 0;
@@ -137,6 +142,77 @@ pub(crate) struct Tables {
     /// The value the place of the instruction the walk is at is rooted at,
     /// or `NONE`: a use of it there reads only that place's parts.
     place_root: u32,
+    hooks: Hooks,
+}
+
+/// Which part reads would move out of a value with a `Drop` hook of its
+/// own ([`Hooks::under`]). The part types of each type a place steps
+/// through are asked once per body, so a read costs its place's steps.
+#[derive(Default)]
+struct Hooks {
+    /// The part types of (type, variant or `NONE`), or `None` when
+    /// [`OwnCx::parts`] cannot split it.
+    parts: hd_base::HashMap<(Ty, u32), Option<Vec<Ty>>>,
+    scratch: Vec<Ty>,
+}
+
+impl Hooks {
+    /// Whether moving the part at place `word` out would skip a hook: its
+    /// root, or a part before its last step, has one of its own, or might.
+    /// The walk ends at the first type that holds no `Drop` value, so a
+    /// body without one asks one memoized question per read.
+    fn under(&mut self, b: &Body, cx: &dyn OwnCx, word: u32) -> bool {
+        let p = b.view(word);
+        let mut ty = match p.root {
+            Root::Local(l) => b.local_ty[l as usize],
+            Root::Value(v) => b.ty[v as usize],
+            // ruled out: [`apply`] asks only of a candidate's read, whose
+            // root is a local or a value.
+            _ => return false,
+        };
+        let mut steps = p.steps(b).peekable();
+        let mut variant = NONE;
+        while let Some(step) = steps.next() {
+            if variant == NONE {
+                if cx.holds_drop(ty) == Tri::No {
+                    return false;
+                }
+                if cx.own_drop(ty) != Tri::No {
+                    return true;
+                }
+            }
+            let k = match step {
+                Proj::Variant(v) => {
+                    variant = v;
+                    continue;
+                }
+                Proj::Field(k) => k as usize,
+                // ruled out: a read the walk moves reads in place
+                // (`PlaceView::in_place`), by fields and variants only.
+                Proj::Deref | Proj::Elem(_) => return false,
+            };
+            if steps.peek().is_none() {
+                return false;
+            }
+            let key = (ty, variant);
+            variant = NONE;
+            let parts = self.parts.entry(key).or_insert_with(|| {
+                let v = (key.1 != NONE).then_some(key.1);
+                cx.parts(key.0, v, &mut self.scratch)
+                    .then(|| self.scratch.clone())
+            });
+            // ruled out: a type here holds a `Drop` value and is closed, and
+            // `parts` refuses only an open type, one that holds no value
+            // in place (a scalar, string, collection or reference) or a
+            // recursive enum, whose payloads lie behind a pointer. Were
+            // one met, it may hold a hook anywhere: the read copies.
+            let Some(&next) = parts.as_ref().and_then(|parts| parts.get(k)) else {
+                return true;
+            };
+            ty = next;
+        }
+        false
+    }
 }
 
 impl Tables {
@@ -161,6 +237,7 @@ impl Tables {
         self.part_uses.clear();
         self.part_keep.clear();
         fill(&mut self.returned, n, false);
+        self.hooks.parts.clear();
     }
 
     /// The row of root `root` among the part bits.
@@ -875,6 +952,11 @@ fn apply(
         // would only split the base's drop into one drop per other counted
         // part.
         if !cx.counted(b.ty[i]) && cx.copies(b.ty[i]) == Tri::Yes {
+            continue;
+        }
+        // A copied part of a value with a hook of its own copies, so the
+        // value stays whole and its hook runs (module-level rule 3).
+        if cx.copies(b.ty[i]) == Tri::Yes && t.hooks.under(b, cx, word) {
             continue;
         }
         b.data[i][1] = ReadMode::Move as u32;
