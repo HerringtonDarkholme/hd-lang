@@ -24,6 +24,17 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Set(u32);
 
+#[cfg(test)]
+thread_local! {
+    /// One per hash-cons lookup; zero also excludes rehashing the table.
+    static HASH_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn hash_probes() -> usize {
+    HASH_PROBES.get()
+}
+
 impl Set {
     pub(super) const EMPTY: Self = Self(u32::MAX);
 }
@@ -112,6 +123,8 @@ impl Sets {
         let id = u32::try_from(self.nodes.len()).expect("live set nodes");
         assert_ne!(id, u32::MAX, "live set nodes");
         if !self.unconsed {
+            #[cfg(test)]
+            HASH_PROBES.set(HASH_PROBES.get() + 1);
             let (nodes, hasher) = (&self.nodes, self.hasher);
             match self.made.entry(
                 hasher.hash_one(node),

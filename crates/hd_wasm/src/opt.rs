@@ -6358,6 +6358,56 @@ mod origin_tests {
     }
 
     #[test]
+    fn liveness_hashes_no_set_node_per_access() -> Result<(), &'static str> {
+        let symbols = Symbols::default();
+        for width in [100u32, 1000] {
+            for depth in [2, 20] {
+                for repeats in [1, 10] {
+                    let mut body = vec![Ins::Op(I::Block(BlockType::Empty)); depth];
+                    for local in 0..width {
+                        for _ in 0..repeats {
+                            body.extend([
+                                Ins::Op(I::LocalGet(local)),
+                                Ins::Op(I::Drop),
+                                Ins::Op(I::I32Const(1)),
+                                Ins::Op(I::LocalTee(local)),
+                                Ins::Op(I::Drop),
+                                Ins::Op(I::LocalGet(local)),
+                                Ins::Op(I::Drop),
+                            ]);
+                        }
+                    }
+                    body.extend(vec![Ins::Op(I::End); depth]);
+                    let f = tracked(&symbols, 0, width as usize, body);
+                    let before = live_set::hash_probes();
+                    let dead = Live::dead_accesses(&f).ok_or("structured body has liveness")?;
+                    let hashes = live_set::hash_probes() - before;
+                    assert_eq!(
+                        hashes, 0,
+                        "{width} locals, depth {depth}, {repeats} repeats"
+                    );
+                    assert_eq!(dead.len(), f.body.len());
+                    // Each tee is read by its following get. Only the last
+                    // repeat's trailing get has no later read of that local.
+                    for (repeat, accesses) in
+                        dead[depth..dead.len() - depth].chunks_exact(7).enumerate()
+                    {
+                        assert!(!accesses[3]);
+                        assert_eq!(accesses[5], repeat % repeats == repeats - 1);
+                    }
+                    // A positive control proves these bodies exercise the
+                    // counter when their arena does hash-cons its nodes.
+                    let before = live_set::hash_probes();
+                    let live = Live::new(&f, Sets::default()).ok_or("control has liveness")?;
+                    assert!(live_set::hash_probes() > before);
+                    assert!(live.sets.contains(live.into[0], width - 1));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn liveness_revisits_only_the_blocks_a_backedge_reaches() {
         let symbols = Symbols::default();
         let op = Ins::Op;
