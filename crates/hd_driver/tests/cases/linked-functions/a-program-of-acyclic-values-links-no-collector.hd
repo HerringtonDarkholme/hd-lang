@@ -1,0 +1,9 @@
+# @dump: functions
+# A program none of whose objects can be on a reference cycle links no
+# cycle collector (`crates/hd_wasm/DESIGN.md` §23.28, #649): no
+# `std/rt.cycle/` or `rt:cycle_` function and no `rt:collect`, but
+# `std/rt.alloc/release_acyclic`.
+pub fn main() -> void $ Console:
+    xs := ["a", "b"]
+    add := fn(k: i32) -> i32: k + 1
+    println("${xs.len()} ${add(41)}")

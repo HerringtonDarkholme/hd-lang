@@ -1,0 +1,11 @@
+# @dump: functions
+# A program that builds a ring of references links the cycle collector
+# (`std/rt.cycle/collect`; `crates/hd_wasm/DESIGN.md` §23.28, #649).
+struct Stop:
+    next: *mut Stop?
+
+pub fn main() -> void $ Console:
+    first := box(Stop { next: .None })
+    second := box(Stop { next: .Some(first) })
+    first.next = .Some(second)
+    println("ring")
