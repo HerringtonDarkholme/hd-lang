@@ -18,7 +18,8 @@
 //                     (normal and build edges, transitively), plus the direct
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
-//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_check's
+//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_driver's
+//                     `--features analysis --test analysis` when an analysis.rs changes; hd_check's
 //                     also run when any compiler crate is selected, since its
 //                     stage baselines dump later stages through hd_testkit;
 //                     hd_cli: `--bins` when touched, plus `--test all` for the test
@@ -319,7 +320,7 @@ const driverRule: Rule = (ctx) => {
   if (!ctx.selected.has("hd_driver")) {
     return [];
   }
-  const targets = captures(ctx, /^crates\/hd_driver\/tests\/(analysis|count_reasons)\.rs$/);
+  const targets = captures(ctx, /^crates\/hd_driver\/tests\/(count_reasons)\.rs$/);
   const stages = ctx.stagesDone ? [] : ["--test", "stages"];
   const extra = targets.flatMap((name) => ["--test", name]);
   const why = ctx.stagesDone
@@ -328,6 +329,18 @@ const driverRule: Rule = (ctx) => {
   const steps = [
     step("hd_driver", why, cargoTest("-p", "hd_driver", "--lib", ...stages, ...extra)),
   ];
+  // tests/analysis.rs is `#![cfg(feature = "analysis")]`: without the feature
+  // `--test analysis` builds and runs 0 tests. Its feature build is the one
+  // hd_lint already makes, about 3 s for its 10 tests.
+  if (has(ctx, /^crates\/hd_driver\/(tests|src)\/analysis\.rs$/)) {
+    steps.push(
+      step(
+        "driver_analysis",
+        "hd_driver's analysis consumer or its tests changed",
+        cargoTest("-p", "hd_driver", "--features", "analysis", "--test", "analysis"),
+      ),
+    );
+  }
   const modules = captures(ctx, /^crates\/hd_driver\/tests\/all\/([^/.]+)(?:\.rs|\/)/);
   if (modules.length > 0) {
     steps.push(
