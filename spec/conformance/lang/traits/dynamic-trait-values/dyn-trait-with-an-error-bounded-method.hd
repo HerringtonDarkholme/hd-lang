@@ -1,5 +1,5 @@
 # test: a trait with a method type parameter bounded by Error is still a valid dyn type
-# Spec 09 Dyn Types: trait.dyn.member.type-param; Spec 04 Dynamic Safety: types.trait.safe.method-type-param.
+# Spec 09 Dyn Types: trait.dyn.member.type-param; Spec 04 Dyn Types: types.trait.dyn.method-type-param.
 use std.error.Error
 
 trait Registry:
