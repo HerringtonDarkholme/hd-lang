@@ -652,7 +652,7 @@ dependencies = [
 name = "hd_base"
 version = "0.0.0"
 dependencies = [
- "hashbrown",
+ "hashbrown 0.17.1",
  "xxhash-rust",
 ]
 
