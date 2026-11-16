@@ -1347,7 +1347,7 @@ lang/lexical/literals/unary-plus-i32-literal-range.hd	type	reject:integer-litera
 lang/types/numeric-conversions/i32-min-divided-by-minus-one.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
 lang/expressions/unary-and-binary-operators/i32-minimum-literal.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/signed-integer-exponent.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
-lang/expressions/unary-and-binary-operators/integer-power-overflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#unary-and-binary-operators
+lang/expressions/unary-and-binary-operators/integer-power-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#r-types.arith.checked
 lang/expressions/unary-and-binary-operators/integer-power-associativity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/power-mixed-numeric-types.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/exponentiation/floating-power.hd	runtime	accept	lang/05-expressions.md#r-expr.power.float.within-ulp
