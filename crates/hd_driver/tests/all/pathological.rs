@@ -3802,6 +3802,56 @@ fn scope_questions_climb_each_node_once() {
     });
 }
 
+/// `n` functions, each declaring a local trait `T{i}` with a method
+/// `get{i}`, and `name` too when `shared`, and failing one call
+/// `q.get()` on an `i32`: #1933's shape. Every other function's trait
+/// declares `get` but is not available, and every function adds a
+/// method name to the program.
+fn failing_local_trait_calls(n: usize, shared: bool) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let get = if shared {
+            "        fn get(self) -> i32\n"
+        } else {
+            ""
+        };
+        let _ = write!(
+            s,
+            "fn call{i}(q: i32) -> i32:\n    trait T{i}:\n{get}        fn get{i}(self) -> i32\n    q.get()\n\n"
+        );
+    }
+    s
+}
+
+// Checker: #1933, each `unknown-method` error asked every trait of the
+// program declaring the name whether the receiver implements it, for the
+// "add `use`" hint, and ranked every method name of the program for the
+// "did you mean" hint: n failing calls cost n^2. Now the hint asks only
+// the traits with a row for the receiver's head and ranks only the
+// receiver's methods.
+#[test]
+fn unknown_method_hints_ask_only_the_receivers_methods() {
+    on_test_stack(|| {
+        for shared in [true, false] {
+            let work = |n: usize| {
+                let (out, work) = hd_check::work::count_scan_work(|| {
+                    compile(&failing_local_trait_calls(n, shared), &Goal::Analyze)
+                });
+                assert_eq!(out.diags.len(), n, "{n}: {}", out.render());
+                work
+            };
+            work(0);
+            let zero = work(0);
+            let small = work(1_000) - zero;
+            let large = work(10_000) - zero;
+            assert!(
+                small > 0 && large <= 12 * small,
+                "shared {shared}: scan work over 0 calls at 1,000 and 10,000: {small} and {large}"
+            );
+        }
+    });
+}
+
 // Emitter: #1918, the walk for a release's `Drop` calls entered every
 // inline part of each value it released, so each level of an option or
 // tuple nest walked the `i` levels below it: O(depth^2). A part that

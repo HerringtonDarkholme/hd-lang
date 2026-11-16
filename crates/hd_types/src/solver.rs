@@ -709,6 +709,14 @@ impl ImplTable {
             .any(|c| self.traits_by_key.contains_key(&c))
     }
 
+    /// Appends the traits with a row at `codes` ([`key_codes`]): one probe
+    /// per key code.
+    pub fn traits_at(&self, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
+        for code in codes.into_iter().flatten() {
+            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+        }
+    }
+
     /// Appends the traits with a row at `codes` ([`key_codes`]) that declare
     /// a method `sym`, and those `names` did not know, from the table's
     /// [`NameIndex`], made on the first ask: one probe per key code.

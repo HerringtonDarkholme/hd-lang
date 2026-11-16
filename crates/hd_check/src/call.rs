@@ -34,6 +34,11 @@ pub struct MethodIndex {
     /// struct, enum or newtype sit in `inherent`: a parameter, a tuple, a
     /// reference or a primitive, each tried against every receiver.
     inherent_open: HashMap<Symbol, Vec<u32>>,
+    /// The inherent method names of the impls whose target names each
+    /// struct, enum or newtype, and of those whose target names none, for
+    /// the "did you mean" hint ([`Self::inherent_names_for`]).
+    inherent_names: HashMap<DefId, Vec<Symbol>>,
+    open_names: Vec<Symbol>,
     /// Trait methods: (trait, method).
     pub traits: HashMap<Symbol, Vec<(DefId, DefId)>>,
     /// Each trait's method by name, for the traits of `traits`.
@@ -125,6 +130,11 @@ impl MethodIndex {
                                 None => self.inherent_open.entry(*n).or_default(),
                             }
                             .push(at);
+                            match head {
+                                Some(d) => self.inherent_names.entry(d).or_default(),
+                                None => &mut self.open_names,
+                            }
+                            .push(*n);
                         }
                     }
                 }
@@ -246,20 +256,18 @@ impl MethodIndex {
             .map_or(&[], Vec::as_slice)
     }
 
-    fn names(&self) -> impl Iterator<Item = Symbol> + '_ {
-        self.inherent
-            .keys()
-            .chain(self.traits.keys())
-            .copied()
-            .chain(
-                self.shared
-                    .iter()
-                    .flat_map(|ix| ix.inherent.iter().chain(&ix.traits))
-                    .filter(|(_, methods)| {
-                        methods.iter().any(|(def, _)| !self.seen.contains_key(def))
-                    })
-                    .map(|(name, _)| *name),
-            )
+    /// Appends the inherent method names whose impls may take a receiver
+    /// of type `t`, as [`Self::inherent_for`] picks impls: for a struct,
+    /// enum or newtype, those of the impls naming it and of those naming
+    /// none; otherwise those naming none, since an impl naming a struct
+    /// takes no other receiver. Cost: those names.
+    fn inherent_names_for(&self, t: &TyData, out: &mut Vec<Symbol>) {
+        for ix in std::iter::once(self).chain(self.shared.as_deref()) {
+            if let TyData::Adt { def, .. } = *t {
+                out.extend(ix.inherent_names.get(&def).into_iter().flatten());
+            }
+            out.extend(&ix.open_names);
+        }
     }
 }
 
@@ -624,14 +632,6 @@ impl Ck<'_, '_> {
 
     fn method_index(&self) -> &crate::MethodIndex {
         &self.cx.methods
-    }
-
-    /// The traits declaring a method `sym`, with their method, in the
-    /// program: what the per-folder method index maps the name to.
-    fn traits_declaring(&self, sym: Symbol) -> Vec<(DefId, DefId)> {
-        self.method_index()
-            .candidates(sym, false)
-            .unwrap_or_default()
     }
 
     /// Whether the trait's name is bound at the call: declared in the
@@ -4483,12 +4483,13 @@ impl Ck<'_, '_> {
         if name == "unwrap" && self.option_arg(bare).is_some() {
             return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
         }
-        let index = self.method_index();
-        let mut names: Vec<String> = index
-            .names()
+        let mut names: Vec<String> = self
+            .receiver_method_names(bare)
+            .into_iter()
             .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
+        crate::work::scan_work(names.len());
         names.sort_stable();
         names.dedup();
         let mut ranked: Vec<_> = names
@@ -4523,13 +4524,67 @@ impl Ck<'_, '_> {
         String::new()
     }
 
+    /// The method names a receiver of type `t` may have, for the "did you
+    /// mean" hint: its inherent ones ([`MethodIndex::inherent_names_for`]),
+    /// those of the traits with a row for its head key and of the
+    /// compiler-supplied traits, or, for a parameter, an opaque type or a
+    /// projection, those of its bounds, which are the only traits its
+    /// lookup reads. A hint names only a method the receiver has, so a
+    /// failing call costs the receiver's methods, not every method name of
+    /// the program (#1933). Ruled out: another head that reads rows of
+    /// every key, as in [`Self::unavailable_traits_of`].
+    fn receiver_method_names(&mut self, t: Ty) -> Vec<Symbol> {
+        let pool = self.pool();
+        let mut names = Vec::new();
+        self.method_index()
+            .inherent_names_for(&pool.get(t), &mut names);
+        let mut traits: Vec<DefId> = Vec::new();
+        if matches!(
+            pool.get(t),
+            TyData::Param(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
+        ) {
+            self.add_projection_clauses(t);
+            let entry = self.bound_methods_of(t);
+            names.extend(entry.by_name.keys().copied());
+        } else if let Some((key, tables)) = self.cx.head_tables(pool, t) {
+            let impls = hd_types::solver::Impls::Owned(self.cx.impls);
+            for &at in tables.iter() {
+                impls.traits_at(at, key, &mut traits);
+            }
+        }
+        traits.extend(
+            (self.cx.names.known.sealed().supplied().into_iter()).filter(|d| *d != DefId::NONE),
+        );
+        let index = self.method_index();
+        for tr in traits {
+            names.extend(index.names_of(tr));
+        }
+        names
+    }
+
     /// The traits with a method `name` that `t` implements and whose
     /// names are not bound here, for the `use` suggestion
     /// (`names.method-lookup.hint.use`).
+    ///
+    /// Asks only the traits with a row for the receiver's head key
+    /// ([`Self::traits_of_head`]), as the method lookup itself does, so a
+    /// failing call costs the traits its receiver may implement, not every
+    /// trait declaring the name (#1933). A receiver whose head reads rows
+    /// of every key gets no hint. A parameter, an opaque type or a
+    /// projection finds its methods through its bounds alone, so a `use`
+    /// adds none (a bare-parameter impl target is
+    /// `bare-parameter-impl-target`). Ruled out: any other such head
+    /// reaching here; a reference receiver is its referent's, a list of
+    /// unknown elements is `List`'s, and an unknown or poisoned type
+    /// reports no `unknown-method`.
     fn unavailable_traits_of(&mut self, t: Ty, name: &str) -> Vec<DefId> {
         let sym = self.cx.names.syms.intern(name);
-        let asked: Vec<DefId> = self
-            .traits_declaring(sym)
+        let bare = self.resolved(t);
+        let Some(traits) = self.traits_of_head(bare, sym) else {
+            return Vec::new();
+        };
+        crate::work::scan_work(traits.len());
+        let asked: Vec<DefId> = traits
             .into_iter()
             .map(|(tr, _)| tr)
             .filter(|&tr| !self.trait_available(tr))
@@ -4539,7 +4594,7 @@ impl Ck<'_, '_> {
         }
         let snap = self.infer.snapshot();
         let goal = Goal::Methods {
-            receiver: self.resolved(t),
+            receiver: bare,
             name: sym,
             traits: asked,
         };
@@ -4820,6 +4875,15 @@ impl Ck<'_, '_> {
     /// (#1925), and probing each trait of the head for `sym` cost every
     /// trait the head implements per call, or per module (#2029).
     fn traits_with_rows(&self, t: Ty, sym: Symbol) -> Option<Vec<(DefId, DefId)>> {
+        let mut traits = self.traits_of_head(t, sym)?;
+        traits.retain(|&(tr, _)| self.trait_available(tr));
+        Some(traits)
+    }
+
+    /// The traits declaring `sym` with a row for `t`'s head key in a table
+    /// the solver reads, and the compiler-supplied ones, in the method
+    /// index's order, available here or not ([`Self::traits_with_rows`]).
+    fn traits_of_head(&self, t: Ty, sym: Symbol) -> Option<Vec<(DefId, DefId)>> {
         let (key, tables) = self.cx.head_tables(self.pool(), t)?;
         let impls = hd_types::solver::Impls::Owned(self.cx.impls);
         let names = |tr: DefId, f: &mut dyn FnMut(Symbol)| self.cx.trait_names(tr, f);
@@ -4837,9 +4901,7 @@ impl Ck<'_, '_> {
                 .filter(|d| *d != DefId::NONE),
         );
         crate::work::scan_work(tables.len() + found.len());
-        let mut traits = self.declaring_among(found, sym);
-        traits.retain(|&(tr, _)| self.trait_available(tr));
-        Some(traits)
+        Some(self.declaring_among(found, sym))
     }
 
     /// Whether a goal `t: trait_` may take a row: false only when `t`'s

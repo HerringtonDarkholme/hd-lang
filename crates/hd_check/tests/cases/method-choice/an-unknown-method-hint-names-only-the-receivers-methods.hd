@@ -1,0 +1,70 @@
+# @dump: diagnostics
+# #1933: the "add `use`" hint asks the traits with a row for the
+# receiver's head, and "did you mean" ranks the receiver's methods, for
+# each receiver form: a reference, a primitive, a tuple, a list, a generic
+# struct, a struct's inherent method, an option, a parameter with and
+# without a bound, and a trait value.
+use pkg.shelf.{Item, Box2, Named}
+
+fn by_ref(item: &Item) -> i32:
+    item.tag()
+
+fn prim(n: i32) -> i32:
+    n.tag()
+
+fn pair(p: (i32, i32)) -> i32:
+    p.tag()
+
+fn list(l: List[i32]) -> i32:
+    l.tag()
+
+fn boxed(b: Box2[i32]) -> i32:
+    b.tag()
+
+fn near_inherent(item: Item) -> i32:
+    item.totl()
+
+fn near_option(o: i32?) -> i32:
+    o.mapp()
+
+fn param[A](a: A) -> i32:
+    a.tag()
+
+fn param_near[A < Named](a: A) -> i32:
+    a.labl()
+
+fn trait_value(d: &dyn Named) -> i32:
+    d.labl()
+
+pub fn main() -> void:
+    pass
+# @file: shelf.hd
+pub trait Tagged:
+    fn tag(self) -> i32
+
+pub trait Named:
+    fn label(self) -> i32
+
+pub struct Item:
+    pub value: i32
+
+pub struct Box2[A]:
+    pub value: A
+
+impl Tagged for Item:
+    fn tag(self) -> i32: self.value
+
+impl Tagged for i32:
+    fn tag(self) -> i32: self
+
+impl Tagged for (i32, i32):
+    fn tag(self) -> i32: self._0
+
+impl Tagged for List[i32]:
+    fn tag(self) -> i32: 0
+
+impl[A] Tagged for Box2[A]:
+    fn tag(self) -> i32: 0
+
+impl Item:
+    pub fn total(self) -> i32: self.value

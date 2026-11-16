@@ -177,6 +177,12 @@ impl RefTable {
     }
 
     /// [`crate::solver::ImplTable::traits_named`] of this table.
+    fn traits_at(&self, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
+        for code in codes.into_iter().flatten() {
+            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+        }
+    }
+
     fn traits_named(
         &self,
         codes: [Option<u64>; 3],
@@ -468,6 +474,29 @@ impl<'a> Impls<'a> {
             }
             TableAt::Unowned => v.extra.unowned.traits_named(codes, sym, names, out),
             TableAt::Directory => v.extra.directory.traits_named(codes, sym, names, out),
+        }
+    }
+
+    /// Appends the traits of table `at` with a row a goal on head key `key`
+    /// may take: one probe per key code.
+    pub fn traits_at(self, at: TableAt, key: HeadKey, out: &mut Vec<DefId>) {
+        let Some(codes) = crate::solver::key_codes(key) else {
+            return;
+        };
+        let Impls::Owned(v) = self;
+        match at {
+            TableAt::Own => {
+                if let Some(t) = v.own {
+                    t.traits_at(codes, out);
+                }
+            }
+            TableAt::Folder(i) => {
+                if let Some(Some(f)) = v.folders.get(i) {
+                    f.table.traits_at(codes, out);
+                }
+            }
+            TableAt::Unowned => v.extra.unowned.traits_at(codes, out),
+            TableAt::Directory => v.extra.directory.traits_at(codes, out),
         }
     }
 
