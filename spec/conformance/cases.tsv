@@ -379,7 +379,7 @@ lang/functions/function-types-and-values/suspending-function-values/suspending-f
 lang/functions/function-types-and-values/suspending-function-values/suspending-fn-weaken-the-weakening-keeps-the-row-and-the-result-row.hd	type	reject:type-mismatch	lang/07-functions.md#suspending-function-values
 lang/expressions/postfix-expressions/propagation/try-hint-a-hint-that-does-not-fit-is-not-a-coercion.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.try.expected.hint-only
 lang/control-flow/match-expressions/spread-patterns/a-literal-first-element-makes-a-spread-tuple-let-refutable.hd	type	reject:refutable-let-pattern	lang/06-control-flow.md#spread-patterns
-lang/control-flow/match-expressions/spread-patterns/a-spread-match-on-a-literal-first-element-alone-is-not-exhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#spread-patterns
+lang/control-flow/match-expressions/spread-patterns/a-spread-match-on-a-literal-first-element-alone-is-not-exhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.exhaustive
 lang/control-flow/match-expressions/spread-patterns/a-spread-tuple-pattern-against-an-integer-is-a-type-mismatch.hd	type	reject:type-mismatch	lang/06-control-flow.md#spread-patterns
 lang/expressions/primary-expressions/tuple-rest-a-tuple-expression-needs-the-fixed-elements-of-a-rest-type-literal-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 lang/types/generics/generic-representation/a-mismatch-on-a-doubled-tuple-names-a-cut-type.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.limit.type-size
@@ -768,7 +768,7 @@ lang/control-flow/match-expressions/bare-variant-pattern.hd	type	reject:bare-var
 lang/lexical/identifiers/unicode-identifiers.hd	parse	accept	lang/01-lexical-structure.md#identifiers
 lang/lexical/identifiers/an-identifier-ends-at-a-character-that-cannot-continue-it.hd	parse	reject:invalid-token	lang/01-lexical-structure.md#r-lex.ident.form
 lang/lexical/processing-model/utf8-bom.hd	parse	accept	lang/01-lexical-structure.md#r-lex.encoding.bom
-lang/lexical/processing-model/mid-file-bom.hd	parse	reject:unexpected-bom	lang/01-lexical-structure.md#processing-model
+lang/lexical/processing-model/mid-file-bom.hd	parse	reject:unexpected-bom	lang/01-lexical-structure.md#r-lex.encoding.stray-bom
 lang/lexical/operators-and-delimiters/semicolon.hd	parse	reject:reserved-semicolon	lang/01-lexical-structure.md#operators-and-delimiters
 lang/grammar/expressions/positional-after-named.hd	parse	reject:argument-order	lang/02-grammar.md#calls-and-arguments
 lang/functions/declarations/missing-return-value.hd	type	reject:missing-return-value	lang/07-functions.md#declarations
@@ -1039,7 +1039,7 @@ lang/data/enum-declarations/unsaturated-enum-constructor.hd	type	reject:unsatura
 lang/traits/method-resolution/ambiguous-trait-method.hd	type	reject:ambiguous-method	lang/09-traits.md#method-resolution
 lang/traits/trait-implementations/orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#trait-implementations
 lang/traits/trait-implementations/local-impl-nonlocal-pair.hd	type	reject:local-impl-nonlocal-pair	lang/09-traits.md#trait-implementations
-lang/modules/public-uses-and-visibility/private-type-leak.hd	type	reject:private-type-leak	lang/10-modules.md#public-uses-and-visibility
+lang/modules/public-uses-and-visibility/private-type-leak.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature
 lang/data/struct-declarations/private-type-embedded-in-public-data.hd	type	reject:private-type-leak	lang/08-data-and-enums.md#field-visibility
 lang/data/struct-declarations/private-data-embeds-private-type.hd	type	accept	lang/08-data-and-enums.md#field-visibility
 lang/types/variance/variance-position.hd	type	reject:invalid-variance	lang/04-type-system.md#variance
@@ -1070,7 +1070,7 @@ lang/annotations/two-annotate-forms/retention-metadata.hd	type	accept	lang/14-an
 lang/annotations/two-annotate-forms/metadata-list-any.hd	type	accept	lang/14-annotations.md#r-annot.metadata.reference-storage
 lang/annotations/two-annotate-forms/local-decorator.hd	parse	reject:decorator-not-top-level	lang/14-annotations.md#r-annot.decorator.no-locals
 lang/types/variance/variance-representation-change.hd	type	reject:variance-representation-change	lang/04-type-system.md#variance
-lang/modules/module-initialization/transitive-uninitialized-binding.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#module-initialization
+lang/modules/module-initialization/transitive-uninitialized-binding.hd	type	reject:top-level-read-before-initialization	lang/10-modules.md#r-module.init.definite
 lang/modules/module-initialization/transitive-initialized-binding.hd	type	accept	lang/10-modules.md#module-initialization
 lang/modules/module-initialization/entry-init-closure-provider-scope.hd	runtime	accept	lang/10-modules.md#r-module.init.entry.statements-before-main
 lang/modules/module-initialization/module-initialization-before-main.hd	runtime	accept	lang/10-modules.md#module-initialization
@@ -1122,9 +1122,9 @@ std/hash/default-hasher/map-index-groups-keep-order-and-lookups.hd	runtime	accep
 lang/types/generics/unbounded-generic-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#generics
 lang/types/generics/reference-generic-identity.hd	type	accept	lang/04-type-system.md#generics
 lang/expressions/unary-and-binary-operators/tuple-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators
-lang/modules/public-uses-and-visibility/private-requirement-row.hd	type	reject:private-type-leak	lang/10-modules.md#public-uses-and-visibility
+lang/modules/public-uses-and-visibility/private-requirement-row.hd	type	reject:private-type-leak	lang/10-modules.md#r-module.vis.signature.coverage
 lang/modules/public-uses-and-visibility/public-requirement-row.hd	type	accept	lang/10-modules.md#public-uses-and-visibility
-lang/lexical/comments/doc-comment-without-target.hd	parse	reject:doc-comment-without-target	lang/01-lexical-structure.md#comments
+lang/lexical/comments/doc-comment-without-target.hd	parse	reject:doc-comment-without-target	lang/01-lexical-structure.md#r-lex.doc.unattached
 lang/lexical/comments/doc-comments.hd	parse	accept	lang/01-lexical-structure.md#comments
 lang/functions/trailing-callback-blocks/consecutive-trailing-block-calls.hd	parse	accept	lang/07-functions.md#trailing-callback-blocks
 lang/functions/trailing-callback-blocks/two-trailing-blocks.hd	parse	reject:trailing-block-position	lang/07-functions.md#trailing-callback-blocks
@@ -1304,7 +1304,7 @@ lang/requirements/provider-scopes/context-values-install-providers.hd	runtime	ac
 lang/requirements/requirement-polymorphism/generic-provider-keys-consistent-substitution.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 lang/requirements/requirement-polymorphism/generic-provider-keys-distinct.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 lang/requirements/requirement-polymorphism/generic-provider-keys-occurs-check.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
-lang/requirements/requirement-polymorphism/generic-provider-key-collision-spread.hd	type	reject:generic-requirement-key-collision	lang/11-requirements-and-suspension.md#requirement-polymorphism
+lang/requirements/requirement-polymorphism/generic-provider-key-collision-spread.hd	type	reject:generic-requirement-key-collision	lang/11-requirements-and-suspension.md#r-req.with.collision
 lang/requirements/requirement-rows/call-missing-requirement.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 lang/requirements/requirement-rows/requirement-row-plus-list.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows
 lang/requirements/requirement-rows/requirement-row-duplicate-keys.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows
@@ -1326,7 +1326,7 @@ lang/functions/function-types-and-values/method-references/trait-reference-metho
 lang/traits/dynamic-trait-values/trait-reference-method-self-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 lang/traits/trait-implementations/trait-default-method-inherited.hd	runtime	accept	lang/09-traits.md#trait-implementations
 lang/traits/trait-implementations/trait-default-method-overridden.hd	runtime	accept	lang/09-traits.md#trait-implementations
-lang/traits/trait-implementations/ambiguous-method-two-traits.hd	type	reject:ambiguous-method	lang/09-traits.md#trait-implementations
+lang/traits/trait-implementations/ambiguous-method-two-traits.hd	type	reject:ambiguous-method	lang/09-traits.md#r-trait.resolve.ambiguous
 lang/traits/dynamic-trait-values/static-and-dynamic-trait-dispatch.hd	runtime	accept	lang/09-traits.md#dynamic-trait-values
 lang/traits/embedding-and-trait-satisfaction/embedded-field-satisfies-trait.hd	runtime	accept	lang/09-traits.md#embedding-and-trait-satisfaction
 lang/traits/generic-bounds-and-static-dispatch/generic-bound-dispatch.hd	runtime	accept	lang/09-traits.md#generic-bounds-and-static-dispatch
@@ -1383,7 +1383,7 @@ lang/modules/prelude/prelude-shadow-result-generic.hd	type	reject:prelude-name-s
 lang/names/control-flow-binding-scopes/branch-binding-does-not-leak.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#control-flow-binding-scopes
 lang/names/control-flow-binding-scopes/branch-scopes-shadow.hd	runtime	accept	lang/03-names-and-scopes.md#control-flow-binding-scopes
 lang/control-flow/conditional-expressions/else-if-chain.hd	runtime	accept	lang/06-control-flow.md#conditional-expressions
-lang/control-flow/while-loops/break-outside-loop.hd	type	reject:break-outside-loop	lang/06-control-flow.md#while-loops
+lang/control-flow/while-loops/break-outside-loop.hd	type	reject:break-outside-loop	lang/06-control-flow.md#r-flow.break.outside-loop
 lang/control-flow/while-loops/while-break-and-continue.hd	runtime	accept	lang/06-control-flow.md#while-loops
 lang/control-flow/break-continue-and-loop-else/while-else-break-value.hd	runtime	accept	lang/06-control-flow.md#break-continue-and-loop-else
 lang/control-flow/break-continue-and-loop-else/plain-break-in-value-loop.hd	type	reject:break-value-context	lang/06-control-flow.md#break-continue-and-loop-else
@@ -1558,12 +1558,12 @@ lang/lexical/literals/binary-literal-bad-digit.hd	parse	reject:syntax-error	lang
 lang/lexical/literals/identifier-interpolation.hd	parse	accept	lang/01-lexical-structure.md#literals
 lang/lexical/literals/stray-dollar-in-string.hd	parse	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 lang/lexical/literals/unicode-scalar-escape.hd	parse	accept	lang/01-lexical-structure.md#literals
-lang/lexical/literals/semicolon-after-binding.hd	parse	reject:reserved-semicolon	lang/01-lexical-structure.md#literals
+lang/lexical/literals/semicolon-after-binding.hd	parse	reject:reserved-semicolon	lang/01-lexical-structure.md#r-lex.punct.semicolon-reserved
 lang/lexical/literals/raw-string-dollars.hd	parse	accept	lang/01-lexical-structure.md#r-lex.prefix.interpolation
 lang/lexical/literals/expression-interpolation.hd	parse	accept	lang/01-lexical-structure.md#string-and-character-literals
 lang/grammar/expressions/named-call-arguments.hd	parse	accept	lang/02-grammar.md#calls-and-arguments
 lang/grammar/expressions/spread-before-named-argument.hd	parse	accept	lang/02-grammar.md#calls-and-arguments
-lang/grammar/expressions/positional-after-spread.hd	type	reject:nonfinal-positional-spread	lang/02-grammar.md#calls-and-arguments
+lang/grammar/expressions/positional-after-spread.hd	type	reject:nonfinal-positional-spread	lang/05-expressions.md#r-expr.call.spread.position
 lang/grammar/declarations/vararg-and-spread.hd	parse	accept	lang/02-grammar.md#r-grammar.fn.vararg-name
 lang/grammar/declarations/vararg-with-default.hd	parse	reject:syntax-error	lang/02-grammar.md#declarations
 lang/grammar/declarations/parameter-defaults.hd	parse	accept	lang/02-grammar.md#declarations
@@ -1611,7 +1611,7 @@ lang/requirements/provider-access/provider-keys-a-multi-key-use-returns-the-prov
 std/time/clock/provider-keys-a-suspension-binds-both-providers-at-construction.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 lang/requirements/requirement-rows/requirement-keys/provider-keys-nested-scopes-bind-the-two-keys-separately.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding.identity
 lang/requirements/suspending-functions/dynamic-suspending-method.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
-lang/modules/prelude/println-without-console.hd	type	reject:missing-requirement	lang/10-modules.md#prelude
+lang/modules/prelude/println-without-console.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.console.println
 lang/requirements/provider-access/multi-provider-use-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#provider-access
 lang/requirements/suspending-functions/block-on-inside-driver.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.inner-only
 lang/requirements/suspendt-protocol/block-on-stored-suspension.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
@@ -1983,7 +1983,7 @@ lang/names/member-resolution/private-field-nothing-visible.hd	type	reject:privat
 lang/names/member-resolution/private-promoted-method-nothing-visible.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#member-resolution
 lang/names/member-resolution/private-own-method-nothing-visible.hd	type	reject:private-member	lang/03-names-and-scopes.md#member-resolution
 lang/names/member-resolution/private-embedded-field-nothing-visible.hd	type	reject:unknown-field	lang/03-names-and-scopes.md#member-resolution
-lang/data/data-embedding/promoted-mut-method-on-readonly-receiver.hd	type	reject:not-writable	lang/08-data-and-enums.md#data-embedding
+lang/data/data-embedding/promoted-mut-method-on-readonly-receiver.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.place-writable
 lang/types/value-types/promoted-field-assignment-readonly.hd	type	reject:not-writable	lang/04-type-system.md#r-types.path.store.not-writable.v2
 lang/data/data-embedding/copy-update-copies-embedded-part.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding
 lang/data/data-embedding/embedded-store-copies.hd	runtime	accept	lang/08-data-and-enums.md#data-embedding
@@ -2097,7 +2097,7 @@ lang/references/dependent-results/local-scope/downcast-on-a-local-trait-referenc
 lang/traits/runtime-type-identity/downcast-of-a-counted-field-shares-the-object.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.local-receiver
 lang/traits/runtime-type-identity/downcast-non-copy-target.hd	runtime	accept	lang/09-traits.md#r-trait.downcast.non-copy-target
 lang/traits/runtime-type-identity/downcast-non-copy-copy-out.hd	type	reject:move-out-of-place	lang/09-traits.md#r-trait.downcast.non-copy-copy-out
-lang/traits/runtime-type-identity/erase-readonly-to-mut-inspectable.hd	type	reject:mutable-upgrade	lang/09-traits.md#erasure-to-inspectable
+lang/traits/runtime-type-identity/erase-readonly-to-mut-inspectable.hd	type	reject:mutable-upgrade	lang/09-traits.md#r-trait.dyn.ref.no-upgrade
 lang/traits/runtime-type-identity/generic-erasure-without-bound.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.erase.bound-required.reference-values
 lang/traits/runtime-type-identity/closure-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#inspectable-types
 lang/requirements/requirement-rows/inspectable-requirement-key.hd	type	reject:inspectable-requirement	lang/11-requirements-and-suspension.md#requirement-rows
@@ -4021,7 +4021,7 @@ lang/traits/trait-implementations/debug-trait/debug-derive-data.hd	runtime	accep
 std/format/debug-builders/debug-derive-variants.hd	runtime	accept	std/format.md#r-std-format.debug.derive-builders.source
 lang/types/numeric-conversions/u8-checked-add.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
 lang/types/numeric-conversions/u8-add-overflow.hd	runtime	panic:integer-overflow	lang/04-type-system.md#numeric-conversions
-lang/traits/trait-implementations/comparison-traits/float-misses-ord-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#comparison-traits
+lang/traits/trait-implementations/comparison-traits/float-misses-ord-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.cmp.float-ord
 lang/names/member-resolution/list-ord-method-float-literal.hd	type	reject:unsatisfied-trait-bound	lang/03-names-and-scopes.md#r-names.method-lookup.inherent.bounds
 lang/names/member-resolution/list-ord-method-reference-float.hd	type	reject:unsatisfied-trait-bound	lang/03-names-and-scopes.md#r-names.method-lookup.inherent.bounds
 lang/names/member-resolution/list-hash-method-float-literal.hd	type	reject:unsatisfied-trait-bound	lang/03-names-and-scopes.md#r-names.method-lookup.inherent.bounds
