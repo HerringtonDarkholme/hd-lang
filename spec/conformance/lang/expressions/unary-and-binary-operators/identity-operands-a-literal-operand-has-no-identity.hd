@@ -26,5 +26,5 @@ impl Named for User:
 impl Entity for User:
     pass
 
-fn f(a: User) -> bool:
+fn f(a: &User) -> bool:
     a is 1 # diagnostic: identity-requires-references

@@ -249,7 +249,7 @@ Everything the review produced sits next to this log, in
 
 | File | Contents |
 |---|---|
-| `review-rows.tsv` | All 855 Haiku rows: `batch, path, verdict, rubric, reason` (unverified unless this log says otherwise) |
+| `review-rows.tsv` | All 855 Haiku rows: `batch, path, verdict, rubric, reason, triage` (unverified unless this log or `triage` says otherwise; `triage` names the fixing commit or why the row is no defect) |
 | `pilot/review-rows.tsv`, `pilot/verified.md`, `pilot/brief.md` | The pilot's 70 rows, their hand verdicts, and the v1 brief |
 | `brief.md` | The final reviewer brief (v2.2) |
 | `batch-index.tsv` | Batch number, size and chapters (batches are `cases.tsv` rows grouped by spec anchor, 45 at most) |

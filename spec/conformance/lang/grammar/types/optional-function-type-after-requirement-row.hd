@@ -2,7 +2,7 @@
 # Spec 02 Optional Types: grammar.type.optional.function.
 
 trait Log:
-    fn line(self)
+    fn line(self) -> void
 
 struct Holder:
     call: fn() -> i32 $ Log?  # diagnostic: syntax-error
