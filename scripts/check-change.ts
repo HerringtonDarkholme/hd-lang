@@ -35,7 +35,9 @@ if (!base) {
   process.exit(2);
 }
 
-// cost: every git call below reads the range BASE..HEAD only.
+// cost: every git call below reads the range BASE..HEAD only. The diffs start
+// at the merge base (`BASE...HEAD`), so a BASE that moved on after HEAD
+// branched off blames none of its own lines on the change.
 function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });
 }
@@ -76,7 +78,7 @@ function testStart(file: string): number {
 // Added lines of `git diff -U3`, each with the 3 lines above it in the new file.
 function addedLines(paths: string[], exclude: string[] = []): Added[] {
   const excluded = exclude.map((path) => `:(exclude)${path}`);
-  const diff = git("diff", "-U3", `${base}..${head}`, "--", ...paths, ...excluded);
+  const diff = git("diff", "-U3", `${base}...${head}`, "--", ...paths, ...excluded);
   const out: Added[] = [];
   let file = "";
   let before: string[] = [];
@@ -255,7 +257,7 @@ report(
 );
 
 // price: changed emitted code that adds programs shows their .wat.
-const changes = git("diff", "--name-status", `${base}..${head}`)
+const changes = git("diff", "--name-status", `${base}...${head}`)
   .split("\n")
   .filter(Boolean)
   .map((row) => {
