@@ -1,5 +1,5 @@
 # test: a dyn child-trait value is assignable to a dyn value of its transitive supertrait
-# Spec 04 Assignability And Coercion: trait.dyn.ref.widen.
+# Spec 09 Trait Value References: trait.dyn.ref.widen.
 trait Named:
     fn name(self) -> string
 
