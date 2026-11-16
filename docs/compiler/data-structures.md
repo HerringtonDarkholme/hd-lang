@@ -853,8 +853,10 @@ ready tasks; tasks read their dependencies' result slots.
 
 `hd_sched::TaskGraph` holds a `Vec` of task nodes and a ready queue. A
 node is `kind`, `waiting_on`, `successors`, `state` (`Waiting | Ready |
-Running | Done | Cancelled`) and `priority`. `TaskId` is its index, in
-creation order.
+Running | Done | Cancelled`), `priority` and the readiness number of its
+live ready entry. `TaskId` is its index, in creation order. The ready
+queue is a deque, a binary heap or a seeded bag, by the serial order;
+an edge into a ready task leaves its entry dead, and a pop skips it.
 
 - **An edge from a finished task counts as satisfied at once.**
 - **Creation guard.** `add_held` starts a task with `waiting_on = 1`; the

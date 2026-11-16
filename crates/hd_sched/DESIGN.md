@@ -16,8 +16,9 @@ pub enum TaskKind {                         // payloads: dense run IDs (file, fo
     Coherence, InitOrder(u32), PackageResult,
     Ext(ExtTask),                           // Collect, Link, Precompile, RunCase(case)
 }
-struct TaskNode { kind, waiting_on: u32, successors: Vec<TaskId>, state, priority: u32 }
-pub struct TaskGraph { nodes: Vec<TaskNode>, ready: VecDeque<TaskId> }
+struct TaskNode { kind, waiting_on: u32, successors: Vec<TaskId>, state, priority: u32, ready_seq: u64 }
+pub struct TaskGraph { nodes: Vec<TaskNode>, ready: ReadyQueue, seq: u64, finished: usize, work: u64 }
+enum ReadyQueue { Fifo(VecDeque<Entry>), Priority(BinaryHeap<(u32, Reverse<usize>, u64)>), Shuffled(u64, Vec<Entry>) }
 ```
 
 `hd_sched` owns the graph and the executors; `hd_driver` (`Run::exec`)
@@ -122,7 +123,14 @@ became ready; the driver reports a nonzero count as an internal error.
 - **Serial.** One ready queue. `Fifo` takes tasks in the order they
   became ready, `Priority` takes the highest priority first, then
   creation order, and `Shuffled` picks by a seeded choice, which finds
-  order dependence without threads (§8.1). The CLI runs it for one
+  order dependence without threads (§8.1). The queue takes the shape of
+  the order it is popped in: a deque, a binary heap on (priority,
+  earliest creation), or a bag emptied by `swap_remove`. Each readiness
+  pushes one entry stamped with its readiness number; an `edge` into a
+  ready task returns it to waiting and leaves its entry dead, and a pop
+  drops dead entries as it meets them (lazy deletion). So a pop costs
+  O(1), or O(log n) for `Priority`, and an edge O(1), where the scan of
+  the whole queue per pop made n ready tasks cost n² (#2032). The CLI runs it for one
   thread; `hd_web` and the tests run it too.
 - **Pool.** `run_pool` builds a rayon pool of `threads` workers. The
   graph sits behind one mutex, held only to add, edge, release or

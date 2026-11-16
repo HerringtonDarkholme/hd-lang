@@ -6,7 +6,8 @@
 //! gets its id, its kind and a `&dyn Spawn` (SK-13).
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -106,6 +107,41 @@ struct TaskNode {
     successors: Vec<TaskId>,
     state: State,
     priority: u32,
+    /// The readiness number of the task's live ready entry, while it is
+    /// `Ready` ([`Entry`]).
+    ready_seq: u64,
+}
+
+/// One readiness of a task in the ready queue: the task and its readiness
+/// number, which orders readiness. It is live while the task is `Ready`
+/// from that readiness. `edge` returning a ready task to waiting leaves its
+/// entry behind, dead, and a pop drops a dead entry when it reaches it
+/// (lazy deletion), so neither scans the queue.
+#[derive(Clone, Copy)]
+struct Entry {
+    seq: u64,
+    id: TaskId,
+}
+
+/// The ready queue, in the shape of the last pop's order. Every
+/// readiness pushes one entry, and every entry is popped at most once, so
+/// a run's queue work is its readinesses times the shape's step.
+enum ReadyQueue {
+    /// `Fifo`: readiness order, O(1) per push and pop.
+    Fifo(VecDeque<Entry>),
+    /// `Priority`: a binary heap on (priority, earliest creation), the
+    /// readiness number breaking no ties since a task has one live entry;
+    /// O(log n) per push and pop.
+    Priority(BinaryHeap<(u32, Reverse<usize>, u64)>),
+    /// `Shuffled` with its seed: a bag picked from by a seeded index and
+    /// emptied by `swap_remove`, O(1) per push and pop.
+    Shuffled(u64, Vec<Entry>),
+}
+
+impl Default for ReadyQueue {
+    fn default() -> Self {
+        Self::Fifo(VecDeque::new())
+    }
 }
 
 /// Dynamic task graph: a running task may add tasks and edges. An edge from
@@ -113,7 +149,14 @@ struct TaskNode {
 #[derive(Default)]
 pub struct TaskGraph {
     nodes: Vec<TaskNode>,
-    ready: VecDeque<TaskId>,
+    ready: ReadyQueue,
+    /// The readinesses so far: the next entry's number.
+    seq: u64,
+    /// The tasks done or cancelled, so `unfinished` is one subtraction.
+    finished: usize,
+    /// Ready entries pushed, popped, dropped dead or moved to another
+    /// queue shape, and edges added: the queue's counted work.
+    work: u64,
 }
 
 /// How the serial executor picks among ready tasks (§6.2).
@@ -163,6 +206,7 @@ impl TaskGraph {
             successors: Vec::new(),
             state: State::Waiting,
             priority,
+            ready_seq: 0,
         });
         for &d in deps {
             self.edge(d, id);
@@ -175,9 +219,83 @@ impl TaskGraph {
         let n = &mut self.nodes[id.0];
         n.waiting_on -= 1;
         if n.waiting_on == 0 && n.state == State::Waiting {
-            n.state = State::Ready;
-            self.ready.push_back(id);
+            self.make_ready(id);
         }
+    }
+
+    /// Marks a waiting task whose last dependency is gone ready, with a
+    /// new live entry in the ready queue.
+    fn make_ready(&mut self, id: TaskId) {
+        self.seq += 1;
+        self.work += 1;
+        let n = &mut self.nodes[id.0];
+        n.state = State::Ready;
+        n.ready_seq = self.seq;
+        let e = Entry { seq: self.seq, id };
+        match &mut self.ready {
+            ReadyQueue::Fifo(q) => q.push_back(e),
+            ReadyQueue::Priority(h) => h.push((n.priority, Reverse(id.0), e.seq)),
+            ReadyQueue::Shuffled(_, b) => b.push(e),
+        }
+    }
+
+    /// Whether `e` is its task's live entry.
+    fn live(&self, e: Entry) -> bool {
+        let n = &self.nodes[e.id.0];
+        n.state == State::Ready && n.ready_seq == e.seq
+    }
+
+    /// The ready queue in `order`'s shape. A change of order moves the
+    /// live entries over in readiness order: O(n log n) once per change,
+    /// and a scheduler keeps one order.
+    fn queue_for(&mut self, order: SerialOrder) -> &mut ReadyQueue {
+        let same = matches!(
+            (&self.ready, order),
+            (ReadyQueue::Fifo(_), SerialOrder::Fifo)
+                | (ReadyQueue::Priority(_), SerialOrder::Priority)
+        ) || matches!(
+            (&self.ready, order),
+            (ReadyQueue::Shuffled(had, _), SerialOrder::Shuffled(seed)) if *had == seed
+        );
+        if !same {
+            let mut entries: Vec<Entry> = match std::mem::take(&mut self.ready) {
+                ReadyQueue::Fifo(q) => q.into_iter().collect(),
+                ReadyQueue::Priority(h) => h
+                    .into_iter()
+                    .map(|(_, Reverse(id), seq)| Entry {
+                        seq,
+                        id: TaskId(id),
+                    })
+                    .collect(),
+                ReadyQueue::Shuffled(_, b) => b,
+            };
+            self.work += entries.len() as u64;
+            entries.retain(|&e| self.live(e));
+            // Readiness order: a heap sort on the readiness number, which
+            // is unique per entry.
+            let entries: Vec<Entry> = entries
+                .iter()
+                .map(|e| (e.seq, e.id.0))
+                .collect::<BinaryHeap<_>>()
+                .into_sorted_vec()
+                .into_iter()
+                .map(|(seq, id)| Entry {
+                    seq,
+                    id: TaskId(id),
+                })
+                .collect();
+            self.ready = match order {
+                SerialOrder::Fifo => ReadyQueue::Fifo(entries.into()),
+                SerialOrder::Priority => ReadyQueue::Priority(
+                    entries
+                        .iter()
+                        .map(|e| (self.nodes[e.id.0].priority, Reverse(e.id.0), e.seq))
+                        .collect(),
+                ),
+                SerialOrder::Shuffled(seed) => ReadyQueue::Shuffled(seed, entries),
+            };
+        }
+        &mut self.ready
     }
 
     /// `to` waits for `from`. `to` must not have started.
@@ -189,8 +307,9 @@ impl TaskGraph {
         if matches!(self.nodes[from.0].state, State::Done | State::Cancelled) {
             return;
         }
+        self.work += 1;
         if self.nodes[to.0].state == State::Ready {
-            self.ready.retain(|&r| r != to);
+            // Its ready entry is dead from here (lazy deletion).
             self.nodes[to.0].state = State::Waiting;
         }
         self.nodes[from.0].successors.push(to);
@@ -214,44 +333,53 @@ impl TaskGraph {
         self.nodes[id.0].state
     }
 
-    /// Takes the next ready task in `order` and marks it running.
+    /// Takes the next ready task in `order` and marks it running: the
+    /// first ready (`Fifo`), the highest priority then the earliest
+    /// created (`Priority`), or a seeded pick (`Shuffled`). Dead entries
+    /// met on the way are dropped, each once.
     pub fn pop(&mut self, order: SerialOrder) -> Option<TaskId> {
-        let at = match order {
-            SerialOrder::Fifo => 0,
-            SerialOrder::Priority => {
-                let best = self
-                    .ready
-                    .iter()
-                    .enumerate()
-                    .max_by_key(|(_, t)| (self.nodes[t.0].priority, usize::MAX - t.0))?;
-                best.0
-            }
-            SerialOrder::Shuffled(seed) => {
-                if self.ready.is_empty() {
-                    return None;
+        let nodes = self.nodes.len() as u64;
+        loop {
+            let e = match self.queue_for(order) {
+                ReadyQueue::Fifo(q) => q.pop_front()?,
+                ReadyQueue::Priority(h) => {
+                    let (_, Reverse(id), seq) = h.pop()?;
+                    Entry {
+                        seq,
+                        id: TaskId(id),
+                    }
                 }
-                let x = seed
-                    ^ (self.nodes.len() as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
-                    ^ (self.ready.len() as u64);
-                usize::try_from(x.wrapping_mul(0xbf58_476d_1ce4_e5b9) >> 33).expect("index")
-                    % self.ready.len()
+                ReadyQueue::Shuffled(seed, b) => {
+                    if b.is_empty() {
+                        return None;
+                    }
+                    let x = *seed ^ nodes.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ (b.len() as u64);
+                    let at = usize::try_from(x.wrapping_mul(0xbf58_476d_1ce4_e5b9) >> 33)
+                        .expect("index")
+                        % b.len();
+                    b.swap_remove(at)
+                }
+            };
+            self.work += 1;
+            if self.live(e) {
+                self.nodes[e.id.0].state = State::Running;
+                return Some(e.id);
             }
-        };
-        let id = self.ready.remove(at)?;
-        self.nodes[id.0].state = State::Running;
-        Some(id)
+        }
     }
 
     /// Marks a task done and readies successors whose last dependency it was.
     pub fn complete(&mut self, id: TaskId) {
+        if !matches!(self.nodes[id.0].state, State::Done | State::Cancelled) {
+            self.finished += 1;
+        }
         self.nodes[id.0].state = State::Done;
         let succ = std::mem::take(&mut self.nodes[id.0].successors);
         for s in succ {
             let n = &mut self.nodes[s.0];
             n.waiting_on -= 1;
             if n.waiting_on == 0 && n.state == State::Waiting {
-                n.state = State::Ready;
-                self.ready.push_back(s);
+                self.make_ready(s);
             }
         }
     }
@@ -263,15 +391,22 @@ impl TaskGraph {
                 n.state = State::Cancelled;
             }
         }
-        self.ready.clear();
+        self.finished = self.nodes.len();
+        self.ready = ReadyQueue::default();
     }
 
+    /// The tasks neither done nor cancelled: one subtraction, since the
+    /// stepping executor asks after every slice.
     #[must_use]
     pub fn unfinished(&self) -> usize {
-        self.nodes
-            .iter()
-            .filter(|n| !matches!(n.state, State::Done | State::Cancelled))
-            .count()
+        self.nodes.len() - self.finished
+    }
+
+    /// The queue work so far: entries pushed, popped, dropped dead or
+    /// moved between queue shapes, and edges added.
+    #[must_use]
+    pub fn work(&self) -> u64 {
+        self.work
     }
 }
 
@@ -370,8 +505,8 @@ impl SteppingScheduler {
 #[cfg(test)]
 mod tests {
     use super::{
-        CancelFlag, ExtTask, Progress, SerialOrder, SerialScheduler, Spawn, SteppingScheduler,
-        TaskGraph, TaskId, TaskKind,
+        CancelFlag, ExtTask, Progress, SerialOrder, SerialScheduler, Spawn, State,
+        SteppingScheduler, TaskGraph, TaskId, TaskKind,
     };
     use std::sync::Mutex;
 
@@ -429,6 +564,145 @@ mod tests {
                 assert_eq!(seen[1], TaskKind::FolderIface(1), "higher priority first");
             }
         }
+    }
+
+    /// `n` tasks ready at once, half of them sent back to waiting by an
+    /// edge from a task of their own and made ready again when it runs:
+    /// #2032's shape, `n` modules ready together.
+    fn many_ready(n: usize) -> TaskGraph {
+        let mut g = TaskGraph::default();
+        let ready: Vec<TaskId> = (0..n)
+            .map(|i| {
+                let p = u32::try_from(i % 3).expect("priority");
+                g.add_with_priority(TaskKind::Body(u32::try_from(i).expect("body")), &[], p)
+            })
+            .collect();
+        for &to in ready.iter().step_by(2) {
+            let before = g.add(TaskKind::Coherence, &[]);
+            g.edge(before, to);
+        }
+        g
+    }
+
+    fn drain(g: &mut TaskGraph, order: SerialOrder) -> Vec<TaskId> {
+        let mut out = Vec::new();
+        while let Some(id) = g.pop(order) {
+            out.push(id);
+            g.complete(id);
+        }
+        out
+    }
+
+    // #2032: popping and un-readying cost O(1), or O(log n) in the
+    // heap, per entry: `pop(Priority)` scanned every ready task and
+    // `edge` filtered the whole queue.
+    #[test]
+    fn ready_queue_work_is_linear_in_the_ready_tasks() {
+        for order in [
+            SerialOrder::Fifo,
+            SerialOrder::Priority,
+            SerialOrder::Shuffled(0x5eed),
+        ] {
+            let work = |n: usize| {
+                let mut g = many_ready(n);
+                let ran = drain(&mut g, order);
+                assert_eq!(ran.len(), g.len(), "{order:?}: every task runs once");
+                assert_eq!(g.unfinished(), 0);
+                g.work()
+            };
+            let (small, large) = (work(1_000), work(10_000));
+            assert!(
+                small > 0 && large <= 10 * small + 100,
+                "{order:?}: queue work for 1,000 and 10,000 ready tasks: {small} and {large}"
+            );
+        }
+    }
+
+    #[test]
+    fn priority_runs_the_highest_then_the_earliest_created() {
+        // At each pop, of the tasks ready then, the highest priority,
+        // then the earliest created.
+        let mut g = many_ready(12);
+        let priority: Vec<u32> = g.nodes.iter().map(|n| n.priority).collect();
+        let key = |id: TaskId| (std::cmp::Reverse(priority[id.0]), id.0);
+        let mut ready: Vec<TaskId> = (0..g.len())
+            .map(TaskId)
+            .filter(|&id| g.state(id) == State::Ready)
+            .collect();
+        while let Some(id) = g.pop(SerialOrder::Priority) {
+            let best = ready
+                .iter()
+                .copied()
+                .min_by_key(|&r| key(r))
+                .expect("ready");
+            assert_eq!(id, best, "the highest priority, then the earliest created");
+            g.complete(id);
+            ready = (0..g.len())
+                .map(TaskId)
+                .filter(|&id| g.state(id) == State::Ready)
+                .collect();
+        }
+    }
+
+    #[test]
+    fn fifo_puts_a_readied_again_task_behind_the_others() {
+        let mut g = TaskGraph::default();
+        let a = g.add(TaskKind::Skim(0), &[]);
+        let b = g.add(TaskKind::Skim(1), &[]);
+        let c = g.add(TaskKind::Skim(2), &[]);
+        let gate = g.add_held(TaskKind::Coherence, &[], 0);
+        g.edge(gate, a);
+        g.release(gate);
+        assert_eq!(g.state(a), State::Waiting);
+        assert_eq!(drain(&mut g, SerialOrder::Fifo), [b, c, gate, a]);
+    }
+
+    #[test]
+    fn shuffled_is_seeded_and_runs_each_task_once() {
+        let run = |seed| drain(&mut many_ready(50), SerialOrder::Shuffled(seed));
+        let (one, again, other) = (run(1), run(1), run(2));
+        assert_eq!(one, again, "one seed, one order");
+        assert_ne!(one, other, "another seed, another order");
+        let mut ran = vec![0_u32; one.iter().map(|id| id.0 + 1).max().unwrap_or(0)];
+        for id in &one {
+            ran[id.0] += 1;
+        }
+        assert!(ran.iter().all(|&n| n == 1), "each task once: {ran:?}");
+    }
+
+    // A change of order moves the live entries over in readiness order,
+    // dropping the dead ones, and the next pop follows the new order.
+    #[test]
+    fn a_change_of_order_keeps_the_ready_tasks() {
+        let mut g = TaskGraph::default();
+        let low = g.add_with_priority(TaskKind::Skim(0), &[], 0);
+        let high = g.add_with_priority(TaskKind::Skim(1), &[], 7);
+        let gate = g.add(TaskKind::Coherence, &[]);
+        let late = g.add_with_priority(TaskKind::Skim(2), &[], 9);
+        g.edge(gate, late);
+        assert_eq!(g.pop(SerialOrder::Fifo), Some(low));
+        g.complete(low);
+        assert_eq!(g.pop(SerialOrder::Priority), Some(high));
+        g.complete(high);
+        assert_eq!(g.pop(SerialOrder::Shuffled(3)), Some(gate));
+        g.complete(gate);
+        assert_eq!(g.pop(SerialOrder::Shuffled(4)), Some(late));
+        g.complete(late);
+        assert_eq!(g.pop(SerialOrder::Fifo), None);
+        assert_eq!(g.unfinished(), 0);
+    }
+
+    // A task completed after `cancel_all` (the caller ran it before the
+    // cancel) is counted finished once.
+    #[test]
+    fn completing_a_cancelled_task_counts_it_once() {
+        let mut g = diamond();
+        let first = g.pop(SerialOrder::Priority).expect("ready");
+        g.cancel_all();
+        assert_eq!(g.unfinished(), 0);
+        g.complete(first);
+        assert_eq!(g.unfinished(), 0);
+        assert_eq!(g.pop(SerialOrder::Priority), None);
     }
 
     #[test]
