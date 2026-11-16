@@ -6185,8 +6185,11 @@ mod packed {
         }
 
         /// A claim a task left unfinished, at its own depth, is no
-        /// suspended task's: a debug build stops before the wait.
+        /// suspended task's: a debug build stops before the wait. Only a
+        /// build with debug assertions has the check; a release test run
+        /// (CI's workspace job) would wait on the claim for ever.
         #[test]
+        #[cfg(debug_assertions)]
         #[should_panic(expected = "which are not its ancestors")]
         fn a_claim_left_by_the_waiting_task_stops_a_debug_build() {
             let root = scratch("claim-left");
