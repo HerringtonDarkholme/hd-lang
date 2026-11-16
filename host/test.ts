@@ -52,8 +52,33 @@ function writeOut(text: string): void {
   }
 }
 
+// The exit status of a Node older than the run's `node`, the repository
+// package.json's `engines.node`, which `hd test` reports as it is
+// (`hd_cli::node::run_cases`).
+const OLD_NODE = 78;
+
+// Whether Node `have` (`process.versions.node`, `major.minor.patch`) is
+// older than `need`, compared as numbers part by part.
+function olderThan(have: string, need: string): boolean {
+  const ours = have.split(".").map(Number);
+  const least = need.split(".").map(Number);
+  for (let part = 0; part < least.length; part++) {
+    if ((ours[part] ?? 0) !== least[part]) {
+      return (ours[part] ?? 0) < least[part];
+    }
+  }
+  return false;
+}
+
+const config = configOf(process.argv[3] ?? "");
+if (typeof config.node === "string" && olderThan(process.versions.node, config.node)) {
+  process.stderr.write(
+    `hd test runs on Node ${config.node} or newer, and \`node\` is ${process.versions.node}\n`,
+  );
+  process.exit(OLD_NODE);
+}
 // The cases' worker loads the host while the program compiles.
 prestart();
 const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
 // Every result is written; `hd` reads the results, not the status.
-exitPast(await supervise(compiled, configOf(process.argv[3] ?? ""), writeOut));
+exitPast(await supervise(compiled, config, writeOut));

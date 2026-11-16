@@ -1733,11 +1733,19 @@ impl Module {
     /// final reach then drops those inits. The other inits keep their
     /// order. The cost is one look at each init an entry helper names, a
     /// set lookup once it is known quiet, and only a helper that names a
-    /// quiet init is built again.
+    /// quiet init is built again. A test program's init dispatch too large
+    /// for one function calls its parts ([`Helper::TestInitPart`]), each
+    /// looked at as its own helper, so the walk visits each group once per
+    /// level of the dispatch tree ([`crate::rt::dispatch_span`]).
     fn skip_quiet_inits(&mut self) {
         let mut helpers: Vec<(SymId, Helper, Vec<Hash128>)> = Vec::new();
-        for &(_, export) in &self.exports {
-            let mut id = export;
+        let mut work: Vec<SymId> = self
+            .exports
+            .iter()
+            .rev()
+            .map(|&(_, export)| export)
+            .collect();
+        while let Some(mut id) = work.pop() {
             // `hd.poll` wraps its `EntryPoll`, a helper of its own.
             loop {
                 let Sym::Helper(h) = Sym::clone(&self.symbols.get(id)) else {
@@ -1745,7 +1753,14 @@ impl Module {
                 };
                 let inits: Option<Vec<Hash128>> = match &h {
                     Helper::EntryInit { inits } => Some(inits.iter().map(|k| k.0).collect()),
-                    Helper::TestInit { inits } => {
+                    Helper::TestInit { inits } | Helper::TestInitPart { inits } => {
+                        work.extend(
+                            crate::rt::dispatch_parts(inits, |inits| Helper::TestInitPart {
+                                inits,
+                            })
+                            .into_iter()
+                            .map(|part| self.symbols.intern(Sym::Helper(part))),
+                        );
                         Some(inits.iter().flatten().map(|k| k.0).collect())
                     }
                     // A suspending root's poll calls no later init.

@@ -958,12 +958,19 @@ pub struct Build {
     /// Link a complete program, runtime helpers included.
     pub program: bool,
     /// The `diagnostics`, `spans` and `fixed` views check the `tests:`
-    /// blocks too.
+    /// blocks too, and the Wasm views show the test program, built as
+    /// `hd test` builds it.
     pub tests: bool,
 }
 
 impl Build {
     fn goal(self) -> Goal {
+        if self.tests {
+            return Goal::Tests {
+                module: None,
+                filter: None,
+            };
+        }
         let module = if self.std {
             "rt_tests.stage_case"
         } else {

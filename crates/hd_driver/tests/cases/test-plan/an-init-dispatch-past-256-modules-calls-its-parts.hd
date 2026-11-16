@@ -1,0 +1,2063 @@
+# @dump: wat tests
+# @build: tests
+# @helpers: test_init
+# A test program's init dispatch (`hd.test.init`) has an arm per module
+# with tests; over more than 256 it splits into a tree as the case dispatch
+# does (#2049). Each module's binding is set by its own init before its
+# case: the last module's case, in the second part, reads its own value.
+use std.testing.assert_equal
+
+# subject
+pub fn edit_me(x: i32) -> i32: x * 3 + 1
+
+tests:
+    it("main"):
+        assert_equal(edit_me(+1), +4)
+# @file: m1.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+1)
+
+tests:
+    it("m1"):
+        assert_equal(base, +4)
+# @file: m2.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+2)
+
+tests:
+    it("m2"):
+        assert_equal(base, +7)
+# @file: m3.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+3)
+
+tests:
+    it("m3"):
+        assert_equal(base, +10)
+# @file: m4.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+4)
+
+tests:
+    it("m4"):
+        assert_equal(base, +13)
+# @file: m5.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+5)
+
+tests:
+    it("m5"):
+        assert_equal(base, +16)
+# @file: m6.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+6)
+
+tests:
+    it("m6"):
+        assert_equal(base, +19)
+# @file: m7.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+7)
+
+tests:
+    it("m7"):
+        assert_equal(base, +22)
+# @file: m8.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+8)
+
+tests:
+    it("m8"):
+        assert_equal(base, +25)
+# @file: m9.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+9)
+
+tests:
+    it("m9"):
+        assert_equal(base, +28)
+# @file: m10.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+10)
+
+tests:
+    it("m10"):
+        assert_equal(base, +31)
+# @file: m11.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+11)
+
+tests:
+    it("m11"):
+        assert_equal(base, +34)
+# @file: m12.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+12)
+
+tests:
+    it("m12"):
+        assert_equal(base, +37)
+# @file: m13.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+13)
+
+tests:
+    it("m13"):
+        assert_equal(base, +40)
+# @file: m14.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+14)
+
+tests:
+    it("m14"):
+        assert_equal(base, +43)
+# @file: m15.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+15)
+
+tests:
+    it("m15"):
+        assert_equal(base, +46)
+# @file: m16.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+16)
+
+tests:
+    it("m16"):
+        assert_equal(base, +49)
+# @file: m17.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+17)
+
+tests:
+    it("m17"):
+        assert_equal(base, +52)
+# @file: m18.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+18)
+
+tests:
+    it("m18"):
+        assert_equal(base, +55)
+# @file: m19.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+19)
+
+tests:
+    it("m19"):
+        assert_equal(base, +58)
+# @file: m20.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+20)
+
+tests:
+    it("m20"):
+        assert_equal(base, +61)
+# @file: m21.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+21)
+
+tests:
+    it("m21"):
+        assert_equal(base, +64)
+# @file: m22.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+22)
+
+tests:
+    it("m22"):
+        assert_equal(base, +67)
+# @file: m23.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+23)
+
+tests:
+    it("m23"):
+        assert_equal(base, +70)
+# @file: m24.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+24)
+
+tests:
+    it("m24"):
+        assert_equal(base, +73)
+# @file: m25.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+25)
+
+tests:
+    it("m25"):
+        assert_equal(base, +76)
+# @file: m26.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+26)
+
+tests:
+    it("m26"):
+        assert_equal(base, +79)
+# @file: m27.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+27)
+
+tests:
+    it("m27"):
+        assert_equal(base, +82)
+# @file: m28.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+28)
+
+tests:
+    it("m28"):
+        assert_equal(base, +85)
+# @file: m29.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+29)
+
+tests:
+    it("m29"):
+        assert_equal(base, +88)
+# @file: m30.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+30)
+
+tests:
+    it("m30"):
+        assert_equal(base, +91)
+# @file: m31.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+31)
+
+tests:
+    it("m31"):
+        assert_equal(base, +94)
+# @file: m32.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+32)
+
+tests:
+    it("m32"):
+        assert_equal(base, +97)
+# @file: m33.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+33)
+
+tests:
+    it("m33"):
+        assert_equal(base, +100)
+# @file: m34.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+34)
+
+tests:
+    it("m34"):
+        assert_equal(base, +103)
+# @file: m35.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+35)
+
+tests:
+    it("m35"):
+        assert_equal(base, +106)
+# @file: m36.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+36)
+
+tests:
+    it("m36"):
+        assert_equal(base, +109)
+# @file: m37.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+37)
+
+tests:
+    it("m37"):
+        assert_equal(base, +112)
+# @file: m38.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+38)
+
+tests:
+    it("m38"):
+        assert_equal(base, +115)
+# @file: m39.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+39)
+
+tests:
+    it("m39"):
+        assert_equal(base, +118)
+# @file: m40.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+40)
+
+tests:
+    it("m40"):
+        assert_equal(base, +121)
+# @file: m41.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+41)
+
+tests:
+    it("m41"):
+        assert_equal(base, +124)
+# @file: m42.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+42)
+
+tests:
+    it("m42"):
+        assert_equal(base, +127)
+# @file: m43.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+43)
+
+tests:
+    it("m43"):
+        assert_equal(base, +130)
+# @file: m44.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+44)
+
+tests:
+    it("m44"):
+        assert_equal(base, +133)
+# @file: m45.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+45)
+
+tests:
+    it("m45"):
+        assert_equal(base, +136)
+# @file: m46.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+46)
+
+tests:
+    it("m46"):
+        assert_equal(base, +139)
+# @file: m47.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+47)
+
+tests:
+    it("m47"):
+        assert_equal(base, +142)
+# @file: m48.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+48)
+
+tests:
+    it("m48"):
+        assert_equal(base, +145)
+# @file: m49.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+49)
+
+tests:
+    it("m49"):
+        assert_equal(base, +148)
+# @file: m50.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+50)
+
+tests:
+    it("m50"):
+        assert_equal(base, +151)
+# @file: m51.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+51)
+
+tests:
+    it("m51"):
+        assert_equal(base, +154)
+# @file: m52.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+52)
+
+tests:
+    it("m52"):
+        assert_equal(base, +157)
+# @file: m53.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+53)
+
+tests:
+    it("m53"):
+        assert_equal(base, +160)
+# @file: m54.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+54)
+
+tests:
+    it("m54"):
+        assert_equal(base, +163)
+# @file: m55.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+55)
+
+tests:
+    it("m55"):
+        assert_equal(base, +166)
+# @file: m56.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+56)
+
+tests:
+    it("m56"):
+        assert_equal(base, +169)
+# @file: m57.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+57)
+
+tests:
+    it("m57"):
+        assert_equal(base, +172)
+# @file: m58.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+58)
+
+tests:
+    it("m58"):
+        assert_equal(base, +175)
+# @file: m59.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+59)
+
+tests:
+    it("m59"):
+        assert_equal(base, +178)
+# @file: m60.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+60)
+
+tests:
+    it("m60"):
+        assert_equal(base, +181)
+# @file: m61.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+61)
+
+tests:
+    it("m61"):
+        assert_equal(base, +184)
+# @file: m62.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+62)
+
+tests:
+    it("m62"):
+        assert_equal(base, +187)
+# @file: m63.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+63)
+
+tests:
+    it("m63"):
+        assert_equal(base, +190)
+# @file: m64.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+64)
+
+tests:
+    it("m64"):
+        assert_equal(base, +193)
+# @file: m65.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+65)
+
+tests:
+    it("m65"):
+        assert_equal(base, +196)
+# @file: m66.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+66)
+
+tests:
+    it("m66"):
+        assert_equal(base, +199)
+# @file: m67.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+67)
+
+tests:
+    it("m67"):
+        assert_equal(base, +202)
+# @file: m68.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+68)
+
+tests:
+    it("m68"):
+        assert_equal(base, +205)
+# @file: m69.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+69)
+
+tests:
+    it("m69"):
+        assert_equal(base, +208)
+# @file: m70.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+70)
+
+tests:
+    it("m70"):
+        assert_equal(base, +211)
+# @file: m71.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+71)
+
+tests:
+    it("m71"):
+        assert_equal(base, +214)
+# @file: m72.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+72)
+
+tests:
+    it("m72"):
+        assert_equal(base, +217)
+# @file: m73.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+73)
+
+tests:
+    it("m73"):
+        assert_equal(base, +220)
+# @file: m74.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+74)
+
+tests:
+    it("m74"):
+        assert_equal(base, +223)
+# @file: m75.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+75)
+
+tests:
+    it("m75"):
+        assert_equal(base, +226)
+# @file: m76.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+76)
+
+tests:
+    it("m76"):
+        assert_equal(base, +229)
+# @file: m77.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+77)
+
+tests:
+    it("m77"):
+        assert_equal(base, +232)
+# @file: m78.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+78)
+
+tests:
+    it("m78"):
+        assert_equal(base, +235)
+# @file: m79.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+79)
+
+tests:
+    it("m79"):
+        assert_equal(base, +238)
+# @file: m80.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+80)
+
+tests:
+    it("m80"):
+        assert_equal(base, +241)
+# @file: m81.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+81)
+
+tests:
+    it("m81"):
+        assert_equal(base, +244)
+# @file: m82.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+82)
+
+tests:
+    it("m82"):
+        assert_equal(base, +247)
+# @file: m83.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+83)
+
+tests:
+    it("m83"):
+        assert_equal(base, +250)
+# @file: m84.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+84)
+
+tests:
+    it("m84"):
+        assert_equal(base, +253)
+# @file: m85.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+85)
+
+tests:
+    it("m85"):
+        assert_equal(base, +256)
+# @file: m86.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+86)
+
+tests:
+    it("m86"):
+        assert_equal(base, +259)
+# @file: m87.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+87)
+
+tests:
+    it("m87"):
+        assert_equal(base, +262)
+# @file: m88.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+88)
+
+tests:
+    it("m88"):
+        assert_equal(base, +265)
+# @file: m89.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+89)
+
+tests:
+    it("m89"):
+        assert_equal(base, +268)
+# @file: m90.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+90)
+
+tests:
+    it("m90"):
+        assert_equal(base, +271)
+# @file: m91.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+91)
+
+tests:
+    it("m91"):
+        assert_equal(base, +274)
+# @file: m92.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+92)
+
+tests:
+    it("m92"):
+        assert_equal(base, +277)
+# @file: m93.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+93)
+
+tests:
+    it("m93"):
+        assert_equal(base, +280)
+# @file: m94.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+94)
+
+tests:
+    it("m94"):
+        assert_equal(base, +283)
+# @file: m95.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+95)
+
+tests:
+    it("m95"):
+        assert_equal(base, +286)
+# @file: m96.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+96)
+
+tests:
+    it("m96"):
+        assert_equal(base, +289)
+# @file: m97.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+97)
+
+tests:
+    it("m97"):
+        assert_equal(base, +292)
+# @file: m98.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+98)
+
+tests:
+    it("m98"):
+        assert_equal(base, +295)
+# @file: m99.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+99)
+
+tests:
+    it("m99"):
+        assert_equal(base, +298)
+# @file: m100.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+100)
+
+tests:
+    it("m100"):
+        assert_equal(base, +301)
+# @file: m101.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+101)
+
+tests:
+    it("m101"):
+        assert_equal(base, +304)
+# @file: m102.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+102)
+
+tests:
+    it("m102"):
+        assert_equal(base, +307)
+# @file: m103.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+103)
+
+tests:
+    it("m103"):
+        assert_equal(base, +310)
+# @file: m104.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+104)
+
+tests:
+    it("m104"):
+        assert_equal(base, +313)
+# @file: m105.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+105)
+
+tests:
+    it("m105"):
+        assert_equal(base, +316)
+# @file: m106.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+106)
+
+tests:
+    it("m106"):
+        assert_equal(base, +319)
+# @file: m107.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+107)
+
+tests:
+    it("m107"):
+        assert_equal(base, +322)
+# @file: m108.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+108)
+
+tests:
+    it("m108"):
+        assert_equal(base, +325)
+# @file: m109.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+109)
+
+tests:
+    it("m109"):
+        assert_equal(base, +328)
+# @file: m110.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+110)
+
+tests:
+    it("m110"):
+        assert_equal(base, +331)
+# @file: m111.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+111)
+
+tests:
+    it("m111"):
+        assert_equal(base, +334)
+# @file: m112.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+112)
+
+tests:
+    it("m112"):
+        assert_equal(base, +337)
+# @file: m113.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+113)
+
+tests:
+    it("m113"):
+        assert_equal(base, +340)
+# @file: m114.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+114)
+
+tests:
+    it("m114"):
+        assert_equal(base, +343)
+# @file: m115.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+115)
+
+tests:
+    it("m115"):
+        assert_equal(base, +346)
+# @file: m116.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+116)
+
+tests:
+    it("m116"):
+        assert_equal(base, +349)
+# @file: m117.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+117)
+
+tests:
+    it("m117"):
+        assert_equal(base, +352)
+# @file: m118.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+118)
+
+tests:
+    it("m118"):
+        assert_equal(base, +355)
+# @file: m119.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+119)
+
+tests:
+    it("m119"):
+        assert_equal(base, +358)
+# @file: m120.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+120)
+
+tests:
+    it("m120"):
+        assert_equal(base, +361)
+# @file: m121.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+121)
+
+tests:
+    it("m121"):
+        assert_equal(base, +364)
+# @file: m122.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+122)
+
+tests:
+    it("m122"):
+        assert_equal(base, +367)
+# @file: m123.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+123)
+
+tests:
+    it("m123"):
+        assert_equal(base, +370)
+# @file: m124.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+124)
+
+tests:
+    it("m124"):
+        assert_equal(base, +373)
+# @file: m125.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+125)
+
+tests:
+    it("m125"):
+        assert_equal(base, +376)
+# @file: m126.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+126)
+
+tests:
+    it("m126"):
+        assert_equal(base, +379)
+# @file: m127.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+127)
+
+tests:
+    it("m127"):
+        assert_equal(base, +382)
+# @file: m128.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+128)
+
+tests:
+    it("m128"):
+        assert_equal(base, +385)
+# @file: m129.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+129)
+
+tests:
+    it("m129"):
+        assert_equal(base, +388)
+# @file: m130.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+130)
+
+tests:
+    it("m130"):
+        assert_equal(base, +391)
+# @file: m131.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+131)
+
+tests:
+    it("m131"):
+        assert_equal(base, +394)
+# @file: m132.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+132)
+
+tests:
+    it("m132"):
+        assert_equal(base, +397)
+# @file: m133.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+133)
+
+tests:
+    it("m133"):
+        assert_equal(base, +400)
+# @file: m134.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+134)
+
+tests:
+    it("m134"):
+        assert_equal(base, +403)
+# @file: m135.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+135)
+
+tests:
+    it("m135"):
+        assert_equal(base, +406)
+# @file: m136.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+136)
+
+tests:
+    it("m136"):
+        assert_equal(base, +409)
+# @file: m137.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+137)
+
+tests:
+    it("m137"):
+        assert_equal(base, +412)
+# @file: m138.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+138)
+
+tests:
+    it("m138"):
+        assert_equal(base, +415)
+# @file: m139.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+139)
+
+tests:
+    it("m139"):
+        assert_equal(base, +418)
+# @file: m140.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+140)
+
+tests:
+    it("m140"):
+        assert_equal(base, +421)
+# @file: m141.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+141)
+
+tests:
+    it("m141"):
+        assert_equal(base, +424)
+# @file: m142.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+142)
+
+tests:
+    it("m142"):
+        assert_equal(base, +427)
+# @file: m143.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+143)
+
+tests:
+    it("m143"):
+        assert_equal(base, +430)
+# @file: m144.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+144)
+
+tests:
+    it("m144"):
+        assert_equal(base, +433)
+# @file: m145.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+145)
+
+tests:
+    it("m145"):
+        assert_equal(base, +436)
+# @file: m146.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+146)
+
+tests:
+    it("m146"):
+        assert_equal(base, +439)
+# @file: m147.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+147)
+
+tests:
+    it("m147"):
+        assert_equal(base, +442)
+# @file: m148.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+148)
+
+tests:
+    it("m148"):
+        assert_equal(base, +445)
+# @file: m149.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+149)
+
+tests:
+    it("m149"):
+        assert_equal(base, +448)
+# @file: m150.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+150)
+
+tests:
+    it("m150"):
+        assert_equal(base, +451)
+# @file: m151.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+151)
+
+tests:
+    it("m151"):
+        assert_equal(base, +454)
+# @file: m152.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+152)
+
+tests:
+    it("m152"):
+        assert_equal(base, +457)
+# @file: m153.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+153)
+
+tests:
+    it("m153"):
+        assert_equal(base, +460)
+# @file: m154.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+154)
+
+tests:
+    it("m154"):
+        assert_equal(base, +463)
+# @file: m155.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+155)
+
+tests:
+    it("m155"):
+        assert_equal(base, +466)
+# @file: m156.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+156)
+
+tests:
+    it("m156"):
+        assert_equal(base, +469)
+# @file: m157.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+157)
+
+tests:
+    it("m157"):
+        assert_equal(base, +472)
+# @file: m158.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+158)
+
+tests:
+    it("m158"):
+        assert_equal(base, +475)
+# @file: m159.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+159)
+
+tests:
+    it("m159"):
+        assert_equal(base, +478)
+# @file: m160.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+160)
+
+tests:
+    it("m160"):
+        assert_equal(base, +481)
+# @file: m161.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+161)
+
+tests:
+    it("m161"):
+        assert_equal(base, +484)
+# @file: m162.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+162)
+
+tests:
+    it("m162"):
+        assert_equal(base, +487)
+# @file: m163.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+163)
+
+tests:
+    it("m163"):
+        assert_equal(base, +490)
+# @file: m164.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+164)
+
+tests:
+    it("m164"):
+        assert_equal(base, +493)
+# @file: m165.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+165)
+
+tests:
+    it("m165"):
+        assert_equal(base, +496)
+# @file: m166.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+166)
+
+tests:
+    it("m166"):
+        assert_equal(base, +499)
+# @file: m167.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+167)
+
+tests:
+    it("m167"):
+        assert_equal(base, +502)
+# @file: m168.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+168)
+
+tests:
+    it("m168"):
+        assert_equal(base, +505)
+# @file: m169.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+169)
+
+tests:
+    it("m169"):
+        assert_equal(base, +508)
+# @file: m170.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+170)
+
+tests:
+    it("m170"):
+        assert_equal(base, +511)
+# @file: m171.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+171)
+
+tests:
+    it("m171"):
+        assert_equal(base, +514)
+# @file: m172.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+172)
+
+tests:
+    it("m172"):
+        assert_equal(base, +517)
+# @file: m173.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+173)
+
+tests:
+    it("m173"):
+        assert_equal(base, +520)
+# @file: m174.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+174)
+
+tests:
+    it("m174"):
+        assert_equal(base, +523)
+# @file: m175.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+175)
+
+tests:
+    it("m175"):
+        assert_equal(base, +526)
+# @file: m176.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+176)
+
+tests:
+    it("m176"):
+        assert_equal(base, +529)
+# @file: m177.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+177)
+
+tests:
+    it("m177"):
+        assert_equal(base, +532)
+# @file: m178.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+178)
+
+tests:
+    it("m178"):
+        assert_equal(base, +535)
+# @file: m179.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+179)
+
+tests:
+    it("m179"):
+        assert_equal(base, +538)
+# @file: m180.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+180)
+
+tests:
+    it("m180"):
+        assert_equal(base, +541)
+# @file: m181.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+181)
+
+tests:
+    it("m181"):
+        assert_equal(base, +544)
+# @file: m182.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+182)
+
+tests:
+    it("m182"):
+        assert_equal(base, +547)
+# @file: m183.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+183)
+
+tests:
+    it("m183"):
+        assert_equal(base, +550)
+# @file: m184.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+184)
+
+tests:
+    it("m184"):
+        assert_equal(base, +553)
+# @file: m185.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+185)
+
+tests:
+    it("m185"):
+        assert_equal(base, +556)
+# @file: m186.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+186)
+
+tests:
+    it("m186"):
+        assert_equal(base, +559)
+# @file: m187.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+187)
+
+tests:
+    it("m187"):
+        assert_equal(base, +562)
+# @file: m188.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+188)
+
+tests:
+    it("m188"):
+        assert_equal(base, +565)
+# @file: m189.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+189)
+
+tests:
+    it("m189"):
+        assert_equal(base, +568)
+# @file: m190.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+190)
+
+tests:
+    it("m190"):
+        assert_equal(base, +571)
+# @file: m191.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+191)
+
+tests:
+    it("m191"):
+        assert_equal(base, +574)
+# @file: m192.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+192)
+
+tests:
+    it("m192"):
+        assert_equal(base, +577)
+# @file: m193.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+193)
+
+tests:
+    it("m193"):
+        assert_equal(base, +580)
+# @file: m194.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+194)
+
+tests:
+    it("m194"):
+        assert_equal(base, +583)
+# @file: m195.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+195)
+
+tests:
+    it("m195"):
+        assert_equal(base, +586)
+# @file: m196.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+196)
+
+tests:
+    it("m196"):
+        assert_equal(base, +589)
+# @file: m197.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+197)
+
+tests:
+    it("m197"):
+        assert_equal(base, +592)
+# @file: m198.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+198)
+
+tests:
+    it("m198"):
+        assert_equal(base, +595)
+# @file: m199.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+199)
+
+tests:
+    it("m199"):
+        assert_equal(base, +598)
+# @file: m200.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+200)
+
+tests:
+    it("m200"):
+        assert_equal(base, +601)
+# @file: m201.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+201)
+
+tests:
+    it("m201"):
+        assert_equal(base, +604)
+# @file: m202.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+202)
+
+tests:
+    it("m202"):
+        assert_equal(base, +607)
+# @file: m203.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+203)
+
+tests:
+    it("m203"):
+        assert_equal(base, +610)
+# @file: m204.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+204)
+
+tests:
+    it("m204"):
+        assert_equal(base, +613)
+# @file: m205.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+205)
+
+tests:
+    it("m205"):
+        assert_equal(base, +616)
+# @file: m206.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+206)
+
+tests:
+    it("m206"):
+        assert_equal(base, +619)
+# @file: m207.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+207)
+
+tests:
+    it("m207"):
+        assert_equal(base, +622)
+# @file: m208.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+208)
+
+tests:
+    it("m208"):
+        assert_equal(base, +625)
+# @file: m209.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+209)
+
+tests:
+    it("m209"):
+        assert_equal(base, +628)
+# @file: m210.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+210)
+
+tests:
+    it("m210"):
+        assert_equal(base, +631)
+# @file: m211.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+211)
+
+tests:
+    it("m211"):
+        assert_equal(base, +634)
+# @file: m212.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+212)
+
+tests:
+    it("m212"):
+        assert_equal(base, +637)
+# @file: m213.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+213)
+
+tests:
+    it("m213"):
+        assert_equal(base, +640)
+# @file: m214.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+214)
+
+tests:
+    it("m214"):
+        assert_equal(base, +643)
+# @file: m215.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+215)
+
+tests:
+    it("m215"):
+        assert_equal(base, +646)
+# @file: m216.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+216)
+
+tests:
+    it("m216"):
+        assert_equal(base, +649)
+# @file: m217.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+217)
+
+tests:
+    it("m217"):
+        assert_equal(base, +652)
+# @file: m218.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+218)
+
+tests:
+    it("m218"):
+        assert_equal(base, +655)
+# @file: m219.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+219)
+
+tests:
+    it("m219"):
+        assert_equal(base, +658)
+# @file: m220.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+220)
+
+tests:
+    it("m220"):
+        assert_equal(base, +661)
+# @file: m221.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+221)
+
+tests:
+    it("m221"):
+        assert_equal(base, +664)
+# @file: m222.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+222)
+
+tests:
+    it("m222"):
+        assert_equal(base, +667)
+# @file: m223.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+223)
+
+tests:
+    it("m223"):
+        assert_equal(base, +670)
+# @file: m224.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+224)
+
+tests:
+    it("m224"):
+        assert_equal(base, +673)
+# @file: m225.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+225)
+
+tests:
+    it("m225"):
+        assert_equal(base, +676)
+# @file: m226.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+226)
+
+tests:
+    it("m226"):
+        assert_equal(base, +679)
+# @file: m227.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+227)
+
+tests:
+    it("m227"):
+        assert_equal(base, +682)
+# @file: m228.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+228)
+
+tests:
+    it("m228"):
+        assert_equal(base, +685)
+# @file: m229.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+229)
+
+tests:
+    it("m229"):
+        assert_equal(base, +688)
+# @file: m230.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+230)
+
+tests:
+    it("m230"):
+        assert_equal(base, +691)
+# @file: m231.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+231)
+
+tests:
+    it("m231"):
+        assert_equal(base, +694)
+# @file: m232.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+232)
+
+tests:
+    it("m232"):
+        assert_equal(base, +697)
+# @file: m233.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+233)
+
+tests:
+    it("m233"):
+        assert_equal(base, +700)
+# @file: m234.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+234)
+
+tests:
+    it("m234"):
+        assert_equal(base, +703)
+# @file: m235.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+235)
+
+tests:
+    it("m235"):
+        assert_equal(base, +706)
+# @file: m236.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+236)
+
+tests:
+    it("m236"):
+        assert_equal(base, +709)
+# @file: m237.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+237)
+
+tests:
+    it("m237"):
+        assert_equal(base, +712)
+# @file: m238.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+238)
+
+tests:
+    it("m238"):
+        assert_equal(base, +715)
+# @file: m239.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+239)
+
+tests:
+    it("m239"):
+        assert_equal(base, +718)
+# @file: m240.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+240)
+
+tests:
+    it("m240"):
+        assert_equal(base, +721)
+# @file: m241.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+241)
+
+tests:
+    it("m241"):
+        assert_equal(base, +724)
+# @file: m242.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+242)
+
+tests:
+    it("m242"):
+        assert_equal(base, +727)
+# @file: m243.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+243)
+
+tests:
+    it("m243"):
+        assert_equal(base, +730)
+# @file: m244.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+244)
+
+tests:
+    it("m244"):
+        assert_equal(base, +733)
+# @file: m245.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+245)
+
+tests:
+    it("m245"):
+        assert_equal(base, +736)
+# @file: m246.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+246)
+
+tests:
+    it("m246"):
+        assert_equal(base, +739)
+# @file: m247.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+247)
+
+tests:
+    it("m247"):
+        assert_equal(base, +742)
+# @file: m248.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+248)
+
+tests:
+    it("m248"):
+        assert_equal(base, +745)
+# @file: m249.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+249)
+
+tests:
+    it("m249"):
+        assert_equal(base, +748)
+# @file: m250.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+250)
+
+tests:
+    it("m250"):
+        assert_equal(base, +751)
+# @file: m251.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+251)
+
+tests:
+    it("m251"):
+        assert_equal(base, +754)
+# @file: m252.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+252)
+
+tests:
+    it("m252"):
+        assert_equal(base, +757)
+# @file: m253.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+253)
+
+tests:
+    it("m253"):
+        assert_equal(base, +760)
+# @file: m254.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+254)
+
+tests:
+    it("m254"):
+        assert_equal(base, +763)
+# @file: m255.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+255)
+
+tests:
+    it("m255"):
+        assert_equal(base, +766)
+# @file: m256.hd
+use pkg.main.edit_me
+
+let base: i32 = edit_me(+256)
+
+tests:
+    it("m256"):
+        assert_equal(base, +769)

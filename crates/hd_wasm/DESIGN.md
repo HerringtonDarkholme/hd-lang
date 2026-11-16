@@ -551,6 +551,12 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   inits, and `hd.test(N, ctx)`, case `N`'s entry poll with the suspension
   protocol (§23.21). Each dispatches by a `br_table`, so an instance's
   exports, which every instantiate builds, are constant in the case count.
+  Over more than 256 arms (`rt::DISPATCH_ARMS`) a dispatch is a tree of
+  functions of at most 256 arms each, as LLVM splits a large switch into
+  a tree of tables: a level picks its part by a shift and passes it the
+  rest by a mask. An engine's optimizing compile of one function is
+  superlinear in its arms (V8 ran out of memory at 20,000 on Node 24,
+  #2049); the tree costs a case one call per level.
 - **The hd tests.** `crates/hd_driver/tests/std_rt/` holds std's own hd
   tests of its runtime modules. The conformance runner adds each file to
   std's sources and runs its cases on the linear backend, on the engines

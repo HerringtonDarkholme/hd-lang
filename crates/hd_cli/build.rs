@@ -39,6 +39,7 @@ fn main() {
          /// directory a run writes them to (`build.rs`).\n\
          pub(crate) const HOST: &[(&str, &str)] = &[\n",
     );
+    let mut engine = None;
     for line in listing.lines() {
         if let Some(name) = line.strip_prefix("out ") {
             let _ = writeln!(
@@ -46,6 +47,8 @@ fn main() {
                 "    ({name:?}, include_str!({:?})),",
                 host.join(name).display()
             );
+        } else if let Some(version) = line.strip_prefix("node ") {
+            engine = Some(version.to_owned());
         } else if let Some(source) = line.strip_prefix("src ") {
             println!(
                 "cargo::rerun-if-changed={}",
@@ -56,5 +59,11 @@ fn main() {
         }
     }
     code.push_str("];\n");
+    let engine = engine.expect("ship-host.ts prints the `node` engine line");
+    let _ = writeln!(
+        code,
+        "/// The oldest Node `hd test` runs on: package.json's `engines.node`.\n\
+         pub(crate) const NODE_ENGINE: &str = {engine:?};"
+    );
     std::fs::write(Path::new(&out_dir).join("host.rs"), code).expect("write host.rs");
 }

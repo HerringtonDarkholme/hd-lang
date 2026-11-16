@@ -183,7 +183,12 @@ The design record in #182 is closed; no implementation ticket is open.
      `hd.test(i, ctx)`, which polls case `i` (`hd_wasm` emission). Each
      dispatches by a `br_table`, so an instance holds two test exports
      however many cases and modules it has: an engine that builds an
-     exports object per instantiate does constant work there. A case's
+     exports object per instantiate does constant work there. Over 256
+     cases or modules the dispatch splits into a tree of functions of at
+     most 256 arms each (`hd_wasm` DESIGN.md §23.12), so no function's
+     optimizing compile grows with the suite.
+   - **Node version.** The host refuses a Node older than the repository
+     `package.json`'s `engines.node`, and `hd test` reports that alone. A case's
      instance calls its own module's init, so every case runs in a
      fresh instance after its module's initialization
      ([`module.testing.instance`](../../spec/lang/10-modules.md#r-module.testing.instance)).

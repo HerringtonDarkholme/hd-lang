@@ -45,7 +45,7 @@ pub use count_audit::resolve as resolve_count_audit;
 pub use emit::{lent_referent, promotable_referent, rooted_referent};
 pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
-pub use rt::Helper;
+pub use rt::{DISPATCH_ARMS, Helper};
 
 /// A1's shared owned-address class on this backend. Boxed values have
 /// the class's owned parameter convention. References keep concrete keys,

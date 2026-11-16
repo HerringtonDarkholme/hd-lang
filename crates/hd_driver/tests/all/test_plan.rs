@@ -176,9 +176,10 @@ fn an_ignore_edit_relinks() {
     assert_eq!(warm.tests[1].run, Some((1, 0)));
 }
 
-/// The exported functions and the defined functions of a test program
-/// with `k` cases in one module and one in another (#1902's generator).
-fn entry_counts(k: usize) -> (Vec<String>, u32) {
+/// The exported functions, the defined functions and the most arms of any
+/// one function's `br_table`s of a test program with `k` cases in one
+/// module and one in another (#1902's generator).
+fn entry_counts(k: usize) -> (Vec<String>, u32, usize) {
     let mut main = String::from(
         "use std.testing.assert_equal\n\nfn edit_me(x: i32) -> i32: x * 3 + 1\n\ntests:\n",
     );
@@ -212,6 +213,7 @@ fn entry_counts(k: usize) -> (Vec<String>, u32) {
     wasmparser::validate(&wasm).expect("a valid module");
     let mut exports = Vec::new();
     let mut functions = 0;
+    let mut widest = 0;
     for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
         match payload.expect("payload") {
             wasmparser::Payload::ExportSection(r) => {
@@ -223,22 +225,39 @@ fn entry_counts(k: usize) -> (Vec<String>, u32) {
                 }
             }
             wasmparser::Payload::FunctionSection(r) => functions = r.count(),
+            wasmparser::Payload::CodeSectionEntry(body) => {
+                let mut ops = body.get_operators_reader().expect("operators");
+                let mut arms = 0;
+                while !ops.eof() {
+                    if let wasmparser::Operator::BrTable { targets } = ops.read().expect("op") {
+                        arms += usize::try_from(targets.len()).unwrap();
+                    }
+                }
+                widest = widest.max(arms);
+            }
             _ => {}
         }
     }
     exports.sort_stable();
-    (exports, functions)
+    (exports, functions, widest)
 }
 
 /// An engine that builds each instance's exports, and its functions, per
 /// instantiate does constant export work per case: a test program
 /// exports two entries however many cases it has, which dispatch by
-/// number, and each case adds one function, its body (#1902).
+/// number, and each case adds one function, its body (#1902). The
+/// dispatch splits into functions of at most [`hd_wasm::DISPATCH_ARMS`]
+/// arms, one per run of 256 cases here, so no one function grows with the
+/// cases, which an engine's optimizing compile is superlinear in (#2049).
 #[test]
 fn a_test_program_exports_two_entries_and_a_function_per_case() {
-    let (small, at_small) = entry_counts(2_000);
-    let (large, at_large) = entry_counts(8_000);
+    let arms = hd_wasm::DISPATCH_ARMS;
+    let (small, at_small, widest_small) = entry_counts(2_000);
+    let (large, at_large, widest_large) = entry_counts(20_000);
     assert_eq!(small, ["hd.test", "hd.test.init"]);
     assert_eq!(large, small);
-    assert_eq!(at_large - at_small, 6_000);
+    let parts = |k: u32| k.div_ceil(u32::try_from(arms).unwrap());
+    assert_eq!(at_large - at_small, 18_000 + parts(20_000) - parts(2_000));
+    assert!(widest_small <= arms, "{widest_small} arms at 2,000 cases");
+    assert!(widest_large <= arms, "{widest_large} arms at 20,000 cases");
 }

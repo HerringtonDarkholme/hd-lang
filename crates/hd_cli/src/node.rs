@@ -474,17 +474,18 @@ pub struct TestEnv<'a> {
     pub wall_ms: Option<u64>,
 }
 
-/// The test host's configuration: the program's shared environment, then
-/// each case's.
-fn host_config(env: &TestEnv<'_>, cases: &[HostCase]) -> String {
+/// The test host's configuration: the program's shared environment, with
+/// `node`, the oldest Node the host runs on, then each case's.
+fn host_config(env: &TestEnv<'_>, cases: &[HostCase], node: &str) -> String {
     let programs = env.programs.map_or("null", |p| p.json.as_str());
     let launcher = process_launcher();
     let limit = env
         .wall_ms
         .map_or(String::new(), |ms| format!("\"timeLimitMs\":{ms},"));
     let mut out = format!(
-        "{{\"program\":{},\"args\":[],{limit}\"programs\":{programs}{launcher},\"cases\":[",
-        quote(env.program)
+        "{{\"program\":{},\"args\":[],\"node\":{},{limit}\"programs\":{programs}{launcher},\"cases\":[",
+        quote(env.program),
+        quote(node)
     );
     for (i, c) in cases.iter().enumerate() {
         if i > 0 {
@@ -628,6 +629,10 @@ fn grants_json(g: &Grants) -> String {
     out
 }
 
+/// The test host's exit status when `node` is older than [`NODE_ENGINE`]
+/// (`host/test.ts`).
+const OLD_NODE: i32 = 78;
+
 /// Runs `cases` of a test program in one Node process, each in a fresh
 /// instance, and hands each result to `done` as it ends.
 pub fn run_cases(
@@ -636,9 +641,20 @@ pub fn run_cases(
     cases: &[HostCase],
     done: &mut dyn FnMut(CaseRun),
 ) -> Result<(), String> {
+    run_host(wasm, env, cases, done, NODE_ENGINE)
+}
+
+/// [`run_cases`] on a host that refuses a Node older than `node`.
+fn run_host(
+    wasm: &[u8],
+    env: &TestEnv<'_>,
+    cases: &[HostCase],
+    done: &mut dyn FnMut(CaseRun),
+    node: &str,
+) -> Result<(), String> {
     let dir = Scratch::new(wasm)?;
     let config = dir.0.join("config.json");
-    std::fs::write(&config, host_config(env, cases))
+    std::fs::write(&config, host_config(env, cases, node))
         .map_err(|e| format!("{}: {e}", config.display()))?;
     let mut command = Command::new("node");
     command
@@ -667,6 +683,14 @@ pub fn run_cases(
         }
     };
     let out = child.wait_with_output().map_err(|e| format!("node: {e}"))?;
+    // A Node older than package.json's `engines.node` ran no case, and
+    // its host says why (`host/test.ts`).
+    if out.status.code() == Some(OLD_NODE) {
+        return Err(format!(
+            "node: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
     if seen != cases.len() {
         let stderr = String::from_utf8_lossy(&out.stderr);
         let reason = match stderr.trim() {
@@ -841,7 +865,9 @@ mod tests {
 
     use hd_run::{Grants, Limit};
 
-    use super::{HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, quote, read_results};
+    use super::{
+        HOST, HostCase, Snapshot, TestEnv, host_config, parse_case, quote, read_results, run_host,
+    };
 
     /// The embedded host is plain JavaScript (#1697): its entry points are
     /// shipped, and no shipped module names a relative `.ts` module, which
@@ -901,6 +927,26 @@ mod tests {
         assert!(stranger.is_err());
     }
 
+    /// The host refuses a Node older than the one it names before it
+    /// compiles the program (#2049), and `hd test` reports its message
+    /// alone; a newer Node goes on, to no case here.
+    #[test]
+    fn refuses_an_older_node() {
+        let env = TestEnv {
+            cwd: None,
+            program: "main.hd",
+            programs: None,
+            wall_ms: None,
+        };
+        let run = |node: &str| run_host(b"\0asm\x01\0\0\0", &env, &[], &mut |_| {}, node);
+        let refused = run("999.0.0").unwrap_err();
+        assert!(
+            refused.starts_with("node: hd test runs on Node 999.0.0 or newer, and `node` is "),
+            "{refused}"
+        );
+        assert_eq!(run("1.0.0"), Ok(()));
+    }
+
     #[test]
     fn writes_the_host_config() {
         let cases = [HostCase {
@@ -941,9 +987,9 @@ mod tests {
             String::new()
         };
         assert_eq!(
-            host_config(&env, &cases),
+            host_config(&env, &cases, "26.13.1"),
             format!(
-                r#"{{"program":"tests/report.hd","args":[],"timeLimitMs":300,"programs":null{launcher},"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
+                r#"{{"program":"tests/report.hd","args":[],"node":"26.13.1","timeLimitMs":300,"programs":null{launcher},"cases":[{{"test":2,"init":1,"kind":"it_prop","tempDir":"/tmp/hd-test-1-0/4","seed":9,"grants":{{"Console":false,"FsWrite":["/tmp/a\"b"]}},"snapshot":{{"dir":"/pkg{sep}__snapshots__/tests.report","shown":"__snapshots__/tests.report","slug":"sums-prices","update":false}},"regression":{{"file":"/pkg{sep}__regressions__/tests.report/sums-prices","shown":"__regressions__/tests.report/sums-prices"}}}}]}}"#
             )
         );
     }

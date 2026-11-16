@@ -13,7 +13,9 @@
 // Usage: node scripts/ship-host.ts OUT
 // Writes OUT/<module>.js and OUT/package.json, and prints each written
 // path relative to OUT, then each source read relative to the repository,
-// as `out PATH` and `src PATH` lines.
+// as `out PATH` and `src PATH` lines, and the oldest Node `hd test` runs
+// on, the repository package.json's `engines.node`, as a `node VERSION`
+// line.
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
@@ -80,7 +82,10 @@ for (const [name, javascript] of [...shipped].sort(([left], [right]) => (left < 
 }
 await writeFile(join(out, "package.json"), '{ "type": "module" }\n');
 lines.push("out package.json");
+const engines = JSON.parse(await readFile(join(repository, "package.json"), "utf8")).engines;
+lines.push(`node ${engines.node}`);
 for (const helper of [
+  "package.json",
   "scripts/ship-host.ts",
   "scripts/host-emission.ts",
   "packages/server-sdk/packaging/typescript-emission.ts",

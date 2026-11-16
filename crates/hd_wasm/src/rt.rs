@@ -135,7 +135,8 @@ pub enum Helper {
     /// `reinit`, every module's init again, which gives it the bindings a
     /// fresh instance has. A case number past the arms traps. An instance's exports and functions, which
     /// V8 builds per instantiate, then grow by one function per case: its
-    /// body (#1902).
+    /// body (#1902). Over [`DISPATCH_ARMS`] cases the arms call
+    /// [`Helper::TestPollPart`]s instead, a tree of bounded functions.
     TestPoll {
         polls: Vec<Helper>,
         reinit: Vec<Hash128>,
@@ -144,6 +145,17 @@ pub enum Helper {
     /// `inits[module]` as [`Helper::EntryInit`] runs them, in arms as
     /// [`Helper::TestPoll`] has.
     TestInit {
+        inits: Vec<Vec<(Hash128, bool)>>,
+    },
+    /// `(case, ctx) -> status`: the cases `polls` of a [`Helper::TestPoll`]
+    /// too many for one function ([`DISPATCH_ARMS`]), dispatched the same
+    /// way by `case` relative to the first, with no end of their own.
+    TestPollPart {
+        polls: Vec<Helper>,
+    },
+    /// `(module)`: the groups `inits` of a [`Helper::TestInit`] too many
+    /// for one function, as [`Helper::TestPollPart`] holds cases.
+    TestInitPart {
         inits: Vec<Vec<(Hash128, bool)>>,
     },
     /// `hd.reset()`: after a REPL input that trapped
@@ -1004,21 +1016,73 @@ fn collecting(poll: Helper) -> Helper {
     }
 }
 
-/// Opens the blocks of a dispatch on parameter 0 over `n` arms and
-/// branches: `n + 1` nested blocks, the default's outermost and arm 0's
-/// innermost, and one `br_table` into them. Arm `i`'s code follows the
-/// `i`th [`Instruction::End`] after; [`dispatch_end`] closes the default.
+/// The most arms one dispatch function holds. A test program's
+/// dispatchers ([`Helper::TestPoll`], [`Helper::TestInit`]) over more
+/// split into a tree of functions of at most this many arms each, as
+/// LLVM's switch lowering splits a large switch into a tree of tables: an
+/// engine's optimizing compile of one function is superlinear in its
+/// arms (V8's Turboshaft ran out of memory at 20,000 on Node 24, #2049).
+/// A power of two, so a level's choice is a shift and the rest a mask.
+pub const DISPATCH_ARMS: usize = 256;
+const _: () = assert!(DISPATCH_ARMS.is_power_of_two() && DISPATCH_ARMS > 1);
+
+/// The cases each arm of a dispatch over `n` covers: 1 when the `n` arms
+/// fit one function, else the smallest power of [`DISPATCH_ARMS`] that
+/// leaves at most [`DISPATCH_ARMS`] arms. The tree is then
+/// `log_DISPATCH_ARMS(n)` levels deep, so a case's dispatch costs that many
+/// calls, and its functions hold `n` arms in all plus fewer than
+/// `n / (DISPATCH_ARMS - 1)` for the levels above the cases.
+fn dispatch_span(n: usize) -> usize {
+    let mut span = 1;
+    while n.div_ceil(span) > DISPATCH_ARMS {
+        span *= DISPATCH_ARMS;
+    }
+    span
+}
+
+/// The parts the dispatch over `items` calls, `items` in runs of
+/// [`dispatch_span`], when they do not fit one function: none when they do.
+pub(crate) fn dispatch_parts<T: Clone>(
+    items: &[T],
+    part: impl Fn(Vec<T>) -> Helper,
+) -> Vec<Helper> {
+    let span = dispatch_span(items.len());
+    if span == 1 {
+        return Vec::new();
+    }
+    items.chunks(span).map(|c| part(c.to_vec())).collect()
+}
+
+/// Opens the blocks of a dispatch on parameter 0 over `n` arms of `span`
+/// cases each and branches: `n + 1` nested blocks, the default's outermost
+/// and arm 0's innermost, and one `br_table` into them on parameter 0
+/// shifted down by `log2(span)`. Arm `i`'s code follows the `i`th
+/// [`Instruction::End`] after; [`dispatch_end`] closes the default.
 /// Constant work per call, and code linear in the arms.
 /// Answers the arm count, the default's label.
-fn dispatch(f: &mut Func, arms: usize) -> u32 {
+fn dispatch(f: &mut Func, arms: usize, span: usize) -> u32 {
     let labels: Vec<u32> = (0u32..).take(arms).collect();
     let n = labels.last().map_or(0, |last| last + 1);
     for _ in 0..=n {
         f.op(Instruction::Block(BlockType::Empty));
     }
     f.get(0);
+    if span > 1 {
+        // At most 64: exact as an i32.
+        f.i32(span.trailing_zeros().cast_signed());
+        f.op(Instruction::I32ShrU);
+    }
     f.br_table(labels, n);
     n
+}
+
+/// An arm's case number within its part of `span` cases: parameter 0's
+/// low bits.
+fn part_case(f: &mut Func, span: usize) {
+    f.get(0);
+    // A span past i32 keeps every bit: case numbers are i32s.
+    f.i32(i32::try_from(span - 1).unwrap_or(-1));
+    f.op(Instruction::I32And);
 }
 
 /// The default arm of a [`dispatch`]: a number past the arms traps.
@@ -1027,42 +1091,75 @@ fn dispatch_end(f: &mut Func) {
     f.op(Instruction::Unreachable);
 }
 
-/// [`Helper::TestInit`].
-fn test_init(m: &Module, groups: &[Vec<(Hash128, bool)>]) -> Func {
-    let mut f = m.func("rt:test_init", vec![Val::I32], vec![]);
-    dispatch(&mut f, groups.len());
-    for inits in groups {
-        f.op(Instruction::End);
-        entry_init(&mut f, m, inits);
-        f.op(Instruction::Return);
+/// [`Helper::TestInit`] and [`Helper::TestInitPart`], `name`: an arm per
+/// group of `groups`, or per part of them ([`dispatch_parts`]).
+fn test_init(m: &Module, name: &str, groups: &[Vec<(Hash128, bool)>]) -> Func {
+    let mut f = m.func(name, vec![Val::I32], vec![]);
+    let span = dispatch_span(groups.len());
+    let parts = dispatch_parts(groups, |inits| Helper::TestInitPart { inits });
+    if parts.is_empty() {
+        dispatch(&mut f, groups.len(), 1);
+        for inits in groups {
+            f.op(Instruction::End);
+            entry_init(&mut f, m, inits);
+            f.op(Instruction::Return);
+        }
+    } else {
+        dispatch(&mut f, parts.len(), span);
+        for part in parts {
+            f.op(Instruction::End);
+            part_case(&mut f, span);
+            f.helper(part);
+            f.op(Instruction::Return);
+        }
     }
     dispatch_end(&mut f);
     f
 }
 
-/// [`Helper::TestPoll`]: the dispatch in a block whose end takes the
-/// case's status, then a checked poll's end, or a collecting poll's.
-fn test_poll(m: &Module, polls: &[Helper], reinit: &[Hash128]) -> Func {
-    let mut f = m.func("rt:test_poll", vec![Val::I32, Val::I32], vec![Val::I32]);
+/// [`Helper::TestPoll`] (`reinit` some) and [`Helper::TestPollPart`]: the
+/// dispatch, an arm per case of `polls` or per part of them
+/// ([`dispatch_parts`]), in a block whose end takes the case's status;
+/// then, at the root, a checked poll's end, or a collecting poll's.
+fn test_poll(m: &Module, polls: &[Helper], reinit: Option<&[Hash128]>) -> Func {
+    let name = if reinit.is_some() {
+        "rt:test_poll"
+    } else {
+        "rt:test_poll_part"
+    };
+    let mut f = m.func(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let status = f.local(Val::I32);
     f.op(Instruction::Block(BlockType::Empty));
-    let n = dispatch(&mut f, polls.len());
-    for (i, poll) in (0..n).zip(polls) {
+    let span = dispatch_span(polls.len());
+    let parts = dispatch_parts(polls, |polls| Helper::TestPollPart { polls });
+    let arms = if parts.is_empty() {
+        polls.len()
+    } else {
+        parts.len()
+    };
+    let n = dispatch(&mut f, arms, span);
+    for (i, at) in (0..n).zip(0usize..) {
         f.op(Instruction::End);
-        match poll {
-            Helper::EntryPoll {
-                main,
-                providers,
-                results,
-                report,
-                then,
-                bang: None,
-            } => entry_poll(&mut f, m, *main, providers, *results, *report, then),
-            // A suspending root's poll keeps its frame state machine
-            // (`task::root_poll`) in a function of its own.
-            suspending => {
-                f.get(1);
-                f.helper(suspending.clone());
+        if let Some(part) = parts.get(at) {
+            part_case(&mut f, span);
+            f.get(1);
+            f.helper(part.clone());
+        } else {
+            match &polls[at] {
+                Helper::EntryPoll {
+                    main,
+                    providers,
+                    results,
+                    report,
+                    then,
+                    bang: None,
+                } => entry_poll(&mut f, m, *main, providers, *results, *report, then),
+                // A suspending root's poll keeps its frame state machine
+                // (`task::root_poll`) in a function of its own.
+                suspending => {
+                    f.get(1);
+                    f.helper(suspending.clone());
+                }
             }
         }
         f.set(status);
@@ -1072,10 +1169,12 @@ fn test_poll(m: &Module, polls: &[Helper], reinit: &[Hash128]) -> Func {
     }
     dispatch_end(&mut f);
     f.op(Instruction::End);
-    if m.runtime.checked.is_some() {
-        checked_end(&mut f, m, status, reinit);
-    } else if !m.acyclic {
-        f.helper(Helper::Collect);
+    if let Some(reinit) = reinit {
+        if m.runtime.checked.is_some() {
+            checked_end(&mut f, m, status, reinit);
+        } else if !m.acyclic {
+            f.helper(Helper::Collect);
+        }
     }
     f.get(status);
     f
@@ -1649,7 +1748,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::WaitSignal
         | H::RetainAny
         | H::RaceDrop { .. }
-        | H::TestInit { .. } => (1, 0),
+        | H::TestInit { .. }
+        | H::TestInitPart { .. } => (1, 0),
         H::PanicStr
         | H::CopyElems { .. }
         | H::CancelLeave
@@ -1668,7 +1768,8 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::StrToBytes { .. }
         | H::LebPut
         | H::WakerLive
-        | H::TestPoll { .. } => (2, 1),
+        | H::TestPoll { .. }
+        | H::TestPollPart { .. } => (2, 1),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
@@ -1879,8 +1980,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CheckedPoll { poll } => checked_poll(poll, m),
-        Helper::TestPoll { polls, reinit } => test_poll(m, polls, reinit),
-        Helper::TestInit { inits } => test_init(m, inits),
+        Helper::TestPoll { polls, reinit } => test_poll(m, polls, Some(reinit)),
+        Helper::TestPollPart { polls } => test_poll(m, polls, None),
+        Helper::TestInit { inits } => test_init(m, "rt:test_init", inits),
+        Helper::TestInitPart { inits } => test_init(m, "rt:test_init_part", inits),
         Helper::CollectPoll { poll } => {
             let mut f = m.func("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
             f.get(0);
