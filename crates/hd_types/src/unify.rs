@@ -791,7 +791,8 @@ impl InferTable {
     /// (`req.context.row`). A key whose trait occurs once in each row
     /// unifies with its counterpart, so `$.Context[$ Repo[T]]` against
     /// `$.Context[$ Repo[User]]` fixes `T`; every other key must already
-    /// be in both rows.
+    /// be in both rows. Cost: one hash probe per key of each row to index
+    /// them by trait, then one probe and one unify per key of the first.
     fn unify_context_rows(
         &mut self,
         pool: Types<'_>,
@@ -809,21 +810,25 @@ impl InferTable {
         if d1.keys.len() != d2.keys.len() || d1.params != d2.params {
             return Err(mismatch);
         }
-        let trait_of = |k: Ty| match pool.get(k) {
-            TyData::TraitValue { def, .. } => Some(def),
-            _ => None,
-        };
-        let only = |keys: &[Ty], d: hd_base::DefId| {
-            let mut of = keys.iter().copied().filter(|k| trait_of(*k) == Some(d));
-            match (of.next(), of.next()) {
-                (Some(k), None) => Some(k),
-                _ => None,
+        // Each row's keys by trait, `None` for a trait named twice: one
+        // probe per key, so the pairing is linear in the keys.
+        let by_trait = |keys: &[Ty]| {
+            let mut by: HashMap<hd_base::DefId, Option<Ty>> = HashMap::default();
+            for &k in keys {
+                crate::work::type_node();
+                if let TyData::TraitValue { def, .. } = pool.get(k) {
+                    by.entry(def).and_modify(|e| *e = None).or_insert(Some(k));
+                }
             }
+            by
         };
+        let (by1, by2) = (by_trait(&d1.keys), by_trait(&d2.keys));
         for &k1 in &d1.keys {
-            let Some(d) = trait_of(k1) else { continue };
-            if let (Some(_), Some(k2)) = (only(&d1.keys, d), only(&d2.keys, d)) {
-                self.unify(pool, k1, k2)?;
+            let TyData::TraitValue { def, .. } = pool.get(k1) else {
+                continue;
+            };
+            if let (Some(Some(_)), Some(Some(k2))) = (by1.get(&def), by2.get(&def)) {
+                self.unify(pool, k1, *k2)?;
             }
         }
         if self.resolve_row(pool, r1) == self.resolve_row(pool, r2) {
@@ -987,6 +992,50 @@ mod tests {
         let b = p.intern_ty(&TyData::Row(concrete));
         table.unify(p, a, b).expect("infer the data row argument");
         assert_eq!(table.resolve_row(p, inferred), concrete);
+    }
+
+    /// `unify_context_rows` pairs keys by trait through one index per
+    /// row: `n` keys `Gen_i[?v_i]` against `Gen_i[i32]` bind each variable,
+    /// and the counted work at `10n` keys is ten times that at `n`, not a
+    /// hundred (each key once scanned the whole row for its trait).
+    #[test]
+    fn context_rows_pair_their_keys_in_linear_work() {
+        let work = |n: u32| {
+            let (gp, lp) = (InternPool::new(), LocalPool::new());
+            let p = Types::with_local(&gp, &lp);
+            let mut table = InferTable::default();
+            let key = |i: u32, arg: Ty| {
+                p.intern_ty(&TyData::TraitValue {
+                    def: hd_base::DefId::from_raw(100 + i),
+                    args: p.list(&[arg]),
+                    bindings: vec![],
+                })
+            };
+            let vars: Vec<Ty> = (0..n).map(|_| table.fresh(p, VarKind::General)).collect();
+            let open = p.row(&RowData {
+                keys: (0..n).map(|i| key(i, vars[i as usize])).collect(),
+                params: Vec::new(),
+            });
+            let ground = p.row(&RowData {
+                keys: (0..n).map(|i| key(i, Ty::I32)).collect(),
+                params: Vec::new(),
+            });
+            let (a, b) = (
+                p.intern_ty(&TyData::Context(open)),
+                p.intern_ty(&TyData::Context(ground)),
+            );
+            let (r, count) = crate::work::count_type_nodes(|| table.unify(p, a, b));
+            r.expect("each key binds its variable");
+            for &v in &vars {
+                assert_eq!(table.resolve(p, v), Ty::I32);
+            }
+            count
+        };
+        let (small, large) = (work(40), work(400));
+        assert!(
+            large <= 10 * small + 64,
+            "context unify work for 40 and 400 keys: {small} and {large}"
+        );
     }
 
     #[test]
