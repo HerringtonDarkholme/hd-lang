@@ -732,7 +732,7 @@ The full encoding, instruction catalog and builder are in
 | `consts`, `strings` | `(Ty, u64)`; literal text | emission; indexed by a constant `Ref` |
 | `susp` | `SuspRow`, 16 bytes | suspension lowering |
 | `fallback` | | panic reports for defaulted literals |
-| `exit_drops` | `(SubId, LocalId)` | emission after the ownership passes, which write it; never on the wire |
+| `exit_drops` | `(SubId, LocalId)` | emission after the ownership passes, which write it; carried by the wire's owned section |
 | `regions` | `(u32, u32)` | tier 2 only (reserved): empty |
 
 **Identity.** Instruction, local, sub-body, capture and label indices are
