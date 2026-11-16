@@ -155,6 +155,10 @@ directive not listed below. A warning is no case's expectation: a lint
 finding is tested by the `cli/lint-*` case of its lint, so `spec/check.sh`
 rejects a `# warning:` marker and a `warn:` expectation.
 
+For a multi-line call, its frame names the line that closes the argument
+list. If the panic-marker rules below put a marker on that call, put it
+on that line. A panic in an argument names that argument's expression instead.
+
 A panic marker sits on the line that raises the panic, inside the function
 that raises it, not on the call that reaches that function. `spec/check.sh`
 rejects a panic marker on a statement that is one call of a function the
