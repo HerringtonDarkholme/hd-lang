@@ -1173,8 +1173,9 @@ pub(crate) fn frame_reference_uses(
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Summary {
     /// Bit k: the body may keep parameter k (receiver first) past the
-    /// call. Parameters past 63 are always kept; a suspending body has no
-    /// summary.
+    /// call. A parameter that holds a `Drop` value is always kept, so its
+    /// hooks run at the callee's exit in every pipeline. Parameters past
+    /// 63 are always kept; a suspending body has no summary.
     pub kept: u64,
     /// Bit k: value parameter k may hold a count and the body keeps none of it
     /// (`kept` clear), so a caller may pass it borrowed, with no count on
@@ -3385,6 +3386,9 @@ pub(crate) mod tests {
         fn holds_coll(&self, ty: Ty) -> bool {
             Cx.holds_coll(ty)
         }
+        fn holds_drop(&self, _: Ty) -> Tri {
+            Tri::No
+        }
     }
 
     /// A flat context whose four small definition IDs model the raw-memory
@@ -3453,6 +3457,57 @@ pub(crate) mod tests {
         let mut scratch = OwnScratch::default();
         run(&mut body, &Flat, &mut scratch).expect("passes");
         (returns, super::summary(&body, &Flat, &scratch, returns))
+    }
+
+    /// A parameter that holds a `Drop` value is kept, though the body only
+    /// lends it: its hooks run at the callee's exit in every pipeline.
+    #[test]
+    fn a_summary_keeps_a_parameter_that_holds_a_drop_value() {
+        struct Dropping;
+        impl super::OwnCx for Dropping {
+            fn temporary_owner_name(&self) -> hd_base::Symbol {
+                hd_base::Symbol::NONE
+            }
+            fn counted(&self, ty: Ty) -> bool {
+                Flat.counted(ty)
+            }
+            fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+                Flat.pass(callee, k, n)
+            }
+            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+                Flat.pass_value(ty, k, n)
+            }
+            fn may_write(&self, callee: &Callee) -> bool {
+                Flat.may_write(callee)
+            }
+            fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
+                Flat.parts(ty, v, out)
+            }
+            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+                Flat.received(item, k, n)
+            }
+            fn suspending(&self, _: DefId) -> bool {
+                false
+            }
+            fn holds_coll(&self, ty: Ty) -> bool {
+                Flat.holds_coll(ty)
+            }
+            fn holds_drop(&self, ty: Ty) -> Tri {
+                if ty == Ty::STRING { Tri::Yes } else { Tri::No }
+            }
+        }
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let p0 = local(&mut b, local_flags::PARAM);
+        let a = b.get(p0, Ty::STRING, n);
+        call(&mut b, 8, &[a], Ty::VOID);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let mut scratch = OwnScratch::default();
+        run(&mut body, &Dropping, &mut scratch).expect("passes");
+        let s = super::summary(&body, &Dropping, &scratch, None);
+        assert_eq!(s.map(|s| (s.kept, s.borrows)), Some((0b1, 0b0)));
     }
 
     /// A parameter that only lends is not kept, one an owned argument

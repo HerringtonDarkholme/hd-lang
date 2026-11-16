@@ -13094,28 +13094,11 @@ impl ProgramEnv for Env<'_> {
         self.function_parameter(ty) == hd_tir::own::Pass::Owned
     }
 
-    fn transfer_adapter(&self, def: DefId, args: TyList) -> bool {
-        if ProgramEnv::cold_transfer_adapter(self, def) {
-            return true;
-        }
-        let lends = self.lent_mask(self.node(def, args));
-        lends != 0
-            && self
-                .params(def)
-                .unwrap_or_default()
-                .iter()
-                .enumerate()
-                .take(64)
-                .any(|(k, &ty)| {
-                    lends & (1 << k) != 0
-                        && self.holds_drop_value(hd_mono::subst(
-                            &self.run.pool,
-                            self,
-                            def,
-                            args,
-                            ty,
-                        ))
-                })
+    fn transfer_adapter(&self, def: DefId, _args: TyList) -> bool {
+        // A summary lends no parameter that holds a `Drop` value
+        // (`hd_tir::own::Summary::kept`), so only a cold convention needs
+        // the owned call body.
+        ProgramEnv::cold_transfer_adapter(self, def)
     }
 
     fn suspends(&self, def: DefId) -> bool {

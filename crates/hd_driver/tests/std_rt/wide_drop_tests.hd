@@ -130,6 +130,22 @@ fn keep(p: Part) -> Part: p
 @inline(.Never)
 fn keep_big(b: Big) -> Big: b
 
+# Each only reads what it takes. A release build still passes it owned,
+# so it runs the value's hooks at its own exit, as a dev build does, and
+# the field stays moved out of the value that held it.
+@inline(.Never)
+fn read_id(p: Part) -> i32: i32(p.id.len())
+
+@inline(.Never)
+fn read_big(b: Big) -> i32: b.f1 + i32(b.name.len())
+
+@inline(.Never)
+fn read_any[T < ?Copy](x: T) -> i32: 1
+
+impl Part:
+    @inline(.Never)
+    fn id_len(self) -> i32: i32(self.id.len())
+
 @inline(.Never)
 fn parse(x: i32) -> Result[i32, string]:
     if x < 0:
@@ -265,6 +281,49 @@ fn moved_tail(o: Outer) -> i32:
     t.n + o.v
 
 @inline(.Never)
+fn read_tail(o: Outer) -> i32: read_id(o.tail) + o.v
+
+@inline(.Never)
+fn read_tail_method(o: Outer) -> i32: o.tail.id_len() + o.v
+
+@inline(.Never)
+fn read_tail_generic(o: Outer) -> i32: read_any(o.tail) + o.v
+
+@inline(.Never)
+fn read_deep(o: Outer) -> i32: read_id(o.big.part) + o.v
+
+@inline(.Never)
+fn read_inner_big(o: Outer) -> i32: read_big(o.big) + o.v
+
+@inline(.Never)
+fn local_read_tail(x: i32) -> i32:
+    let o = mk_outer(x)
+    let n = read_id(o.tail)
+    trace = "${trace} after"
+    n + o.v
+
+@inline(.Never)
+fn whole_read(x: i32) -> i32:
+    let p = Part { id: "w${x}", n: x }
+    let n = read_id(p)
+    trace = "${trace} after"
+    n
+
+# A value that counts nothing passes the same way.
+struct QHold:
+    q: Quiet
+    v: i32
+
+impl !Copy for QHold
+
+impl Drop for QHold:
+    fn drop(&mut self) -> void:
+        trace = "${trace} qhold:${self.v}"
+
+@inline(.Never)
+fn read_quiet(h: QHold) -> i32: quiet(h.q) + h.v
+
+@inline(.Never)
 fn moved_big(o: Outer) -> i32:
     let b = keep_big(o.big)
     b.f1 + o.v
@@ -388,6 +447,25 @@ tests:
         assert_equal(taken(), " po tail")
         assert_equal(moved_plain(Plain { big: mk(6, "x"), w: 1, tag: "t" }), 3)
         assert_equal(taken(), " px")
+
+    it("a field moved into a callee that only reads it stays moved in every pipeline"):
+        _ := taken()
+        assert_equal(read_tail(mk_outer(3)), 7)
+        assert_equal(taken(), " tail big:o3 po!")
+        assert_equal(read_tail_method(mk_outer(3)), 7)
+        assert_equal(taken(), " tail big:o3 po!")
+        assert_equal(read_tail_generic(mk_outer(3)), 4)
+        assert_equal(taken(), " tail big:o3 po!")
+        assert_equal(read_deep(mk_outer(5)), 7)
+        assert_equal(taken(), " po tail")
+        assert_equal(read_inner_big(mk_outer(4)), 11)
+        assert_equal(taken(), " big:o4 po! tail")
+        assert_equal(local_read_tail(2), 6)
+        assert_equal(taken(), " tail after big:o2 po!")
+        assert_equal(whole_read(3), 2)
+        assert_equal(taken(), " w3 after")
+        assert_equal(read_quiet(QHold { q: mk_quiet(1), v: 5 }), 8)
+        assert_equal(taken(), " quiet:2")
 
     it("a frame local's moved field skips the same hooks"):
         _ := taken()

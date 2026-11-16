@@ -7,6 +7,9 @@
 # page table, on the room's count word: the list is lent, so it may lie
 # behind a `*T`, and the count pins the room (#1320).
 # The list's drop, which moves its strings out, is summarized as a write.
+# `finish` owns its list in release too: a parameter that holds a `Drop`
+# value is never lent (#2068), so `finish` drops the list at its exit,
+# the one release below, where a dev build drops it.
 # Rule: std-collections.uniq-list.type.
 use std.collections.UniqList
 

@@ -269,7 +269,9 @@ git history at 7ccbb4ea8, `docs/future-work/RELEASE_INTERPROC.md`.
 
 - **What a summary says** (`hd_tir::own::Summary`): facts of a body's
   code, never of its signature, which type checking never reads. `kept`
-  marks the parameters the body may keep past the call; `borrows` the
+  marks the parameters the body may keep past the call, and every
+  parameter that holds a `Drop` value, whose hooks then run at the
+  callee's exit as in a dev build (#2068); `borrows` the
   value parameters that may hold a count and that the body keeps none
   of, so a caller passes them borrowed with no count on either side
   (#1289); `returns` the parameter every result is, unchanged; `writes`

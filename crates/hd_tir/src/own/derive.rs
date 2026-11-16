@@ -1757,6 +1757,15 @@ pub(crate) fn kept(b: &Body, cx: &dyn OwnCx, t: &Tables) -> Option<(u64, u64)> {
     let n = params.len();
     for (k, l) in params.into_iter().enumerate().take(64) {
         let f = t.l[l as usize];
+        // A value with a `Drop` hook is kept: its hooks run at the
+        // callee's exit, as a dev build runs them. A lent argument would
+        // run them at the caller's drop instead, and a field moved into
+        // the call would stay in place, so the value that held it would
+        // run its own hook too (`ref.move.field`).
+        if cx.holds_drop(b.local_ty[l as usize]) == Tri::Yes {
+            kept |= 1 << k;
+            continue;
+        }
         if !cx.counted(b.local_ty[l as usize]) {
             continue;
         }
