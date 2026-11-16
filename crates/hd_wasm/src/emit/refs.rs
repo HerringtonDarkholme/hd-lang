@@ -402,6 +402,10 @@ impl Em<'_, '_, '_> {
     /// root's `Drop`, which the move pass keeps for such a root, releases
     /// the whole.
     pub(super) fn own_move_part(&mut self, i: u32) -> StageResult<bool> {
+        // A move out of an address parameter reads memory (`Em::mem_read`).
+        if self.mem_field(i).is_some() {
+            return Ok(false);
+        }
         let p = self.place(self.b.data[i as usize][0]);
         let Some((t, ls)) = self.root_locals(&p)? else {
             return Ok(false);

@@ -33,10 +33,40 @@ fn program(k: usize) -> String {
     text
 }
 
+/// The counted variant (step 4): `T{i}` also holds a string, and `main`
+/// builds the whole chain in one literal, so only `get{i}` and the
+/// release code can grow with the value: each `get{i}` drops its
+/// parameter's string and skips the `inner` it moved on, and each type's
+/// release witness calls its `inner`'s. A literal nests at most about
+/// 100 deep (the parser's limit), so K = 25 and 100.
+fn counted_program(k: usize) -> String {
+    let mut text =
+        String::from("struct T0:\n    v: i32\n    s: string\n\nfn get0(t: T0) -> i32: t.v\n");
+    let mut literal = String::from("T0 { v: +1, s: \"s\" }");
+    for i in 1..k {
+        let p = i - 1;
+        let _ = write!(
+            text,
+            "\nstruct T{i}:\n    inner: T{p}\n    v: i32\n    s: string\n\n\
+             fn get{i}(t: T{i}) -> i32: get{p}(t.inner) % 1000 + t.v\n"
+        );
+        literal = format!("T{i} {{ inner: {literal}, v: +{i}, s: \"s\" }}");
+    }
+    let last = k - 1;
+    let _ = write!(
+        text,
+        "\npub fn main() -> void $ Console:\n    println(\"${{get{last}({literal})}}\")\n"
+    );
+    text
+}
+
 fn module_bytes(k: usize) -> usize {
+    build_bytes(&program(k))
+}
+
+fn build_bytes(source: &str) -> usize {
     let mut sources = MemorySources::default();
-    let source = program(k);
-    sources.insert("main.hd", &source);
+    sources.insert("main.hd", source);
     let store = crate::warm_store();
     let host = Host {
         render_tir: &[],
@@ -70,6 +100,22 @@ fn struct_chain_module_grows_linearly() {
             eprintln!("struct chain module bytes: K=50 {small}, K=200 {large}");
             assert!(small > 0);
             assert!(large * 2 <= small * 9, "K=50 {small}, K=200 {large}");
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}
+
+#[test]
+fn counted_struct_chain_module_grows_linearly() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let (small, large) = (
+                build_bytes(&counted_program(25)),
+                build_bytes(&counted_program(100)),
+            );
+            eprintln!("counted struct chain module bytes: K=25 {small}, K=100 {large}");
+            assert!(small > 0);
+            assert!(large * 2 <= small * 9, "K=25 {small}, K=100 {large}");
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }

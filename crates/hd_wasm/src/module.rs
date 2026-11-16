@@ -1208,6 +1208,10 @@ pub struct Module {
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params:
         hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
+    /// Per type passed by address, its release plan, once
+    /// (`emit/indirect.rs`, `layout::ReleasePlan`).
+    pub(crate) release_plans:
+        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::layout::ReleasePlan>>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
@@ -1336,6 +1340,7 @@ impl Module {
             boundary_counts: Vec::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
+            release_plans: hd_base::HashMap::default(),
             loan_uses: Vec::default(),
             frames: BTreeMap::default(),
             frame_spills: hd_base::HashMap::default(),

@@ -1,4 +1,4 @@
-//! Parameters and results passed by address (#2031, steps 1 and 2;
+//! Parameters and results passed by address (#2031, steps 1 to 4;
 //! rustc's `PassMode::Indirect` with `rustc_codegen_ssa`'s
 //! `OperandValue::Ref`, and its `sret` pointer for a result).
 //!
@@ -46,7 +46,16 @@
 //! A parameter keeps the address form only when every use of it is a
 //! read of its fields ([`params`]); any other parameter stays leaves. The
 //! ownership passes write no `Drop` or `LoanEnd` for a type that counts
-//! nothing and holds nothing to drop. Cost: [`params`] visits the
+//! nothing and holds nothing to drop.
+//!
+//! A parameter whose type holds counted references (step 4,
+//! [`crate::layout::by_address`]) passes by address too when the instance
+//! owns it: its counts move with its bits, and its `Drop` or exit release
+//! runs its type's release witness from the address
+//! ([`crate::layout::ReleasePlan`], Swift's value-witness `destroy`),
+//! skipping a field a move took out under that field's flag (rustc's drop
+//! elaboration, [`Em::mem_moves`], [`Em::mem_release`]). Results and
+//! frame locals of such a type still take the leaf form. Cost: [`params`] visits the
 //! callee's body once, memoized per instance; [`Em::forwarded`] and
 //! [`Em::kept_results`] visit only the sub-body being emitted, and the
 //! value use counts they and [`Em::place_result`] read are counted once
@@ -57,11 +66,11 @@ use std::rc::Rc;
 
 use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
-use hd_tir::ir::{NONE, PlaceRoot, Proj, Ref, Tag, Word, slots};
+use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
-use crate::layout::{Mem, indirect};
+use crate::layout::{Mem, ReleasePlan, ReleaseStep, by_address, indirect};
 use crate::module::{Func, Global, Module, Part, STACK, Sym, Val};
 use crate::op::Op as I;
 
@@ -138,10 +147,22 @@ fn compute_params(
     let t = &input.collected.table;
     let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
     let locals = param_locals(b);
+    // A counted parameter passes by address only when the callee owns it
+    // (`layout::Pass::Owned`): its count arrives with its bits, and its
+    // drop releases them from the address (`Em::mem_release`). A lent one
+    // keeps leaves.
+    let lends = env.lends(item, args) | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]);
     let mut found: HashMap<usize, Mem> = HashMap::default();
-    for &l in &locals {
+    let mut counted: HashMap<usize, hd_types::Ty> = HashMap::default();
+    for (k, &l) in locals.iter().enumerate() {
         let ty = subst(pool, env, item, args, b.local_ty[l]);
-        if let Ok(Some(m)) = indirect(pool, env, ty) {
+        if let Ok(Some(m)) = by_address(pool, env, ty) {
+            if crate::layout::walk(pool, env, ty).is_some() {
+                if k < 64 && lends & (1 << k) != 0 {
+                    continue;
+                }
+                counted.insert(l, ty);
+            }
             found.insert(l, m);
         }
     }
@@ -178,7 +199,20 @@ fn compute_params(
         // A whole read takes other paths (`same_value`, moves into
         // locals), which read the parameter's locals: it stays leaves.
         let fields = !p.proj.is_empty() && p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
-        if !(tag == Tag::Read && fields) {
+        let kept = match (tag, counted.get(&l.idx())) {
+            (Tag::Read, None) => fields,
+            // Its whole drop releases from the address.
+            (Tag::Drop, Some(_)) => p.proj.is_empty(),
+            // A move out of a counted one is skipped by its drop, which
+            // elaborates only fields passed by address: every proper
+            // prefix of the path must be one.
+            (Tag::Read, Some(&ty)) if b.data[i][1] == ReadMode::Move as u32 => {
+                fields && moves_through_addresses(pool, env, ty, &p.proj)
+            }
+            (Tag::Read, Some(_)) => fields,
+            _ => false,
+        };
+        if !kept {
             found.remove(&l.idx());
         }
     }
@@ -186,6 +220,96 @@ fn compute_params(
         return None;
     }
     Some(locals.iter().map(|l| found.remove(l)).collect())
+}
+
+/// Whether each proper prefix of field path `proj` into a value of `ty`
+/// names a field passed by address ([`by_address`]), so a drop that skips
+/// the moved field elaborates only address fields' plans. O(the path).
+fn moves_through_addresses(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    ty: hd_types::Ty,
+    proj: &[Proj],
+) -> bool {
+    let mut t = ty;
+    for (n, s) in proj.iter().enumerate() {
+        let Proj::Field(f) = s else {
+            return false;
+        };
+        if n + 1 == proj.len() {
+            return true;
+        }
+        let Ok(ms) = crate::layout::members(pool, env, t) else {
+            return false;
+        };
+        let Some(&u) = ms.tys.get(*f as usize) else {
+            return false;
+        };
+        if !matches!(by_address(pool, env, u), Ok(Some(_))) {
+            return false;
+        }
+        t = u;
+    }
+    true
+}
+
+/// The release plan of a type passed by address ([`ReleasePlan`]), made
+/// once per type in `memo`, nested types first, with a stack of its own:
+/// a chain of K nested types takes no native stack depth and O(K) work.
+pub(crate) fn release_plan(
+    pool: &hd_types::InternPool,
+    env: &dyn hd_mono::ProgramEnv,
+    memo: &mut HashMap<hd_types::Ty, Option<std::sync::Arc<ReleasePlan>>>,
+    t: hd_types::Ty,
+) -> hd_base::StageResult<Option<std::sync::Arc<ReleasePlan>>> {
+    let strip = |u| crate::layout::strip(pool, env, u);
+    let t = strip(t);
+    let mut stack = vec![(t, false)];
+    while let Some((u, ready)) = stack.pop() {
+        if memo.contains_key(&u) {
+            continue;
+        }
+        let ms = crate::layout::members(pool, env, u)?;
+        if !ready {
+            let mut pending = Vec::new();
+            for &f in &ms.tys {
+                let f = strip(f);
+                if !memo.contains_key(&f) && by_address(pool, env, f)?.is_some() {
+                    pending.push((f, false));
+                }
+            }
+            if !pending.is_empty() {
+                stack.push((u, true));
+                stack.extend(pending);
+                continue;
+            }
+        }
+        let mem = crate::layout::mem(pool, env, u)?;
+        let mut steps = Vec::new();
+        for (field, (&f, part)) in ms.tys.iter().zip(&ms.parts).enumerate() {
+            let field = u32_of(field);
+            if by_address(pool, env, f)?.is_some() {
+                if let Some(plan) = memo.get(&strip(f)).cloned().flatten() {
+                    steps.push(ReleaseStep::Nested {
+                        field,
+                        offset: part.offset,
+                        plan,
+                    });
+                }
+            } else if let Some(walk) = crate::layout::count_walk(pool, env, f) {
+                steps.push(ReleaseStep::Inline {
+                    field,
+                    leaves: mem.leaves[part.first..part.first + part.count].to_vec(),
+                    walk,
+                });
+            }
+        }
+        memo.insert(
+            u,
+            (!steps.is_empty()).then(|| std::sync::Arc::new(ReleasePlan::new(steps))),
+        );
+    }
+    Ok(memo.get(&t).cloned().flatten())
 }
 
 /// The leaf-ABI function of an instance whose worker `worker` has the
@@ -369,7 +493,13 @@ impl Em<'_, '_, '_> {
                 continue;
             };
             for (r, w) in args.iter().zip(abi.params.iter()) {
-                if w.is_some() && self.mem_field(*r).is_some() {
+                // A copy of a counted field takes counts of its own, so
+                // only a move hands its address on.
+                if w.is_some()
+                    && self.mem_field(*r).is_some()
+                    && (b.data[*r as usize][1] == ReadMode::Move as u32
+                        || !self.tracked(self.ty_of(*r)))
+                {
                     candidates.push(*r);
                 }
             }
@@ -386,7 +516,7 @@ impl Em<'_, '_, '_> {
 
     /// For a `Read` `r` of a local kept in memory, whole or of fields: the
     /// local's address local and offset, its layout and the field path.
-    fn mem_field(&self, r: u32) -> Option<(u32, u32, Mem, Vec<u32>, usize)> {
+    pub(super) fn mem_field(&self, r: u32) -> Option<(u32, u32, Mem, Vec<u32>, usize)> {
         if self.b.tags.get(r as usize) != Some(&Tag::Read) {
             return None;
         }
@@ -415,6 +545,17 @@ impl Em<'_, '_, '_> {
         };
         let declared = self.sub(self.b.local_ty[l]);
         let (_, part) = self.fold_path(declared, &fields)?;
+        // A move out of a counted parameter: its drop skips the field.
+        let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
+        if moved
+            && let Some(&(_, flag)) = self
+                .mem_moved
+                .get(&l)
+                .and_then(|ms| ms.iter().find(|(p, _)| *p == fields))
+        {
+            self.f.i32(1);
+            self.f.set(flag);
+        }
         if self.forward.contains(&i) {
             self.mem_vals.insert(i, (at, off + part.offset));
             return Ok(true);
@@ -423,7 +564,7 @@ impl Em<'_, '_, '_> {
             self.f.get(at);
             self.f.op(leaf.load_in(STACK, off));
         }
-        self.store(i)?;
+        self.store_as(i, moved)?;
         Ok(true)
     }
 
@@ -461,9 +602,20 @@ impl Em<'_, '_, '_> {
             match (w, self.mem_vals.get(&r).copied(), block) {
                 (Some(_), Some((at, off)), _) => address(&mut self.f, at, off),
                 (Some(mem), None, Some((base, _))) => {
+                    // An owned counted argument moves in or takes counts
+                    // of its own, as a leaf argument does (`Em::push_arg`).
+                    let src = if self.tracked(params[k]) {
+                        self.arg_src(i, k, r, params[k], Some(lends))?
+                    } else {
+                        None
+                    };
                     for (j, leaf) in mem.leaves.iter().enumerate() {
                         self.f.get(base);
-                        self.comp(r, j)?;
+                        match &src {
+                            Some(super::value::Src::Locals(ls)) => self.f.get(ls[j]),
+                            Some(super::value::Src::Ref(r)) => self.comp(*r, j)?,
+                            None => self.comp(r, j)?,
+                        }
                         self.f.op(leaf.store_in(STACK, offs[k]));
                     }
                     address(&mut self.f, base, offs[k]);
@@ -983,6 +1135,129 @@ impl Em<'_, '_, '_> {
             self.comp(v, j)?;
             self.f.op(leaf.store_in(STACK, off));
         }
+        Ok(true)
+    }
+}
+
+impl Em<'_, '_, '_> {
+    /// Notes each field path a `Read move` takes out of a counted address
+    /// parameter, with a flag local its drop tests (rustc's drop
+    /// elaboration with drop flags; a Wasm local starts at 0, "not
+    /// moved"). One visit of this sub-body's instructions, only when it
+    /// has such a parameter.
+    pub(super) fn mem_moves(&mut self) {
+        let b = self.b;
+        let counted: Vec<usize> = self
+            .mem_locals
+            .keys()
+            .copied()
+            .filter(|l| {
+                self.parameter_positions.contains_key(l) && self.tracked(self.sub(b.local_ty[*l]))
+            })
+            .collect();
+        if counted.is_empty() {
+            return;
+        }
+        for &i in self.rows.clone().iter() {
+            if b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Move as u32 {
+                continue;
+            }
+            let Some((_, _, _, fields, l)) = self.mem_field(u32_of(i)) else {
+                continue;
+            };
+            if !counted.contains(&l) || !self.tracked(self.ty(u32_of(i))) {
+                continue;
+            }
+            let known = self
+                .mem_moved
+                .get(&l)
+                .is_some_and(|ms| ms.iter().any(|(p, _)| *p == fields));
+            if !known {
+                let flag = self.f.local(Val::I32);
+                self.mem_moved.entry(l).or_default().push((fields, flag));
+            }
+        }
+    }
+
+    /// Releases counted address parameter `l` from its address, once: its
+    /// type's release plan ([`release_plan`]), with each field a move took
+    /// out skipped under its flag. A later release (the exit's, after a
+    /// `Drop`) finds the dead flag set. Whether `l` is such a parameter.
+    /// O(the fields on the moved paths), the rest one witness call each.
+    pub(super) fn mem_release(&mut self, l: usize) -> hd_base::StageResult<bool> {
+        enum Task {
+            Level(u32, std::sync::Arc<ReleasePlan>, Vec<(Vec<u32>, u32)>),
+            Step(u32, ReleaseStep),
+            Guard(u32),
+            End,
+        }
+        let Some((at, off, _)) = self.mem_locals.get(&l).cloned() else {
+            return Ok(false);
+        };
+        if !self.parameter_positions.contains_key(&l) {
+            return Ok(false);
+        }
+        let ty = self.sub(self.b.local_ty[l]);
+        let (pool, env) = (self.input.pool, self.input.env);
+        let plan = release_plan(pool, env, &mut self.m.release_plans, ty)?;
+        let Some(plan) = plan else {
+            return Ok(true);
+        };
+        let dead = if let Some(&d) = self.mem_dead.get(&l) {
+            d
+        } else {
+            let d = self.f.local(Val::I32);
+            self.mem_dead.insert(l, d);
+            d
+        };
+        self.f.get(dead);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        let moved = self.mem_moved.get(&l).cloned().unwrap_or_default();
+        let mut todo = vec![Task::Level(off, plan, moved)];
+        while let Some(task) = todo.pop() {
+            match task {
+                Task::End => self.f.op(I::End),
+                Task::Guard(flag) => {
+                    self.f.get(flag);
+                    self.f.op(I::I32Eqz);
+                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                }
+                Task::Step(off, step) => crate::rt::release_step(&mut self.f, at, off, &step),
+                Task::Level(off, plan, moved) => {
+                    let mut seq = Vec::new();
+                    for step in &plan.steps {
+                        let here: Vec<(Vec<u32>, u32)> = moved
+                            .iter()
+                            .filter(|(p, _)| p.first() == Some(&step.field()))
+                            .map(|(p, flag)| (p[1..].to_vec(), *flag))
+                            .collect();
+                        let guards: Vec<u32> = here
+                            .iter()
+                            .filter(|(p, _)| p.is_empty())
+                            .map(|(_, flag)| *flag)
+                            .collect();
+                        let deeper: Vec<(Vec<u32>, u32)> =
+                            here.into_iter().filter(|(p, _)| !p.is_empty()).collect();
+                        seq.extend(guards.iter().map(|&g| Task::Guard(g)));
+                        // `indirect::params` keeps a move only through
+                        // fields passed by address: a deeper path is one
+                        // into a nested plan.
+                        match step {
+                            ReleaseStep::Nested { offset, plan, .. } if !deeper.is_empty() => {
+                                seq.push(Task::Level(off + offset, plan.clone(), deeper));
+                            }
+                            _ => seq.push(Task::Step(off, step.clone())),
+                        }
+                        seq.extend(guards.iter().map(|_| Task::End));
+                    }
+                    todo.extend(seq.into_iter().rev());
+                }
+            }
+        }
+        self.f.i32(1);
+        self.f.set(dead);
+        self.f.op(I::End);
         Ok(true)
     }
 }

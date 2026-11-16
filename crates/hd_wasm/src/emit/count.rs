@@ -939,7 +939,7 @@ impl Em<'_, '_, '_> {
     /// Releases TIR local `l`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_local(&mut self, l: usize) -> StageResult<()> {
-        if self.borrowed.contains(&l) {
+        if self.borrowed.contains(&l) || self.mem_release(l)? {
             return Ok(());
         }
         let Some(ls) = self.locals.get(&l).cloned() else {
@@ -1015,6 +1015,8 @@ impl Em<'_, '_, '_> {
             if let Some(ls) = self.locals.get(&l.idx()).cloned() {
                 self.release_owned_local(l.idx(), &ls)?;
                 released.insert(l.idx());
+            } else if self.mem_release(l.idx())? {
+                released.insert(l.idx());
             }
         }
         // A value made only of references needs no ownership drop, so
@@ -1054,6 +1056,9 @@ impl Em<'_, '_, '_> {
         exits.sort_stable_by_key(|x| x.0);
         for (l, reason) in exits {
             self.f.reason = Some(reason);
+            if self.mem_release(l)? {
+                continue;
+            }
             if let Some(ls) = self.locals.get(&l).cloned() {
                 if self.is_cell(l) {
                     self.count_local(l, &ls, false)?;

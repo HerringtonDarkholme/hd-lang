@@ -725,6 +725,7 @@ fn body_func<'a>(
     if !suspending {
         em.keep = em.kept_results();
     }
+    em.mem_moves();
     // After every plan that names a read copied into memory.
     em.forward = em.forwarded();
     em.block_into(root, None)?;
@@ -1497,6 +1498,11 @@ struct Em<'i, 'a, 'm> {
     /// ([`Em::frame_locals`]). The Wasm local of its address, its offset
     /// there and its layout.
     mem_locals: HashMap<usize, (u32, u32, crate::layout::Mem)>,
+    /// Per counted address parameter, each field path a `Read move` takes
+    /// out of it and the flag local set when it does; and the flag set
+    /// when its drop has run (`indirect.rs`, #2031 step 4).
+    mem_moved: HashMap<usize, Vec<(Vec<u32>, u32)>>,
+    mem_dead: HashMap<usize, u32>,
     /// The frame block on the shadow stack holding the locals kept in
     /// memory: its address local and size. Reserved at entry and given
     /// back at every exit ([`indirect::stack_frame`]).
@@ -1753,6 +1759,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned_refs: hd_base::HashSet::default(),
             lazy: HashMap::default(),
             mem_locals: HashMap::default(),
+            mem_moved: HashMap::default(),
+            mem_dead: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
             forward: hd_base::HashSet::default(),
@@ -3283,23 +3291,39 @@ impl Em<'_, '_, '_> {
         t: Ty,
         lends: Option<u64>,
     ) -> StageResult<()> {
-        if matches!(self.argument_pass(lends, k, t), Pass::Owned(_)) {
-            let s = if let Some(reason) = self.operation_count(
-                i,
-                Tag::Retain,
-                // ruled out: a call's arguments fit Wasm's u32 parameter indices.
-                CountPart::Operand(u32::try_from(k).expect("arguments")),
-            ) {
-                // A stated borrowed read has no count to move;
-                // this owned ABI parameter takes its copy.
-                self.because(reason, |em| em.retain_ref(r))?
-            } else {
-                self.consumed(r)?
-            };
-            self.push_src(&s)
-        } else {
-            self.push(r)
+        match self.arg_src(i, k, r, t, lends)? {
+            Some(s) => self.push_src(&s),
+            None => self.push(r),
         }
+    }
+
+    /// Argument `k`, `r`, of call `i` as the callee takes it: for an owned
+    /// parameter, moved in or a copy with counts of its own; none for a
+    /// borrowed one, which passes `r` as it is.
+    pub(super) fn arg_src(
+        &mut self,
+        i: u32,
+        k: usize,
+        r: u32,
+        t: Ty,
+        lends: Option<u64>,
+    ) -> StageResult<Option<value::Src>> {
+        if !matches!(self.argument_pass(lends, k, t), Pass::Owned(_)) {
+            return Ok(None);
+        }
+        let s = if let Some(reason) = self.operation_count(
+            i,
+            Tag::Retain,
+            // ruled out: a call's arguments fit Wasm's u32 parameter indices.
+            CountPart::Operand(u32::try_from(k).expect("arguments")),
+        ) {
+            // A stated borrowed read has no count to move;
+            // this owned ABI parameter takes its copy.
+            self.because(reason, |em| em.retain_ref(r))?
+        } else {
+            self.consumed(r)?
+        };
+        Ok(Some(s))
     }
 
     pub(super) fn push_args(

@@ -289,6 +289,10 @@ pub enum Helper {
         vals: Vec<Val>,
         walk: Walk,
     },
+    /// `(address)`: one count less on each counted reference of a value
+    /// at `address` in the shadow stack (#2031): its type's release
+    /// witness ([`crate::layout::ReleasePlan`]).
+    ReleaseAt(std::sync::Arc<crate::layout::ReleasePlan>),
     /// `(address)`: one count less on the object that holds `address`. At
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
@@ -2054,6 +2058,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::TestPoll { .. }
         | H::TestPollPart { .. } => (2, 1),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
+        H::ReleaseAt(_) => (1, 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
@@ -2447,6 +2452,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Release { vals, walk } => {
             let mut f = m.func("rt:release", vals.clone(), vec![]);
             walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
+            f
+        }
+        Helper::ReleaseAt(plan) => {
+            let mut f = m.func("rt:release_at", vec![Val::I32], vec![]);
+            release_steps(&mut f, 0, 0, &plan.steps);
             f
         }
         Helper::ReleaseRef => release_ref(m, Addr::Ref),
@@ -2995,6 +3005,44 @@ pub(crate) fn release_call(f: &mut Func, addr: Addr) {
         Addr::Ref => Helper::ReleaseRef,
         Addr::Known => Helper::ReleaseKnown,
     });
+}
+
+/// Releases the counts of `steps` (a [`crate::layout::ReleasePlan`]'s)
+/// of a value at `off` bytes past the shadow-stack address in local
+/// `base`: an inline field's walk over its loaded leaves, a nested
+/// field's witness call. O(the steps).
+pub(crate) fn release_steps(
+    f: &mut Func,
+    base: u32,
+    off: u32,
+    steps: &[crate::layout::ReleaseStep],
+) {
+    for step in steps {
+        release_step(f, base, off, step);
+    }
+}
+
+/// One step of [`release_steps`].
+pub(crate) fn release_step(f: &mut Func, base: u32, off: u32, step: &crate::layout::ReleaseStep) {
+    match step {
+        crate::layout::ReleaseStep::Inline { leaves, walk, .. } => walk_code(
+            f,
+            walk,
+            &|f, k| {
+                f.get(base);
+                f.op(leaves[k as usize].load_in(crate::module::STACK, off));
+            },
+            &release_call,
+        ),
+        crate::layout::ReleaseStep::Nested { offset, plan, .. } => {
+            f.get(base);
+            if off + offset != 0 {
+                f.i32((off + offset).cast_signed());
+                f.op(Instruction::I32Add);
+            }
+            f.helper(Helper::ReleaseAt(plan.clone()));
+        }
+    }
 }
 
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with

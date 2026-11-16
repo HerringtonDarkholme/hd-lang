@@ -1,0 +1,38 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A panic in a callee that holds a counted struct over 16 values by
+# address (#2031, step 4): the program stops with the panic's message
+# and status, in every build mode, after the callee's caller already
+# released another such value.
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+    name: string
+
+fn mk(x: i32, n: string) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "${n}${x}" }
+
+fn sum(t: Big) -> i32: t.f0 + t.f16 + i32(t.name.len())
+
+fn boom(t: Big) -> i32:
+    if t.f0 > 100:
+        panic("boom ${t.name}")
+    t.f0
+
+pub fn main() -> void $ Console:
+    println("${sum(mk(1, "a"))} ${boom(mk(5, "b"))}")
+    println("${boom(mk(500, "c"))}")

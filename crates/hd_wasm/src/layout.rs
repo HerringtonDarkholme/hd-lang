@@ -364,6 +364,15 @@ pub const INDIRECT: usize = 16;
 /// tuple of more than [`INDIRECT`] values that holds no counted reference
 /// and nothing to drop, so its bits are the whole value.
 pub fn indirect(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
+    Ok(by_address(pool, env, t)?.filter(|_| walk(pool, env, t).is_none()))
+}
+
+/// The layout of `t` when a parameter of it may pass by address (#2031,
+/// step 4): a struct or tuple of more than [`INDIRECT`] values with
+/// nothing to drop, which may hold counted references. Its counts move
+/// with its bits; a release walks them from the address
+/// ([`release_plan`]).
+pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
     let t = strip(pool, env, t);
     let aggregate = match pool.get(t) {
         TyData::Tuple { .. } => true,
@@ -378,10 +387,105 @@ pub fn indirect(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<O
         return Ok(None);
     }
     let m = mem(pool, env, t)?;
-    if m.leaves.len() <= INDIRECT || walk(pool, env, t).is_some() || holds_drop(pool, env, t) {
+    if m.leaves.len() <= INDIRECT || holds_drop(pool, env, t) {
         return Ok(None);
     }
     Ok(Some(m))
+}
+
+/// How a value of a [`by_address`] type releases its counts from its
+/// address (#2031, step 4): Swift's value-witness `destroy`, one per
+/// type. A field of at most [`INDIRECT`] values walks its own leaves
+/// ([`Step::Inline`]); a field passed by address calls its type's plan at
+/// its offset ([`Step::Nested`]). So each type's release code is
+/// O(its own fields), and a chain of K nested types costs O(K) in all,
+/// where one flat [`Walk`] of the whole value costs O(K) per type.
+/// Equality, order and hash are by `key`, a hash of the steps with each
+/// nested plan's key in place of the plan: O(own fields) to make, O(1) to
+/// compare.
+#[derive(Debug)]
+pub struct ReleasePlan {
+    pub key: u128,
+    pub steps: Vec<ReleaseStep>,
+}
+
+/// One field's part of a [`ReleasePlan`]; `field` is its index among
+/// the type's members.
+#[derive(Clone, Debug)]
+pub enum ReleaseStep {
+    /// The field's leaves, offsets from the value's start, and the walk
+    /// over them.
+    Inline {
+        field: u32,
+        leaves: Vec<Leaf>,
+        walk: Walk,
+    },
+    /// A field passed by address: its type's plan at `offset`.
+    Nested {
+        field: u32,
+        offset: u32,
+        plan: std::sync::Arc<ReleasePlan>,
+    },
+}
+
+impl ReleaseStep {
+    /// The field's index among the type's members.
+    #[must_use]
+    pub fn field(&self) -> u32 {
+        match self {
+            Self::Inline { field, .. } | Self::Nested { field, .. } => *field,
+        }
+    }
+}
+
+impl ReleasePlan {
+    /// The plan of `steps`, keyed.
+    #[must_use]
+    pub fn new(steps: Vec<ReleaseStep>) -> Self {
+        use std::hash::{Hash as _, Hasher as _};
+        let half = |seed: u8| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            seed.hash(&mut h);
+            for s in &steps {
+                match s {
+                    ReleaseStep::Inline { leaves, walk, .. } => {
+                        0u8.hash(&mut h);
+                        leaves.hash(&mut h);
+                        walk.hash(&mut h);
+                    }
+                    ReleaseStep::Nested { offset, plan, .. } => {
+                        1u8.hash(&mut h);
+                        offset.hash(&mut h);
+                        plan.key.hash(&mut h);
+                    }
+                }
+            }
+            h.finish()
+        };
+        let key = (u128::from(half(0)) << 64) | u128::from(half(1));
+        Self { key, steps }
+    }
+}
+impl PartialEq for ReleasePlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+impl Eq for ReleasePlan {}
+impl PartialOrd for ReleasePlan {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for ReleasePlan {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.key.cmp(&other.key)
+    }
+}
+impl std::hash::Hash for ReleasePlan {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
+    }
 }
 
 /// The Wasm values of a concrete type.

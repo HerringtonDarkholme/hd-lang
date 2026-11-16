@@ -1,0 +1,42 @@
+# @dump: wat
+# A struct over 16 values holding a string passes to its callee's worker
+# as one address when the callee owns it (#2031, step 4). `outer` moves
+# `t.inner` on to `inner_sum`'s worker as its address plus offset and
+# sets that field's move flag; its drop releases `t.w` inline and calls
+# `Inner`'s release witness only while the flag is clear. `inner_sum`
+# reads `t.a` and `t.q` alone and releases `t.s` at exit; `main` stores
+# the literal in a block around the call.
+struct Inner:
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+    s: string
+
+struct Outer:
+    inner: Inner
+    v: i32
+    w: string
+
+fn inner_sum(t: Inner) -> i32: t.a + t.q
+
+fn outer(t: Outer) -> i32: inner_sum(t.inner) + t.v
+
+fn mk(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17, s: "s" }
+
+fn main():
+    println("${outer(Outer { inner: mk(+1), v: +100, w: "w" })}")
