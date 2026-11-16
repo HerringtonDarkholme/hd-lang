@@ -21,4 +21,3 @@ app/main/caller
   storage sub 0: $1 slot
   summary none
   unwind %8 drops [%7]
-  live %8 [%7 $1]

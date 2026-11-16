@@ -28,6 +28,7 @@ mod origins;
 mod rt;
 mod scan;
 mod static_data;
+pub mod suspension_work;
 mod tables;
 mod task;
 pub mod views;

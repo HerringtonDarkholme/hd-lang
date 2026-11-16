@@ -51,7 +51,6 @@ fn make(value: string) -> fn!(usize) -> string:
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
 >   unwind %15 drops [%14]
->   live %15 [%8 %14 $0 $2]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
@@ -131,6 +130,3 @@ pub fn main!() -> void $ Console:
 >   unwind %8 drops [%6 %7]
 >   unwind %22 drops [%20 %21]
 >   unwind %32 drops [%30 %31]
->   live %8 [%6 %7 %20 %21 %30 %31 $2]
->   live %22 [%6 %7 %20 %21 %30 %31 $2]
->   live %32 [%6 %7 %20 %21 %30 %31 $2]

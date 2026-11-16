@@ -58,7 +58,6 @@ fn stop!(key: string) -> bool:
 >   %19 = SwitchTag %10 [#1 %16 %18] : never
 >   exit sub 0 drops [$0]
 >   summary none
->   live %7 [%6 $0]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now

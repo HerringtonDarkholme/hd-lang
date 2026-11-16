@@ -38,7 +38,7 @@
       i32.load $heap offset=32
       local.set $value.2
       local.get $frame
-      i32.load $heap offset=40
+      i32.load $heap offset=36
       local.set $t1
     end
     block
@@ -215,7 +215,7 @@
       i32.load $heap offset=32
       call $rt:release
       local.get $t0
-      i32.load $heap offset=40
+      i32.load $heap offset=36
       local.tee $t0
       if
         local.get $t0
@@ -257,7 +257,7 @@
     i32.eq
     local.get $t0
     i32.const 0
-    i32.store $heap offset=40
+    i32.store $heap offset=36
     if
       local.get $t2
       if
@@ -266,7 +266,7 @@
       end
       local.get $t0
       local.get $t2
-      i32.store $heap offset=40
+      i32.store $heap offset=36
     end
     local.get $t0
   )
@@ -292,7 +292,7 @@
       i32.load $heap offset=24
       local.set $value
       local.get $frame
-      i32.load $heap offset=32
+      i32.load $heap offset=28
       local.set $t1
     end
     block
@@ -445,7 +445,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=32
+      i32.load $heap offset=28
       local.tee $t0
       if
         local.get $t0
@@ -472,7 +472,7 @@
     i32.store $heap offset=24
     local.get $t0
     i32.const 0
-    i32.store $heap offset=32
+    i32.store $heap offset=28
     local.get $t1
     if
       local.get $t1
@@ -482,7 +482,7 @@
       end
       local.get $t0
       local.get $t1
-      i32.store $heap offset=32
+      i32.store $heap offset=28
     end
     local.get $t0
   )

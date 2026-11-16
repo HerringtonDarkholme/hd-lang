@@ -1,0 +1,23 @@
+# @dump: stdout counts wat
+# @build: dev | checked | release | release checked
+# Addressable cells force own_frame before an all-Ready exit. Tuple results
+# must be loaded before that frame is freed, on explicit and tail returns.
+use std.annotation.inline
+
+@inline(.Never)
+fn read!(value: &i32) -> i32:
+    *value
+
+fn ready!(early: bool) -> (i32, string):
+    let value = +40
+    first := read!(&value)
+    second := read!(&value)
+    tag := "ready"
+    if early:
+        return (first + second, tag)
+    (first + second + 1, tag)
+
+pub fn main!() -> void $ Console:
+    let (a, first) = ready!(true)
+    let (b, second) = ready!(false)
+    println("$a $first $b $second")

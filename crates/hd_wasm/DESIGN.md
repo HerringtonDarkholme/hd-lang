@@ -1465,20 +1465,37 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   the task prefix: the poll slot (`F_POLL`, a table slot), the cancel
   slot (`F_CANCEL`), the state (`F_STATE`), the flags (`F_FLAGS`:
   `ACTIVE`, `DONE`, `CANCELLED`, `UNWINDING`, `ABANDONED`, and `EXITED`
-  once the body has left) and the child (`F_CHILD`). The save area
-  follows at `F_SAVED`: one slot for every Wasm local of the body but
-  the frame and `pc`. A point's suspend stores its state's save row, the
-  locals live there, or the whole area where no row exists (#1393); a
-  resume branches on the state and loads that row (`Ins::Save` and
-  `Ins::LoadAll`, expanded by `susp::expand` once the body's locals are
-  known). So the save and load code is written once per point, and its
-  size grows with the points times their rows. Measured on 2026-11-12
-  (docs/audit/review-2026-11-12.md, F6), one `fn!` body with n
-  sequential awaits grows with n squared: 24,042 bytes at 10, 595,853 at
-  100 and 9,088,201 at 400, and wasmtime refuses the module at 500. Which
-  part of the lowering makes it quadratic is not isolated. Planned, not
-  built: keep values that cross an await in frame slots for the whole
-  body, as rustc's coroutine lowering does, so a point saves nothing.
+  once the body has left) and the child (`F_CHILD`). Stable addressable
+  cells follow the prefix. A separate typed scalar region follows them,
+  with offsets assigned once from the body's virtual locals. Constructor
+  parameters, captures, providers, drop demands and the union of resume-entry
+  liveness select the resident values. Their ordinary accesses become frame
+  loads and stores; suspension points write only child/state metadata. No
+  state serializes or restores a live-value row.
+
+  A fresh direct invocation uses provisional scalar storage on the existing
+  memory-0 local stack. Its reservation base never changes; a separate active
+  base selects provisional or persistent storage. One shared `FrameEnsure`
+  helper allocates lazily, bulk-copies the scalar region once, and switches
+  the active base. Addressable cells still use `own_frame` and never move.
+  Their earlier allocation uses the same migration path. Provider/context
+  counts are acquired once on handoff, not once per point. A cold or resumed
+  invocation uses heap slots directly; zero poll arguments cannot overwrite
+  constructor values. A body with no suspension point keeps ordinary locals
+  and restores only its one cold-entry argument/capture set.
+
+  This follows rustc's coroutine saved-local-to-field remapping, while
+  retaining hd's lazy materialization. Construction and rewriting visit the
+  body and its slot layout once. Balanced segment dispatch uses code
+  proportional to structural segments, not every descendant state per list.
+  Before global zero-fact analysis, the existing live-range coalescer reuses
+  invocation-only temporaries across disjoint segments; otherwise those
+  declarations make the fact universe grow with the number of points.
+  This cleanup uses the existing range/sweep algorithm (§23.22), not a
+  new interference matrix. Its work is included in the combined width/depth
+  regression alongside planning, slot accesses and dispatch construction.
+  The former TIR per-point `live` rows are no longer produced; their wire
+  column remains readable for old artifacts and diagnostics.
 - **The parts.** The instance's own function
   is the cold constructor and the body, poll and cancel are its parts
   (`Part`). The frame's release glue is a fourth part. Until the body has

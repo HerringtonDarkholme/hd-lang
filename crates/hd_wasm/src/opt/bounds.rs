@@ -162,7 +162,7 @@ fn plan(f: &Func, s: &Structure, loop_at: usize, visit: &mut impl FnMut()) -> Op
         if !labels_fit(f, &body[at], inner, visit) {
             return None;
         }
-        if matches!(body[at], Ins::LoadAll | Ins::Save(_)) {
+        if matches!(body[at], Ins::LoadAll) {
             return None;
         }
         if let Ins::Op(I::LocalSet(local) | I::LocalTee(local)) = body[at] {

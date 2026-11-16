@@ -29,17 +29,14 @@ pub fn main!() -> void $ Console + Clock:
 > app/main/main
 >   retain counted reference (stored)
 >   retain counted reference (stored)
+> app/main/main
+>   retain counted reference (stored)
+>   retain counted reference (stored)
     $.with(Meter=counter):
 >   retain *mut app.main.Counter (stored)
 >   release app.main.Meter (last use)
         sleep!(ms(1))
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release app.main.Meter (cancelled)
         $.use(Meter).record()

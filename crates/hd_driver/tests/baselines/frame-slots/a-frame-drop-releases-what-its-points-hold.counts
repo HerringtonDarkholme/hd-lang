@@ -20,16 +20,15 @@ fn total(a: string, b: string) -> usize:
 fn pause!() -> string $ Clock:
     sleep!(ms(1))
 > app/main/pause
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 > app/main/pause
 >   release string (cancelled)
 > app/main/pause
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
 > app/main/pause
 >   retain counted reference (stored)
     "x"
@@ -37,10 +36,7 @@ fn pause!() -> string $ Clock:
 fn holds!() -> usize $ Clock:
     total(text(1), pause!())
 > app/main/holds
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release string (cancelled)
 >   release string (last use)
@@ -48,6 +44,8 @@ fn holds!() -> usize $ Clock:
 > app/main/holds
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/holds
+>   retain counted reference (stored)
 > app/main/holds
 >   retain counted reference (stored)
 
@@ -60,10 +58,9 @@ fn gone!() -> usize $ Clock:
 >   release counted reference (last use)
 > app/main/gone
 >   retain counted reference (stored)
+> app/main/gone
+>   retain counted reference (stored)
     sleep!(ms(1))
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
     n

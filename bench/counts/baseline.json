@@ -153,7 +153,8 @@
       "released": "4612524",
       "uniques": "3600000",
       "total": "12318776",
-      "noOpsAndSkipped": "3937515"
+      "noOpsAndSkipped": "3937518",
+      "reason": "Resident-frame lowering: task-pipeline pays two inert count calls for the two static separator fragments in its final interpolation, plus one extra skipped frame-bookkeeping check. Same-base A/B at 0, 1, 16 and 900000 pipeline items keeps these deltas fixed at +2 calls/+1 skip, with ownership total unchanged at 12318776 for the full benchmark. Fragment controls give +1 call per static text piece and zero calls without text pieces. This bounded per-run work replaces per-await live-row copying; it does not scale with pipeline items or suspension states."
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",

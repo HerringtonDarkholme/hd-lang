@@ -68,6 +68,7 @@ mod std_interfaces;
 mod std_stages;
 mod structure_run;
 mod structure_specialize;
+mod suspension_frame_work;
 mod test_plan;
 mod tests_block_impls;
 mod tests_block_shape;

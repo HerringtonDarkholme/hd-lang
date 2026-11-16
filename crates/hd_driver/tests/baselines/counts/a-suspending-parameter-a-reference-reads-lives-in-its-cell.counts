@@ -8,10 +8,7 @@ use std.time.{Clock, ms, sleep}
 fn sized!(u: UniqList[i32]) -> usize $ Clock:
     sleep!(ms(1))
 > std/rt_tests.stage_case/sized
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -19,6 +16,8 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   release counted reference (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
+> std/rt_tests.stage_case/sized
+>   retain counted reference (stored)
 > std/rt_tests.stage_case/sized
 >   retain counted reference (stored)
     u.len()
@@ -32,17 +31,14 @@ pub fn main!() -> void $ Console + Clock:
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)
 >   retain counted reference (stored)
+> std/rt_tests.stage_case/main
+>   retain counted reference (stored)
+>   retain counted reference (stored)
     u.push(1)
     a := sized!(u)
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
     println("$a")
 >   release counted reference (last use)

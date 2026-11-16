@@ -81,8 +81,6 @@ fn local!() -> i64:
 >   summary none
 >   unwind %8 drops [%7]
 >   unwind %18 drops [%16 %17]
->   live %8 [%7 $1]
->   live %18 [%16 %17]
 
 fn shared!() -> i64:
     let mut tally = Tally { n: 0 }
@@ -130,8 +128,6 @@ fn shared!() -> i64:
 >   summary none
 >   unwind %10 drops [%9]
 >   unwind %20 drops [%18 %19]
->   live %10 [%9 $0]
->   live %20 [%18 %19 $0]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -172,5 +168,3 @@ fn copied!() -> i64:
 >   summary none
 >   unwind %8 drops [%7]
 >   unwind %18 drops [%16 %17]
->   live %8 [%7 $0]
->   live %18 [%16 %17 $0]

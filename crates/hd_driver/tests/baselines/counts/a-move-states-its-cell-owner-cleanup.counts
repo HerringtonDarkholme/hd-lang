@@ -29,16 +29,14 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   release counted reference (last use)
 > std/rt_tests.stage_case/take
 >   retain counted reference (stored)
+> std/rt_tests.stage_case/take
+>   retain counted reference (stored)
+> std/rt_tests.stage_case/take
+>   retain counted reference (stored)
     sleep!(ms(1))
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
     value
 >   release counted reference (last use)
@@ -56,29 +54,20 @@ fn direct[T](value: T) -> T:
 pub fn main!() -> void $ Console + Clock:
     println(take!("text"))
 > std/rt_tests.stage_case/main
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+> std/rt_tests.stage_case/main
+>   retain counted reference (stored)
+>   retain counted reference (stored)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)
 >   retain counted reference (stored)
     println(take!(+7))
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
     println(stack("stack"))
     println(direct("direct"))

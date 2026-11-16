@@ -1081,6 +1081,7 @@ std/time/clock/an-awaited-reference-argument-lives-in-its-callers-frame.hd	runti
 std/time/clock/a-cancelled-cleanup-scope-releases-a-moved-temporary-once.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 std/time/clock/a-point-cancelled-after-an-earlier-point-releases-none-of-its-temporaries.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 std/time/clock/a-suspending-body-with-a-local-frame-keeps-its-values-across-a-resume.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
+std/time/clock/resident-frame-migration-keeps-addressable-values-and-results.hd	runtime	accept	std/time.md#r-std-time.clock.sleep
 lang/functions/closures/provider-capturing-closure.hd	type	accept	lang/07-functions.md#r-fn.capture.provider-value
 lang/requirements/requirement-rows/row-extension-unsound.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 lang/requirements/requirement-rows/row-extension-entailment.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows

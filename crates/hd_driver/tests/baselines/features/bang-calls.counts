@@ -39,6 +39,7 @@ fn both!(a: string, b: string) -> usize:
 >   release Suspend[string] (last use)
 >   release string (last use)
 >   release string (last use)
+>   release counted reference (last use)
 > app/main/both
 >   release string (cancelled)
 >   release string (cancelled)

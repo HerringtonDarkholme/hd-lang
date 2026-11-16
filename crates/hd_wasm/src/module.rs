@@ -504,13 +504,11 @@ pub enum Ins {
     CallIndirect(SigId),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
     VTable(usize),
-    /// A suspending body's store, at its state `k`, of the locals its
-    /// frame holds there, which the body's emission expands once its
-    /// locals are known.
-    Save(u32),
     /// The frame loads for the current suspension state (or initial
     /// constructor slots at state zero), expanded once locals are known.
     LoadAll,
+    /// Add the final scalar spill-region offset to a frame address.
+    SpillBase,
     /// The TIR instruction that anchors the calls after it: a row of the
     /// `hd.lines` table at each call that starts a new anchor
     /// (`crates/hd_wasm/DESIGN.md` §15.9). [`Func::call`] writes it just
@@ -1204,6 +1202,8 @@ pub struct Module {
     pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
+    /// Deferred scalar layout for shared frame materialization.
+    pub(crate) frame_spills: hd_base::HashMap<Hash128, crate::task::FrameSpill>,
     /// The top-level bindings some reference refers to, by path hash:
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm/DESIGN.md` §23.20).
@@ -1327,6 +1327,7 @@ impl Module {
             body_facts: Vec::default(),
             loan_uses: Vec::default(),
             frames: BTreeMap::default(),
+            frame_spills: hd_base::HashMap::default(),
             addressed: BTreeMap::default(),
             objects: hd_base::HashSet::default(),
             binding_slots: BTreeMap::default(),
@@ -2730,7 +2731,7 @@ impl Module {
                             ))
                         }
                     }
-                    Ins::Save(_) | Ins::LoadAll => {
+                    Ins::LoadAll | Ins::SpillBase => {
                         return Err(NotImplemented::bug(
                             Stage::Link,
                             "a frame save or load that its body did not expand",

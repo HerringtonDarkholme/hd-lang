@@ -84,5 +84,3 @@ fn sequential!(left: string, right: string) -> string:
 >   summary none
 >   unwind %8 drops [%5 %7]
 >   unwind %25 drops [%22 %24]
->   live %8 [%5 %7 %22 %24 $0 $1 $2]
->   live %25 [%5 %7 %22 %24 $0 $1 $2]

@@ -15,10 +15,7 @@ impl Measure for Reader:
     fn measure!(&self, values: List[string]) -> usize $ Clock:
         sleep!(ms(1))
 > app/main/impl Measure for Reader.measure
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release List[string] (last use)
 >   release List[string] (last use)
@@ -32,16 +29,15 @@ impl Measure for Reader:
 >   retain counted reference (stored)
 > app/main/impl Measure for Reader.measure
 >   retain counted reference (by design)
+>   retain counted reference (stored)
+> app/main/impl Measure for Reader.measure
 >   retain counted reference (stored)
         values.len()
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
     reader.measure!(values)
 > app/main/known
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release List[string] (last use)
 >   release counted reference (by design)
@@ -54,6 +50,8 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >   retain counted reference (stored)
 > app/main/known
 >   retain counted reference (by design)
+>   retain counted reference (stored)
+> app/main/known
 >   retain counted reference (stored)
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
@@ -61,10 +59,7 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release *app.main.Measure (by design)
 >   release *app.main.Measure (by design)
@@ -74,6 +69,8 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   release List[string] (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/dynamic
+>   retain counted reference (stored)
 > app/main/dynamic
 >   retain counted reference (stored)
 

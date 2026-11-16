@@ -28,10 +28,7 @@ fn stored!(key: string, keys: List[string]) -> usize:
 > app/main/stored
 >   retain string (stored)
 >   copy List[string] (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release List[string] (last use)
@@ -45,6 +42,8 @@ fn stored!(key: string, keys: List[string]) -> usize:
 > app/main/stored
 >   retain string (stored)
 >   copy List[string] (stored)
+>   retain counted reference (stored)
+> app/main/stored
 >   retain counted reference (stored)
     loader!(key, keys)
 >   retain counted reference (stored)
@@ -60,10 +59,7 @@ fn cancel(key: string, keys: List[string]) -> void:
 > app/main/cancel
 >   retain string (stored)
 >   copy List[string] (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release List[string] (last use)
@@ -80,6 +76,8 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   retain counted reference (stored)
 > app/main/cancel
 >   release Suspend[usize] (last use)
+> app/main/cancel
+>   retain counted reference (stored)
     _ := loader(key, keys)
 
 fn live!(key: string, keys: List[string]) -> usize:
@@ -87,10 +85,7 @@ fn live!(key: string, keys: List[string]) -> usize:
 > app/main/live
 >   retain string (stored)
 >   copy List[string] (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release List[string] (last use)
@@ -112,6 +107,8 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   release counted reference (cancelled)
 >   release List[string] (cancelled)
 >   release counted reference (last use)
+> app/main/live
+>   retain counted reference (stored)
     size := loader!(key, keys)
 >   retain counted reference (stored)
 >   release counted reference (last use)

@@ -42,7 +42,6 @@ fn one!(s: string) -> usize:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary none
->   live %4 [%3 $0]
 
 fn both!(a: string, b: string) -> usize:
 > app/main/both
@@ -90,7 +89,6 @@ fn both!(a: string, b: string) -> usize:
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
 >   unwind %8 drops [%5 %7]
->   live %8 [%5 %7 $0 $1]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either
@@ -122,4 +120,3 @@ fn either!(a: string, b: string) -> usize:
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
->   live %10 [%9 $0 $1]

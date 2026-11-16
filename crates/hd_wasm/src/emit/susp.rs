@@ -1,9 +1,9 @@
 //! Suspending bodies (`crates/hd_wasm/DESIGN.md` §23.21, job 13): the
 //! state machine of §14.2 over a frame in linear memory. A frame is a
 //! counted object: the task prefix ([`F_POLL`] to [`F_CHILD`]), then a
-//! save area with a slot for every Wasm local of the body. A suspension
-//! point saves what a resume there reads and returns Pending with the
-//! frame; a resume reloads the slots and branches to its point through the structural state numbering
+//! scalar region with resident slots for values required on resume. A point
+//! records child/state metadata; accesses use the resident slots rather than
+//! serializing a row. A resume branches through the structural state numbering
 //! of [`plan`]: a block list that holds states is entered by one
 //! `br_table` on `pc`, and a branch that holds the resumed state is taken
 //! whatever its condition was.
@@ -24,7 +24,7 @@ use crate::rt::Helper;
 
 use crate::task::{
     ABANDONED, ACTIVE, CANCELLED, DONE, EXITED, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
-    F_STATE, RUNNING, UNWINDING,
+    F_STATE, UNWINDING,
 };
 
 /// Whether instruction tag `t` is a suspension point.
@@ -73,37 +73,93 @@ pub(super) fn plan(b: &Body, root: u32) -> Plan {
             (a, c) => a.or(c),
         }
     }
-    fn block(b: &Body, blk: u32, p: &mut Plan, next: &mut u32) -> Option<(u32, u32)> {
-        let mut r = None;
-        for &i in b.record(b.data[blk as usize][0]) {
-            if b.tags[i as usize] != Tag::Block {
-                r = join(r, inst(b, i, p, next));
-            }
-        }
-        if let Some(x) = r {
-            p.1.insert(blk, x);
-        }
-        r
-    }
-    fn inst(b: &Body, i: u32, p: &mut Plan, next: &mut u32) -> Option<(u32, u32)> {
-        let mut r = None;
-        for ob in operand_blocks(b, i) {
-            r = join(r, block(b, ob, p, next));
-        }
-        if is_point(b.tags[i as usize]) {
-            *next += 1;
-            p.0.insert(i, *next);
-            r = join(r, Some((*next, *next)));
-        }
-        if let Some(x) = r {
-            p.1.insert(i, x);
-        }
-        r
-    }
     let mut p = (HashMap::default(), HashMap::default());
     let mut next = 0;
-    block(b, root, &mut p, &mut next);
+    let mut stack = vec![(root, false)];
+    while let Some((i, ready)) = stack.pop() {
+        let is_block = b.tags[i as usize] == Tag::Block;
+        if !ready {
+            stack.push((i, true));
+            if is_block {
+                for &child in b.record(b.data[i as usize][0]).iter().rev() {
+                    if b.tags[child as usize] != Tag::Block {
+                        stack.push((child, false));
+                    }
+                }
+            } else {
+                for child in operand_blocks(b, i).into_iter().rev() {
+                    stack.push((child, false));
+                }
+            }
+            continue;
+        }
+        crate::suspension_work::add(1, 0, 0, 0, 0);
+        let mut range = None;
+        if is_block {
+            for child in b.record(b.data[i as usize][0]) {
+                if b.tags[*child as usize] != Tag::Block {
+                    range = join(range, p.1.get(child).copied());
+                }
+            }
+        } else {
+            for child in operand_blocks(b, i) {
+                range = join(range, p.1.get(&child).copied());
+            }
+            if is_point(b.tags[i as usize]) {
+                // Each point has a distinct u32 instruction identity.
+                next += 1;
+                p.0.insert(i, next);
+                range = join(range, Some((next, next)));
+                crate::suspension_work::add(0, 0, 0, 1, 0);
+            }
+        }
+        if let Some(range) = range {
+            p.1.insert(i, range);
+        }
+    }
     p
+}
+
+/// Balanced interval selection: O(segments) emitted code, logarithmic
+/// execution, and no native recursion even for generated wide blocks.
+fn segment_selector(
+    f: &mut crate::module::Func,
+    pc: u32,
+    ranges: &[(u32, u32)],
+) -> StageResult<()> {
+    enum Step {
+        Range(usize, usize),
+        Else,
+        End,
+    }
+    let mut stack = vec![Step::Range(0, ranges.len())];
+    while let Some(step) = stack.pop() {
+        match step {
+            Step::Range(lo, hi) if hi - lo == 1 => {
+                let target = u32::try_from(lo).map_err(|_| {
+                    hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a suspension segment index exceeds Wasm32",
+                    )
+                })?;
+                f.u32(target);
+            }
+            Step::Range(lo, hi) => {
+                let mid = lo + (hi - lo) / 2;
+                f.get(pc);
+                f.u32(ranges[mid].0);
+                f.op(I::I32LtU);
+                f.op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+                stack.push(Step::End);
+                stack.push(Step::Range(mid, hi));
+                stack.push(Step::Else);
+                stack.push(Step::Range(lo, mid));
+            }
+            Step::Else => f.op(I::Else),
+            Step::End => f.op(I::End),
+        }
+    }
+    Ok(())
 }
 
 /// The state machine of the body being emitted.
@@ -120,6 +176,8 @@ pub(super) struct Susp {
     /// for the counting exit. It starts at zero on every poll and never
     /// belongs to the persistent frame.
     pub cancelled: u32,
+    /// Mutable scalar-storage base; distinct from the invocation stack base.
+    pub spill_base: u32,
     /// The data locals of the body's providers: a frame holds a count of
     /// each, since the scope that installed them may end first.
     pub provs: Vec<u32>,
@@ -296,18 +354,24 @@ impl Em<'_, '_, '_> {
         for _ in 0..=points.len() {
             self.open(Ctl::Plain);
         }
-        let targets: Vec<u32> = (lo..=hi)
-            .map(|s| {
-                ranges
-                    .iter()
-                    .position(|&(a, b)| a <= s && s <= b)
-                    .map_or(0, |k| u32::try_from(k + 1).expect("segments"))
-            })
-            .collect();
+        // Select among segments, not every descendant state. A nested
+        // list with a large child must not duplicate that child's state table.
+        self.in_range(lo, hi);
+        self.f
+            .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
         let pc = self.pc();
-        self.f.get(pc);
-        self.f.u32(lo);
-        self.f.op(I::I32Sub);
+        segment_selector(&mut self.f, pc, &ranges)?;
+        self.f.op(I::Else);
+        // No segment: the implicit fresh-entry target is the table default.
+        self.f.u32(NONE);
+        self.f.op(I::End);
+        let mut targets = Vec::new();
+        let mut depth = 0u32;
+        for _ in &ranges {
+            depth += 1;
+            targets.push(depth);
+        }
+        crate::suspension_work::add(0, 0, 0, 0, targets.len());
         self.f.br_table(targets, 0);
         self.close();
         run(self, &items[..first])?;
@@ -322,53 +386,41 @@ impl Em<'_, '_, '_> {
     /// Allocates the frame when it is still 0 (§14.3): a zeroed counted
     /// object with this body's poll and cancel.
     fn materialize(&mut self) {
-        // ruled out: suspend/cancel_here are reached under point; emit::instance
-        // installs Susp before emitting their checked suspending body.
-        let key = self.susp.as_ref().map(|s| s.key);
-        assert!(key.is_some(), "emit::instance must install this frame");
-        if let Some(key) = key {
-            self.f.get(FRAME);
-            self.f.op(I::I32Eqz);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.helper(Helper::Frame(key));
-            self.f.set(FRAME);
-            self.flags_or(FRAME, RUNNING);
-            self.retain_row(CountAt::Materialize, 0);
-            // A frame this invocation made for its slots takes the row's
-            // count only now, as it is handed out.
-            if let Some(own) = self.susp.as_ref().and_then(|s| s.own) {
-                self.f.op(I::Else);
-                self.f.get(own);
-                self.f.op(I::If(BlockType::Empty));
-                self.retain_row(CountAt::Materialize, 0);
-                self.f.i32(0);
-                self.f.set(own);
-                self.f.op(I::End);
-            }
-            self.f.op(I::End);
-        }
+        self.ensure_frame(true);
     }
 
-    /// The frame of a body whose slots live in it (#1707), made at the
-    /// first store into one when the body runs without a frame yet: an
-    /// awaiter that called the body directly holds none until it
-    /// suspends. The invocation owns the frame ([`Susp::own`]): it holds
-    /// no provider count, and a Ready exit frees it
-    /// ([`Self::free_own_frame`]). Per run: one allocation, made by a
-    /// first suspension anyway, in place of one cell per slot local.
-    pub(super) fn own_frame(&mut self) {
-        let Some((key, own)) = self.susp.as_ref().and_then(|s| Some((s.key, s.own?))) else {
+    /// Shared materialization also serves stable addressable-cell allocation.
+    /// All scalar state is already resident; a new frame migrates it once.
+    fn ensure_frame(&mut self, handoff: bool) {
+        let Some(s) = self.susp.as_ref() else {
             return;
         };
+        let (key, base, own) = (s.key, s.spill_base, s.own);
         self.f.get(FRAME);
-        self.f.op(I::I32Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.helper(Helper::Frame(key));
+        self.f.get(base);
+        if let Some(own) = own {
+            self.f.get(own);
+        } else {
+            self.f.i32(0);
+        }
+        self.f.i32(i32::from(handoff));
+        self.f.helper(Helper::FrameEnsure(key));
+        if let Some(own) = own {
+            self.f.set(own);
+        } else {
+            self.f.op(I::Drop);
+        }
         self.f.set(FRAME);
-        self.flags_or(FRAME, RUNNING);
-        self.f.i32(1);
-        self.f.set(own);
-        self.f.op(I::End);
+        self.f.get(FRAME);
+        // Filled from the final scalar layout when finish expands this marker.
+        self.f.push(Ins::SpillBase);
+        self.f.set(base);
+    }
+
+    /// Address-exposed slots still materialize their stable heap frame at
+    /// first access. Only the non-address-exposed scalar region migrates.
+    pub(super) fn own_frame(&mut self) {
+        self.ensure_frame(false);
     }
 
     /// At a Ready exit: frees the frame this invocation made for its slots
@@ -413,11 +465,10 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Pending at state `k`, waiting on the child in local `child`, whose
-    /// count the frame takes: saves that state's live row and returns the frame.
+    /// Pending at state `k`, waiting on `child`, whose count the frame
+    /// takes. Scalar accesses are already resident; write only task metadata.
     fn suspend(&mut self, k: u32, child: u32) {
         self.materialize();
-        self.f.push(Ins::Save(k));
         self.f.get(FRAME);
         self.f.get(child);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
@@ -1165,6 +1216,7 @@ pub(super) fn push_zero(f: &mut crate::module::Func, v: Val) {
 pub(super) fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
     let mut at = start;
     let mut out = Vec::new();
+    let skip: hd_base::HashSet<u32> = skip.iter().copied().collect();
     for (l, v) in vals.iter().enumerate() {
         let l = u32::try_from(l).expect("locals");
         if skip.contains(&l) {
@@ -1179,13 +1231,6 @@ pub(super) fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u3
         at += size;
     }
     (out, at.div_ceil(8) * 8)
-}
-
-/// The store of local `l` of `v` at `at` in the frame.
-pub(super) fn store_local(f: &mut crate::module::Func, l: u32, at: u32, v: Val) {
-    f.get(FRAME);
-    f.get(l);
-    f.op(store_op(v, at));
 }
 
 /// The store instruction of a `v` at `at` in a heap object.
@@ -1208,189 +1253,6 @@ pub(super) fn load_op(v: Val, at: u32) -> I {
         Val::F32 => I::F32Load(mem(HEAP, at, 2)),
         Val::F64 => I::F64Load(mem(HEAP, at, 3)),
     }
-}
-
-/// Replaces a body's [`Ins::Save`]s and [`Ins::LoadAll`] by the stores
-/// and loads of its save area `area`: a save at state `k` stores
-/// `held[k]` when there is one, else all of it. A resume reloads the same
-/// row; the constructor's state zero loads the initial argument slots.
-pub(super) fn expand(
-    f: &mut crate::module::Func,
-    area: &[(u32, u32, Val)],
-    held: &HashMap<u32, Vec<(u32, u32, Val)>>,
-) {
-    let body = std::mem::take(&mut f.body);
-    let origins = f.origins.as_mut().map(std::mem::take);
-    let outer = f.origin_at;
-    for (position, ins) in body.into_iter().enumerate() {
-        f.origin_at = origins.as_ref().and_then(|o| o[position]);
-        match ins {
-            Ins::Save(k) => {
-                for &(l, at, v) in held.get(&k).map_or(area, Vec::as_slice) {
-                    store_local(f, l, at, v);
-                }
-            }
-            Ins::LoadAll => {
-                reload_state(f, area, held);
-            }
-            other => f.push(other),
-        }
-    }
-    f.origin_at = outer;
-}
-
-/// Reload exactly the state's save row. Inactive join locals stay at
-/// their invocation's initial zero; restoring an earlier join's stale
-/// mask or result would resurrect an already-consumed value. State zero
-/// is the cold constructor, whose argument/capture slots use `area`.
-fn reload_state(
-    f: &mut crate::module::Func,
-    area: &[(u32, u32, Val)],
-    held: &HashMap<u32, Vec<(u32, u32, Val)>>,
-) {
-    let load = |f: &mut crate::module::Func, slots: &[(u32, u32, Val)]| {
-        for &(l, at, v) in slots {
-            f.get(FRAME);
-            f.op(load_op(v, at));
-            f.set(l);
-        }
-    };
-    let mut states: Vec<_> = held.keys().copied().collect();
-    states.sort_stable();
-    let Some(&last) = states.last() else {
-        load(f, area);
-        return;
-    };
-    // `plan` numbers points densely from one, so this table is bounded
-    // by the body's point count, even when a live row is missing.
-    let mut targets = vec![0; last as usize + 1];
-    let count = states.iter().fold(0u32, |count, _| count + 1);
-    for (&k, depth) in states.iter().zip(1..=count) {
-        targets[k as usize] = depth;
-    }
-    for _ in 0..states.len() + 2 {
-        f.op(I::Block(BlockType::Empty));
-    }
-    f.get(FRAME);
-    f.op(I::I32Load(mem(HEAP, F_STATE, 2)));
-    f.br_table(targets, 0);
-    f.op(I::End);
-    load(f, area);
-    f.op(I::Br(count));
-    for (i, k) in (0..count).zip(&states) {
-        f.op(I::End);
-        load(f, &held[k]);
-        f.op(I::Br(count - i - 1));
-    }
-    f.op(I::End);
-}
-
-/// Each Wasm local of the body `em` emits with the TIR locals and values
-/// it holds.
-fn owners(em: &Em<'_, '_, '_>) -> HashMap<u32, Vec<u32>> {
-    let mut owners: HashMap<u32, Vec<u32>> = HashMap::default();
-    for (&l, ws) in &em.locals {
-        let word = hd_tir::ir::place::BARE_LOCAL | u32::try_from(l).expect("local");
-        for w in ws {
-            owners.entry(*w).or_default().push(word);
-        }
-    }
-    for (&i, ws) in &em.vals {
-        for w in ws {
-            owners.entry(*w).or_default().push(i);
-        }
-    }
-    owners
-}
-
-/// What the frame holds at each state of the body `em` emits, from the
-/// TIR's live rows (`Body::live`): of save area `area`, each Wasm local
-/// of a local or value live there, the active join's partial results, and
-/// emitter locals not proved dead by `free`. Join bookkeeping belongs
-/// only to its own point. A point with no row holds all of it.
-struct HeldAt<'a> {
-    points: HashMap<u32, u32>,
-    rows: Vec<(u32, u32, &'a [u32])>,
-}
-
-fn held_at<'a>(body: &'a hd_tir::Body, s: &Susp) -> HeldAt<'a> {
-    let mut points = HashMap::default();
-    for (&p, all) in &s.alls {
-        // These are partial results and bookkeeping of this join alone.
-        // Completion consumes the results and releases/clears its waker;
-        // neither a later point nor cold-frame release reads these locals.
-        for w in [all.done, all.node]
-            .into_iter()
-            .chain(all.parts.iter().flat_map(|(_, ls, _)| ls.iter().copied()))
-        {
-            points.insert(w, p);
-        }
-    }
-    let rows: Vec<_> = body
-        .live
-        .iter()
-        .filter_map(|(p, live)| s.states.get(p).map(|&k| (*p, k, live.as_slice())))
-        .collect();
-    HeldAt { points, rows }
-}
-
-/// Reverse the ownership relation once, then visit each live row and its
-/// output slots. Do not scan the whole save area for every suspension.
-fn held_rows(
-    area: &[(u32, u32, Val)],
-    owners: &HashMap<u32, Vec<u32>>,
-    free: &hd_base::HashSet<u32>,
-    points: &HashMap<u32, u32>,
-    rows: &[(u32, u32, &[u32])],
-    mut visit: impl FnMut(),
-) -> HashMap<u32, Vec<(u32, u32, Val)>> {
-    let mut by_owner: HashMap<u32, Vec<usize>> = HashMap::default();
-    let mut by_point: HashMap<u32, Vec<usize>> = HashMap::default();
-    let mut common = Vec::new();
-    for (i, &(w, _, _)) in area.iter().enumerate() {
-        visit();
-        if let Some(&p) = points.get(&w) {
-            by_point.entry(p).or_default().push(i);
-        } else if let Some(os) = owners.get(&w) {
-            for &o in os {
-                visit();
-                by_owner.entry(o).or_default().push(i);
-            }
-        } else if !free.contains(&w) {
-            common.push(i);
-        }
-    }
-    let mut out = HashMap::default();
-    let mut seen = vec![usize::MAX; area.len()];
-    for (stamp, &(p, k, live)) in rows.iter().enumerate() {
-        visit();
-        let mut kept = Vec::new();
-        let mut add = |i: usize| {
-            visit();
-            if seen[i] != stamp {
-                seen[i] = stamp;
-                kept.push(area[i]);
-            }
-        };
-        for &i in &common {
-            add(i);
-        }
-        if let Some(slots) = by_point.get(&p) {
-            for &i in slots {
-                add(i);
-            }
-        }
-        for owner in live {
-            if let Some(slots) = by_owner.get(owner) {
-                for &i in slots {
-                    add(i);
-                }
-            }
-        }
-        kept.sort_stable_by_key(|row| row.0);
-        out.insert(k, kept);
-    }
-    out
 }
 
 impl Em<'_, '_, '_> {
@@ -1460,8 +1322,8 @@ impl Em<'_, '_, '_> {
     }
 }
 
-/// Finishes suspending instance `key`'s emission (§23.21): expands the
-/// body's saves and loads over its save area, and returns its cold
+/// Finishes suspending instance `key`'s emission (§23.21): assigns resident
+/// scalar storage, rewrites accesses once, and returns its cold
 /// constructor, the instance's own function, after defining its body,
 /// poll, cancel and release glue. `params` are the body's parameters,
 /// the frame first; `plocals` the TIR locals of the others.
@@ -1477,16 +1339,17 @@ pub(super) fn finish(
 ) -> StageResult<crate::module::Func> {
     let pc = suspension.pc;
     let cancelled = suspension.cancelled;
-    let saved_at = held_at(em.b, &suspension);
+    let spill_base = suspension.spill_base;
+    let has_points = !suspension.states.is_empty();
     let row = suspension.provs.clone();
     // Cleanup helpers still query suspension ranges and ownership facts.
-    // The required save view above moves their existing indexing work here;
-    // the suspension tables themselves are neither copied nor discarded.
+    // Suspension tables remain in place for cleanup and cancellation while
+    // scalar residence is computed from the final emitted control flow.
     em.susp = Some(suspension);
     let mut vals_all: Vec<Val> = em.f.params.clone();
     vals_all.extend(em.f.locals.iter().copied());
     let local_frame = em.frame.filter(|(base, _)| *base != NONE);
-    let mut skipped = vec![FRAME, pc];
+    let mut skipped = vec![FRAME, pc, spill_base];
     // This invocation's exit discriminator is set only when taking its
     // final cancellation exit. Pending never uses it; a new invocation
     // starts with Wasm's zero-initialized local.
@@ -1511,21 +1374,54 @@ pub(super) fn finish(
     } else {
         em.susp_slots
     };
-    let (area, size) = save_area(&vals_all, &skipped, start);
-    let owners = owners(&em);
-    // The emitter's own locals that need no save: the resume reloads the
-    // frame and runs from there, and no run from there reads one before
-    // writing it.
+    // One union query at the resume entry, not one row per suspension.
+    // Generated structured Wasm is balanced; malformed CFG is a compiler bug.
     let resumed = em.f.body.iter().position(|i| matches!(i, Ins::LoadAll));
-    let mut free: hd_base::HashSet<u32> =
-        match resumed.and_then(|at| crate::opt::live_after(&em.f, at)) {
-            Some(live) => area
-                .iter()
-                .map(|x| x.0)
-                .filter(|w| !owners.contains_key(w) && live.binary_search(w).is_err())
-                .collect(),
-            None => hd_base::HashSet::default(),
-        };
+    let live = match resumed {
+        Some(at) => crate::opt::live_after(&em.f, at).ok_or_else(|| {
+            hd_base::NotImplemented::bug(hd_base::Stage::Emit, "an invalid suspension CFG")
+        })?,
+        None => Vec::new(),
+    };
+    let mut selected = vec![false; vals_all.len()];
+    for l in live {
+        selected[l as usize] = true;
+    }
+    // Cold state zero restores arguments from the constructor, not the
+    // poll wrapper's zeros. Provider counts are acquired by the helper.
+    for value in selected.iter_mut().take(params.len()).skip(1) {
+        *value = true;
+    }
+    for &l in &row {
+        selected[l as usize] = true;
+    }
+    // Hidden cold-constructor and destructor reads are not in the body's
+    // CFG. Account for them before assigning offsets, not by reserving a
+    // hole for every ephemeral Wasm scratch local.
+    em.select_frame_drop_flags(&mut selected);
+    em.select_frame_loan_cells(&mut selected);
+    for &local in em.exit_owners().iter().chain(plocals) {
+        if (em.parameter_positions.contains_key(&local) || em.captured_local(local))
+            && let Some(values) = em.locals.get(&local)
+        {
+            for &value in values {
+                selected[value as usize] = true;
+            }
+        }
+    }
+    for saved in &em.frame_refs {
+        for &held in &saved.held {
+            selected[held as usize] = true;
+        }
+    }
+    for (local, &persist) in selected.iter().enumerate() {
+        if !persist {
+            skipped.push(u32::try_from(local).map_err(|_| {
+                hd_base::NotImplemented::bug(hd_base::Stage::Emit, "a Wasm local exceeds u32")
+            })?);
+        }
+    }
+    let (area, size) = save_area(&vals_all, &skipped, start);
     em.m.frames.insert(key, size);
     // One dense lookup table for all saved virtual locals. A wide
     // reference parameter must not search the whole frame per owner.
@@ -1564,7 +1460,7 @@ pub(super) fn finish(
         em.f.op(I::End);
         em.f.op(I::End);
     }
-    em.reload_drop_flags(&area);
+    em.reload_drop_flags(&positions);
     // What a cold frame holds of the exit set: its parameters and a
     // closure's captures. The body's other locals are set only once it
     // runs, and a started frame is never freed (pinned above).
@@ -1665,7 +1561,7 @@ pub(super) fn finish(
         // this distinct FrameDrop Row release.
         let reason = em.required_stated_count(Tag::Release, CountAt::FrameDrop, CountPart::Row);
         em.because(reason, |em| {
-            for d in row {
+            for &d in &row {
                 if let Some((at, v)) = at_of(d) {
                     em.f.get(FRAME);
                     em.f.op(load_op(v, at));
@@ -1843,7 +1739,7 @@ pub(super) fn finish(
                 }
             }
         }
-        em.save_initial_drop_flags(plocals, fr, &area);
+        em.save_initial_drop_flags(plocals, fr, &positions);
         em.retain_row(CountAt::Cold, 1);
         // A closure's code reads its captures from its environment, its first
         // parameter, into the frame, with a count of each.
@@ -1935,32 +1831,76 @@ pub(super) fn finish(
     } else {
         Some(constructor(&mut em, true)?)
     };
-    // The release glue may trace a started frame: what it loads, such as
-    // a drop flag, stays saved.
-    for ins in &drop.body {
-        if let Ins::Op(I::I32Load(m) | I::I64Load(m) | I::F32Load(m) | I::F64Load(m)) = ins {
-            for &(l, at, _) in &area {
-                if u64::from(at) == m.offset {
-                    free.remove(&l);
-                }
-            }
-        }
-    }
-    let saved = held_rows(
-        &area,
-        &owners,
-        &free,
-        &saved_at.points,
-        &saved_at.rows,
-        || {},
+    let row_offsets = row.iter().filter_map(|&l| at_of(l).map(|p| p.0)).collect();
+    let reason = if row.is_empty() || !has_points {
+        None
+    } else {
+        Some(
+            em.stated_count(Tag::Retain, CountAt::Materialize, CountPart::Row)
+                .ok_or_else(|| {
+                    hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a materialized row without its stated copy",
+                    )
+                })?,
+        )
+    };
+    em.m.frame_spills.insert(
+        key,
+        crate::task::FrameSpill {
+            start,
+            size,
+            row: if has_points { row_offsets } else { Vec::new() },
+            reason,
+            origin: body
+                .origin_item
+                .clone()
+                .zip(body.origin_root)
+                .map(|(item, root)| (item, root, em.b.anchor_len())),
+            names_counts: body.names_counts,
+        },
     );
-    // The saves and the reload first, over the body's own local numbers.
-    expand(&mut body, &area, &saved);
-    crate::task::guard_frame(&mut body);
-    if let Some((base, size)) = local_frame {
-        // This is a physical poll/body invocation, not the persistent task
-        // frame. Its base is deliberately absent from suspension save areas.
-        crate::wide::locals_frame(&mut body, base, size);
+    if has_points {
+        // Scalar storage is disjoint from stable addressable slots and any
+        // synchronous host-drive buffer in this invocation's existing frame.
+        let (stack, stack_offset) = local_frame.unwrap_or_else(|| (body.local(Val::I32), 0));
+        super::susp_spill::resident(
+            &mut body,
+            super::susp_spill::Plan {
+                area: &area,
+                selected: &selected,
+                start,
+                size,
+            },
+            spill_base,
+            stack,
+            stack_offset,
+        );
+        crate::task::guard_frame(&mut body);
+        let stack_size = stack_offset.checked_add(size - start).ok_or_else(|| {
+            hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a suspension stack layout overflows Wasm32",
+            )
+        })?;
+        // An empty scalar region needs no reservation. Restoring a zero-
+        // byte reservation could overwrite the cursor of a segment grown
+        // by a nested call, despite this body having reserved no storage.
+        if stack_size != 0 {
+            crate::wide::locals_frame(&mut body, stack, stack_size);
+        }
+        // Resident storage has replaced crossing virtual locals. Coalesce
+        // the remaining invocation-only temporaries before zero-fact
+        // analysis builds its local universe from their declarations.
+        crate::opt::coalesce(&mut body);
+    } else {
+        // No yield, no resident-access overhead: only a cold entry needs
+        // to restore its constructor arguments/captures once.
+        super::susp_spill::initial(&mut body, &area, &selected);
+        crate::task::guard_frame(&mut body);
+        if let Some((base, size)) = local_frame {
+            crate::wide::locals_frame(&mut body, base, size);
+        }
     }
 
     // The poll: the runtime checks, then the body over the frame.
@@ -2120,74 +2060,52 @@ mod origin_tests {
     use super::*;
 
     #[test]
-    fn suspension_rows_keep_only_their_join_and_live_values() {
-        let area = [
-            (1, 24, Val::I32),
-            (2, 28, Val::I32),
-            (3, 32, Val::I32),
-            (4, 36, Val::I32),
-        ];
-        let owners = HashMap::from_iter([(3, vec![10, 11])]);
-        let points = HashMap::from_iter([(1, 100), (2, 200)]);
-        let free = hd_base::HashSet::from_iter([4]);
-        let rows = [(100, 1, &[10, 11][..]), (200, 2, &[][..])];
-        let saved = held_rows(&area, &owners, &free, &points, &rows, || {});
-        assert_eq!(saved[&1], [area[0], area[2]]);
-        assert_eq!(saved[&2], [area[1]]);
-        assert!(!saved.contains_key(&3));
-    }
-
-    #[test]
-    fn suspension_row_work_tracks_input_and_saved_slots() {
-        for (width, depth) in [(1000u32, 20u32), (10000, 20), (1000, 40)] {
-            let mut area = Vec::new();
-            let mut owners = HashMap::default();
-            let mut points = HashMap::default();
-            let mut live = Vec::new();
-            for p in 0..width {
-                let mut row = Vec::new();
-                for d in 0..depth {
-                    let w = p * (depth + 1) + d;
-                    area.push((w, 24 + 4 * w, Val::I32));
-                    owners.insert(w, vec![w]);
-                    row.push(w);
-                }
-                let w = p * (depth + 1) + depth;
-                area.push((w, 24 + 4 * w, Val::I32));
-                points.insert(w, p);
-                live.push((p, row));
-            }
-            let rows: Vec<_> = live
-                .iter()
-                .map(|(p, row)| (*p, *p, row.as_slice()))
-                .collect();
-            let mut visits = 0;
-            let saved = held_rows(
-                &area,
-                &owners,
-                &hd_base::HashSet::default(),
-                &points,
-                &rows,
-                || visits += 1,
-            );
-            assert_eq!(visits, width * (3 * depth + 3));
-            assert_eq!(saved.len(), width as usize);
-            assert!(saved.values().all(|row| row.len() == (depth + 1) as usize));
+    fn resident_save_area_has_no_ephemeral_local_holes() {
+        for count in [100_u32, 1_000] {
+            let values = vec![Val::I64; count as usize];
+            let skip: Vec<u32> = (0..count - 2).collect();
+            let (area, size) = super::save_area(&values, &skip, 32);
+            assert_eq!(area, [(count - 2, 32, Val::I64), (count - 1, 40, Val::I64)]);
+            assert_eq!(size, 48);
         }
     }
 
     #[test]
-    fn frame_expansion_keeps_each_save_and_load_origin() {
+    fn resident_spill_rewrites_get_set_tee_and_preserves_origins() {
         let m = crate::module::Module::default();
-        let mut f = m.func("frame", vec![Val::I32], vec![]);
-        f.locals.push(Val::I32);
-        f.body = vec![Ins::Save(1), Ins::LoadAll];
-        f.origins = Some(vec![Some(10), Some(20)]);
-        expand(&mut f, &[(1, 32, Val::I32)], &HashMap::default());
-        assert_eq!(
-            f.origins.unwrap(),
-            [Some(10), Some(10), Some(10), Some(20), Some(20), Some(20)]
+        let mut f = m.func("resident", vec![Val::I32], vec![]);
+        let value = f.local(Val::I32);
+        let base = f.local(Val::I32);
+        let stack = f.local(Val::I32);
+        f.body = vec![
+            Ins::LoadAll,
+            Ins::Op(I::LocalGet(value)),
+            Ins::Op(I::LocalTee(value)),
+            Ins::Op(I::LocalSet(value)),
+            Ins::Op(I::LocalGet(super::FRAME)),
+            Ins::SpillBase,
+            Ins::Op(I::Drop),
+        ];
+        f.origins = Some(vec![Some(10); 7]);
+        super::super::susp_spill::resident(
+            &mut f,
+            super::super::susp_spill::Plan {
+                area: &[(value, 32, Val::I32)],
+                selected: &[false, true, false, false],
+                start: 32,
+                size: 40,
+            },
+            base,
+            stack,
+            0,
         );
-        assert_eq!(f.body.len(), 6);
+        assert!(
+            !f.body
+                .iter()
+                .any(|i| matches!(i, Ins::LoadAll | Ins::SpillBase))
+        );
+        assert!(!f.body.iter().any(|i| matches!(i,
+            Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) if *l == value)));
+        assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
     }
 }

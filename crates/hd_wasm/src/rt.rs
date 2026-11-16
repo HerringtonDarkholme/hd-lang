@@ -632,6 +632,8 @@ pub enum Helper {
     Dec(crate::boundary::LTy),
     /// `() -> frame`: a new frame of the suspending instance (§23.21).
     Frame(Hash128),
+    /// (frame, scalar-base, own, handoff) -> (frame, own).
+    FrameEnsure(Hash128),
     /// `(frame) -> i32`: a poll's runtime checks; 1 answers Pending.
     PollCheck,
     /// `(frame) -> i32`: a cancel's runtime checks; 0 leaves the frame.
@@ -2068,7 +2070,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         H::MapStep { item, .. } => (3, item.mem.leaves.len()),
         H::DynTrap { params, results } => (params.len(), results.len()),
         H::StrFromBytes | H::LebGet | H::CleanupPoll | H::All { part: 1, .. } => (1, 2),
-        H::StrAppend => (4, 2),
+        H::StrAppend | H::FrameEnsure(_) => (4, 2),
         H::FmtInt { .. } => (2, 2),
         H::StrEq | H::BytesIndex | H::BytesMismatch => (4, 1),
         H::BytesIndexSet(set) => (if set.is_some() { 3 } else { 7 }, 1),
@@ -2136,6 +2138,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CancellationRoot => m.func("rt:cancellation_root", vec![], vec![]),
         Helper::Frame(_)
+        | Helper::FrameEnsure(_)
         | Helper::PollCheck
         | Helper::CancelCheck
         | Helper::CancelEnter

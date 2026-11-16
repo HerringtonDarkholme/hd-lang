@@ -1,6 +1,6 @@
 //! A suspending body resumes into a block list through one `br_table` on
 //! its state (`crates/hd_wasm/DESIGN.md` §14.2), not a guard per item.
-//! A separate table selects the live-slot reload row, including cold state zero.
+//! Values reside in frame slots; there is no per-state reload table.
 
 use hd_base::SliceSort as _;
 use hd_cache::MemoryStore;
@@ -21,7 +21,7 @@ pub fn main!() -> void $ Console + Clock:\n    \
         i += 1\n";
 
 #[test]
-fn a_loop_of_waits_uses_resume_and_live_reload_tables() {
+fn a_loop_of_waits_uses_one_resume_table_and_resident_slots() {
     let mut src = MemorySources::default();
     src.insert("main.hd", MAIN);
     let store = MemoryStore::default();
@@ -78,8 +78,7 @@ fn a_loop_of_waits_uses_resume_and_live_reload_tables() {
         .flat_map(|(i, _)| tables[i - imports].iter().copied())
         .collect();
     in_main.sort_stable();
-    // Three execution resume targets, and four reload targets: cold
-    // construction plus the three suspended states. Neither dispatch
-    // grows into a sequential guard per body item or per saved local.
-    assert_eq!(in_main, [3, 4], "{names:?}");
+    // Three execution resume targets. Cold entry is the default branch;
+    // resident values require no second table or per-state reload code.
+    assert_eq!(in_main, [3], "{names:?}");
 }

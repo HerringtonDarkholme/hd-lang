@@ -1,0 +1,25 @@
+# test: a resident frame keeps addressable state and tuple results across a real wait
+# expect-stdout: 81 kept! 82 kept!
+use std.time.{Clock, sleep}
+
+fn read!(value: &i32) -> i32:
+    *value
+
+fn bump(value: &mut i32) -> void:
+    *value = *value + 1
+
+fn work!(prefix: string, early: bool) -> (i32, string) $ Clock:
+    let mut value = +40
+    first := read!(&value)
+    tag := prefix + "!"
+    sleep!(1ms)
+    bump(&mut value)
+    second := read!(&value)
+    if early:
+        return (first + second, tag)
+    (first + second + 1, tag)
+
+pub fn main!() -> void $ Console + Clock:
+    let (a, first) = work!("kept", true)
+    let (b, second) = work!("kept", false)
+    println("$a $first $b $second")

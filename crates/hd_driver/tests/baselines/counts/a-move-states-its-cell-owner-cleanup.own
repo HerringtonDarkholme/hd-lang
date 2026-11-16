@@ -54,7 +54,6 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %23 = Read move [$0] : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   live %21 [%20 $0]
 
 @cold
 > std/rt_tests.stage_case/stack
@@ -107,5 +106,3 @@ pub fn main!() -> void $ Console + Clock:
     println(direct("direct"))
 >   %12 = Call std/rt_tests.stage_case/direct[string] ("direct") : string
 >   %13 = Call std/console/println[string] (%12) : ()
->   live %4 []
->   live %7 []

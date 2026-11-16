@@ -45,7 +45,6 @@ fn size!(text: &string) -> usize $ Clock:
 >   %23 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   live %15 [%14 $0]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)
@@ -80,7 +79,6 @@ fn later!(n: usize) -> usize $ Clock:
 >   storage sub 0: $1 cell
 >   summary none
 >   unwind %12 drops [%11]
->   live %12 [%11 $1]
 
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -134,7 +132,6 @@ fn both!(n: usize) -> usize $ Clock:
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
 >   unwind %13 drops [%9 %10 %11 %12]
->   live %13 [%9 %10 %11 %12 $1 $2]
 
 fn first!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -171,4 +168,3 @@ fn first!(n: usize) -> usize $ Clock:
 >   %14 finds [$2] full
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   live %19 [%18]

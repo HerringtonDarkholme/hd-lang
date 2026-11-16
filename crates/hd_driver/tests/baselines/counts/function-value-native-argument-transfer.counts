@@ -214,11 +214,10 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   release counted reference (last use)
 > std/rt_tests.stage_case/delayed_size
 >   retain counted reference (stored)
+> std/rt_tests.stage_case/delayed_size
+>   retain counted reference (stored)
     sleep!(ms(1))
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
     value.owned.len()
 
@@ -239,12 +238,11 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 > std/rt_tests.stage_case/prepared_native
 >   retain counted reference (stored)
 >   retain counted reference (stored)
+> std/rt_tests.stage_case/prepared_native
+>   retain counted reference (stored)
             cold_starts += 1
             sleep!(ms(1))
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
             value.owned.len()
     let mut owned: UniqList[usize] = UniqList::new()
@@ -262,6 +260,8 @@ pub fn main!() -> void $ Clock:
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
 >   release counted reference (last use)
+> std/rt_tests.stage_case/main
+>   retain counted reference (stored)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)
     empty_controls()
@@ -283,10 +283,7 @@ pub fn main!() -> void $ Clock:
 >   release string (overwritten)
             pending!(),
 >   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (last use)

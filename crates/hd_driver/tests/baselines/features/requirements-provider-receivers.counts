@@ -34,14 +34,13 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   release counted reference (last use)
 > app/main/count_later
 >   retain counted reference (stored)
+> app/main/count_later
+>   retain counted reference (stored)
         $.use(Meter).record(i)
         wait!()
 >   retain Suspend[()] (conservative: copy read)
 >   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[()] (cancelled)
 

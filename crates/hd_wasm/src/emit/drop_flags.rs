@@ -275,9 +275,22 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// Scalar storage the separate frame destructor reads, including pointers
+    /// to memory-backed flags. Select these before assigning compact offsets.
+    pub(super) fn select_frame_drop_flags(&self, selected: &mut [bool]) {
+        for state in self.drop_states.values() {
+            for flag in &state.flags {
+                let local = match *flag {
+                    Flag::Local(local) | Flag::Memory(local, _) => local,
+                };
+                selected[local as usize] = true;
+            }
+        }
+    }
+
     /// The task's destructor is a separate function. Rebind the body's
     /// initialization locals to their saved values before releasing it.
-    pub(super) fn reload_drop_flags(&mut self, area: &[(u32, u32, Val)]) {
+    pub(super) fn reload_drop_flags(&mut self, positions: &[Option<(u32, Val)>]) {
         let mut roots: Vec<_> = self.drop_states.keys().copied().collect();
         roots.sort_stable_by_key(|root| match root {
             Root::Local(l) => (0, *l as u64),
@@ -290,9 +303,9 @@ impl Em<'_, '_, '_> {
                     Flag::Local(l) | Flag::Memory(l, _) => l,
                 };
                 let local = self.f.local(Val::I32);
-                if let Some((_, offset, _)) = area.iter().find(|(l, _, _)| *l == old) {
+                if let Some((offset, _)) = positions.get(old as usize).copied().flatten() {
                     self.f.get(super::susp::FRAME);
-                    self.f.op(I::I32Load(mem(HEAP, u64::from(*offset), 2)));
+                    self.f.op(I::I32Load(mem(HEAP, u64::from(offset), 2)));
                     self.f.set(local);
                 }
                 *flag = match *flag {
@@ -308,7 +321,7 @@ impl Em<'_, '_, '_> {
         &mut self,
         roots: &[usize],
         frame: u32,
-        area: &[(u32, u32, Val)],
+        positions: &[Option<(u32, Val)>],
     ) {
         for &l in roots {
             let Some(state) = self.drop_states.get(&Root::Local(l)) else {
@@ -316,11 +329,11 @@ impl Em<'_, '_, '_> {
             };
             for flag in &state.flags {
                 if let Flag::Local(flag) = flag
-                    && let Some((_, offset, _)) = area.iter().find(|(local, _, _)| local == flag)
+                    && let Some((offset, _)) = positions.get(*flag as usize).copied().flatten()
                 {
                     self.f.get(frame);
                     self.f.u32(1);
-                    self.f.op(I::I32Store(mem(HEAP, u64::from(*offset), 2)));
+                    self.f.op(I::I32Store(mem(HEAP, u64::from(offset), 2)));
                 }
             }
         }

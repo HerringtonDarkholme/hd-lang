@@ -7,14 +7,13 @@ use std.time.{Clock, ms, sleep}
 fn read!() -> i32 $ Clock:
     sleep!(ms(1))
 > app/main/read
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 > app/main/read
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/read
+>   retain counted reference (stored)
 > app/main/read
 >   retain counted reference (stored)
     7
@@ -28,11 +27,10 @@ fn stored!() -> i32 $ Clock:
 >   release counted reference (last use)
 > app/main/stored
 >   retain counted reference (stored)
+> app/main/stored
+>   retain counted reference (stored)
     pending!()
 >   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[i32] (cancelled)

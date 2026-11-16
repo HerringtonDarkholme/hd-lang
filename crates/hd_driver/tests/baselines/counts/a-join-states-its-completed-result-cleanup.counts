@@ -24,6 +24,7 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >   release Suspend[string] (last use)
 >   release string (last use)
 >   release string (last use)
+>   release counted reference (last use)
 > app/main/generic
 >   release (string, string) [0.0, 1.0] (cancelled)
 > app/main/generic
@@ -53,6 +54,7 @@ fn scalar!(a: i32, b: i32) -> (i32, i32):
 >   release Suspend[i32] (cancelled)
 >   release Suspend[i32] (last use)
 >   release Suspend[i32] (last use)
+>   release counted reference (last use)
 
 fn sequential!(a: string, b: string) -> (string, string):
     pair := join!(ready(a), ready(b))

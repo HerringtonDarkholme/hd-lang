@@ -120,4 +120,3 @@ pub fn main!() -> void $ Console:
 >   %22 finds [$2] full
 >   storage sub 0: $0 cell, $2 cell
 >   unwind %12 drops [%10 %11]
->   live %12 [%10 %11]

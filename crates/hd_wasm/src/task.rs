@@ -222,6 +222,7 @@ const INVALID: &str = "suspension-invalid-state: a completed suspension was poll
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     let mut f = match h {
         Helper::Frame(key) => frame(*key, m),
+        Helper::FrameEnsure(key) => ensure_frame(*key, m),
         Helper::PollCheck => poll_check(m),
         Helper::CancelCheck => cancel_check(m),
         Helper::CancelEnter => {
@@ -448,6 +449,68 @@ pub fn abandon_by(f: &mut Func, by: i32) {
     f.i32(by);
     f.op(Instruction::I32Add);
     f.global_set(Global::Aband);
+}
+
+/// Scalar storage after the stable addressable-cell region of a task.
+pub(crate) struct FrameSpill {
+    pub start: u32,
+    pub size: u32,
+    pub row: Vec<u32>,
+    pub reason: Option<hd_tir::own::Reason>,
+    pub origin: Option<(String, u32, usize)>,
+    pub names_counts: bool,
+}
+
+/// One allocation/migration/provider-acquisition helper per instance.
+/// Addressable cells remain at their original heap addresses.
+fn ensure_frame(key: Hash128, m: &Module) -> Func {
+    let mut f = m.func("rt:frame_ensure", vec![Val::I32; 4], vec![Val::I32; 2]);
+    if let Some(spill) = m.frame_spills.get(&key) {
+        f.names_counts = spill.names_counts;
+        f.reason = spill.reason;
+        if let Some((item, root, len)) = &spill.origin {
+            f.origins = Some(Vec::new());
+            f.set_origin_source_len(*len);
+            f.origin_item = Some(item.clone());
+            f.origin_root = Some(*root);
+            f.origin_at = f.origin_root;
+        }
+        f.get(0);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Frame(key));
+        f.set(0);
+        flags_or(&mut f, 0, RUNNING);
+        f.get(0);
+        f.u32(spill.start);
+        f.op(Instruction::I32Add);
+        f.get(1);
+        f.u32(spill.size - spill.start);
+        f.push(crate::bulk::copy(HEAP, HEAP));
+        f.i32(1);
+        f.set(2);
+        f.op(Instruction::End);
+        // Cold construction already acquired these counts. A frame made
+        // for addressable slots acquires them only when handed out.
+        f.get(3);
+        f.get(2);
+        f.op(Instruction::I32And);
+        f.op(Instruction::If(BlockType::Empty));
+        for &at in &spill.row {
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, u64::from(at), 2)));
+            f.count_call(
+                Sym::Inst(m.runtime.retain),
+                crate::views::CountAction::Retain,
+            );
+        }
+        f.i32(0);
+        f.set(2);
+        f.op(Instruction::End);
+    }
+    f.get(0);
+    f.get(2);
+    f
 }
 
 /// [`Helper::Frame`]: a new frame of suspending instance `key`, zeroed,

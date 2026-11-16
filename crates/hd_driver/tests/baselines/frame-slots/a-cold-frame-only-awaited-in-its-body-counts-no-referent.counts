@@ -13,10 +13,7 @@ use std.time.{Clock, ms, sleep}
 fn size!(text: &string) -> usize $ Clock:
     sleep!(ms(1))
 > app/main/size
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release counted reference (by design)
 > app/main/size
@@ -27,6 +24,8 @@ fn size!(text: &string) -> usize $ Clock:
 >   retain counted reference (stored)
 > app/main/size
 >   retain counted reference (by design)
+>   retain counted reference (stored)
+> app/main/size
 >   retain counted reference (stored)
     text.len()
 
@@ -41,13 +40,12 @@ fn later!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 > app/main/later
 >   retain counted reference (stored)
+> app/main/later
+>   retain counted reference (stored)
     f := size(&text)
     f!()
 >   retain counted reference (stored)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 
@@ -56,16 +54,16 @@ fn both!(n: usize) -> usize $ Clock:
 > app/main/both
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/both
 >   release counted reference (last use)
+> app/main/both
+>   retain counted reference (stored)
 > app/main/both
 >   retain counted reference (stored)
     let b = "b".repeat(n)
     let (x, y) = join!(size(&a), size(&b))
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
@@ -82,13 +80,12 @@ fn first!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 > app/main/first
 >   retain counted reference (stored)
+> app/main/first
+>   retain counted reference (stored)
     let b = "b".repeat(n)
     race!(size(&a), size(&b))
 > app/main/first
 >   release counted reference (last use)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)

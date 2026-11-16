@@ -38,16 +38,15 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 > app/main/awaited
 >   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release fn() -> i32 $ app.main.Tag (last use)
 > app/main/awaited
 >   release fn() -> i32 $ app.main.Tag (cancelled)
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/awaited
+>   retain counted reference (stored)
 > app/main/awaited
 >   retain counted reference (stored)
 

@@ -7,13 +7,12 @@ use std.time.{Clock, ms, sleep}
 fn pause!() -> void $ Clock:
     sleep!(ms(1))
 > app/main/pause
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 > app/main/pause
 >   release counted reference (last use)
 >   release counted reference (last use)
+> app/main/pause
+>   retain counted reference (stored)
 > app/main/pause
 >   retain counted reference (stored)

@@ -27,15 +27,15 @@ pub fn main!() -> void $ Console:
 > std/rt_tests.stage_case/main
 >   retain *mut std.rt_tests.stage_case.Note (stored)
 >   release counted reference (last use)
+>   release counted reference (last use)
 > std/rt_tests.stage_case/main
 >   release counted reference (last use)
+> std/rt_tests.stage_case/main
+>   retain counted reference (stored)
 > std/rt_tests.stage_case/main
 >   retain counted reference (stored)
     let (a, _) = join!(change(n), other())
->   retain counted reference (stored)
->   retain counted reference (stored)
 >   release counted reference (last use)
->   retain counted reference (stored)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)

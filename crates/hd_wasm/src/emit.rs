@@ -60,6 +60,7 @@ mod refs;
 mod scope;
 mod shape;
 mod susp;
+mod susp_spill;
 mod switch;
 mod text;
 mod value;
@@ -423,6 +424,7 @@ fn body_func<'a>(
     if suspending {
         let pc = em.f.local(Val::I32);
         let cancelled = em.f.local(Val::I32);
+        let spill_base = em.f.local(Val::I32);
         // A frame holds a count of each provider's data, and of the
         // context, which holds the closure's own.
         let provs = em.providers.iter().map(|p| p.1[0]).chain(ctx).collect();
@@ -435,6 +437,7 @@ fn body_func<'a>(
             ranges: plan.1,
             cancel_to: None,
             cancelled,
+            spill_base,
             provs,
             alls: HashMap::default(),
             own,

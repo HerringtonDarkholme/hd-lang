@@ -31,7 +31,6 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %15 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   live %10 [%9 $0]
 
 pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()
@@ -162,4 +161,3 @@ pub fn main!() -> void $ Console + Clock:
 >   %93 = Call std/console/println[string] (%92) : ()
 >   %59 finds [$1] full
 >   storage sub 0: $0 cell, $1 cell
->   live %56 [%54]

@@ -137,5 +137,4 @@ fn all!(keys: List[string]) -> usize:
 >   %83 = Read copy [$9] : usize
 >   exit sub 0 drops [$0]
 >   summary none
->   live %47 [%46 $0]
 >   loop %42 keeps [$2]

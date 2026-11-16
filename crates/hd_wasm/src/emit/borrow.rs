@@ -2666,6 +2666,15 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
     }
 
+    /// Creator loan cells that the separate frame destructor reads.
+    pub(super) fn select_frame_loan_cells(&self, selected: &mut [bool]) {
+        for &(local, owned) in self.borrows.own_cells.values() {
+            if owned {
+                selected[local as usize] = true;
+            }
+        }
+    }
+
     /// In a frame's release glue (`.drop`), which frees only a frame that
     /// never started (#1430): releases the cells of the creator's own loans
     /// a suspending closure's frame holds, read from the frame's save

@@ -48,13 +48,13 @@
       i32.load $heap offset=32
       local.set $count
       local.get $frame
-      i32.load $heap offset=40
+      i32.load $heap offset=36
       local.set $t1
       local.get $frame
-      i32.load $heap offset=64
+      i32.load $heap offset=40
       local.set $t2
       local.get $frame
-      i32.load $heap offset=76
+      i32.load $heap offset=44
       local.set $t3
     else
       local.get $count
