@@ -1,0 +1,36 @@
+# @dump: diagnostics
+# `annot.facts-of.target.unresolved`: a field access that names nothing
+# reports what the same expression reports anywhere else: `User.missing`
+# and `User.name` are `type-used-as-value`, `routes.home.x` and
+# `config.nope` are `unknown-field` (as `count.abs`, a method named as a
+# field), and `routes.gone.x` is `unknown-import`. Each matches the plain
+# use beside it. `config.name` and `make().name` check, as values, so
+# they are `invalid-facts-of-target` (`annot.facts-of.target.error`).
+use pkg.routes
+use std.annotation.facts_of
+
+struct User:
+    name: string
+
+config := User { name: "a" }
+
+count := 3
+
+fn make() -> User:
+    User { name: "b" }
+
+a := facts_of(User.missing)
+b := User.missing
+c := facts_of(User.name)
+d := facts_of(routes.home.x)
+e := routes.home.x
+f := facts_of(config.nope)
+g := config.nope
+h := facts_of(count.abs)
+i := facts_of(routes.gone.x)
+j := facts_of(config.name)
+k := facts_of(make().name)
+# @file: routes.hd
+@"label"
+pub fn home() -> void:
+    pass

@@ -1613,6 +1613,9 @@ impl Ck<'_, '_> {
             self.missing_export(m, &segs[1], arg);
             return Ok((Ref(NONE), Ty::POISON));
         }
+        if arg.kind() == SyntaxKind::FieldExpr {
+            return self.field_facts_target(arg);
+        }
         let sym = self.cx.names.syms.intern(first);
         let global = {
             let init = self.cx.init.borrow();
@@ -1624,6 +1627,29 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         }
         Ok(self.bad_facts_target(arg, "this name is not a function"))
+    }
+
+    /// A field access names no declaration: `User.missing`,
+    /// `routes.home.x`, `config.path`. It is checked as the same
+    /// expression is anywhere else, so a form that fails reports that
+    /// check's own error (`type-used-as-value`, `unknown-field`), and one
+    /// that checks names a value or a method, not a module-level
+    /// function: `invalid-facts-of-target`
+    /// (`annot.facts-of.target.unresolved`, `annot.facts-of.target.error`).
+    /// The check runs in a trial that a clean argument rolls back, so the
+    /// argument is not evaluated (`annot.facts-of.target`); a failed one
+    /// keeps its poisoned nodes, as an erroneous body does. Cost: one
+    /// check of the argument expression.
+    fn field_facts_target(&mut self, arg: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
+        let trial = self.checkpoint();
+        let mark = self.diags.mark();
+        self.expr(arg, None)?;
+        if self.diags.errors_since(mark) > 0 {
+            self.commit(trial);
+            return Ok((Ref(NONE), Ty::POISON));
+        }
+        self.rollback(trial);
+        Ok(self.bad_facts_target(arg, "a field access is not a function"))
     }
 
     /// `facts_of` used as a value, or on a target that is not a
