@@ -71,7 +71,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32) (local $t1 i32)
+  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32)
     ;; 24 |     guard(log, label)
     global.get $locals
     global.get $locals_base
@@ -103,14 +103,13 @@
     local.tee $t0
     global.set $locals
     local.get $log
-    local.tee $t1
     if
-      local.get $t1
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $log
         call $rt:retain_known
       end
     end
@@ -118,9 +117,9 @@
     local.get $label.0
     local.get $label.1
     call $guard
-    local.set $t1
     local.set $label.0
     local.set $label.1
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -128,41 +127,41 @@
     i32.const 8
     i32.add
     local.tee $t2
-    local.get $label.1
+    local.get $t1
     i32.store $heap
     local.get $t2
-    local.get $label.0
+    local.get $label.1
     i32.store $heap offset=4
     local.get $t2
-    local.get $t1
+    local.get $label.0
     i32.store $heap offset=8
     i32.const 1
-    local.set $t1
+    local.set $label.0
     ;; 25 |     log.push("work")
     local.get $log
     i32.load $heap
     call $rt:list_unique
-    local.set $label.0
+    local.set $label.1
     local.get $log
-    local.get $label.0
+    local.get $label.1
     i32.store $heap
-    local.get $label.0
+    local.get $label.1
     i32.load $heap offset=4
-    local.tee $label.1
-    local.get $label.0
+    local.tee $t1
+    local.get $label.1
     i32.load $heap
     i32.eq
     if
-      local.get $label.0
+      local.get $label.1
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $label.0
+      local.set $label.1
       local.get $log
-      local.get $label.0
+      local.get $label.1
       i32.store $heap
     end
-    local.get $label.0
     local.get $label.1
+    local.get $t1
     i32.const 8
     i32.mul
     i32.add
@@ -172,13 +171,13 @@
     local.get $t3
     i32.const 4
     i32.store $heap offset=20
-    local.get $label.0
     local.get $label.1
+    local.get $t1
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 24 |     guard(log, label)
-    local.get $t1
+    local.get $label.0
     if
       global.get $forbid
       i32.const 1
@@ -221,14 +220,13 @@
       call $rt:release
     end
     local.get $log
-    local.tee $t1
     if
-      local.get $t1
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $log
         call $rt:release_ref
       end
     end

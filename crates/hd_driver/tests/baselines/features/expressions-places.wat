@@ -102,7 +102,6 @@
     ;; 11 |     let mut p = (a, b)
     local.get $a.0
     ;; 12 |     p._0 = s
-    local.tee $a.0
     if
       local.get $a.0
       call $rt:release_ref'2

@@ -58,9 +58,8 @@
         if
     ;; 12 |             continue
           local.get $t.0
-          local.tee $x.1
           if
-            local.get $x.1
+            local.get $t.0
             call $rt:release_ref
           end
           br 1
@@ -73,9 +72,8 @@
         if
     ;; 14 |             break
           local.get $t.0
-          local.tee $x.1
           if
-            local.get $x.1
+            local.get $t.0
             call $rt:release_ref
           end
           br 2
@@ -83,9 +81,8 @@
         end
     ;; 15 |         n += t.len()
         local.get $t.0
-        local.tee $x.1
         if
-          local.get $x.1
+          local.get $t.0
           call $rt:release_ref
         end
         local.get $n

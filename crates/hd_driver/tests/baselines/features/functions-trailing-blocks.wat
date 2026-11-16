@@ -29,9 +29,8 @@
     i32.const 33
     i32.store8 $heap
     local.get $t2
-    local.tee $s.0
     if
-      local.get $s.0
+      local.get $t2
       call $rt:release_ref
     end
     local.get $t0

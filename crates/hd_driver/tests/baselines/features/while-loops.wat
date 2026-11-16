@@ -50,12 +50,11 @@
     ;; 12 |     n
     local.get $n
   )
-  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $i i32) (local $out.1 i32)
+  (func $build_while (param $s.0 i32) (param $s.1 i32) (param $k i32) (result i32 i32) (local $out.0 i32) (local $out.1 i32) (local $i i32)
     ;; 15 |     let out = s
     local.get $s.0
-    local.tee $out.1
     if
-      local.get $out.1
+      local.get $s.0
       call $retain
     end
     local.get $s.0

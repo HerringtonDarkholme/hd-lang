@@ -111,7 +111,6 @@
       end
     end
     local.get $value.1
-    local.tee $value.1
     if
       local.get $value.1
       i32.const 8

@@ -10,61 +10,56 @@
     local.get $xs
     i32.load $heap offset=4
     local.set $t0
-    block
-      loop
+    loop
+      local.get $t1
+      local.get $t0
+      i32.lt_u
+      if
+        local.get $xs
         local.get $t1
-        local.get $t0
-        i32.lt_u
-        if
-          local.get $xs
-          local.get $t1
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $x.1
-          i32.load $heap offset=16
-          local.get $x.1
-          i32.load $heap offset=20
-          local.set $x.1
-          local.set $x.0
-          local.get $t1
-          i32.const 1
-          i32.add
-          local.set $t1
-          block
-            br 0
-            unreachable
-          end
-    ;; 9 |         if x.len() > 3:
-          local.get $x.1
-          i32.const 3
-          i32.gt_u
-          if
-    ;; 10 |             break x
-            local.get $x.0
-            local.tee $t1
-            if
-              local.get $t1
-              call $retain
-            end
-            local.get $x.0
-            local.get $x.1
-            return
-    ;; 9 |         if x.len() > 3:
-          end
-    ;; 8 |     for x in xs:
-        else
-          i32.const 65 ;; &"none"
-          i32.const 4
-          local.set $x.1
-          local.set $x.0
-          br 2
+        i32.const 8
+        i32.mul
+        i32.add
+        local.tee $x.1
+        i32.load $heap offset=16
+        local.get $x.1
+        i32.load $heap offset=20
+        local.set $x.1
+        local.set $x.0
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          br 0
+          unreachable
         end
-        br 0
+    ;; 9 |         if x.len() > 3:
+        local.get $x.1
+        i32.const 3
+        i32.gt_u
+        if
+    ;; 10 |             break x
+          local.get $x.0
+          if
+            local.get $x.0
+            call $retain
+          end
+          local.get $x.0
+          local.get $x.1
+          return
+    ;; 9 |         if x.len() > 3:
+        end
+    ;; 8 |     for x in xs:
+      else
+        i32.const 65 ;; &"none"
+        i32.const 4
+        return
       end
+      br 0
     end
-    local.get $x.0
-    local.get $x.1
+    i32.const 0
+    i32.const 0
   )
   (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
     ;; 16 |     while i < xs.len():

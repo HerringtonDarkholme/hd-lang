@@ -3325,7 +3325,7 @@ mod tests {
             }
             let f = crate::rt::helper(&helper, &mut m);
             for ins in &f.body {
-                if let Ins::Call(id) | Ins::TableSlot(id) = ins
+                if let Ins::Call(id, _) | Ins::TableSlot(id) = ins
                     && let Sym::Helper(callee) = &*f.symbols.get(*id)
                 {
                     pending.push(callee.clone());
@@ -3524,7 +3524,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 },
             );
             let heap = f.body.iter().any(|ins| {
-                matches!(ins, Ins::Call(id)
+                matches!(ins, Ins::Call(id, _)
                 if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
                     crate::rt::Helper::HostCold { .. } | crate::rt::Helper::New)))
             });
@@ -3546,7 +3546,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                     Ins::Op(super::Instruction::I32Const(-1))
                 ));
                 assert!(!f.body.iter().any(|ins| matches!(ins,
-                    Ins::Call(id) if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
+                    Ins::Call(id, _) if matches!(&*f.symbols.get(*id), crate::module::Sym::Helper(
                         crate::rt::Helper::RetainAny | crate::rt::Helper::CopyElems { .. }))
                 )));
             }

@@ -41,7 +41,7 @@
         i32.eqz
         local.tee $pick
     ;; 28 |         alias := if pick: other else: p
-        if
+        if (result i32)
           local.get $other
           local.tee $alias
           if
@@ -55,7 +55,6 @@
             end
           end
           local.get $other
-          local.set $alias
         else
           local.get $p
           local.tee $alias
@@ -70,8 +69,8 @@
             end
           end
           local.get $p
-          local.set $alias
         end
+        local.set $alias
     ;; 29 |         _ := observe(if pick: p.items.at(0) else: other.items.at(0), later(alias))
         local.get $pick
         if
@@ -317,7 +316,6 @@
         end
     ;; 26 |     for round in 0..4:
         local.get $alias
-        local.tee $alias
         if
           local.get $alias
           call $rt:release_ref'1
@@ -385,7 +383,7 @@
             i32.eqz
             local.tee $pick
     ;; 28 |         alias := if pick: other else: p
-            if
+            if (result i32)
               local.get $other
               local.tee $alias
               if
@@ -399,7 +397,6 @@
                 end
               end
               local.get $other
-              local.set $alias
             else
               local.get $p
               local.tee $alias
@@ -414,8 +411,8 @@
                 end
               end
               local.get $p
-              local.set $alias
             end
+            local.set $alias
     ;; 29 |         _ := observe(if pick: p.items.at(0) else: other.items.at(0), later(alias))
             local.get $pick
             if
@@ -753,7 +750,6 @@
             end
     ;; 26 |     for round in 0..4:
             local.get $alias
-            local.tee $alias
             if
               local.get $alias
               call $rt:release_ref'1

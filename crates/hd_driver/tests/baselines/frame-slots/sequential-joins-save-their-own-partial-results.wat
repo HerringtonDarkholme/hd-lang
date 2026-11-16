@@ -191,7 +191,7 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $sequential'1 (param $frame i32) (param $left.0 i32) (param $left.1 i32) (param $right.0 i32) (param $right.1 i32) (result i32 i32 i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $d.1 i32) (local $d.0 i32) (local $t6 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $sequential'1 (param $frame i32) (param $left.0 i32) (param $left.1 i32) (param $right.0 i32) (param $right.1 i32) (result i32 i32 i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $d.1 i32) (local $d.0 i32) (local $t4 i32) (local $t6 i32) (local $t0 i32) (local $t1 i32)
     ;; 11 |     let (a, b) = join!(ready(left), ready(right))
     global.get $locals
     global.get $locals_base
@@ -1348,7 +1348,6 @@
       local.get $right.0
       call $rt:memory_copy/0/0
       local.get $t4
-      local.tee $t4
       if
         local.get $t4
         call $rt:release_ref'1

@@ -927,7 +927,7 @@ mod object_glue_tests {
             .body
             .iter()
             .filter_map(|ins| match ins {
-                Ins::Call(id) => Some(f.symbol(*id).clone()),
+                Ins::Call(id, _) => Some(f.symbol(*id).clone()),
                 _ => None,
             })
             .collect();
@@ -945,6 +945,6 @@ mod object_glue_tests {
         let counted =
             object_glue(&m, Some(&Walk::Known(0)), vec![]).expect("counted field needs glue");
         let f = crate::rt::helper(&counted, &mut module);
-        assert!(f.body.iter().any(|ins| matches!(ins, Ins::Call(id) if matches!(*f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
+        assert!(f.body.iter().any(|ins| matches!(ins, Ins::Call(id, _) if matches!(*f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
     }
 }

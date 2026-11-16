@@ -4998,10 +4998,10 @@ mod checked_fixed_allocation_tests {
             let f = helper(&Helper::NewFixed { size }, &mut m);
             assert_eq!(f.name, "rt:new");
             assert!(f.body.iter().any(|ins| matches!(ins,
-                Ins::Call(id) if *f.symbol(*id) == Sym::Inst(runtime.alloc))));
+                Ins::Call(id, _) if *f.symbol(*id) == Sym::Inst(runtime.alloc))));
             assert!(
                 !f.body.iter().any(|ins| matches!(ins,
-                Ins::Call(id) if matches!(*f.symbol(*id), Sym::Helper(Helper::AllocClass { .. }))))
+                Ins::Call(id, _) if matches!(*f.symbol(*id), Sym::Helper(Helper::AllocClass { .. }))))
             );
             assert!(
                 !f.body
@@ -5013,7 +5013,7 @@ mod checked_fixed_allocation_tests {
         let fast = helper(&Helper::NewFixed { size: 16 }, &mut unchecked);
         assert!(fast.name.starts_with("rt:new/class-"));
         assert!(fast.body.iter().any(|ins| matches!(ins,
-            Ins::Call(id) if matches!(*fast.symbol(*id), Sym::Helper(Helper::AllocClass { .. })))));
+            Ins::Call(id, _) if matches!(*fast.symbol(*id), Sym::Helper(Helper::AllocClass { .. })))));
         Ok(())
     }
 }

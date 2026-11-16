@@ -36,7 +36,7 @@
     local.get $x.1
     call $rt:release
   )
-  (func $"impl[T < Eq] Same for Res[T].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $t1 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $right.0'1 i32) (local $t2 i32) (local $right.0'2 i32) (local $t0 i32)
+  (func $"impl[T < Eq] Same for Res[T].same[string]'1" (param $self.0 i32) (param $self.1 i32) (param $self.2 i32) (param $other.0 i32) (param $other.1 i32) (param $other.2 i32) (result i32) (local $t0 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $right.0'1 i32) (local $t1 i32) (local $right.0'2 i32)
     ;; 19 |         match *self:
     block
       block
@@ -46,9 +46,8 @@
           i32.eqz
           if
             local.get $self.1
-            local.tee $t0
             if
-              local.get $t0
+              local.get $self.1
               call $retain
             end
             local.get $self.1
@@ -61,9 +60,8 @@
             i32.eq
             if
               local.get $self.1
-              local.tee $t0
               if
-                local.get $t0
+                local.get $self.1
                 call $retain
               end
               local.get $self.1
@@ -86,9 +84,9 @@
               i32.eqz
               if
                 local.get $other.1
-                local.tee $t0
+                local.tee $self.1
                 if
-                  local.get $t0
+                  local.get $self.1
                   call $retain
                 end
                 local.get $other.1
@@ -113,15 +111,15 @@
             local.get $other.2
             call $"impl Eq for string.eq"
     ;; 21 |                 match *other:
-            local.set $t1
+            local.set $t0
             br 1
           end
         end
     ;; 19 |         match *self:
         local.get $right.0'1
-        local.tee $t0
+        local.tee $self.1
         if
-          local.get $t0
+          local.get $self.1
           call $rt:release_ref
         end
         br 1
@@ -136,9 +134,9 @@
             i32.eq
             if
               local.get $other.1
-              local.tee $t0
+              local.tee $self.1
               if
-                local.get $t0
+                local.get $self.1
                 call $retain
               end
               local.get $other.1
@@ -162,33 +160,33 @@
           local.get $other.2
           call $"impl Eq for string.eq"
     ;; 25 |                 match *other:
-          local.set $t2
+          local.set $t1
           br 1
         end
       end
     ;; 19 |         match *self:
       local.get $right.0'2
-      local.tee $t0
+      local.tee $self.1
       if
-        local.get $t0
+        local.get $self.1
         call $rt:release_ref
       end
-      local.get $t2
-      local.set $t1
+      local.get $t1
+      local.set $t0
     end
     local.get $left.0'2
-    local.tee $t0
+    local.tee $self.1
     if
-      local.get $t0
+      local.get $self.1
       call $rt:release_ref
     end
     local.get $left.0'1
-    local.tee $t0
+    local.tee $self.1
     if
-      local.get $t0
+      local.get $self.1
       call $rt:release_ref
     end
-    local.get $t1
+    local.get $t0
   )
   (func $"impl[T < Eq] Same for Res[T].same[string]'2" (param $self i32) (param $other i32) (result i32) (local $t1 i32) (local $t0 i32) (local $right.1'2 i32) (local $left.0'1 i32) (local $left.0'2 i32) (local $right.0 i32) (local $t2 i32) (local $right.1'1 i32)
     ;; 19 |         match *self:
@@ -209,9 +207,8 @@
           i32.eqz
           if
             local.get $t0
-            local.tee $t1
             if
-              local.get $t1
+              local.get $t0
               call $retain
             end
             local.get $t0
@@ -224,9 +221,8 @@
             i32.eq
             if
               local.get $t0
-              local.tee $t1
               if
-                local.get $t1
+                local.get $t0
                 call $retain
               end
               local.get $t0
@@ -248,27 +244,26 @@
         local.get $other
         i32.load $heap offset=8
         local.set $right.1'1
+        local.set $t0
         local.set $t2
-        local.set $other
         block
           block
             block
     ;; 22 |                     .Good(right) => left == right
-              local.get $other
+              local.get $t2
               i32.eqz
               if
-                local.get $t2
-                local.tee $t1
+                local.get $t0
                 if
-                  local.get $t1
+                  local.get $t0
                   call $retain
                 end
-                local.get $t2
+                local.get $t0
                 local.set $right.0
                 br 1
               else
     ;; 23 |                     .Bad(_) => false
-                local.get $other
+                local.get $t2
                 i32.const 1
                 i32.eq
                 br_if 2
@@ -291,9 +286,9 @@
         end
     ;; 19 |         match *self:
         local.get $right.0
-        local.tee $t1
+        local.tee $t0
         if
-          local.get $t1
+          local.get $t0
           call $rt:release_ref
         end
         br 1
@@ -306,28 +301,27 @@
       local.get $other
       i32.load $heap offset=8
       local.set $right.1'2
+      local.set $t0
       local.set $other
-      local.set $right.0
       block
         block
           block
     ;; 26 |                     .Bad(right) => left == right
-            local.get $right.0
+            local.get $other
             i32.const 1
             i32.eq
             if
-              local.get $other
-              local.tee $t1
+              local.get $t0
               if
-                local.get $t1
+                local.get $t0
                 call $retain
               end
-              local.get $other
+              local.get $t0
               local.set $right.1'1
               br 1
             else
     ;; 27 |                     .Good(_) => false
-              local.get $right.0
+              local.get $other
               i32.eqz
               br_if 2
               unreachable
@@ -349,24 +343,24 @@
       end
     ;; 19 |         match *self:
       local.get $right.1'1
-      local.tee $t1
+      local.tee $t0
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
       local.get $t2
       local.set $right.1'2
     end
     local.get $left.0'2
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $left.0'1
-    local.tee $t1
+    local.tee $t0
     if
-      local.get $t1
+      local.get $t0
       call $rt:release_ref
     end
     local.get $right.1'2

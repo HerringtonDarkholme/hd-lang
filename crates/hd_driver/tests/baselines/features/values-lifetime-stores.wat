@@ -276,7 +276,6 @@
     i32.load $heap
     local.set $t1
     local.get $seen
-    local.tee $seen
     if
       local.get $seen
       i32.const 8

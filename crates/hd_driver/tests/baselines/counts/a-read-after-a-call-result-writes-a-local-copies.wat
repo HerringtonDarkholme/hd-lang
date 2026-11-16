@@ -138,7 +138,6 @@
     i32.load $heap offset=4
     local.set $t1
     local.get $name.1
-    local.tee $name.1
     if
       local.get $name.1
       i32.const 8

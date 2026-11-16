@@ -66,7 +66,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $first i32)
+  (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $first i32) (local $t0 i32)
     ;; 19 |     using first = Res { name: a, log: log }
     global.get $locals
     global.get $locals_base
@@ -98,14 +98,13 @@
     local.tee $t0
     global.set $locals
     local.get $log
-    local.tee $first
     if
-      local.get $first
+      local.get $log
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $first
+        local.get $log
         call $rt:retain_known
       end
     end

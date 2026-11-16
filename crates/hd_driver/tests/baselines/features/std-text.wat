@@ -54,7 +54,6 @@
       end
     end
     local.get $line.0
-    local.tee $line.0
     if
       local.get $line.0
       i32.const 8
@@ -152,7 +151,6 @@
       end
     end
     local.get $parts
-    local.tee $parts
     if
       local.get $parts
       i32.const 8

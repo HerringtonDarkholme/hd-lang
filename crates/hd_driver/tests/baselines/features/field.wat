@@ -8,7 +8,6 @@
     ;; 17 |     let mut s = r
     local.get $r.name.0
     ;; 18 |     s.name = n
-    local.tee $r.name.0
     if
       local.get $r.name.0
       call $rt:release_ref

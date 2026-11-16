@@ -99,7 +99,6 @@
     ;; 21 |         self.name = n
     local.get $n.0
     local.get $self.name.0
-    local.tee $self.name.0
     if
       local.get $self.name.0
       call $rt:release_ref

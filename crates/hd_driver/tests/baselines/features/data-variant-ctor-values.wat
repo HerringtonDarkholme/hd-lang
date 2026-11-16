@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.1 i32) (local $t2 i32) (local $e.0 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t3 i32)
+  (func $wrap_all (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.1 i32) (local $t2 i32) (local $e.0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 15 |     [for e in errors => SyncError.Fs(e)]
     i32.const 24 ;; &empty-buffer
     local.set $t0
@@ -46,9 +46,8 @@
           unreachable
         end
         local.get $e.0
-        local.tee $t3
         if
-          local.get $t3
+          local.get $e.0
           call $retain
         end
         i32.const 0
@@ -196,7 +195,7 @@
     local.get $p.1
     i32.const 1
   )
-  (func $as_value (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t5 i32)
+  (func $as_value (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     ;; 21 |     wrap_with(errors, SyncError.Fs)
     i32.const 24 ;; &empty-buffer
     local.set $t0
@@ -237,9 +236,8 @@
           unreachable
         end
         local.get $t4
-        local.tee $t5
         if
-          local.get $t5
+          local.get $t4
           call $retain
         end
         i32.const 0

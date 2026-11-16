@@ -149,9 +149,8 @@
             i32.eqz
             if
               local.get $t4
-              local.tee $provider0.vtable
               if
-                local.get $provider0.vtable
+                local.get $t4
                 call $retain
               end
             end
@@ -220,9 +219,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t4
-              local.tee $provider0.vtable
               if
-                local.get $provider0.vtable
+                local.get $t4
                 call $rt:release_ref'1
               end
             end
@@ -292,24 +290,24 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.tee $provider0.vtable
+          local.tee $t4
           if
-            local.get $provider0.vtable
+            local.get $t4
             call $rt:release_ref'1
           end
         end
         local.get $t2
         i32.load $heap offset=8
-        local.tee $provider0.vtable
+        local.tee $t4
         if
-          local.get $provider0.vtable
+          local.get $t4
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $provider0.vtable
+            local.get $t4
             call $rt:release_ref'2
           end
         end
@@ -325,16 +323,16 @@
     ;; 11 |     let pending: Suspend[i32] = read()
       local.get $t2
       i32.load $heap offset=8
-      local.tee $provider0.vtable
+      local.tee $t4
       if
-        local.get $provider0.vtable
+        local.get $t4
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0.vtable
+          local.get $t4
           call $rt:release_ref'2
         end
       end
@@ -681,9 +679,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.tee $provider0.vtable
           if
-            local.get $provider0.vtable
+            local.get $provider0
             call $rt:release_ref'1
           end
         end
@@ -752,9 +749,8 @@
         i32.const 0
         i32.store $heap offset=16
         local.get $provider0
-        local.tee $provider0.vtable
         if
-          local.get $provider0.vtable
+          local.get $provider0
           call $rt:release_ref'1
         end
       end

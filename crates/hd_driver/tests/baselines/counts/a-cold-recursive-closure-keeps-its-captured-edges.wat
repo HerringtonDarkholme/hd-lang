@@ -1438,29 +1438,27 @@
     i32.store $heap offset=4
     local.get $t0
     ;; 7 |     read
-    local.tee $value.0
     if
-      local.get $value.0
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $value.0
+        local.get $t0
         call $rt:retain_known
       end
     end
     ;; 5 |     read := fn!(n: usize) -> string:
     local.get $t0
-    local.tee $value.0
     if
-      local.get $value.0
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $value.0
+        local.get $t0
         call $rt:release_ref'2
       end
     end

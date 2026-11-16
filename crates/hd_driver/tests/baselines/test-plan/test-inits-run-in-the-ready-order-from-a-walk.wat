@@ -111,7 +111,6 @@
     local.get $t0
     call $rt:memory_copy/0/0
     local.get $t1
-    local.tee $t1
     if
       local.get $t1
       call $rt:release_ref

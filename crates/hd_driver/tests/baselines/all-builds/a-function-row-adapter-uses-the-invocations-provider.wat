@@ -29,7 +29,6 @@
     call $"println[i32]"
     ;; 30 |     $.with(Named=box(S { n: 4 })):
     local.get $t0
-    local.tee $t0
     if
       local.get $t0
       call $rt:release_ref
@@ -92,7 +91,6 @@
     call $"println[i32]"
     ;; 30 |     $.with(Named=box(S { n: 4 })):
     local.get $t0
-    local.tee $t0
     if
       local.get $t0
       call $rt:release_ref

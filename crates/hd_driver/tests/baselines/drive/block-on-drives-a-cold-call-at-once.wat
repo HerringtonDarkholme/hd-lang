@@ -106,7 +106,6 @@
       end
     end
     local.get $s.1
-    local.tee $s.1
     if
       local.get $s.1
       i32.const 8

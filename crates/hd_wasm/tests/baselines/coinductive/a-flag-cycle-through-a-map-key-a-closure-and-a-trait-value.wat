@@ -86,7 +86,6 @@
       local.set $t2
     end
     local.get $seen
-    local.tee $seen
     if
       local.get $seen
       i32.const 8

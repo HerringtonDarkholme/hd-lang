@@ -44,7 +44,6 @@
         local.get $step.1
         call $rt:retain_fields
         local.get $total
-        local.tee $total
         if
           local.get $total
           i32.const 8

@@ -5,7 +5,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32)
     ;; 19 |         (self.job)(n)
     local.get $self
     i32.load $heap
@@ -14,14 +14,13 @@
     local.set $self
     local.set $t0
     local.get $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $self
         call $rt:retain_known
       end
     end
@@ -31,16 +30,15 @@
     local.get $t0
     call_indirect $table0 (param i32 i32 i32)
     local.get $self
-    local.tee $t1
     if
-      local.get $t1
+      local.get $self
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $self
         call $rt:release_ref
       end
     end

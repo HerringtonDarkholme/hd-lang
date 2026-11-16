@@ -491,7 +491,7 @@ fn branches_out(f: &Func) -> bool {
 /// Whether `f` made such a call.
 fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool> {
     for i in &f.body {
-        if let Ins::Call(id) = i
+        if let Ins::Call(id, _) = i
             && let Sym::Import(im) = &*f.symbol(*id)
             && wide(&im.params, &im.results)
         {
@@ -499,8 +499,8 @@ fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool
         }
     }
     let needs = f.body.iter().any(|i| match i {
-        Ins::Call(id) => sig.get(id.idx()).is_some_and(Option::is_some),
-        Ins::CallIndirect(id) => {
+        Ins::Call(id, _) => sig.get(id.idx()).is_some_and(Option::is_some),
+        Ins::CallIndirect(id, _) => {
             let signature = f.signature(*id);
             wide(&signature.0, &signature.1)
         }
@@ -517,8 +517,8 @@ fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool
     for (position, i) in body.into_iter().enumerate() {
         let output_start = out.len();
         let signature = match i {
-            Ins::Call(id) => sig.get(id.idx()).and_then(Option::as_ref).cloned(),
-            Ins::CallIndirect(id) => {
+            Ins::Call(id, _) => sig.get(id.idx()).and_then(Option::as_ref).cloned(),
+            Ins::CallIndirect(id, _) => {
                 let signature = f.signature(id);
                 wide(&signature.0, &signature.1).then(|| signature.clone())
             }
@@ -551,7 +551,10 @@ fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool
             Some(t) => {
                 out.push(Ins::Op(I::LocalGet(t)));
                 let (p, r) = lowered(&params, &results);
-                out.push(Ins::CallIndirect(f.symbols.intern_signature(p, r)));
+                out.push(Ins::CallIndirect(
+                    f.symbols.intern_signature(p, r),
+                    i.call_anchor(),
+                ));
             }
             None => out.push(i),
         }
@@ -622,7 +625,7 @@ mod tests {
         let target = Sym::Inst(hd_base::Hash128(7));
         let mut f = m.func("caller", vec![], vec![]);
         let target = f.intern(target);
-        f.body = vec![Ins::Call(target)];
+        f.body = vec![Ins::Call(target, None)];
         f.origins = Some(vec![Some(17)]);
         let mut sig = vec![None; target.idx() + 1];
         sig[target.idx()] = Some((vec![Val::I32; WIDTH + 1], vec![]));

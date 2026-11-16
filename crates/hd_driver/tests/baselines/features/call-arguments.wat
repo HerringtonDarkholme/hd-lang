@@ -149,7 +149,7 @@
     local.get $n
     i32.div_u
   )
-  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32) (local $t1 i32)
+  (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32)
     ;; 22 |     let mut t = s
     global.get $locals
     global.get $locals_base
@@ -181,9 +181,8 @@
     local.tee $t0
     global.set $locals
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       call $retain
     end
     local.get $t0
@@ -209,9 +208,8 @@
     local.get $s.1
     call $by_ref'2
     local.get $s.0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $s.0
       call $rt:release_ref
     end
     i32.add
@@ -219,19 +217,19 @@
     i32.load $heap
     local.get $t
     i32.load $heap offset=4
-    local.set $s.0
+    local.set $s.1
     local.get $t
     i32.const 0
     i32.store $heap
     local.get $t
     i32.const 0
     i32.store $heap offset=4
-    local.tee $t1
-    local.get $s.0
+    local.tee $s.0
+    local.get $s.1
     call $by_value
-    local.get $t1
+    local.get $s.0
     if
-      local.get $t1
+      local.get $s.0
       call $rt:release_ref
     end
     i32.add

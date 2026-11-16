@@ -2,17 +2,16 @@
 (module
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $both (param $n i32) (result i32 i32) (local $t0 i32)
+  (func $both (param $n i32) (result i32 i32)
     ;; 14 |     (n, n)
     local.get $n
-    local.tee $t0
     if
-      local.get $t0
+      local.get $n
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $n
         call $rt:retain_known
       end
     end

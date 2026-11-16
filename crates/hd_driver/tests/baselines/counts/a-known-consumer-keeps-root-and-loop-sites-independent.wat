@@ -136,7 +136,6 @@
         call $"each[fn(string) -> ()]"
         local.get $t3
     ;; 13 |     for _ in 0..3:
-        local.tee $t3
         if
           local.get $t3
           i32.const 8

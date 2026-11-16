@@ -211,7 +211,7 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t7 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $k.1 i32) (local $k.0 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32) (local $t6 i32)
+  (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t6 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $k.1 i32) (local $k.0 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
     global.get $locals
     global.get $locals_base
@@ -336,15 +336,14 @@
               unreachable
             end
             local.get $k.0
-            local.tee $t6
             if
-              local.get $t6
+              local.get $k.0
               call $retain
             end
             local.get $k.0
             local.get $k.1
             call $fetch'2
-            local.set $t6
+            local.set $k.0
             local.get $t3
             i32.load $heap offset=4
             local.tee $k.1
@@ -362,7 +361,7 @@
             i32.const 4
             i32.mul
             i32.add
-            local.get $t6
+            local.get $k.0
             i32.store $heap offset=16
             local.get $t3
             local.get $k.1
@@ -373,16 +372,16 @@
           end
         end
         local.get $t4
-        local.tee $t6
+        local.tee $k.0
         if
-          local.get $t6
+          local.get $k.0
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $k.0
             call $rt:release_ref'2
           end
         end
@@ -493,9 +492,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $keys
-            local.tee $t6
+            local.tee $k.0
             if
-              local.get $t6
+              local.get $k.0
               call $rt:release_ref'1
             end
           end
@@ -504,7 +503,7 @@
         i32.const 0
         local.set $results
         call $rt:cancel_enter
-        local.set $t7
+        local.set $t6
         local.get $frame
         i32.load $heap offset=16
         local.tee $t3
@@ -523,7 +522,7 @@
           end
         end
         local.get $frame
-        local.get $t7
+        local.get $t6
         call $rt:cancel_leave
         local.get $results
         if
@@ -564,16 +563,16 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t3
-          local.tee $t6
+          local.tee $k.0
           if
-            local.get $t6
+            local.get $k.0
             call $rt:release_ref'1
           end
         end
         i32.const 0
         local.set $keys
         i32.const 1
-        local.set $t7
+        local.set $t6
         br 1
       end
       local.get $t3
@@ -629,16 +628,16 @@
         end
       end
       local.get $results
-      local.tee $t6
+      local.tee $k.0
       if
-        local.get $t6
+        local.get $k.0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $k.0
           call $rt:release_ref'2
         end
       end
@@ -646,16 +645,16 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $t6
+    local.tee $k.0
     if
-      local.get $t6
+      local.get $k.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $k.0
         call $rt:release_ref'2
       end
     end
@@ -669,7 +668,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t7
+    local.get $t6
     if (result i32)
       local.get $frame
       local.get $frame

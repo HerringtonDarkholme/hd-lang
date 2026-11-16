@@ -149,9 +149,8 @@
     ;; 18 |     { k: v, "fixed": v }
     local.get $k.0
     local.get $v.0
-    local.tee $k.0
     if
-      local.get $k.0
+      local.get $v.0
       call $retain
     end
     i32.const 4

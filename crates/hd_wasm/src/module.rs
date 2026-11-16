@@ -484,7 +484,8 @@ pub enum Ins {
     /// An explicit address in this module's static segment. Session linking
     /// relocates this operand without interpreting unrelated integer constants.
     Static(u32),
-    Call(SymId),
+    /// Target and panic-frame source location; optimization ignores the location.
+    Call(SymId, Option<u32>),
     GlobalGet(GlobalId),
     GlobalSet(GlobalId),
     /// `i32.const` of the function's slot in the function table.
@@ -506,8 +507,8 @@ pub enum Ins {
         )
     )]
     Descriptor(SymId, DescriptorKey),
-    /// `call_indirect` through the function table, at this signature.
-    CallIndirect(SigId),
+    /// `call_indirect` through the function table, with its source location.
+    CallIndirect(SigId, Option<u32>),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
     VTable(usize),
     /// The frame loads for the current suspension state (or initial
@@ -515,11 +516,17 @@ pub enum Ins {
     LoadAll,
     /// Add the final scalar spill-region offset to a frame address.
     SpillBase,
-    /// The TIR instruction that anchors the calls after it: a row of the
-    /// `hd.lines` table at each call that starts a new anchor
-    /// (`crates/hd_wasm/DESIGN.md` §15.9). [`Func::call`] writes it just
-    /// before a call whose anchor is new; it writes no code.
-    Anchor(u32),
+}
+
+impl Ins {
+    /// Panic-frame source metadata travels with its call, like LLVM `DebugLoc`.
+    /// No marker separates adjacent executable instructions during optimization.
+    pub fn call_anchor(self) -> Option<u32> {
+        match self {
+            Self::Call(_, anchor) | Self::CallIndirect(_, anchor) => anchor,
+            _ => None,
+        }
+    }
 }
 
 // The instruction vector is copied by the local passes; names and variable
@@ -571,8 +578,6 @@ pub struct Func {
     /// The TIR instruction whose code is being written, when it has a
     /// source position: it anchors the calls written now.
     pub at: Option<u32>,
-    /// The anchor the last [`Ins::Anchor`] wrote.
-    anchored: Option<u32>,
     /// The inlined frames an anchor `INLINED | k` names: entry `k` is the
     /// callee's stable path, its instruction and the call's anchor
     /// (`hd_tir::ir::Body::inlined`).
@@ -630,7 +635,7 @@ impl Func {
     }
     fn edge(ins: Ins) -> Option<Edge> {
         match ins {
-            Ins::Call(s) | Ins::TableSlot(s) | Ins::Glue(s) | Ins::DrainGlue(s) => {
+            Ins::Call(s, _) | Ins::TableSlot(s) | Ins::Glue(s) | Ins::DrainGlue(s) => {
                 Some(Edge::Function(s))
             }
             Ins::Descriptor(s, _) => Some(Edge::Function(s)),
@@ -825,14 +830,14 @@ impl Func {
         }
         if cfg!(not(target_arch = "wasm32"))
             && self.names_counts
-            && let Ins::Call(s) = &ins
+            && let Ins::Call(s, _) = &ins
             && crate::views::helper_count_action(&self.symbols.get(*s)).is_some()
         {
             self.assert_named();
         }
         let action = if self.origins.is_some() {
             match &ins {
-                Ins::Call(s) => crate::views::helper_count_action(&self.symbols.get(*s)),
+                Ins::Call(s, _) => crate::views::helper_count_action(&self.symbols.get(*s)),
                 _ => None,
             }
         } else {
@@ -841,23 +846,6 @@ impl Func {
         let start = self.body.len();
         if let Some(edge) = Self::edge(ins) {
             self.callees.push(edge);
-        }
-        // A row names the calls after it in byte order, so an anchor written
-        // in one arm of a branch would stand for the calls after the branch
-        // too, and an optimizer that folds the arm away takes it with it:
-        // their frame then had no row and was dropped (#1998). A control
-        // instruction ends an anchor's reach; the next call writes its own.
-        if matches!(
-            ins,
-            Ins::Op(
-                Instruction::Block(_)
-                    | Instruction::Loop(_)
-                    | Instruction::If(_)
-                    | Instruction::Else
-                    | Instruction::End
-            )
-        ) {
-            self.anchored = None;
         }
         self.body.push(ins);
         // Label raw emitter helper calls too. Typed counting overwrites this
@@ -882,16 +870,14 @@ impl Func {
     }
 
     pub fn call(&mut self, s: Sym) {
-        self.anchor();
         let id = self.intern(s);
-        self.push(Ins::Call(id));
+        self.push(Ins::Call(id, self.at));
     }
 
     /// `call_indirect` through the function table, at this signature.
     pub fn call_indirect(&mut self, params: Vec<Val>, results: Vec<Val>) {
-        self.anchor();
         let id = self.symbols.intern_signature(params, results);
-        self.push(Ins::CallIndirect(id));
+        self.push(Ins::CallIndirect(id, self.at));
     }
 
     /// A call of runtime count function `s`, labeled as [`Func::push`]
@@ -915,16 +901,6 @@ impl Func {
             "{}: a count op with no TIR statement or named site",
             self.name
         );
-    }
-
-    /// Writes [`Ins::Anchor`] before a call whose anchor is new.
-    fn anchor(&mut self) {
-        if let Some(at) = self.at
-            && self.anchored != self.at
-        {
-            self.push(Ins::Anchor(at));
-            self.anchored = self.at;
-        }
     }
 
     pub fn helper(&mut self, h: Helper) {
@@ -1673,7 +1649,7 @@ impl Module {
         for f in self.funcs.iter_mut().flatten() {
             for ins in &mut f.body {
                 match ins {
-                    Ins::Call(id) | Ins::TableSlot(id) | Ins::Glue(id) | Ins::DrainGlue(id) => {
+                    Ins::Call(id, _) | Ins::TableSlot(id) | Ins::Glue(id) | Ins::DrainGlue(id) => {
                         rewrite(id);
                     }
                     Ins::Descriptor(id, _) => rewrite(id),
@@ -1715,12 +1691,9 @@ impl Module {
                 k += 1;
                 continue;
             };
-            let mut call = k + 1;
-            while matches!(f.body.get(call), Some(Ins::Anchor(_))) {
-                call += 1;
-            }
+            let call = k + 1;
             let nothing = match f.body.get(call) {
-                Some(Ins::Call(callee)) => match &*self.symbols.get(*callee) {
+                Some(Ins::Call(callee, _)) => match &*self.symbols.get(*callee) {
                     Sym::Helper(Helper::Release { vals, walk })
                         if vals.as_slice() == [Val::I32] =>
                     {
@@ -1986,15 +1959,15 @@ impl Module {
             let outer = f.origin_at;
             for (position, ins) in body.into_iter().enumerate() {
                 f.origin_at = origins.as_ref().and_then(|o| o[position]);
-                if let Ins::Call(id) = ins
+                if let Ins::Call(id, anchor) = ins
                     && let Some(sig) = cold.get(&id)
                 {
                     f.push(Ins::TableSlot(id));
-                    f.push(Ins::CallIndirect(*sig));
+                    f.push(Ins::CallIndirect(*sig, anchor));
                     continue;
                 }
                 let helper = match ins {
-                    Ins::Call(id) => match &*self.symbols.get(id) {
+                    Ins::Call(id, _) => match &*self.symbols.get(id) {
                         Sym::Helper(crate::rt::Helper::CanCancel) => 3,
                         Sym::Helper(crate::rt::Helper::CancellationRoot) => 4,
                         _ => 0,
@@ -2242,7 +2215,7 @@ impl Module {
         for f in self.funcs.iter().flatten() {
             for i in &f.body {
                 match i {
-                    Ins::Call(id)
+                    Ins::Call(id, _)
                     | Ins::TableSlot(id)
                     | Ins::Glue(id)
                     | Ins::DrainGlue(id)
@@ -2590,7 +2563,6 @@ impl Module {
             let mut mapped_instructions = Vec::new();
             let mut mapped_counts = Vec::new();
             let mut count_sites = BTreeSet::new();
-            let mut at = None;
             let mut rows: Vec<(u32, u32)> = Vec::new();
             let (mut map, mut kept) = (vec![None; f.inlined.len()], Vec::new());
             // Instructions already folded into an earlier one's constant.
@@ -2600,7 +2572,7 @@ impl Module {
                     folded -= 1;
                     continue;
                 }
-                if self.track_origins && !matches!(i, Ins::Anchor(_) | Ins::DrainGlue(_)) {
+                if self.track_origins && !matches!(i, Ins::DrainGlue(_)) {
                     mapped_instructions.push(crate::InstructionOrigin {
                         offset: u32::try_from(body.byte_len()).expect("offset"),
                         origin: f.source_origin(f.origins.as_ref().and_then(|o| o[position])),
@@ -2610,7 +2582,7 @@ impl Module {
                     let origin = f.origins.as_ref().and_then(|o| o[position]);
                     let note = origin.and_then(|o| f.count_origin(o));
                     let action = match i {
-                        Ins::Call(s) => {
+                        Ins::Call(s, _) => {
                             crate::views::count_action(&self.symbols.get(*s), &self.runtime)
                                 .or_else(|| {
                                     crate::views::count_action(
@@ -2657,17 +2629,13 @@ impl Module {
                 }
                 // A call at a new anchor starts a row: its offset in the
                 // body, locals included, and the anchor.
-                if let (Ins::Call(_) | Ins::CallIndirect(..), Some(a)) = (i, at) {
+                if let Some(a) = i.call_anchor() {
                     let a = reach(a, &f.inlined, &mut map, &mut kept, &mut paths);
                     if rows.last().is_none_or(|&(_, last)| last != a) {
                         rows.push((u32::try_from(body.byte_len()).expect("offset"), a));
                     }
                 }
                 match i {
-                    Ins::Anchor(a) => {
-                        at = Some(*a);
-                        &mut body
-                    }
                     Ins::Op(op) => body.instruction(&op.to_wasm(&f.labels)),
                     Ins::Static(at) => {
                         if previous.is_some() {
@@ -2682,7 +2650,7 @@ impl Module {
                             body.instruction(&WasmInstruction::I32Const(at.cast_signed()))
                         }
                     }
-                    Ins::Call(c) => body.instruction(&WasmInstruction::Call(
+                    Ins::Call(c, _) => body.instruction(&WasmInstruction::Call(
                         *index.get(*c).ok_or_else(|| undefined(c))?,
                     )),
                     Ins::GlobalGet(g) => body.instruction(&WasmInstruction::GlobalGet(
@@ -2728,7 +2696,7 @@ impl Module {
                         ))
                     }
                     Ins::DrainGlue(_) => &mut body,
-                    Ins::CallIndirect(id) => {
+                    Ins::CallIndirect(id, _) => {
                         let signature = self.symbols.signature(*id);
                         body.instruction(&WasmInstruction::CallIndirect {
                             type_index: ty(&signature.0, &signature.1, &mut types),

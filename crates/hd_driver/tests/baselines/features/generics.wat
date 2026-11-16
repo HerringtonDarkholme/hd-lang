@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $t4 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
@@ -101,28 +101,27 @@
     end
     local.get $t3
     i32.const 16 ;; &"heap-exhausted"
-    local.set $xs
     local.set $t4
+    local.set $xs
     block
       block
         block
-          local.get $t4
+          local.get $xs
           if
-            local.get $t4
+            local.get $xs
             local.get $t2
             local.set $t5
-            local.set $xs
+            local.set $t4
             br 1
           else
-            local.get $t4
+            local.get $xs
             i32.eqz
             br_if 2
             unreachable
           end
           unreachable
         end
-        local.get $xs
-        local.tee $t4
+        local.get $t4
         if
           local.get $t4
           call $retain
@@ -133,8 +132,7 @@
     local.get $t3
     local.get $t2
     call $rt:release
-    local.get $xs
-    local.tee $t4
+    local.get $t4
     if
       local.get $t4
       call $rt:release_ref'2
@@ -178,7 +176,6 @@
     i32.load $heap offset=4
     local.set $s.0
     local.get $t4
-    local.tee $t4
     if
       local.get $t4
       i32.const 8

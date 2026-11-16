@@ -3320,7 +3320,7 @@ mod discarded_tests {
                 }
                 let body = crate::rt::helper(&helper, &mut module);
                 for instruction in &body.body {
-                    if let Ins::Call(symbol) = instruction
+                    if let Ins::Call(symbol, _) = instruction
                         && let Sym::Helper(callee) = &*body.symbols.get(*symbol)
                     {
                         pending.push(callee.clone());

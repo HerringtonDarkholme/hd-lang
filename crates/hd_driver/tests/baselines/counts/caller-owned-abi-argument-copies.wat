@@ -52,21 +52,20 @@
     i32.const 33
     i32.store8 $heap
     local.get $t2
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref
     end
     local.get $t5
     local.get $h
-    local.tee $t1
+    local.tee $t2
     if
-      local.get $t1
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t2
         call $rt:retain_known
       end
     end
@@ -78,27 +77,26 @@
     local.get $t0
     call $"impl[S] Source[S] for Seeds.member[(string, i32), string]"
     drop
-    local.set $t1
+    local.set $t2
     local.get $t3
     local.get $t0
     call $rt:release
     ;; ...
   )
-  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32) (local $t0 i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
     i32.const 7
     local.set $t0
     ;; ...
     local.get $h
-    local.tee $t1
     if
-      local.get $t1
+      local.get $h
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $h
         call $rt:retain_known
       end
     end

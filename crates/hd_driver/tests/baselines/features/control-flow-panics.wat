@@ -121,17 +121,16 @@
       unreachable
     ;; 19 |     if n < 0:
       local.get $n
-      local.tee $s.0
       if
-        local.get $s.0
+        local.get $n
         call $rt:release_ref
       end
     end
     ;; 18 |     t := s + "!"
     local.get $t.0
-    local.tee $s.0
+    local.tee $n
     if
-      local.get $s.0
+      local.get $n
       call $rt:release_ref
     end
     local.get $t.1

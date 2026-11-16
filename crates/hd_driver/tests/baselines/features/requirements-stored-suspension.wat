@@ -1542,7 +1542,6 @@
     local.set $t0
     local.set $t1
     local.get $key.0
-    local.tee $key.0
     if
       local.get $key.0
       i32.const 8

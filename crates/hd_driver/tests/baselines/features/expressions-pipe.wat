@@ -319,9 +319,8 @@
       local.get $t1
       return
       local.get $t2
-      local.tee $raw.0
       if
-        local.get $raw.0
+        local.get $t2
         call $rt:release_ref
       end
     end

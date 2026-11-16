@@ -38,7 +38,7 @@
       i32.add
     end
   )
-  (func $nested_sum (param $seed i32) (param $limit i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $nested_sum (param $seed i32) (param $limit i32) (result i32) (local $t0 i32)
     ;; 12 |     sum(limit)
     i32.const 1
     i32.const 4
@@ -50,28 +50,26 @@
     ;; (no span)
     local.set $seed
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:retain_known
       end
     end
     ;; 12 |     sum(limit)
     local.get $t0
-    ;; (no span)
-    local.tee $t1
     if
-      local.get $t1
+    ;; (no span)
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
     end
@@ -81,14 +79,13 @@
     local.get $seed
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.get $t0
-    local.tee $t1
     if
-      local.get $t1
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t1
+        local.get $t0
         call $rt:release_ref
       end
     end

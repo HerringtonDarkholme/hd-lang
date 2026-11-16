@@ -49,7 +49,6 @@
       end
     end
     local.get $text.0
-    local.tee $text.0
     if
       local.get $text.0
       i32.const 8

@@ -444,7 +444,7 @@ impl Em<'_, '_, '_> {
                         ops: ops.clone(),
                         probe: true,
                     }));
-                    self.f.body[call] = Ins::Call(symbol);
+                    self.f.body[call] = Ins::Call(symbol, self.f.body[call].call_anchor());
                     self.f.body[slot] = Ins::Op(I::LocalTee(probe.hash));
                 }
                 (self.map_key_locals(args[1], &e)?, probe.hash, probe.entry)

@@ -110,7 +110,6 @@
       end
     end
     local.get $provider0.vtable
-    local.tee $provider0.vtable
     if
       local.get $provider0.vtable
       i32.const 8

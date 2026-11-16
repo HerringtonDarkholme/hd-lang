@@ -1777,7 +1777,7 @@ mod tests {
                 .body
                 .iter()
                 .filter_map(|instruction| {
-                    if let Ins::Call(symbol) = instruction {
+                    if let Ins::Call(symbol, _) = instruction {
                         Some((*function.symbol(*symbol)).clone())
                     } else {
                         None

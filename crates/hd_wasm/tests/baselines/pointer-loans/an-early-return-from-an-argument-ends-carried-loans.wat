@@ -333,14 +333,13 @@
         local.set $t6
       end
       local.get $t5
-      local.tee $t0
       if
-        local.get $t0
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t0
+          local.get $t5
           call $rt:release_ref
         end
       end

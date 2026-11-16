@@ -251,17 +251,16 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $c
+      local.tee $a.0
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref'1
       end
     else
       local.get $b.0
       local.get $a.0
-      local.tee $c
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref'1
       end
       local.get $b.1

@@ -9,12 +9,11 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
+  (func $holder (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
     ;; 18 |     Holder { store: $.use(Store) }
     local.get $provider0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $provider0
       call $retain
     end
     local.get $provider0
@@ -188,12 +187,11 @@
     end
     local.get $t0
   )
-  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
+  (func $keep (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32)
     ;; 15 |     $.use(Store)
     local.get $provider0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $provider0
       call $retain
     end
     local.get $provider0

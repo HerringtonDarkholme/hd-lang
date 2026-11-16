@@ -131,13 +131,12 @@
     local.get $b.0
     ;; 14 |     match k:
     local.get $a.0
-    local.tee $a.0
     if
       local.get $a.0
       call $rt:release_ref
     end
-    local.set $a.0
-    local.get $a.0
+    local.set $a.1
+    local.get $a.1
     local.get $b.1
   )
   (func $pick (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
@@ -146,17 +145,16 @@
     if (result i32)
       local.get $a.0
       local.get $b.0
-      local.tee $c
+      local.tee $a.0
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref
       end
     else
       local.get $b.0
       local.get $a.0
-      local.tee $c
       if
-        local.get $c
+        local.get $a.0
         call $rt:release_ref
       end
       local.get $b.1

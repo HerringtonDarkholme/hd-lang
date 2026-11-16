@@ -190,18 +190,17 @@
     local.get $l.name.1
     call $"impl string.len"
     local.get $t0
-    local.tee $l.name.1
     if
-      local.get $l.name.1
+      local.get $t0
       call $rt:release_ref
     end
-    local.set $t0
+    local.set $l.name.1
     local.get $l.name.0
-    local.tee $l.name.1
+    local.tee $t0
     if
-      local.get $l.name.1
+      local.get $t0
       call $rt:release_ref
     end
-    local.get $t0
+    local.get $l.name.1
   )
 )

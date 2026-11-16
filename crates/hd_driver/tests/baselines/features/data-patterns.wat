@@ -10,30 +10,25 @@
     local.set $u.name.1
     block
       block
-        block
     ;; 17 |         User { age: 0 } => "none"
-          local.get $u.age
-          i32.eqz
-          br_if 0
-          br 1
-    ;; 16 |     match u:
-          unreachable
-        end
-        i32.const 65 ;; &"none"
-        i32.const 4
-        local.set $u.name.0
-        local.set $u.name.1
+        local.get $u.age
+        i32.eqz
+        br_if 0
         br 1
-      end
-    ;; 18 |         User { name } => name
-      local.get $u.name.1
-      local.tee $u.tags
-      if
-        local.get $u.tags
-        call $retain
-      end
     ;; 16 |     match u:
+        unreachable
+      end
+      i32.const 65 ;; &"none"
+      i32.const 4
+      return
     end
+    ;; 18 |         User { name } => name
+    local.get $u.name.1
+    if
+      local.get $u.name.1
+      call $retain
+    end
+    ;; 16 |     match u:
     local.get $u.name.1
     local.get $u.name.0
   )

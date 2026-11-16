@@ -22,28 +22,27 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 22 funcref))
-  (func $construct (param $key.0 i32) (param $key.1 i32) (result i32) (local $t0 i32)
+  (func $construct (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 11 |     _ := fetch(key)
     local.get $key.0
-    local.tee $t0
     if
-      local.get $t0
+      local.get $key.0
       call $retain
     end
     local.get $key.0
     local.get $key.1
     call $fetch'1
     ;; 12 |     key.len()
-    local.tee $t0
+    local.tee $key.0
     if
-      local.get $t0
+      local.get $key.0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $key.0
         call $rt:release_ref'1
       end
     end
@@ -981,7 +980,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $key.0
-            local.tee $key.0
             if
               local.get $key.0
               call $rt:release_ref'2

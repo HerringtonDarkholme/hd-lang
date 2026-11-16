@@ -299,9 +299,9 @@
     else
       local.get $t2
       i32.load $heap offset=4
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         call $retain
       end
       local.get $t2
@@ -437,9 +437,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $word.0
-            local.tee $ctx
+            local.tee $env
             if
-              local.get $ctx
+              local.get $env
               call $rt:release_ref'1
             end
           end
@@ -508,9 +508,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $word.1
-          local.tee $ctx
+          local.tee $env
           if
-            local.get $ctx
+            local.get $env
             call $rt:release_ref'1
           end
         end
@@ -547,16 +547,15 @@
       local.get $env
       call $"impl string.len"
       local.get $env
-      local.tee $ctx
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -568,16 +567,16 @@
       i32.store $heap offset=12
       i32.load $heap offset=4
       local.get $word.0
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -586,23 +585,23 @@
     end
     local.get $t2
     i32.load $heap offset=4
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       call $rt:release_ref'1
     end
     local.get $t2
     i32.load $heap offset=12
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $ctx
+        local.get $env
         call $rt:release_ref'2
       end
     end
@@ -903,9 +902,9 @@
     else
       local.get $t2
       i32.load $heap offset=4
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         call $retain
       end
       local.get $t2
@@ -1041,9 +1040,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $word.0
-            local.tee $ctx
+            local.tee $env
             if
-              local.get $ctx
+              local.get $env
               call $rt:release_ref'1
             end
           end
@@ -1112,9 +1111,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $word.1
-          local.tee $ctx
+          local.tee $env
           if
-            local.get $ctx
+            local.get $env
             call $rt:release_ref'1
           end
         end
@@ -1151,16 +1150,15 @@
       local.get $env
       call $"impl string.len"
       local.get $env
-      local.tee $ctx
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -1172,16 +1170,16 @@
       i32.store $heap offset=12
       i32.load $heap offset=4
       local.get $word.0
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -1190,23 +1188,23 @@
     end
     local.get $t2
     i32.load $heap offset=4
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       call $rt:release_ref'1
     end
     local.get $t2
     i32.load $heap offset=12
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $ctx
+        local.get $env
         call $rt:release_ref'2
       end
     end
@@ -1422,7 +1420,7 @@
     end
     local.get $t0
   )
-  (func $stored'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (param $keys i32) (result i32 i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $stored'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (param $keys i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $locals
     global.get $locals_base
@@ -1590,9 +1588,8 @@
             i32.eqz
             if
               local.get $t3
-              local.tee $t4
               if
-                local.get $t4
+                local.get $t3
                 call $retain
               end
             end
@@ -1661,9 +1658,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t3
-              local.tee $t4
               if
-                local.get $t4
+                local.get $t3
                 call $rt:release_ref'1
               end
             end
@@ -1733,24 +1729,24 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $keys
-          local.tee $t4
+          local.tee $t3
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref'1
           end
         end
         local.get $t2
         i32.load $heap offset=12
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref'2
           end
         end
@@ -1761,9 +1757,9 @@
         i32.store $heap offset=12
         local.get $t2
         i32.load $heap offset=16
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref'1
         end
         local.get $t2
@@ -1771,16 +1767,16 @@
         i32.store $heap offset=16
         local.get $t2
         i32.load $heap offset=20
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref'2
           end
         end
@@ -1789,16 +1785,16 @@
         i32.store $heap offset=20
         local.get $t2
         i32.load $heap offset=24
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t4
+            local.get $t3
             call $rt:release_ref'2
           end
         end
@@ -1808,22 +1804,22 @@
         i32.const 0
         local.set $key.1
         i32.const 1
-        local.set $t5
+        local.set $t4
         br 1
       end
     ;; 9 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
       local.get $t2
       i32.load $heap offset=24
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref'2
         end
       end
@@ -1834,16 +1830,16 @@
       i32.store $heap offset=24
       local.get $t2
       i32.load $heap offset=20
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref'2
         end
       end
@@ -1852,9 +1848,9 @@
       i32.store $heap offset=20
       local.get $t2
       i32.load $heap offset=16
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref'1
       end
       local.get $t2
@@ -1862,16 +1858,16 @@
       i32.store $heap offset=16
       local.get $t2
       i32.load $heap offset=12
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref'2
         end
       end
@@ -1881,23 +1877,23 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $t4
+    local.tee $t3
     if
-      local.get $t4
+      local.get $t3
       call $rt:release_ref'1
     end
     local.get $t2
     i32.load $heap offset=8
-    local.tee $t4
+    local.tee $t3
     if
-      local.get $t4
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref'2
       end
     end
@@ -1911,7 +1907,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t5
+    local.get $t4
     if (result i32)
       local.get $frame
       local.get $frame
@@ -2190,9 +2186,9 @@
     else
       local.get $t2
       i32.load $heap offset=4
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         call $retain
       end
       local.get $t2
@@ -2328,9 +2324,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $word.0
-            local.tee $ctx
+            local.tee $env
             if
-              local.get $ctx
+              local.get $env
               call $rt:release_ref'1
             end
           end
@@ -2399,9 +2395,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $word.1
-          local.tee $ctx
+          local.tee $env
           if
-            local.get $ctx
+            local.get $env
             call $rt:release_ref'1
           end
         end
@@ -2438,16 +2434,15 @@
       local.get $env
       call $"impl string.len"
       local.get $env
-      local.tee $ctx
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -2459,16 +2454,16 @@
       i32.store $heap offset=12
       i32.load $heap offset=4
       local.get $word.0
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -2477,23 +2472,23 @@
     end
     local.get $t2
     i32.load $heap offset=4
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       call $rt:release_ref'1
     end
     local.get $t2
     i32.load $heap offset=12
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $ctx
+        local.get $env
         call $rt:release_ref'2
       end
     end
@@ -2709,7 +2704,7 @@
     end
     local.get $t0
   )
-  (func $live'1 (param $frame i32) (param $t5 i32) (param $size i32) (param $keys i32) (result i32 i32) (local $t4 i32) (local $t7 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t6 i32) (local $t3 i32)
+  (func $live'1 (param $frame i32) (param $t5 i32) (param $size i32) (param $keys i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     global.get $locals
     global.get $locals_base
@@ -2875,9 +2870,9 @@
             i32.eqz
             if
               local.get $t4
-              local.tee $t6
+              local.tee $t5
               if
-                local.get $t6
+                local.get $t5
                 call $retain
               end
             end
@@ -2946,9 +2941,9 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t4
-              local.tee $t6
+              local.tee $t5
               if
-                local.get $t6
+                local.get $t5
                 call $rt:release_ref'1
               end
             end
@@ -3018,9 +3013,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $keys
-          local.tee $t6
+          local.tee $t5
           if
-            local.get $t6
+            local.get $t5
             call $rt:release_ref'1
           end
         end
@@ -3028,16 +3023,16 @@
         local.set $t4
         local.get $t2
         i32.load $heap offset=8
-        local.tee $t6
+        local.tee $t5
         if
-          local.get $t6
+          local.get $t5
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t5
             call $rt:release_ref'2
           end
         end
@@ -3048,16 +3043,16 @@
         i32.store $heap offset=8
         local.get $t2
         i32.load $heap offset=12
-        local.tee $t6
+        local.tee $t5
         if
-          local.get $t6
+          local.get $t5
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t6
+            local.get $t5
             call $rt:release_ref'2
           end
         end
@@ -3065,21 +3060,21 @@
         local.get $keys
         i32.store $heap offset=12
         i32.const 1
-        local.set $t7
+        local.set $t6
         br 1
       end
       local.get $t2
       i32.load $heap offset=12
-      local.tee $t6
+      local.tee $t5
       if
-        local.get $t6
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'2
         end
       end
@@ -3090,16 +3085,16 @@
       i32.store $heap offset=12
       local.get $t2
       i32.load $heap offset=8
-      local.tee $t6
+      local.tee $t5
       if
-        local.get $t6
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'2
         end
       end
@@ -3113,16 +3108,16 @@
       local.set $t4
       local.get $t2
       i32.load $heap offset=4
-      local.tee $t6
+      local.tee $t5
       if
-        local.get $t6
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'2
         end
       end
@@ -3140,16 +3135,15 @@
       i32.store $heap
       i32.load $heap offset=4
       local.get $t5
-      local.tee $t6
       if
-        local.get $t6
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'2
         end
       end
@@ -3159,31 +3153,31 @@
     end
     local.get $t2
     i32.load $heap offset=4
-    local.tee $t6
+    local.tee $t5
     if
-      local.get $t6
+      local.get $t5
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t5
         call $rt:release_ref'2
       end
     end
     local.get $t2
     i32.load $heap
-    local.tee $t6
+    local.tee $t5
     if
-      local.get $t6
+      local.get $t5
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t6
+        local.get $t5
         call $rt:release_ref'2
       end
     end
@@ -3197,7 +3191,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t7
+    local.get $t6
     if (result i32)
       local.get $frame
       local.get $frame

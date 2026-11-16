@@ -107,9 +107,9 @@
       local.set $t4
     else
       local.get $t5
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         call $retain
       end
       i32.const 8
@@ -243,9 +243,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t6
-            local.tee $ctx
+            local.tee $env
             if
-              local.get $ctx
+              local.get $env
               call $rt:release_ref'1
             end
           end
@@ -314,9 +314,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $env
-          local.tee $ctx
           if
-            local.get $ctx
+            local.get $env
             call $rt:release_ref'1
           end
         end
@@ -334,16 +333,16 @@
     ;; 8 |     fn!(text: string) -> usize $ Clock:
       local.get $t2
       i32.load $heap offset=8
-      local.tee $ctx
+      local.tee $env
       if
-        local.get $ctx
+        local.get $env
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $ctx
+          local.get $env
           call $rt:release_ref'2
         end
       end
@@ -353,16 +352,16 @@
     end
     local.get $t2
     i32.load $heap offset=8
-    local.tee $ctx
+    local.tee $env
     if
-      local.get $ctx
+      local.get $env
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $ctx
+        local.get $env
         call $rt:release_ref'2
       end
     end

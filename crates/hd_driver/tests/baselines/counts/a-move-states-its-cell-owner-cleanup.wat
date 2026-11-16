@@ -227,9 +227,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $provider0
-              local.tee $provider1.vtable
               if
-                local.get $provider1.vtable
+                local.get $provider0
                 call $rt:release_ref'1
               end
             end
@@ -299,9 +298,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t4
-            local.tee $provider1.vtable
+            local.tee $provider0
             if
-              local.get $provider1.vtable
+              local.get $provider0
               call $rt:release_ref'1
             end
           end
@@ -413,9 +412,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $provider0
-            local.tee $provider1.vtable
             if
-              local.get $provider1.vtable
+              local.get $provider0
               call $rt:release_ref'1
             end
           end
@@ -483,9 +481,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0.vtable
-          local.tee $provider1.vtable
+          local.tee $provider0
           if
-            local.get $provider1.vtable
+            local.get $provider0
             call $rt:release_ref'1
           end
         end
@@ -915,9 +913,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $provider0
-            local.tee $provider0.vtable
             if
-              local.get $provider0.vtable
+              local.get $provider0
               call $rt:release_ref'1
             end
           end
@@ -987,9 +984,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.tee $provider0.vtable
           if
-            local.get $provider0.vtable
+            local.get $provider0
             call $rt:release_ref'1
           end
         end
@@ -1020,16 +1016,16 @@
       i32.store $heap offset=4
       local.get $t2
       i32.load $heap offset=8
-      local.tee $provider0.vtable
+      local.tee $provider0
       if
-        local.get $provider0.vtable
+        local.get $provider0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0.vtable
+          local.get $provider0
           call $rt:release_ref'2
         end
       end
@@ -1042,16 +1038,16 @@
     end
     local.get $t2
     i32.load $heap offset=8
-    local.tee $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0.vtable
+        local.get $provider0
         call $rt:release_ref'2
       end
     end
@@ -1537,9 +1533,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $provider0
-            local.tee $provider0.vtable
             if
-              local.get $provider0.vtable
+              local.get $provider0
               call $rt:release_ref'1
             end
           end
@@ -1608,9 +1603,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.tee $provider0.vtable
           if
-            local.get $provider0.vtable
+            local.get $provider0
             call $rt:release_ref'1
           end
         end
@@ -1627,16 +1621,16 @@
       local.set $t5
       local.get $t2
       i32.load $heap offset=8
-      local.tee $provider0.vtable
+      local.tee $provider0
       if
-        local.get $provider0.vtable
+        local.get $provider0
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0.vtable
+          local.get $provider0
           call $rt:release_ref'2
         end
       end
@@ -1647,16 +1641,16 @@
     end
     local.get $t2
     i32.load $heap offset=8
-    local.tee $provider0.vtable
+    local.tee $provider0
     if
-      local.get $provider0.vtable
+      local.get $provider0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0.vtable
+        local.get $provider0
         call $rt:release_ref'2
       end
     end

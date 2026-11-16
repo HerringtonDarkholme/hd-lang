@@ -180,9 +180,9 @@
             i32.store $heap offset=28
             local.get $t2
             i32.load $heap offset=12
-            local.tee $reader.0
+            local.tee $t3
             if
-              local.get $reader.0
+              local.get $t3
               call $retain
             end
             local.get $values
@@ -191,9 +191,9 @@
             i32.load $heap offset=4
             call_indirect $table0 (param i32 i32 i32) (result i32 i32)
             local.get $values
-            local.tee $reader.0
+            local.tee $t3
             if
-              local.get $reader.0
+              local.get $t3
               call $rt:release_ref'1
             end
             local.set $values
@@ -274,9 +274,8 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $t3
-              local.tee $reader.0
               if
-                local.get $reader.0
+                local.get $t3
                 call $rt:release_ref'1
               end
             end
@@ -346,9 +345,9 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $t4
-          local.tee $reader.0
+          local.tee $t3
           if
-            local.get $reader.0
+            local.get $t3
             call $rt:release_ref'1
           end
         end
@@ -360,9 +359,9 @@
       end
       local.get $t2
       i32.load $heap
-      local.tee $reader.0
+      local.tee $t3
       if
-        local.get $reader.0
+        local.get $t3
         call $rt:release_ref'1
       end
       local.get $t2
@@ -374,23 +373,23 @@
     end
     local.get $t2
     i32.load $heap
-    local.tee $reader.0
+    local.tee $t3
     if
-      local.get $reader.0
+      local.get $t3
       call $rt:release_ref'1
     end
     local.get $t2
     i32.load $heap offset=8
-    local.tee $reader.0
+    local.tee $t3
     if
-      local.get $reader.0
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $reader.0
+        local.get $t3
         call $rt:release_ref'2
       end
     end
@@ -692,51 +691,50 @@
     i32.or
     global.set $rewake
     local.get $t1
-    local.tee $t4
     if
-      local.get $t4
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t4
+        local.get $t1
         call $rt:release_ref'2
       end
     end
     ;; 27 |     _ := block_on(dynamic(box(reader), ["dynamic"]))
     local.get $reader
     i32.load $heap
-    local.set $t4
+    local.set $t1
     i32.const 4
     i32.const 0
     call $rt:new/class-1
-    local.tee $reader
-    local.get $t4
+    local.tee $t4
+    local.get $t1
     i32.store $heap
     i32.const 1
     call $rt:list_buf
-    local.tee $t4
+    local.tee $t1
     i32.const 1
     i32.store $heap offset=4
-    local.get $t4
+    local.get $t1
     i32.const 116 ;; &"dynamic"
     i32.store $heap offset=16
-    local.get $t4
+    local.get $t1
     i32.const 7
     i32.store $heap offset=20
     call $rt:forbid_check
     i32.const 0
-    local.get $reader
-    i32.const 508 ;; &vtable[rt:dyn_slot, rt:drive]
     local.get $t4
+    i32.const 508 ;; &vtable[rt:dyn_slot, rt:drive]
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $dynamic'1
-    local.set $t4
+    local.set $t1
     drop
-    local.get $t4
+    local.get $t1
     local.tee $provider0
     i32.eqz
     local.set $provider0.vtable
@@ -768,16 +766,16 @@
     i32.or
     global.set $rewake
     ;; 25 |     reader := Reader { padding: 0 }
-    local.get $t4
+    local.get $t1
     if
-      local.get $t4
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t4
+        local.get $t1
         call $rt:release_ref'2
       end
     end
@@ -973,9 +971,8 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $self
-            local.tee $provider0
             if
-              local.get $provider0
+              local.get $self
               call $rt:release_ref'1
             end
           end
@@ -1044,9 +1041,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $self
-          local.tee $provider0
           if
-            local.get $provider0
+            local.get $self
             call $rt:release_ref'1
           end
         end
@@ -1067,39 +1063,40 @@
       local.set $values
     ;; 15 |         sleep!(ms(1))
       local.get $provider0
+      local.tee $self
       if
-        local.get $provider0
+        local.get $self
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $provider0
+          local.get $self
           call $rt:release_ref'2
         end
       end
     end
     local.get $t2
     i32.load $heap offset=4
-    local.tee $provider0
+    local.tee $self
     if
-      local.get $provider0
+      local.get $self
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $provider0
+        local.get $self
         call $rt:release_ref'2
       end
     end
     local.get $t2
     i32.load $heap offset=16
-    local.tee $provider0
+    local.tee $self
     if
-      local.get $provider0
+      local.get $self
       call $rt:release_ref'1
     end
     local.get $values
@@ -1538,7 +1535,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $values
-            local.tee $values
             if
               local.get $values
               call $rt:release_ref'1

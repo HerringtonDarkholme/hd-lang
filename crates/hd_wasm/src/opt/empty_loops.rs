@@ -204,7 +204,7 @@ mod tests {
             assert!(run(&mut f));
         }
         let mut body = finite(1);
-        body.insert(7, Ins::Call(crate::module::SymId(0)));
+        body.insert(7, Ins::Call(crate::module::SymId(0), None));
         let mut f = function(body, 1);
         assert!(!run(&mut f));
     }

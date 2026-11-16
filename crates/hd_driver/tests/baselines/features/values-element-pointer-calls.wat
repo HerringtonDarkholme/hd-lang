@@ -166,7 +166,6 @@
     i32.store $heap
     i32.load $heap offset=4
     local.get $root
-    local.tee $root
     if
       local.get $root
       i32.const 8

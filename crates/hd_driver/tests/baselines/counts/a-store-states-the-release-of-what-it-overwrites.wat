@@ -34,7 +34,6 @@
       i32.add
       call $make
       local.get $s.0
-      local.tee $s.0
       if
         local.get $s.0
         call $rt:release_ref

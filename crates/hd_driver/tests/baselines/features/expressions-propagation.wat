@@ -37,7 +37,6 @@
     end
     local.set $t0
     local.get $path.0
-    local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
@@ -92,7 +91,6 @@
     end
     local.set $t0
     local.get $path.0
-    local.tee $path.0
     if
       local.get $path.0
       call $rt:release_ref
@@ -136,7 +134,6 @@
       i32.const 47
       i32.store8 $heap
       local.get $path.0
-      local.tee $path.0
       if
         local.get $path.0
         call $rt:release_ref

@@ -41,7 +41,6 @@
     local.set $t0
     drop
     local.get $t0
-    local.tee $t0
     if
       local.get $t0
       i32.const 8
@@ -76,17 +75,16 @@
       local.set $t1
     end
     local.get $t1
-    if
+    if (result i32)
       i32.const 152 ;; &"true"
       i32.const 4
       local.set $t1
-      local.set $t2
     else
       i32.const 156 ;; &"false"
       i32.const 5
       local.set $t1
-      local.set $t2
     end
+    local.set $t2
     local.get $forest
     call $count
     i64.extend_i32_u
@@ -96,7 +94,6 @@
     local.get $t0
     i32.load $heap offset=4
     local.get $t0
-    local.tee $t0
     if
       local.get $t0
       i32.const 8

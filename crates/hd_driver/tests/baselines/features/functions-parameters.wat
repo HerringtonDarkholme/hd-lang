@@ -138,7 +138,7 @@
     local.get $t.name.1
     local.get $t.tags
   )
-  (func $kept_after (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32)
+  (func $kept_after (param $t.name.0 i32) (param $t.name.1 i32) (param $t.tags i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 24 |     u := bumped(t, s)
     local.get $t.name.0
     local.get $t.tags
@@ -191,7 +191,6 @@
     ;; 24 |     u := bumped(t, s)
     local.get $t1
     ;; 25 |     u.tags.len() + t.tags.len()
-    local.tee $t1
     if
       local.get $t1
       i32.const 8

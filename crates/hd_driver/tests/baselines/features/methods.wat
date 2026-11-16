@@ -177,7 +177,6 @@
     i32.div_u
     local.set $b.1
     local.get $s
-    local.tee $s
     if
       local.get $s
       i32.const 8
@@ -201,7 +200,6 @@
     i32.load $heap offset=4
     local.set $b.1
     local.get $s
-    local.tee $s
     if
       local.get $s
       i32.const 8

@@ -163,21 +163,14 @@ pub(crate) fn lower(f: &mut Func, mut allocate: impl FnMut(&[u8], u32) -> u32) -
     if f.raw.is_some() || !f.body.iter().any(|i| matches!(i, Ins::Op(I::If(_)))) {
         return false;
     }
-    let semantic: Vec<_> = f
-        .body
-        .iter()
-        .enumerate()
-        .filter(|(_, i)| !matches!(i, Ins::Anchor(_)))
-        .map(|(at, i)| (at, *i))
-        .collect();
-    let body: Vec<_> = semantic.iter().map(|(_, i)| *i).collect();
-    let spans = links(&body);
+    let body = &f.body;
+    let spans = links(body);
     let mut plans = Vec::new();
     let mut at = 0;
     while at < body.len() {
-        if let Some(found) = choice(&body, &spans, at) {
+        if let Some(found) = choice(body, &spans, at) {
             let end = found.end;
-            plans.push((semantic[at].0, semantic[end].0 + 1, found));
+            plans.push((at, end + 1, found));
             at = end + 1;
         } else {
             at += 1;

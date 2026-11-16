@@ -184,7 +184,6 @@
             end
     ;; 26 |     for round in 0..2:
             local.get $t6
-            local.tee $t6
             if
               local.get $t6
               call $rt:release_ref'1
@@ -516,7 +515,6 @@
             end
     ;; 26 |     for round in 0..2:
             local.get $t3
-            local.tee $t3
             if
               local.get $t3
               call $rt:release_ref'1

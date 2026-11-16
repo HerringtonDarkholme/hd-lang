@@ -56,7 +56,7 @@ enum Kind {
 }
 
 fn kind(f: &Func, ins: &Ins, c: Counts) -> Option<Kind> {
-    let Ins::Call(id) = ins else {
+    let Ins::Call(id, _) = ins else {
         return None;
     };
     match &*f.symbol(*id) {
@@ -77,6 +77,7 @@ pub(crate) fn lower(f: &mut Func, c: Counts) -> bool {
     let body = std::mem::take(&mut f.body);
     let origins = f.origins.as_mut().map(std::mem::take);
     let outer = f.origin_at;
+    let outer_anchor = f.at;
     let close = |f: &mut Func| {
         if let Some(skipped) = c.skipped {
             f.op(I::Else);
@@ -86,6 +87,7 @@ pub(crate) fn lower(f: &mut Func, c: Counts) -> bool {
     };
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
+        f.at = ins.call_anchor();
         let Some(form) = kind(f, &ins, c) else {
             f.push(ins);
             continue;
@@ -112,5 +114,6 @@ pub(crate) fn lower(f: &mut Func, c: Counts) -> bool {
         close(f);
     }
     f.origin_at = outer;
+    f.at = outer_anchor;
     true
 }

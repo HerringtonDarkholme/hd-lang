@@ -114,7 +114,6 @@
           i32.load $heap offset=16
           local.set $i
           local.get $t1
-          local.tee $t1
           if
             local.get $t1
             i32.const 8

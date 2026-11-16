@@ -250,7 +250,7 @@ fn local_only(ins: &Ins) -> bool {
                 | I::I32Eqz
                 | I::I32Eq
                 | I::I32Ne,
-        ) | Ins::Anchor(_)
+        )
     )
 }
 
@@ -474,7 +474,7 @@ impl Facts {
         let produced = |at: usize, depth: usize| {
             let at = producer(&f.body, at, depth, arity, &f.symbols);
             let from = at.and_then(|(p, _)| match f.body[p] {
-                Ins::Call(id) => Some(id.idx()),
+                Ins::Call(id, _) => Some(id.idx()),
                 _ => None,
             });
             Produced {
@@ -489,7 +489,7 @@ impl Facts {
                 facts.writes_read.extend(produced(at, 0).from);
                 continue;
             }
-            let Ins::Call(id) = ins else { continue };
+            let Ins::Call(id, _) = ins else { continue };
             if !joins.is_empty() {
                 facts.writes_read.insert(id.idx());
             }
@@ -936,7 +936,7 @@ fn zero_releases(f: &mut Func) -> bool {
 fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
     let symbols = f.symbols.clone();
     let release_width = |ins: &Ins| {
-        let Ins::Call(id) = ins else {
+        let Ins::Call(id, _) = ins else {
             return None;
         };
         match &*symbols.get(*id) {
@@ -1154,9 +1154,6 @@ fn decide_block(
         if let Some(n) = release_width(ins) {
             let mut args = Vec::new();
             for p in (0..at).rev() {
-                if matches!(f.body[p], Ins::Anchor(_)) {
-                    continue;
-                }
                 if args.len() == n || !zeros.pushes(&f.body[p]) {
                     break;
                 }
@@ -1169,9 +1166,7 @@ fn decide_block(
                 }
             }
         } else if let Ins::Op(I::If(wasm_encoder::BlockType::Empty)) = ins
-            && let Some(p) = (0..at)
-                .rev()
-                .find(|&p| !matches!(f.body[p], Ins::Anchor(_)))
+            && let Some(p) = at.checked_sub(1)
             && matches!(f.body[p], Ins::Op(I::LocalGet(_)))
             && zeros.pushes(&f.body[p])
             && let Some(end) = block_end(&f.body, at)
@@ -2282,9 +2277,7 @@ fn guard_end(b: &[Ins], at: usize) -> Option<usize> {
     for (j, i) in b.iter().enumerate().skip(at + 1) {
         match i {
             Ins::Op(I::End) => return matches!(b[j - 1], Ins::Op(I::Unreachable)).then_some(j),
-            Ins::Op(I::Unreachable | I::I32Const(_) | I::I64Const(_))
-            | Ins::Call(_)
-            | Ins::Anchor(_) => {}
+            Ins::Op(I::Unreachable | I::I32Const(_) | I::I64Const(_)) | Ins::Call(_, _) => {}
             _ => return None,
         }
     }
@@ -2337,7 +2330,7 @@ fn forward_with(f: &mut Func, np: u32, mut visit: impl FnMut()) -> bool {
         if let Ins::GlobalSet(global) = p {
             global_writes.insert(global, k);
         }
-        if matches!(p, Ins::Call(_) | Ins::CallIndirect(_)) {
+        if matches!(p, Ins::Call(_, _) | Ins::CallIndirect(_, _)) {
             call = k;
         }
         if ends_run(&p) {
@@ -2629,13 +2622,7 @@ pub(crate) fn drops(f: &mut Func) -> bool {
             continue;
         }
         let end = matches!(ins, Ins::Op(I::If(wasm_encoder::BlockType::Empty)))
-            .then(|| {
-                k + 1
-                    + b[k + 1..]
-                        .iter()
-                        .take_while(|i| matches!(i, Ins::Anchor(_)))
-                        .count()
-            })
+            .then_some(k + 1)
             .filter(|&e| matches!(b.get(e), Some(Ins::Op(I::End))));
         if end.is_some() {
             empty_end = end;
@@ -2645,15 +2632,9 @@ pub(crate) fn drops(f: &mut Func) -> bool {
             origins.copy(k..k + 1);
             continue;
         }
-        // The values still to drop, the last one on top. An anchor writes
-        // no code, so the search looks past it and keeps it.
+        // The values still to drop, the last one on top.
         let mut n = 1usize;
-        let mut anchors = Vec::new();
         while n > 0 {
-            while let Some(&a @ Ins::Anchor(_)) = out.last() {
-                out.pop();
-                anchors.push((a, origins.pop()));
-            }
             let Some(last) = out.last() else { break };
             let operands = match last {
                 Ins::Op(I::LocalTee(t)) => {
@@ -2681,10 +2662,6 @@ pub(crate) fn drops(f: &mut Func) -> bool {
             origins.pop();
             n = n - 1 + operands;
             changed = true;
-        }
-        for (a, origin) in anchors.into_iter().rev() {
-            out.push(a);
-            origins.repeat(origin, 1);
         }
         for _ in 0..n {
             out.push(Ins::Op(I::Drop));
@@ -2986,7 +2963,7 @@ fn schedule_locals(f: &mut Func, np: u32, arity: &Arity, visit: &mut impl FnMut(
             local_write[l as usize] = Some(i);
         } else if let Ins::GlobalSet(g) = f.body[i] {
             global_write.insert(g, i);
-        } else if matches!(f.body[i], Ins::Call(_) | Ins::CallIndirect(_)) {
+        } else if matches!(f.body[i], Ins::Call(_, _) | Ins::CallIndirect(_, _)) {
             call = Some(i);
         }
         stack.advance(i, effect(&f.body[i], arity, &f.symbols), visit);
@@ -3085,13 +3062,12 @@ fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::Glue(_) | Ins::VTable(_) => (0, 1),
         Ins::Descriptor(..) => (0, 1),
-        Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
-        Ins::Call(id) => match &*symbols.get(*id) {
+        Ins::Call(id, _) => match &*symbols.get(*id) {
             Sym::Import(im) => (im.params.len(), im.results.len()),
             _ => (*arity.get(id.idx())?)?,
         },
-        Ins::CallIndirect(id) => {
+        Ins::CallIndirect(id, _) => {
             let signature = symbols.signature(*id);
             (signature.0.len() + 1, signature.1.len())
         }
@@ -3806,7 +3782,7 @@ fn clobbers(p: &Ins, i: &Ins) -> bool {
     match (p, i) {
         (Ins::Op(I::LocalGet(a)), Ins::Op(I::LocalSet(b) | I::LocalTee(b))) => a == b,
         (Ins::GlobalGet(g), Ins::GlobalSet(h)) => g == h,
-        (Ins::GlobalGet(_), Ins::Call(_) | Ins::CallIndirect(..)) => true,
+        (Ins::GlobalGet(_), Ins::Call(_, _) | Ins::CallIndirect(..)) => true,
         _ => false,
     }
 }
@@ -3906,7 +3882,7 @@ pub(crate) fn renumber(f: &mut Func) {
 /// anything changed.
 pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params: &[bool]) -> bool {
     let rewrite = |ins: &Ins| -> Option<(usize, usize)> {
-        let Ins::Call(id) = ins else {
+        let Ins::Call(id, _) = ins else {
             return None;
         };
         let (operands, results) = (*arity.get(id.idx())?)?;
@@ -4001,7 +3977,7 @@ fn constant_at(ins: &Ins, result: usize, fixed: &[bool], results: &[Vec<bool>]) 
         | Ins::Glue(_)
         | Ins::VTable(_) => result == 0,
         Ins::Op(I::LocalGet(l)) => result == 0 && fixed[*l as usize],
-        Ins::Call(id) => results
+        Ins::Call(id, _) => results
             .get(id.idx())
             .and_then(|r| r.get(result))
             .copied()
@@ -4169,7 +4145,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 continue;
             }
             let quiet = f.body.iter().all(|ins| match ins {
-                Ins::Call(id) => free.get(id.idx()).is_some_and(Option::is_some),
+                Ins::Call(id, _) => free.get(id.idx()).is_some_and(Option::is_some),
                 ins => local_only(ins),
             });
             if quiet {
@@ -4188,7 +4164,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
     for (k, f) in funcs.iter_mut().enumerate() {
         let Some(f) = f else { continue };
         let gone = |ins: &Ins| match ins {
-            Ins::Call(id) => free.get(id.idx()).copied().flatten(),
+            Ins::Call(id, _) => free.get(id.idx()).copied().flatten(),
             _ => None,
         };
         if f.raw.is_some() || !f.body.iter().any(|ins| gone(ins).is_some()) {
@@ -4344,7 +4320,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
     if !f.body.iter().any(|i| {
-        matches!(i, Ins::Call(id) if matches!(&*f.symbol(*id), Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown)))
+        matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id), Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown)))
     }) {
         return false;
     }
@@ -4352,6 +4328,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     let body = std::mem::take(&mut f.body);
     let origins = f.origins.as_mut().map(std::mem::take);
     let outer = f.origin_at;
+    let outer_anchor = f.at;
     // Leaves the header's address in `b` and its count in `c`, branching
     // out of the enclosing block for null.
     let header = |f: &mut Func| {
@@ -4369,8 +4346,9 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     };
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
+        f.at = ins.call_anchor();
         let known = match ins {
-            Ins::Call(id) => match &*f.symbol(id) {
+            Ins::Call(id, _) => match &*f.symbol(id) {
                 Sym::Helper(Helper::RetainKnown) => Some(true),
                 Sym::Helper(Helper::ReleaseKnown) => Some(false),
                 _ => None,
@@ -4429,6 +4407,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
         }
     }
     f.origin_at = outer;
+    f.at = outer_anchor;
     true
 }
 
@@ -4454,7 +4433,7 @@ mod origin_tests {
             Ins::Op(I::Block(BlockType::Empty)),
             Ins::Op(I::I32Const(4)),
             Ins::Descriptor(descriptor, crate::module::DescriptorKey::default()),
-            Ins::Call(target),
+            Ins::Call(target, None),
             Ins::Op(I::Drop),
             Ins::Op(I::Br(0)),
             Ins::Op(I::End),
@@ -4474,7 +4453,7 @@ mod origin_tests {
             function
                 .body
                 .iter()
-                .any(|instruction| matches!(instruction, Ins::Call(id) if *id == target))
+                .any(|instruction| matches!(instruction, Ins::Call(id, _) if *id == target))
         );
         assert!(
             !function
@@ -4485,7 +4464,7 @@ mod origin_tests {
     }
 
     fn call(symbols: &Symbols, symbol: Sym) -> Ins {
-        Ins::Call(symbols.intern(symbol))
+        Ins::Call(symbols.intern(symbol), None)
     }
 
     fn tracked(symbols: &Symbols, params: usize, locals: usize, body: Vec<Ins>) -> Func {
@@ -4519,6 +4498,108 @@ mod origin_tests {
             .iter()
             .map(|s| s.expect("retained source"))
             .collect()
+    }
+
+    #[test]
+    fn call_anchors_do_not_block_local_rules_and_follow_surviving_calls() {
+        let module = crate::module::Module::default();
+        let mut f = module.func("anchored", vec![Val::I32], vec![]);
+        let temporary = f.local(Val::I32);
+        f.get(0);
+        f.set(temporary);
+        f.get(temporary);
+        f.at = Some(99);
+        f.helper(Helper::ReleaseRef);
+        let mut plain = f.clone();
+        for ins in &mut plain.body {
+            if let Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) = ins {
+                *anchor = None;
+            }
+        }
+        let arity = f.symbols.call_arities(&[]);
+        for body in [&mut f, &mut plain] {
+            locals(body, &arity);
+            coalesce(body);
+        }
+        assert!(
+            !f.body
+                .iter()
+                .any(|ins| matches!(ins, Ins::Op(I::LocalTee(_))))
+        );
+        assert_eq!(f.body.len(), 2);
+        assert!(f.body.iter().any(|ins| ins.call_anchor() == Some(99)));
+        for ins in &mut f.body {
+            if let Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) = ins {
+                *anchor = None;
+            }
+        }
+        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
+    }
+
+    #[test]
+    fn count_expansion_preserves_the_call_anchor_and_restores_the_emitter() {
+        let module = crate::module::Module::default();
+        let mut f = module.func("count", vec![Val::I32], vec![]);
+        f.get(0);
+        f.at = Some(37);
+        f.helper(Helper::ReleaseKnown);
+        f.at = Some(85);
+        assert!(inline_counts(&mut f, false));
+        assert_eq!(f.at, Some(85));
+        let calls: Vec<_> = f
+            .body
+            .iter()
+            .filter_map(|ins| match ins {
+                Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) => Some(*anchor),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(calls, [Some(37)]);
+    }
+
+    #[test]
+    fn count_guards_copy_the_call_anchor_to_skipped_paths() {
+        let module = crate::module::Module::default();
+        let mut f = module.func("guard", vec![Val::I32], vec![]);
+        f.get(0);
+        f.at = Some(37);
+        f.helper(Helper::RetainKnown);
+        f.at = Some(85);
+        assert!(crate::count_tests::lower(
+            &mut f,
+            crate::count_tests::Counts {
+                retain: Hash128(1),
+                acyclic: false,
+                known_inlined: false,
+                skipped: Some(Hash128(2)),
+            }
+        ));
+        assert_eq!(f.at, Some(85));
+        let calls: Vec<_> = f
+            .body
+            .iter()
+            .filter_map(|ins| match ins {
+                Ins::Call(_, anchor) | Ins::CallIndirect(_, anchor) => Some(*anchor),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(calls, [Some(37), Some(37), Some(37)]);
+    }
+
+    #[test]
+    fn anchors_add_no_instruction_nodes_at_width_1000() {
+        for width in [100, 1000] {
+            let module = crate::module::Module::default();
+            let mut f = module.func("width", vec![], vec![]);
+            for at in 0..width {
+                f.at = Some(at);
+                f.helper(Helper::ReleaseKnown);
+            }
+            assert_eq!(f.body.len(), width as usize);
+            assert!(f.body.iter().enumerate().all(|(at, ins)| {
+                ins.call_anchor().and_then(|a| usize::try_from(a).ok()) == Some(at)
+            }));
+        }
     }
 
     #[test]
@@ -4558,7 +4639,7 @@ mod origin_tests {
             assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::I32Store8(_)))));
             assert!(!f.body.iter().any(|i| matches!(
                 i,
-                Ins::Call(_) | Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
+                Ins::Call(_, _) | Ins::Op(I::MemoryCopy { .. } | I::MemoryFill(_))
             )));
         }
     }
@@ -5639,7 +5720,10 @@ mod origin_tests {
                 );
             });
             assert_eq!(
-                f.body.iter().filter(|i| matches!(i, Ins::Call(_))).count(),
+                f.body
+                    .iter()
+                    .filter(|i| matches!(i, Ins::Call(_, _)))
+                    .count(),
                 usize::from(dynamic || exit)
             );
         }
@@ -5656,7 +5740,7 @@ mod origin_tests {
         ];
         let mut arity = vec![None; symbols.len()];
         for c in &counts {
-            let Ins::Call(id) = c else { unreachable!() };
+            let Ins::Call(id, _) = c else { unreachable!() };
             arity[id.idx()] = Some((1, 0));
         }
         let op = Ins::Op;
@@ -5691,7 +5775,7 @@ mod origin_tests {
         let left: Vec<String> = f
             .body
             .iter()
-            .filter(|i| matches!(i, Ins::Call(_)))
+            .filter(|i| matches!(i, Ins::Call(_, _)))
             .map(|i| format!("{i:?}"))
             .collect();
         assert_eq!(
@@ -5714,7 +5798,7 @@ mod origin_tests {
             &symbols,
             0,
             0,
-            vec![Ins::Op(I::I32Const(1)), Ins::Call(callee)],
+            vec![Ins::Op(I::I32Const(1)), Ins::Call(callee, None)],
         );
         let facts = static_values(
             &[Some(target.clone()), Some(constant_caller.clone())],
@@ -5727,7 +5811,12 @@ mod origin_tests {
             crate::module::Module::default().func("constant source", vec![], vec![Val::I32]);
         constant_source.symbols = symbols.clone();
         constant_source.body = vec![Ins::Op(I::I32Const(2))];
-        let result_caller = tracked(&symbols, 0, 0, vec![Ins::Call(source), Ins::Call(callee)]);
+        let result_caller = tracked(
+            &symbols,
+            0,
+            0,
+            vec![Ins::Call(source, None), Ins::Call(callee, None)],
+        );
         let facts = static_values(
             &[
                 Some(target.clone()),
@@ -5750,7 +5839,12 @@ mod origin_tests {
             Ins::Op(I::End),
             Ins::Op(I::I32Const(1)),
         ];
-        let branched_caller = tracked(&symbols, 0, 0, vec![Ins::Call(branched), Ins::Call(callee)]);
+        let branched_caller = tracked(
+            &symbols,
+            0,
+            0,
+            vec![Ins::Call(branched, None), Ins::Call(callee, None)],
+        );
         let facts = static_values(
             &[
                 Some(target.clone()),
@@ -5767,7 +5861,7 @@ mod origin_tests {
             &symbols,
             1,
             0,
-            vec![Ins::Op(I::LocalGet(0)), Ins::Call(callee)],
+            vec![Ins::Op(I::LocalGet(0)), Ins::Call(callee, None)],
         );
         let facts = static_values(
             &[
@@ -5803,11 +5897,11 @@ mod origin_tests {
                 &symbols,
                 0,
                 0,
-                vec![Ins::Op(I::I32Const(1)), Ins::Call(ids[1])],
+                vec![Ins::Op(I::I32Const(1)), Ins::Call(ids[1], None)],
             ))];
             for k in 1..=n {
                 let body = if k < n {
-                    vec![Ins::Op(I::LocalGet(0)), Ins::Call(ids[k + 1])]
+                    vec![Ins::Op(I::LocalGet(0)), Ins::Call(ids[k + 1], None)]
                 } else {
                     vec![]
                 };
@@ -5829,7 +5923,7 @@ mod origin_tests {
         f.body
             .iter()
             .filter(|i| {
-                matches!(i, Ins::Call(id) if matches!(&*f.symbol(*id),
+                matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id),
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown | Helper::Release { .. })))
             })
             .count()
@@ -6204,7 +6298,7 @@ mod origin_tests {
                     .body
                     .iter()
                     .zip(spans(&f))
-                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_)).then_some(origin))
+                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_, _)).then_some(origin))
                     .collect();
                 let mut plain = f.clone();
                 plain.origins = None;
@@ -6223,13 +6317,13 @@ mod origin_tests {
                     .collect();
                 assert_eq!(retained.len(), 2 * width);
                 for pair in retained.chunks_exact(2) {
-                    assert!(matches!(pair, [Ins::Op(I::I32Const(42)), Ins::Call(_)]));
+                    assert!(matches!(pair, [Ins::Op(I::I32Const(42)), Ins::Call(_, _)]));
                 }
                 let actual_origins: Vec<_> = f
                     .body
                     .iter()
                     .zip(spans(&f))
-                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_)).then_some(origin))
+                    .filter_map(|(ins, origin)| matches!(ins, Ins::Call(_, _)).then_some(origin))
                     .collect();
                 assert_eq!(actual_origins, expected_origins);
             }
@@ -6716,7 +6810,7 @@ mod origin_tests {
         );
         assert!(matches!(
             f.body.as_slice(),
-            [Ins::Op(I::Return), Ins::Op(I::I32Const(0)), Ins::Call(_)]
+            [Ins::Op(I::Return), Ins::Op(I::I32Const(0)), Ins::Call(_, _)]
         ));
         assert_eq!(releases(&f), 1);
     }
@@ -6766,7 +6860,6 @@ mod origin_tests {
             0,
             vec![
                 Ins::Op(I::I32Const(0)),
-                Ins::Anchor(99),
                 call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::LocalGet(0)),
                 call(&symbols, Sym::Helper(Helper::ReleaseRef)),
@@ -6775,7 +6868,7 @@ mod origin_tests {
         let f = run(f, |f| {
             zero_releases(f);
         });
-        assert_eq!(spans(&f), [11, 13, 14]);
+        assert_eq!(spans(&f), [12, 13]);
         let value = tracked(
             &symbols,
             0,
@@ -6817,7 +6910,7 @@ mod origin_tests {
         let symbols = Symbols::default();
         let op = Ins::Op;
         let empty = wasm_encoder::BlockType::Empty;
-        // A pure test goes, past an anchor; a call's stays and its result
+        // A pure test goes; a call's stays and its result
         // is dropped; an `if` with something in it stays.
         let f = run(
             tracked(
@@ -6829,7 +6922,6 @@ mod origin_tests {
                     op(I::I32Load(mem(HEAP, 8, 2))),
                     op(I::I32Eqz),
                     op(I::If(empty)),
-                    Ins::Anchor(0),
                     op(I::End),
                     call(&symbols, Sym::Helper(Helper::CollCopy)),
                     op(I::If(empty)),
@@ -6849,7 +6941,6 @@ mod origin_tests {
             format!(
                 "{:?}",
                 [
-                    Ins::Anchor(0),
                     call(&symbols, Sym::Helper(Helper::CollCopy)),
                     op(I::Drop),
                     op(I::LocalGet(0)),
@@ -6865,7 +6956,7 @@ mod origin_tests {
     fn a_drop_takes_back_what_pushed_its_value() {
         let symbols = Symbols::default();
         let op = Ins::Op;
-        // A discarded field read, past an anchor; a tee that is dropped;
+        // A discarded field read; a tee that is dropped;
         // an addition of a read and a constant; a call's result stays.
         let f = run(
             tracked(
@@ -6875,7 +6966,6 @@ mod origin_tests {
                 vec![
                     op(I::LocalGet(0)),
                     op(I::I32Load(mem(HEAP, 8, 2))),
-                    Ins::Anchor(0),
                     op(I::Drop),
                     op(I::I32Const(3)),
                     op(I::LocalTee(1)),
@@ -6898,7 +6988,6 @@ mod origin_tests {
             format!(
                 "{:?}",
                 [
-                    Ins::Anchor(0),
                     op(I::I32Const(3)),
                     op(I::LocalSet(1)),
                     call(&symbols, Sym::Helper(Helper::CollCopy)),
@@ -6906,7 +6995,7 @@ mod origin_tests {
                 ]
             )
         );
-        assert_eq!(spans(&f), [12, 14, 16, 22, 23]);
+        assert_eq!(spans(&f), [13, 15, 21, 22]);
         // A division can trap, so it stays and its result is dropped.
         let f = run(
             tracked(
@@ -6941,7 +7030,7 @@ mod origin_tests {
             v.extend([op(I::Else), op(I::I32Const(k)), op(I::End)]);
             v
         };
-        let two = Ins::Call(symbols.intern(Sym::Inst(Hash128(7))));
+        let two = Ins::Call(symbols.intern(Sym::Inst(Hash128(7))), None);
         let arity = vec![Some((0, 2)); symbols.len()];
         let shaped = |params: usize, results: Vec<Val>, body: Vec<Ins>| {
             let mut f = tracked(&symbols, params, 0, body);

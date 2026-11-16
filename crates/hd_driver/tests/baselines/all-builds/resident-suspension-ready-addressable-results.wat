@@ -275,7 +275,6 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $early
-              local.tee $early
               if
                 local.get $early
                 call $rt:release_ref'1
@@ -507,7 +506,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $early
-            local.tee $early
             if
               local.get $early
               call $rt:release_ref'1
@@ -844,7 +842,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t8 i32) (local $t6 i64) (local $t7 i64) (local $t11 i64) (local $t9 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t8 i32) (local $t6 i64) (local $t7 i64) (local $t11 i64) (local $t9 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $locals
     global.get $locals_base
@@ -1608,7 +1606,6 @@
       i32.load8_u $heap
       i32.store8 $heap
       local.get $t4
-      local.tee $t4
       if
         local.get $t4
         call $rt:release_ref'1
@@ -2422,7 +2419,6 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $early
-              local.tee $early
               if
                 local.get $early
                 call $rt:release_ref'1
@@ -2658,7 +2654,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $early
-            local.tee $early
             if
               local.get $early
               call $rt:release_ref'1
@@ -3019,7 +3014,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t8 i32) (local $t6 i64) (local $t7 i64) (local $t11 i64) (local $t9 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t8 i32) (local $t6 i64) (local $t7 i64) (local $t11 i64) (local $t9 i32) (local $t10 i32) (local $t13 i32) (local $t12 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $locals
     global.get $locals_base
@@ -3807,7 +3802,6 @@
       i32.load8_u $heap
       i32.store8 $heap
       local.get $t4
-      local.tee $t4
       if
         local.get $t4
         call $rt:release_ref'1
@@ -4671,7 +4665,6 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $early
-              local.tee $early
               if
                 local.get $early
                 call $rt:release_ref'1
@@ -4903,7 +4896,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $early
-            local.tee $early
             if
               local.get $early
               call $rt:release_ref'1
@@ -5202,7 +5194,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t7 i32) (local $t6 i64) (local $t10 i64) (local $t8 i32) (local $t9 i32) (local $t12 i32) (local $t11 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t7 i32) (local $t6 i64) (local $t10 i64) (local $t8 i32) (local $t9 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $locals
     global.get $locals_base
@@ -5841,53 +5833,42 @@
       local.tee $second.0
       i32.const 1
       i32.add
-      local.tee $t12
+      local.tee $t4
       local.get $provider0.vtable
       i32.add
       local.tee $provider0.vtable
       i32.const 1
       i32.add
-      local.tee $t13
+      local.tee $t12
       local.get $provider0
       i32.add
-      local.tee $t14
+      local.tee $t13
       i32.const 1
       i32.add
-      local.tee $t15
+      local.tee $t14
       local.get $second.1
       i32.add
       local.tee $second.1
       i32.const 16
-      local.set $t16
+      local.set $t15
       if
         local.get $second.1
         call $rt:str
-        local.set $t16
+        local.set $t15
       end
       local.get $t6
-      local.get $t16
-      local.get $second.1
-      local.set $second.1
-      local.tee $t16
+      local.get $t15
       local.get $t7
       call $write_signed_sized
-      local.get $t16
+      local.get $t15
       local.get $second.0
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 118 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      end
-      local.get $t8
-      local.get $t3
-      local.set $t3
-      local.set $t8
-      local.get $t16
-      local.get $t12
+      call $rt:release_ref'1
+      local.get $t15
+      local.get $t4
       i32.add
       local.get $t8
       local.get $t3
@@ -5898,40 +5879,32 @@
         local.get $t4
         call $rt:release_ref'1
       end
-      local.get $t16
+      local.get $t15
       local.get $provider0.vtable
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 118 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      end
-      local.get $t16
-      local.get $t13
+      call $rt:release_ref'1
+      local.get $t15
+      local.get $t12
       i32.add
       local.set $provider0.vtable
       local.get $t10
       local.get $provider0.vtable
       local.get $provider0
       call $write_signed_sized
-      local.get $t16
-      local.get $t14
+      local.get $t15
+      local.get $t13
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 118 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      end
+      call $rt:release_ref'1
       local.get $t11
       local.set $second.0
-      local.get $t16
       local.get $t15
+      local.get $t14
       i32.add
       local.get $second.0
       local.get $t9
@@ -5942,7 +5915,7 @@
         local.get $t4
         call $rt:release_ref'1
       end
-      local.get $t16
+      local.get $t15
       local.get $second.1
       local.get $t2
       i32.load $heap
@@ -5950,7 +5923,7 @@
       i32.load $heap offset=4
       call $"println[string]"
     ;; 21 |     let (a, first) = ready!(true)
-      local.get $t16
+      local.get $t15
       local.tee $t4
       if
         local.get $t4
@@ -6650,7 +6623,6 @@
               i32.const 0
               i32.store $heap offset=16
               local.get $early
-              local.tee $early
               if
                 local.get $early
                 call $rt:release_ref'1
@@ -6886,7 +6858,6 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $early
-            local.tee $early
             if
               local.get $early
               call $rt:release_ref'1
@@ -7209,7 +7180,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t7 i32) (local $t6 i64) (local $t10 i64) (local $t8 i32) (local $t9 i32) (local $t12 i32) (local $t11 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $second.0 i32) (local $second.1 i32) (local $t7 i32) (local $t6 i64) (local $t10 i64) (local $t8 i32) (local $t9 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $locals
     global.get $locals_base
@@ -7872,55 +7843,42 @@
       local.tee $second.0
       i32.const 1
       i32.add
-      local.tee $t12
+      local.tee $t4
       local.get $provider0.vtable
       i32.add
       local.tee $provider0.vtable
       i32.const 1
       i32.add
-      local.tee $t13
+      local.tee $t12
       local.get $provider0
       i32.add
-      local.tee $t14
+      local.tee $t13
       i32.const 1
       i32.add
-      local.tee $t15
+      local.tee $t14
       local.get $second.1
       i32.add
       local.tee $second.1
       i32.const 16
-      local.set $t16
+      local.set $t15
       if
         local.get $second.1
         call $rt:str
-        local.set $t16
+        local.set $t15
       end
       local.get $t6
-      local.get $t16
-      local.get $second.1
-      local.set $second.1
-      local.tee $t16
+      local.get $t15
       local.get $t7
       call $write_signed_sized
-      local.get $t16
+      local.get $t15
       local.get $second.0
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 124 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      else
-        call $skipped_test
-      end
-      local.get $t8
-      local.get $t3
-      local.set $t3
-      local.set $t8
-      local.get $t16
-      local.get $t12
+      call $rt:release_ref'1
+      local.get $t15
+      local.get $t4
       i32.add
       local.get $t8
       local.get $t3
@@ -7933,44 +7891,32 @@
       else
         call $skipped_test
       end
-      local.get $t16
+      local.get $t15
       local.get $provider0.vtable
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 124 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      else
-        call $skipped_test
-      end
-      local.get $t16
-      local.get $t13
+      call $rt:release_ref'1
+      local.get $t15
+      local.get $t12
       i32.add
       local.set $provider0.vtable
       local.get $t10
       local.get $provider0.vtable
       local.get $provider0
       call $write_signed_sized
-      local.get $t16
-      local.get $t14
+      local.get $t15
+      local.get $t13
       i32.add
       i32.const 32
       i32.store8 $heap
       i32.const 124 ;; &" "
-      local.tee $t4
-      if
-        local.get $t4
-        call $rt:release_ref'1
-      else
-        call $skipped_test
-      end
+      call $rt:release_ref'1
       local.get $t11
       local.set $second.0
-      local.get $t16
       local.get $t15
+      local.get $t14
       i32.add
       local.get $second.0
       local.get $t9
@@ -7983,7 +7929,7 @@
       else
         call $skipped_test
       end
-      local.get $t16
+      local.get $t15
       local.get $second.1
       local.get $t2
       i32.load $heap
@@ -7991,7 +7937,7 @@
       i32.load $heap offset=4
       call $"println[string]"
     ;; 21 |     let (a, first) = ready!(true)
-      local.get $t16
+      local.get $t15
       local.tee $t4
       if
         local.get $t4

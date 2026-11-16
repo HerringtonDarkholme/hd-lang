@@ -288,7 +288,6 @@
         i32.load $heap offset=16
         local.set $t0
         local.get $snapshot
-        local.tee $snapshot
         if
           local.get $snapshot
           i32.const 8

@@ -308,7 +308,7 @@ mod tests {
                 .body
                 .iter()
                 .filter_map(|ins| {
-                    if let Ins::Call(id) = ins
+                    if let Ins::Call(id, _) = ins
                         && let Sym::Helper(helper) = &*function.symbol(*id)
                     {
                         return Some(helper.clone());

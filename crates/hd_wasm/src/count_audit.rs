@@ -30,6 +30,7 @@ pub(crate) fn instrument(
     let body = std::mem::take(&mut f.body);
     let origins = f.origins.as_mut().map(std::mem::take);
     let outer = f.origin_at;
+    let outer_anchor = f.at;
     let saved = f.local(Val::I32);
     let value = f.local(Val::I32);
     let wide = f.local(Val::I64);
@@ -38,13 +39,14 @@ pub(crate) fn instrument(
     let length = f.local(Val::I32);
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
+        f.at = ins.call_anchor();
         let count = match ins {
-            Ins::Call(callee) => crate::views::count_action(&f.symbol(callee), r).is_some(),
+            Ins::Call(callee, _) => crate::views::count_action(&f.symbol(callee), r).is_some(),
             _ => false,
         };
         // Keep the source caller active across ordinary/indirect calls too:
         // hashing, view construction and cold-frame glue can count internally.
-        if count || !generated && matches!(ins, Ins::Call(_) | Ins::CallIndirect(_)) {
+        if count || !generated && matches!(ins, Ins::Call(_, _) | Ins::CallIndirect(_, _)) {
             let site = *next;
             *next += 1;
             sites.u32(site);
@@ -131,6 +133,7 @@ pub(crate) fn instrument(
         f.push(ins);
     }
     f.origin_at = outer;
+    f.at = outer_anchor;
     f.rebuild_callees();
 }
 

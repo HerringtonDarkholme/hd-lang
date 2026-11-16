@@ -245,9 +245,8 @@
       local.set $t1
     end
     local.get $s.0
-    local.tee $m
     if
-      local.get $m
+      local.get $s.0
       call $rt:release_ref
     end
     block

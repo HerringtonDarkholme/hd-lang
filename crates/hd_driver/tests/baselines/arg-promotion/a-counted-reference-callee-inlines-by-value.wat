@@ -209,7 +209,6 @@
     ;; 25 |     let t = make(n)
     local.get $t2
     ;; 27 |     a + t.size()
-    local.tee $t2
     if
       local.get $t2
       call $rt:release_ref

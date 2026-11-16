@@ -205,9 +205,9 @@
             i32.const 0
             i32.store $heap offset=16
             local.get $t5
-            local.tee $ctx
+            local.tee $env
             if
-              local.get $ctx
+              local.get $env
               call $rt:release_ref
             end
           end
@@ -275,9 +275,8 @@
           i32.const 0
           i32.store $heap offset=16
           local.get $env
-          local.tee $ctx
           if
-            local.get $ctx
+            local.get $env
             call $rt:release_ref
           end
         end

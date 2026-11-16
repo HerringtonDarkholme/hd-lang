@@ -232,7 +232,6 @@
     local.set $k
     drop
     local.get $ps
-    local.tee $ps
     if
       local.get $ps
       i32.const 8

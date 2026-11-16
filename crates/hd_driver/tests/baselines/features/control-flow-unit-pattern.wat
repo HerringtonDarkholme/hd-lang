@@ -55,27 +55,23 @@
     end
     block
       block
-        block
     ;; 13 |         .Ok(()) => "saved"
-          local.get $message.0
-          i32.eqz
-          br_if 0
+        local.get $message.0
+        i32.eqz
+        br_if 0
     ;; 14 |         .Err(message) => message
-          local.get $message.0
-          if
-            br 2
-          else
-            unreachable
-          end
-    ;; 12 |     match save(s):
+        local.get $message.0
+        if
+          br 2
+        else
           unreachable
         end
-        i32.const 104 ;; &"saved"
-        i32.const 5
-        local.set $message.1
-        local.set $message.0
-        br 1
+    ;; 12 |     match save(s):
+        unreachable
       end
+      i32.const 104 ;; &"saved"
+      i32.const 5
+      return
     end
     local.get $message.0
     local.get $message.1
