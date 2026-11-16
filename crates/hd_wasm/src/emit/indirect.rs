@@ -56,8 +56,12 @@
 //! skipping a field a move took out under that field's flag (rustc's drop
 //! elaboration, [`Em::mem_moves`], [`Em::mem_release`]). A result of such
 //! a type is written into its caller's block, and a frame local of one
-//! kept in memory read only by fields and released from its slot while its
-//! live flag is set (step 4b). Cost: [`params`] visits the
+//! kept in memory is released from its slot while its live flag is set
+//! (step 4b); a whole move of it clears the flag, and a whole copy to a
+//! callee that owns it is one `memory.copy` into the call's block, whose
+//! counts the type's copy glue takes from the address
+//! (`crate::rt::Helper::RetainAt`, Swift's `initializeWithCopy`). Cost:
+//! [`params`] visits the
 //! callee's body once, memoized per instance; [`Em::forwarded`] and
 //! [`Em::kept_results`] visit only the sub-body being emitted, and the
 //! value use counts they and [`Em::place_result`] read are counted once
@@ -299,10 +303,16 @@ pub(crate) fn release_plan(
                     });
                 }
             } else if let Some(walk) = crate::layout::count_walk(pool, env, f) {
+                let colls = if crate::layout::coll_kind(pool, env, f).is_some() {
+                    vec![0]
+                } else {
+                    crate::layout::coll_leaves(pool, env, f)
+                };
                 steps.push(ReleaseStep::Inline {
                     field,
                     leaves: mem.leaves[part.first..part.first + part.count].to_vec(),
                     walk,
+                    colls,
                 });
             }
         }
@@ -467,7 +477,6 @@ impl Em<'_, '_, '_> {
     /// address argument of a direct call to a worker: each has one use,
     /// that argument. One visit of this sub-body's instructions.
     pub(super) fn forwarded(&mut self) -> HashSet<u32> {
-        let b = self.b;
         if self.mem_locals.is_empty() {
             return HashSet::default();
         }
@@ -477,6 +486,27 @@ impl Em<'_, '_, '_> {
             .into_iter()
             .filter(|&v| self.mem_field(v).is_some())
             .collect();
+        let passed = self.worker_reads();
+        candidates.extend(passed.into_iter().filter(|&r| self.mem_field(r).is_some()));
+        if candidates.is_empty() {
+            return HashSet::default();
+        }
+        let uses = self.slot_uses();
+        candidates
+            .into_iter()
+            .filter(|r| uses.get(r) == Some(&1))
+            .collect()
+    }
+
+    /// The reads of a local this sub-body's direct calls pass to a worker
+    /// parameter taken by address, that can pass as an address: a move,
+    /// a read of a type that counts nothing, or a copy to a callee that
+    /// owns it (copied into the call's block, where the copy glue takes
+    /// its counts from the address, [`Em::push_worker_args`]). One visit
+    /// of the sub-body's rows and each call's arguments.
+    fn worker_reads(&mut self) -> Vec<u32> {
+        let b = self.b;
+        let mut out = Vec::new();
         for &i in self.rows.clone().iter() {
             let i = u32_of(i);
             if b.tags[i as usize] != Tag::Call {
@@ -494,26 +524,30 @@ impl Em<'_, '_, '_> {
             let Some(abi) = self.worker_abi(ct.key, args.len(), params.as_deref()) else {
                 continue;
             };
-            for (r, w) in args.iter().zip(abi.params.iter()) {
-                // A copy of a counted field takes counts of its own, so
-                // only a move hands its address on.
-                if w.is_some()
-                    && self.mem_field(*r).is_some()
-                    && (b.data[*r as usize][1] == ReadMode::Move as u32
-                        || !self.tracked(self.ty_of(*r)))
+            let lends = self.env().lends(ct.item, ct.args)
+                | super::promote::promoted_params(self.input, self.m, ct.key);
+            for (k, (&r, w)) in args.iter().zip(abi.params.iter()).enumerate() {
+                if w.is_none()
+                    || b.tags.get(r as usize) != Some(&Tag::Read)
+                    || !b
+                        .decode_place(b.data[r as usize][0])
+                        .is_some_and(|p| matches!(p.root, PlaceRoot::Local(_)))
                 {
-                    candidates.push(*r);
+                    continue;
+                }
+                let mode = b.data[r as usize][1];
+                let t = self.ty_of(r);
+                let owned_copy = mode == ReadMode::Copy as u32
+                    && matches!(
+                        self.argument_pass(Some(lends), k, t),
+                        crate::layout::Pass::Owned(_)
+                    );
+                if mode == ReadMode::Move as u32 || !self.tracked(t) || owned_copy {
+                    out.push(r);
                 }
             }
         }
-        if candidates.is_empty() {
-            return HashSet::default();
-        }
-        let uses = self.slot_uses();
-        candidates
-            .into_iter()
-            .filter(|r| uses.get(r) == Some(&1))
-            .collect()
+        out
     }
 
     /// For a `Read` `r` of a local kept in memory, whole or of fields: the
@@ -547,8 +581,16 @@ impl Em<'_, '_, '_> {
         };
         let declared = self.sub(self.b.local_ty[l]);
         let (_, part) = self.fold_path(declared, &fields)?;
-        // A move out of a counted parameter: its drop skips the field.
+        // A move out of a counted parameter: its drop skips the field. A
+        // whole move out of a counted frame local leaves its slot dead.
         let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
+        if moved
+            && fields.is_empty()
+            && let Some(&live) = self.mem_live.get(&l)
+        {
+            self.f.i32(0);
+            self.f.set(live);
+        }
         if moved && !self.mem_move_flags.is_empty() {
             crate::work::moved_paths(1);
             if let Some(&flag) = self.mem_move_flags.get(&(l, fields.into_boxed_slice())) {
@@ -580,11 +622,22 @@ impl Em<'_, '_, '_> {
         lends: u64,
         ws: &[Option<Mem>],
     ) -> hd_base::StageResult<Option<(u32, i32)>> {
+        // A counted copy read from memory ([`Em::forwarded`]) is copied
+        // into the block, then takes its counts there.
+        let copies: Vec<bool> = args
+            .iter()
+            .zip(params)
+            .map(|(&r, &t)| {
+                self.mem_vals.contains_key(&r)
+                    && self.b.data[r as usize][1] == ReadMode::Copy as u32
+                    && self.tracked(t)
+            })
+            .collect();
         let mut size = 0u32;
         let mut offs = Vec::with_capacity(args.len());
-        for (r, w) in args.iter().zip(ws) {
+        for (k, (r, w)) in args.iter().zip(ws).enumerate() {
             match w {
-                Some(mem) if !self.mem_vals.contains_key(r) => {
+                Some(mem) if !self.mem_vals.contains_key(r) || copies[k] => {
                     offs.push(size);
                     size = (size + mem.size).next_multiple_of(8);
                 }
@@ -600,6 +653,17 @@ impl Em<'_, '_, '_> {
             // An argument that spills has a nonempty block: a struct of
             // more than 16 values has a nonzero size.
             match (w, self.mem_vals.get(&r).copied(), block) {
+                (Some(mem), Some((at, off)), Some((base, _))) if copies[k] => {
+                    self.copy_in(base, offs[k], at, off, mem.size);
+                    let (pool, env) = (self.input.pool, self.input.env);
+                    if let Some(plan) =
+                        release_plan(pool, env, &mut self.m.release_plans, params[k])?
+                    {
+                        address(&mut self.f, base, offs[k]);
+                        self.f.helper(crate::rt::Helper::RetainAt(plan));
+                    }
+                    address(&mut self.f, base, offs[k]);
+                }
                 (Some(_), Some((at, off)), _) => address(&mut self.f, at, off),
                 (Some(mem), None, Some((base, _))) => {
                     // An owned counted argument moves in or takes counts
@@ -1035,12 +1099,14 @@ impl Em<'_, '_, '_> {
         // rules it out.
         let mut seen: HashMap<usize, Option<(u32, u32)>> = HashMap::default();
         // Per local, what keeping a counted value in memory depends on: a
-        // whole read rules it out (a copy needs counts of its own, a move
-        // a dead slot), as does a move not through fields passed by
-        // address (`far`, below); a whole drop rules out only a local
-        // that counts nothing.
-        let mut whole: HashSet<usize> = HashSet::default();
+        // move not through fields passed by address (`far`, below) rules
+        // it out; a whole drop rules out only a local that counts nothing.
+        // A whole read keeps it only when it passes by address to a worker
+        // (`whole`, below): a move clears the live flag, and a copy to a
+        // callee that owns it is copied into the call's block, where the
+        // copy glue takes its counts from the address.
         let mut moves: Vec<(usize, u32)> = Vec::new();
+        let mut whole_reads: Vec<(usize, u32)> = Vec::new();
         let mut dropped: HashSet<usize> = HashSet::default();
         for &i in self.rows.clone().iter() {
             let tag = b.tags[i];
@@ -1071,7 +1137,7 @@ impl Em<'_, '_, '_> {
             match tag {
                 Tag::Read if fields => {
                     if p.proj.is_empty() {
-                        whole.insert(l.idx());
+                        whole_reads.push((l.idx(), u32_of(i)));
                     } else if b.data[i][1] == ReadMode::Move as u32 {
                         moves.push((l.idx(), u32_of(i)));
                     }
@@ -1100,6 +1166,18 @@ impl Em<'_, '_, '_> {
             }
         }
         let uses = self.slot_uses();
+        // A whole read of a counted local that would load its leaves (one
+        // not passed by address to a worker, at its one use) rules it out:
+        // the slot would cost a load per leaf where locals cost none.
+        let mut whole: HashSet<usize> = HashSet::default();
+        if !whole_reads.is_empty() {
+            let passed: HashSet<u32> = self.worker_reads().into_iter().collect();
+            for (l, r) in whole_reads {
+                if !passed.contains(&r) || uses.get(&r) != Some(&1) {
+                    whole.insert(l);
+                }
+            }
+        }
         let mut kept: Vec<(usize, Mem, u32)> = Vec::new();
         for (l, got) in seen {
             let Some((1, v)) = got else {
@@ -1134,8 +1212,11 @@ impl Em<'_, '_, '_> {
             };
             let counted = self.tracked(ty);
             // A counted value lands with its counts: written in place, or
-            // moved in from memory, at its one use; a copy would need
-            // counts of its own.
+            // moved in from memory, at its one use. A copy read stored
+            // whole stays leaves; the optimizer leaves none to keep (tried
+            // `let b = a` with both read after, with `b` or `a` then moved
+            // to an owning callee, a parameter's field the same way, and
+            // each in a loop: the copy moves to the use).
             let lands_counted = uses.get(&v) == Some(&1)
                 && (b.tags[v as usize] != Tag::Read
                     || b.data[v as usize][1] == ReadMode::Move as u32);
@@ -1261,7 +1342,8 @@ impl Em<'_, '_, '_> {
             let Some((_, _, _, fields, l)) = self.mem_field(u32_of(i)) else {
                 continue;
             };
-            if !counted.contains(&l) || !self.tracked(self.ty(u32_of(i))) {
+            // A whole move clears the local's live flag ([`Em::mem_read`]).
+            if fields.is_empty() || !counted.contains(&l) || !self.tracked(self.ty(u32_of(i))) {
                 continue;
             }
             crate::work::moved_paths(1);

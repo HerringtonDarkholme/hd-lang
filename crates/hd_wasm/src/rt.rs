@@ -295,6 +295,12 @@ pub enum Helper {
     /// at `address` in the shadow stack (#2031): its type's release
     /// witness ([`crate::layout::ReleasePlan`]).
     ReleaseAt(std::sync::Arc<crate::layout::ReleasePlan>),
+    /// `(address)`: one count more on each counted reference of a value
+    /// whose bits were just copied to `address` in the shadow stack: the
+    /// same plan's counted leaves, each collection replaced by its copy
+    /// glue's result (Swift's value-witness `initializeWithCopy`, after
+    /// the `memory.copy`).
+    RetainAt(std::sync::Arc<crate::layout::ReleasePlan>),
     /// `(address)`: one count less on the object that holds `address`. At
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
@@ -2063,7 +2069,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::TestPollPart { .. } => (2, 1),
         H::RowAdapter(row) => (row.params.len(), row.results.len()),
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
-        H::ReleaseAt(_) => (1, 0),
+        H::ReleaseAt(_) | H::RetainAt(_) => (1, 0),
         H::DropValue { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
@@ -2462,6 +2468,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ReleaseAt(plan) => {
             let mut f = m.func("rt:release_at", vec![Val::I32], vec![]);
             release_steps(&mut f, 0, 0, &plan.steps);
+            f
+        }
+        Helper::RetainAt(plan) => {
+            let mut f = m.func("rt:retain_at", vec![Val::I32], vec![]);
+            retain_steps(m, &mut f, 0, &plan.steps);
             f
         }
         Helper::ReleaseRef => release_ref(m, Addr::Ref),
@@ -3047,6 +3058,53 @@ pub(crate) fn release_step(f: &mut Func, base: u32, off: u32, step: &crate::layo
                 f.op(Instruction::I32Add);
             }
             f.helper(Helper::ReleaseAt(plan.clone()));
+        }
+    }
+}
+
+/// One count more on each counted reference of the value at the
+/// shadow-stack address in local `base`, by `steps` (a
+/// [`crate::layout::ReleasePlan`]'s): an inline field's collections
+/// through the copy glue, stored back, and its other counted leaves
+/// retained; a nested field's witness call. O(the steps).
+fn retain_steps(m: &Module, f: &mut Func, base: u32, steps: &[crate::layout::ReleaseStep]) {
+    let on = retain_call(m);
+    for step in steps {
+        match step {
+            crate::layout::ReleaseStep::Inline {
+                leaves,
+                walk,
+                colls,
+                ..
+            } => {
+                for &c in colls {
+                    let leaf = leaves[c as usize];
+                    f.get(base);
+                    f.get(base);
+                    f.op(leaf.load_in(crate::module::STACK, 0));
+                    f.helper(Helper::CollCopy);
+                    f.op(leaf.store_in(crate::module::STACK, 0));
+                }
+                if let Some(w) = walk.without(colls) {
+                    walk_code(
+                        f,
+                        &w,
+                        &|f, k| {
+                            f.get(base);
+                            f.op(leaves[k as usize].load_in(crate::module::STACK, 0));
+                        },
+                        &on,
+                    );
+                }
+            }
+            crate::layout::ReleaseStep::Nested { offset, plan, .. } => {
+                f.get(base);
+                if *offset != 0 {
+                    f.i32(offset.cast_signed());
+                    f.op(Instruction::I32Add);
+                }
+                f.helper(Helper::RetainAt(plan.clone()));
+            }
         }
     }
 }

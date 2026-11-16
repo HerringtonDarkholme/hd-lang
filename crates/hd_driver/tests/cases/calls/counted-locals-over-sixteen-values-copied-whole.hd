@@ -1,0 +1,145 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A counted local over 16 values read whole stays in its frame slot
+# (#2031): a whole copy into another slot is one memory.copy, and the
+# type's copy glue (`rt:retain_at`) takes the copy's counts from the
+# address; a whole move clears the source's live flag, so its exit
+# releases nothing. Each neighbour: a copy and a move into another local;
+# a move and a copy to a callee that owns its parameter; a copy moved on
+# to such a callee, the source still read; the same in a loop on half
+# its rounds; a field copied to such a callee; a copy of a nested struct (the glue calls the nested type's);
+# a list field (its copy glue's result stored back); a copy of a
+# parameter's field; a copy before a `?` and an early `return`; a tuple;
+# a generic instance; a copy whose field is then assigned (stays
+# leaves). The checked builds find no leak at exit.
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    f16: i32
+    name: string
+
+struct Outer:
+    inner: Big
+    v: i32
+    tag: string
+    xs: List[i32]
+
+fn mk(x: i32, n: string) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "${n}${x}" }
+
+fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x, "in"), v: x * 2, tag: "t${x}", xs: [x, x + 1] }
+
+fn sum(t: Big) -> i32: t.f0 + t.f16 + i32(t.name.len())
+
+fn take(o: Outer) -> i32: o.inner.f3 + i32(o.xs.len()) + i32(o.tag.len())
+
+fn parse(x: i32) -> Result[i32, string]:
+    if x < 0:
+        return .Err("neg")
+    .Ok(x)
+
+fn copied(x: i32) -> string:
+    let a = mk(x, "a")
+    let b = a
+    "${a.name}${b.name}${a.f3 + b.f4}"
+
+fn copied_away(x: i32) -> i32:
+    let a = mk_outer(x)
+    let b = a
+    let n = take(b)
+    n + i32(a.tag.len()) + i32(a.xs.len())
+
+fn moved(x: i32) -> string:
+    let a = mk(x, "m")
+    let b = a
+    "${b.name}${b.f5}"
+
+fn to_owner(x: i32) -> i32:
+    let a = mk(x, "o")
+    sum(a) + 1
+
+fn copy_to_owner(x: i32) -> i32:
+    let a = mk(x, "p")
+    sum(a) + a.f2 + i32(a.name.len())
+
+fn field_copy(x: i32) -> i32:
+    let a = mk_outer(x)
+    let n = sum(a.inner)
+    n + a.inner.f2 + i32(a.inner.name.len())
+
+fn looped(n: i32) -> i32:
+    let acc = 0
+    for k in 0..n:
+        let a = mk_outer(k % 5)
+        let b = a
+        if k % 2 == 0:
+            acc += take(b)
+        acc += a.v + i32(a.tag.len()) + i32(a.xs.len()) + a.inner.f1
+    acc
+
+fn nested(x: i32) -> string:
+    let a = mk_outer(x)
+    let b = a
+    "${a.inner.name}${b.inner.name}${a.tag}${b.tag}${b.xs.len()}"
+
+fn from_param(o: Outer) -> i32:
+    let b = o.inner
+    b.f6 + i32(b.name.len()) + i32(o.inner.name.len())
+
+fn tried(x: i32) -> Result[i32, string]:
+    let a = mk(x, "q")
+    let b = a
+    let y = parse(x - 2)?
+    .Ok(a.f3 + b.f3 + y)
+
+fn early(x: i32) -> i32:
+    let a = mk(x, "e")
+    let b = a
+    if x > 1:
+        return b.f1 + i32(a.name.len())
+    a.f2
+
+fn tuple(x: i32) -> i32:
+    let a = (x, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, "tu${x}")
+    let b = a
+    a._0 + i32(b._16.len()) + i32(a._16.len())
+
+struct Gen[T]:
+    big: Big
+    extra: T
+
+fn gen[T](x: i32, e: T) -> i32:
+    let g = Gen { big: mk(x, "g"), extra: e }
+    let h = g
+    g.big.f9 + i32(h.big.name.len())
+
+fn assigned(x: i32) -> i32:
+    let a = mk(x, "s")
+    let mut b = a
+    b.f0 = 100
+    b.f0 + a.f0 + i32(b.name.len())
+
+pub fn main() -> void $ Console:
+    println("${copied(1)} ${moved(2)} ${to_owner(3)} ${copy_to_owner(4)} ${copied_away(8)}")
+    println("${looped(200000)}")
+    println("${nested(5)} ${from_param(mk_outer(6))} ${field_copy(9)}")
+    match tried(5):
+        .Ok(v) => println("${v}")
+        .Err(e) => println(e)
+    match tried(1):
+        .Ok(v) => println("${v}")
+        .Err(e) => println(e)
+    println("${early(5)} ${early(1)} ${tuple(3)} ${gen(4, "e")} ${gen(5, 6)} ${assigned(7)}")

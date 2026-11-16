@@ -407,11 +407,13 @@ pub struct ReleasePlan {
 #[derive(Clone, Debug)]
 pub enum ReleaseStep {
     /// The field's leaves, offsets from the value's start, and the walk
-    /// over them.
+    /// over them; `colls`, the leaves among them that are collections a
+    /// copy copies through the copy glue (`rt:coll_copy`).
     Inline {
         field: u32,
         leaves: Vec<Leaf>,
         walk: Walk,
+        colls: Vec<u32>,
     },
     /// A field passed by address: its type's plan at `offset`.
     Nested {
@@ -441,10 +443,16 @@ impl ReleasePlan {
             seed.hash(&mut h);
             for s in &steps {
                 match s {
-                    ReleaseStep::Inline { leaves, walk, .. } => {
+                    ReleaseStep::Inline {
+                        leaves,
+                        walk,
+                        colls,
+                        ..
+                    } => {
                         0u8.hash(&mut h);
                         leaves.hash(&mut h);
                         walk.hash(&mut h);
+                        colls.hash(&mut h);
                     }
                     ReleaseStep::Nested { offset, plan, .. } => {
                         1u8.hash(&mut h);
