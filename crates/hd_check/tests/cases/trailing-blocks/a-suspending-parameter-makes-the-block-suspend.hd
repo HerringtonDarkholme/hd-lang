@@ -1,0 +1,14 @@
+# @dump: tir
+# fn.trailing.suspending, fn.trailing.suspending.body: a trailing block
+# for an `fn!` parameter is a suspending closure, passed as the final
+# argument, so it may make bang calls.
+fn fetch_count!() -> i32: 3
+
+fn twice!(body: fn!() -> i32) -> i32:
+    body!() + body!()
+
+fn total!() -> i32:
+    count := twice!():
+        fetch_count!()
+    #^^^^^^^^^^^^^^^^^
+    count

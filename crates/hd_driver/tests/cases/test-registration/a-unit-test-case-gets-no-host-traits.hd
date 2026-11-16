@@ -1,0 +1,11 @@
+# @dump: tests
+# @main: src/lib.hd
+# module.testing.unit-row.test-runner: a test module's top-level unit
+# test case gets no host traits, so printing is a missing requirement.
+pub fn double(value: i32) -> i32:
+    value * 2
+# @file: src/lib_test.hd
+use pkg.{double}
+
+it("prints"):
+    println(double(2))

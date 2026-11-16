@@ -111,6 +111,8 @@ Know what the change touches, and test that first.
 6. A check that puts hd source in and expects diagnostics or output is a
    stage case (the `diagnostics` or `stdout` view), a conformance case is
    for a spec rule, and a Rust test is for internals or cost.
+   - `# @package: NAME` names a stage case's root package (`app` by
+     default); `# @single-file: true` builds it as a single-file program.
 
 ## Spec Scope For The Standard Library
 

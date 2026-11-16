@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# fn.trailing.suspending: a trailing block for a plain `fn` parameter is
+# a plain closure, so a bang call in it is outside any suspension.
+fn fetch_count!() -> i32: 3
+
+fn once(body: fn() -> i32) -> i32:
+    body()
+
+fn total!() -> i32:
+    count := once:
+        fetch_count!()
+    count

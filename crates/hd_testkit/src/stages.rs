@@ -3,6 +3,8 @@
 //! Header comments select dumps/builds and optional virtual modules.
 //! Subject comments narrow a dump; otherwise output is attributed to source
 //! lines and interleaved below them. Blessing never rewrites source cases.
+//! `# @package: NAME` names the case's root package (`app` by default).
+//! `# @single-file: true` builds the case as a single-file program.
 
 mod counts;
 mod diagnostics;
@@ -64,6 +66,13 @@ pub struct Program {
     /// whose names contain it, as `hd test --filter` selects
     /// (`cli.test.filter`).
     pub filter: Option<String>,
+    /// The root package's name, as its `hd.toml` writes it
+    /// (`# @package: acme-shop`); `app` by default.
+    pub package: Option<String>,
+    /// Whether the root package is a single-file program
+    /// (`# @single-file: true`), whose declarations print under the
+    /// file's stem (`trait.typeid.name.single-file`).
+    pub single_file: bool,
     marked: bool,
 }
 
@@ -87,6 +96,8 @@ impl Program {
             main: None,
             entries: Vec::new(),
             filter: None,
+            package: None,
+            single_file: false,
             marked: span.is_some(),
         })
     }
@@ -109,6 +120,11 @@ impl Program {
             (None, Some(main)) => main.clone(),
             (None, None) => "main.hd".to_owned(),
         }
+    }
+
+    /// The root package's name: `@package`'s, or `app`.
+    fn package_name(&self) -> &str {
+        self.package.as_deref().unwrap_or("app")
     }
 
     fn sources(&self) -> hd_project::MemorySources {
@@ -141,7 +157,9 @@ impl Program {
 /// default, for a case about package layout (`src/main.hd`); `@entry:
 /// NAME` names an executable entry module (`src/NAME.hd`), as a manifest
 /// does. `@filter: TEXT` keeps only the test cases whose names contain
-/// `TEXT` in the `tests` view.
+/// `TEXT` in the `tests` view. `@package: NAME` names the root package as
+/// its `hd.toml` does, `app` by default; `@single-file: true` builds it
+/// as a single-file program.
 ///
 /// # Errors
 /// Unknown directives/builds/views, `@dump` or `@build` after code,
@@ -155,6 +173,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
     let mut main_path = None;
     let mut entries = Vec::new();
     let mut filter = None;
+    let mut package = None;
+    let mut single_file = false;
     let mut inputs = 0u32;
     let mut helpers = Vec::new();
     let mut hosts = Vec::new();
@@ -185,6 +205,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
                         | "main"
                         | "entry"
                         | "filter"
+                        | "package"
+                        | "single-file"
                 )
             {
                 return Err(format!("`@{name}` after the header comments"));
@@ -273,6 +295,18 @@ pub fn parse(text: &str) -> Result<Case, String> {
                 }
                 "entry" => entries.extend(value.split_whitespace().map(str::to_owned)),
                 "filter" => filter = Some(value.to_owned()),
+                "package" => {
+                    if value.is_empty() || value.contains(char::is_whitespace) {
+                        return Err(format!("invalid package name `{value}`"));
+                    }
+                    package = Some(value.to_owned());
+                }
+                "single-file" => {
+                    if value != "true" {
+                        return Err(format!("`@single-file: {value}`; write `true`"));
+                    }
+                    single_file = true;
+                }
                 "file" => {
                     if !module_path_ok(value) {
                         return Err(format!("invalid module path `{value}`"));
@@ -317,7 +351,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
     program.hosts = hosts;
     program.repl = repl;
     program.fuel = fuel;
-    if (main_path.is_some() || !entries.is_empty())
+    if (main_path.is_some() || !entries.is_empty() || package.is_some() || single_file)
         && (repl.is_some()
             || program.profile.is_some()
             || dumps.iter().any(|d| {
@@ -328,7 +362,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
             }))
     {
         return Err(
-            "an `@main` or `@entry` case shows only the `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views, with no profile or REPL"
+            "an `@main`, `@entry`, `@package` or `@single-file` case shows only the `diagnostics`, `fixed`, `spans`, `stdout` and `tests` views, with no profile or REPL"
                 .to_owned(),
         );
     }
@@ -340,6 +374,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
     }
     program.main = main_path;
     program.entries = entries;
+    program.package = package;
+    program.single_file = single_file;
     if filter.is_some() && dumps.iter().any(|d| d != "tests") {
         return Err("a `@filter` case shows only the `tests` view".to_owned());
     }
@@ -679,7 +715,7 @@ pub fn tir(p: &Program) -> String {
 }
 
 /// The packages of a `diagnostics`, `spans`, `fixed`, `stdout` or `tests`
-/// build of `p` as `build`: the case's `@fuel`, `@profile` and `@entry`,
+/// build of `p` as `build`: the case's `@fuel`, `@profile`, `@entry` and `@single-file`,
 /// and `@build`'s level (`release` runs the optimized pipeline, and a
 /// program gets the release profile), engine target and checked runtime.
 /// Every build verifies the ownership passes' output
@@ -692,6 +728,7 @@ fn packages(p: &Program, build: Build) -> hd_driver::Packages<'static> {
         profile: p.profile.clone(),
         entries: p.entries.clone(),
         checked: build.checked,
+        single_file: p.single_file,
         verify_own: true,
         target: build.target,
         ..hd_driver::Packages::default()
@@ -726,7 +763,7 @@ fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_drive
         in_std = std;
         (&in_std, "std")
     } else {
-        (src, "app")
+        (src, p.package_name())
     };
     let host = Host {
         render_tir: &[],
@@ -766,7 +803,7 @@ pub fn tests(p: &Program, at: Build) -> String {
         module: None,
         filter: p.filter.clone(),
     };
-    let built = hd_driver::build_packages(&host, "app", &packages, &goal);
+    let built = hd_driver::build_packages(&host, p.package_name(), &packages, &goal);
     let mut out = diagnostics::render(&built);
     let _ = writeln!(out, "-- plan");
     for case in &built.tests {
@@ -872,7 +909,7 @@ pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
     };
     let built = hd_driver::build_packages(
         &host,
-        "app",
+        p.package_name(),
         &packages(p, at),
         &Goal::Program {
             entry: "main".into(),
@@ -1321,6 +1358,10 @@ mod tests {
         assert!(case.program.text.contains("fn one"));
         assert!(!case.program.text.contains("fn two"));
         assert_eq!(case.program.files[0].0, "other.hd");
+        let case =
+            parse("# @dump: stdout\n# @package: acme-shop\n# @single-file: true\n").expect("case");
+        assert_eq!(case.program.package_name(), "acme-shop");
+        assert!(case.program.single_file);
         let case = parse("# @dump: stdout\n# @build: dev | release checked\n").expect("case");
         assert_eq!(
             case.builds,
@@ -1348,6 +1389,13 @@ mod tests {
             "# @dump: tests\nx := 1\n# @filter: name\n",
             "# @dump: tests diagnostics\n# @filter: name\n",
             "# @dump: diagnostics fixed\n# @build: std\n",
+            "# @dump: stdout\n# @package:\n",
+            "# @dump: stdout\n# @package: two words\n",
+            "# @dump: stdout\n# @single-file: yes\n",
+            "# @dump: tir\n# @package: acme-shop\n",
+            "# @dump: wat\n# @single-file: true\n",
+            "# @dump: stdout\n# @profile: tick\n# @package: acme-shop\n",
+            "# @dump: stdout\nx := 1\n# @package: acme-shop\n",
         ] {
             assert!(parse(bad).is_err(), "{bad}");
         }

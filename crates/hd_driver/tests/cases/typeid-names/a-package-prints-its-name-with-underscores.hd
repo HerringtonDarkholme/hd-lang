@@ -1,0 +1,17 @@
+# @dump: stdout
+# @package: acme-shop
+# trait.typeid.name.package: a package declaration prints under the
+# package name with each `-` written `_`; trait.typeid.of with explicit
+# type arguments (fn.generic.explicit) resolves the owner, then the
+# member, then the written arguments.
+use std.inspect.TypeId
+
+struct User:
+    name: string
+
+pub fn main() -> void $ Console:
+    println("${TypeId::of::[User]()}")
+    println("${TypeId::of::[User?]()}")
+    println("${TypeId::of::[List[User]]()}")
+    println("${TypeId::of::[(User, i32)]()}")
+    println("${TypeId::of::[Map[string, User?]]()}")

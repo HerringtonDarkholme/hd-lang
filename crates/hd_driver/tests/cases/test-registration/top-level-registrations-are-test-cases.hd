@@ -1,0 +1,23 @@
+# @dump: tests
+# @main: src/lib.hd
+# module.testing.test-position: a test module's and an integration test
+# file's top-level `it(...)` calls register test cases, as a `tests:`
+# block's do. An integration test case gets the profile's host traits
+# (module.testing.integration-row), so it may print.
+pub fn double(value: i32) -> i32:
+    value * 2
+# @file: src/lib_test.hd
+use pkg.{double}
+use std.testing.assert_equal
+
+it("doubles"):
+    assert_equal(double(2), 4, reason="double doubles")
+
+it("ignored", ignore="not today"):
+    assert_equal(double(2), 5, reason="never runs")
+# @file: tests/flow.hd
+use pkg.{double}
+use std.testing.assert_equal
+
+it("prints through the profile"):
+    println(double(21))
