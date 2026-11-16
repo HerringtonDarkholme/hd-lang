@@ -14,7 +14,7 @@
 //! ([`hd_resolve::Innermost`]), and the others holding it are its
 //! ancestors.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, HashMap, HashSet, Symbol};
@@ -99,14 +99,18 @@ impl ScopeTraits {
     }
 }
 
-/// A module's traits by method name and where they are bound, made on the
-/// first method call that asks, and shared by the module's forked
-/// contexts.
+/// A module's traits by method name and where they are bound, and the
+/// impl tables with rows for each receiver head, each made on the first
+/// method call that asks, and shared by the module's forked contexts.
 #[derive(Default)]
 pub struct TraitsInScope {
     local: OnceLock<HashMap<Symbol, LocalDeclarers>>,
     module: OnceLock<ScopeTraits>,
     tests: OnceLock<ScopeTraits>,
+    /// Each receiver head key's tables with rows for it
+    /// ([`hd_types::solver::Impls::tables_at`]), under the one impl view
+    /// of the contexts sharing this value.
+    by_head: Mutex<HashMap<hd_types::solver::HeadKey, Arc<[hd_types::solver::TableAt]>>>,
 }
 
 impl TraitsInScope {
@@ -139,6 +143,51 @@ impl TraitsInScope {
 }
 
 impl crate::body::BodyCx<'_> {
+    /// The tables of the module's impl view with a row a goal on `t`'s
+    /// head key may take, made once per head key and module: one probe
+    /// per table of the view. `None` when the key reads rows of every key
+    /// (`Any`, `Param`).
+    pub(crate) fn head_tables(
+        &self,
+        pool: hd_types::Types<'_>,
+        t: hd_types::Ty,
+    ) -> Option<(hd_types::solver::HeadKey, Arc<[hd_types::solver::TableAt]>)> {
+        let key = hd_types::solver::HeadKey::of(pool, t);
+        hd_types::solver::key_codes(key)?;
+        // A panic while the lock was held leaves the map whole: an insert
+        // is its only write.
+        let lock = || {
+            self.traits_in_scope
+                .by_head
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        };
+        if let Some(known) = lock().get(&key) {
+            return Some((key, known.clone()));
+        }
+        let tables: Arc<[_]> = hd_types::solver::Impls::Owned(self.impls)
+            .tables_at(key)?
+            .into();
+        crate::work::scan_work(tables.len());
+        Some((key, lock().entry(key).or_insert(tables).clone()))
+    }
+
+    /// Names a trait's methods from its declaration, for a table's name
+    /// index ([`hd_types::solver::NameIndex`]); false for an item that is
+    /// not a trait this module can read.
+    pub(crate) fn trait_names(&self, tr: DefId, f: &mut dyn FnMut(Symbol)) -> bool {
+        match self.lookup.item(tr).map(|i| &i.data) {
+            Some(ItemData::Trait(t)) => {
+                crate::work::trait_lookup(t.methods.len() as u64 + 1);
+                for &(n, _) in &t.methods {
+                    f(n);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// The scope at byte `at`, and whether it is the `tests:` block's.
     fn scope_traits(&self, at: u32) -> &ScopeTraits {
         let scope = self.scope_at(at);

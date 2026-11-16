@@ -1,0 +1,21 @@
+{{! One struct implementing one trait per `items` entry, each trait's method called once on one value (#2029). }}
+{{#each items}}
+trait T{{i}}:
+    fn m{{i}}(&self) -> i32
+
+{{/each}}
+struct S:
+    a: i32
+
+{{#each items}}
+impl T{{i}} for S:
+    fn m{{i}}(&self) -> i32: self.a
+
+{{/each}}
+pub fn main() -> void $ Console:
+    s := S { a: +1 }
+    let t = +0
+{{#each items}}
+    t = t + s.m{{i}}()
+{{/each}}
+    println("$t")

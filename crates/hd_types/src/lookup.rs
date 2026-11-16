@@ -135,6 +135,8 @@ pub struct RefTable {
     by_trait: HashMap<u32, (u32, u32)>,
     /// Each head key code's traits, each once (`ImplTable::traits_by_key`).
     traits_by_key: HashMap<u64, Vec<DefId>>,
+    /// `traits_by_key` by method name, made on the first ask.
+    names: std::sync::OnceLock<crate::solver::NameIndex>,
 }
 
 impl RefTable {
@@ -162,14 +164,31 @@ impl RefTable {
             rows,
             by_trait,
             traits_by_key,
+            names: std::sync::OnceLock::new(),
         }
     }
 
-    /// Appends the traits with a row that a goal of head key `key` may
-    /// take ([`crate::solver::ImplTable::traits_at`]).
-    fn traits_at(&self, codes: [Option<u64>; 3], out: &mut Vec<DefId>) {
+    /// [`crate::solver::ImplTable::has_rows_at`] of this table.
+    fn has_rows_at(&self, codes: [Option<u64>; 3]) -> bool {
+        codes
+            .into_iter()
+            .flatten()
+            .any(|c| self.traits_by_key.contains_key(&c))
+    }
+
+    /// [`crate::solver::ImplTable::traits_named`] of this table.
+    fn traits_named(
+        &self,
+        codes: [Option<u64>; 3],
+        sym: hd_base::Symbol,
+        names: &crate::solver::TraitNames<'_>,
+        out: &mut Vec<DefId>,
+    ) {
+        let ix = self
+            .names
+            .get_or_init(|| crate::solver::NameIndex::new(&self.traits_by_key, names));
         for code in codes.into_iter().flatten() {
-            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+            ix.at(code, sym, out);
         }
     }
 
@@ -337,6 +356,16 @@ pub enum Impls<'a> {
     Owned(&'a ImplView<'a>),
 }
 
+/// A table of an [`ImplView`] ([`Impls::tables_at`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TableAt {
+    Own,
+    /// The folder's table, by folder index.
+    Folder(usize),
+    Unowned,
+    Directory,
+}
+
 /// A table's place in the candidate order: the asking module's own table,
 /// then folders in path order. Owner lookup reads only the owners' tables,
 /// and this order keeps their rows where reading every table puts them.
@@ -382,30 +411,84 @@ impl<'a> Impls<'a> {
         v.extra.unowned.has(trait_, key)
     }
 
-    /// Every trait with a row that a goal on `self_ty` may take in some
-    /// table this view reads: the own table, each folder of the closure,
-    /// the unowned rows and the directory. A superset of the traits whose
-    /// [`Self::candidates`] for `self_ty` are not empty, unordered and
-    /// possibly repeated. `None` when `self_ty`'s head key is `Any` or
+    /// The tables of this view with a row a goal on head key `key` may
+    /// take, for [`Self::traits_named`]. `None` when `key` is `Any` or
     /// `Param`, which takes rows of every key.
     ///
-    /// Cost: one probe per table of the view, plus the traits found;
-    /// every table's inverse was built once with its head index.
+    /// Cost: one probe per table of the view.
     #[must_use]
-    pub fn traits_for_head(self, pool: Types<'_>, self_ty: Ty) -> Option<Vec<DefId>> {
-        let key = HeadKey::of(pool, self_ty);
+    pub fn tables_at(self, key: HeadKey) -> Option<Vec<TableAt>> {
         let codes = crate::solver::key_codes(key)?;
         let Impls::Owned(v) = self;
         let mut out = Vec::new();
-        if let Some(t) = v.own {
-            t.traits_at(key, &mut out);
+        if v.own.is_some_and(|t| t.has_rows_at(codes)) {
+            out.push(TableAt::Own);
         }
-        for f in v.folders.iter().flatten() {
-            f.table.traits_at(key, &mut out);
+        for (i, f) in v.folders.iter().enumerate() {
+            if f.is_some_and(|f| f.table.has_rows_at(codes)) {
+                out.push(TableAt::Folder(i));
+            }
         }
-        v.extra.unowned.traits_at(codes, &mut out);
-        v.extra.directory.traits_at(codes, &mut out);
+        if v.extra.unowned.has_rows_at(codes) {
+            out.push(TableAt::Unowned);
+        }
+        if v.extra.directory.has_rows_at(codes) {
+            out.push(TableAt::Directory);
+        }
         Some(out)
+    }
+
+    /// Appends the traits of table `at` with a row a goal on head key
+    /// `key` may take that declare a method `sym`, and those `names` does
+    /// not know, from the table's name index, made on the table's first
+    /// ask: one probe per key code. A folder's table is shared by the run,
+    /// so its index is made once per run.
+    pub fn traits_named(
+        self,
+        at: TableAt,
+        key: HeadKey,
+        sym: hd_base::Symbol,
+        names: &crate::solver::TraitNames<'_>,
+        out: &mut Vec<DefId>,
+    ) {
+        let Some(codes) = crate::solver::key_codes(key) else {
+            return;
+        };
+        let Impls::Owned(v) = self;
+        match at {
+            TableAt::Own => {
+                if let Some(t) = v.own {
+                    t.traits_named(codes, sym, names, out);
+                }
+            }
+            TableAt::Folder(i) => {
+                if let Some(Some(f)) = v.folders.get(i) {
+                    f.table.traits_named(codes, sym, names, out);
+                }
+            }
+            TableAt::Unowned => v.extra.unowned.traits_named(codes, sym, names, out),
+            TableAt::Directory => v.extra.directory.traits_named(codes, sym, names, out),
+        }
+    }
+
+    /// Whether table `at` has a row of `trait_` that a goal on head key
+    /// `key` may take: one probe of its head index.
+    #[must_use]
+    pub fn has_rows(self, at: TableAt, trait_: DefId, key: HeadKey) -> bool {
+        let Impls::Owned(v) = self;
+        match at {
+            TableAt::Own => v
+                .own
+                .is_some_and(|t| t.candidates(trait_, key).next().is_some()),
+            TableAt::Folder(i) => v
+                .folders
+                .get(i)
+                .copied()
+                .flatten()
+                .is_some_and(|f| f.table.candidates(trait_, key).next().is_some()),
+            TableAt::Unowned => v.extra.unowned.has(trait_, key),
+            TableAt::Directory => v.extra.directory.has(trait_, key),
+        }
     }
 
     /// The candidate rows of `self_ty: trait_[args]` in content order (§3.2,

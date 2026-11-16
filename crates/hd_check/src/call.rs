@@ -4806,19 +4806,27 @@ impl Ck<'_, '_> {
     /// The available traits declaring `sym` that a receiver of type `t`
     /// may implement, in the method index's order: those with an impl row
     /// for `t`'s head key in a table the solver reads
-    /// (`Impls::traits_for_head`), and the compiler-supplied ones. Each
+    /// (`Impls::traits_named`), and the compiler-supplied ones. Each
     /// other available trait has no candidate and is no supplied
     /// implementation, so `trait_part` would find nothing for it. `None`
     /// when `t`'s head key reads rows of every key; the caller then asks
     /// every available trait.
     ///
-    /// Cost: one probe per impl table of the view, then one probe of the
-    /// method index and one of the scope per trait found, where asking
+    /// Cost: one probe of the module's tables with rows for the head
+    /// ([`crate::body::BodyCx::head_tables`]), then one probe of each one's name index
+    /// per key code, made once per table (a folder's once per run), then
+    /// one probe of the method index and the scope per trait found. Asking
     /// every available trait declaring `sym` solved a goal per trait
-    /// (#1925).
+    /// (#1925), and probing each trait of the head for `sym` cost every
+    /// trait the head implements per call, or per module (#2029).
     fn traits_with_rows(&self, t: Ty, sym: Symbol) -> Option<Vec<(DefId, DefId)>> {
-        let mut found =
-            hd_types::solver::Impls::Owned(self.cx.impls).traits_for_head(self.pool(), t)?;
+        let (key, tables) = self.cx.head_tables(self.pool(), t)?;
+        let impls = hd_types::solver::Impls::Owned(self.cx.impls);
+        let names = |tr: DefId, f: &mut dyn FnMut(Symbol)| self.cx.trait_names(tr, f);
+        let mut found = Vec::new();
+        for &at in tables.iter() {
+            impls.traits_named(at, key, sym, &names, &mut found);
+        }
         found.extend(
             self.cx
                 .names
@@ -4828,27 +4836,28 @@ impl Ck<'_, '_> {
                 .into_iter()
                 .filter(|d| *d != DefId::NONE),
         );
-        crate::work::scan_work(found.len());
+        crate::work::scan_work(tables.len() + found.len());
         let mut traits = self.declaring_among(found, sym);
         traits.retain(|&(tr, _)| self.trait_available(tr));
         Some(traits)
     }
 
     /// Whether a goal `t: trait_` may take a row: false only when `t`'s
-    /// head reads rows of one key, and no table of the view
-    /// (`Impls::traits_for_head`) nor the compiler-supplied rows offer
-    /// `trait_` one. A trait value answers its own trait without a row,
-    /// so it is asked. Cost: one probe per impl table of the view.
+    /// head reads rows of one key, and no table of the view nor the
+    /// compiler-supplied rows offer `trait_` one. A trait value answers
+    /// its own trait without a row, so it is asked. Cost: one probe per
+    /// table with rows for the head ([`crate::body::BodyCx::head_tables`]).
     pub(crate) fn may_have_rows(&self, trait_: DefId, t: Ty) -> bool {
         let pool = self.pool();
         if matches!(pool.get(t), TyData::TraitValue { .. }) {
             return true;
         }
-        let Some(found) = hd_types::solver::Impls::Owned(self.cx.impls).traits_for_head(pool, t)
-        else {
+        let Some((key, tables)) = self.cx.head_tables(pool, t) else {
             return true;
         };
-        found.contains(&trait_) || self.cx.names.known.sealed().supplied().contains(&trait_)
+        let impls = hd_types::solver::Impls::Owned(self.cx.impls);
+        tables.iter().any(|&at| impls.has_rows(at, trait_, key))
+            || self.cx.names.known.sealed().supplied().contains(&trait_)
     }
 
     /// `trait.bound.depth.limit`: the lookup of `name` needs a proof deeper

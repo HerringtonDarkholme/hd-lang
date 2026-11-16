@@ -94,6 +94,7 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "enum-items": { construct: "enums and payload patterns" },
   "trait-items": { construct: "traits, impls and method calls" },
   "impl-methods": { construct: "methods of one impl" },
+  "traits-of-one-struct": { construct: "impls of many traits for one struct, each method called" },
   "impls-of-one-trait": { construct: "impls of one trait and their generic instances" },
   "operator-impls": { construct: "operator impls with an associated type" },
   "derive-items": { construct: "derives (`Eq`, `Debug`)" },

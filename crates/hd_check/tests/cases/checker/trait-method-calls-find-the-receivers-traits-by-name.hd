@@ -1,0 +1,37 @@
+# @dump: tir
+# #2029: a dot call finds the traits of its receiver's head that declare
+# its name through one index per head: a struct, a generic struct, a
+# primitive, a tuple, and a `&self` receiver whose address the call
+# takes. Each call names its own trait's method.
+trait One:
+    fn one(&self) -> i32
+
+trait Two:
+    fn two(self) -> i32
+
+struct S:
+    v: i32
+
+struct G[T]:
+    v: T
+
+impl One for S:
+    fn one(&self) -> i32: self.v
+
+impl Two for S:
+    fn two(self) -> i32: self.v + 1
+
+impl[T] Two for G[T]:
+    fn two(self) -> i32: 2
+
+impl Two for i32:
+    fn two(self) -> i32: self + 2
+
+impl Two for (i32, i32):
+    fn two(self) -> i32: self._0 + self._1
+
+fn total() -> i32:
+    s := S { v: +1 }
+    g := G { v: true }
+    t := (+1, +2)
+    s.one() + S { v: +3 }.two() + g.two() + (+4).two() + t.two()

@@ -19,8 +19,8 @@ use hd_base::{
 };
 
 pub use crate::lookup::{
-    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, UniverseImpls, UniverseReads,
-    folder_table, open_arg,
+    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, TableAt, UniverseImpls,
+    UniverseReads, folder_table, open_arg,
 };
 use crate::pool::{Inputs, ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::sealed::Row;
@@ -629,6 +629,49 @@ pub struct ImplTable {
     /// once, so a receiver of a known head finds the traits that may
     /// answer it without asking every trait. Built by `index`.
     pub traits_by_key: HashMap<u64, Vec<DefId>>,
+    /// `traits_by_key` by method name, made on the first ask
+    /// ([`Self::traits_named`]).
+    pub names: std::sync::OnceLock<NameIndex>,
+}
+
+/// Names a trait's methods: calls the second argument with each, and
+/// returns false, naming none, for a trait it does not know.
+pub type TraitNames<'n> = dyn Fn(DefId, &mut dyn FnMut(Symbol)) -> bool + 'n;
+
+/// A table's traits by head key code and method name: those of
+/// `traits_by_key` that declare the name, and those whose names were not
+/// known when it was made, which a caller asks itself. Made once per
+/// table, so a folder's table, which the run shares, is indexed once per
+/// run: one step per (code, trait) entry and per method each declares.
+#[derive(Clone, Debug, Default)]
+pub struct NameIndex {
+    by_name: HashMap<(u64, Symbol), Vec<DefId>>,
+    unnamed: HashMap<u64, Vec<DefId>>,
+}
+
+impl NameIndex {
+    #[must_use]
+    pub fn new(traits_by_key: &HashMap<u64, Vec<DefId>>, names: &TraitNames<'_>) -> Self {
+        let mut ix = NameIndex::default();
+        for (&code, traits) in traits_by_key {
+            for &tr in traits {
+                let known = names(tr, &mut |n| {
+                    ix.by_name.entry((code, n)).or_default().push(tr);
+                });
+                if !known {
+                    ix.unnamed.entry(code).or_default().push(tr);
+                }
+            }
+        }
+        ix
+    }
+
+    /// Appends the traits at `code` that declare `sym`, and the unnamed
+    /// ones: one probe each.
+    pub fn at(&self, code: u64, sym: Symbol, out: &mut Vec<DefId>) {
+        out.extend(self.by_name.get(&(code, sym)).into_iter().flatten());
+        out.extend(self.unnamed.get(&code).into_iter().flatten());
+    }
 }
 
 impl ImplTable {
@@ -653,20 +696,35 @@ impl ImplTable {
         }
         self.by_key = perm;
         self.traits_by_key = traits_by_key;
+        self.names = std::sync::OnceLock::new();
     }
 
-    /// Appends the traits with a row that a goal of head key `key` may
-    /// take, as [`Self::candidates`] reads them: the rows of `key`, the
-    /// `Param` rows and, for a tuple, the `TupleAny` rows. Returns false,
-    /// adding nothing, for `Any` or `Param`, which read rows of every key.
-    pub fn traits_at(&self, key: HeadKey, out: &mut Vec<DefId>) -> bool {
-        let Some(codes) = key_codes(key) else {
-            return false;
-        };
+    /// Whether the table has a row a goal of a head key with `codes` may
+    /// take ([`key_codes`]): one probe per key code.
+    #[must_use]
+    pub fn has_rows_at(&self, codes: [Option<u64>; 3]) -> bool {
+        codes
+            .into_iter()
+            .flatten()
+            .any(|c| self.traits_by_key.contains_key(&c))
+    }
+
+    /// Appends the traits with a row at `codes` ([`key_codes`]) that declare
+    /// a method `sym`, and those `names` did not know, from the table's
+    /// [`NameIndex`], made on the first ask: one probe per key code.
+    pub fn traits_named(
+        &self,
+        codes: [Option<u64>; 3],
+        sym: Symbol,
+        names: &TraitNames<'_>,
+        out: &mut Vec<DefId>,
+    ) {
+        let ix = self
+            .names
+            .get_or_init(|| NameIndex::new(&self.traits_by_key, names));
         for code in codes.into_iter().flatten() {
-            out.extend(self.traits_by_key.get(&code).into_iter().flatten());
+            ix.at(code, sym, out);
         }
-        true
     }
 }
 

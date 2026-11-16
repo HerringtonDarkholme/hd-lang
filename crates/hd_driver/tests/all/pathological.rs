@@ -2949,6 +2949,142 @@ fn same_name_trait_methods_ask_the_traits_with_rows_for_the_receiver() {
     });
 }
 
+/// One struct implementing `n` traits, each declaring its own method,
+/// and each method called once: #2029's shape.
+fn struct_of_many_traits(n: usize) -> String {
+    let mut s = String::new();
+    for i in 0..n {
+        let _ = write!(s, "trait T{i}:\n    fn m{i}(&self) -> i32\n\n");
+    }
+    s.push_str("struct S:\n    v: i32\n\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "impl T{i} for S:\n    fn m{i}(&self) -> i32: self.v + {i}\n\n"
+        );
+    }
+    s.push_str("fn run() -> i32:\n    s := S { v: +1 }\n    let total = +0\n");
+    for i in 0..n {
+        let _ = writeln!(s, "    total = total + s.m{i}()");
+    }
+    s.push_str("    total\n\npub fn main() -> void $ Console:\n    println(\"${run()}\")\n");
+    s
+}
+
+// Checker: #2029, a method call finds the traits of its receiver's head
+// that declare its name through one index from (head, name), made once
+// per head and module, and the call's auto-address asks the same index:
+// each call probed every trait the head implements.
+#[test]
+fn many_trait_impls_find_a_method_by_its_name() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let ((out, scan), lookup) = hd_check::work::count_trait_lookup_work(|| {
+                hd_check::work::count_scan_work(|| {
+                    compile(&struct_of_many_traits(n), &Goal::Analyze)
+                })
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            (scan, lookup)
+        };
+        let (small, large) = (work(100), work(1_000));
+        // Per head: one step per trait and per method; per call: one
+        // probe and the one trait declaring the name.
+        assert!(
+            small.0 > 0 && large.0 <= 10 * small.0 + 100,
+            "scan work for 100 and 1,000 traits: {} and {}",
+            small.0,
+            large.0
+        );
+        assert!(
+            small.1 > 0 && large.1 <= 10 * small.1 + 100,
+            "trait lookups for 100 and 1,000 traits: {} and {}",
+            small.1,
+            large.1
+        );
+    });
+}
+
+/// #2029's shape across modules: `traits.hd` declares `n` traits,
+/// `impls.hd` a struct implementing each, and each of `n` more modules
+/// calls one of its methods.
+fn struct_of_many_traits_called_from_modules(n: usize) -> MemorySources {
+    let mut src = MemorySources::default();
+    let mut traits = String::new();
+    for i in 0..n {
+        let _ = write!(traits, "pub trait T{i}:\n    fn m{i}(&self) -> i32\n\n");
+    }
+    src.insert("traits.hd", &traits);
+    let mut impls = String::new();
+    for i in 0..n {
+        let _ = writeln!(impls, "use pkg.traits.T{i}");
+    }
+    impls.push_str("\npub struct S:\n    pub v: i32\n\n");
+    for i in 0..n {
+        let _ = write!(
+            impls,
+            "impl T{i} for S:\n    fn m{i}(&self) -> i32: self.v + {i}\n\n"
+        );
+    }
+    src.insert("impls.hd", &impls);
+    for i in 0..n {
+        src.insert(
+            &format!("c{i}.hd"),
+            &format!(
+                "use pkg.impls.S\nuse pkg.traits.T{i}\n\npub fn call{i}(s: S) -> i32: s.m{i}()\n"
+            ),
+        );
+    }
+    src.insert(
+        "main.hd",
+        "pub fn main() -> void $ Console:\n    println(\"0\")\n",
+    );
+    src
+}
+
+// Checker: #2029 across modules, each impl table indexes its traits by
+// (head key, method name) once per run, and a module asks only the
+// tables with rows for the receiver's head: each module that called a
+// method on the struct collected and probed all of its traits again.
+#[test]
+fn many_trait_impls_called_from_many_modules_index_them_once() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let src = struct_of_many_traits_called_from_modules(n);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let ((out, scan), lookup) = hd_check::work::count_trait_lookup_work(|| {
+                hd_check::work::count_scan_work(|| build(&host, "app", &Goal::Analyze))
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            assert!(
+                out.counters.modules_checked.len() > n,
+                "{n}: every caller module is checked"
+            );
+            (scan, lookup)
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small.0 > 0 && large.0 <= 10 * small.0 + 100,
+            "scan work for 100 and 1,000 modules: {} and {}",
+            small.0,
+            large.0
+        );
+        assert!(
+            small.1 > 0 && large.1 <= 10 * small.1 + 100,
+            "trait lookups for 100 and 1,000 modules: {} and {}",
+            small.1,
+            large.1
+        );
+    });
+}
+
 /// One struct of `n` fields, and `n` functions that each hold a tuple of
 /// two values of it and compare them: review F15's shape, with the
 /// struct inside a body's own tuple type so the body's containment walk
