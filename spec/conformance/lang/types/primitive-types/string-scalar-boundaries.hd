@@ -1,4 +1,4 @@
-# test: every offset from 0 to the length that is not inside a scalar's encoding is a scalar boundary
+# test: offsets at the start, between scalars and at the length are scalar boundaries, across a two-byte scalar
 # Spec 04 Type System: types.string.boundary.
 
 tests:

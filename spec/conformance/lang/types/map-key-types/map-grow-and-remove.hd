@@ -1,7 +1,5 @@
-# test: map grow and remove
-# Spec 04 Map Semantics: types.map.order.deterministic,
-# types.map.replace.in-place, types.map.semantics,
-# types.map.no-reindex, types.map.stale, types.map.no-repair.
+# test: after a map grows and loses one key, the removed key reads as absent and the other entries keep their values
+# Spec 04 Map Semantics: types.map.semantics.
 
 fn main() -> i32:
     let mut values: Map[string, i32] = {}

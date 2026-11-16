@@ -32,7 +32,7 @@ std/cli/typed-records/cli-short-positional-conflict.hd	runtime	panic:explicit-pa
 std/json/typed-json/json-internal-tagged-non-object-payload.hd	runtime	panic:explicit-panic	std/json.md#r-std-json.derive.internal.payload-object-panic
 lang/modules/prelude/println-line-error.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error.single
 lang/expressions/postfix-expressions/indexing/slicing-a-string-slice-inside-a-scalar-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
-lang/expressions/postfix-expressions/indexing/slicing-an-inclusive-end-at-the-length-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
+lang/expressions/postfix-expressions/indexing/slicing-an-end-past-the-length-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 lang/types/collection-values/a-list-mapped-through-a-reference-keeps-its-elements-across-the-function.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 lang/control-flow/conditional-expressions/branch-joins-keep-their-values-and-cleanups.hd	runtime	accept	lang/06-control-flow.md#r-flow.if.value.branches
 lang/references/matching-through-a-reference/nested-enum-field-borrow-writes-the-original.hd	runtime	accept	lang/13-values-and-references.md#r-ref.match.borrow
@@ -389,7 +389,7 @@ lang/expressions/primary-expressions/tuple-rest-a-tuple-expression-needs-the-fix
 lang/expressions/primary-expressions/tuple-rest-a-tuple-spread-takes-a-list-of-the-rest-items-spread-item.hd	type	reject:type-mismatch	lang/05-expressions.md#tuple-rest-elements
 lang/expressions/primary-expressions/tuple-rest-selection-past-the-tuple-is-unknown-fixed.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.tuple.select-underscore
 lang/expressions/primary-expressions/tuple-rest-selection-past-the-tuple-is-unknown-rest.hd	type	reject:unknown-field	lang/05-expressions.md#r-expr.tuple.select-underscore
-lang/expressions/expression-categories/tuple-rest-tuple-elements-and-shared-data-are-not-assignable.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.enum-shared-field
+lang/expressions/expression-categories/shared-enum-data-is-not-assignable.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.place.enum-shared-field
 lang/data/shared-enum-constructor-data/an-underscore-member-past-the-parameter-count-is-unknown.hd	type	reject:unknown-field	lang/08-data-and-enums.md#r-data.shared.underscore-field
 lang/types/generics/type-argument-defaults/type-arity-written-an-alias-missing-a-defaulted-slot-is-valid.hd	runtime	accept	lang/04-type-system.md#r-types.generic.default.written
 lang/types/generics/type-argument-defaults/type-arity-written-an-associated-function-path-fills-defaults.hd	runtime	accept	lang/04-type-system.md#r-types.generic.default.written
@@ -864,7 +864,7 @@ lang/traits/trait-implementations/comparison-traits/comparison-traits.hd	type	ac
 lang/traits/trait-implementations/comparison-traits/implicit-data-ordering.hd	type	reject:type-mismatch	lang/09-traits.md#comparison-traits
 lang/control-flow/control-flow.hd	type	accept	lang/06-control-flow.md
 lang/data/matching-enums/enums.hd	type	accept	lang/08-data-and-enums.md#matching-enums
-lang/expressions/unary-and-binary-operators/equality/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd	type	accept	lang/05-expressions.md#r-expr.eq.std
+lang/expressions/unary-and-binary-operators/equality/reference-equality-equality-of-a-reference-with-a-value-is-no-reference-equality.hd	type	accept	lang/05-expressions.md#r-expr.op.ref-read.mixed
 lang/control-flow/match-expressions/match-a-dotted-variant-call-pattern-binds-its-names.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/match-a-dotted-variant-pattern-with-a-wildcard-payload-matches.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/match-an-option-pattern-binds-its-payload-with-its-type.hd	type	accept	lang/06-control-flow.md#match-expressions

@@ -1,4 +1,4 @@
-# test: slicing a string at the offset text[index] reads without a check panics
+# test: slicing a string from an offset inside the encoding of é panics
 # Spec 04 Type System: types.string.split-scalar-range.
 tests:
     it("slices at the continuation byte of é"):

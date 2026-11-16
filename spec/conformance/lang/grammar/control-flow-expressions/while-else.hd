@@ -1,4 +1,4 @@
-# test: parser builds value-producing while else
+# test: a while loop may end with an else suite
 
 fn main() -> void:
     while true:

@@ -1,4 +1,4 @@
-# test: a `&mut self` call on a list element of a writable tuple changes it in place
+# test: a `&mut self` call on a list element of a writable tuple is accepted
 # Spec 05 Places: expr.place.tuple-field.
 fn demo() -> usize:
     let mut pair = ([+1], +2)

@@ -3,4 +3,5 @@
 # expect-stdout: ok
 # comment with ﻿ inside
 pub fn main() -> void $ Console:
+    _ := "string ﻿ literal"
     println("ok") # trailing ﻿ comment

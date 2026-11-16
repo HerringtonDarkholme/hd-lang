@@ -3,3 +3,5 @@ lang/functions/functions-and-closures.hd	Multiline parameter lists and parenthes
 lang/modules/use-forms/use-group-trailing-comma.hd	Grouped-use trailing commas are the subject.
 lang/expressions/primary-expressions/module-qualified-function-value-parenthesized.hd	Parentheses around a qualified function value are the subject.
 lang/functions/call-site-locations/track-caller-location.hd	The printed call-site lines and columns are the subject; wrapping a line moves them.
+lang/expressions/unary-and-binary-operators/logical-operators.hd	An unspaced `!=` after a name is the subject.
+lang/functions/declarations/same-line-function-body.hd	A function body on the header line is the subject.

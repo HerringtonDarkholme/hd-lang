@@ -1,4 +1,4 @@
-# test: a live cell reads through apply and stores through update, and a child reads a copy
+# test: a live cell reads through apply and stores through update, also when the cell is a field
 # Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write-ref, expr.assign.compound.call-once (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
 struct Cell[T]:

@@ -5,9 +5,12 @@
 trait Step:
     fn next(mut self) -> i32
 
+fn plus_one(value: i32) -> i32:
+    value + 1
+
 impl Step for i32:
     fn next(mut self) -> i32:
-        self + 1
+        plus_one(self)
 
 fn advance(start: i32) -> i32:
     start.next()

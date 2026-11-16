@@ -1,4 +1,4 @@
-# test: requirements / normalization / explicit empty row
+# test: an explicit empty row `$()` may end a function type and a closure header
 # Spec 02 Requirement Clauses: grammar.type.row.empty.
 # expect: accept
 

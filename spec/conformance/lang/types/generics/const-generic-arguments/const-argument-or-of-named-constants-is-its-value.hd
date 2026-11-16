@@ -3,8 +3,8 @@
 
 struct Fixed[N < const i64]: pass
 
-LOW := 1
-MID := 4
+LOW := 3
+MID := 5
 
-fn sum_is_not_or(f: Fixed[LOW | MID]) -> Fixed[6]:
+fn sum_is_not_or(f: Fixed[LOW | MID]) -> Fixed[8]:
     f # diagnostic: type-mismatch

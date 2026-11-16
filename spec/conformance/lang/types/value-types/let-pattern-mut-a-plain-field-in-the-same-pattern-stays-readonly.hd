@@ -1,4 +1,4 @@
-# test: a plain field in the same pattern stays readonly
+# test: a plain field beside a `mut` field in the same pattern stays readonly
 # Spec lang/04-type-system.md: types.bind.let-pattern-mut.data-field.
 
 struct Tally:
@@ -7,5 +7,5 @@ struct Tally:
     count: i32
 
 fn edit(t: Tally) -> void:
-    let Tally { tags, name } = t
+    let Tally { mut count, tags, name } = t
     tags.push(name) # diagnostic: not-writable

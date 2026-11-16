@@ -1,4 +1,4 @@
-# test: branch scopes shadow
+# test: each branch of an if is its own scope, so both branches may bind the same name
 # Spec 03 Conditional Scopes: names.cond.child, names.cond.no-leak,
 # names.scope.lexical, names.scope.start.
 
@@ -14,4 +14,4 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 1"):
-        assert_equal(main(), 1, reason="branch scopes shadow")
+        assert_equal(main(), 1, reason="the taken branch binds its own value")

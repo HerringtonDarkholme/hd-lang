@@ -1,4 +1,4 @@
-# test: every primitive satisfies a Display bound and converts to a Display trait value
+# test: i32, f64, bool and string satisfy a Display bound and convert to a Display trait value
 # expect: test
 # Spec 09 Traits: trait.dyn.convert.any-type.
 fn render[T < Display](value: T) -> string:

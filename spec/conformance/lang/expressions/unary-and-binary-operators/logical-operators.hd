@@ -28,4 +28,4 @@ tests:
     it("!= is one token after a name"):
         f := 1
         g := 2
-        assert(f != g, reason="f!=g lexes as f != g")
+        assert(f!=g, reason="f!=g lexes as f != g")

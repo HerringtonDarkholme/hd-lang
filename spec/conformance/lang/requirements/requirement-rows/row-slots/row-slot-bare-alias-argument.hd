@@ -1,4 +1,4 @@
-# test: a bare key as the argument for an alias's row parameter is an error
+# test: a trait value type as the argument for an alias's row parameter is an error
 # Spec 02 Row Type Arguments: grammar.type.row-argument.bare.
 trait Db
 

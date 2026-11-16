@@ -1,4 +1,4 @@
-# test: returning a `&T` as a `&mut T` result is mutable-upgrade
+# test: returning a read-only `*T` as a `*mut T` result is mutable-upgrade
 # Spec 13 Conversions: ref.convert.no-upgrade.
 fn view(r: &i32) -> i32:
     *r

@@ -1,4 +1,4 @@
-# test: every range form slices a string
+# test: slice takes start and end offsets for an inner, a leading, a trailing, a whole and an empty part of a string
 # expect-stdout: el
 # expect-stdout: ell
 # expect-stdout: llo

@@ -1,4 +1,4 @@
-# test: a function-type conversion must be representation-preserving; i32 to Display is not
+# test: a function-type conversion must preserve representation; a *i32 result to a *dyn Display result does not
 fn count() -> *i32:
     box(1)
 

@@ -1,4 +1,4 @@
-# test: callbacks / readonly result
+# test: a function field that returns *mut Child gives its caller a &mut Child
 
 struct Child:
     value: i32
@@ -15,4 +15,4 @@ tests:
     use std.testing.assert_equal
 
     it("main returns 42"):
-        assert_equal(main(), 42, reason="callbacks / readonly result")
+        assert_equal(main(), 42, reason="the field call returns the boxed child")

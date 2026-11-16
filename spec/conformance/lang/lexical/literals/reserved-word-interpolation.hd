@@ -1,4 +1,4 @@
-# test: '$' before a reserved word other than self is a bare '$'
+# test: '$' before a reserved word other than self in a string is a syntax error
 
 fn main() -> string:
     "flag: $true"  # diagnostic: syntax-error
