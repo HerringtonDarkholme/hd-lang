@@ -10587,29 +10587,47 @@ impl Run<'_> {
         order: &[(DefId, &str)],
         key_of: &dyn Fn(&DefId) -> Option<Hash128>,
     ) -> hd_base::StageResult<Vec<JoinedInput>> {
-        let mut owner: Vec<Option<u32>> = vec![None; self.table.modules.len()];
-        let mut out = Vec::new();
+        // Each module's first input, by its place in `inputs`: a module is
+        // walked once, when the first input reaches it.
         let repl = &self.repl_inputs;
-        for &(number, m) in repl.sorted.iter().filter(|(n, _)| repl.builds(*n)) {
+        let inputs: Vec<(u32, usize)> = repl
+            .sorted
+            .iter()
+            .filter(|(n, _)| repl.builds(*n))
+            .copied()
+            .collect();
+        let mut owner: Vec<Option<usize>> = vec![None; self.table.modules.len()];
+        for (i, &(_, m)) in inputs.iter().enumerate() {
             let mut stack = vec![m];
             while let Some(x) = stack.pop() {
                 if owner[x].is_none() {
-                    owner[x] = Some(number);
+                    owner[x] = Some(i);
                     stack.extend(self.use_edges(x));
                 }
             }
-            let path = self.table.modules[m].path.as_str();
-            let mut inits = Vec::new();
-            let mut own = Vec::new();
-            for (d, module) in order {
-                let mine = self.table.module(module).and_then(|k| owner[k.idx()]) == Some(number);
-                if let Some(k) = key_of(d).filter(|_| mine) {
-                    inits.push(k);
-                    if *module == path {
-                        own.push((*d, k));
-                    }
+        }
+        // One pass over `order` deals each init to its module's input, so
+        // the split costs the inits plus the inputs, not their product.
+        let mut inits: Vec<Vec<Hash128>> = vec![Vec::new(); inputs.len()];
+        let mut own: Vec<Vec<(DefId, Hash128)>> = vec![Vec::new(); inputs.len()];
+        for (d, module) in order {
+            let Some((m, i)) = self
+                .table
+                .module(module)
+                .and_then(|k| Some((k.idx(), owner[k.idx()]?)))
+            else {
+                continue;
+            };
+            if let Some(k) = key_of(d) {
+                inits[i].push(k);
+                if m == inputs[i].1 {
+                    own[i].push((*d, k));
                 }
             }
+        }
+        crate::work::init_order_steps(order.len() + inputs.len());
+        let mut out = Vec::with_capacity(inputs.len());
+        for ((&(number, _), inits), own) in inputs.iter().zip(inits).zip(own) {
             let Some(&(def, key)) = own.first() else {
                 return Err(NotImplemented::new(
                     Stage::Collect,

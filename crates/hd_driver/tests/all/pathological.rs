@@ -4528,3 +4528,43 @@ fn init_module_chain(n: usize) -> MemorySources {
     }
     src
 }
+
+// Driver: a joined REPL build dealt its init order to its inputs by a
+// pass over the whole order per input, so n inputs cost n^2 there. One
+// pass now deals each init to its module's input.
+#[test]
+fn a_joined_repl_build_deals_its_inits_in_one_pass() {
+    on_test_stack(|| {
+        let run = |n: u32| {
+            let mut src = MemorySources::named("repl-joined");
+            for i in 1..=n {
+                src.insert(&hd_project::repl_file(i), &format!("v{i} := +{i}\n"));
+            }
+            let session = hd_driver::Session::linked();
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let packages = hd_driver::Packages {
+                session: Some(&session),
+                inputs_from: Some(1),
+                ..hd_driver::Packages::default()
+            };
+            let goal = Goal::ReplInput { input: n };
+            let (out, work) = hd_driver::work::count_init_order_steps(|| {
+                hd_driver::build_packages(&host, "app", &packages, &goal)
+            });
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (run(20), run(200));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "init order steps for 20 and 200 joined inputs: {small} and {large}"
+        );
+    });
+}
