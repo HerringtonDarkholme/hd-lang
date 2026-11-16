@@ -20,6 +20,10 @@ pub(crate) struct BodyFacts {
     pub(super) recursive: Arc<hd_tir::own::RecursiveBindings>,
     pub(super) uses: Arc<UseFacts>,
     pub(super) borrow: Arc<OnceLock<super::borrow::BorrowFacts>>,
+    /// How many times each value is a value operand, counted by the first
+    /// emitter that asks (`indirect.rs`), once per body however many
+    /// instances and closure sub-bodies it has.
+    pub(super) slot_uses: Arc<OnceLock<Arc<HashMap<u32, u32>>>>,
     pub(super) short_uses: OnceLock<hd_tir::own::short::Uses>,
     pub(super) rows: Vec<Arc<[usize]>>,
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
@@ -75,6 +79,7 @@ impl BodyFacts {
             tree: Arc::default(),
             list: Arc::default(),
             borrow: Arc::default(),
+            slot_uses: Arc::default(),
             short_uses: OnceLock::new(),
             rows: rows.into_iter().map(Arc::from).collect(),
             closures,

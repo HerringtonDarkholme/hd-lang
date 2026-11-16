@@ -40,8 +40,10 @@
 //! ownership passes write no `Drop` or `LoanEnd` for a type that counts
 //! nothing and holds nothing to drop. Cost: [`params`] visits the
 //! callee's body once, memoized per instance; [`Em::forwarded`] and
-//! [`Em::place_result`] visit a worker's body once, and
-//! [`Em::kept_results`] each body once.
+//! [`Em::kept_results`] visit only the sub-body being emitted, and the
+//! value use counts they and [`Em::place_result`] read are counted once
+//! per body, shared by its instances and closures ([`Em::slot_uses`]),
+//! so a body with n closures costs O(its size), not n times that.
 
 use std::rc::Rc;
 
@@ -264,7 +266,7 @@ pub(crate) fn load_leaves(f: &mut Func, base: u32, off: u32, mem: &Mem) {
 }
 
 /// How many times each value of body `b` is used as a value operand: one
-/// visit of the body.
+/// visit of the body, made once per body ([`Em::slot_uses`]).
 fn value_uses(b: &hd_tir::ir::Body) -> HashMap<u32, u32> {
     let mut uses: HashMap<u32, u32> = HashMap::default();
     for i in 0..b.tags.len() {
@@ -304,6 +306,16 @@ fn address(f: &mut Func, base: u32, off: u32) {
 }
 
 impl Em<'_, '_, '_> {
+    /// The body's value-operand use counts ([`value_uses`]), counted by the
+    /// first of its emitters that asks: its instances and closure
+    /// sub-bodies share one count.
+    fn slot_uses(&self) -> std::sync::Arc<HashMap<u32, u32>> {
+        std::sync::Arc::clone(
+            self.slot_uses
+                .get_or_init(|| std::sync::Arc::new(value_uses(self.b))),
+        )
+    }
+
     /// The parameters instance `key`'s worker takes by address, for a
     /// direct call of it.
     pub(super) fn worker_of(&mut self, key: hd_base::Hash128) -> Option<Params> {
@@ -313,14 +325,15 @@ impl Em<'_, '_, '_> {
 
     /// The field reads of an address parameter that only pass on as an
     /// address argument of a direct call to a worker: each has one use,
-    /// that argument. One visit of the body.
+    /// that argument. One visit of this sub-body's instructions.
     pub(super) fn forwarded(&mut self) -> HashSet<u32> {
         let b = self.b;
         let mut candidates: Vec<u32> = Vec::new();
         if self.mem_locals.is_empty() {
             return HashSet::default();
         }
-        for i in 0..u32_of(b.tags.len()) {
+        for &i in self.rows.clone().iter() {
+            let i = u32_of(i);
             if b.tags[i as usize] != Tag::Call {
                 continue;
             }
@@ -345,7 +358,7 @@ impl Em<'_, '_, '_> {
         if candidates.is_empty() {
             return HashSet::default();
         }
-        let uses = value_uses(b);
+        let uses = self.slot_uses();
         candidates
             .into_iter()
             .filter(|r| uses.get(r) == Some(&1))
@@ -488,7 +501,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let b = self.b;
-        let uses = value_uses(b);
+        let uses = self.slot_uses();
         if uses.get(&tail).copied().unwrap_or(0) > 1 {
             return Ok(());
         }
@@ -625,13 +638,13 @@ impl Em<'_, '_, '_> {
     /// whose one use is an address argument of the direct call to a worker
     /// that comes right after it in the same block. Nothing runs between
     /// the two, so no exit, loop edge or suspension can leave the block
-    /// reserved. One visit of the body for use counts, then one of each
-    /// block's items.
+    /// reserved. One visit of this sub-body's instructions, and of each
+    /// of its blocks' items; the use counts are the body's, shared.
     pub(super) fn kept_results(&mut self) -> HashSet<u32> {
         let b = self.b;
         let mut kept = HashSet::default();
-        let mut uses: Option<HashMap<u32, u32>> = None;
-        for blk in 0..u32_of(b.tags.len()) {
+        for &blk in self.rows.clone().iter() {
+            let blk = u32_of(blk);
             if b.tags[blk as usize] != Tag::Block {
                 continue;
             }
@@ -664,8 +677,7 @@ impl Em<'_, '_, '_> {
                 {
                     continue;
                 }
-                let uses = uses.get_or_insert_with(|| value_uses(b));
-                if uses.get(&r) == Some(&1) {
+                if self.slot_uses().get(&r) == Some(&1) {
                     kept.insert(r);
                 }
             }

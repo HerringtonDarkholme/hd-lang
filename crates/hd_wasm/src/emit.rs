@@ -1583,6 +1583,9 @@ struct Em<'i, 'a, 'm> {
     sub_id: u16,
     /// One immutable final-body census shared across emitted closures.
     uses: std::sync::Arc<body_facts::UseFacts>,
+    /// The body's value-operand use counts, shared by its emitters
+    /// ([`body_facts::BodyFacts::slot_uses`]).
+    slot_uses: std::sync::Arc<std::sync::OnceLock<std::sync::Arc<HashMap<u32, u32>>>>,
     /// One local-use census shared by parameter and capture loan queries.
     loan_uses: LoanCell,
     /// The final body's shared block structure.
@@ -1765,6 +1768,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             sub_id: sub,
             loan_uses,
             uses: std::sync::Arc::clone(&facts.uses),
+            slot_uses: std::sync::Arc::clone(&facts.slot_uses),
             topo: std::sync::Arc::clone(&facts.topo),
             tree: std::sync::Arc::clone(&facts.tree),
             hoisted: Vec::new(),
