@@ -16,6 +16,7 @@ thread_local! {
     static ZERO_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
     static INIT_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
+    static MOVED_PATHS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -127,6 +128,18 @@ pub fn count_init_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn init_probes(n: usize) {
     add(&INIT_PROBES, n);
+}
+
+/// Counts the work on moves out of parameters kept by address on this
+/// thread: each `Read move` the scan notes and each one emitted, one
+/// probe each, and each release plan step and moved path a drop's level
+/// visits ([`crate::emit`]'s `mem_moves`, `mem_read` and `mem_release`).
+pub fn count_moved_paths<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&MOVED_PATHS, run)
+}
+
+pub(crate) fn moved_paths(n: usize) {
+    add(&MOVED_PATHS, n);
 }
 
 fn count<R>(

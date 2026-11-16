@@ -8,6 +8,7 @@
 # copied (one more count) and moved into a local; a field moved on to
 # another worker as its address; a field of a field moved (the drop
 # elaborates the nested plan); a move on one branch only (a drop flag);
+# the same field moved on each branch (one flag, set on either);
 # results: a literal holding a worker's result in place and a string
 # used twice (a count each), an early `return` of a local, a result
 # taken from a parameter's field or the parameter itself, a result in
@@ -143,6 +144,13 @@ fn gen[T](g: Gen[T]) -> T:
 
 fn apply(f: fn(Big) -> i32, x: i32) -> i32: f(mk(x, "fv"))
 
+fn keep(s: string) -> string: s
+
+fn either(t: Outer, left: bool) -> i32:
+    if left:
+        return i32(keep(t.tag).len()) + 1
+    i32(keep(t.tag).len()) + t.v
+
 fn boom(t: Big) -> i32:
     if t.f0 > 100:
         panic("boom")
@@ -170,4 +178,5 @@ pub fn main() -> void $ Console:
         .Err(e) => println(e)
     println("${through(Holder { big: mk(4, "h"), small: Small { s: "s${4}", n: 3 } })}")
     println("${gen(Gen { big: mk(1, "g"), extra: "gx" })} ${gen(Gen { big: mk(2, "h"), extra: 5 })} ${apply(sum, 10)}")
+    println("${either(mk_outer(3), true)} ${either(mk_outer(3), false)}")
     println("${boom(mk(5, "b"))}")

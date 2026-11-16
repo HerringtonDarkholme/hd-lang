@@ -119,3 +119,47 @@ fn counted_struct_chain_module_grows_linearly() {
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }
+
+/// `take` owns a struct of `f` strings by address and moves each field
+/// on to `keep`, which owns it, so its drop skips each under the
+/// field's flag.
+fn moved_fields_program(f: usize) -> String {
+    let mut text = String::from("struct W:\n");
+    for k in 0..f {
+        let _ = writeln!(text, "    s{k}: string");
+    }
+    text.push_str("\nfn mk() -> W: W { ");
+    for k in 0..f {
+        let _ = write!(text, "{}s{k}: \"v{k}\"", if k == 0 { "" } else { ", " });
+    }
+    text.push_str(
+        " }\n\nfn keep(s: string) -> string: s\n\nfn take(w: W) -> i32:\n    let n = 0\n",
+    );
+    for k in 0..f {
+        let _ = writeln!(text, "    n += i32(keep(w.s{k}).len())");
+    }
+    text.push_str("    n\n\npub fn main() -> void $ Console:\n    println(\"${take(mk())}\")\n");
+    text
+}
+
+/// Moving F fields out of one parameter kept by address costs O(F): each
+/// move probes its flag by (local, path), and the drop groups the moved
+/// paths by field once per level. Before, each move scanned the moved
+/// list and each release step filtered it, O(F^2).
+#[test]
+fn moved_fields_cost_linear_work() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let ((), small) = hd_wasm::work::count_moved_paths(|| {
+                build_bytes(&moved_fields_program(40));
+            });
+            let ((), large) = hd_wasm::work::count_moved_paths(|| {
+                build_bytes(&moved_fields_program(400));
+            });
+            eprintln!("moved field work: F=40 {small}, F=400 {large}");
+            assert!(small >= 40, "F=40 {small}");
+            assert!(large <= small * 12, "F=40 {small}, F=400 {large}");
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}

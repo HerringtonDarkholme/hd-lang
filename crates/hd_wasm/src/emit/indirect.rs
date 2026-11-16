@@ -516,7 +516,7 @@ impl Em<'_, '_, '_> {
 
     /// For a `Read` `r` of a local kept in memory, whole or of fields: the
     /// local's address local and offset, its layout and the field path.
-    pub(super) fn mem_field(&self, r: u32) -> Option<(u32, u32, Mem, Vec<u32>, usize)> {
+    pub(super) fn mem_field(&self, r: u32) -> Option<MemField> {
         if self.b.tags.get(r as usize) != Some(&Tag::Read) {
             return None;
         }
@@ -547,14 +547,12 @@ impl Em<'_, '_, '_> {
         let (_, part) = self.fold_path(declared, &fields)?;
         // A move out of a counted parameter: its drop skips the field.
         let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
-        if moved
-            && let Some(&(_, flag)) = self
-                .mem_moved
-                .get(&l)
-                .and_then(|ms| ms.iter().find(|(p, _)| *p == fields))
-        {
-            self.f.i32(1);
-            self.f.set(flag);
+        if moved && !self.mem_move_flags.is_empty() {
+            crate::work::moved_paths(1);
+            if let Some(&flag) = self.mem_move_flags.get(&(l, fields.into_boxed_slice())) {
+                self.f.i32(1);
+                self.f.set(flag);
+            }
         }
         if self.forward.contains(&i) {
             self.mem_vals.insert(i, (at, off + part.offset));
@@ -1110,7 +1108,7 @@ impl Em<'_, '_, '_> {
             }
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
-            self.mem_locals.insert(l, (base, off, mem));
+            self.mem_locals.insert(l, (base, off, Rc::new(mem)));
             if Ref(v).as_inst().is_some() && uses.get(&v) == Some(&1) {
                 self.frame_copies.push(v);
                 self.plan_in_place(v, base, off, &uses)?;
@@ -1167,6 +1165,14 @@ impl Em<'_, '_, '_> {
     }
 }
 
+/// A `Read` of a local kept in memory ([`Em::mem_field`]): its address
+/// local, offset and layout, the field path and the local.
+pub(super) type MemField = (u32, u32, Rc<Mem>, Vec<u32>, usize);
+
+/// A field path a `Read move` takes out of a counted address parameter,
+/// with the flag local set when it does ([`Em::mem_moves`]).
+pub(super) type MovedPath = (Box<[u32]>, u32);
+
 impl Em<'_, '_, '_> {
     /// Notes each field path a `Read move` takes out of a counted address
     /// parameter, with a flag local its drop tests (rustc's drop
@@ -1175,7 +1181,7 @@ impl Em<'_, '_, '_> {
     /// has such a parameter.
     pub(super) fn mem_moves(&mut self) {
         let b = self.b;
-        let counted: Vec<usize> = self
+        let counted: HashSet<usize> = self
             .mem_locals
             .keys()
             .copied()
@@ -1186,6 +1192,7 @@ impl Em<'_, '_, '_> {
         if counted.is_empty() {
             return;
         }
+        let mut order: HashMap<usize, Vec<MovedPath>> = HashMap::default();
         for &i in self.rows.clone().iter() {
             if b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Move as u32 {
                 continue;
@@ -1196,15 +1203,17 @@ impl Em<'_, '_, '_> {
             if !counted.contains(&l) || !self.tracked(self.ty(u32_of(i))) {
                 continue;
             }
-            let known = self
-                .mem_moved
-                .get(&l)
-                .is_some_and(|ms| ms.iter().any(|(p, _)| *p == fields));
-            if !known {
+            crate::work::moved_paths(1);
+            let fields = fields.into_boxed_slice();
+            if let std::collections::hash_map::Entry::Vacant(e) =
+                self.mem_move_flags.entry((l, fields.clone()))
+            {
                 let flag = self.f.local(Val::I32);
-                self.mem_moved.entry(l).or_default().push((fields, flag));
+                e.insert(flag);
+                order.entry(l).or_default().push((fields, flag));
             }
         }
+        self.mem_moved = order.into_iter().map(|(l, ms)| (l, ms.into())).collect();
     }
 
     /// Releases counted address parameter `l` from its address, once: its
@@ -1213,8 +1222,10 @@ impl Em<'_, '_, '_> {
     /// `Drop`) finds the dead flag set. Whether `l` is such a parameter.
     /// O(the fields on the moved paths), the rest one witness call each.
     pub(super) fn mem_release(&mut self, l: usize) -> hd_base::StageResult<bool> {
+        // A level's moved paths: indices into `moved`, all `depth` fields
+        // deep into the level's type.
         enum Task {
-            Level(u32, std::sync::Arc<ReleasePlan>, Vec<(Vec<u32>, u32)>),
+            Level(u32, std::sync::Arc<ReleasePlan>, usize, Vec<usize>),
             Step(u32, ReleaseStep),
             Guard(u32),
             End,
@@ -1241,8 +1252,8 @@ impl Em<'_, '_, '_> {
         self.f.get(dead);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        let moved = self.mem_moved.get(&l).cloned().unwrap_or_default();
-        let mut todo = vec![Task::Level(off, plan, moved)];
+        let moved = self.mem_moved.get(&l).cloned().unwrap_or_else(|| [].into());
+        let mut todo = vec![Task::Level(off, plan, 0, (0..moved.len()).collect())];
         while let Some(task) = todo.pop() {
             match task {
                 Task::End => self.f.op(I::End),
@@ -1252,28 +1263,42 @@ impl Em<'_, '_, '_> {
                     self.f.op(I::If(wasm_encoder::BlockType::Empty));
                 }
                 Task::Step(off, step) => crate::rt::release_step(&mut self.f, at, off, &step),
-                Task::Level(off, plan, moved) => {
+                Task::Level(off, plan, depth, here) => {
+                    crate::work::moved_paths(plan.steps.len() + here.len());
+                    // One pass groups this level's paths by their field
+                    // here, in `moved`'s order: the guards (a path ending
+                    // at this field) and the paths deeper in it.
+                    let mut by_field: HashMap<u32, (Vec<u32>, Vec<usize>)> = HashMap::default();
+                    for k in here {
+                        // Each path here is longer than `depth`:
+                        // `compute_params` keeps only nonempty field paths,
+                        // and a path goes a level deeper only when longer.
+                        let (path, flag) = &moved[k];
+                        let f = path[depth];
+                        let (guards, deeper) = by_field.entry(f).or_default();
+                        if path.len() == depth + 1 {
+                            guards.push(*flag);
+                        } else {
+                            deeper.push(k);
+                        }
+                    }
                     let mut seq = Vec::new();
                     for step in &plan.steps {
-                        let here: Vec<(Vec<u32>, u32)> = moved
-                            .iter()
-                            .filter(|(p, _)| p.first() == Some(&step.field()))
-                            .map(|(p, flag)| (p[1..].to_vec(), *flag))
-                            .collect();
-                        let guards: Vec<u32> = here
-                            .iter()
-                            .filter(|(p, _)| p.is_empty())
-                            .map(|(_, flag)| *flag)
-                            .collect();
-                        let deeper: Vec<(Vec<u32>, u32)> =
-                            here.into_iter().filter(|(p, _)| !p.is_empty()).collect();
+                        let (guards, deeper) = by_field
+                            .get(&step.field())
+                            .map_or((&[][..], &[][..]), |(g, d)| (&g[..], &d[..]));
                         seq.extend(guards.iter().map(|&g| Task::Guard(g)));
                         // `indirect::params` keeps a move only through
                         // fields passed by address: a deeper path is one
                         // into a nested plan.
                         match step {
                             ReleaseStep::Nested { offset, plan, .. } if !deeper.is_empty() => {
-                                seq.push(Task::Level(off + offset, plan.clone(), deeper));
+                                seq.push(Task::Level(
+                                    off + offset,
+                                    plan.clone(),
+                                    depth + 1,
+                                    deeper.to_vec(),
+                                ));
                             }
                             _ => seq.push(Task::Step(off, step.clone())),
                         }

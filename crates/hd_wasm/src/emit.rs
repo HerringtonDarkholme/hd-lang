@@ -349,7 +349,7 @@ fn body_func<'a>(
     for (k, &l) in plocals.iter().enumerate() {
         if let Some(Some(mem)) = own.indirect.as_ref().map(|abi| abi.params[k].clone()) {
             let at = shape::u32_of(params.len());
-            em.mem_locals.insert(l, (at, 0, mem));
+            em.mem_locals.insert(l, (at, 0, std::rc::Rc::new(mem)));
             params.push(Val::I32);
             continue;
         }
@@ -1499,12 +1499,16 @@ struct Em<'i, 'a, 'm> {
     /// Each local kept in memory (`indirect.rs`): a parameter this worker
     /// takes by address, or a local in a slot of the frame block
     /// ([`Em::frame_locals`]). The Wasm local of its address, its offset
-    /// there and its layout.
-    mem_locals: HashMap<usize, (u32, u32, crate::layout::Mem)>,
+    /// there and its layout, shared so a read takes it in O(1).
+    mem_locals: HashMap<usize, (u32, u32, std::rc::Rc<crate::layout::Mem>)>,
     /// Per counted address parameter, each field path a `Read move` takes
-    /// out of it and the flag local set when it does; and the flag set
-    /// when its drop has run (`indirect.rs`, #2031 step 4).
-    mem_moved: HashMap<usize, Vec<(Vec<u32>, u32)>>,
+    /// out of it with the flag local set when it does, in first-read
+    /// order (the drop's guards follow it); and the flag set when its
+    /// drop has run (`indirect.rs`, #2031 step 4).
+    mem_moved: HashMap<usize, std::rc::Rc<[indirect::MovedPath]>>,
+    /// The flag of each (parameter, field path) in `mem_moved`: one probe
+    /// per `Read move`.
+    mem_move_flags: HashMap<(usize, Box<[u32]>), u32>,
     mem_dead: HashMap<usize, u32>,
     /// The frame block on the shadow stack holding the locals kept in
     /// memory: its address local and size. Reserved at entry and given
@@ -1764,6 +1768,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             lazy: HashMap::default(),
             mem_locals: HashMap::default(),
             mem_moved: HashMap::default(),
+            mem_move_flags: HashMap::default(),
             mem_dead: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
