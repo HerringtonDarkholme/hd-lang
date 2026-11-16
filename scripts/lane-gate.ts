@@ -22,7 +22,8 @@
 //                     also run when any compiler crate is selected, since its
 //                     stage baselines dump later stages through hd_testkit;
 //                     hd_cli: `--bins` when touched, plus `--test all` for the test
-//                     modules the diff changes; every other touched crate: all its targets; a
+//                     modules the diff changes; hd_cache: also `--features disk --lib`,
+//                     as CI runs it; every other touched crate: all its targets; a
 //                     selected crate that is only a dependent: clippy's type check
 //                     of all its targets, no test build (each test binary links the
 //                     whole compiler, and CI runs them all), except hd_lint,
@@ -266,6 +267,18 @@ const crateRule: Rule = (ctx) => {
         "crates",
         `touched: ${touched.join(" ")}`,
         cargoTest(...touched.flatMap((name) => ["-p", name])),
+      ),
+    );
+  }
+  // hd_cache's disk store and its tests are behind the `disk` feature, which
+  // `-p hd_cache` leaves off; CI runs them as `--features disk --lib`, and so
+  // does a change to the crate here (about 20 s: one lib build, 83 tests).
+  if (ctx.touched.has("hd_cache")) {
+    steps.push(
+      step(
+        "hd_cache_disk",
+        "hd_cache touched: its disk tests need the disk feature",
+        cargoTest("-p", "hd_cache", "--features", "disk", "--lib"),
       ),
     );
   }
