@@ -17,6 +17,7 @@ thread_local! {
     static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
     static INIT_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
     static MOVED_PATHS: Cell<Option<u64>> = const { Cell::new(None) };
+    static EXIT_ROWS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -142,6 +143,17 @@ pub fn count_moved_paths<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn moved_paths(n: usize) {
     add(&MOVED_PATHS, n);
+}
+
+/// Counts the exit-set rows on this thread: each row a body's census
+/// indexes, and each row an emitted function's exit release visits
+/// ([`crate::emit`]'s `release_all`).
+pub fn count_exit_rows<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&EXIT_ROWS, run)
+}
+
+pub(crate) fn exit_rows(n: usize) {
+    add(&EXIT_ROWS, n);
 }
 
 fn count<R>(

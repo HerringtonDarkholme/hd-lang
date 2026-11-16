@@ -47,7 +47,11 @@ use wasm_encoder::BlockType;
 pub(crate) struct Boundaries {
     counts: hd_base::HashMap<(u32, Tag, At, Part), Reason>,
     owned: hd_base::HashSet<(u32, usize)>,
+    /// Each sub-body's slice of the exit set, in `Body::exit_drops` order
+    /// (sorted by local), so an emitter visits only its own rows.
     exits: hd_base::HashMap<u32, Vec<usize>>,
+    /// The values the unwind set lists at any point.
+    unwound: hd_base::HashSet<u32>,
     stored: hd_base::HashSet<usize>,
     captures: hd_base::HashSet<usize>,
     shared_captures: hd_base::HashSet<usize>,
@@ -86,6 +90,7 @@ impl Boundaries {
         }
         let mut owned = hd_base::HashSet::default();
         let mut exits: hd_base::HashMap<u32, Vec<usize>> = hd_base::HashMap::default();
+        crate::work::exit_rows(body.exit_drops.len());
         for &(sub, local) in &body.exit_drops {
             visit();
             owned.insert((sub.raw(), local.idx()));
@@ -101,6 +106,7 @@ impl Boundaries {
                 a == b
             });
         }
+        let unwound = body.unwind_drops.iter().map(|&(_, value)| value).collect();
         let mut captures = hd_base::HashSet::default();
         let mut shared_captures = hd_base::HashSet::default();
         for (i, local) in body.cap_local.iter().enumerate() {
@@ -114,6 +120,7 @@ impl Boundaries {
             counts,
             owned,
             exits,
+            unwound,
             stored,
             captures,
             shared_captures,
@@ -646,12 +653,8 @@ impl Em<'_, '_, '_> {
             return;
         }
         let holds = match *root {
-            Root::Value(v) => self.b.unwind_drops.iter().any(|r| r.1 == v),
-            Root::Local(l) => self
-                .b
-                .exit_drops
-                .iter()
-                .any(|&(s, x)| s.raw() == u32::from(self.sub_id) && x.idx() == l),
+            Root::Value(v) => self.boundary_facts().unwound.contains(&v),
+            Root::Local(l) => self.owns_at_exit(l),
         };
         assert!(
             holds,
@@ -1005,17 +1008,26 @@ impl Em<'_, '_, '_> {
     fn release_all_inner(&mut self) -> StageResult<()> {
         // The exit set: the locals that may still hold a value here.
         self.f.reason = Some(Reason::LastUse);
-        let b = self.b;
+        // This sub-body's own rows of the exit set, indexed once per body
+        // ([`Boundaries::exits`]): an emitter of one of n closures visits
+        // its rows, not the whole body's.
+        let shared = std::sync::Arc::clone(&self.boundary_counts);
+        let facts = shared.get_or_init(|| Box::new(Boundaries::new(self.b)));
+        let owners = facts
+            .exits
+            .get(&u32::from(self.sub_id))
+            .map_or(&[][..], Vec::as_slice);
+        crate::work::exit_rows(owners.len());
         let mut released = hd_base::HashSet::default();
-        for &(s, l) in &b.exit_drops {
-            if s.raw() != u32::from(self.sub_id) || self.borrowed.contains(&l.idx()) {
+        for &l in owners {
+            if self.borrowed.contains(&l) {
                 continue;
             }
-            if let Some(ls) = self.locals.get(&l.idx()).cloned() {
-                self.release_owned_local(l.idx(), &ls)?;
-                released.insert(l.idx());
-            } else if self.mem_release(l.idx())? {
-                released.insert(l.idx());
+            if let Some(ls) = self.locals.get(&l).cloned() {
+                self.release_owned_local(l, &ls)?;
+                released.insert(l);
+            } else if self.mem_release(l)? {
+                released.insert(l);
             }
         }
         // A value made only of references needs no ownership drop, so

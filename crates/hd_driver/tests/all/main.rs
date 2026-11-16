@@ -7,6 +7,7 @@ mod allocator_init;
 mod block_decorator;
 mod checker;
 mod claim_order;
+mod closure_exit_rows;
 mod coherence_scale;
 mod competing_drivers;
 mod constant_defaults;
