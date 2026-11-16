@@ -1,0 +1,35 @@
+# @dump: wat
+# @build: std checked | std release checked
+# @helpers: drop_entries drop_elems
+# Copy collection elements have no own hooks; boxed referents still drop once.
+# Rules: module.rt.drop.not-copy, module.rt.drop.glue.
+use std.rt.Drop
+
+# subject
+@derive(Eq, Hash)
+struct Key:
+    number: usize
+    label: string
+
+struct Item:
+    seen: *mut usize
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        *self.seen += 1
+
+fn exercise(seen: *mut usize) -> void:
+    let mut values: List[*mut Item] = [box(Item { seen: seen }), box(Item { seen: seen })]
+    let mut entries: Map[Key, *mut Item] = {}
+    key := Key { number: 1, label: "same" }
+    entries[key] = values[0]
+    entries[key] = values[1]
+    _ := entries.remove(key)
+    values.truncate(0)
+
+pub fn main() -> void $ Console:
+    seen := box(0)
+    exercise(seen)
+    println(*seen)

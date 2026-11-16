@@ -1239,3 +1239,5 @@ says that the check covered syntax only.
 | 2026-11-16 | #1939 size A/B | api | Scratch `[capabilities]` listed only `Console` for all benchmarks. | error: src/main.hd:75:23: missing-capability: `main` requires `Clock` in `$ Console + Clock`, but `[capabilities]` in hd.toml does not list it | yes | Add `Clock = true` to the shared before/after scratch manifest. | fx (model ID not exposed) |
 
 | 2026-11-16 | #1939/#1986 large callback ABI fixture | syntax | `Wide { ..value, a0: original() + value.a0 }` | `error: main.hd:1747..1749: syntax-error: expected a data field name, found '..'` | partly; the message rejected Rust syntax, the write-hd example supplied the spelling | `Wide { ...value, a0: original() + value.a0 }` | Codex |
+
+| 2026-11-16 | #2044 collection referent stage | api | `# @dump: stdout` with `# @build: std checked` and `use std.rt.Drop` | ``error: main.hd:5:1: std-only-use: `std.rt.Drop` is a runtime module, which only the standard library may use`` | partly; the stdout stage builds an application even with the std build flag | Use the std WAT stage and put the executable hook assertion in the existing std_rt test module | Codex |

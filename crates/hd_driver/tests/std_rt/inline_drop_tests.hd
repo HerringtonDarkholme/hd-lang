@@ -343,6 +343,20 @@ impl Relay for Forwarder:
     fn relay!(&self, value: Token) -> Token:
         value
 
+@derive(Eq, Hash)
+struct CollectionKey:
+    number: usize
+    label: string
+
+fn copy_collection_referents() -> void:
+    let mut values: List[*mut Token] = [box(Token { id: 1 }), box(Token { id: 2 })]
+    let mut entries: Map[CollectionKey, *mut Token] = {}
+    key := CollectionKey { number: 1, label: "same" }
+    entries[key] = values[0]
+    entries[key] = values[1]
+    _ := entries.remove(key)
+    values.truncate(0)
+
 tests:
     use std.testing.{assert_equal, it}
 
@@ -515,3 +529,8 @@ tests:
         assert_equal(value.id, 0)
         _ := identity(value)
         assert_equal(drops, before + 1)
+
+    it("Copy collections release each boxed Drop referent once"):
+        before := drops
+        copy_collection_referents()
+        assert_equal(drops, before + 2)

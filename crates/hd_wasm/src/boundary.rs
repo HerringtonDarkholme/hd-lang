@@ -473,7 +473,7 @@ fn of_at(
                     "ruled out: `Map` has a key and a value type"
                 );
                 let (k, v) = (items[0], items[1]);
-                let entry = crate::map::Entry::of(input, s, (k, v), &|_| Vec::new())?;
+                let entry = crate::map::Entry::of(input, s, (k, v))?;
                 let collected = &input.collected.boundary;
                 // ruled out: hd_mono's note_boundary_value selects the key
                 // operations of every map type a boundary value reaches.

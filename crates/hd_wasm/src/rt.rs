@@ -768,6 +768,7 @@ pub struct Elem {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
+    /// Inline hooks for host/task argument areas; Copy list elements have none.
     pub drops: Vec<DropCall>,
     pub colls: Vec<u32>,
     pub cyclic: bool,
@@ -787,11 +788,6 @@ impl Elem {
     #[must_use]
     pub fn counts(&self) -> bool {
         self.walk.is_some() || !self.colls.is_empty()
-    }
-
-    #[must_use]
-    pub fn needs_drop(&self) -> bool {
-        self.walk.is_some() || !self.drops.is_empty()
     }
 }
 
@@ -3832,8 +3828,9 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
     let glue = elem
-        .needs_drop()
-        .then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+        .walk
+        .as_ref()
+        .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
     push_desc(&mut f, glue, elem.cyclic);
     f.helper(Helper::New);
     f.set(b);
@@ -4057,7 +4054,6 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     f.set(at);
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
-        call_drops(f, at, &elem.drops);
         fill_elem(f, at, &elem.leaves, &ls);
         if let Some(walk) = &elem.walk {
             walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);

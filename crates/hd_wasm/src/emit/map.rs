@@ -59,18 +59,7 @@ impl Em<'_, '_, '_> {
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],
         );
-        // A key's or value's own `Drop` calls, when it is an inline value
-        // that holds one: a boxed part runs its hooks in its cell's glue.
-        let drops = |t: Ty| {
-            if matches!(self.kind(t), crate::layout::Kind::Value)
-                && crate::layout::holds_drop(self.pool(), self.env(), t)
-            {
-                self.drop_calls(t)
-            } else {
-                Vec::new()
-            }
-        };
-        Ok((kt, vt, Entry::of(self.input, t, (kt, vt), &drops)?))
+        Ok((kt, vt, Entry::of(self.input, t, (kt, vt))?))
     }
 
     /// How instruction `i`'s map hashes and compares keys whose values

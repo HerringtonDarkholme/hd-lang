@@ -1227,7 +1227,8 @@ impl Em<'_, '_, '_> {
             size: m.size,
             leaves: m.leaves,
             walk: self.counted(et),
-            drops: self.drop_calls(et),
+            // List elements are Copy, so only their referents may have hooks.
+            drops: Vec::new(),
             colls: coll_leaves(self.pool(), self.env(), et),
             cyclic: self.cyclic_object(t),
         };
