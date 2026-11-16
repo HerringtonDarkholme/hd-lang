@@ -1,6 +1,8 @@
 //! The shape rules of `tests:` blocks: a file has at most one
 //! (`grammar.tests.once`), and a test module or an integration test has none
-//! (`module.test.no-tests-block`). Each offending block is one diagnostic.
+//! (`module.test.no-tests-block`). Each offending block is one diagnostic;
+//! the cases are stage cases (`hd_check/tests/cases/tests-block-shape/`).
+//! An edit that adds and removes a second block updates a warm report.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -32,24 +34,6 @@ fn found(out: &Output) -> Vec<(Code, u32)> {
         .into_iter()
         .map(|i| (out.diags.code[i], out.diags.primary[i].lo))
         .collect()
-}
-
-#[test]
-fn an_integration_test_has_no_tests_block() {
-    let files = [("src/main.hd", LIB), ("tests/flow.hd", BLOCK)];
-    let out = analyze(&crate::warm_store(), &files);
-    assert_eq!(
-        found(&out),
-        [(Code::MisplacedTestsBlock, 0)],
-        "{}",
-        out.render()
-    );
-    // Two blocks: each is misplaced, and none is also a duplicate.
-    let two = format!("{BLOCK}{SECOND}");
-    let files = [("src/main.hd", LIB), ("tests/flow.hd", two.as_str())];
-    let out = analyze(&crate::warm_store(), &files);
-    let codes: Vec<Code> = found(&out).into_iter().map(|f| f.0).collect();
-    assert_eq!(codes, [Code::MisplacedTestsBlock; 2], "{}", out.render());
 }
 
 #[test]

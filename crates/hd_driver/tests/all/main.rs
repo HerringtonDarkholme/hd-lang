@@ -54,7 +54,6 @@ mod release_profile_run;
 mod resume_dispatch;
 mod reuse_ifaces;
 mod row_aliases;
-mod row_one_body;
 mod rows_determinism;
 mod runtime;
 mod same_name_packages;

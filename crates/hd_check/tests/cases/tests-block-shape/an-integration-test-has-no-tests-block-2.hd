@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# module.test.no-tests-block, grammar.tests.once: each of two blocks in an
+# integration test file is misplaced, and neither is also a duplicate.
+pub fn double(n: i32) -> i32: n * 2
+# @file: tests/flow.hd
+tests:
+    it("first"):
+        pass
+
+tests:
+    it("second"):
+        pass

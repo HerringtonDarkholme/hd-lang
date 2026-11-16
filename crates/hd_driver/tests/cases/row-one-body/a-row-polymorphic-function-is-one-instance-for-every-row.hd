@@ -1,0 +1,40 @@
+# @dump: functions stdout
+# @build: dev | release
+# req.poly.one-body (`crates/hd_mono/DESIGN.md` §12.4, #176): a
+# row-polymorphic body is compiled once. `run` is called with a
+# `$ Console` callback, a `$ Clock` callback and a plain one, and `twice`
+# forwards its row to `run`, yet each is one function, and the program
+# prints the same in both builds.
+trait Clock:
+    fn now(self) -> i32
+
+struct Fixed:
+    hour: i32
+
+impl Clock for Fixed:
+    fn now(self) -> i32: self.hour
+
+fn run[$R](job: fn() -> void $ R) -> void $ R:
+    job()
+
+fn twice[$R](job: fn() -> void $ R) -> void $ R:
+    run(job)
+    run(job)
+
+fn shout() -> void $ Console:
+    println("console")
+
+fn tick() -> void $ Clock + Console:
+    println("clock ${$.use(Clock).now()}")
+
+fn quiet() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    run(shout)
+    $.with(Clock=Fixed { hour: 9 }):
+        run(tick)
+        twice(tick)
+    run(quiet)
+    twice(shout)
+    println("done")

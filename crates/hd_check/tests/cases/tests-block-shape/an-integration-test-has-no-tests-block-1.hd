@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# module.test.no-tests-block: an integration test file has no `tests:`
+# block; the block is one `misplaced-tests-block`.
+pub fn double(n: i32) -> i32: n * 2
+# @file: tests/flow.hd
+tests:
+    it("first"):
+        pass
