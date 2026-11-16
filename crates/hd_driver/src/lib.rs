@@ -1391,6 +1391,8 @@ impl ReplInputs {
         text: &mut dyn FnMut(usize) -> Arc<str>,
     ) -> Self {
         let n = table.modules.len();
+        // A set, so each input asks once whether it failed.
+        let failed: HashSet<u32> = failed.iter().copied().collect();
         let numbers: Vec<Option<u32>> = (0..n)
             .map(|k| {
                 (table.modules[k].package == 0)
