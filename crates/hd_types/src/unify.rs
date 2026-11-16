@@ -129,12 +129,14 @@ impl Closed {
             self.edge_log.pop();
             self.edges.remove(&(d, t));
             // Edges leave in the reverse of the order they came, so each
-            // is the last of its dependency's users.
-            if let Some(ts) = self.users.get_mut(&d) {
-                ts.pop();
-                if ts.is_empty() {
-                    self.users.remove(&d);
-                }
+            // is the last of its dependency's users: `depend` adds every
+            // edge to `edges`, `users` and `edge_log` together, and only a
+            // `rebind` (all three reset) or this loop takes one out.
+            let ts = self.users.entry(d).or_default();
+            let last = ts.pop();
+            debug_assert_eq!(last, Some(t), "an edge leaves as the last of its users");
+            if ts.is_empty() {
+                self.users.remove(&d);
             }
         }
         while let Some(&(stamp, t, open)) = self.log.last()
