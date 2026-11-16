@@ -69,6 +69,7 @@ mod positions;
 mod report;
 mod skims;
 mod texts;
+pub mod work;
 pub use hd_base::lines::count_indexed_bytes;
 pub use texts::Texts;
 #[cfg(test)]
@@ -235,6 +236,33 @@ const LAYOUT: u16 = hd_cache::LAYOUT_VERSION;
 /// The caller's clock, for stage times only (never in an output).
 pub trait Clock: Sync {
     fn now_ns(&self) -> u64;
+}
+
+/// The extra roots of one collection, in the order `hd_mono::collect`
+/// reports their instances (`Collected::extra`), with each root's
+/// position: adding a root and finding its instance are one hash probe
+/// each, so a build with r extra roots spends O(r) here, not O(r^2).
+#[derive(Default)]
+struct ExtraRoots {
+    roots: Vec<(DefId, TyList)>,
+    at: HashMap<(DefId, TyList), usize>,
+}
+
+impl ExtraRoots {
+    /// Adds `r` after the roots so far unless it is already one.
+    fn insert(&mut self, r: (DefId, TyList)) {
+        work::root_lookup();
+        if let std::collections::hash_map::Entry::Vacant(e) = self.at.entry(r) {
+            e.insert(self.roots.len());
+            self.roots.push(r);
+        }
+    }
+
+    /// `r`'s position among the roots.
+    fn position(&self, r: (DefId, TyList)) -> Option<usize> {
+        work::root_lookup();
+        self.at.get(&r).copied()
+    }
 }
 
 /// A clock that reads zero: the browser and deterministic tests.
@@ -9969,16 +9997,19 @@ impl Run<'_> {
             _ => root,
         };
         // Extra roots: the other cases, then each distinct report function.
-        let mut extra: Vec<(DefId, TyList)> = roots[1..]
-            .iter()
-            .map(|(d, _)| (*d, TyList::EMPTY))
-            .collect();
+        // `extra` keeps the order collection reports their instances in;
+        // `extra_at` maps each root to its position, so adding a root and
+        // finding its instance are one probe each, not a scan of the roots.
+        let mut extra = ExtraRoots::default();
+        for (d, _) in &roots[1..] {
+            extra.insert((*d, TyList::EMPTY));
+        }
         // A scenario's cleanup function is an extra root, so its instance
         // is collected even though no case calls it.
         if matches!(self.goal, Goal::Scenario { .. }) {
             let def = names.item(&entry_key, "cleanup_ran");
             if self.body_of(p, def).is_some() {
-                extra.push((def, TyList::EMPTY));
+                extra.insert((def, TyList::EMPTY));
             }
         }
         let reports: Vec<Option<(DefId, TyList)>> = roots
@@ -9997,15 +10028,14 @@ impl Run<'_> {
             })
             .collect();
         for r in reports.iter().flatten() {
-            if !extra.contains(r) {
-                extra.push(*r);
-            }
+            extra.insert(*r);
         }
         // A host provider of a key whose trait has a `&self` or `&mut self`
         // method is installed behind a new object (req.ref.host.reference-values): one
         // `std.rt.host_provider` instance per such key of a root's row. A
         // script's or a REPL input's root is one of its init bodies.
         let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
+        let mut host_ref_keys: HashSet<Ty> = HashSet::default();
         let host_provider = names.item(ENTRY_MODULE, "host_provider");
         for d in std::iter::once(root)
             .chain(roots.iter().map(|(d, _)| *d))
@@ -10015,7 +10045,8 @@ impl Run<'_> {
                 let TyData::TraitValue { .. } = self.pool.get(key) else {
                     continue;
                 };
-                if host_refs.iter().any(|(k, _)| *k == key) {
+                work::root_lookup();
+                if !host_ref_keys.insert(key) {
                     continue;
                 }
                 let r = env
@@ -10024,21 +10055,19 @@ impl Run<'_> {
                         (bridge.adapter, self.pool.list(&[bridge.wire]))
                     });
                 host_refs.push((key, r));
-                if !extra.contains(&r) {
-                    extra.push(r);
-                }
+                extra.insert(r);
             }
         }
         for (module, name) in hd_wasm::runtime_items(self.checked()) {
             let r = (names.item(module, name), TyList::EMPTY);
-            if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
-                extra.push(r);
+            if self.body_of(p, r.0).is_some() {
+                extra.insert(r);
             }
         }
         for name in hd_wasm::FLOAT_FNS {
             let r = (names.item(hd_wasm::FLOAT_MODULE, name), TyList::EMPTY);
-            if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
-                extra.push(r);
+            if self.body_of(p, r.0).is_some() {
+                extra.insert(r);
             }
         }
         let collected = hd_mono::collect(
@@ -10047,7 +10076,7 @@ impl Run<'_> {
             &TableSolver,
             root,
             &all_inits,
-            &extra,
+            &extra.roots,
             &[],
             self.session.is_some(),
             &self.planner,
@@ -10076,18 +10105,20 @@ impl Run<'_> {
         };
         let key_of_extra = |r: &(DefId, TyList)| {
             extra
-                .iter()
-                .position(|x| x == r)
+                .position(*r)
                 .and_then(|i| collected.extra.get(i).copied())
         };
         // An init's instance, when this module runs it: a session leaves
-        // out the inits earlier modules ran.
+        // out the inits earlier modules ran. The set is built once, so each
+        // lookup is one probe, not a scan of every init.
+        let run_inits: HashSet<Hash128> = collected.inits.iter().copied().collect();
         let key_of_init = |d: &DefId| {
+            work::root_lookup();
             collected
                 .table
                 .get(*d, hd_mono::Sub::Body(0), TyList::EMPTY)
                 .map(|id| collected.table.key[id.idx()])
-                .filter(|k| collected.inits.contains(k))
+                .filter(|k| run_inits.contains(k))
         };
         let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
         let host_refs: Vec<(Ty, Hash128)> = host_refs

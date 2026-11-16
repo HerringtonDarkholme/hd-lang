@@ -63,6 +63,7 @@ counters! {
     MemberPairs = "member_pairs",
     LoopScans = "loop_scans",
     SlotPathNodes = "slot_path_nodes",
+    RootLookups = "root_lookups",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

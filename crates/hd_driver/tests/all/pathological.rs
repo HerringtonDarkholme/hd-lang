@@ -4427,3 +4427,37 @@ fn the_constants_pass_probes_init_keys_once_per_function() {
         );
     });
 }
+
+// Driver: #2064, the collect step found each extra root by a scan of the
+// roots so far, and each init's instance by a scan of every init, so k
+// test modules cost k^2 there. Roots and inits are now indexed once and
+// each lookup is one probe.
+#[test]
+fn collect_roots_look_up_each_root_once() {
+    on_test_stack(|| {
+        let goal = Goal::Tests {
+            module: None,
+            filter: None,
+        };
+        let run = |n: usize| {
+            let src = test_module_chain(n);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let (out, work) = hd_driver::work::count_root_lookups(|| build(&host, "app", &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            assert_eq!(out.tests.len(), n, "{n}: one case per test module");
+            work
+        };
+        let (small, large) = (run(20), run(200));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "collect root lookups for 20 and 200 test modules: {small} and {large}"
+        );
+    });
+}
