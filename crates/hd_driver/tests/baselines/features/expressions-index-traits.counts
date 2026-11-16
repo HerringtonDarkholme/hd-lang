@@ -23,8 +23,6 @@ impl IndexSet[usize, string] for Names:
 
 fn read_len(n: Names, i: usize) -> usize:
     n[i].len()
-> app/main/read_len
->   release app.main.Names (last use)
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s

@@ -671,7 +671,10 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
         {
-            let lends = call != NONE || t.v[i].read_through;
+            // Frame planning already proved that every reference derived
+            // from this address stays inside the invocation, including
+            // references held in local aggregates and dependent results.
+            let lends = call != NONE || t.v[i].read_through || b.data[i][1] & ref_word::FRAME != 0;
             t.l[l.idx()].shared_lends_only &= b.data[i][1] & ref_word::MUT == 0 && lends;
             if b.data[i][1] & ref_word::FRAME == 0 && !lends {
                 t.l[l.idx()].escapes = true;
@@ -1846,7 +1849,6 @@ fn local_lending_calls_with(
 pub(crate) struct ReferenceUses {
     pub escaping: Vec<bool>,
     pub calls: Vec<u32>,
-    pub read_through: Vec<bool>,
 }
 
 pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
@@ -1886,7 +1888,6 @@ pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     ReferenceUses {
         escaping: out,
         calls,
-        read_through,
     }
 }
 
@@ -2398,10 +2399,10 @@ mod lending_tests {
     }
 
     #[test]
-    fn addressed_parameters_only_lend_to_readonly_nonretaining_calls() -> Result<(), String> {
-        // A mutable address, an address shared by two calls, a result holding
-        // the address, or a possibly writing call must retain the snapshot.
-        for control in 0..7 {
+    fn addressed_parameters_lend_for_immutable_frame_references() -> Result<(), String> {
+        // A mutable or escaping address, or a possibly writing call, must
+        // retain the snapshot. Multiple reads inside this frame need none.
+        for control in 0..8 {
             let n = NodeIdx::from_raw(1);
             let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
             let block = b.open_block();
@@ -2413,25 +2414,34 @@ mod lending_tests {
             );
             let flags = ref_word::LOCAL | if control == 1 { ref_word::MUT } else { 0 };
             let r = b.emit(Tag::Ref, place, flags, LOCAL_REF, n);
-            let result = if control == 3 { LOCAL_REF } else { Ty::VOID };
-            if control >= 5 {
+            let result = if control == 3 || control == 7 {
+                LOCAL_REF
+            } else {
+                Ty::VOID
+            };
+            let returned = if control == 5 || control == 6 {
                 let through = b.place(
                     &format!("[*%{}]", r.0)
                         .parse()
                         .map_err(|e| format!("{e:?}"))?,
                 );
                 let value = b.emit(Tag::Read, through, ReadMode::Use as u32, Ty::STRING, n);
-                call(&mut b, 8, &[value], Ty::VOID);
+                call(&mut b, 8, &[value], Ty::VOID)
             } else {
-                call(&mut b, 8, &[r], result);
-            }
+                call(&mut b, 8, &[r], result)
+            };
             if control == 2 {
                 call(&mut b, 8, &[r], Ty::VOID);
             }
             if control == 4 || control == 6 {
                 call(&mut b, 9, &[], Ty::VOID);
             }
-            let root = b.close_block(block, None, Ty::VOID, n);
+            let root = b.close_block(
+                block,
+                (control == 7).then_some(returned),
+                if control == 7 { LOCAL_REF } else { Ty::VOID },
+                n,
+            );
             let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
             super::super::run(
                 &mut body,
@@ -2447,7 +2457,7 @@ mod lending_tests {
             );
             assert_eq!(
                 body.exit_drops.is_empty(),
-                control == 0 || control == 5,
+                matches!(control, 0 | 2 | 3 | 5),
                 "control {control}"
             );
         }

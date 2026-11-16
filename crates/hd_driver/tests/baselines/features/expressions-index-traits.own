@@ -52,7 +52,7 @@ fn read_len(n: Names, i: usize) -> usize:
 >     uses $2: %3 -> %6 lend last
 >   local $3 key: usize [read] value
 >     uses $3: %4 -> %5 lend last
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     n[i].len()
 >   %1 = Ref local frame [$0] : &Names
 >   %2 = Read copy [$1] : usize
@@ -68,11 +68,9 @@ fn read_len(n: Names, i: usize) -> usize:
 >   %12 = Call std/text/impl string.len[] (%10) : usize
 >   %13 = Drop [%10] : ()
 >   %14 = LoanEnd [$2] : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %12 : usize
->   exit sub 0 drops [$0]
+>   %15 = Block %12 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
 > app/main/write

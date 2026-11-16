@@ -38,5 +38,4 @@ fn use_generic(l: Logger) -> usize:
 fn qualified(l: Logger) -> usize:
     Describe::headline(&l).len()
 > app/main/qualified
->   release app.main.Logger [name.0] (last use)
 >   release string (last use)

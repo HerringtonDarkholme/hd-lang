@@ -30,7 +30,7 @@ fn read(u: User) -> usize:
 >   local $0 u: User [param read captured] place
 >   local $1 u: &User [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Release %10 Exit local $0 #2 : ()
     name_of(&u).len()
 >   %1 = Ref local frame [$0] : &User
 >   %2 = Store [$1] %1 : ()
@@ -41,18 +41,16 @@ fn read(u: User) -> usize:
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = LoanEnd [%6] : ()
 >   %9 = LoanEnd [$1] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block %7 : usize
->   exit sub 0 drops [$0]
+>   %10 = Block %7 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn read_list(us: List[User]) -> usize:
 > app/main/read_list
 >   local $0 us: List[User] [param read captured] place
 >   local $1 us: &List[User] [read] value
 >     uses $1: %2 -> %3 lend last
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Release %10 Exit local $0 #2 : ()
     first_name(&us).len()
 >   %1 = Ref local frame [$0] : &List[User]
 >   %2 = Store [$1] %1 : ()
@@ -63,11 +61,9 @@ fn read_list(us: List[User]) -> usize:
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = LoanEnd [%6] : ()
 >   %9 = LoanEnd [$1] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block %7 : usize
->   exit sub 0 drops [$0]
+>   %10 = Block %7 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn through_ptr(u: *User) -> usize:
 > app/main/through_ptr

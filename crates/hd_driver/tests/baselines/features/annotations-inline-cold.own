@@ -175,7 +175,7 @@ fn use_first(xs: List[string]) -> usize:
 >     uses $1: %2 -> %3 lend, %9 lend last
 >   local $2 self: string [read] value
 >     uses $2: %10 -> %11 lend last
->   %0 = Retain %25 Entry local $0 #0 : ()
+>   %0 = Release %24 Exit local $0 #2 : ()
     first_len(&xs) + checksum(&xs)
 >   %1 = Ref local frame [$0] : &List[string]
 >   %2 = Store [$1] %1 : ()
@@ -199,12 +199,10 @@ fn use_first(xs: List[string]) -> usize:
 >   %20 = Ref local frame [$0] : &List[string]
 >   %21 = Call app/main/checksum[] (%20) : usize
 >   %22 = LoanEnd [%20] : ()
->   %23 = Drop [$0] : ()
->   %24 = Prim Add [%18 %21] : usize
->   %25 = Block %24 : usize
->   exit sub 0 drops [$0]
+>   %23 = Prim Add [%18 %21] : usize
+>   %24 = Block %23 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn check(xs: List[string], at: usize) -> string:
 > app/main/check

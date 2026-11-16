@@ -141,7 +141,7 @@ fn use_rets(r: Rec) -> usize:
 >     uses $5: %14 -> %15 consume last
 >   local $7 s: string [read] value
 >     uses $7: %2 -> %3 consume last
->   %0 = Retain %37 Entry local $0 #0 : ()
+>   %0 = Release %36 Exit local $0 #2 : ()
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
 >   %1 = Read borrow [$0 .name] : string
 >   %2 = Store [$7] %1 : ()
@@ -177,9 +177,7 @@ fn use_rets(r: Rec) -> usize:
 >   %32 = Call std/text/impl string.len[] (%31) : usize
 >   %33 = LoanEnd [%31] : ()
 >   %34 = LoanEnd [$3] : ()
->   %35 = Drop [$0] : ()
->   %36 = Prim Add [%25 %32] : usize
->   %37 = Block %36 : usize
->   exit sub 0 drops [$0]
+>   %35 = Prim Add [%25 %32] : usize
+>   %36 = Block %35 : usize
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]

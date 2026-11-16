@@ -97,7 +97,6 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         places: &places,
         addressed: &reference_uses.escaping,
         reference_calls: &reference_uses.calls,
-        read_through: &reference_uses.read_through,
         reference_values: &reference_values,
     };
     decided(b, &mut errs);
@@ -824,7 +823,6 @@ struct Cx<'a> {
     places: &'a [Option<Place>],
     addressed: &'a [bool],
     reference_calls: &'a [u32],
-    read_through: &'a [bool],
     reference_values: &'a [u32],
 }
 
@@ -1189,7 +1187,7 @@ impl Forward for Empties<'_> {
 /// one, nothing moves out of it or addresses it, and nothing drops it nor
 /// is it in an exit set. A lent parameter: a counted parameter outside the exit set,
 /// which nothing stores into, drops or moves out of. Its immutable frame
-/// address may lend to one read-only call with no dependent result;
+/// address may stay inside the invocation in a body with no external write;
 /// otherwise it is not addressed either. Nothing changes it in place:
 /// an `IsUnique` of it would give up a count that is its caller's.
 fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
@@ -1254,17 +1252,17 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             continue;
         }
         // A borrowed parameter still has private frame storage for its
-        // descriptor. An immutable address that dies with one read-only
-        // call, or only reads through it in a body without external writes,
-        // borrows that storage. Bindings, mutable/escaping references and
-        // absent frame slots stay rejected.
+        // descriptor. Frame planning proves an address stays inside this
+        // invocation, including through local aggregates. In a body with
+        // no external writes, an immutable address borrows that storage.
+        // Bindings, mutable/escaping references and absent slots stay rejected.
         let call = cx.reference_calls[i];
         if b.tags[i] == Tag::Ref
             && frame_parameters[l.idx()]
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
                 == ref_word::LOCAL | ref_word::FRAME
-            && ((cx.read_through[i] && no_external_write)
+            && (no_external_write
                 || (call != NONE
                     && b.data
                         .get(call as usize)

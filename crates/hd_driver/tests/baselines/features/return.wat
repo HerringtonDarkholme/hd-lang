@@ -5,7 +5,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -123,22 +122,8 @@
     local.get $t1
     local.get $t2
     i32.add
-    local.set $t1
     local.get $r
     call $"impl string.len"
-    local.set $t2
-    local.get $r
-    if
-      local.get $r
-      i32.load $heap
-      local.tee $r
-      if
-        local.get $r
-        call $rt:release_ref
-      end
-    end
-    local.get $t1
-    local.get $t2
     i32.add
     local.get $t0
     i32.const 16

@@ -60,7 +60,7 @@ fn length(text: string) -> usize:
 >     uses $1: %8 -> %9 lend, %11 lend last
 >   local $2 src: &string [read] value
 >     uses $2: %2 -> %3 consume last
->   %0 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     p := parser(&text)
 >   %1 = Ref local frame [$0] : &string
 >   %2 = Store [$2] %1 : ()
@@ -70,24 +70,22 @@ fn length(text: string) -> usize:
 >   %6 = Block - : Parser[string]
 >   %7 = Scope %6 [] : Parser[string]
 >   %8 = Store [$1] %7 : ()
->   %15 = Block %13 : usize
+>   %14 = Block %13 : usize
     p.src.len() + p.pos
 >   %9 = Read borrow [$1 .src] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
 >   %11 = Read copy [$1 .pos] : usize
 >   %12 = LoanEnd [$1] : ()
 >   %13 = Prim Add [%10 %11] : usize
->   %14 = Drop [$0] : ()
->   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn token(text: string, other: string) -> usize:
 > app/main/token
 >   local $0 text: string [param read captured] place
 >   local $1 other: string [param read captured] place
->   %0 = Retain %13 Entry local $0 #0 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
+>   %1 = Release %11 Exit local $1 #2 : ()
     word(Token.Word(&text), &other).len()
 >   %2 = Ref local frame [$0] : &string
 >   %3 = NewVariant #0 [%2] : Token[string]
@@ -98,9 +96,6 @@ fn token(text: string, other: string) -> usize:
 >   %8 = LoanEnd [%3] : ()
 >   %9 = Call std/text/impl string.len[] (%5) : usize
 >   %10 = Drop [%5] : ()
->   %11 = Drop [$0] : ()
->   %12 = Drop [$1] : ()
->   %13 = Block %9 : usize
->   exit sub 0 drops [$0 $1]
+>   %11 = Block %9 : usize
 >   storage sub 0: $0 slot, $1 slot
->   summary kept [$0 $1]
+>   summary kept [] borrows [$0 $1]
