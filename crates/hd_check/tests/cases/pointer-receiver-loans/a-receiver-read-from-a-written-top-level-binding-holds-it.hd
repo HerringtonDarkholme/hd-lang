@@ -1,0 +1,23 @@
+# @dump: wat
+# A `*T` receiver read from a top-level binding some function writes
+# makes the binding an object, with a header before its slot, and takes
+# a shared call loan on it for the call (`ref.excl.alias.global`).
+struct Held:
+    name: string
+
+impl Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *Held:
+    box(Held { name: "${name}" })
+
+let mut source = make("kept")
+
+fn replace() -> void:
+    source = make("other")
+
+pub fn main() -> void:
+    # subject
+    _ := source.text(replace)

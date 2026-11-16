@@ -1,0 +1,23 @@
+# test: a `*dyn` receiver read from a top-level binding holds the binding during the call, so replacing it from the callee panics
+# Rule: ref.excl.alias.global, ref.excl.alias.call-loan.
+trait Note:
+    fn text(&self, step: fn() -> void) -> string
+
+struct Held:
+    name: string
+
+impl Note for Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *dyn Note:
+    box(Held { name: "${name}" })
+
+let mut source = make("kept")
+
+fn replace() -> void:
+    source = make("other") # panic: borrow-conflict
+
+pub fn main() -> void:
+    _ := source.text(replace)

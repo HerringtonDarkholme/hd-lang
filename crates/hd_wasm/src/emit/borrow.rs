@@ -971,6 +971,38 @@ pub(super) fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Opti
     }
 }
 
+/// The receiver reads among body `id`'s calls that lend a whole pointer
+/// as `&self` or `&mut self` (`ref.excl.alias.call-loan`), in one pass
+/// over the body's resolved calls. A top-level binding such a read starts at is reached by
+/// a reference, as by a `Ref` (`ref.excl.alias.global`).
+pub(crate) fn lent_receiver_reads(
+    input: &crate::Input<'_>,
+    id: hd_base::InstId,
+    b: &Body,
+) -> hd_base::HashSet<usize> {
+    let mut out = hd_base::HashSet::default();
+    // Only a `Call` with a resolved target has an auto-ref receiver, and
+    // each one has an entry here, so the walk visits the calls alone.
+    for (&i, target) in &input.collected.calls[id.idx()] {
+        let i = i as usize;
+        let Some(Some(mutable)) = call_info(input, b, i, Some(target)) else {
+            continue;
+        };
+        let Some(&a) = call_args(b, i).first() else {
+            continue;
+        };
+        let Some(v) = direct_value(b, a).filter(|&v| b.tags[v] == Tag::Read) else {
+            continue;
+        };
+        let lent = pointer_lent(input.pool, input.env, None, b.ty[v], 0, Some(mutable)).is_some()
+            || dyn_receiver(input.pool, input.env, (b, &|t| t), v).is_some();
+        if lent {
+            out.insert(v);
+        }
+    }
+    out
+}
+
 /// The parameter types of a call to `target`, as the callee instance's
 /// own body has them ([`crate::emit::callee_params`]): a direct call's.
 pub(super) fn call_params(

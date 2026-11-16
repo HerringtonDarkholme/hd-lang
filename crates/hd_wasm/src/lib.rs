@@ -951,6 +951,7 @@ fn address_globals(
         let roots = storage
             .entry(std::ptr::from_ref(b))
             .or_insert_with(|| emit::StorageRoots::new(b));
+        let receivers = emit::lent_receiver_reads(input, *id, b);
         for i in 0..b.len() {
             let global =
                 if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
@@ -958,6 +959,12 @@ fn address_globals(
                         hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
                         _ => None,
                     })
+                } else if receivers.contains(&i) {
+                    // A receiver read lends the pointer it reads from a
+                    // written binding, which its call loan then holds.
+                    b.decode_place(b.data[i][0])
+                        .and_then(|p| emit::global_root(roots, &p))
+                        .filter(|(def, _)| written.contains(&input.env.path_hash(*def)))
                 } else {
                     referenced_global(input.env, b, roots, i, &written)
                 };

@@ -1,0 +1,23 @@
+# test: a receiver's loan on a top-level binding is shared, so the call may read the binding, and the binding may change after the call
+# Rule: ref.excl.alias.global, ref.excl.alias.call-loan.
+# expect-stdout: kept kept
+# expect-stdout: other
+struct Held:
+    name: string
+
+impl Held:
+    fn text(&self, step: fn() -> string) -> string:
+        "${self.name} ${step()}"
+
+fn make(name: string) -> *Held:
+    box(Held { name: "${name}" })
+
+let mut source = make("kept")
+
+fn peek() -> string:
+    source.name
+
+pub fn main() -> void $ Console:
+    println(source.text(peek))
+    source = make("other")
+    println(source.name)

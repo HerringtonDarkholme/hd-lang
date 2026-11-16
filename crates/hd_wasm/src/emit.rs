@@ -34,7 +34,7 @@ mod body_facts;
 mod borrow;
 pub(crate) use body_facts::{BodyFactCell, prepare as prepare_body_facts};
 mod loan_facts;
-pub(crate) use borrow::{StorageRoots, global_root};
+pub(crate) use borrow::{StorageRoots, global_root, lent_receiver_reads};
 pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
 mod control;
