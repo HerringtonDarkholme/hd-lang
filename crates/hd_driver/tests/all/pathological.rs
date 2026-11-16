@@ -4407,7 +4407,10 @@ fn the_constants_pass_probes_init_keys_once_per_function() {
         };
         let run = |n: usize| {
             let src = test_module_chain(n);
-            let store = crate::warm_store();
+            // Its own store: both counted tests build test_module_chain at 20 and
+            // 200, and a shared store's cache hit skips the work they count (main
+            // red at 0f73c1cbe, run 43863426728: 0 and 0).
+            let store = hd_cache::MemoryStore::default();
             let host = Host {
                 render_tir: &[],
                 sources: &src,
@@ -4441,7 +4444,10 @@ fn collect_roots_look_up_each_root_once() {
         };
         let run = |n: usize| {
             let src = test_module_chain(n);
-            let store = crate::warm_store();
+            // Its own store: both counted tests build test_module_chain at 20 and
+            // 200, and a shared store's cache hit skips the work they count (main
+            // red at 0f73c1cbe, run 43863426728: 0 and 0).
+            let store = hd_cache::MemoryStore::default();
             let host = Host {
                 render_tir: &[],
                 sources: &src,
