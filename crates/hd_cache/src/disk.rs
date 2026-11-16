@@ -293,7 +293,7 @@ impl DiskStore {
 
     /// `<root>/gc`, opened for its lock; `None` when the root is no
     /// directory, so a collection of a missing cache creates nothing.
-    fn gc_file(&self) -> Option<File> {
+    fn gc_file(&self) -> Option<LockFile> {
         if !self.root.is_dir() {
             return None;
         }
@@ -304,6 +304,7 @@ impl DiskStore {
             .truncate(false)
             .open(self.root.join(GC))
             .ok()
+            .map(LockFile)
     }
 
     /// The last collection's start, in Unix seconds, and its cap, as
@@ -353,7 +354,7 @@ impl DiskStore {
     /// detached collector give up.
     #[doc(hidden)]
     pub fn wait_for_collection(&self) -> std::io::Result<()> {
-        File::open(self.root.join(GC))?.lock()
+        LockFile(File::open(self.root.join(GC))?).lock()
     }
 
     /// Records that a collection with this store's cap starts now.
@@ -393,7 +394,7 @@ impl DiskStore {
         let Some(mut file) = self.gc_file() else {
             return;
         };
-        if file.try_lock().is_err() || self.covered(&mut file) {
+        if file.try_lock().is_err() || self.covered(&mut *file) {
             return;
         }
         self.claim(&mut file);
@@ -875,6 +876,60 @@ fn parse_key(name: &str) -> Option<Hash128> {
 
 /// The shard-size ledger `<root>/stats`: a magic, the packed-migration
 /// flag, and 256 sizes, little-endian. A prior version recovers as unknown.
+/// A locked file, and the workspace's only way to lock one: std's file
+/// lock methods are disallowed everywhere else (clippy.toml). Dropping it
+/// unlocks before the close. A child that any thread spawns shares every
+/// open file from its fork to its exec, and a lock (`flock` on Unix)
+/// belongs to the open file, so a lock released by its close alone stays
+/// held until that child execs. An unlock releases it at once, whatever
+/// copies exist (#2055).
+/// cost: one unlock call per drop, beside the close it precedes.
+pub struct LockFile(File);
+
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the one place that calls std's file locks"
+)]
+impl LockFile {
+    pub fn lock(&self) -> std::io::Result<()> {
+        self.0.lock()
+    }
+    pub fn lock_shared(&self) -> std::io::Result<()> {
+        self.0.lock_shared()
+    }
+    pub fn try_lock(&self) -> Result<(), std::fs::TryLockError> {
+        self.0.try_lock()
+    }
+    pub fn try_lock_shared(&self) -> Result<(), std::fs::TryLockError> {
+        self.0.try_lock_shared()
+    }
+}
+
+impl From<File> for LockFile {
+    fn from(file: File) -> Self {
+        Self(file)
+    }
+}
+
+impl std::ops::Deref for LockFile {
+    type Target = File;
+    fn deref(&self) -> &File {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for LockFile {
+    fn deref_mut(&mut self) -> &mut File {
+        &mut self.0
+    }
+}
+
+impl Drop for LockFile {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
 struct Ledger {
     migrated: bool,
     sizes: [u64; SHARDS],
@@ -931,10 +986,11 @@ impl Ledger {
             .create(true)
             .truncate(false)
             .open(root.join(STATS))
+            .map(LockFile)
             .ok()?;
         file.lock().ok()?;
         let mut bytes = Vec::with_capacity(STATS_LEN);
-        (&mut file)
+        (&mut *file)
             .take(u64::try_from(STATS_LEN + 1).expect("ledger limit"))
             .read_to_end(&mut bytes)
             .ok()?;
@@ -975,7 +1031,9 @@ mod packed {
 
     #[cfg(test)]
     use super::cost;
-    use super::{Collected, EntryKind, IndexedEntry, USE_MARK_AGE, is_real_dir, parse_key};
+    use super::{
+        Collected, EntryKind, IndexedEntry, LockFile, USE_MARK_AGE, is_real_dir, parse_key,
+    };
 
     /// The namespace of this format. The index is sharded by key (#1932),
     /// Version 3 moves writer exclusion off readable logs: old version 2
@@ -1091,8 +1149,8 @@ mod packed {
     /// overlapping locks on one handle. The gate prevents two probes from
     /// simultaneously dropping their membership and both seeing no peer.
     struct RunLocks {
-        run: File,
-        gate: File,
+        run: LockFile,
+        gate: LockFile,
     }
 
     impl RunLocks {
@@ -1104,6 +1162,7 @@ mod packed {
                     .create(true)
                     .truncate(false)
                     .open(root.join(name))
+                    .map(LockFile)
             };
             let gate = open("run-lock")?;
             let run = open("run")?;
@@ -1133,7 +1192,7 @@ mod packed {
     /// A claim this store holds: its locked file, the thread computing the
     /// entry, and whether the entry is computed, put but not yet published.
     struct Claim {
-        _lock: File,
+        _lock: LockFile,
         thread: std::thread::ThreadId,
         /// The thread's [`crate::task`] depth at the miss: a claim of a
         /// smaller depth belongs to a task suspended below this one.
@@ -1195,16 +1254,14 @@ mod packed {
         path: PathBuf,
         file: File,
         marker: PathBuf,
-        guard: Option<File>,
+        guard: Option<LockFile>,
         committed: bool,
     }
 
     impl Drop for Lease {
         fn drop(&mut self) {
-            if let Some(guard) = self.guard.take() {
-                let _ = guard.unlock();
-                drop(guard);
-            }
+            // The lease's lock ends before its marker goes.
+            drop(self.guard.take());
             let _ = std::fs::remove_file(&self.marker);
             if !self.committed {
                 // Windows may retain an open file; GC retries after close.
@@ -2174,7 +2231,7 @@ mod packed {
         id: u8,
         file: File,
         /// Off-data exclusion: Windows enforces locks against readers too.
-        _lock: File,
+        _lock: LockFile,
         header: LogHeader,
         end: u64,
         overlay: Overlay,
@@ -2448,13 +2505,13 @@ mod packed {
             }
             let mut options = OpenOptions::new();
             options.read(true).write(true).create(true).truncate(false);
-            let lock = match options.open(&path) {
+            let lock = LockFile::from(match options.open(&path) {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     std::fs::create_dir_all(self.root.join("index"))?;
                     options.open(&path)?
                 }
                 opened => opened?,
-            };
+            });
             count!(writer_locks, 1);
             if lock.try_lock().is_err() {
                 count!(lock_waits, 1);
@@ -2584,7 +2641,7 @@ mod packed {
                     .create_new(true)
                     .open(&new)
                 {
-                    Ok(file) => file,
+                    Ok(file) => LockFile::from(file),
                     Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
                     Err(e) => return Err(e),
                 };
@@ -2600,7 +2657,6 @@ mod packed {
                 {
                     Ok(file) => file,
                     Err(error) => {
-                        let _ = guard.unlock();
                         drop(guard);
                         let _ = std::fs::remove_file(marker);
                         return Err(error);
@@ -3018,7 +3074,9 @@ mod packed {
                 opened => opened,
             };
             // An unwritable cache computes without a claim.
-            let Ok(file) = file else { return None };
+            let Ok(file) = file.map(LockFile::from) else {
+                return None;
+            };
             // Establish the notification baseline before owning any claim:
             // a waiter can announce itself as soon as this lock is taken.
             drop(self.waits());
@@ -3376,7 +3434,7 @@ mod packed {
         fn leased(&self, id: u128) -> bool {
             let marker = self.root.join(format!("{id:032x}.pending"));
             match File::open(marker) {
-                Ok(file) => file.try_lock_shared().is_err(),
+                Ok(file) => LockFile::from(file).try_lock_shared().is_err(),
                 Err(error) => error.kind() != io::ErrorKind::NotFound,
             }
         }
@@ -3680,7 +3738,8 @@ mod packed {
                         || Self::pack_id(name).is_some()
                         || Self::index_file(name)
                         || matches!(name, "lock" | "index" | "index.old");
-                    let free = !lease || File::open(e.path()).is_ok_and(|f| f.try_lock().is_ok());
+                    let free = !lease
+                        || File::open(e.path()).is_ok_and(|f| LockFile::from(f).try_lock().is_ok());
                     if managed && free {
                         let _ = std::fs::remove_file(e.path());
                     }
@@ -3704,7 +3763,7 @@ mod packed {
                 .write(true)
                 .open(old.join("run"))
             {
-                Ok(file) => Some(file),
+                Ok(file) => Some(LockFile::from(file)),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => None,
                 Err(_) => return,
             };
@@ -3748,7 +3807,7 @@ mod packed {
                             .read(true)
                             .write(true)
                             .open(e.path())
-                            .is_ok_and(|file| file.try_lock().is_ok());
+                            .is_ok_and(|file| LockFile::from(file).try_lock().is_ok());
                     if managed && free {
                         let _ = std::fs::remove_file(e.path());
                     }
@@ -4092,7 +4151,7 @@ mod packed {
             // run that opened it just before reads the index again after
             // its lock, so at worst it computes once more.
             for path in &inv.claims {
-                if File::open(path).is_ok_and(|file| file.try_lock().is_ok()) {
+                if File::open(path).is_ok_and(|file| LockFile::from(file).try_lock().is_ok()) {
                     let _ = std::fs::remove_file(path);
                 }
             }
@@ -4179,29 +4238,7 @@ mod packed {
         use super::super::DiskStore;
         use super::*;
         use crate::store::CacheStore;
-        use std::sync::{PoisonError, RwLock, RwLockWriteGuard};
         use std::time::{Duration, Instant};
-
-        /// A spawned child shares every open file of this process until
-        /// its exec closes them, and a file lock belongs to the open file:
-        /// a lock a test drops while a sibling test spawns stays held for
-        /// that moment. Spawns take the read side; a test that asserts no
-        /// lock is ever waited for, or that a dropped lock is free, takes
-        /// the write side, so no spawn overlaps it.
-        static SPAWNS: RwLock<()> = RwLock::new(());
-
-        /// Spawns `command`; returns once the child has exec'd (std waits
-        /// for the exec on every Unix path), so it holds none of our files.
-        /// cost: one child per call; each test spawns a fixed number.
-        fn spawn(command: &mut std::process::Command) -> std::process::Child {
-            let _spawning = SPAWNS.read().unwrap_or_else(PoisonError::into_inner);
-            command.spawn().expect("spawn a test child")
-        }
-
-        /// Holds off every spawn of these tests until the guard drops.
-        fn no_spawns() -> RwLockWriteGuard<'static, ()> {
-            SPAWNS.write().unwrap_or_else(PoisonError::into_inner)
-        }
 
         fn scratch(label: &str) -> PathBuf {
             let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -4443,7 +4480,7 @@ mod packed {
             let mut lease = store.lease(0).unwrap();
             lease.file.write_all(b"published bytes").unwrap();
             store.finish(&mut lease).unwrap();
-            let data = File::open(store.path(lease.id)).unwrap();
+            let data = LockFile::from(File::open(store.path(lease.id)).unwrap());
             data.try_lock_shared()
                 .expect("lease exclusion must be off readable pack data");
             data.unlock().unwrap();
@@ -4455,7 +4492,6 @@ mod packed {
 
         #[test]
         fn gc_respects_a_live_unpublished_lease_and_reclaims_a_crashed_one() {
-            let _no_spawns = no_spawns();
             let root = scratch("lease");
             let store = Store::new(&root);
             let mut lease = { store.lease(0).unwrap() };
@@ -4535,18 +4571,19 @@ mod packed {
             let root = scratch("killed-writer");
             let marker = root.join("ready");
             // cost: one test subprocess.
-            let mut child = spawn(
-                std::process::Command::new(std::env::current_exe().unwrap())
-                    .args([
-                        "--exact",
-                        "disk::packed::tests::crash_writer_fixture",
-                        "--ignored",
-                        "--skip",
-                    ])
-                    .arg(format!("cache-fixture:{}", root.display()))
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null()),
-            );
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "disk::packed::tests::crash_writer_fixture",
+                    "--ignored",
+                    "--skip",
+                ])
+                .arg(format!("cache-fixture:{}", root.display()))
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                // cost: one child, this test's only one.
+                .spawn()
+                .expect("spawn a test child");
             let deadline = Instant::now() + Duration::from_secs(10);
             while !marker.exists() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(5));
@@ -4690,7 +4727,6 @@ mod packed {
         /// foreign file with its directory (#1932).
         #[test]
         fn the_unsharded_namespace_reads_as_misses_and_a_collection_retires_it() {
-            let _no_spawns = no_spawns();
             let root = scratch("retire-v1");
             let old = root.join("pack-v1");
             std::fs::create_dir_all(old.join("index")).unwrap();
@@ -4700,7 +4736,7 @@ mod packed {
             std::fs::write(old.join("index").join("head"), b"old head").unwrap();
             std::fs::write(old.join("index").join(page_name(0)), b"old page").unwrap();
             let live = old.join(format!("{:032x}.pending", unique()));
-            let lease = File::create(&live).unwrap();
+            let lease = LockFile::from(File::create(&live).unwrap());
             lease.lock().unwrap();
             std::fs::write(old.join("index.old"), b"older index").unwrap();
             let foreign = old.join("notes.txt");
@@ -4918,18 +4954,19 @@ mod packed {
 
         #[test]
         fn the_previous_lock_protocol_stays_isolated_and_retires_only_when_idle() {
-            let _no_spawns = no_spawns();
             let root = scratch("retire-v2");
             let old = root.join("pack-v2");
             std::fs::create_dir_all(old.join("index/0")).unwrap();
-            let member = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create_new(true)
-                .open(old.join("run"))
-                .unwrap();
+            let member = LockFile::from(
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create_new(true)
+                    .open(old.join("run"))
+                    .unwrap(),
+            );
             member.lock_shared().unwrap();
-            let log = File::create(old.join("index/0.log")).unwrap();
+            let log = LockFile::from(File::create(old.join("index/0.log")).unwrap());
             log.lock().unwrap();
             let pack = old.join(format!("{:032x}.pack", unique()));
             std::fs::write(&pack, b"old payload").unwrap();
@@ -4962,6 +4999,7 @@ mod packed {
                 .read(true)
                 .write(true)
                 .open(store.log_path(0))
+                .map(LockFile::from)
                 .unwrap();
             data.try_lock().expect("writer exclusion is off the log");
             data.unlock().unwrap();
@@ -5262,7 +5300,6 @@ mod packed {
         /// awaited against the clock.
         #[test]
         fn publication_never_waits_for_a_collection() {
-            let _no_spawns = no_spawns();
             let root = scratch("gc-beside-publish");
             let data = [3; 4000];
             let writer = Store::new(&root);
@@ -5296,6 +5333,7 @@ mod packed {
                         .read(true)
                         .write(true)
                         .open(Store::new(&root).lock_path(0))
+                        .map(LockFile::from)
                         .unwrap();
                     assert!(lock.try_lock().is_ok(), "the writer lock is held at {stop}");
                     lock.unlock().unwrap();
@@ -5365,7 +5403,6 @@ mod packed {
         /// and marks, and it opens only the packs of its hits.
         #[test]
         fn a_command_does_no_more_work_with_the_cache_than_without() {
-            let _no_spawns = no_spawns();
             // The cache directory does not exist yet, as under a new HD_CACHE.
             let (cold, asked) = command(&scratch("no-cache").join("obj"), DEFAULT, u128::MAX);
             assert!(!asked, "an empty cache's total is known");
@@ -5397,6 +5434,7 @@ mod packed {
                     .create(true)
                     .truncate(false)
                     .open(collecting.join("gc"))
+                    .map(LockFile::from)
                     .unwrap();
                 gc.lock().unwrap();
                 std::mem::forget(gc);
@@ -5526,7 +5564,6 @@ mod packed {
         #[test]
         fn sixteen_publishers_of_disjoint_keys_never_wait_for_each_other() {
             const RUNS: u128 = 20;
-            let _no_spawns = no_spawns();
             let root = scratch("disjoint");
             let start = std::sync::Barrier::new(16);
             let counts: Vec<cost::Counts> = std::thread::scope(|scope| {
@@ -5989,18 +6026,19 @@ mod packed {
                 drop(waiting.packed.join());
                 // cost: one subprocess using this same test binary.
                 // cost: one child per round, eight fixed rounds in this test.
-                let mut child = spawn(
-                    std::process::Command::new(std::env::current_exe().unwrap())
-                        .args([
-                            "--exact",
-                            "disk::packed::tests::abandoned_parse_holder_fixture",
-                            "--ignored",
-                            "--skip",
-                        ])
-                        .arg(format!("cache-fixture:{}", root.display()))
-                        .stdout(std::fs::File::create(root.join("child.out")).unwrap())
-                        .stderr(std::fs::File::create(root.join("child.err")).unwrap()),
-                );
+                let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "disk::packed::tests::abandoned_parse_holder_fixture",
+                        "--ignored",
+                        "--skip",
+                    ])
+                    .arg(format!("cache-fixture:{}", root.display()))
+                    .stdout(std::fs::File::create(root.join("child.out")).unwrap())
+                    .stderr(std::fs::File::create(root.join("child.err")).unwrap())
+                    // cost: one child per round, eight rounds.
+                    .spawn()
+                    .expect("spawn a test child");
                 wait_for_claim_fixture(|| root.join("claimed").exists());
                 let (tx, rx) = std::sync::mpsc::channel();
                 // cost: one test thread waits on the subprocess's real file lock.
@@ -6181,7 +6219,7 @@ mod packed {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null());
             // cost: the same one subprocess.
-            let mut child = spawn(&mut command);
+            let mut child = command.spawn().expect("spawn a test child");
             let mut polls = 0;
             while !marker.exists() && polls < 2000 {
                 std::thread::sleep(Duration::from_millis(5));
@@ -6361,7 +6399,7 @@ mod packed {
 
 #[cfg(test)]
 mod tests {
-    use super::{DiskStore, Ledger, SHARDS, UNKNOWN, parse_key};
+    use super::{DiskStore, Ledger, LockFile, SHARDS, UNKNOWN, parse_key};
     use crate::store::EntryKind;
     use hd_base::Hash128;
     use std::path::PathBuf;
@@ -6376,6 +6414,32 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("scratch");
         dir
+    }
+
+    /// A child any thread spawns shares each open file from its fork to
+    /// its exec, as the copy made here does; a dropped `LockFile` frees
+    /// its lock while that copy lives, for each of the four ways to take
+    /// it (#2055).
+    #[test]
+    fn a_dropped_lock_is_free_while_a_copy_of_its_file_lives() {
+        let root = scratch("lock-copy");
+        let path = root.join("lock");
+        let takes: [fn(&LockFile) -> bool; 4] = [
+            |f| f.lock().is_ok(),
+            |f| f.lock_shared().is_ok(),
+            |f| f.try_lock().is_ok(),
+            |f| f.try_lock_shared().is_ok(),
+        ];
+        for take in takes {
+            let file = LockFile::from(std::fs::File::create(&path).unwrap());
+            assert!(take(&file));
+            let copy = file.try_clone().unwrap();
+            let probe = LockFile::from(std::fs::File::open(&path).unwrap());
+            assert!(probe.try_lock().is_err(), "the lock is held");
+            drop(file);
+            assert!(probe.try_lock().is_ok(), "the copy keeps no lock");
+            drop((probe, copy));
+        }
     }
 
     /// A key in shard `shard`, told apart by `n`.

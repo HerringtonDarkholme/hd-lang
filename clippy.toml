@@ -17,4 +17,11 @@ disallowed-methods = [
   { path = "slice::sort_unstable", reason = "use hd_base::SliceSort::sort_stable" },
   { path = "slice::sort_unstable_by", reason = "use hd_base::SliceSort::sort_stable_by" },
   { path = "slice::sort_unstable_by_key", reason = "use hd_base::SliceSort::sort_stable_by_key" },
+  # A file lock goes through hd_cache's LockFile, which unlocks before
+  # the close: a lock released by its close alone stays held while a
+  # child spawned meanwhile still shares the file (#2055).
+  { path = "std::fs::File::lock", reason = "use hd_cache's LockFile, which unlocks on drop" },
+  { path = "std::fs::File::lock_shared", reason = "use hd_cache's LockFile, which unlocks on drop" },
+  { path = "std::fs::File::try_lock", reason = "use hd_cache's LockFile, which unlocks on drop" },
+  { path = "std::fs::File::try_lock_shared", reason = "use hd_cache's LockFile, which unlocks on drop" },
 ]

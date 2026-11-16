@@ -11,7 +11,7 @@ pub mod disk;
 pub mod flight;
 pub mod store;
 #[cfg(feature = "disk")]
-pub use disk::{DiskStore, IndexedEntry};
+pub use disk::{DiskStore, IndexedEntry, LockFile};
 pub use flight::{FlightRun, SingleFlight};
 pub use store::{
     CacheStore, DeferredStore, EntryKind, MemoryStore, OverlayStore, decode_entry, encode_entry,

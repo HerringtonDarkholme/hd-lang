@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 use std::ffi::OsString;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -155,7 +155,7 @@ fn root(option: Option<PathBuf>) -> Result<PathBuf, String> {
     std::path::absolute(root).map_err(io)
 }
 
-fn lock(root: &Path) -> Result<File, String> {
+fn lock(root: &Path) -> Result<hd_cache::LockFile, String> {
     fs::create_dir_all(root.join("installed")).map_err(io)?;
     let file = OpenOptions::new()
         .read(true)
@@ -163,6 +163,7 @@ fn lock(root: &Path) -> Result<File, String> {
         .create(true)
         .truncate(false)
         .open(root.join("installed/.lock"))
+        .map(hd_cache::LockFile::from)
         .map_err(io)?;
     file.lock().map_err(io)?;
     Ok(file)

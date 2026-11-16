@@ -398,6 +398,13 @@ obj/
   bucket the stored head names; a writer drops rows a page holds for
   another bucket. A merge writes the merged bucket, then the head, then
   removes the last page.
+- **A lock ends at its unlock, not its close (#2055).** Every file this
+  crate locks is a `LockFile`, whose drop unlocks before it closes; std's
+  file lock methods are disallowed elsewhere (`clippy.toml`). A lock
+  belongs to the open file, and a child any thread spawns shares that
+  file from its fork to its exec, so a lock released by its close alone
+  stays held for that moment: a peer's try-lock fails, and a free claim
+  or lease looks live.
 - **Readers take no publication or lease lock.** A command reads each
   shard's log once and each page it needs once, and reads only the addressed frame
   ranges. A process-local mutex protects those pages and cached file
