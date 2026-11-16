@@ -1,4 +1,4 @@
-# test: a `&mut` element reference and a `&` reference into the same list in one call are a conflicting access, at any index
+# test: a `&mut` element reference and a `&` reference into the same list in one call are a conflicting access, even at different indexes
 # Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.access.mut.
 fn write_then_read(target: &mut i32, seen: &i32) -> i32:
     *target = 8
@@ -6,4 +6,4 @@ fn write_then_read(target: &mut i32, seen: &i32) -> i32:
 
 fn invalid() -> i32:
     let mut xs = [+1, 2]
-    write_then_read(&mut xs[1], &xs[1]) # diagnostic: conflicting-access
+    write_then_read(&mut xs[0], &xs[1]) # diagnostic: conflicting-access

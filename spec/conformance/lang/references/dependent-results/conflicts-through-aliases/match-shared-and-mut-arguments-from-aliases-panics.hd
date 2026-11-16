@@ -65,8 +65,8 @@ impl Factory for Maker
 tests:
     use std.testing.assert_equal
 
-    it("a call replacing the field keeps its former payload alive"):
+    it("the call panics before its arm runs"):
         node := box(Node { value: 1, left: .Some(box(Node { value: 42, left: .None })) })
         alias := node
-        assert_equal(across_call(node, alias), 42, reason="the arm owns the replaced payload") # panic: borrow-conflict
+        assert_equal(across_call(node, alias), 42, reason="the call panics before it returns") # panic: borrow-conflict
         assert_equal(value(node), 0, reason="the call reached the aliased field")

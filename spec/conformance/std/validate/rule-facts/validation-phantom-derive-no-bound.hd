@@ -1,4 +1,4 @@
-# test: Debug and Eq for the phantom Length fact do not require its target type to implement either trait
+# test: Debug and Eq derived for a phantom struct do not require its type parameter to implement either trait
 # Standard Validation: std-validate.rule.declarations
 use std.annotation.annotate
 use std.format.debug

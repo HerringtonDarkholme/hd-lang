@@ -1,4 +1,4 @@
-# test: the value fix-it of a counted-reference `==` parenthesizes a compound operand
+# test: a counted-reference `==` with a compound operand is a reference-equality error
 # Spec lang/13 Identity: ref.identity.no-equality.fix.
 
 struct Cell:

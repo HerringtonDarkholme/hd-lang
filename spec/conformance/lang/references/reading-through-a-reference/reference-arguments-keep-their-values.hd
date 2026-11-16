@@ -1,4 +1,4 @@
-# test: by-value lowering of read-only arguments preserves newtypes, tuples, and counted values
+# test: by-value lowering of read-only arguments preserves newtypes, structs and strings
 # Spec Values And References: ref.deref.read, ref.read.shallow; Annotations: annot.inline.never.
 # expect-stdout: 7
 # expect-stdout: 9

@@ -1,4 +1,4 @@
-# test: discarded property cases do not count toward cases, and a Debug input type runs
+# test: assume discards the odd draws, so the property sees only even values, and a Debug input type runs
 # Spec std/testing Property Reporting: std-testing.prop.failure-input,
 # std-testing.prop.discard-limit, std-testing.runner.discard-panic,
 # and std-testing.runner.discard-read.

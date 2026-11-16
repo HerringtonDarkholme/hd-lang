@@ -11,7 +11,7 @@ struct Holder:
 fn grow(words: &mut List[string], more: List[string]) -> void:
     words.extend(more)
 
-# Extending by nothing keeps the length, so the pin of `first` allows it.
+# Extending by nothing keeps the length, yet the call loan of `&list[0]` still conflicts with the `&mut` argument.
 fn nothing_more(list: &mut List[string], first: &string) -> string:
     list.extend([])
     *first
@@ -24,6 +24,6 @@ fn through(list: *mut List[string]) -> string:
 tests:
     use std.testing.assert_equal
 
-    it("extending a pinned list by nothing does not panic"):
+    it("extending a pinned list by nothing still panics"):
         words := box(["w"])
-        assert_equal(through(words), "w", reason="the length is unchanged")
+        assert_equal(through(words), "w", reason="the call panics before it returns")

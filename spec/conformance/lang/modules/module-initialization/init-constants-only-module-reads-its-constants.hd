@@ -1,4 +1,4 @@
-# test: a module whose top-level bindings hold only constants reads them from main, and a binding a function writes keeps its initial value
+# test: a module whose top-level bindings hold only constants reads them from main, and a binding a function writes starts at its initial value
 # Spec 10 Module Initialization: module.init.binding, module.init.no-step.
 use std.testing.assert_equal
 

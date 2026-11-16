@@ -1,6 +1,6 @@
 # expect-stdout: first first
 # expect-stdout: second second
-# test: a trait value's object stays alive for a call made through it, when the call replaces the pointer it came from, whether the receiver is the pointer or a reference to it
+# test: a trait value's object stays alive for a call made through it, when the call replaces the pointer it came from, whether the pointer is the receiver or a copy of it is the argument
 # Spec 13 Values and References: ref.excl.alias.shared-variable, ref.excl.alias.conflict.
 trait Note:
     fn text(&self, step: fn() -> void) -> string

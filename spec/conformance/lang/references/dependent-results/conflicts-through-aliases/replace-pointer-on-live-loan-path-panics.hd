@@ -1,4 +1,4 @@
-# test: replacing either counted pointer slot on a live reference loan's path through an alias panics with borrow-conflict
+# test: replacing the inner counted pointer slot on a live reference loan's path through an alias panics with borrow-conflict
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.path-pointer, ref.excl.alias.conflict.
 struct Address:
     city: string

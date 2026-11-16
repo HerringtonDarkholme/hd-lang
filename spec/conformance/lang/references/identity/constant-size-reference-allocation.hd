@@ -116,7 +116,7 @@ tests:
                     reason="the field at the start of the payload",
                 )
 
-    it("a fixed payload over the small limit still uses the large-run path"):
+    it("a fixed payload over the small limit keeps its fields"):
         for round in 0..3:
             let mut values: List[*P8] = []
             for i in 0..40:

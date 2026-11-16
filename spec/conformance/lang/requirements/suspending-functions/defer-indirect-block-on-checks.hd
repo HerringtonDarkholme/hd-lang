@@ -1,4 +1,4 @@
-# test: a deferred callback may reach block_on indirectly, and the call type-checks
+# test: a deferred callback that reaches block_on indirectly type-checks; defer-block-on-indirect.hd shows that it panics at run time
 use std.ops.defer
 use std.task.block_on
 

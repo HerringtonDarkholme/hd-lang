@@ -1,4 +1,4 @@
-# test: a Span reads, slices, and iterates a list without copying its elements
+# test: a Span reads, slices, and iterates a list
 # std Collections, Spans: std-collections.span.list, std-collections.span.get, std-collections.span.index-copy, std-collections.span.slice, std-collections.span.iter.
 use std.collections.Span
 

@@ -1,4 +1,4 @@
-# test: optimizing an optional None comparison preserves its Eq initialization edges
+# test: a top-level None comparison of an optional calls its Eq implementation, so a later binding that implementation reads is read before its initialization
 # Spec lang/10-modules.md: module.init.definite.implicit.
 struct Tag:
     n: i32

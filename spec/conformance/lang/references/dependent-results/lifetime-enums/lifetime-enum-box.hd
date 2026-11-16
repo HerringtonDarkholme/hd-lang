@@ -1,4 +1,4 @@
-# test: a box of an enum value that holds a reference to a local is local, so the function cannot return it
+# test: a box of an enum value that holds a reference to a parameter is local, so the function cannot return it
 # Spec 13 Lifetime Enums: ref.lifetime.enum.holds; Boxes: ref.box.local.
 enum Token['a]:
     Word(&'a string)

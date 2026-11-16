@@ -1,3 +1,4 @@
+# test: a string or integer moved through a suspending generic call comes back unchanged, and the caller's binding stays usable
 use std.annotation.cold
 use std.testing.assert_equal
 use std.time.{Clock, ms, sleep}

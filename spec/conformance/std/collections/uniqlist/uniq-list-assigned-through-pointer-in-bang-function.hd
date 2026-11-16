@@ -1,5 +1,5 @@
 # expect-stdout: 1 a
-# test: a bang function assigns a new unique list through a `*mut` after a suspension point, in every pipeline
+# test: a bang function assigns a new unique list through a `*mut` after a bang call, in every pipeline
 # std Collections: std-collections.uniq-list.type.
 use std.collections.UniqList
 

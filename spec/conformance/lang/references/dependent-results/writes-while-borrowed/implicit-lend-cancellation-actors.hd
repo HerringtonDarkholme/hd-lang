@@ -1,4 +1,4 @@
-# test: a parent whose cleanup folds a child's waiting cleanup ends .Abandoned when that child is abandoned directly, though its own part ran to its end
+# test: a parent and a stop task that both lend one child in a join! are a conflicting access, so the program meant to show the parent ending .Abandoned is rejected
 # Spec lang/11 Abandoning: req.abandon.carry, req.abandon.result.
 use std.ops.defer
 use std.ops.AsyncDisposable

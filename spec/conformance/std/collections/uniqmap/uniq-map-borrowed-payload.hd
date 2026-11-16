@@ -1,4 +1,4 @@
-# test: matching a unique map slot lends its move-only payload without a copy
+# test: a unique map's get_mut, and a match through a reference to an optional, a tuple or a struct, each lend a move-only payload
 use std.collections.UniqMap
 use std.testing.assert_equal
 struct Conn:

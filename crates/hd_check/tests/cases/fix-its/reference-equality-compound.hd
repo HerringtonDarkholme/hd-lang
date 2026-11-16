@@ -1,0 +1,13 @@
+# @dump: diagnostics fixed
+# A compound operand of a counted-reference `==` is parenthesized when the
+# value fix-it dereferences it (ref.identity.no-equality.fix); each fixed
+# program checks clean.
+@derive(Eq)
+struct Cell:
+    v: i32
+
+fn find(c: *Cell) -> Result[*Cell, string]:
+    .Ok(c)
+
+fn same(c: *Cell) -> Result[bool, string]:
+    .Ok(find(c)? == c)

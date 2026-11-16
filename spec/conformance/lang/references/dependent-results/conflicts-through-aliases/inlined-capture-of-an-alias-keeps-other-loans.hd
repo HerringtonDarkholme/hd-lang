@@ -1,4 +1,4 @@
-# test: capturing an explicit pointer alias does not inherit another binding's loans
+# test: a closure that writes through a pointer alias has no exemption from another binding's loan on the object, so the write panics
 # Spec ref.excl.alias.conflict: the loan holds the entire object.
 struct Cell:
     value: string

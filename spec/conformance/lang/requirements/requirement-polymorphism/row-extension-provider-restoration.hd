@@ -1,4 +1,4 @@
-# test: requirements / row extension / provider restoration
+# test: a row extension provides the callback's Logger from the Backup its caller supplies, beside the Clock that passes through
 
 fn provide_logger[$ R](callback: fn() -> i32 $ R + Logger) -> i32 $ R + Backup:
     $.with(Logger=$.use(Backup)):
@@ -36,4 +36,4 @@ tests:
 
     it("run returns 42 with its providers"):
         $.with(Clock=FixedClock {}, Backup=FixedBackup {}):
-            assert_equal(run(), 42, reason="requirements / row extension / provider restoration")
+            assert_equal(run(), 42, reason="read sees a Clock and a Logger")

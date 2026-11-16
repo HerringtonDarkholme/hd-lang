@@ -1,4 +1,4 @@
-# test: a suspension of caller-owned or 'static arguments may be returned, and one that borrows a local may be awaited in its body
+# test: a suspension of caller-owned arguments may be returned, and one that borrows a local may be awaited in its body
 # Spec 13 Dependent Results: ref.dep.suspension, ref.dep.suspension.output, ref.dep.suspension.counted, ref.dep.suspension.result.
 struct User:
     name: string

@@ -1,4 +1,4 @@
-# test: an independently held owner keeps the original box alive across replacement
+# test: a reference read through a list element keeps its own source after the element is replaced with a reference to another local
 struct P:
     name: string
 

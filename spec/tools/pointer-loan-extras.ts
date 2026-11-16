@@ -329,7 +329,7 @@ pub fn main() -> void $ Console:
     name: "deep-shared-loans-kept",
     panic: false,
     rule: "ref.excl.alias.loan",
-    what: "seventy nested shared loans on one object that a `&mut` elsewhere keeps, past an inline counter's width and into the bits above it",
+    what: "seventy nested shared loans on one object that a `&mut` in a branch the run never takes keeps, past an inline counter's width and into the bits above it",
     source: `struct Cell:
     value: string
 
@@ -355,7 +355,7 @@ pub fn main() -> void $ Console:
     name: "deep-shared-loans-many-objects",
     panic: false,
     rule: "ref.excl.alias.loan",
-    what: "seventy objects each over 31 shared loans at once, which a `&mut` elsewhere keeps",
+    what: "seventy objects each over 31 shared loans at once, which a `&mut` in a branch the run never takes keeps",
     source: `struct Cell:
     value: string
 
@@ -784,7 +784,7 @@ pub fn main() -> void $ Console:
     name: "elide-read-only-visitor",
     panic: false,
     rule: "ref.excl.alias.conflict",
-    what: "a read-only visitor called through a trait value over pointers",
+    what: "a visitor that only reads the shapes, called through a trait value over pointers",
     source: `trait Visitor:
     fn see(&mut self, name: &string) -> void
 

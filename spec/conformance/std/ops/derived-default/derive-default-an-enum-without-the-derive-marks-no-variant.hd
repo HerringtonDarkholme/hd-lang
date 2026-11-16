@@ -1,8 +1,0 @@
-# test: an enum without the Default derive marks no variant
-use std.ops.{Default, default}
-enum Mode:
-    Fast
-    Slow
-
-pub fn main() -> void:
-    pass

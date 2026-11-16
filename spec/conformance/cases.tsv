@@ -113,7 +113,7 @@ lang/requirements/requirement-rows/row-aliases/row-aliases-a-row-alias-in-a-head
 std/server-sdk/request-cleanup/server-sdk-console.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.lease-console
 std/server-sdk/request-cleanup/server-sdk-workers.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.lease-cleanup-budget
 std/server-sdk/javascript-lease-dispatcher/server-sdk-release-order.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.dispatch.ack
-std/collections/list-methods/slicing-a-range-value-is-a-slice-key.hd	runtime	accept	std/collections.md#r-std-collections.list.slice
+std/collections/list-methods/slicing-takes-offsets-from-a-range-value.hd	runtime	accept	std/collections.md#r-std-collections.list.slice
 std/collections/list-methods/slicing-a-slice-bound-of-another-unsigned-type-selects-its-implementation.hd	runtime	accept	std/collections.md#r-std-collections.list.slice
 std/collections/list-methods/slicing-a-slice-is-a-value-to-use.hd	runtime	accept	std/collections.md#r-std-collections.list.slice
 std/collections/list-methods/slicing-a-slice-type-is-the-out-type-of-its-implementation.hd	runtime	accept	std/collections.md#r-std-collections.list.slice
@@ -627,7 +627,6 @@ lang/annotations/two-annotate-forms/annotations-a-field-annotation-on-a-struct-f
 lang/data/shared-enum-constructor-data/shared-enum-data-a-variant-may-name-one-of-several-defaulted-parameters.hd	type	accept	lang/08-data-and-enums.md#shared-enum-constructor-data
 lang/functions/parameters/default-values-defaults-before-a-rest-a-trailing-closure-or-at-the-end-are-valid.hd	type	accept	lang/07-functions.md#default-values
 std/ops/derived-default/derive-default-an-enum-marking-one-variant-default-is-valid.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
-std/ops/derived-default/derive-default-an-enum-without-the-derive-marks-no-variant.hd	type	accept	std/ops.md#r-std-ops.default.derive.one-variant
 lang/control-flow/match-expressions/match-distinct-float-literal-arms-are-reachable.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/control-flow/match-expressions/match-tuple-arms-with-distinct-literal-elements-are-reachable.hd	type	accept	lang/06-control-flow.md#match-expressions
 lang/functions/trailing-callback-blocks/trailing-closures-a-user-function-named-loop-takes-a-trailing-block.hd	type	accept	lang/07-functions.md#r-fn.trailing.position
@@ -6894,8 +6893,8 @@ lang/traits/generic-bounds-and-static-dispatch/written-type-arguments-meet-bound
 lang/references/moves/move-tuple-element-out-of-reference.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 lang/references/reading-through-a-reference/a-tuple-element-reads-through-a-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto
 std/hash/bytes-written/inlined-scalar-writer-mutates-its-local-receiver.hd	runtime	accept	std/hash.md#r-std-hash.bytes.integer
-lang/references/dependent-results/conflicts-through-aliases/inlined-scalar-writer-keeps-pointer-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
-lang/references/dependent-results/conflicts-through-aliases/inlined-scalar-writer-keeps-shared-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+lang/references/dependent-results/conflicts-through-aliases/scalar-writer-keeps-pointer-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+lang/references/dependent-results/conflicts-through-aliases/scalar-writer-keeps-shared-loan-during-arguments-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 std/hash/fnv-1a-hasher/fnv1a-scattered-usize-keys.hd	runtime	accept	std/hash.md#r-std-hash.fnv1a.fixed
 std/hash/fnv-1a-hasher/fnv1a-usize-byte-oracle.hd	runtime	accept	std/hash.md#r-std-hash.fnv1a.algorithm
 lang/types/generics/inference-through-a-projection/an-argument-infers-a-parameter-named-beside-its-projection.hd	runtime	accept	lang/04-type-system.md#r-types.generic.infer.projection

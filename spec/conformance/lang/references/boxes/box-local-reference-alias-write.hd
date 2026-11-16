@@ -1,4 +1,4 @@
-# test: a write through a copy of a `*mut` box of a local reference reaches every copy
+# test: a box of a reference to a local is rejected, as a write through any copy of the box would outlive the local
 # Spec 13 Boxes: ref.box.local; Local References: ref.local.holding.counted.
 struct User:
     name: string

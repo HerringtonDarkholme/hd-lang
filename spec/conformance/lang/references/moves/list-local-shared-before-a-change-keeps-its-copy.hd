@@ -5,7 +5,7 @@
 # expect-stdout: 3 2
 # expect-stdout: 3 2
 # expect-stdout: 2 1
-# test: a local list or map shared by a copy, a loop's earlier round, a reference, a closure or a moved call argument is copied by the change that follows, whatever form the change takes
+# test: a local list or map shared by a copy, a loop's earlier round, a reference or a moved call argument is copied by the change that follows, whatever form the change takes, while a closure that shares the list sees the change
 # Spec 13 Copy: a copy of a collection is a value of its own.
 use std.annotation.inline
 

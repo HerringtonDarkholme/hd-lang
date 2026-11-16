@@ -1,4 +1,4 @@
-# test: a requirement key may name any trait; a member unavailable on its dyn provider is only unavailable through $.use
+# test: a requirement key may name a trait with an associated function, and its method stays callable through $.use
 # Spec 11 Requirement Keys: req.key.any-trait-members.reference-values; Spec 09 Dyn Types: trait.dyn.except-fn, trait.dyn.member.assoc-function.
 
 trait Factory:

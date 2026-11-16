@@ -1,4 +1,4 @@
-# test: two references to one object, and copies of one reference, see each other's writes; there is no exclusivity check
+# test: a reborrow of a &mut and the reference it came from see each other's writes; there is no exclusivity check
 # Spec 13 Places And New Objects: ref.place.alias. Writing Through A Reference: ref.write.seen, ref.write.no-exclusivity.
 # expect-stdout: 7 7
 struct Point:

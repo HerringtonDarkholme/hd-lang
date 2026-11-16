@@ -1,4 +1,4 @@
-# test: copies of a &mut reference refer to one place and see each other's writes
+# test: copies of a counted *mut refer to one place and see each other's writes
 # Spec 13 Places And New Objects: ref.place.alias.
 
 struct Child:
