@@ -11,4 +11,4 @@ use std.testing.{assert, assert_equal}
 tests:
     it("a later use declaration is visible earlier"):
         check_answer()
-        assert(true, reason="grouped names are visible too")
+        assert("ada".len() == 3, reason="grouped names are visible too")

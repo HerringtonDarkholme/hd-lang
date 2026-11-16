@@ -8,6 +8,7 @@ source, so they serve any implementation.
 | --- | --- |
 | `spec.ts` | the `pnpm run spec` entry point: `counts`, `coverage`, `audit`, `phase-audit`, `refs`, `rewrite`, and `glossary` |
 | `fixture-duplicates.ts` | the duplicate checks `check-fixture-index.ts` runs: two cases with one program (up to names), two identical package trees of one tier |
+| `fixture-guards.ts` | the fixture-rule checks `check-fixture-index.ts` runs (conformance/README.md, Writing a Case): an accept twin's reject title, a title saying an accept case is rejected, a runtime case that runs nothing, an expectation comment no runner reads, a literal assert that cannot fail |
 | `panic-marker-line.ts` | the panic-marker check `check-fixture-index.ts` runs: a marker on a call of the fixture's own function belongs on the raising line in its body |
 | `phase-audit.ts` | fixture phase tags checked against the diagnostic phase table |
 | `spec-corpus.ts` | every chapter with its rule inventory, read from a directory or a git revision |

@@ -4,4 +4,4 @@ tests:
     use std.testing.assert_equal
 
     it("a redundant assertion import is legal"):
-        assert_equal("same", "same", reason="the import names the same declaration")
+        assert_equal("same".len(), 4, reason="the import names the same declaration")

@@ -7,7 +7,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import { duplicateFixtures, duplicateTrees, type FixtureCase } from "./tools/fixture-duplicates.ts";
+import { duplicateFixtures, duplicateTrees } from "./tools/fixture-duplicates.ts";
+import { fixtureGuards, type GuardCase } from "./tools/fixture-guards.ts";
 import { panicMarkerOnCall } from "./tools/panic-marker-line.ts";
 
 const specDir = process.argv[2];
@@ -47,7 +48,7 @@ if (header?.join("\t") !== "path\tphase\texpectation\tspecification") {
   fail("malformed conformance/cases.tsv");
 }
 const entries = new Map<string, number>();
-const indexed: FixtureCase[] = [];
+const indexed: GuardCase[] = [];
 for (const row of cases) {
   if (row.length !== 4 || row.some((field) => field === "")) {
     fail("malformed conformance/cases.tsv");
@@ -60,7 +61,7 @@ for (const row of cases) {
     fail(`missing fixture ${path}`);
     continue;
   }
-  indexed.push({ path, phase, expectation, text });
+  indexed.push({ path, phase, expectation, text, specification: section });
   const lines = text.split("\n");
   const markers = lines.filter((line) => marker.test(line)).length;
   if (lines.some((line) => warningMarker.test(line))) {
@@ -151,6 +152,11 @@ for (const file of walk(conformance).sort()) {
 // same files (A1, A2 and A14 of docs/audit/conformance-fixture-review-2026-11-14.md).
 // A fixture names a tree of its own tier, so trees compare within a tier.
 for (const problem of duplicateFixtures(indexed)) {
+  fail(problem);
+}
+// The fixture rules of conformance/README.md "Writing a Case" that a script
+// can check (A10, A10c, A11, A16 and the literal part of A17 of the review).
+for (const problem of fixtureGuards(indexed)) {
   fail(problem);
 }
 function treeFiles(root: string, directory = root): [string, Buffer][] {

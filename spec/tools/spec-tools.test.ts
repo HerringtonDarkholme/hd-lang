@@ -38,6 +38,7 @@ import {
   fixtureProgram,
   renamedProgram,
 } from "./fixture-duplicates.ts";
+import { fixtureGuards } from "./fixture-guards.ts";
 import { panicMarkerOnCall } from "./panic-marker-line.ts";
 
 /** Whether this checkout's history holds `rev`; a shallow clone may not. */
@@ -808,6 +809,102 @@ test("duplicate trees hold the same files in any order", () => {
       { name: "trees/d", files: [["src/x.hd", "xy"]] },
     ]),
     ["package trees trees/a and trees/b hold identical files; point their fixtures at one tree"],
+  );
+});
+
+test("fixture guards catch seeded bad fixtures and pass their neighbours", () => {
+  // `kind` is "EXPECTATION" or "EXPECTATION PHASE"; the phase defaults to type.
+  const row = (
+    path: string,
+    text: string,
+    kind = "accept",
+    specification = "lang/03-names-and-scopes.md#use-declarations",
+  ) => {
+    const [expectation = "accept", phase = "type"] = kind.split(" ");
+    return { path, phase, expectation, text, specification };
+  };
+  const reject = "# test: a duplicate name\nx := 1\nx := 2 # diagnostic: duplicate-binding\n";
+  const runs = (head: string) => `${head}\nfn main() -> void:\n    pass\n`;
+  const crlf = (text: string) => text.replaceAll("\n", "\r\n");
+  assert.deepEqual(
+    fixtureGuards([
+      // A10: an accept twin keeps its reject twin's title, in LF and CRLF.
+      row("a/dup.hd", reject, "reject:duplicate-binding"),
+      row("a/dup-legal.hd", "# test: a duplicate name\nx := 1\n"),
+      row("a/dup-crlf.hd", crlf("# test: a duplicate name\nx := 1\n")),
+      row("b/dup-legal.hd", "# test: a duplicate name\nx := 1\n"),
+      row("a/renamed.hd", "# test: a shadowing name is accepted\nx := 1\n"),
+      // A10c: a parse or type accept title that says it is rejected.
+      row("c/said.hd", "# test: a shadowed name is rejected\n"),
+      row("c/parse.hd", "# test: a tab Is Invalid here\n", "accept parse"),
+      row("c/value.hd", "# test: an unset variable is an error value\n", "accept runtime"),
+      row("c/negated.hd", "# test: a shadowed name is not an error\n"),
+      // A11: a private main with nothing that registers a test.
+      row("d/private.hd", runs(""), "accept runtime"),
+      row("d/private-bang.hd", "fn main!() -> void:\n    pass\n", "panic:explicit-panic runtime"),
+      row("d/private-crlf.hd", crlf(runs("")), "accept runtime"),
+      row("d/public.hd", "pub fn main() -> void:\n    pass\n", "accept runtime"),
+      row("d/tests.hd", runs('tests:\n    it("x"):\n        pass'), "accept runtime"),
+      row("d/doc.hd", runs("## Doc.\n## ```hd\n## ```"), "accept runtime"),
+      row("d/layout.hd", runs("# fixture-test-layout: test-module"), "accept runtime"),
+      row("d/tree.hd", runs("# fixture-package-tree: t/tests/a.hd"), "accept runtime"),
+      row("d/scenario.hd", runs("# fixture-runtime-scenario: x"), "accept runtime"),
+      row("d/typed.hd", runs(""), "accept type"),
+      // A16: an expectation comment the runner never reads.
+      row("e/prints.hd", "x := 1 # prints: 1\n"),
+      row("e/output.hd", "# Output: 1\n"),
+      row("e/real.hd", "# expect-stdout: 1\n# fixture-target: wasm32\n# expect: parse\n"),
+      // A17: literal tautologies in a runtime case.
+      row("f/true.hd", "    assert(true)\n", "accept runtime"),
+      row("f/arm.hd", '    .None => assert(true, reason="r")\n', "accept runtime"),
+      row("f/same.hd", '    assert_equal(1, 1, reason="r")\n', "accept runtime"),
+      row("f/text.hd", '    assert_equal("a", "a")\n', "accept runtime"),
+      row("f/char.hd", "    assert_equal('a', 'a')\n", "accept runtime"),
+      row("f/differ.hd", "    assert_equal(1, 2)\n    assert(x)\n", "accept runtime"),
+      row("f/computed.hd", "    assert_equal(f(1), f(1))\n", "accept runtime"),
+      row("f/typed.hd", "    assert(true)\n"),
+      row(
+        "f/harness.hd",
+        "    assert(true)\n",
+        "accept runtime",
+        "lang/10-modules.md#standard-testing",
+      ),
+      row(
+        "f/rule.hd",
+        "    assert(true)\n",
+        "accept runtime",
+        "lang/10-modules.md#r-module.testing.uses-eq",
+      ),
+      row(
+        "f/prelude.hd",
+        "    assert(true)\n",
+        "accept runtime",
+        "lang/10-modules.md#r-module.prelude.test-assertions",
+      ),
+      row(
+        "f/other.hd",
+        "    assert(true)\n",
+        "accept runtime",
+        "lang/10-modules.md#r-module.prelude.same-use",
+      ),
+    ]),
+    [
+      "accept fixture c/said.hd has a title that says it is rejected: a shadowed name is rejected",
+      "accept fixture c/parse.hd has a title that says it is rejected: a tab Is Invalid here",
+      "runtime fixture d/private.hd declares a private main and registers no test, so nothing runs; make main pub or move its body into tests:",
+      "runtime fixture d/private-bang.hd declares a private main and registers no test, so nothing runs; make main pub or move its body into tests:",
+      "runtime fixture d/private-crlf.hd declares a private main and registers no test, so nothing runs; make main pub or move its body into tests:",
+      "fixture e/prints.hd line 1: # prints: is no directive, so the runner never checks it; use # expect-stdout: or an assert",
+      "fixture e/output.hd line 1: # Output: is no directive, so the runner never checks it; use # expect-stdout: or an assert",
+      "runtime fixture f/true.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "runtime fixture f/arm.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "runtime fixture f/same.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "runtime fixture f/text.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "runtime fixture f/char.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "runtime fixture f/other.hd line 1 asserts a literal that cannot fail; check a value the rule under test computes",
+      "accept fixture a/dup-legal.hd keeps the title of reject fixture a/dup.hd; title what it accepts",
+      "accept fixture a/dup-crlf.hd keeps the title of reject fixture a/dup.hd; title what it accepts",
+    ],
   );
 });
 
