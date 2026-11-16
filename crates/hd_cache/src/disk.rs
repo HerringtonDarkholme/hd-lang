@@ -1136,6 +1136,12 @@ mod packed {
         crowded: AtomicBool,
         /// The store became crowded since its caller last published.
         flush: AtomicBool,
+        /// The threads whose contested miss asked their caller to publish
+        /// and read again before they wait (#2053). Each request is the
+        /// asking thread's own: another thread's put or read cannot take
+        /// it, or the asking caller would compute the entry beside its
+        /// claim holder. At most one per thread.
+        flush_before_wait: Mutex<Vec<std::thread::ThreadId>>,
         /// The home shards of the packs this process published, a bit
         /// each: its settlement merges small packs there.
         published: AtomicU32,
@@ -2451,6 +2457,7 @@ mod packed {
                 runs: Mutex::new(None),
                 crowded: AtomicBool::new(false),
                 flush: AtomicBool::new(false),
+                flush_before_wait: Mutex::new(Vec::new()),
                 waits: Mutex::new(None),
                 #[cfg(test)]
                 on_pause: None,
@@ -3120,7 +3127,11 @@ mod packed {
                 // what the holder waits for: its caller publishes them, and
                 // asks again, before this run waits.
                 if self.claims().values().any(|c| c.done) {
-                    self.flush.store(true, Ordering::Relaxed);
+                    let me = std::thread::current().id();
+                    let mut asking = self.flush_asked();
+                    if !asking.contains(&me) {
+                        asking.push(me);
+                    }
                     return None;
                 }
                 #[cfg(test)]
@@ -3218,9 +3229,10 @@ mod packed {
         /// At the put of `key`: whether to publish now. A claimed entry is
         /// marked computed and waits for the caller's batch, unless a run
         /// waits for a claim (`waits` grew since this store first claimed)
-        /// or the store asked for a flush: it found other runs beside it
-        /// after running alone, or it is about to wait itself. A run that
-        /// no one waits for pays nothing more than its batch.
+        /// or the store found other runs beside it after running alone. A
+        /// thread about to wait asks its own caller instead
+        /// ([`Store::flush_requested`]). A run that no one waits for pays
+        /// nothing more than its batch.
         pub(super) fn put_wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
             let any = {
                 let mut claims = self.claims();
@@ -3232,9 +3244,24 @@ mod packed {
             self.flush.swap(false, Ordering::Relaxed) || (any && self.waited())
         }
 
-        /// Whether this store asked its caller to publish before it waits.
+        /// Whether this store asks its caller to publish: it became
+        /// crowded, or this thread's miss is about to wait. Cost: one pass
+        /// over the asking threads, at most one per worker.
         pub(super) fn flush_requested(&self) -> bool {
-            self.flush.swap(false, Ordering::Relaxed)
+            let me = std::thread::current().id();
+            let mine = {
+                let mut asking = self.flush_asked();
+                let before = asking.len();
+                asking.retain(|&t| t != me);
+                asking.len() != before
+            };
+            self.flush.swap(false, Ordering::Relaxed) || mine
+        }
+
+        fn flush_asked(&self) -> MutexGuard<'_, Vec<std::thread::ThreadId>> {
+            self.flush_before_wait
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
         }
 
         /// The `waits` file, opened once; `None` when it cannot be.
@@ -6239,6 +6266,44 @@ mod packed {
             );
             store.publish();
             assert!(!store.claims(EntryKind::Parse, &Hash128(9)));
+        }
+
+        /// A contested miss whose store holds computed, unpublished claims
+        /// asks its own caller to publish and read again before it waits
+        /// (#2053). Another thread's put cannot take that request: before,
+        /// it did, the asking caller saw no request, took its miss as its
+        /// own and computed the entry beside the run holding its claim.
+        #[test]
+        fn a_flush_asked_before_a_wait_reaches_the_thread_that_asked() {
+            let root = scratch("claim-flush-thread");
+            let (mut holder, mut store) = (Store::new(&root), Store::new(&root));
+            holder.claiming = true;
+            store.claiming = true;
+            drop((holder.join(), store.join()));
+            assert!(holder.get_or_claim(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(store.get_or_claim(EntryKind::Check, &Hash128(2)).is_none());
+            let _ = store.put_wanted(EntryKind::Check, &Hash128(2));
+            let _ = store.flush_requested();
+            let (missed, asked) = (std::sync::Barrier::new(2), std::sync::Barrier::new(2));
+            std::thread::scope(|scope| {
+                // cost: one test thread, one contested miss.
+                let reader = scope.spawn(|| {
+                    let got = store.get_or_claim(EntryKind::Check, &Hash128(1));
+                    missed.wait();
+                    asked.wait();
+                    (got.is_none(), store.flush_requested())
+                });
+                missed.wait();
+                // Another worker of the same run puts an entry; it is
+                // published now, as a run waits (the `waits` file grew).
+                let published = store.put_wanted(EntryKind::Check, &Hash128(3));
+                asked.wait();
+                assert!(published);
+                assert_eq!(reader.join().unwrap(), (true, true));
+            });
+            assert!(!store.flush_requested(), "a request is taken once");
+            assert!(store.held(EntryKind::Check, &Hash128(2)));
+            assert!(!store.held(EntryKind::Check, &Hash128(1)));
         }
 
         /// A deferred store's second read of a contested miss, made after

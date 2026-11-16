@@ -457,6 +457,9 @@ obj/
   - A contended reader announces its wait before checking its own
     completed claims. A concurrent completion therefore either sees the
     announcement and publishes, or is found by the reader's flush check.
+    That check's request to publish and read again belongs to the reader's
+    thread (#2053): another worker's put cannot take it, or the reader
+    would take its miss as its own and compute beside the holder.
     The store records the wait-file length before acquiring its first
     claim. Any later announcement keeps publication eager until this
     store ends: publishing an unrelated entry cannot consume the interest
