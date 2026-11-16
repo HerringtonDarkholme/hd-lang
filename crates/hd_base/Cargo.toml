@@ -8,6 +8,9 @@ rust-version.workspace = true
 [dependencies]
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+hashbrown = { version = "0.17.1", default-features = false }
+
 [lints]
 workspace = true
 

@@ -103,10 +103,23 @@ impl Hasher for FixedHasher {
     }
 }
 
-/// `std`'s `HashMap` with a fixed seed.
+// Native builds retain std's implementation. The browser uses hashbrown
+// without inline-more to avoid duplicating its generic table machinery.
+#[cfg(target_arch = "wasm32")]
+pub use hashbrown::{hash_map, hash_set};
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::collections::{hash_map, hash_set};
+
+/// An in-run hash map with a fixed seed.
+#[cfg(target_arch = "wasm32")]
+pub type HashMap<K, V> = hashbrown::HashMap<K, V, FixedState>;
+#[cfg(not(target_arch = "wasm32"))]
 pub type HashMap<K, V> = std::collections::HashMap<K, V, FixedState>;
 
-/// `std`'s `HashSet` with a fixed seed.
+/// An in-run hash set with a fixed seed.
+#[cfg(target_arch = "wasm32")]
+pub type HashSet<T> = hashbrown::HashSet<T, FixedState>;
+#[cfg(not(target_arch = "wasm32"))]
 pub type HashSet<T> = std::collections::HashSet<T, FixedState>;
 
 #[cfg(test)]

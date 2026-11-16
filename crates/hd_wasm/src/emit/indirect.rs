@@ -1623,7 +1623,7 @@ impl Em<'_, '_, '_> {
             }
             crate::work::moved_paths(1);
             let fields = fields.into_boxed_slice();
-            if let std::collections::hash_map::Entry::Vacant(e) =
+            if let hd_base::hash::hash_map::Entry::Vacant(e) =
                 self.mem_move_flags.entry((l, fields.clone()))
             {
                 let flag = self.f.local(Val::I32);

@@ -9227,7 +9227,7 @@ pub fn build_folder(
         out.broken_names = r
             .broken
             .iter()
-            .filter(|key| !r.own.contains_key(key))
+            .filter(|key| !r.own.contains_key(*key))
             .map(|&(module, name)| (r.module_text(module).to_owned(), name))
             .collect();
         out.broken_names.sort_stable_by(|a, b| {

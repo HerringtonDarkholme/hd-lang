@@ -1174,14 +1174,14 @@ impl dyn InlineEnv + '_ {
                 Some((copy, h.finish()))
             });
             match flags.entry((def, targs)) {
-                std::collections::hash_map::Entry::Occupied(first) => {
+                hd_base::hash::hash_map::Entry::Occupied(first) => {
                     debug_assert_eq!(
                         first.get().0,
                         values[i],
                         "flag values differ between solves"
                     );
                 }
-                std::collections::hash_map::Entry::Vacant(slot) => {
+                hd_base::hash::hash_map::Entry::Vacant(slot) => {
                     slot.insert((values[i], made));
                 }
             }

@@ -2,7 +2,6 @@
 //! its per-module findings cache. The walk and every rule live in the
 //! consumer; a plain check or build attaches none and does no analysis work.
 
-use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
 use hd_base::{FileId, Hash128, NodeIdx, Span};
@@ -237,7 +236,7 @@ impl Run<'_> {
         else {
             return;
         };
-        let mut warned = BTreeSet::new();
+        let mut warned = vec![false; self.table.packages.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
             let package = usize::from(module.package);
             if !self.fetched.get(package).copied().unwrap_or(false) {
@@ -246,7 +245,7 @@ impl Run<'_> {
             let Some(reference) = self.dbg_refs[m].get().and_then(|refs| refs.first()) else {
                 continue;
             };
-            if warned.insert(package) {
+            if !std::mem::replace(&mut warned[package], true) {
                 let mut findings = DiagBuf::default();
                 lint.sink.fetched_debug(
                     &self.table.packages[package],

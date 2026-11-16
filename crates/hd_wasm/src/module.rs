@@ -139,7 +139,7 @@ struct SymbolData {
     names: Vec<Sym>,
     ids: hd_base::HashMap<Sym, SymId>,
     signatures: Vec<(Vec<Val>, Vec<Val>)>,
-    signature_ids: BTreeMap<(Vec<Val>, Vec<Val>), SigId>,
+    signature_ids: hd_base::HashMap<(Vec<Val>, Vec<Val>), SigId>,
 }
 impl Symbols {
     pub fn intern_global(&self, global: Global) -> GlobalId {
@@ -334,6 +334,15 @@ pub enum Val {
 }
 
 impl Val {
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Self::I32 => 0,
+            Self::I64 => 1,
+            Self::F32 => 2,
+            Self::F64 => 3,
+        }
+    }
+
     #[must_use]
     pub const fn wasm(self) -> ValType {
         match self {
@@ -1124,7 +1133,7 @@ pub struct Module {
     inst_order: Vec<SymId>,
     /// Static data from [`STATIC_BASE`], deduplicated by content.
     data: Vec<u8>,
-    data_at: BTreeMap<Vec<u8>, u32>,
+    data_at: hd_base::HashMap<Vec<u8>, u32>,
     data_chunks: Vec<crate::static_data::Chunk>,
     data_roots: Vec<u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
@@ -1197,20 +1206,20 @@ pub struct Module {
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
-    pub frames: BTreeMap<Hash128, u32>,
+    pub frames: hd_base::HashMap<Hash128, u32>,
     /// Deferred scalar layout for shared frame materialization.
     pub(crate) frame_spills: hd_base::HashMap<Hash128, crate::task::FrameSpill>,
     /// The top-level bindings some reference refers to, by path hash:
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm/DESIGN.md` §23.20).
-    pub addressed: BTreeMap<Hash128, Address>,
+    pub addressed: hd_base::HashMap<Hash128, Address>,
     /// Those of them that are objects (`ref.excl.alias.global`): a binding
     /// a reference reaches and a place writes. Its slot starts after a
     /// header whose descriptor word holds the loans of references into
     /// it, so an access from any function checks them.
     pub objects: hd_base::HashSet<Hash128>,
     /// New REPL bindings own these slots in this module's static segment.
-    pub binding_slots: BTreeMap<Hash128, u32>,
+    pub binding_slots: hd_base::HashMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
@@ -1276,10 +1285,10 @@ pub struct Module {
     pub cancellable: bool,
     /// With origins: what each static data address holds, for
     /// development tools ([`crate::StaticData`]).
-    pub static_labels: BTreeMap<u32, crate::StaticData>,
+    pub static_labels: hd_base::HashMap<u32, crate::StaticData>,
     /// With origins: each top-level binding's or once-cell's path, by its
     /// path hash, which names its globals.
-    pub storage_names: BTreeMap<Hash128, String>,
+    pub storage_names: hd_base::HashMap<Hash128, String>,
 }
 
 impl Module {
@@ -1298,7 +1307,7 @@ impl Module {
             funcs: Vec::default(),
             inst_order: Vec::default(),
             data: Vec::default(),
-            data_at: BTreeMap::default(),
+            data_at: hd_base::HashMap::default(),
             data_chunks: Vec::new(),
             data_roots: Vec::new(),
             vtables: Vec::default(),
@@ -1326,11 +1335,11 @@ impl Module {
             release_plans: hd_base::HashMap::default(),
             hook_plans: hd_base::HashMap::default(),
             loan_uses: Vec::default(),
-            frames: BTreeMap::default(),
+            frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
-            addressed: BTreeMap::default(),
+            addressed: hd_base::HashMap::default(),
             objects: hd_base::HashSet::default(),
-            binding_slots: BTreeMap::default(),
+            binding_slots: hd_base::HashMap::default(),
             stored: BTreeMap::default(),
             release: Default::default(),
             optimized: Default::default(),
@@ -1350,8 +1359,8 @@ impl Module {
             result_inner: hd_base::HashSet::default(),
             dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
-            static_labels: BTreeMap::default(),
-            storage_names: BTreeMap::default(),
+            static_labels: hd_base::HashMap::default(),
+            storage_names: hd_base::HashMap::default(),
         }
     }
 }
@@ -1940,7 +1949,7 @@ impl Module {
         // A direct call of a `@cold` function goes through the function
         // table, at the callee's own signature (`annot.inline.cold`), for
         // the reason [`Func::cold_helper`] gives.
-        let cold: BTreeMap<SymId, SigId> = self
+        let cold: hd_base::HashMap<SymId, SigId> = self
             .funcs
             .iter()
             .enumerate()
@@ -2455,7 +2464,7 @@ impl Module {
 
         let mut mapped_functions = Vec::new();
         let mut types = TypeSection::new();
-        let mut type_of: BTreeMap<(Vec<Val>, Vec<Val>), u32> = BTreeMap::new();
+        let mut type_of: hd_base::HashMap<(Vec<Val>, Vec<Val>), u32> = hd_base::HashMap::default();
         let mut ty = |params: &[Val], results: &[Val], types: &mut TypeSection| {
             let key = (params.to_vec(), results.to_vec());
             if let Some(t) = type_of.get(&key) {
@@ -2543,11 +2552,11 @@ impl Module {
         // A helper name that several helpers share, at different
         // arguments, takes its place among them as a suffix. An instance
         // keeps its item's `path#sub`, which a panic's frames read.
-        let mut seen: BTreeMap<&str, u32> = BTreeMap::new();
+        let mut seen: hd_base::HashMap<&str, u32> = hd_base::HashMap::default();
         for (_, f) in &defined {
             *seen.entry(f.name.as_str()).or_default() += 1;
         }
-        let mut taken: BTreeMap<&str, u32> = BTreeMap::new();
+        let mut taken: hd_base::HashMap<&str, u32> = hd_base::HashMap::default();
         let mut own: Vec<(u32, String)> = Vec::new();
         for (s, f) in &defined {
             let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
@@ -2567,7 +2576,7 @@ impl Module {
             let mut body = Function::new_with_locals_types(f.locals.iter().map(|v| v.wasm()));
             let mut mapped_instructions = Vec::new();
             let mut mapped_counts = Vec::new();
-            let mut count_sites = BTreeSet::new();
+            let mut count_sites = hd_base::HashSet::default();
             let mut rows: Vec<(u32, u32)> = Vec::new();
             let (mut map, mut kept) = (vec![None; f.inlined.len()], Vec::new());
             // Instructions already folded into an earlier one's constant.
@@ -2736,41 +2745,7 @@ impl Module {
                     offset: u32::try_from(body.byte_len()).expect("offset"),
                     origin: f.origin_root,
                 });
-                let names = f.local_names.as_ref();
-                let locals = (0..f.params.len() + f.locals.len())
-                    .map(|l| names.and_then(|n| n.get(&u32::try_from(l).expect("locals")).cloned()))
-                    .collect();
-                let mut statics: BTreeMap<u32, crate::StaticData> = BTreeMap::new();
-                for at in f.statics.iter().flatten() {
-                    let label = match (*at, self.static_labels.get(at)) {
-                        (_, Some(l)) => l.clone(),
-                        (EMPTY, None) => crate::StaticData::Named("\"\"".to_owned()),
-                        (_, None) => continue,
-                    };
-                    statics.insert(*at, label);
-                }
-                let mut globals_named: BTreeMap<u32, String> = BTreeMap::new();
-                for i in &f.body {
-                    match i {
-                        Ins::VTable(k) => {
-                            let v = &self.vtables[*k];
-                            let slots =
-                                v.0.iter()
-                                    .chain(&v.2)
-                                    .map(|s| index.get(*s).copied().ok_or_else(|| undefined(s)))
-                                    .collect::<StageResult<_>>()?;
-                            statics.insert(vtable_at[*k], crate::StaticData::VTable(slots));
-                        }
-                        Ins::GlobalGet(g) | Ins::GlobalSet(g) => {
-                            globals_named.insert(
-                                gindex[&self.symbols.global(*g)],
-                                global_name(&self.symbols.global(*g), &self.storage_names),
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                mapped_functions.push(crate::FunctionOrigins {
+                let mut origin = crate::FunctionOrigins {
                     index: index[s],
                     name: name.clone(),
                     item: f.origin_item.clone(),
@@ -2778,10 +2753,12 @@ impl Module {
                     before_opt: f.origins_before_opt.clone(),
                     counts: mapped_counts,
                     instructions: mapped_instructions,
-                    locals,
-                    statics: statics.into_iter().collect(),
-                    globals: globals_named.into_iter().collect(),
-                });
+                    locals: Vec::new(),
+                    statics: Vec::new(),
+                    globals: Vec::new(),
+                };
+                function_origin(&self, f, &index, &gindex, &vtable_at, &mut origin)?;
+                mapped_functions.push(origin);
             }
             body.instruction(&WasmInstruction::End);
             code.function(&body);
@@ -3091,10 +3068,68 @@ impl Module {
     }
 }
 
+#[inline(never)]
+fn function_origin(
+    module: &Module,
+    f: &Func,
+    functions: &Numbers,
+    globals: &BTreeMap<Global, u32>,
+    vtable_at: &[u32],
+    out: &mut crate::FunctionOrigins,
+) -> StageResult<()> {
+    let undefined = |s: &SymId| {
+        hd_base::NotImplemented::new(
+            Stage::Link,
+            format!(
+                "the linear backend names an undefined function {:?}",
+                *module.symbols.get(*s)
+            ),
+        )
+    };
+    let names = f.local_names.as_ref();
+    let locals = (0..f.params.len() + f.locals.len())
+        .map(|l| names.and_then(|n| n.get(&u32::try_from(l).expect("locals")).cloned()))
+        .collect();
+    let mut statics: BTreeMap<u32, crate::StaticData> = BTreeMap::new();
+    for at in f.statics.iter().flatten() {
+        let label = match (*at, module.static_labels.get(at)) {
+            (_, Some(l)) => l.clone(),
+            (EMPTY, None) => crate::StaticData::Named("\"\"".to_owned()),
+            (_, None) => continue,
+        };
+        statics.insert(*at, label);
+    }
+    let mut globals_named: BTreeMap<u32, String> = BTreeMap::new();
+    for i in &f.body {
+        match i {
+            Ins::VTable(k) => {
+                let v = &module.vtables[*k];
+                let slots =
+                    v.0.iter()
+                        .chain(&v.2)
+                        .map(|s| functions.get(*s).copied().ok_or_else(|| undefined(s)))
+                        .collect::<StageResult<_>>()?;
+                statics.insert(vtable_at[*k], crate::StaticData::VTable(slots));
+            }
+            Ins::GlobalGet(g) | Ins::GlobalSet(g) => {
+                globals_named.insert(
+                    globals[&module.symbols.global(*g)],
+                    global_name(&module.symbols.global(*g), &module.storage_names),
+                );
+            }
+            _ => {}
+        }
+    }
+    out.locals = locals;
+    out.statics = statics.into_iter().collect();
+    out.globals = globals_named.into_iter().collect();
+    Ok(())
+}
+
 /// A global's name for development tools: a top-level binding's or
 /// once-cell's path, with the value's index after the first, or the
 /// runtime global's own name in snake case (`heap_top`).
-fn global_name(g: &Global, storage: &BTreeMap<Hash128, String>) -> String {
+fn global_name(g: &Global, storage: &hd_base::HashMap<Hash128, String>) -> String {
     if let Global::Binding(h) = g
         && let Some(path) = storage.get(h)
     {

@@ -103,8 +103,8 @@ impl MethodIndex {
         for it in items {
             let next = u32::try_from(self.seen.len()).unwrap_or(u32::MAX);
             match self.seen.entry(it.def) {
-                std::collections::hash_map::Entry::Occupied(_) => continue,
-                std::collections::hash_map::Entry::Vacant(v) => {
+                hd_base::hash::hash_map::Entry::Occupied(_) => continue,
+                hd_base::hash::hash_map::Entry::Vacant(v) => {
                     v.insert(next);
                 }
             }
@@ -5078,10 +5078,10 @@ impl Ck<'_, '_> {
             for &name in index.names_of(tr) {
                 crate::work::trait_lookup(1);
                 match entry.by_name.entry(name) {
-                    std::collections::hash_map::Entry::Vacant(e) => {
+                    hd_base::hash::hash_map::Entry::Vacant(e) => {
                         e.insert(i);
                     }
-                    std::collections::hash_map::Entry::Occupied(_) => {
+                    hd_base::hash::hash_map::Entry::Occupied(_) => {
                         entry.more.entry(name).or_default().push(i);
                     }
                 }

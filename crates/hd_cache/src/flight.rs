@@ -156,7 +156,7 @@ impl<S: CacheStore> SingleFlight<S> {
     /// Cancel the caller's unfinished key, never another build's flight.
     fn abandon(&self, id: u64, key: Key) {
         let mut flights = self.lock();
-        if let std::collections::hash_map::Entry::Occupied(entry) = flights.owners.entry(key)
+        if let hd_base::hash::hash_map::Entry::Occupied(entry) = flights.owners.entry(key)
             && *entry.get() == id
         {
             self.inner.abandon(key.0, &key.1);

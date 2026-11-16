@@ -543,8 +543,8 @@ impl Em<'_, '_, '_> {
     fn steps(&self, at: Ty, to: (hd_base::DefId, hd_types::TyList)) -> StageResult<Vec<u32>> {
         let mut paths = self.m.dyn_paths.borrow_mut();
         let paths = match paths.entry(at) {
-            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
-            std::collections::hash_map::Entry::Vacant(entry) => entry.insert(
+            hd_base::hash::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            hd_base::hash::hash_map::Entry::Vacant(entry) => entry.insert(
                 hd_mono::dyn_graph::DynPaths::new(self.pool(), self.env(), at)?,
             ),
         };

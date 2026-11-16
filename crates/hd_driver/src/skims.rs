@@ -344,6 +344,7 @@ impl<'a> StdSkims<'a> {
             table.iter().map(|(p, s)| (p.as_str(), &**s)).collect();
         self.record(std, &known);
         self.early.store(true, std::sync::atomic::Ordering::Relaxed);
+        drop(known);
         Some(table)
     }
 

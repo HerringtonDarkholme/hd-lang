@@ -406,19 +406,19 @@ fn slot(k: usize) -> u64 {
 /// takes afresh: the `k`th of each type it needs.
 #[derive(Default)]
 struct Scratch {
-    by: BTreeMap<Val, Vec<u32>>,
-    used: BTreeMap<Val, usize>,
+    by: [Vec<u32>; 4],
+    used: [usize; 4],
 }
 
 impl Scratch {
     /// Starts a new sequence: every scratch local is free again.
     fn reset(&mut self) {
-        self.used.clear();
+        self.used.fill(0);
     }
 
     fn take(&mut self, f: &mut Func, v: Val) -> u32 {
-        let k = self.used.entry(v).or_default();
-        let pool = self.by.entry(v).or_default();
+        let k = &mut self.used[v.index()];
+        let pool = &mut self.by[v.index()];
         if *k == pool.len() {
             pool.push(f.local(v));
         }

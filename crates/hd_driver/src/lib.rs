@@ -252,7 +252,7 @@ impl ExtraRoots {
     /// Adds `r` after the roots so far unless it is already one.
     fn insert(&mut self, r: (DefId, TyList)) {
         work::root_lookup();
-        if let std::collections::hash_map::Entry::Vacant(e) = self.at.entry(r) {
+        if let hd_base::hash::hash_map::Entry::Vacant(e) = self.at.entry(r) {
             e.insert(self.roots.len());
             self.roots.push(r);
         }
@@ -1493,6 +1493,7 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
 /// in a folder outside the input's closure is not. Also each reached
 /// module's skim, which the walk computes anyway. `None` when the run
 /// builds no input of `repl`.
+#[inline(never)]
 fn repl_texts(
     table: &ModuleTable,
     repl: &ReplInputs,
@@ -3229,6 +3230,7 @@ struct FolderCycle {
 /// no edge. It is not skimmed: `files` would keep the placeholder's skim
 /// as the file's in its source set's record, and a later run that reaches
 /// the file would read it.
+#[inline(never)]
 fn recover_folder_cycles(
     table: &mut ModuleTable,
     texts: &Texts<'_>,
@@ -4109,6 +4111,7 @@ impl Run<'_> {
         }
     }
 
+    #[inline(never)]
     fn folder_graph(&self, sp: &dyn Spawn) {
         let uses: Vec<Vec<String>> = (0..self.table.modules.len())
             .map(|m| self.skim_of(m).uses.clone())
@@ -5824,6 +5827,7 @@ impl Run<'_> {
     /// a trait whose `coh_key` the package's coherence rows hold reads its
     /// findings there. The findings are a part of the package's `graph`
     /// entry.
+    #[inline(never)]
     fn coherence(&self) {
         let part = self.coherence_part();
         self.part_done(0, part);
@@ -6642,6 +6646,18 @@ impl Run<'_> {
         ))
     }
 
+    #[cold]
+    #[inline(never)]
+    fn body_failure(&self, name: &str, reason: &str, message: &str) {
+        let mut report = lock(&self.report);
+        report.body_failed += 1;
+        *report
+            .body_reasons
+            .entry(reason.chars().take(90).collect())
+            .or_default() += 1;
+        report.body_failures.push(format!("{name}: {message}"));
+    }
+
     /// `Body(m)`: every body of the module, in source order.
     fn body(&self, m: usize) {
         let Some(Some(prep)) = self.prep[m].get() else {
@@ -6863,13 +6879,7 @@ impl Run<'_> {
                     bodies.push(b);
                 }
                 Err(e) => {
-                    let mut r = lock(&self.report);
-                    r.body_failed += 1;
-                    let short: String = e.what.chars().take(90).collect();
-                    *r.body_reasons.entry(short).or_default() += 1;
-                    r.body_failures
-                        .push(format!("{} init: {}", module.path, e.what));
-                    drop(r);
+                    self.body_failure(&format!("{} init", module.path), &e.what, &e.what);
                     failed.get_or_insert(e);
                 }
             }
@@ -7041,20 +7051,11 @@ impl Run<'_> {
                 }
                 Err(e) => {
                     // Analysis counts every body; a build stops at the first.
-                    let mut r = lock(&self.report);
-                    r.body_failed += 1;
-                    let short: String = e
-                        .what
-                        .split(" @")
-                        .next()
-                        .unwrap_or("")
-                        .chars()
-                        .take(90)
-                        .collect();
-                    *r.body_reasons.entry(short).or_default() += 1;
-                    r.body_failures
-                        .push(format!("{}: {}", names.path(def), e.what));
-                    drop(r);
+                    self.body_failure(
+                        &names.path(def),
+                        e.what.split(" @").next().unwrap_or(""),
+                        &e.what,
+                    );
                     failed.get_or_insert(e);
                     if !self.analyze() {
                         break;
@@ -9173,6 +9174,7 @@ impl Run<'_> {
         }
     }
 
+    #[inline(never)]
     fn package_result(&self, sp: &dyn Spawn) {
         lock(&self.report).ok(Stage::PackageResult);
         self.check_inline_always();
@@ -11360,7 +11362,7 @@ impl Run<'_> {
                         .iter()
                         .zip(&table.item)
                         .filter(|(k, item)| {
-                            wanted.contains(k) && {
+                            wanted.contains(*k) && {
                                 let mut module = names.module_node(**item);
                                 let mut inside = false;
                                 while module.get().is_some() && !inside {

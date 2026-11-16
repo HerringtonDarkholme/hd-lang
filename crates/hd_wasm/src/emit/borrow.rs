@@ -1028,8 +1028,8 @@ impl Borrows {
             self.key_work += 1 + key.1.len();
         }
         match self.key_index.entry(key) {
-            std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
-            std::collections::hash_map::Entry::Vacant(entry) => {
+            hd_base::hash::hash_map::Entry::Occupied(entry) => *entry.get(),
+            hd_base::hash::hash_map::Entry::Vacant(entry) => {
                 let index = self.keys.len();
                 #[cfg(test)]
                 {

@@ -769,25 +769,7 @@ fn body_func<'a>(
         guard.leave(&mut em.f);
     }
     if em.f.local_names.is_some() {
-        let mut named: Vec<(usize, Vec<u32>)> =
-            em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        named.sort_stable();
-        for (l, ls) in named {
-            if let [w] = ls[..] {
-                em.f.name_local(w, format!("${l}"));
-                continue;
-            }
-            // A local of several values names each by its field path.
-            let paths = crate::layout::value_paths(input.pool, input.env, em.sub(b.local_ty[l]));
-            for (k, w) in ls.iter().enumerate() {
-                let name = if paths.len() == ls.len() {
-                    format!("${l}.{}", paths[k])
-                } else {
-                    format!("${l}.{k}")
-                };
-                em.f.name_local(*w, name);
-            }
-        }
+        em.name_locals();
     }
     let Some(suspension) = em.susp.take() else {
         if let Some((base, size)) = em.frame.filter(|f| f.0 != NONE) {
@@ -1989,6 +1971,33 @@ impl Em<'_, '_, '_> {
             self.f.get(l);
         }
         Ok(())
+    }
+
+    #[inline(never)]
+    fn name_locals(&mut self) {
+        let mut named: Vec<(usize, Vec<u32>)> =
+            self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
+        named.sort_stable();
+        for (l, ls) in named {
+            if let [w] = ls[..] {
+                self.f.name_local(w, format!("${l}"));
+                continue;
+            }
+            // A local of several values names each by its field path.
+            let paths = crate::layout::value_paths(
+                self.input.pool,
+                self.input.env,
+                self.sub(self.b.local_ty[l]),
+            );
+            for (k, w) in ls.iter().enumerate() {
+                let name = if paths.len() == ls.len() {
+                    format!("${l}.{}", paths[k])
+                } else {
+                    format!("${l}.{k}")
+                };
+                self.f.name_local(*w, name);
+            }
+        }
     }
 
     /// The locals of instruction `r`'s values. Emission follows the body's

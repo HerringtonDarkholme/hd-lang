@@ -112,8 +112,8 @@ impl DiagBuf {
             }
             let row = u32::try_from(self.root.len()).expect("diags");
             match self.root_row.entry(key) {
-                std::collections::hash_map::Entry::Occupied(_) => return false,
-                std::collections::hash_map::Entry::Vacant(v) => {
+                hd_base::hash::hash_map::Entry::Occupied(_) => return false,
+                hd_base::hash::hash_map::Entry::Vacant(v) => {
                     v.insert(row);
                 }
             }
@@ -265,6 +265,7 @@ impl DiagBuf {
                 rows.push(i);
             }
         }
+        drop(kept);
         if !any {
             return;
         }
