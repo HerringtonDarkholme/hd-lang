@@ -15,6 +15,7 @@ thread_local! {
     static LIVENESS: Cell<Option<u64>> = const { Cell::new(None) };
     static ZERO_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
+    static INIT_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts control continuations, target-index operations and branch-shape
@@ -115,6 +116,17 @@ pub fn count_layout_parts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn layout_parts(n: usize) {
     add(&LAYOUT_PARTS, n);
+}
+
+/// Counts the init keys the constants pass reads on this thread: each
+/// key the caller or an entry helper names, put in its set once, and each
+/// function's one probe of that set ([`crate::opt::constants`]).
+pub fn count_init_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&INIT_PROBES, run)
+}
+
+pub(crate) fn init_probes(n: usize) {
+    add(&INIT_PROBES, n);
 }
 
 fn count<R>(

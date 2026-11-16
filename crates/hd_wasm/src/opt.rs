@@ -121,17 +121,33 @@ use crate::rt::Helper;
 /// before any code that reads its bindings (`module.init.binding`), so every
 /// read sees the constant.
 pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128], arity: &Arity) {
-    let mut inits = inits.to_vec();
+    // The init keys, indexed once: every key the caller and the entry
+    // helpers name goes in one set, and each function asks it once, so
+    // the pass costs the keys named plus the functions, not their product.
+    let mut keys: hd_base::HashSet<Hash128> = inits.iter().copied().collect();
+    let mut named = inits.len();
     for (id, _) in funcs.iter().enumerate().filter(|(_, f)| f.is_some()) {
         match &*symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
-            Sym::Helper(Helper::EntryInit { inits: ks }) => inits.extend(ks.iter().map(|k| k.0)),
-            Sym::Helper(Helper::TestInit { inits: ks }) => {
-                inits.extend(ks.iter().flatten().map(|k| k.0));
+            Sym::Helper(Helper::EntryInit { inits: ks }) => {
+                named += ks.len();
+                keys.extend(ks.iter().map(|k| k.0));
             }
-            Sym::Helper(Helper::EntryPoll { then, .. }) => inits.extend(then.iter().map(|k| k.0)),
+            Sym::Helper(Helper::TestInit { inits: ks }) => {
+                named += ks.iter().map(Vec::len).sum::<usize>();
+                keys.extend(ks.iter().flatten().map(|k| k.0));
+            }
+            Sym::Helper(Helper::EntryPoll { then, .. }) => {
+                named += then.len();
+                keys.extend(then.iter().map(|k| k.0));
+            }
             _ => {}
         }
     }
+    crate::work::init_probes(named);
+    let init_of = |id: SymId| {
+        crate::work::init_probes(1);
+        matches!(&*symbols.get(id), Sym::Inst(key) if keys.contains(key))
+    };
     // A value held across the old storage's release reaches its global
     // through a temporary. Expose those constants before looking for the
     // single initializing write, rather than only cleaning locals afterward.
@@ -140,8 +156,8 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
         .enumerate()
         .filter_map(|(id, f)| Some((id, f.as_mut()?)))
     {
-        if matches!(&*symbols.get(SymId(u32::try_from(id).expect("symbols"))), Sym::Inst(key) if inits.contains(key))
-        {
+        // An index past u32 names no symbol, so it is no init.
+        if u32::try_from(id).is_ok_and(|id| init_of(SymId(id))) {
             locals(f, arity);
         }
     }
@@ -152,7 +168,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
         .filter_map(|(i, f)| Some((i, f.as_ref()?)))
     {
         let id = SymId(u32::try_from(id).expect("symbols"));
-        let init = matches!(&*symbols.get(id), Sym::Inst(key) if inits.contains(key));
+        let init = init_of(id);
         for (k, i) in f.body.iter().enumerate() {
             if let Ins::GlobalSet(g) = i {
                 let global = symbols.global(*g);

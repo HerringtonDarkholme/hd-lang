@@ -4370,3 +4370,60 @@ fn open_resolutions_walk_each_node_once_while_their_variables_stay_unbound() {
         );
     });
 }
+
+/// #2062's shape: `n` modules in a chain, each with a test module, and
+/// a top-level binding in the first, so every test group runs an init.
+fn test_module_chain(n: usize) -> MemorySources {
+    let mut src = MemorySources::default();
+    src.insert("src/m0.hd", "base := +1\n\npub fn step0() -> i32: base\n");
+    for i in 1..n {
+        let p = i - 1;
+        src.insert(
+            &format!("src/m{i}.hd"),
+            &format!("use pkg.m{p}.step{p}\n\npub fn step{i}() -> i32: step{p}() + 1\n"),
+        );
+    }
+    for i in 0..n {
+        src.insert(
+            &format!("src/m{i}_test.hd"),
+            &format!(
+                "use pkg.m{i}.step{i}\nuse std.testing.assert_equal\n\nit(\"chain {i}\"):\n    assert_equal(step{i}(), {}, reason=\"counts up\")\n",
+                i + 1
+            ),
+        );
+    }
+    src
+}
+
+// Wasm: #2062, the constants pass indexes the init keys the entry
+// helpers name once and probes the set once per function: it scanned
+// every key for each function.
+#[test]
+fn the_constants_pass_probes_init_keys_once_per_function() {
+    on_test_stack(|| {
+        let goal = Goal::Tests {
+            module: None,
+            filter: None,
+        };
+        let run = |n: usize| {
+            let src = test_module_chain(n);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let (out, work) = hd_wasm::work::count_init_probes(|| build(&host, "app", &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            assert_eq!(out.tests.len(), n, "{n}: one case per test module");
+            work
+        };
+        let (small, large) = (run(20), run(200));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "init keys read and probed for 20 and 200 test modules: {small} and {large}"
+        );
+    });
+}
