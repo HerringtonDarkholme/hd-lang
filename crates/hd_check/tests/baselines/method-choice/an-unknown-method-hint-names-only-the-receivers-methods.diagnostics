@@ -7,5 +7,5 @@ error: main.hd:22:5: unknown-method: no method `tag` on Box2[i32]; `Tagged` supp
 error: main.hd:25:5: unknown-method: no method `totl` on Item; did you mean `total`?
 error: main.hd:28:5: unknown-method: no method `mapp` on i32?; did you mean `map`?
 error: main.hd:31:5: unknown-method: no method `tag` on A
-error: main.hd:34:5: unknown-method: no method `labl` on A
-error: main.hd:37:5: unknown-method: no method `labl` on Named
+error: main.hd:34:5: unknown-method: no method `labl` on A; did you mean `label`?
+error: main.hd:37:5: unknown-method: no method `labl` on Named; did you mean `label`?

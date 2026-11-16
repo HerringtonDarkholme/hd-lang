@@ -4512,8 +4512,22 @@ impl Ck<'_, '_> {
                 .into_iter()
                 .map(|(tr, _)| tr)
                 .collect();
+            // A parameter, an opaque type, a projection or a trait value
+            // takes its methods from its bounds or its traits, not from
+            // impl rows: the lookup itself answers it.
+            let own_traits = matches!(
+                self.pool().get(bare),
+                TyData::Param(_)
+                    | TyData::Opaque { .. }
+                    | TyData::Assoc { .. }
+                    | TyData::TraitValue { .. }
+            );
             let applicable = inherent
-                || matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty());
+                || if own_traits {
+                    matches!(self.resolve_method(bare, &candidate), Ok(Some(_)))
+                } else {
+                    matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty())
+                };
             self.rollback(checkpoint);
             self.memo = memo;
             self.fuel = fuel;
@@ -4528,8 +4542,8 @@ impl Ck<'_, '_> {
     /// mean" hint: its inherent ones ([`MethodIndex::inherent_names_for`]),
     /// those of the traits with a row for its head key and of the
     /// compiler-supplied traits, or, for a parameter, an opaque type or a
-    /// projection, those of its bounds, which are the only traits its
-    /// lookup reads. A hint names only a method the receiver has, so a
+    /// projection, those of its bounds, and for a trait value, those of
+    /// its trait and supertraits: the only traits their lookup reads. A hint names only a method the receiver has, so a
     /// failing call costs the receiver's methods, not every method name of
     /// the program (#1933). Ruled out: another head that reads rows of
     /// every key, as in [`Self::unavailable_traits_of`].
@@ -4546,6 +4560,18 @@ impl Ck<'_, '_> {
             self.add_projection_clauses(t);
             let entry = self.bound_methods_of(t);
             names.extend(entry.by_name.keys().copied());
+        } else if let TyData::TraitValue { def, args, .. } = pool.get(t) {
+            // A trait value's methods are its trait's and supertraits'.
+            crate::body::walk_supertraits(
+                self.cx.lookup,
+                pool,
+                (def, args),
+                crate::body::Fill::Args(Some(t)),
+                |d, _, _| {
+                    traits.push(d);
+                    None::<()>
+                },
+            );
         } else if let Some((key, tables)) = self.cx.head_tables(pool, t) {
             let impls = hd_types::solver::Impls::Owned(self.cx.impls);
             for &at in tables.iter() {
