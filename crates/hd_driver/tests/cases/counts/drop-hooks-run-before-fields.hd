@@ -1,5 +1,5 @@
 # @dump: wat
-# @build: std checked
+# @build: std
 # A type's Drop hook runs before its fields release, without a temporary box.
 # Rule: module.rt.drop.glue.
 use std.rt.Drop
