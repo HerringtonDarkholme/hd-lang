@@ -801,6 +801,7 @@ fn link(
     let mut m = module::Module::new(&input.runtime);
     #[cfg(feature = "checked-report")]
     {
+        m.allocation_kind_reporting = !matches!(input.entry, Entry::Fixture { .. });
         m.count_audit = input.runtime.checked.is_some()
             && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
             && session.is_none()

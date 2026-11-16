@@ -308,13 +308,11 @@ impl Context for Facts<'_, '_> {
     }
 
     fn conversions(&self) -> Vec<Conversion> {
-        fn traits(vt: &hd_mono::VTable, out: &mut Vec<DefId>) {
-            out.push(vt.trait_);
-            for parent in &vt.parents {
-                traits(parent, out);
-            }
-        }
         let mut out = Vec::new();
+        // A node's identity includes the concrete payload. Revisiting it at
+        // another coercion cannot add a trait/object pair to dyn_types. Keep
+        // first encounter order, but traverse each node/edge only once here.
+        let mut seen = hd_base::HashSet::default();
         for &id in self.input.order {
             let Some(b) = self.body(id) else {
                 continue;
@@ -329,7 +327,16 @@ impl Context for Facts<'_, '_> {
                     continue;
                 };
                 let mut parents = Vec::new();
-                traits(vt, &mut parents);
+                let mut todo = vec![*vt];
+                while let Some(id) = todo.pop() {
+                    hd_mono::work::dyn_conversion(1);
+                    if !seen.insert(id) {
+                        continue;
+                    }
+                    let node = &self.input.collected.vtables[id.0];
+                    parents.push(node.trait_);
+                    todo.extend(node.parents.iter().rev().copied());
+                }
                 out.push(Conversion {
                     from: self.substitute(id, from),
                     traits: parents,

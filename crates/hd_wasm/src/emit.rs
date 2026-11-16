@@ -3547,7 +3547,7 @@ impl Em<'_, '_, '_> {
             self.f.get(buffer);
             params.push(Val::I32);
         }
-        let steps = self.dyn_steps(value_ty, trait_, targs);
+        let steps = self.dyn_steps(value_ty, trait_, targs)?;
         if let Some(value) = &payload {
             self.f.get(value[1]);
         } else {

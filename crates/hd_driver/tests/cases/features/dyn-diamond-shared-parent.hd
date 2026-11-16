@@ -1,0 +1,50 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# Shared ancestors retain both widening routes; a late sibling is reachable.
+trait Base:
+    fn d(&self) -> i32
+
+trait Left < Base
+
+trait Right < Base
+
+trait Tail:
+    fn t(&self) -> i32
+
+trait Top < Left & Right & Tail
+
+struct S: pass
+
+impl Base for S:
+    fn d(&self) -> i32:
+        1
+
+impl Left for S
+
+impl Right for S
+
+impl Tail for S:
+    fn t(&self) -> i32:
+        2
+
+impl Top for S
+
+fn left(x: &dyn Left) -> i32:
+    x.d()
+
+fn right(x: &dyn Right) -> i32:
+    x.d()
+
+fn read(x: &dyn Top) -> i32:
+    x.d() + x.t() + left(x) + right(x)
+
+pub fn main() -> void $ Console:
+    println(read(&S {}))
+    let boxed: *dyn Top = box(S {})
+    println(read(boxed))
+    let mutable: *mut dyn Top = box(S {})
+    println(read(mutable))
+    reader := read
+    println(reader(boxed))
+    callback := fn() -> i32: read(boxed)
+    println(callback())

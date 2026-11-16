@@ -1,0 +1,51 @@
+# test: generic diamonds share each parent without mixing its instances
+# Spec lang/09: trait.dyn.supertrait-methods, trait.dyn.widen, trait.super.satisfy.
+# expect-stdout: 42
+# expect-stdout: text
+
+trait Base[T]:
+    fn value(&self) -> T
+
+trait Left[T] < Base[T]
+
+trait Right[T] < Base[T]
+
+trait Top[T] < Left[T] & Right[T]
+
+struct S: pass
+
+impl Base[i32] for S:
+    fn value(&self) -> i32:
+        42
+
+impl Base[string] for S:
+    fn value(&self) -> string:
+        "text"
+
+impl Left[i32] for S
+
+impl Right[i32] for S
+
+impl Top[i32] for S
+
+impl Left[string] for S
+
+impl Right[string] for S
+
+impl Top[string] for S
+
+fn number_base(x: &dyn Base[i32]) -> i32:
+    x.value()
+
+fn text_base(x: &dyn Base[string]) -> string:
+    x.value()
+
+fn number(x: &dyn Top[i32]) -> i32:
+    x.value() + number_base(x)
+
+fn text(x: &dyn Top[string]) -> string:
+    if x.value() == text_base(x): x.value() else: "wrong"
+
+pub fn main() -> void $ Console:
+    println(number(&S {}) / 2)
+    println(text(&S {}))

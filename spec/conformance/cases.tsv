@@ -139,6 +139,7 @@ std/text/more-string-methods/substring-search-substring-operations-agree-with-a-
 lang/traits/dynamic-trait-values/supertrait-calls-a-blanket-parent-impl-answers-through-the-child-value.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 lang/traits/dynamic-trait-values/supertrait-calls-a-child-value-widens-where-a-supertrait-value-is-expected.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 lang/traits/dynamic-trait-values/supertrait-calls-a-diamond-reaches-the-shared-parent-through-both-paths.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
+lang/traits/dynamic-trait-values/supertrait-diamonds-keep-distinct-generic-instances.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 lang/traits/dynamic-trait-values/supertrait-calls-a-generic-supertrait-takes-the-child-arguments.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 lang/traits/dynamic-trait-values/supertrait-calls-a-two-level-chain-reaches-the-grandparent-method.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods
 lang/traits/dynamic-trait-values/supertrait-calls-to-string-on-a-dyn-error-reads-the-display-vtable.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.supertrait-methods

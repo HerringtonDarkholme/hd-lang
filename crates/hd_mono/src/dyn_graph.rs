@@ -1,0 +1,98 @@
+//! Instantiated supertrait graph queries (#1987).
+//!
+//! Follow rustc's `prepare_vtable_segments`: an explicit DFS stack and a
+//! visited set of instantiated traits, not a recursive walk of inheritance
+//! paths. Unlike rustc's segmented vtable, hd keeps its direct-parent ABI.
+//! <https://github.com/rust-lang/rust/blob/main/compiler/rustc_trait_selection/src/traits/vtable.rs>
+
+use hd_base::{DefId, HashMap, HashSet, NotImplemented, Stage, StageResult};
+use hd_types::{InternPool, Ty, TyData, TyList};
+
+use crate::{ProgramEnv, slot_methods, subst};
+
+/// Direct supertraits in declaration order, with `Self` and arguments filled.
+/// One substitution per edge; consumers retain this list while walking it.
+pub fn direct_supers(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    owner: DefId,
+    args: TyList,
+    self_ty: Ty,
+) -> Vec<Ty> {
+    let full = pool.list(
+        &std::iter::once(self_ty)
+            .chain(pool.list_items(args).iter().copied())
+            .collect::<Vec<_>>(),
+    );
+    env.decls()
+        .supertraits(owner)
+        .iter()
+        .map(|&sup| subst(pool, env, owner, full, sup))
+        .collect()
+}
+
+/// First DFS paths from one erased source. Keep predecessor links, not a
+/// copied path per node: storage/build work is O(V + E + method slots), and
+/// each lookup costs the length of the emitted path. Exact arguments win;
+/// otherwise preserve the former first-definition fallback.
+#[derive(Default)]
+pub struct DynPaths {
+    predecessors: Vec<Option<(usize, u32)>>,
+    exact: HashMap<(DefId, TyList), usize>,
+    fallback: HashMap<DefId, usize>,
+}
+
+impl DynPaths {
+    pub fn new(pool: &InternPool, env: &dyn ProgramEnv, root: Ty) -> StageResult<Self> {
+        let mut out = Self::default();
+        let mut seen = HashSet::default();
+        let mut stack = vec![(root, None)];
+        while let Some((at, predecessor)) = stack.pop() {
+            if !seen.insert(at) {
+                continue;
+            }
+            let TyData::TraitValue { def, args, .. } = pool.get(at) else {
+                continue;
+            };
+            crate::work::dyn_path(1);
+            let index = out.predecessors.len();
+            out.predecessors.push(predecessor);
+            out.exact.entry((def, args)).or_insert(index);
+            out.fallback.entry(def).or_insert(index);
+            let own = slot_methods(env, def).len();
+            let supers = direct_supers(pool, env, def, args, at);
+            crate::work::dyn_path(supers.len());
+            // Push rightmost first so popping visits declared parents leftmost
+            // first, exactly as the old recursive path query did.
+            for (k, sup) in supers.into_iter().enumerate().rev() {
+                // Parent addresses are Wasm32 byte offsets, not an arbitrary
+                // inheritance limit. Propagate an unrepresentable layout.
+                let offset = own
+                    .checked_add(k)
+                    .and_then(|slot| u32::try_from(slot).ok())
+                    .and_then(|slot| slot.checked_mul(4))
+                    .ok_or_else(|| {
+                        NotImplemented::bug(
+                            Stage::Emit,
+                            "a vtable parent offset exceeds Wasm32 memory",
+                        )
+                    })?;
+                stack.push((sup, Some((index, offset))));
+            }
+        }
+        Ok(out)
+    }
+
+    #[must_use]
+    pub fn path(&self, to: (DefId, TyList)) -> Option<Vec<u32>> {
+        let mut index = *self.exact.get(&to).or_else(|| self.fallback.get(&to.0))?;
+        let mut path = Vec::new();
+        while let Some((parent, offset)) = self.predecessors[index] {
+            crate::work::dyn_path(1);
+            path.push(offset);
+            index = parent;
+        }
+        path.reverse();
+        Some(path)
+    }
+}

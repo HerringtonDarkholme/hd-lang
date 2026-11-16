@@ -7,7 +7,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::{SlotRecv, Target, TargetKind, VTable, subst};
+use hd_mono::{SlotRecv, Target, TargetKind, VTable, VTableId};
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -79,7 +79,7 @@ impl Em<'_, '_, '_> {
                 self.f.i32(0);
                 Some(&[])
             };
-            let vt = self.vtable_of(&table, leaves, from)?;
+            let vt = self.vtable_of(table, leaves, from)?;
             self.f.push(Ins::VTable(vt));
             // A local reference counts nothing (`ref.count.local`): the
             // trait value made from one borrows its referent too.
@@ -103,26 +103,57 @@ impl Em<'_, '_, '_> {
         self.store_part(at, &m, part, &src)?;
         let colls = self.copied(from);
         self.retain_fields(at, &m, w.as_ref(), &colls, colls.len());
-        let vt = self.vtable_of(&table, Some(&m.leaves), from)?;
+        let vt = self.vtable_of(table, Some(&m.leaves), from)?;
         self.f.get(at);
         self.f.push(Ins::VTable(vt));
         // A new box arrives with its count.
         self.store_owned(i)
     }
 
-    /// The static vtable of `table` at payload type `from`, whose slots
-    /// load the payload from a box of `leaves`, or pass the data itself
-    /// when there is no box.
+    /// Emit each reached DAG node once per link/payload representation.
+    /// Explicit postorder frames keep native stack depth independent of input.
     fn vtable_of(
+        &mut self,
+        root: VTableId,
+        leaves: Option<&[Leaf]>,
+        from: Ty,
+    ) -> StageResult<usize> {
+        let boxed = leaves.is_some();
+        let mut stack = vec![(root, 0usize)];
+        while let Some((id, next)) = stack.last_mut() {
+            let key = (*id, from, boxed);
+            hd_mono::work::dyn_emit(1);
+            if self.m.dyn_vtables.contains_key(&key) {
+                stack.pop();
+                continue;
+            }
+            let table = &self.input.collected.vtables[id.0];
+            if let Some(&parent) = table.parents.get(*next) {
+                *next += 1;
+                if !self.m.dyn_vtables.contains_key(&(parent, from, boxed)) {
+                    stack.push((parent, 0));
+                }
+                continue;
+            }
+            let parents = table
+                .parents
+                .iter()
+                .map(|parent| self.m.dyn_vtables[&(*parent, from, boxed)])
+                .collect();
+            let vtable = self.vtable_node(table, leaves, from, parents)?;
+            self.m.dyn_vtables.insert(key, vtable);
+            stack.pop();
+        }
+        Ok(self.m.dyn_vtables[&(root, from, boxed)])
+    }
+
+    fn vtable_node(
         &mut self,
         table: &VTable,
         leaves: Option<&[Leaf]>,
         from: Ty,
+        parents: Vec<usize>,
     ) -> StageResult<usize> {
-        let mut parents = Vec::new();
-        for p in &table.parents {
-            parents.push(self.vtable_of(p, leaves, from)?);
-        }
         // Collection reads through only a payload that is a reference.
         let read = match self.kind(from) {
             crate::layout::Kind::Ref { target, .. }
@@ -137,6 +168,7 @@ impl Em<'_, '_, '_> {
         let methods = hd_mono::slot_methods(self.env(), table.trait_);
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
+            hd_mono::work::dyn_emit(1);
             let env = self.env();
             let mut params = Vec::new();
             // Counts the target needs from the slot's lent receiver
@@ -322,7 +354,7 @@ impl Em<'_, '_, '_> {
         }
         // Checking gives a trait value `runtime_type` only when its trait
         // extends `Inspectable`.
-        let steps = self.inspectable_steps(self_ty);
+        let steps = self.inspectable_steps(self_ty)?;
         self.comp(recv, 0)?;
         self.comp(recv, 1)?;
         for at in steps {
@@ -374,7 +406,7 @@ impl Em<'_, '_, '_> {
         self.comp(recv, 1)?;
         self.f.set(table);
         // `Inspectable` and `Error < Inspectable` reach `Inspectable`.
-        let steps = self.inspectable_steps(value_t);
+        let steps = self.inspectable_steps(value_t)?;
         let want = self.type_id_parts(concrete);
         // The payload's recorded descriptor and T's canonical descriptor.
         self.f.get(data);
@@ -449,7 +481,7 @@ impl Em<'_, '_, '_> {
             (def, args)
         };
         // Checking widens only to a supertrait (trait.dyn.widen).
-        let path = self.steps(from, to);
+        let path = self.steps(from, to)?;
         if let Some((_, value, _)) = &read {
             self.f.get(value[0]);
             self.f.get(value[1]);
@@ -486,7 +518,7 @@ impl Em<'_, '_, '_> {
         recv: Ty,
         trait_: hd_base::DefId,
         targs: hd_types::TyList,
-    ) -> Vec<u32> {
+    ) -> StageResult<Vec<u32>> {
         let pool = self.pool();
         let targs: Vec<Ty> = pool
             .list_items(targs)
@@ -501,62 +533,26 @@ impl Em<'_, '_, '_> {
 
     /// The loads from the vtable of trait value type `at` to its
     /// `Inspectable` one.
-    fn inspectable_steps(&self, at: Ty) -> Vec<u32> {
+    fn inspectable_steps(&self, at: Ty) -> StageResult<Vec<u32>> {
         let sealed = self.env().decls().sealed();
         self.steps(at, (sealed.inspectable, hd_types::TyList::EMPTY))
     }
 
     /// The loads from the vtable of trait value type `at` to that of `to`,
     /// a trait it extends: each caller's checked operation names one.
-    fn steps(&self, at: Ty, to: (hd_base::DefId, hd_types::TyList)) -> Vec<u32> {
-        let mut found = None;
-        self.super_path(at, to, &mut Vec::new(), &mut found);
-        found.expect("a trait value's trait extends the trait its operation names")
-    }
-
-    /// The offsets of the parent addresses from trait value type `at`'s
-    /// vtable to the vtable of `to`: the first path whose arguments are
-    /// `to`'s, else the first to its trait.
-    fn super_path(
-        &self,
-        at: Ty,
-        to: (hd_base::DefId, hd_types::TyList),
-        path: &mut Vec<u32>,
-        found: &mut Option<Vec<u32>>,
-    ) -> bool {
-        let (pool, env) = (self.pool(), self.env());
-        let TyData::TraitValue { def, args, .. } = pool.get(at) else {
-            return false;
+    fn steps(&self, at: Ty, to: (hd_base::DefId, hd_types::TyList)) -> StageResult<Vec<u32>> {
+        let mut paths = self.m.dyn_paths.borrow_mut();
+        let paths = match paths.entry(at) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => entry.insert(
+                hd_mono::dyn_graph::DynPaths::new(self.pool(), self.env(), at)?,
+            ),
         };
-        if def == to.0 {
-            if args == to.1 {
-                *found = Some(path.clone());
-                return true;
-            }
-            if found.is_none() {
-                *found = Some(path.clone());
-            }
-        }
-        // ruled out: a vtable fits Wasm32 memory, with four bytes per slot.
-        let own = u32::try_from(hd_mono::slot_methods(env, def).len()).expect("slots");
-        let mut full = vec![at];
-        full.extend(pool.list_items(args).iter().copied());
-        let full = pool.list(&full);
-        for (k, sup) in env
-            .decls()
-            .supertraits(def)
-            .to_vec()
-            .into_iter()
-            .enumerate()
-        {
-            let s = subst(pool, env, def, full, sup);
-            path.push(4 * (own + u32::try_from(k).expect("supertraits")));
-            let exact = self.super_path(s, to, path, found);
-            path.pop();
-            if exact {
-                return true;
-            }
-        }
-        false
+        paths.path(to).ok_or_else(|| {
+            hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a trait value's trait does not extend the trait its operation names",
+            )
+        })
     }
 }

@@ -8,6 +8,7 @@
 //! syntax. Bodies of every package (std included) are collected alike.
 
 pub mod defaults;
+pub mod dyn_graph;
 pub mod layout;
 pub mod opaque;
 pub mod plan;
@@ -357,7 +358,7 @@ pub enum Target {
     /// with no default body instance (§13.13).
     ConstDefault(u64),
     /// A coercion to a trait value: its vtable's targets.
-    VTable(VTable),
+    VTable(VTableId),
     /// A trait method call at a trait-value receiver: it dispatches
     /// through the receiver's table (`crates/hd_mono/DESIGN.md` §13.5,
     /// trait.dyn.bound.reference-dispatch), so collection pushes nothing.
@@ -383,17 +384,23 @@ pub enum Target {
     MapInline(CallTarget),
 }
 
-/// The targets of one vtable at a concrete type (`crates/hd_mono/DESIGN.md` §13.5,
-/// §13.16): the trait, one target per method slot, and per direct
-/// supertrait, in declared order, that supertrait's vtable at the same
-/// type.
+/// A node in [`Collected::vtables`]. IDs avoid recursive clone, comparison
+/// and drop of a deep graph, as well as duplicated diamond ancestors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct VTableId(pub usize);
+
+/// One concrete instantiated trait's vtable (`crates/hd_mono/DESIGN.md`
+/// §13.5, §13.16). Direct-parent order and the runtime ABI are unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VTable {
     pub trait_: DefId,
     pub slots: Vec<CallTarget>,
     /// Per slot, how its adapter hands the payload to the target.
     pub recv: Vec<SlotRecv>,
-    pub parents: Vec<VTable>,
+    pub parents: Vec<VTableId>,
+    /// Own slot representations and ordered parent digests, computed once.
+    /// Never replay a parent's hash stream once per inheritance path.
+    digest: Hash128,
 }
 
 /// How a vtable slot's adapter passes the trait value's payload to the
@@ -490,6 +497,9 @@ pub struct Collected {
     pub table: InstanceTable,
     /// Per instance: each instruction's target.
     pub calls: Vec<HashMap<u32, Target>>,
+    /// Shared concrete vtable DAG, in postorder. Parent IDs always precede
+    /// their child, so emission, hashing and destruction need no recursion.
+    pub vtables: Vec<VTable>,
     /// Per instance: the hash of what its code reads besides its own TIR:
     /// callees' representation summaries and signatures (walking skeleton,
     /// SK-3) and the layouts of its types; each code key holds it.
@@ -1486,6 +1496,8 @@ struct Cx<'a> {
     body_subs: HashMap<(usize, usize), Arc<Vec<u32>>>,
     /// Concrete types already tested for a `std.rt.Drop` implementation.
     drop_checked: HashSet<Ty>,
+    /// One node per concrete instantiated trait, across coercion sites.
+    vtables: HashMap<(Ty, DefId, TyList), VTableId>,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2747,10 +2759,9 @@ impl Cx<'_> {
         }
     }
 
-    /// The vtable of `trait_[trait_args]` at the concrete type `from`
-    /// (`crates/hd_mono/DESIGN.md` §13.5, §13.16): a target per method slot, then each
-    /// direct supertrait's vtable at the same type, its arguments
-    /// substituted with `Self` as `from`. Each slot's key joins `reps`.
+    /// Build a concrete vtable DAG with rustc's visited, explicit-stack
+    /// traversal (`prepare_vtable_segments`; see `dyn_graph`). Each node's
+    /// slots and ordered edges are built once, even across coercion sites.
     fn vtable(
         &mut self,
         trait_: DefId,
@@ -2758,7 +2769,68 @@ impl Cx<'_> {
         from: Ty,
         parent: InstId,
         reps: &mut StableHasher,
+    ) -> StageResult<VTableId> {
+        struct Frame {
+            key: (Ty, DefId, TyList),
+            supers: Vec<Ty>,
+            parents: Vec<VTableId>,
+        }
+        work::dyn_collect(1);
+        let frame = |key: (Ty, DefId, TyList)| Frame {
+            key,
+            supers: dyn_graph::direct_supers(self.pool, self.env, key.1, key.2, key.0),
+            parents: Vec::new(),
+        };
+        let root = (from, trait_, trait_args);
+        let mut stack = Vec::new();
+        if !self.vtables.contains_key(&root) {
+            stack.push(frame(root));
+        }
+        while let Some(mut current) = stack.pop() {
+            let key = current.key;
+            if let Some(&sup) = current.supers.get(current.parents.len()) {
+                work::dyn_collect(1);
+                let TyData::TraitValue { def, args, .. } = self.pool.get(sup) else {
+                    return err("a supertrait that is not a trait");
+                };
+                let next = (from, def, args);
+                if let Some(&id) = self.vtables.get(&next) {
+                    current.parents.push(id);
+                    stack.push(current);
+                } else {
+                    // ruled out: a cycle, by `trait.super.acyclic` in hd_resolve.
+                    let supers = dyn_graph::direct_supers(self.pool, self.env, def, args, from);
+                    stack.push(current);
+                    stack.push(Frame {
+                        key: next,
+                        supers,
+                        parents: Vec::new(),
+                    });
+                }
+                continue;
+            }
+            let node = self.vtable_node(key.1, key.2, from, parent, current.parents)?;
+            let id = VTableId(self.out.vtables.len());
+            self.out.vtables.push(node);
+            self.vtables.insert(key, id);
+        }
+        let id = self.vtables[&root];
+        reps.hash(self.out.vtables[id.0].digest);
+        Ok(id)
+    }
+
+    /// The nonrecursive part of one DAG node. Cost: its own method slots
+    /// plus direct parent edges; parent digests are constant-sized.
+    fn vtable_node(
+        &mut self,
+        trait_: DefId,
+        trait_args: TyList,
+        from: Ty,
+        parent: InstId,
+        parents: Vec<VTableId>,
     ) -> StageResult<VTable> {
+        work::dyn_collect(1);
+        let mut reps = StableHasher::new("dyn-vtable-node");
         let (pool, env) = (self.pool, self.env);
         let targs = pool.list_items(trait_args);
         let is_ref = |t: Ty| matches!(pool.get(t), TyData::Ref { .. });
@@ -2775,12 +2847,13 @@ impl Cx<'_> {
             _ => None,
         }
         .filter(|_| !env.decls().sealed().supplies(trait_));
-        if inner.is_some() {
-            reps.u8(1);
-        }
+        reps.u8(u8::from(inner.is_some()));
         let mut slots = Vec::new();
         let mut recv = Vec::new();
-        for m in slot_methods(env, trait_) {
+        let methods = slot_methods(env, trait_);
+        reps.u64(methods.len() as u64);
+        for m in methods {
+            work::dyn_collect(1);
             let (t, r) = match inner {
                 Some(s) => {
                     let t = self.method_target(trait_, m, s, targs, None, parent)?;
@@ -2812,29 +2885,20 @@ impl Cx<'_> {
             };
             reps.hash(t.key);
             reps.u8(env.return_loan_parameter(t.item, t.args).unwrap_or(u8::MAX));
-            if r != SlotRecv::Payload {
-                reps.u8(r as u8);
-            }
+            reps.u8(r as u8);
             slots.push(t);
             recv.push(r);
         }
-        let mut full = vec![from];
-        full.extend(targs.iter().copied());
-        let full = pool.list(&full);
-        let mut parents = Vec::new();
-        for sup in env.decls().supertraits(trait_).to_vec() {
-            let TyData::TraitValue { def, args, .. } =
-                pool.get(subst(pool, env, trait_, full, sup))
-            else {
-                return err("a supertrait that is not a trait");
-            };
-            parents.push(self.vtable(def, args, from, parent, reps)?);
+        reps.u64(parents.len() as u64);
+        for id in &parents {
+            reps.hash(self.out.vtables[id.0].digest);
         }
         Ok(VTable {
             trait_,
             slots,
             recv,
             parents,
+            digest: reps.finish(),
         })
     }
 
@@ -3986,6 +4050,7 @@ fn collect_roots(
         item_bodies: HashMap::default(),
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
+        vtables: HashMap::default(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {

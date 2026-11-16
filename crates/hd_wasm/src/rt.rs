@@ -4185,7 +4185,7 @@ pub(crate) fn ref_store(
 /// added in unchecked builds; the linker aliases the same release glue.
 #[cfg(feature = "checked-report")]
 pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
-    if m.runtime.checked.is_none() {
+    if m.runtime.checked.is_none() || !m.allocation_kind_reporting {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::Glue(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {

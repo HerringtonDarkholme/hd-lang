@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use hd_base::{Hash128, NotImplemented, Stage, StageResult};
+use hd_types::Ty;
 use wasm_encoder::{
     CodeSection, ConstExpr, DataSection, ElementSection, Elements, EntityType, ExportKind,
     ExportSection, Function, FunctionSection, GlobalSection, GlobalType, ImportSection,
@@ -1122,6 +1123,10 @@ pub struct Module {
     pub track_origins: bool,
     #[cfg(feature = "checked-report")]
     pub count_audit: bool,
+    /// Allocation-kind diagnostics are not part of the fixture ABI. Real
+    /// programs and session links retain them, including across epochs.
+    #[cfg(feature = "checked-report")]
+    pub allocation_kind_reporting: bool,
     /// Collected initializer identities, including fixture roots without an
     /// entry helper. Only closed-world links use them for constant storage.
     pub init_insts: Vec<Hash128>,
@@ -1159,6 +1164,11 @@ pub struct Module {
     /// slots are built, so a handle method that returns its own trait
     /// names the table being built (#1551).
     pub handle_vtables: hd_base::HashMap<(hd_base::DefId, bool), usize>,
+    /// Concrete collected DAG nodes, once per payload adapter representation.
+    /// `bool` distinguishes boxed leaves from a payload already an address.
+    pub(crate) dyn_vtables: hd_base::HashMap<(hd_mono::VTableId, Ty, bool), usize>,
+    /// First DFS paths, once per instantiated erased source in this link.
+    pub(crate) dyn_paths: std::cell::RefCell<hd_base::HashMap<Ty, hd_mono::dyn_graph::DynPaths>>,
     /// The recursive boundary types' codecs (`boundary::Named`, #1550).
     pub named_codecs: crate::boundary::Named,
     /// The bang methods that some call awaits at once through a trait
@@ -1282,6 +1292,8 @@ impl Module {
             track_origins: Default::default(),
             #[cfg(feature = "checked-report")]
             count_audit: Default::default(),
+            #[cfg(feature = "checked-report")]
+            allocation_kind_reporting: true,
             init_insts: Vec::default(),
             open_world: Default::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
@@ -1298,6 +1310,8 @@ impl Module {
             vtable_compares: Default::default(),
             reserved_vtables: hd_base::HashSet::default(),
             handle_vtables: hd_base::HashMap::default(),
+            dyn_vtables: hd_base::HashMap::default(),
+            dyn_paths: std::cell::RefCell::default(),
             named_codecs: crate::boundary::Named::default(),
             driven: hd_base::HashSet::default(),
             blocking_driven: hd_base::HashSet::default(),
@@ -2318,7 +2332,7 @@ impl Module {
         // rest of the table is unbounded. A checked build gives each
         // descriptor its own alias slot, which names its allocation kind.
         #[cfg(feature = "checked-report")]
-        let checked = self.runtime.checked.is_some();
+        let checked = self.runtime.checked.is_some() && self.allocation_kind_reporting;
         #[cfg(not(feature = "checked-report"))]
         let checked = false;
         // The largest glue field value a descriptor word holds.
@@ -2634,23 +2648,18 @@ impl Module {
                     Ins::GlobalSet(g) => body.instruction(&WasmInstruction::GlobalSet(
                         gindex[&self.symbols.global(*g)],
                     )),
-                    Ins::Descriptor(t, key) => {
-                        let k = descriptor_slot(
-                            *t,
-                            *key,
-                            table_start,
-                            &index,
-                            &mut slots,
-                            &mut descriptors,
-                        )?;
-                        body.instruction(&WasmInstruction::I32Const(k.cast_signed()))
-                    }
-                    Ins::TableSlot(t) | Ins::Glue(t) => {
-                        // Every slot was numbered above; these find it.
-                        let k = if checked && matches!(i, Ins::Glue(_)) {
+                    Ins::Descriptor(t, _) | Ins::TableSlot(t) | Ins::Glue(t) => {
+                        // Resolve every symbolic table constant before folding
+                        // its addend, including allocation-kind descriptors.
+                        let key = match i {
+                            Ins::Descriptor(_, key) => Some(*key),
+                            Ins::Glue(_) if checked => Some(DescriptorKey::default()),
+                            _ => None,
+                        };
+                        let k = if let Some(key) = key {
                             descriptor_slot(
                                 *t,
-                                DescriptorKey::default(),
+                                key,
                                 table_start,
                                 &index,
                                 &mut slots,

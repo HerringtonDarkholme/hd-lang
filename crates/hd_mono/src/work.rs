@@ -5,6 +5,57 @@
 
 use std::cell::Cell;
 
+/// Work in collection, emission, conversion enumeration and path queries of
+/// instantiated dyn supertrait DAGs. Count real requests/edges, not only
+/// successfully interned final tables: duplicate traversal must be visible.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DynWork {
+    pub collected: u64,
+    pub emitted: u64,
+    pub paths: u64,
+    pub conversions: u64,
+}
+
+thread_local! {
+    static DYN_WORK: Cell<Option<DynWork>> = const { Cell::new(None) };
+}
+
+pub fn count_dyn_work<R>(run: impl FnOnce() -> R) -> (R, DynWork) {
+    struct Restore(Option<DynWork>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DYN_WORK.set(self.0);
+        }
+    }
+    let restore = Restore(DYN_WORK.replace(Some(DynWork::default())));
+    let result = run();
+    let work = DYN_WORK.get().unwrap_or_default();
+    drop(restore);
+    (result, work)
+}
+
+fn dyn_add(n: usize, field: impl FnOnce(&mut DynWork) -> &mut u64) {
+    DYN_WORK.with(|cell| {
+        if let Some(mut work) = cell.get() {
+            *field(&mut work) += n as u64;
+            cell.set(Some(work));
+        }
+    });
+}
+
+pub fn dyn_collect(n: usize) {
+    dyn_add(n, |w| &mut w.collected);
+}
+pub fn dyn_emit(n: usize) {
+    dyn_add(n, |w| &mut w.emitted);
+}
+pub fn dyn_path(n: usize) {
+    dyn_add(n, |w| &mut w.paths);
+}
+pub fn dyn_conversion(n: usize) {
+    dyn_add(n, |w| &mut w.conversions);
+}
+
 thread_local! {
     static TYPE_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
     static ENUM_STEPS: Cell<Option<u64>> = const { Cell::new(None) };

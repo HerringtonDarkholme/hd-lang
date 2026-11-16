@@ -1969,3 +1969,46 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     assert!(child.wait()?.success());
     Ok(())
 }
+
+#[test]
+fn symbolic_descriptors_fold_their_constant_addends() {
+    use crate::module::{DescriptorKey, Ins};
+    use crate::op::Op as I;
+    for addend in [0, 1, i32::MIN + 1] {
+        let mut m = Module::default();
+        let glue = Sym::Inst(Hash128(9));
+        let release = m.func("release", vec![Val::I32], vec![]);
+        m.define(glue.clone(), release);
+        let main = Sym::Inst(Hash128(7));
+        let mut f = m.func("main", vec![], vec![Val::I32]);
+        f.glue(glue);
+        let Some(Ins::Glue(id)) = f.body.pop() else {
+            panic!("glue instruction");
+        };
+        f.push(Ins::Descriptor(id, DescriptorKey::default()));
+        f.i32(addend);
+        f.op(I::I32Add);
+        m.define(main.clone(), f);
+        m.export("value", main);
+        // ruled out: undefined symbols; both referenced functions are defined above.
+        let wasm = m.finish().expect("link");
+        validate(&wasm);
+        let mut adds = 0;
+        let mut constants = Vec::new();
+        // ruled out: malformed module sections; validate accepted these bytes above.
+        for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+            if let wasmparser::Payload::CodeSectionEntry(body) = payload.expect("payload") {
+                // ruled out: malformed operators; the same body passed validation.
+                for op in body.get_operators_reader().expect("operators") {
+                    match op.expect("operator") {
+                        wasmparser::Operator::I32Add => adds += 1,
+                        wasmparser::Operator::I32Const { value } => constants.push(value),
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert_eq!(adds, 0, "addend {addend}");
+        assert_eq!(constants, [addend]);
+    }
+}
