@@ -186,6 +186,7 @@ This surface has no literal construction.
 
 26. r[std-collections.uniq-map.index-places] `UniqMap[K, V]` implements `Index[K]` and `IndexMut[K]` for every supported `V`, with `Out = V`; a missing key panics. Panic: `index-out-of-bounds`.
 27. r[std-collections.uniq-map.index-set] Its `IndexSet[K, V]` implementation inserts or replaces the key's value, moving `V` and dropping any previous value.
+28. r[std-collections.uniq-map.pinned-bulk] `drain`, `retain`, and `reserve` hold the whole map, by [`ref.excl.alias.conflict`](../lang/13-values-and-references.md#r-ref.excl.alias.conflict). Called through an alias while a reference into an entry is live, each panics. Panic: `borrow-conflict`.
 
 ## List And Map Values
 

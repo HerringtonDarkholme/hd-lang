@@ -1011,6 +1011,8 @@ fn edit() -> void:
     edit.bump()
 ```
 
+r[types.assign.mismatch] An expression whose type is not assignable, by these rules, to the type its location requires is an error. Error: `type-mismatch`.
+
 No rule converts one numeric type to another, as
 [Numeric Conversions](#numeric-conversions) states.
 

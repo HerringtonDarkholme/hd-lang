@@ -88,7 +88,7 @@ fn is_odd(n: i32):
 3. r[fn.body.paths] Every reachable control path must do one of three things. It returns a value assignable to the declared result, falls through with such a final value, or completes abruptly by propagation or panic.
 4. r[fn.body.value-less-fallthrough] A non-`void` function with a reachable value-less fallthrough is an error. Error: `missing-return-value`.
 5. r[fn.body.infinite-loop] A path that enters an [infinite loop](06-control-flow.md#r-flow.while.infinite) that no `break` targets never completes, so it needs no value.
-6. r[fn.body.void-final] A `void` function likewise rejects a non-`void` final expression.
+6. r[fn.body.void-final] A `void` function likewise rejects a non-`void` final expression. Error: `type-mismatch`.
 
 ```text
 fn invalid(flag: bool) -> i32:

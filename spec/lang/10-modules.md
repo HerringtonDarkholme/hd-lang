@@ -620,6 +620,7 @@ use dep.billing.types.{UserId as BillingUserId}
 10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
 11. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 12. r[module.use.ambiguous] A single use that names both a module and a declaration of its parent module, as `use pkg.words`, is an error. Error: `ambiguous-import`.
+13. r[module.use.missing-module] A use path whose module `std`, `pkg`, or a dependency does not have is an error. So is a `dep` path naming no manifest dependency. Error: `unknown-module`.
 
 ```text
 # in package pkg: src/words.hd beside a root declaration words
@@ -629,6 +630,7 @@ use pkg.words  # ambiguous-import: rename the module or the declaration
 ```text
 use std.testing.*                 # error: syntax-error
 use std.text.{nope}               # error: unknown-import
+use std.nowhere.{thing}           # error: unknown-module
 use pkg.models.{Secret}           # error: private-import
 use pkg.status.{Status.Queued}    # error: direct-variant-use
 pub use std.testing.assert_equal  # error: syntax-error

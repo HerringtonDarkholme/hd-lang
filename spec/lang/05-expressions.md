@@ -1540,7 +1540,7 @@ See also: [Compound Assignment](#compound-assignment),
 4. r[expr.arith.defined] Mixed-width result types, overflow, division, and shifts are defined in [Type System](04-type-system.md).
 5. r[expr.arith.cast] Signed/unsigned and integer/floating mixing requires an explicit cast.
 6. r[expr.arith.int.checked] For compatible integer operands, `+`, `-`, and `*` produce the common integer type. They are checked in a debug or test build and wrap in a release build, by [`types.arith.checked`](04-type-system.md#r-types.arith.checked).
-7. r[expr.arith.int.divide] `/` truncates toward zero, `%` produces the corresponding remainder, and a zero divisor panics.
+7. r[expr.arith.int.divide] `/` truncates toward zero, `%` produces the corresponding remainder, and a zero divisor panics. Panic: `integer-division-by-zero`.
 8. r[expr.arith.unary-plus] Unary `+` accepts all numeric types, preserves its operand's type and value, and evaluates the operand once. Any other operand is an error. Error: `type-mismatch`.
 9. r[expr.arith.unary-minus] Unary `-` accepts signed integers and floating-point values, but not unsigned integers. Negating an unsigned operand is an error. Error: `type-mismatch`.
 
