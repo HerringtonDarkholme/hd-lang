@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# An unknown type inside a return type produces no body inference cascade. Error recovery reports one diagnostic per failure.
+fn f[F]() -> Result[F, Bogus]:
+    panic("x")

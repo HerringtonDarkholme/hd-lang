@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# An unknown annotation gives one diagnostic for a binary chain. Error recovery reports one diagnostic per failure.
+fn run(value: i32) -> void:
+    let result: Missing = value + 2 * 3 + 4

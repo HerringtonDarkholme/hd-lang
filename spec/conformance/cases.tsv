@@ -6422,8 +6422,6 @@ lang/modules/wasm-boundary/boundary-private-field-newtype-base.hd	type	reject:bo
 lang/modules/prelude/prelude-shadow-multiline-use.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 lang/expressions/primary-expressions/empty-collection-joined-context.hd	type	accept	lang/05-expressions.md#r-expr.collection.expected
 lang/expressions/primary-expressions/list-spread-inferred-optional.hd	runtime	accept	lang/05-expressions.md#r-expr.list.spread.convert
-lang/conformance-language/unknown-return-type-no-cascade.hd	type	reject:unknown-type	README.md#diagnostics
-lang/conformance-language/poisoned-binary-chain-expectation.hd	type	reject:unknown-type	README.md#diagnostics
 lang/names/module-scope/compound-assignment-to-a-top-level-binding.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.exec.access
 lang/names/module-scope/a-local-annotation-through-an-unknown-module-is-an-unknown-name.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
 lang/names/name-categories/a-local-annotation-through-a-module-that-lacks-the-type.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.type.qualified
