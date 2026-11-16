@@ -4,8 +4,9 @@
 # and `User.name` are `type-used-as-value`, `routes.home.x` and
 # `config.nope` are `unknown-field` (as `count.abs`, a method named as a
 # field), and `routes.gone.x` is `unknown-import`. Each matches the plain
-# use beside it. `config.name` and `make().name` check, as values, so
-# they are `invalid-facts-of-target` (`annot.facts-of.target.error`).
+# use beside it. `config.name` checks, as a value, so it is
+# `invalid-facts-of-target` (`annot.facts-of.target.error`), as a call's
+# field `make().name` is, which names no path at all.
 use pkg.routes
 use std.annotation.facts_of
 

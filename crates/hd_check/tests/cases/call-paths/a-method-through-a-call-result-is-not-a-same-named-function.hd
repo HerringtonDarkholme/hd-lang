@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# `make().helper::[i32]()` calls the method `S.helper`: a chain whose base
+# is a call names no path, so the explicit list and the arguments are not
+# checked against the top-level `helper` (which takes two type parameters
+# and one argument), as `s.helper` is not.
+fn helper[T, V](x: T) -> T:
+    x
+
+struct S: pass
+
+impl S:
+    fn helper[U](self) -> usize:
+        7
+
+fn make() -> S:
+    S {}
+
+fn through_a_call() -> usize:
+    make().helper::[i32]()
+
+fn through_a_parameter(s: S) -> usize:
+    s.helper::[i32]()

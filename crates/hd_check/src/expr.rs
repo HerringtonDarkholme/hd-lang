@@ -3731,19 +3731,30 @@ impl Ck<'_, '_> {
 
     /// The identifier segments of a name or field-path expression.
     pub(crate) fn segments_expr(&self, n: NodeRef<'_>) -> Vec<String> {
-        match n.kind() {
-            SyntaxKind::NameExpr => vec![self.cx.src.text(self.cx.src.first(n)).to_owned()],
-            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                let mut v = n
-                    .children()
-                    .next()
-                    .map(|b| self.segments_expr(b))
-                    .unwrap_or_default();
-                v.push(self.cx.src.text(self.cx.src.last(n)).to_owned());
-                v
+        // Walk down the chain to its first name, then read the segments
+        // back up: a loop, so a long `a.b.c...` takes no stack per link. A
+        // chain whose base is not a name (`make().helper`) names no path,
+        // so it has no segments: its last link alone would name an
+        // unrelated top-level `helper`.
+        let mut links = Vec::new();
+        let mut at = n;
+        loop {
+            match at.kind() {
+                SyntaxKind::NameExpr => break,
+                SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
+                    links.push(at);
+                    let Some(base) = at.children().next() else {
+                        return vec![];
+                    };
+                    at = base;
+                }
+                _ => return vec![],
             }
-            _ => vec![],
         }
+        let mut v = Vec::with_capacity(links.len() + 1);
+        v.push(self.cx.src.text(self.cx.src.first(at)).to_owned());
+        v.extend((links.iter().rev()).map(|l| self.cx.src.text(self.cx.src.last(*l)).to_owned()));
+        v
     }
 
     /// `if c: a else if d: b else: e` as a statement or a value. The
