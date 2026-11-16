@@ -2189,7 +2189,7 @@ lang/functions/function-types-and-values/function-type-constructors/fn-trait-bou
 lang/functions/function-types-and-values/function-type-constructors/fn-trait-bound-calls.hd	runtime	accept	lang/07-functions.md#r-fn.trait.call
 lang/functions/function-types-and-values/function-type-constructors/fn-trait-bound-inference.hd	runtime	accept	lang/07-functions.md#r-fn.trait.bound.infer-instantiation
 lang/references/reference-types/fn-trait-dyn.hd	type	reject:invalid-dyn-type	lang/13-values-and-references.md#r-ref.type.dyn.no-fn
-lang/traits/sealed-traits/fn-trait-user-impl.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.sealed.fn-read-only
+lang/traits/sealed-traits/fn-trait-user-impl.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.sealed.user-impl
 lang/functions/function-types-and-values/function-type-constructors/fn-mut-bounds.hd	type	accept	lang/07-functions.md#r-fn.trait.mut.sugar
 lang/functions/function-types-and-values/function-type-constructors/fn-mut-bound-calls.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
 lang/functions/function-types-and-values/function-type-constructors/fn-mut-call-not-writable.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trait.mut.call
