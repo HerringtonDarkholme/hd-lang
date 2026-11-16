@@ -771,8 +771,7 @@ impl Ck<'_, '_> {
         tl: NodeRef<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let gens = self.explicit_generics(inner);
-        let explicit = self.explicit_targs(inner, tl, &gens)?;
+        let explicit = self.callee_targs(inner, tl)?;
         if inner.kind() == SyntaxKind::PathExpr {
             return self.path_value(inner, want, &explicit);
         }
@@ -810,10 +809,18 @@ impl Ck<'_, '_> {
     /// `req.row.slot.data`), and a const slot takes a const argument.
     /// Empty for any other callee.
     pub(crate) fn explicit_generics(&self, callee: NodeRef<'_>) -> Vec<hd_resolve::Generic> {
+        self.path_generics(callee).unwrap_or_default()
+    }
+
+    /// The generics of the local function or item `callee` names by
+    /// path; `None` when it names none: a member of a value, type or
+    /// trait (`s.f`, `S.f`), whose generics only its call's member lookup
+    /// finds.
+    fn path_generics(&self, callee: NodeRef<'_>) -> Option<Vec<hd_resolve::Generic>> {
         if let Some(l) = self.local_generic_named(callee)
             && let Some(g) = self.local_generics.get(&l)
         {
-            return g.generics.clone();
+            return Some(g.generics.clone());
         }
         self.resolve_path(&self.segments_expr(callee))
             .and_then(|d| self.cx.lookup.item(d))
@@ -821,7 +828,42 @@ impl Ck<'_, '_> {
                 Some(sig) => sig.generics.clone(),
                 None => item.generics.clone(),
             })
-            .unwrap_or_default()
+    }
+
+    /// The written list `tl` of `callee::[..]`. A callee a path names is
+    /// checked against its generics now. A member (`s.f::[3]`,
+    /// `S.f::[i32]`) is not known until its call's one member lookup, so
+    /// each slot is a fresh variable recorded in `written_targs`, and
+    /// `fresh_generics` parses it against that member's generics: a const
+    /// slot takes a const argument (`types.generic.const`), a row slot a
+    /// `$` row (`fn.generic.explicit.row-dollar`). One map entry per
+    /// written slot; each is parsed once per instantiation of the member.
+    pub(crate) fn callee_targs(
+        &mut self,
+        callee: NodeRef<'_>,
+        tl: NodeRef<'_>,
+    ) -> StageResult<Vec<Ty>> {
+        let member = matches!(callee.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr);
+        let gens = match self.path_generics(callee) {
+            Some(gens) => gens,
+            None if member => {
+                let pool = self.pool();
+                let written = tl
+                    .children()
+                    .filter(|c| c.kind().is_type() || c.kind() == SyntaxKind::ConstArgument)
+                    .map(|arg| {
+                        let slot = self.infer.fresh(pool, VarKind::General);
+                        self.written_targs
+                            .insert(slot, (callee.index(), arg.index()));
+                        self.written_log.push(slot);
+                        slot
+                    })
+                    .collect();
+                return Ok(written);
+            }
+            None => Vec::new(),
+        };
+        self.explicit_targs(callee, tl, &gens)
     }
 
     /// The generic local function a name expression names, if it does.
@@ -842,8 +884,10 @@ impl Ck<'_, '_> {
         sig: &FnSig,
         explicit: &[Ty],
         n: NodeRef<'_>,
-    ) -> Vec<Ty> {
+    ) -> StageResult<Vec<Ty>> {
         let pool = self.pool();
+        let explicit = self.parse_written_targs(sig, explicit)?;
+        let explicit = explicit.as_slice();
         let explicit_slots = sig.generics.iter().filter(|g| !g.anonymous).count();
         if explicit.len() > explicit_slots {
             let msg = format!(
@@ -868,7 +912,27 @@ impl Ck<'_, '_> {
                 })
             })
             .collect();
-        vars
+        Ok(vars)
+    }
+
+    /// `explicit` with each slot `callee_targs` held for the member now
+    /// parsed against `sig`'s written slots, in order; other slots as
+    /// they are. One map lookup per slot.
+    fn parse_written_targs(&mut self, sig: &FnSig, explicit: &[Ty]) -> StageResult<Vec<Ty>> {
+        let mut slots = sig.generics.iter().filter(|g| !g.anonymous);
+        let src = self.cx.src;
+        let mut out = Vec::with_capacity(explicit.len());
+        for (i, &t) in explicit.iter().enumerate() {
+            let g = slots.next();
+            out.push(match self.written_targs.get(&t) {
+                Some(&(owner, arg)) => {
+                    let tree = &src.parse.tree;
+                    self.explicit_slot_arg(tree.node(owner), tree.node(arg), g, i)?
+                }
+                None => t,
+            });
+        }
+        Ok(out)
     }
 
     pub(crate) fn check_fn_targ_kinds(
@@ -1102,8 +1166,7 @@ impl Ck<'_, '_> {
                 // `f!::[T](..)`: the bang sits before the type arguments,
                 // inside the type-argument node (`grammar.expr.bang-suffix`).
                 let (inner, bang) = bang_callee(inner, bang);
-                let gens = self.explicit_generics(inner);
-                let explicit = self.explicit_targs(inner, tl, &gens)?;
+                let explicit = self.callee_targs(inner, tl)?;
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
                     let vars = self.local_generic_vars(l, &explicit, callee);
@@ -2710,7 +2773,7 @@ impl Ck<'_, '_> {
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 let sig = self.with_result(def, sig.clone());
-                let mut vars = self.fresh_generics(&sig, explicit, n);
+                let mut vars = self.fresh_generics(&sig, explicit, n)?;
                 self.unsolvable_consts(&sig, def, explicit.len(), &mut vars, n);
                 let inst = |t: Ty| subst_owner(pool, def, &vars, t);
                 let params: Vec<(Symbol, Ty)> =
@@ -3980,7 +4043,7 @@ impl Ck<'_, '_> {
                 return Ok(self.poison_value(n));
             };
             let explicit = std::mem::take(&mut self.method_targs);
-            let mut vars = self.fresh_generics(&sig, &explicit, n);
+            let mut vars = self.fresh_generics(&sig, &explicit, n)?;
             self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
             let inst = |x: Ty| {
                 subst_owner(
@@ -5133,7 +5196,7 @@ impl Ck<'_, '_> {
                     return Ok(self.poison_value(n));
                 };
                 let explicit = std::mem::take(&mut self.method_targs);
-                let mut vars = self.fresh_generics(&sig, &explicit, n);
+                let mut vars = self.fresh_generics(&sig, &explicit, n)?;
                 self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
                 let inst = |x: Ty| {
                     subst_owner(
@@ -5447,7 +5510,7 @@ impl Ck<'_, '_> {
             targs.push(self.infer.fresh(pool, VarKind::General));
         }
         let explicit = std::mem::take(&mut self.method_targs);
-        let mut vars = self.fresh_generics(&sig, &explicit, n);
+        let mut vars = self.fresh_generics(&sig, &explicit, n)?;
         self.unsolvable_consts(&sig, method, explicit.len(), &mut vars, n);
         self.row_argument_vars(trait_, &targs, n);
         self.row_argument_self(trait_, self_ty, n);

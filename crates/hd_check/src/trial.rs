@@ -74,6 +74,7 @@ pub(crate) struct Checkpoint {
     mut_params: usize,
     changed_locals: usize,
     local_ref_call_targs: usize,
+    written_log: usize,
     assoc_self: usize,
     row_banks: usize,
     row_sources: usize,
@@ -275,6 +276,7 @@ impl Ck<'_, '_> {
             mut_params: self.mut_params.len(),
             changed_locals: self.changed_locals.len(),
             local_ref_call_targs: self.local_ref_call_targs.len(),
+            written_log: self.written_log.len(),
             assoc_self: self.assoc_self.len(),
             row_banks: self.row_banks.len(),
             row_sources: self.row_sources.len(),
@@ -339,6 +341,10 @@ impl Ck<'_, '_> {
         self.mut_params.truncate(c.mut_params);
         self.changed_locals.truncate(c.changed_locals);
         self.local_ref_call_targs.truncate(c.local_ref_call_targs);
+        // The trial's member-list slots name variables the rollback frees.
+        for slot in self.written_log.drain(c.written_log..) {
+            self.written_targs.remove(&slot);
+        }
         self.assoc_self.truncate(c.assoc_self);
         self.row_banks.truncate(c.row_banks);
         self.row_sources.truncate(c.row_sources);

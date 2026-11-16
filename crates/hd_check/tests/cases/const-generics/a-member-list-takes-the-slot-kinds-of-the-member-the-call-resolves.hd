@@ -1,0 +1,114 @@
+# @dump: diagnostics
+# A member's explicit list (`s.f::[3]()`) is checked against the generics of
+# the member its call resolves to: const, type and row slots, through a
+# parameter, a call result, a place, a reference, a type parameter, a type,
+# a trait, and as a function reference; an `impl Trait` parameter's
+# anonymous slot takes no written argument (#2043).
+struct Fixed[T, N < const usize]:
+    value: T
+
+trait Log
+
+struct S:
+    v: i32
+    call: fn() -> i32
+
+impl S:
+    fn helper[N < const usize](self) -> Fixed[i32, N]: Fixed { value: 1 }
+    fn helper_value[N < const usize](self) -> usize: 7
+    fn by_ref[N < const usize](&self) -> Fixed[i32, N]: Fixed { value: 1 }
+    fn typed[T](self, t: T) -> T: t
+    fn both[T, N < const usize](self, t: T) -> Fixed[T, N]: Fixed { value: t }
+    fn rowed[$R](self, callback: fn() -> void $ R) -> void $ R: callback()
+    fn shown[N < const usize](self, x: impl Display) -> Fixed[i32, N]: Fixed { value: 1 }
+    fn later[T, N < const usize](self, x: impl Display, t: T) -> Fixed[T, N]: Fixed { value: t }
+    fn load![N < const usize](self) -> Fixed[i32, N]: Fixed { value: 1 }
+
+trait Tr:
+    fn sized[N < const usize](self) -> Fixed[i32, N]
+
+impl Tr for S:
+    fn sized[N < const usize](self) -> Fixed[i32, N]: Fixed { value: 2 }
+
+trait Conv[T]:
+    fn conv[N < const usize](self, t: T) -> Fixed[T, N]
+
+impl Conv[i32] for S:
+    fn conv[N < const usize](self, t: i32) -> Fixed[i32, N]: Fixed { value: t }
+
+impl Conv[bool] for S:
+    fn conv[N < const usize](self, t: bool) -> Fixed[bool, N]: Fixed { value: t }
+
+trait Apply[T]:
+    fn apply(self, f: fn(T) -> usize) -> usize
+
+impl Apply[i32] for S:
+    fn apply(self, f: fn(i32) -> usize) -> usize: f(1)
+
+impl Apply[bool] for S:
+    fn apply(self, f: fn(bool) -> usize) -> usize: f(true)
+
+fn free[N < const usize]() -> Fixed[i32, N]: Fixed { value: 3 }
+
+fn one() -> i32: 1
+
+fn quiet() -> void: pass
+
+fn make() -> S: S { v: 1, call: one }
+
+fn consts(s: S) -> void:
+    let a: Fixed[i32, 3] = s.helper::[3]()
+    let b: Fixed[i32, 4] = make().helper::[4]()
+    let c: Fixed[bool, 5] = s.both::[bool, 5](true)
+    let d: Fixed[i32, 6] = s.sized::[6]()
+    let e: Fixed[i32, 7] = make().sized::[7]()
+    let f: Fixed[i32, 8] = free::[8]()
+    let g: Fixed[i32, 9] = S.helper::[9](s)
+    let h: Fixed[i32, 10] = Tr.sized::[10](make())
+    let mut p = make()
+    let i: Fixed[i32, 11] = p.by_ref::[11]()
+    let r = &p
+    let j: Fixed[i32, 12] = r.by_ref::[12]()
+    let k: Fixed[bool, 17] = s.conv::[17](true)
+    let l: Fixed[i32, 18] = make().conv::[18](1)
+    let n: Fixed[usize, 23] = s.conv::[23](s.helper_value::[3]())
+    let m: Fixed[i32, 19] = s.shown::[19](1)
+    let o: Fixed[bool, 20] = s.later::[bool, 20](1, true)
+
+fn generic_receiver[X < Tr](x: X) -> Fixed[i32, 13]: x.sized::[13]()
+
+fn types(s: S) -> i32: s.typed::[i32](2) + make().typed::[i32](3)
+
+fn rows(s: S) -> void $ Log:
+    s.rowed::[$ Log](quiet)
+    make().rowed::[$ Log](quiet)
+
+fn references(s: S) -> void:
+    let f = s::helper::[14]
+    let a: Fixed[i32, 14] = f()
+    let g = S::helper::[15]
+    let b: Fixed[i32, 15] = g(make())
+    let h: fn(S) -> Fixed[i32, 16] = Tr::sized::[16]
+    let c: Fixed[i32, 16] = h(make())
+
+fn wrong(s: S, d: &dyn Tr) -> void $ Log:
+    let a: Fixed[i32, 4] = s.helper::[3]()
+    let b = s.helper::[i32]()
+    let c = make().typed::[3](1)
+    s.rowed::[Log](quiet)
+    make().rowed::[i32](quiet)
+    let e = s.helper::[3, 4]()
+    let f = s::helper::[i32]
+    let g = d.sized::[3]()
+    let h = s.conv::[bool](true)
+    let i: Fixed[i32, 5] = s.shown::[4](1)
+
+fn in_a_trial(s: S) -> usize:
+    s.apply(fn(x: bool) -> usize: s.helper_value::[3]())
+
+fn suspending!(s: S) -> void:
+    let a: Fixed[i32, 21] = s.load!::[21]()
+    let b: Fixed[i32, 22] = make().load!::[21]()
+
+pub fn main() -> void:
+    pass

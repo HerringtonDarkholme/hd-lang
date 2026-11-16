@@ -518,6 +518,11 @@ For a call `f(args)` whose callee resolves to a generic declaration:
    explicit list `f::[A, _]` binds its written slots at once; `_` and
    omitted slots stay variables
    ([Generic Arguments](../../spec/lang/04-type-system.md#generic-arguments)).
+   A member's list (`s.f::[3]`, `S.f::[i32]`) names no path, so each
+   written slot waits as a variable (`written_targs`) until the call's
+   member lookup finds `f`; instantiation then checks it against `f`'s
+   own slots, so a const slot takes a const argument and a row slot a
+   `$` row.
 2. **Expected result first.** If the call has a `want`, unify the
    callee's result type with it inside a trial: a failure only means the
    expectation gives no information, and is rolled back.

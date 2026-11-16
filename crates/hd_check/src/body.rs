@@ -397,6 +397,15 @@ pub(crate) struct Ck<'a, 'c> {
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
+    /// The slots of member lists written before the member is known
+    /// (`s.f::[3]()`, `S.f::[i32]`): each slot is a fresh variable, keyed
+    /// here to its owner and argument nodes; `fresh_generics` parses it
+    /// against the generics of the member the call resolves to.
+    pub written_targs: HashMap<Ty, (hd_base::NodeIdx, hd_base::NodeIdx)>,
+    /// `written_targs`' keys in insertion order: a trial's rollback
+    /// removes the ones it added, since it frees their variables for
+    /// reuse.
+    pub written_log: Vec<Ty>,
     /// The receiver of the method call being checked is a trait value read
     /// through `&dyn` (`false`) or `&mut dyn` (`true`), written at the node
     /// (`trait.dyn.ref.member`).
@@ -796,6 +805,8 @@ pub(crate) fn new_ck<'a, 'c>(
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
+        written_targs: HashMap::default(),
+        written_log: Vec::new(),
         dyn_recv: None,
         in_explicit_targs: false,
         default_owner: None,

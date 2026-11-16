@@ -331,7 +331,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         }
         let sig = self.with_result(def, sig.clone());
-        let vars = self.fresh_generics(&sig, explicit, n);
+        let vars = self.fresh_generics(&sig, explicit, n)?;
         let m = Member {
             def,
             sig,
@@ -422,7 +422,7 @@ impl Ck<'_, '_> {
         let Some(sig) = self.sig_of(method) else {
             return Ok(self.poison_value(n));
         };
-        let vars = self.fresh_generics(&sig, explicit, n);
+        let vars = self.fresh_generics(&sig, explicit, n)?;
         let m = Member {
             def: method,
             sig,
@@ -502,7 +502,7 @@ impl Ck<'_, '_> {
                 let Some(sig) = self.sig_of(method) else {
                     return Ok(None);
                 };
-                let vars = self.fresh_generics(&sig, explicit, n);
+                let vars = self.fresh_generics(&sig, explicit, n)?;
                 Member {
                     def: method,
                     sig,
@@ -523,7 +523,7 @@ impl Ck<'_, '_> {
                 let Some(sig) = self.sig_of(method) else {
                     return Ok(None);
                 };
-                let vars = self.fresh_generics(&sig, explicit, n);
+                let vars = self.fresh_generics(&sig, explicit, n)?;
                 Member {
                     def: method,
                     sig,
@@ -545,7 +545,7 @@ impl Ck<'_, '_> {
                 let Some(sig) = self.sig_of(method) else {
                     return Ok(None);
                 };
-                let vars = self.fresh_generics(&sig, explicit, n);
+                let vars = self.fresh_generics(&sig, explicit, n)?;
                 Member {
                     def: method,
                     sig,
