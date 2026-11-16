@@ -1,5 +1,5 @@
 # test: a trait-qualified call whose `Self` is a trait value reference reaches no generic member
-# Spec 09 Dynamic Safety: trait.dyn.member.unavailable.error; the
+# Spec 09 Dyn Types: trait.dyn.member.unavailable.error; the
 # by-value receiver makes `Self` the `&dyn Tr` argument, so the call goes
 # through the trait value.
 trait Tr:

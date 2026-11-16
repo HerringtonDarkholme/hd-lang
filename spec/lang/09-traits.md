@@ -1891,7 +1891,7 @@ fn demo(g: Greet) -> string:  # error: trait-used-as-type
 
 > **Why.** `&dyn` makes the reference and runtime dispatch explicit. A bound such as `T < Greet` stays fully monomorphized.
 
-### Dynamic Safety
+### Dyn Types
 
 1. r[trait.dyn.except-fn] Every trait except `Fn` and `FnMut` may be used as a `dyn` type. No rule about a trait's members makes its `dyn` type invalid.
 2. r[trait.dyn.member.unavailable] A member of the trait or of a supertrait that cannot work dynamically is unavailable on the `dyn` value.
@@ -1904,10 +1904,10 @@ Each kind of member is available or unavailable on a `dyn` value:
 | r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
 | r[trait.dyn.member.opaque-result] Opaque results | a method whose return annotation contains `impl Trait` | unavailable |
-| r[trait.dyn.safe.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
+| r[trait.dyn.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
 | r[trait.dyn.member.type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | unavailable |
 | r[trait.dyn.member.row-parameter] Row parameters | a method-level row parameter | unavailable |
-| r[trait.dyn.safe.suspending] Suspending methods | a suspending method, such as `fn fetch!(&self) -> string` | available |
+| r[trait.dyn.suspending] Suspending methods | a suspending method, such as `fn fetch!(&self) -> string` | available |
 
 4. r[trait.dyn.member.other-with-opaque] Every method outside the unavailable categories above is available.
 5. r[trait.dyn.generic-trait] Generic parameters of the trait itself are allowed when the value type names one complete instantiation.
@@ -2147,7 +2147,7 @@ fn demo() -> i32:
 8. r[trait.dyn.ref.widen] A child trait value reference converts implicitly to a supertrait value reference of the same mutability, which refers to the same object.
 9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
 10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `not-writable`.
-11. r[trait.dyn.ref.member.other.reference-values] Other members follow [Dynamic Safety](#dynamic-safety).
+11. r[trait.dyn.ref.member.other.reference-values] Other members follow [Dyn Types](#dyn-types).
 12. r[trait.dyn.ref.write-ref-receiver] A method declared `&mut self` or `*mut self`, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
 13. r[trait.dyn.ref.mut-self-copy] A method declared `mut self` changes its own copy of the object, as [`fn.method.mut-self-struct`](07-functions.md#r-fn.method.mut-self-struct) states, so the object the reference refers to is unchanged.
 14. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
@@ -2414,7 +2414,7 @@ impl TypeId:
 ### `Inspectable` And `TypeId`
 
 1. r[trait.inspect.sealed] `Inspectable` is a sealed trait.
-2. r[trait.inspect.reference-safe] `Inspectable` may be used as a `dyn` type, as every trait but `Fn` and `FnMut` may; its only trait member is `runtime_type`.
+2. r[trait.inspect.dyn] `Inspectable` may be used as a `dyn` type, as every trait but `Fn` and `FnMut` may; its only trait member is `runtime_type`.
 3. r[trait.inspect.supplied] The compiler supplies its implementation for every [inspectable type](#inspectable-types).
 4. r[trait.inspect.supplied.reference-methods] The implementation provides `runtime_type`; inherent recovery methods add no vtable requirement.
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.

@@ -1,5 +1,5 @@
 # test: a trait with a method of its own type parameter stays usable as dyn, and a bound reaches the method
-# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.type-param.no-slot, trait.dyn.bound.reference.
+# Spec 09 Dyn Types: trait.dyn.member.type-param, trait.dyn.type-param.no-slot, trait.dyn.bound.reference.
 trait Ops:
     fn name(&self) -> string
     fn take[T](&self, a: T) -> T

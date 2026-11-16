@@ -1,5 +1,5 @@
 # test: a trait whose method names Self is still implemented and used as a static bound
-# Spec 09 Dynamic Safety: trait.dyn.member.self, trait.dyn.except-fn.
+# Spec 09 Dyn Types: trait.dyn.member.self, trait.dyn.except-fn.
 trait Versioned:
     fn newer_than(self, other: Self) -> bool
 

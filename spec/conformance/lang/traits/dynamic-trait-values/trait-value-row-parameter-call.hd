@@ -3,7 +3,7 @@
 # expect-stdout: 3
 # expect-stdout: 3
 # test: a call through a trait value whose trait has a row parameter runs the implementation with the keys of the value's row argument, and with none at the empty row
-# Spec lang/09 Dynamic Safety: trait.dyn.generic-trait; lang/11 Row Parameters: req.row.param.data-owner.
+# Spec lang/09 Dyn Types: trait.dyn.generic-trait; lang/11 Row Parameters: req.row.param.data-owner.
 trait Runnable[$ R]:
     fn run(&self) -> i32 $ R
 

@@ -1,5 +1,5 @@
 # test: a trait with a method type parameter or a row parameter is still a requirement key
-# Spec 11 Requirement Keys: req.key.any-trait-members.reference-values; Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.member.row-parameter.
+# Spec 11 Requirement Keys: req.key.any-trait-members.reference-values; Spec 09 Dyn Types: trait.dyn.member.type-param, trait.dyn.member.row-parameter.
 
 trait Visitor:
     fn visit[T < AnyRef](self, value: T) -> void

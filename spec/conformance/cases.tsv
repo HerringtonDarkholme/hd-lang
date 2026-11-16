@@ -2171,7 +2171,7 @@ lang/functions/parameters/a-shared-enum-constructor-gives-a-parameter-twice.hd	t
 lang/expressions/postfix-expressions/calls/a-shared-enum-constructor-spread-before-a-positional.hd	type	reject:nonfinal-positional-spread	lang/05-expressions.md#r-expr.call.spread.position
 lang/traits/trait-implementations/comparison-traits/payload-free-enum-equality.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.hash.not-inferred
 lang/data/shared-enum-constructor-data/enum-shared-data-per-variant.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.per-variant
-lang/traits/dynamic-trait-values/dynamic-trait-suspending-method.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.suspending
+lang/traits/dynamic-trait-values/dynamic-trait-suspending-method.hd	type	accept	lang/09-traits.md#r-trait.dyn.suspending
 lang/types/trait-values-and-any/a-newtype-has-its-base-types-value-category.hd	type	accept	lang/04-type-system.md#r-types.sealed.newtype
 lang/types/trait-values-and-any/a-newtype-over-a-primitive-is-not-anyref.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.sealed.newtype
 lang/functions/closures/closure-assigns-captured-let.hd	type	accept	lang/07-functions.md#r-fn.capture.mutate

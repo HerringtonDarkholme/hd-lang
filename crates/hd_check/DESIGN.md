@@ -2985,7 +2985,7 @@ a deep concrete proof that generic code needs fails as an internal error
 instead of selecting; see #40. Mono also keeps a per-build table of picks
 keyed by concrete trait reference (crates/hd_mono/DESIGN.md §13.2).
 
-## 9. Trait Values And Dynamic Safety
+## 9. Trait Values And Dyn Types
 
 ### 9.1 Which Traits Can Be Values
 

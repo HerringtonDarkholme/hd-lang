@@ -1,4 +1,4 @@
-# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.type-param.hint. A call through a trait value of a method with its own type parameter.
+# Spec 09 Dyn Types: trait.dyn.member.type-param, trait.dyn.type-param.hint. A call through a trait value of a method with its own type parameter.
 trait Ops:
     fn name(&self) -> string
     fn take[T](&self, a: T) -> T

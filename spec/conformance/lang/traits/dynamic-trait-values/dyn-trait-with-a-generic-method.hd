@@ -1,5 +1,5 @@
 # test: a trait with a method type parameter, whatever its bound, is still a valid dyn type and requirement key
-# Spec 09 Dynamic Safety: trait.dyn.member.type-param, trait.dyn.member.row-parameter.
+# Spec 09 Dyn Types: trait.dyn.member.type-param, trait.dyn.member.row-parameter.
 # Spec 04 Dynamic Safety: types.trait.safe.method-type-param; Spec 11: req.key.any-trait-members.reference-values.
 
 trait Convert:

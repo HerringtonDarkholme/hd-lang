@@ -1,6 +1,6 @@
 # @dump: tir own counts wat
 # @build: v8 release
-# Feature: Dynamic Trait Values, Dynamic Safety, Conversion To Trait
+# Feature: Dynamic Trait Values, Dyn Types, Conversion To Trait
 # Values, Trait Value References, Inherent Methods On dyn Types (spec/lang/09-traits.md, #1364).
 # expected: `boxed` allocates one box and moves `u` into it;
 # `through_mut` changes the user in place through the vtable;

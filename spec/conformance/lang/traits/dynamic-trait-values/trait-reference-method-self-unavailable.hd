@@ -1,5 +1,5 @@
 # test: a method naming Self beyond its receiver remains unavailable as a reference
-# Spec 09 Dynamic Safety: trait.dyn.member.self.
+# Spec 09 Dyn Types: trait.dyn.member.self.
 trait Versioned:
     fn newer(self, other: Self) -> bool
 
