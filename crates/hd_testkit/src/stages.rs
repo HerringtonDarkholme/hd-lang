@@ -818,6 +818,7 @@ pub fn tests(p: &Program, at: Build) -> String {
                         .map(|(case, _)| (case, rest))
                 }) {
                     Some((case, rest)) => {
+                        let rest = without_cycle_report_in_json(rest);
                         let _ = writeln!(out, "{}: {{{rest}", case.name);
                     }
                     None => {
@@ -916,6 +917,29 @@ fn without_cycle_report(stderr: &[u8]) -> Vec<u8> {
         .flatten()
         .copied()
         .collect()
+}
+
+/// A test result's JSON fields with the checked report's `cycles freed:`
+/// lines removed from its `"stderr"` string, for the reason [`shown_run`]
+/// gives (#2049's checked dispatch case: CI's every-feature build wrote the
+/// report into each case's stderr).
+fn without_cycle_report_in_json(fields: &str) -> String {
+    const KEY: &str = "\"stderr\":\"";
+    let Some(at) = fields.find(KEY) else {
+        return fields.to_owned();
+    };
+    let start = at + KEY.len();
+    let bytes = fields.as_bytes();
+    let mut end = start;
+    while end < bytes.len() && bytes[end] != b'"' {
+        end += if bytes[end] == b'\\' { 2 } else { 1 };
+    }
+    let end = end.min(fields.len());
+    let kept: String = fields[start..end]
+        .split_inclusive("\\n")
+        .filter(|line| !line.starts_with("cycles freed: "))
+        .collect();
+    format!("{}{kept}{}", &fields[..start], &fields[end..])
 }
 
 /// The output of view `name` for `p` built as `build`, or `None` for a
@@ -1238,7 +1262,28 @@ fn run_case(
 
 #[cfg(test)]
 mod tests {
-    use super::{Build, Program, diff, parse, shown_run, tokens};
+    use super::{Build, Program, diff, parse, shown_run, tokens, without_cycle_report_in_json};
+
+    #[test]
+    fn a_test_result_shows_the_same_text_with_and_without_the_checked_report() {
+        let bare = r#""status":0,"trapped":false,"stdout":"","stderr":""}"#;
+        let report = r#""status":0,"trapped":false,"stdout":"","stderr":"cycles freed: 0 closure envs, 0 objects\n"}"#;
+        assert_eq!(without_cycle_report_in_json(report), bare);
+        // A panic's own stderr stays, around the report; an escaped quote
+        // inside it does not end the string.
+        let with = r#""status":101,"stderr":"panic: \"boom\"\ncycles freed: 0 objects\n"}"#;
+        assert_eq!(
+            without_cycle_report_in_json(with),
+            r#""status":101,"stderr":"panic: \"boom\"\n"}"#
+        );
+        // A line that only mentions the words is program output.
+        let text = r#""stderr":"no cycles freed: here\n"}"#;
+        assert_eq!(without_cycle_report_in_json(text), text);
+        assert_eq!(
+            without_cycle_report_in_json(r#""status":0}"#),
+            r#""status":0}"#
+        );
+    }
 
     #[test]
     fn a_run_shows_the_same_text_with_and_without_the_checked_report() {
