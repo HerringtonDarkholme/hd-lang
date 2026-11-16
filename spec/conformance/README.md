@@ -307,6 +307,34 @@ Rules that apply to every case:
   requires a location only when one is available. There is no wildcard
   category.
 
+## Writing a Case
+
+The runner judges codes, lines and exit statuses. These rules keep that
+judgment tied to the rule a case cites:
+
+1. **One rule per case.** A case tests the one rule its `specification`
+   column cites. A second rule, or a second form of the same rule, gets its
+   own case.
+2. **A reject case breaks only its rule.** The marked line is the only
+   violation in the fixture. With that violation removed, the fixture is
+   accepted, or reports a different code. A case whose code a second,
+   unmarked violation also produces passes for the wrong reason.
+3. **Titles name the case.** A `# test:` title says what the case tests. An
+   accept twin of a reject case, such as `NAME-legal.hd` beside `NAME.hd`,
+   says what is accepted; it never keeps the reject case's title.
+4. **Expected values are fixed by the specification.** A check does not
+   depend on map or set iteration order: sort the keys, or compare as sets.
+   It does not depend on the target's width, except in a case with a
+   [`# fixture-target:`](#fixture-targets) header. It does not compare a
+   float the specification leaves inexact for equality; it uses inputs whose
+   results are exact.
+5. **A runtime case runs something.** It declares a public entry point,
+   registers a test case, or names a runtime scenario (see
+   [Runtime Execution](#runtime-execution)). Its checks can fail: a wrong
+   implementation of the rule under test changes a checked value or the
+   output. Expected output goes in `# expect-stdout:`, never in a plain
+   comment.
+
 ## Runtime Execution
 
 `test FILE` runs steps 2 and 3, the fixture's test cases, and never step 1.
