@@ -28,6 +28,7 @@ pub(crate) struct BodyFacts {
     pub(super) captured: Arc<hd_base::HashSet<usize>>,
     pub(super) short_uses: OnceLock<hd_tir::own::short::Uses>,
     pub(super) rows: Vec<Arc<[usize]>>,
+    pub(super) break_counts: Arc<[u32]>,
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
     pub(super) shared: hd_base::HashSet<usize>,
     pub(super) refs: HashMap<usize, Vec<usize>>,
@@ -52,8 +53,12 @@ impl BodyFacts {
         let topo = Arc::new(Topology::new(b));
         let mut rows = vec![Vec::new(); b.sub_root.len()];
         let mut closures = vec![None; b.sub_root.len()];
+        let mut break_counts = vec![0; b.label_inst.len()];
         for i in 0..b.len() {
             rows[topo.sub[i] as usize].push(i);
+            if b.tags[i] == hd_tir::ir::Tag::Break {
+                break_counts[b.data[i][0] as usize] += 1;
+            }
             if b.tags[i] == hd_tir::ir::Tag::Closure && !b.is_instantiation(i) {
                 closures[b.data[i][0] as usize].get_or_insert(i);
             }
@@ -85,6 +90,7 @@ impl BodyFacts {
             captured: Arc::new(b.cap_local.iter().map(|l| l.idx()).collect()),
             short_uses: OnceLock::new(),
             rows: rows.into_iter().map(Arc::from).collect(),
+            break_counts: break_counts.into(),
             closures,
             storage,
             shared,

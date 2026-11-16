@@ -1,0 +1,60 @@
+# @dump: own wat
+# @build: std
+# expected: nested literals and calls write into the caller block; no leaf wrapper or wide spill.
+struct T0:
+    v0: i32
+    v1: i32
+    v2: i32
+    v3: i32
+    v4: i32
+    v5: i32
+    v6: i32
+    v7: i32
+    v8: i32
+    v9: i32
+    v10: i32
+    v11: i32
+    v12: i32
+    v13: i32
+    v14: i32
+    v15: i32
+    v16: i32
+    s: string
+
+fn mk0() -> T0: T0 { v0: +0, v1: +1, v2: +2, v3: +3, v4: +4, v5: +5, v6: +6, v7: +7, v8: +8, v9: +9, v10: +10, v11: +11, v12: +12, v13: +13, v14: +14, v15: +15, v16: +16, s: "s" }
+
+struct T1:
+    inner: T0
+    v: i32
+    s: string
+
+fn mk1() -> T1: T1 { inner: mk0(), v: +1, s: "s" }
+
+struct T2:
+    inner: T1
+    v: i32
+    s: string
+
+fn mk2() -> T2: T2 { inner: mk1(), v: +2, s: "s" }
+
+struct T3:
+    inner: T2
+    v: i32
+    s: string
+
+fn mk3() -> T3: T3 { inner: mk2(), v: +3, s: "s" }
+
+struct T4:
+    inner: T3
+    v: i32
+    s: string
+
+fn mk4() -> T4: T4 { inner: mk3(), v: +4, s: "s" }
+
+struct T5:
+    inner: T4
+    v: i32
+    s: string
+
+# subject
+fn mk5() -> T5: T5 { inner: mk4(), v: +5, s: "s" }

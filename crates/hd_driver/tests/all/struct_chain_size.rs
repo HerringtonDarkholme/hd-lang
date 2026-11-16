@@ -272,24 +272,34 @@ fn std_build_bytes(source: &str) -> usize {
 
 #[test]
 fn drop_struct_chain_module_grows_linearly() {
-    // What the hooks add: the module less the same chain without them.
-    // The rest grows faster in a std build (the std inliner copies `mk{i}`
-    // into its callers, each loading its callee's leaves; Known:
-    // /tmp/lt142/std-chain-inlined-literals-load-leaves.md), with or without
-    // hooks, so the total does not measure the drop path.
+    // #2069: constrain the complete std modules too, not only the
+    // hooks' contribution after subtracting a quadratic no-Drop module.
     let worker = std::thread::Builder::new()
         .stack_size(hd_sched::pool::WORKER_STACK)
         .spawn(|| {
-            let added = |k: usize| {
+            let sizes = |k: usize| {
                 let with = std_build_bytes(&drop_program(k));
                 let without = std_build_bytes(&without_drop(&drop_program(k)));
                 eprintln!("drop struct chain K={k}: {with} B, {without} B without hooks");
-                with.saturating_sub(without)
+                (with, without)
             };
-            let (small, large) = (added(50), added(200));
-            eprintln!("drop hook bytes: K=50 {small}, K=200 {large}");
-            assert!(small > 0);
-            assert!(large * 2 <= small * 9, "K=50 {small}, K=200 {large}");
+            let (small, large) = (sizes(50), sizes(200));
+            for (label, small, large) in [
+                ("with Drop", small.0, large.0),
+                ("without Drop", small.1, large.1),
+                (
+                    "drop hooks",
+                    small.0.saturating_sub(small.1),
+                    large.0.saturating_sub(large.1),
+                ),
+            ] {
+                eprintln!("{label} module bytes: K=50 {small}, K=200 {large}");
+                assert!(small > 0);
+                assert!(
+                    large * 2 <= small * 9,
+                    "{label}: K=50 {small}, K=200 {large}"
+                );
+            }
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }

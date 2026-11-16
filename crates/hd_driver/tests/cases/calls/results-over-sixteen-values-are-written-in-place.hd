@@ -1,5 +1,5 @@
 # @dump: stdout
-# @build: dev | checked | release | release checked
+# @build: dev | checked | release | release checked | std dev | std checked | std release | std release checked
 # Each form of a function result that is a struct or tuple over 16 values
 # (#2031): a literal written in place, a call written into a field at a
 # nonzero offset, a field of a field, a tuple, mixed leaves, an early

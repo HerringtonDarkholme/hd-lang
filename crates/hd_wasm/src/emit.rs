@@ -1622,6 +1622,8 @@ struct Em<'i, 'a, 'm> {
     /// The body's value-operand use counts, shared by its emitters
     /// ([`body_facts::BodyFacts::slot_uses`]).
     slot_uses: std::sync::Arc<std::sync::OnceLock<std::sync::Arc<HashMap<u32, u32>>>>,
+    /// Shared one-exit proof for inlined result wrappers.
+    break_counts: std::sync::Arc<[u32]>,
     /// Each local a closure of the body captures, shared.
     captured: std::sync::Arc<hd_base::HashSet<usize>>,
     /// One local-use census shared by parameter and capture loan queries.
@@ -1814,6 +1816,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             loan_uses,
             uses: std::sync::Arc::clone(&facts.uses),
             slot_uses: std::sync::Arc::clone(&facts.slot_uses),
+            break_counts: std::sync::Arc::clone(&facts.break_counts),
             captured: std::sync::Arc::clone(&facts.captured),
             topo: std::sync::Arc::clone(&facts.topo),
             tree: std::sync::Arc::clone(&facts.tree),
@@ -2465,6 +2468,9 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Unreachable);
             return Ok(());
         }
+        if self.placed_tail(r, dest, user)? {
+            return Ok(());
+        }
         // A break's value moves at its only use; a block's tail, used
         // only as the block's value, moves into it: the passes said which.
         let moved = self.take_from(r, user);
@@ -2862,12 +2868,17 @@ impl Em<'_, '_, '_> {
             Tag::Scope if !self.rec(bw).is_empty() => self.scope(i, a, bw)?,
             Tag::Defer => self.defer(a),
             Tag::Scope => {
-                self.slot(i)?;
+                if !self.placed.contains_key(&i) {
+                    self.slot(i)?;
+                }
                 self.open(Ctl::Plain);
                 self.loan_scope_begin(i);
                 self.block_into(a, Some(i))?;
                 self.loan_scope_end(i)?;
                 self.close();
+                if self.placed.contains_key(&i) {
+                    self.written.insert(i);
+                }
             }
             Tag::Match => {
                 let blocks = self.rec(bw);

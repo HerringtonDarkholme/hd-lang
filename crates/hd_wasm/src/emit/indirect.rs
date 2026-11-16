@@ -771,6 +771,22 @@ impl Em<'_, '_, '_> {
         while let Some((r, off)) = work.pop() {
             let tag = b.tags[r as usize];
             let members = match tag {
+                // An inlined call's one-exit wrapper preserves its value.
+                // The shared census proves no other Break can reach it.
+                Tag::Scope => {
+                    if let Some(value) = b.wrapper_value(r as usize) {
+                        let block = b.data[r as usize][0];
+                        let label = self.topo.label_of[block as usize];
+                        if self.break_counts.get(label as usize) == Some(&1)
+                            && uses.get(&value) == Some(&1)
+                        {
+                            self.placed.insert(r, (base, off));
+                            self.placed.insert(block, (base, off));
+                            work.push((value, off));
+                        }
+                    }
+                    continue;
+                }
                 // A read of memory headed here is one `memory.copy`
                 // ([`Em::forwarded`]).
                 Tag::Read => {
@@ -802,7 +818,7 @@ impl Em<'_, '_, '_> {
                 }
                 if !matches!(
                     b.tags[f as usize],
-                    Tag::Call | Tag::NewStruct | Tag::NewTuple
+                    Tag::Call | Tag::NewStruct | Tag::NewTuple | Tag::Scope
                 ) {
                     continue;
                 }
@@ -814,6 +830,43 @@ impl Em<'_, '_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// A block tail headed for an existing destination writes there rather
+    /// than materializing the wrapper's locals. The one-use proof preserves
+    /// the old tail's move/copy decision and cleanup order.
+    pub(super) fn placed_tail(
+        &mut self,
+        r: u32,
+        dest: u32,
+        user: u32,
+    ) -> hd_base::StageResult<bool> {
+        let Some(&(base, off)) = self.placed.get(&dest) else {
+            return Ok(false);
+        };
+        if !self.written.contains(&r) {
+            let mem = crate::layout::mem(self.pool(), self.env(), self.ty(dest))?;
+            if let Some(&(at, from)) = self.mem_vals.get(&r) {
+                self.copy_in(base, off, at, from, mem.size);
+            } else {
+                let moved = self.take_from(r, user);
+                let src = if moved {
+                    super::value::Src::Ref(r)
+                } else {
+                    self.retain_ref(r)?
+                };
+                for (j, leaf) in mem.leaves.iter().enumerate() {
+                    self.f.get(base);
+                    self.src(&src, j)?;
+                    self.f.op(leaf.store_in(STACK, off));
+                }
+                if moved {
+                    self.settle_value(r);
+                }
+            }
+        }
+        self.written.insert(dest);
+        Ok(true)
     }
 
     /// Whether `Call` `r` is a direct call to a worker that writes its
