@@ -9,4 +9,4 @@ fn one() -> i32:
     1
 
 fn erase(boxed: Box[Fn[(), i32, $()]]) -> *dyn Inspectable:
-    boxed # diagnostic: type-mismatch
+    box(boxed) # diagnostic: type-mismatch

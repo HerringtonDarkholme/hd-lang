@@ -17,4 +17,4 @@ fn take(source: &dyn Source[User]) -> void:
     pass
 
 fn run() -> void:
-    take(Feed {}) # diagnostic: type-mismatch
+    take(&Feed {}) # diagnostic: type-mismatch

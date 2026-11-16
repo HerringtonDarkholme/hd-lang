@@ -1,7 +1,7 @@
-# test: impl targets a bounded bare parameter target is one error
+# test: a bare parameter target with a bound is still a bare parameter target
 trait Describe:
     fn describe(self) -> string
 
 impl[T < Display] Describe for T: # diagnostic: bare-parameter-impl-target
     fn describe(self) -> string:
-        missing_name
+        "described"

@@ -1,12 +1,9 @@
-# test: least common type functions with different results and rows have no common type
-# Spec lang/04-type-system.md: types.lct.sites.
+# test: functions with different results have no common type, even after their different rows are joined
+# Spec lang/04-type-system.md: types.lct.sites, types.lct.row-union-every-site.
 
 trait Db
 
 trait Clock
-
-fn health() -> string $ Clock:
-    "ok"
 
 fn orders() -> string $ Db:
     "orders"

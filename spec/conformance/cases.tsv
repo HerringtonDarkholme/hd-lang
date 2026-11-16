@@ -226,9 +226,9 @@ lang/expressions/unary-and-binary-operators/identity-operands-an-integer-against
 lang/expressions/unary-and-binary-operators/identity-operands-a-string-against-a-dyn-any-reference-is-one-error.hd	type	reject:identity-requires-references	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/identity-operands-references-to-differently-instantiated-generics-are-incompatible.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#unary-and-binary-operators
 lang/expressions/unary-and-binary-operators/identity-operands-references-to-differently-nested-generics-are-incompatible.hd	type	reject:incompatible-identity-operands	lang/05-expressions.md#unary-and-binary-operators
-lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-is-one-error-and-its-body-is-left-out.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
-lang/traits/trait-implementations/implementation-targets/impl-targets-a-bounded-bare-parameter-target-is-one-error.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
-lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-beside-another-parameter-is-one-error.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
+lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-with-a-method-body.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
+lang/traits/trait-implementations/implementation-targets/impl-targets-a-bounded-bare-parameter-target.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
+lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-beside-another-parameter.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
 lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-is-rejected-in-an-inherent-block-too.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
 lang/traits/trait-implementations/implementation-targets/impl-targets-a-bare-parameter-target-with-a-delegation-is-rejected.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
 lang/traits/trait-implementations/implementation-ownership/impl-ownership-a-dependency-trait-for-a-dependency-type-is-an-orphan.hd	type	reject:orphan-impl	lang/09-traits.md#implementation-ownership

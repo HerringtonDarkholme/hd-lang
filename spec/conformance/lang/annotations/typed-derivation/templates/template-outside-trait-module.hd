@@ -1,5 +1,6 @@
 # test: a template outside its trait's module is an error
 # Spec 14 Templates: annot.template.module.
+use std.format.DebugWriter
 use std.structure.{Structure, Field, Variant, Describer}
 
 struct Count:
@@ -16,7 +17,7 @@ impl[S] Describer[S] for Count:
         .Ok(())
 
 impl[T] Debug for T by Structure: # diagnostic: misplaced-derivation
-    fn debug(self) -> string:
+    fn debug(&self, out: *mut DebugWriter) -> void:
         let mut d = Count { n: 0 }
         _ := T::describe(&mut d)
-        "${d.n}"
+        out.write("${d.n}")

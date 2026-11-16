@@ -4,4 +4,4 @@ use pkg.alpha.Person
 
 impl Person: # diagnostic: nonlocal-impl
     fn shout(self) -> string:
-        missing_name
+        "hello"

@@ -4,4 +4,4 @@ use pkg.alpha.Shape
 
 impl dyn Shape: # diagnostic: nonlocal-impl
     fn double(self) -> f64:
-        missing_name
+        2.0

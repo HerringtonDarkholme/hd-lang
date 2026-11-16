@@ -17,4 +17,4 @@ fn words(source: &mut dyn Source[Item = string]) -> void:
     pass
 
 fn run() -> void:
-    words(Ints { value: 1 }) # diagnostic: type-mismatch
+    words(&mut Ints { value: 1 }) # diagnostic: type-mismatch

@@ -8,5 +8,5 @@ impl Counter:
     fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
-fn frozen(counter: Counter) -> fn(i32) -> void:
+fn frozen(counter: *Counter) -> fn(i32) -> void:
     counter::bump # diagnostic: not-writable
