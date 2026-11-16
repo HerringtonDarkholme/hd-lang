@@ -4149,7 +4149,29 @@ mod packed {
         use super::super::DiskStore;
         use super::*;
         use crate::store::CacheStore;
+        use std::sync::{PoisonError, RwLock, RwLockWriteGuard};
         use std::time::{Duration, Instant};
+
+        /// A spawned child shares every open file of this process until
+        /// its exec closes them, and a file lock belongs to the open file:
+        /// a lock a test drops while a sibling test spawns stays held for
+        /// that moment. Spawns take the read side; a test that asserts no
+        /// lock is ever waited for, or that a dropped lock is free, takes
+        /// the write side, so no spawn overlaps it.
+        static SPAWNS: RwLock<()> = RwLock::new(());
+
+        /// Spawns `command`; returns once the child has exec'd (std waits
+        /// for the exec on every Unix path), so it holds none of our files.
+        /// cost: one child per call; each test spawns a fixed number.
+        fn spawn(command: &mut std::process::Command) -> std::process::Child {
+            let _spawning = SPAWNS.read().unwrap_or_else(PoisonError::into_inner);
+            command.spawn().expect("spawn a test child")
+        }
+
+        /// Holds off every spawn of these tests until the guard drops.
+        fn no_spawns() -> RwLockWriteGuard<'static, ()> {
+            SPAWNS.write().unwrap_or_else(PoisonError::into_inner)
+        }
 
         fn scratch(label: &str) -> PathBuf {
             let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -4473,18 +4495,19 @@ mod packed {
         fn crashed_subprocess_lease_is_recoverable() {
             let root = scratch("killed-writer");
             let marker = root.join("ready");
-            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
-                .args([
-                    "--exact",
-                    "disk::packed::tests::crash_writer_fixture",
-                    "--ignored",
-                    "--skip",
-                ])
-                .arg(format!("cache-fixture:{}", root.display()))
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .spawn()
-                .unwrap();
+            // cost: one test subprocess.
+            let mut child = spawn(
+                std::process::Command::new(std::env::current_exe().unwrap())
+                    .args([
+                        "--exact",
+                        "disk::packed::tests::crash_writer_fixture",
+                        "--ignored",
+                        "--skip",
+                    ])
+                    .arg(format!("cache-fixture:{}", root.display()))
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null()),
+            );
             let deadline = Instant::now() + Duration::from_secs(10);
             while !marker.exists() && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(5));
@@ -4628,6 +4651,7 @@ mod packed {
         /// foreign file with its directory (#1932).
         #[test]
         fn the_unsharded_namespace_reads_as_misses_and_a_collection_retires_it() {
+            let _no_spawns = no_spawns();
             let root = scratch("retire-v1");
             let old = root.join("pack-v1");
             std::fs::create_dir_all(old.join("index")).unwrap();
@@ -5442,6 +5466,7 @@ mod packed {
         #[test]
         fn sixteen_publishers_of_disjoint_keys_never_wait_for_each_other() {
             const RUNS: u128 = 20;
+            let _no_spawns = no_spawns();
             let root = scratch("disjoint");
             let start = std::sync::Barrier::new(16);
             let counts: Vec<cost::Counts> = std::thread::scope(|scope| {
@@ -5893,19 +5918,19 @@ mod packed {
                 let waiting = DiskStore::new(root.clone()).with_claims();
                 drop(waiting.packed.join());
                 // cost: one subprocess using this same test binary.
-                let mut child = std::process::Command::new(std::env::current_exe().unwrap())
-                    .args([
-                        "--exact",
-                        "disk::packed::tests::abandoned_parse_holder_fixture",
-                        "--ignored",
-                        "--skip",
-                    ])
-                    .arg(format!("cache-fixture:{}", root.display()))
-                    .stdout(std::fs::File::create(root.join("child.out")).unwrap())
-                    .stderr(std::fs::File::create(root.join("child.err")).unwrap())
-                    // cost: one child per round, eight fixed rounds in this test.
-                    .spawn()
-                    .unwrap();
+                // cost: one child per round, eight fixed rounds in this test.
+                let mut child = spawn(
+                    std::process::Command::new(std::env::current_exe().unwrap())
+                        .args([
+                            "--exact",
+                            "disk::packed::tests::abandoned_parse_holder_fixture",
+                            "--ignored",
+                            "--skip",
+                        ])
+                        .arg(format!("cache-fixture:{}", root.display()))
+                        .stdout(std::fs::File::create(root.join("child.out")).unwrap())
+                        .stderr(std::fs::File::create(root.join("child.err")).unwrap()),
+                );
                 wait_for_claim_fixture(|| root.join("claimed").exists());
                 let (tx, rx) = std::sync::mpsc::channel();
                 // cost: one test thread waits on the subprocess's real file lock.
@@ -6086,7 +6111,7 @@ mod packed {
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null());
             // cost: the same one subprocess.
-            let mut child = command.spawn().unwrap();
+            let mut child = spawn(&mut command);
             let mut polls = 0;
             while !marker.exists() && polls < 2000 {
                 std::thread::sleep(Duration::from_millis(5));
