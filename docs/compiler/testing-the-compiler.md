@@ -257,4 +257,6 @@ Planned, not built:
   hits and compares them.
 
 `wasmparser` reads linked modules in the driver's tests
-(`crates/hd_driver/tests/all/cycle_linking.rs`).
+(`crates/hd_driver/tests/all/map_seed_runtime.rs`). A stage case that
+only asks which functions a program links uses the `functions` view
+(`crates/hd_driver/tests/cases/linked-functions/`).

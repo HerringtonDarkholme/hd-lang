@@ -2194,7 +2194,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   code still calls the collector directly, as std's own tests do.
   `CYCLE_FNS` are still rooted, since
   collection runs before any allocation is emitted; only the link drops
-  them. `crates/hd_driver/tests/all/cycle_linking.rs` checks that a program of lists and
+  them. The stage cases `crates/hd_driver/tests/cases/linked-functions/a-program-*-collector.hd` check that a program of lists and
   closures links no `std.rt.cycle` and calls `release_acyclic`, while a
   ring of references links the collector.
 
