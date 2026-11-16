@@ -5892,13 +5892,23 @@ mod packed {
             for (i, store) in stores.iter().enumerate() {
                 store.put(EntryKind::Check, &Hash128(i as u128 + 1), b"complete");
             }
+            // Both workers announced their wait before they paused, so each
+            // put saw a waiter and published at once, letting its claim go:
+            // no claim is left for a resumed worker to block on. A lost
+            // wakeup fails here, before any worker blocks, with no clock.
+            for (i, disk) in disks.iter().enumerate() {
+                let key = Hash128(i as u128 + 1);
+                assert!(
+                    !disk.packed.held(EntryKind::Check, &key),
+                    "entry {} still claimed after its put",
+                    i + 1
+                );
+            }
             for tx in resume {
                 tx.send(()).unwrap();
             }
-            let first = done_rx.recv_timeout(Duration::from_millis(500));
-            let second = done_rx.recv_timeout(Duration::from_millis(500));
-            // Release actual locks before joining even when the regression
-            // strands both workers. The deadline is a failure, never a retry.
+            let first = done_rx.recv();
+            let second = done_rx.recv();
             for disk in &disks {
                 disk.packed.release_all();
             }
