@@ -1,0 +1,25 @@
+# @dump: stdout
+# @main: src/main.hd
+# module.dep.identity, module.package.no-sharing: two packages whose
+# manifests share the name `money` are two packages, so one's `Coin` is
+# not the other's, and the mismatch names neither by an internal `$` root.
+use dep.euro
+use dep.yen.{Coin as Yen}
+
+pub fn main() -> void $ Console:
+    let y: Yen = euro.make(1)
+    println(y.cents)
+# @dependency: euro=money
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32
+
+pub fn make(n: i32) -> Coin:
+    Coin { cents: n * 100 }
+# @dependency: yen=money
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32
+
+pub fn make(n: i32) -> Coin:
+    Coin { cents: n * 1000 }

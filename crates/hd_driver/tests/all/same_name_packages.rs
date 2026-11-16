@@ -146,20 +146,3 @@ fn same_named_packages_never_share_entries() {
         other.counters.modules_checked
     );
 }
-
-/// Two packages of one name are two declarations each: a `Coin` of one is
-/// no `Coin` of the other (`module.package.identity-part`).
-#[test]
-fn same_named_declarations_stay_apart() {
-    let store = MemoryStore::default();
-    let (a, b) = (money(100, 1), money(1000, 2));
-    let main = root(
-        "use dep.euro\nuse dep.yen.{Coin as Yen}\n\n\
-         pub fn main() -> void $ Console:\n    let y: Yen = euro.make(1)\n    println(y.cents)\n",
-    );
-    let out = run(&store, &main, &[("euro", "/w/a", &a), ("yen", "/w/b", &b)]);
-    assert!(out.wasm.is_none());
-    let text = out.user_text(&out.render());
-    assert!(text.contains("type-mismatch"), "{text}");
-    assert!(!text.contains('$'), "{text}");
-}

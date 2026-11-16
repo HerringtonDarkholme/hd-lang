@@ -27,7 +27,10 @@ fn span(out: &hd_driver::Output, s: Span) -> String {
 /// message`, in content order, each followed by its fix-its (`fix
 /// (exact|suggestion): title`, then each edit as `edit SPAN:
 /// "replacement"`). Labels are not shown: no stage of the compiler adds
-/// one today, so a case could never reach them.
+/// one today, so a case could never reach them. Each message and fix
+/// title is the user's text (`Output::user_text`), as `hd check` prints
+/// it: a package by its name, never its internal `money$2` root, and test
+/// code by its file. Edits stay as written.
 pub(super) fn render(out: &hd_driver::Output) -> String {
     let d = &out.diags;
     let at = |s: Span| {
@@ -35,14 +38,18 @@ pub(super) fn render(out: &hd_driver::Output) -> String {
         format!("{file}:{line}:{column}")
     };
     let mut text = String::new();
+    let mut row = String::new();
     for i in d.content_order() {
-        d.render_row(i, &at, &mut text);
+        row.clear();
+        d.render_row(i, &at, &mut row);
+        text.push_str(&out.user_text(&row));
         for f in d.fixes[i].range() {
             let safety = match d.fix_safety[f] {
                 FixSafety::Exact => "exact",
                 FixSafety::Suggestion => "suggestion",
             };
-            let _ = writeln!(text, "  fix ({safety}): {}", d.get_text(d.fix_title[f]));
+            let title = out.user_text(d.get_text(d.fix_title[f]));
+            let _ = writeln!(text, "  fix ({safety}): {title}");
             for e in &d.edits[d.fix_edits[f].range()] {
                 let _ = writeln!(
                     text,
