@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# An arm with the wrong number of fields binds its names to poison. Error recovery reports one diagnostic per failure.
+enum Shape:
+    Dot(i32)
+    Line(i32, i32)
+
+fn size(s: Shape) -> i32:
+    match s:
+        .Dot(n, m) => n + m
+        .Line(a, b) => a + b

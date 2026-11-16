@@ -1,8 +1,0 @@
-# test: an arm naming a variant of another enum is an unknown variant of the scrutinee
-# Spec README.md: Diagnostics (one failure, one diagnostic).
-
-fn value(r: Result[i32, string]) -> i32:
-    match r:
-        .Some(n) => n # diagnostic: unknown-variant
-        .Ok(v) => v
-        .Err(_) => 0

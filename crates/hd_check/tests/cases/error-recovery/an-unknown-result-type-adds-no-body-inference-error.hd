@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# An unknown result type adds no inference error in the body. Error recovery reports one diagnostic per failure.
+fn empty() -> Bogus:
+    let values = []
+    values

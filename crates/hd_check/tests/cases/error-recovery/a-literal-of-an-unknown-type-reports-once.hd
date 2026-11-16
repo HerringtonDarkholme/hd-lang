@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# A literal of an unknown type is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let p = Pnt { x: 1 }
+    let z = p.x + 1
+    z

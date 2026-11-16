@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# An unknown type in an impl method's result is no signature mismatch. Error recovery reports one diagnostic per failure.
+trait Listing:
+    fn items(self) -> List[i32]
+
+struct Shelf:
+    size: i32
+
+impl Listing for Shelf:
+    fn items(self) -> List[Bogus]:
+        []

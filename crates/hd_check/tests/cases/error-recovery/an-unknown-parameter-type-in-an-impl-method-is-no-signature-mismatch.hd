@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# An unknown parameter type in a trait method implementation is no signature mismatch. Error recovery reports one diagnostic per failure.
+trait Scale:
+    fn scale(self, by: i32) -> i32
+
+struct Meter:
+    value: i32
+
+impl Scale for Meter:
+    fn scale(self, by: Bogus) -> i32:
+        self.value

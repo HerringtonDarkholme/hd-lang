@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# A call of a value that is not a function is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let v: i32 = 1
+    let w = v(2)
+    let z = w + 1
+    z

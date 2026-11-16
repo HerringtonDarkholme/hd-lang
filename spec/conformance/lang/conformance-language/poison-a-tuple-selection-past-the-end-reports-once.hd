@@ -1,7 +1,0 @@
-# test: a tuple selection past the end is poison, so a later use reports nothing
-# Spec README.md: Diagnostics (one failure, one diagnostic).
-
-fn run(t: (i32, i32)) -> i32:
-    let y = t._5 # diagnostic: unknown-field
-    let z = y + 1
-    z

@@ -1,8 +1,0 @@
-# test: a call of a value that is not a function is poison, so a later use reports nothing
-# Spec README.md: Diagnostics (one failure, one diagnostic).
-
-fn run() -> i32:
-    let v: i32 = 1
-    let w = v(2) # diagnostic: not-callable
-    let z = w + 1
-    z

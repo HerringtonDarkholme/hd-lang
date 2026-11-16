@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# An unknown field read is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+struct Point:
+    x: i32
+
+fn run(p: Point) -> i32:
+    let y = p.nope
+    let z = y + 1
+    z

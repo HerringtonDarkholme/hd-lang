@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# @build: tests
+# A registration call missing its body is poison, so nothing else reports. Error recovery reports one diagnostic per failure.
+tests:
+    use std.testing.it_each
+
+    it_each("doubles", [1, 2])

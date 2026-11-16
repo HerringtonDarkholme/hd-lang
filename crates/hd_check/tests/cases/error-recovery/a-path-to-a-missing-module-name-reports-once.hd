@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# A path to a name a module lacks is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+use pkg.words
+
+fn run() -> i32:
+    let g = words::nope
+    let z = g + 1
+    z
+# @file: words.hd
+pub fn join_words(words: List[string], separator: string) -> string:
+    let out = ""
+    for word in words:
+        out = if out == "": squash(word) else: "$out$separator${squash(word)}"
+    out
+
+fn squash(word: string) -> string:
+    word
+
+pub struct Phrase:
+    pub text: string
+
+struct Draft:
+    text: string

@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# A copy-update from a poisoned source is poison, so a later binding reports nothing. Error recovery reports one diagnostic per failure.
+struct Point:
+    x: i32
+    y: i32
+
+fn run(p: Point) -> i32:
+    let q = Point { ...p.nope, x: 1 }
+    let z = q
+    0

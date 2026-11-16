@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# A member reference through a primitive type name is poison, so a later binding reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let g = i32.nope
+    let z = g
+    0

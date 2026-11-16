@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# An unknown trait in an impl method's bound is no signature mismatch. Error recovery reports one diagnostic per failure.
+trait Check:
+    fn check[A < Eq](self, value: A) -> i32
+
+struct Gate:
+    open: i32
+
+impl Check for Gate:
+    fn check[A < Bogus](self, value: A) -> i32:
+        self.open

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# A list spread of a non-list is poison, so a later binding reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let xs = [1, 5...]
+    let z = xs
+    0

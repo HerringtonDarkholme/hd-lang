@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# An arm naming an unknown variant binds its names to poison. Error recovery reports one diagnostic per failure.
+enum Shape:
+    Dot(i32)
+    Line(i32, i32)
+
+fn size(s: Shape) -> i32:
+    match s:
+        .Dot(n) => n
+        .Lime(a, b) => a + b
+        .Line(_, _) => 0

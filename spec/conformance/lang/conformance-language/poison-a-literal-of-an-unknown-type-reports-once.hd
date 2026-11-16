@@ -1,7 +1,0 @@
-# test: a literal of an unknown type is poison, so a later use reports nothing
-# Spec README.md: Diagnostics (one failure, one diagnostic).
-
-fn run() -> i32:
-    let p = Pnt { x: 1 } # diagnostic: unknown-type
-    let z = p.x + 1
-    z

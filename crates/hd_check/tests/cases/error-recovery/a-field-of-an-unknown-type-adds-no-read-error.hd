@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# A field of an unknown type adds no inference error where it is read. Error recovery reports one diagnostic per failure.
+struct Holder:
+    value: Bogus
+
+fn run(h: Holder) -> i32:
+    let value = h.value
+    0

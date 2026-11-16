@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# A field of a poisoned base is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+struct Point:
+    x: i32
+
+fn run(p: Point) -> i32:
+    let v = p.nope.x
+    let z = v + 1
+    z

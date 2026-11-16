@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# An arm naming a variant of another enum is an unknown variant of the scrutinee. Error recovery reports one diagnostic per failure.
+fn value(r: Result[i32, string]) -> i32:
+    match r:
+        .Some(n) => n
+        .Ok(v) => v
+        .Err(_) => 0

@@ -1,7 +1,0 @@
-# test: a list spread of a non-list is poison, so a later binding reports nothing
-# Spec README.md: Diagnostics (one failure, one diagnostic).
-
-fn run() -> i32:
-    let xs = [1, 5...] # diagnostic: type-mismatch
-    let z = xs
-    0

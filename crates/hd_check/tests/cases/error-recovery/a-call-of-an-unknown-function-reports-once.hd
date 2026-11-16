@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# A call of an unknown function is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let v = nope(1)
+    let z = v + 1
+    z

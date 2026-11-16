@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# An unknown variant value is poison, so a later binding reports nothing. Error recovery reports one diagnostic per failure.
+enum Shape:
+    Dot(i32)
+    Blank
+
+fn run() -> i32:
+    let e = Shape.Circle
+    let z = e
+    0

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# A question mark on a plain value is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+fn run() -> i32:
+    let v = 1?
+    let z = v + 1
+    z

@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# An unknown type in a callee's signature adds no inference error at the call. Error recovery reports one diagnostic per failure.
+fn make() -> Bogus:
+    panic("x")
+
+fn run() -> i32:
+    let made = make()
+    0

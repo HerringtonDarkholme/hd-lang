@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# A data literal of an enum is poison, so a later use reports nothing. Error recovery reports one diagnostic per failure.
+enum Shape:
+    Dot
+
+fn run() -> i32:
+    let p = Shape { x: 1 }
+    let z = p.x + 1
+    z
