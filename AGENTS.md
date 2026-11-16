@@ -115,8 +115,9 @@ Know what the change touches, and test that first.
      default); `# @single-file: true` builds it as a single-file program.
    - The `functions` view lists the functions a program linked from `main`
      defines, in link order, with an instance's type arguments.
-   - `# @dependency: NAME` (or `NAME fetched`) begins a dependency package
-     the root requires as `dep.NAME`; the `@file`s after it are its files.
+   - `# @dependency: NAME` (or `NAME fetched`, or `KEY=NAME`) begins a
+     dependency package the root requires as `dep.NAME` (`dep.KEY`); the
+     `@file`s after it are its files.
 
 ## Spec Scope For The Standard Library
 

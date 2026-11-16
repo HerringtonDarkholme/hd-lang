@@ -1,0 +1,21 @@
+# @dump: stdout
+# @main: src/main.hd
+# trait.typeid.name.package, trait.typeid.equality: two packages of one
+# name print alike (`money.Coin`, never `money$2.Coin`) but have two
+# identities.
+use dep.euro.{Coin as Euro}
+use dep.yen.{Coin as Yen}
+use std.inspect.TypeId
+
+pub fn main() -> void $ Console:
+    println("${TypeId::of::[Euro]()} ${TypeId::of::[Yen]()}")
+    println("${TypeId::of::[Euro]() == TypeId::of::[Yen]()}")
+    println("${TypeId::of::[List[Yen?]]()}")
+# @dependency: euro=money
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32
+# @dependency: yen=money
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32

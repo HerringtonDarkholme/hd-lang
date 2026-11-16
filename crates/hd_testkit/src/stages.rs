@@ -6,7 +6,7 @@
 //! `# @package: NAME` names the case's root package (`app` by default).
 //! `# @single-file: true` builds the case as a single-file program.
 //! The `functions` view lists the linked program's functions in link order.
-//! `# @dependency: NAME [fetched]` begins a dependency package's `@file`s.
+//! `# @dependency: [KEY=]NAME [fetched]` begins a dependency package's `@file`s.
 
 mod counts;
 mod diagnostics;
@@ -81,12 +81,13 @@ pub struct Program {
     marked: bool,
 }
 
-/// A dependency package of a case: its name, which the root requires and
-/// its source writes after `dep.`, whether it was fetched for a version
-/// requirement (`module.dbg.own-code`) or is a path dependency, and its
-/// package-relative files.
+/// A dependency package of a case: the key the root requires it by and
+/// its source writes after `dep.`, its manifest name, whether it was
+/// fetched for a version requirement (`module.dbg.own-code`) or is a path
+/// dependency, and its package-relative files.
 #[derive(Clone)]
 pub struct CaseDependency {
+    pub key: String,
     pub name: String,
     pub fetched: bool,
     /// Its package index in the build: `i + 1` for the case's `i`th.
@@ -98,6 +99,7 @@ pub struct CaseDependency {
 impl std::fmt::Debug for CaseDependency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CaseDependency")
+            .field("key", &self.key)
             .field("name", &self.name)
             .field("fetched", &self.fetched)
             .field("files", &self.files)
@@ -191,7 +193,8 @@ impl Program {
 /// its `hd.toml` does, `app` by default; `@single-file: true` builds it
 /// as a single-file program. `@dependency: NAME` (a path dependency) or
 /// `@dependency: NAME fetched` (one fetched for a version requirement)
-/// begins a dependency package the root requires as `dep.NAME`; the
+/// begins a dependency package the root requires as `dep.NAME`, and
+/// `KEY=NAME` requires a package named `NAME` as `dep.KEY`; the
 /// `@file` modules after it, package-relative, are its files until the
 /// next `@dependency`, so dependencies follow the root's own modules.
 ///
@@ -350,12 +353,14 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     let (dep, fetched) = match value.split_whitespace().collect::<Vec<_>>()[..] {
                         [dep] => (dep, false),
                         [dep, "fetched"] => (dep, true),
-                        _ => {
-                            return Err(format!(
-                                "`@dependency: {value}`; write `NAME` or `NAME fetched`"
-                            ));
-                        }
+                        _ => ("", false),
                     };
+                    let (dep, manifest) = dep.split_once('=').unwrap_or((dep, dep));
+                    if dep.is_empty() || manifest.is_empty() {
+                        return Err(format!(
+                            "`@dependency: {value}`; write `[KEY=]NAME`, then `fetched` for a fetched package"
+                        ));
+                    }
                     if deps.last().is_some_and(|d| d.files.is_empty()) {
                         return Err("a `@dependency` with no `@file`".to_owned());
                     }
@@ -365,7 +370,8 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     let index = u16::try_from(deps.len() + 1)
                         .map_err(|_| "more dependencies than a build holds".to_owned())?;
                     deps.push(CaseDependency {
-                        name: dep.to_owned(),
+                        key: dep.to_owned(),
+                        name: manifest.to_owned(),
                         fetched,
                         index,
                         sources: hd_project::MemorySources::default(),
@@ -824,13 +830,13 @@ pub fn tir(p: &Program) -> String {
 /// only the case package's whole-result reuse, which a case never repeats.
 fn packages(p: &Program, build: Build) -> hd_driver::Packages<'_> {
     let mut packages = hd_driver::Packages {
-        requires: p.deps.iter().map(|d| (d.name.clone(), d.index)).collect(),
+        requires: p.deps.iter().map(|d| (d.key.clone(), d.index)).collect(),
         deps: p
             .deps
             .iter()
             .map(|d| hd_driver::Dependency {
                 name: d.name.clone(),
-                identity: format!("stage-case/{}", d.name),
+                identity: format!("stage-case/{}", d.key),
                 sources: &d.sources,
                 requires: Vec::new(),
                 fetched: d.fetched,
@@ -1511,7 +1517,7 @@ mod tests {
         assert_eq!(case.program.package_name(), "acme-shop");
         assert!(case.program.single_file);
         let case = parse(
-            "# @dump: stdout\nuse dep.money\n# @dependency: money fetched\n# lib\n# @file: src/lib.hd\npub fn one() -> i32: 1\n# @file: src/two.hd\npub fn two() -> i32: 2\n# @dependency: cash\n# @file: src/lib.hd\npub fn three() -> i32: 3\n",
+            "# @dump: stdout\nuse dep.money\n# @dependency: money fetched\n# lib\n# @file: src/lib.hd\npub fn one() -> i32: 1\n# @file: src/two.hd\npub fn two() -> i32: 2\n# @dependency: cash=money\n# @file: src/lib.hd\npub fn three() -> i32: 3\n",
         )
         .expect("case");
         assert_eq!(case.program.text, "# @dump: stdout\nuse dep.money\n");
@@ -1520,9 +1526,23 @@ mod tests {
             .program
             .deps
             .iter()
-            .map(|d| (d.name.as_str(), d.fetched, d.index, d.files.len()))
+            .map(|d| {
+                (
+                    d.key.as_str(),
+                    d.name.as_str(),
+                    d.fetched,
+                    d.index,
+                    d.files.len(),
+                )
+            })
             .collect();
-        assert_eq!(deps, [("money", true, 1, 2), ("cash", false, 2, 1)]);
+        assert_eq!(
+            deps,
+            [
+                ("money", "money", true, 1, 2),
+                ("cash", "money", false, 2, 1)
+            ]
+        );
         assert!(case.program.deps[0].files["src/two.hd"].contains("fn two"));
         assert!(format!("{:?}", case.program.deps[1]).contains("fn three"));
         // A build's package index is a `u16`, and the root is 0.
@@ -1578,6 +1598,8 @@ mod tests {
             "# @dump: stdout\nx := 1\n# @package: acme-shop\n",
             "# @dump: stdout\n# @dependency: money cached\n# @file: src/lib.hd\n",
             "# @dump: stdout\n# @dependency: money\n",
+            "# @dump: stdout\n# @dependency: =money\n# @file: a.hd\n",
+            "# @dump: stdout\n# @dependency: euro=\n# @file: a.hd\n",
             "# @dump: stdout\n# @dependency: money\n# @dependency: cash\n# @file: a.hd\n",
             "# @dump: stdout\n# @dependency: money\n# @file: a.hd\n# @dependency: money\n# @file: b.hd\n",
             "# @dump: stdout\n# @dependency: money\nx := 1\n# @file: a.hd\n",
