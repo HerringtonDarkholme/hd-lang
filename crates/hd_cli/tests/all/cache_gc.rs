@@ -264,20 +264,32 @@ fn commands_evict_over_the_cap_from_hd_cache_max_size() {
     let r = hd(&pkg, &cache, None, &["build"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     assert!(total(&obj) > 64 * 1024);
-    // A command under a smaller cap than the last collection's asks for a
-    // collection, which a detached `hd cache gc` runs to the low-water
-    // mark (#1932); the command itself walks nothing. A request made while
-    // the build's own collection still runs is dropped, so a later
-    // command asks again.
-    for _ in 0..100 {
-        let r = hd(&pkg, &cache, Some("16K"), &["check"]);
-        assert_eq!(r.code, Some(0), "{}", r.err);
-        std::thread::sleep(Duration::from_millis(100));
-        if total(&obj) <= 16 * 1024 {
-            break;
-        }
+    let store = DiskStore::new(obj.clone());
+    assert_eq!(store.last_collection_cap(), None, "the build fits its cap");
+    // One command over a smaller cap asks for a collection, which a
+    // detached `hd cache gc` runs to the low-water mark (#1932); the
+    // command does not wait for it. The test does, on the collector's own
+    // signals: it records its cap under `obj/gc`'s lock before it
+    // collects, and holds that lock until it ends. No later command runs
+    // first: one would recompute the evicted entries, which the spec
+    // allows within the hour (`cli.cache.obj.evict`).
+    let r = hd(&pkg, &cache, Some("16K"), &["check"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    // A hang guard for a collector that never starts, not a time budget:
+    // the verdict below does not depend on how fast it runs.
+    let started = std::time::Instant::now();
+    while store.last_collection_cap() != Some(16 * 1024) {
+        assert!(
+            started.elapsed() < Duration::from_mins(2),
+            "no collection under the 16K cap started"
+        );
+        std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(total(&obj) <= 16 * 1024, "{} bytes left", total(&obj));
+    store
+        .wait_for_collection()
+        .expect("wait for the collection");
+    let left = total(&obj);
+    assert!(left <= 16 * 1024, "{left} bytes left");
 }
 
 #[test]

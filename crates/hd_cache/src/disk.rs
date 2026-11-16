@@ -306,11 +306,9 @@ impl DiskStore {
             .ok()
     }
 
-    /// Whether the last collection, as `<root>/gc` holds it, still covers
-    /// this store: it started less than [`GC_INTERVAL`] ago, under a cap
-    /// no smaller than this one. A missing, torn or foreign record, or one
-    /// from the future, does not.
-    fn covered(&self, mut file: impl Read) -> bool {
+    /// The last collection's start, in Unix seconds, and its cap, as
+    /// `<root>/gc` holds them; `None` for a torn or foreign record.
+    fn record(mut file: impl Read) -> Option<(u64, u64)> {
         let mut bytes = Vec::with_capacity(GC_LEN);
         if file
             .by_ref()
@@ -320,12 +318,42 @@ impl DiskStore {
             || bytes.len() != GC_LEN
             || &bytes[..8] != GC_MAGIC
         {
-            return false;
+            return None;
         }
         let word = |at: usize| u64::from_le_bytes(bytes[at..at + 8].try_into().expect("8 bytes"));
-        let (at, cap) = (word(8), word(16));
-        let now = unix_now();
-        at <= now && now - at < GC_INTERVAL.as_secs() && self.cap >= cap
+        Some((word(8), word(16)))
+    }
+
+    /// Whether the last collection, as `<root>/gc` holds it, still covers
+    /// this store: it started less than [`GC_INTERVAL`] ago, under a cap
+    /// no smaller than this one. A missing, torn or foreign record, or one
+    /// from the future, does not.
+    fn covered(&self, file: impl Read) -> bool {
+        Self::record(file).is_some_and(|(at, cap)| {
+            let now = unix_now();
+            at <= now && now - at < GC_INTERVAL.as_secs() && self.cap >= cap
+        })
+    }
+
+    /// The cap of the last collection that started, read from `<root>/gc`
+    /// without its lock; `None` before any. A collector records it under
+    /// the lock before it collects, so a test that sees its cap here can
+    /// [`wait_for_collection`](Self::wait_for_collection) for the end of
+    /// a detached collection without racing its start.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn last_collection_cap(&self) -> Option<u64> {
+        let file = File::open(self.root.join(GC)).ok()?;
+        Self::record(file).map(|(_, cap)| cap)
+    }
+
+    /// Blocks until no process holds `<root>/gc`'s lock, that is until the
+    /// collection running now ends; for tests. Never call it before the
+    /// collection records its start: holding the lock first makes a
+    /// detached collector give up.
+    #[doc(hidden)]
+    pub fn wait_for_collection(&self) -> std::io::Result<()> {
+        File::open(self.root.join(GC))?.lock()
     }
 
     /// Records that a collection with this store's cap starts now.
