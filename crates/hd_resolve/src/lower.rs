@@ -5979,6 +5979,19 @@ impl Lower<'_, '_, '_> {
                 }
             }
         };
+        // An impl head names `Structure` outside a template, an error of
+        // its own beside the sealed one below, in both the positive and
+        // the negative form (`annot.structure.named-positions.error`).
+        if trait_ == self.names.known.structure
+            && self.r.frozen.is_none()
+            && let Some(tn) = trait_node
+        {
+            self.diags.error(
+                Code::StructureOutsideTemplate,
+                self.src.span(tn),
+                "`Structure` may be named only inside a template",
+            );
+        }
         if n.direct_token(&self.src.parse.tokens, TokenKind::Bang)
             .is_some()
         {

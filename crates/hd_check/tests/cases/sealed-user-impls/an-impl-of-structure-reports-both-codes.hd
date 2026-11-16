@@ -1,0 +1,32 @@
+# @dump: diagnostics
+# An `impl Structure` line outside a template breaks two rules, and both
+# codes are reported: sealed-trait-implementation (`annot.structure.sealed`,
+# `trait.sealed.user-impl`) on the impl, structure-outside-template
+# (`annot.structure.named-positions.error`) on the trait name. Each form:
+# plain, generic, module-qualified, with a body, and negative.
+use std.structure
+use std.structure.Structure
+
+struct Point:
+    x: i64
+
+struct Cell[T]:
+    value: T
+
+struct Handle: pass
+
+struct Named:
+    text: string
+
+struct Flag: pass
+
+impl Structure for Point
+
+impl[T] Structure for Cell[T]
+
+impl structure.Structure for Handle
+
+impl Structure for Named:
+    fn name() -> string: "Named"
+
+impl !Structure for Flag

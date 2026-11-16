@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# `Structure` after `by` in a derivation block's header is a named
+# position, so the block reports nothing (`annot.structure.named-positions`).
+use std.structure.Structure
+
+struct User:
+    name: string
+
+impl User by Structure:
+    name = []

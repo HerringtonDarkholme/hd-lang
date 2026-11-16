@@ -352,7 +352,6 @@ lang/traits/sealed-traits/sealed-traits-an-impl-may-not-write-a-sealed-member.hd
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-any-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-anyval-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-anyref-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
-lang/traits/sealed-traits/sealed-traits-a-user-impl-of-structure-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-num-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-integer-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
 lang/traits/sealed-traits/sealed-traits-a-user-impl-of-float-is-rejected.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#sealed-traits
@@ -2232,7 +2231,6 @@ lang/annotations/typed-derivation/typed-derivation.hd	type	accept	lang/14-annota
 lang/annotations/typed-derivation/walk-describe-and-build/typed-derivation-walk.hd	runtime	accept	lang/14-annotations.md#walk-describe-and-build
 lang/annotations/typed-derivation/opting-in/derive-error-trait.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.derive.error-trait
 lang/annotations/typed-derivation/opting-in/derive-and-block-overlap.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.derive.overlap
-lang/annotations/typed-derivation/the-structure-trait/structure-implementation.hd	type	reject:sealed-trait-implementation	lang/14-annotations.md#r-annot.structure.sealed
 lang/annotations/typed-derivation/the-structure-trait/structure-outside-template.hd	type	reject:structure-outside-template	lang/14-annotations.md#r-annot.structure.named-positions.error
 lang/annotations/typed-derivation/templates/marker-template.hd	type	reject:marker-template	lang/14-annotations.md#r-annot.template.body.error
 lang/annotations/typed-derivation/derivation-blocks/duplicate-fact.hd	type	reject:duplicate-fact	lang/14-annotations.md#r-annot.line.duplicate
