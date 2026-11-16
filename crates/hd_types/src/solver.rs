@@ -1681,7 +1681,14 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
         },
         TyData::Row(r) => TyData::Row(fold_row(pool, r, leaves)?),
         TyData::Context(r) => TyData::Context(fold_row(pool, r, leaves)?),
-        other => other,
+        // ruled out: a leaf form holds no variable, so `fold_vars`'s `in_ty` check returned it.
+        leaf @ (TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Param(_)
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)) => leaf,
     };
     let r = pool.intern_ty(&d);
     leaves.memo.insert(t, r);

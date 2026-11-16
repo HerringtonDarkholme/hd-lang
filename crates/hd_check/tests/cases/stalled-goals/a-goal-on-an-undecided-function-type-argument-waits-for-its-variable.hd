@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# A trait goal whose argument holds a function type with an undecided
+# parameter (`(fn(?U) -> i32)?`) waits on the variables of the function
+# type's parameters and result. The later annotation decides it, and
+# the goal then holds: no diagnostic.
+trait Takes[A]:
+    fn take(self) -> i32
+
+impl Takes[(fn(i32) -> i32)?] for i32:
+    fn take(self) -> i32: self
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn mkf[U]() -> (fn(U) -> i32)?:
+    .None
+
+fn go(n: i32) -> i32:
+    let f = mkf()
+    let r = need(n, f)
+    let fixed: (fn(i32) -> i32)? = f
+    r
+
+pub fn main() -> void:
+    pass

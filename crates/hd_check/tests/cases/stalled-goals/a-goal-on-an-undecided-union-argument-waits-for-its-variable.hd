@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# A trait goal whose argument is a union holding an undecided variable
+# (`(?U | i32)?`) is canonicalized through the union and, with only a
+# row for `(string | i32)?`, waits on the union's variable. The later
+# annotation decides it, and the goal then holds: no diagnostic.
+trait Takes[A]:
+    fn take(self) -> i32
+
+impl Takes[(string | i32)?] for i32:
+    fn take(self) -> i32: self
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn none_u[U]() -> (U | i32)?:
+    .None
+
+fn go(n: i32) -> i32:
+    let e = none_u()
+    let r = need(n, e)
+    let fixed: (string | i32)? = e
+    r
+
+pub fn main() -> void:
+    pass
