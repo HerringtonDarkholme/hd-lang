@@ -1,9 +1,10 @@
-# test: an unconstrained generic argument waits for the deciding use
+# test: an unconstrained generic argument waits for the deciding use, so an i64 comparison after the call decides it
+# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.obligation.
 
 fn show[T < Display](value: T) -> string:
     "$value"
 
-fn run(items: List[string]) -> bool:
+fn run(limit: i64) -> bool:
     let i = 0
     let text = show(i)
-    i < items.len()
+    i < limit

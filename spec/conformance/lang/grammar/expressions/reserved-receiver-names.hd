@@ -1,3 +1,4 @@
+# test: self and Self parse as receiver names, while test, derive, pack and map_list stay ordinary function names
 trait Named:
     fn name(self) -> string
     fn clone_name(self) -> Self

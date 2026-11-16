@@ -1,9 +1,9 @@
-# test: a usize bound fixes a range's open variable at construction
+# test: an i64 bound fixes a range's open bound at construction, and the range's start keeps that type
+# Spec 04 Open Literal Width: types.literal.local.form.index.
 
-fn first(count: usize) -> usize:
+fn first(count: i64) -> i64:
     let span = 0..count
-    let start: usize = span.start
-    let last: usize = 0
+    let last = span.start
     for i in 0..count:
         last = i
-    start + last
+    last

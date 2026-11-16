@@ -1,4 +1,5 @@
-# test: a same-line test body cannot hold a multi-name let
+# test: a test case's trailing block cannot start its body on the header line, even with a let
+# Spec 02 Trailing Blocks: grammar.call.trailing-block.next-line.
 fn pair() -> (i32, i32): (1, 2)
 
 tests:

@@ -1,4 +1,4 @@
-# test: `map` reads each element behind `&self` while the function it calls writes through a reference, and each element read keeps its text
+# test: `map` reads each element behind `&self` while the callback it calls writes a captured local, and each element read keeps its text
 # Spec lang/04-type-system.md: types.coll.value, types.coll.copy-on-write.
 # expect-stdout: first1! second2!
 # expect-stdout: first1 second2

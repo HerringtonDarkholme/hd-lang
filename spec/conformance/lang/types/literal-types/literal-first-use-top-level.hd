@@ -1,4 +1,5 @@
-# test: top-level statements fix an open variable in source order
+# test: a top-level let is a body of its own, so its open literal takes the default usize there, which later usize uses meet
+# Spec 04 Open Literal Width: types.literal.local.class.open, types.literal.local.default.
 
 let names: List[string] = ["Ada"]
 let count = 0

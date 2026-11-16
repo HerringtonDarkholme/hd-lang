@@ -9,6 +9,14 @@ struct Cell:
 trait Source:
     fn pull!(self) -> i32?
 
+trait Clock
+
+fn timed() -> i32 $ Clock:
+    1
+
+fn same[T](x: T) -> T:
+    x
+
 fn tokens(a: i32, b: i32, c: bool, xs: List[i32], t: (i32, i32)) -> i32?:
     _ := a + b
     _ := a - b
@@ -55,6 +63,7 @@ fn tokens(a: i32, b: i32, c: bool, xs: List[i32], t: (i32, i32)) -> i32?:
     _ := { "k": a }
     _ := fn(x: i32) -> i32: x
     _ := t._0
+    _ := same::[i32](a)
     _ := maybe()?
     match a:
         0 => value

@@ -1,7 +1,8 @@
-# test: the first comparison with a usize length fixes an open integer variable
+# test: the first comparison with an i64 bound fixes an open integer variable
+# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.form.operand.
 
-fn count(items: List[string]) -> usize:
+fn count(length: i64) -> i64:
     let i = 0
-    while i < items.len():
+    while i < length:
         i = i + 1
     i

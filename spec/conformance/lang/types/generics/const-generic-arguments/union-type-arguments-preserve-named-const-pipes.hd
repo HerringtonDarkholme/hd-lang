@@ -11,10 +11,20 @@ struct Tag[N < const u32]:
 fn tag[N < const u32]() -> Tag[N]:
     Tag {}
 
+struct Done: pass
+
+struct Failed: pass
+
+struct Slot[T]:
+    value: T
+
 pub fn main() -> void $ Console:
     let first: Tag[5u32] = tag::[LEFT | RIGHT]()
     let flat: Tag[13u32] = tag::[LEFT | RIGHT | OTHER]()
     let nested: Tag[13u32] = tag::[(LEFT | (RIGHT | OTHER))]()
     let expression: Tag[7u32] = tag::[LEFT | (RIGHT + 2)]()
     let scalar: Tag[1u32] = tag::[LEFT | (0u32)]()
-    println("ok")
+    let either: Slot[Done | Failed] = Slot { value: ._1(Failed {}) }
+    match either.value:
+        ._0(_) => println("done")
+        ._1(_) => println("ok")

@@ -1,4 +1,4 @@
-# test: const arguments of an i16 slot wrap a bitwise not, keep a unary plus and compare integers
+# test: const arguments of an i16 slot evaluate a bitwise not, keep a unary plus and compare integers
 # Spec 04 Const Generic Arguments: types.generic.const.operator-set.
 
 struct Fixed[N < const i16]:

@@ -1,4 +1,4 @@
-# test: m[k].push(x) changes the map's list in place, so building a map of 10,000 lists takes linear time
+# test: m[k].push(x) changes the map's list in place, also across 10,000 keys with three pushes each
 # Spec 04 Collection Values: types.coll.nested, types.coll.map-value.
 
 tests:

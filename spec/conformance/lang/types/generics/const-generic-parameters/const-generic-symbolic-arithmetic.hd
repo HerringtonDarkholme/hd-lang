@@ -3,5 +3,8 @@
 
 struct Fixed[N < const usize]: pass
 
+fn alone[N < const usize]() -> Fixed[N]:
+    Fixed {}
+
 fn symbolic[N < const usize]() -> void:
     let value: Fixed[N + 1] = panic("not run") # diagnostic: nonconstant-generic-argument

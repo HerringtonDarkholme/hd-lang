@@ -7,5 +7,4 @@ fn sorted_by_key[T, K < Ord](items: List[T], key: fn(T) -> K) -> List[T]:
     items
 
 fn by_name() -> List[Pet]:
-    pets := [Pet { name: "Rex" }, Pet { name: "Ada" }]
-    sorted_by_key(pets, fn(pet: Pet) -> string: pet.name)
+    sorted_by_key([Pet { name: "Rex" }, Pet { name: "Ada" }], fn(pet: Pet) -> string: pet.name)

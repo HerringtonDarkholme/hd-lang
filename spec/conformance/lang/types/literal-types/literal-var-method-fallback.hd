@@ -1,4 +1,5 @@
-# test: a method that several widths provide waits for the end of the body, where the signed group's fallback i32 has it
+# test: a method call settles an open signed variable at the call to its default i32, which has the method
+# Spec 04 Open Literal Width: types.literal.local.method, types.literal.local.default.
 
 use std.ops.Neg
 

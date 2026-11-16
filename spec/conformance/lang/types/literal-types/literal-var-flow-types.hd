@@ -15,3 +15,11 @@ fn build() -> void:
     let pair = Pair { first: 1, second: 2 }
     let both = (1, 2.5)
     let same = identity(7)
+    let low: i64 = span.start
+    let head: u8 = xs[0]
+    let score: f32 = scores["Ada"]
+    let inner: i16? = found
+    let left: u64 = pair.first
+    let number: i8 = both._0
+    let ratio: f32 = both._1
+    let copied: u16 = same

@@ -1,4 +1,5 @@
-# test: a method that every integer width provides decides nothing
+# test: a method call settles an open integer variable at the call to its default usize, which the later usize comparison meets
+# Spec 04 Open Literal Width: types.literal.local.method.
 
 fn run(items: List[string]) -> bool:
     let i = 0

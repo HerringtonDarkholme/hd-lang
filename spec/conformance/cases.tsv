@@ -1191,7 +1191,7 @@ lang/requirements/provider-scopes/prefix-context-spread-in-scope.hd	parse	reject
 lang/requirements/provider-scopes/prefix-context-spread-in-context.hd	parse	reject:syntax-error	lang/11-requirements-and-suspension.md#provider-scopes
 lang/lexical/literals/stray-dollar.hd	parse	accept	lang/01-lexical-structure.md#r-lex.interp.dollar-text
 lang/grammar/statements/same-line-suite-comma.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
-lang/grammar/statements/same-line-let-comma.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
+lang/grammar/statements/same-line-let-comma.hd	parse	reject:syntax-error	lang/02-grammar.md#trailing-blocks
 lang/grammar/statements/discard-binding-ends-in-suite.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
 lang/grammar/statements/return-binding-ends-in-suite.hd	parse	reject:syntax-error	lang/02-grammar.md#statements
 lang/lexical/literals/raw-string-escaped-quote.hd	parse	accept	lang/01-lexical-structure.md#r-lex.prefix.backslash
@@ -3739,6 +3739,7 @@ lang/types/literal-types/sign-fallback-separate-groups.hd	type	accept	lang/04-ty
 lang/traits/method-resolution/sign-fallback-no-instantiation.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-apply
 lang/types/literal-types/literal-one-fit-bound.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet
 lang/types/literal-types/literal-one-fit-receiver.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.receiver
+lang/types/literal-types/literal-one-fit-receiver-unannotated.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.literal.local.method
 lang/expressions/unary-and-binary-operators/operator-traits/literal-one-fit-left-operand.hd	type	accept	lang/05-expressions.md#r-expr.op.left-literal.join
 lang/types/literal-types/literal-several-fit-bound.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.class.once
 lang/types/literal-types/literal-fallback-hint.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.local.hint

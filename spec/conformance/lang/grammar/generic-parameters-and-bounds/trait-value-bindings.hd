@@ -1,4 +1,4 @@
-# test: a named type may end its arguments with associated type bindings, as a trait value type does
+# test: a trait value type may end its arguments with associated type bindings in a field, a list element, a parameter and an annotation
 # Spec 02 Associated Type Bindings In Bounds: grammar.generic.binding.positions-key.reference-values (owner decision AT2).
 
 trait Supplier:

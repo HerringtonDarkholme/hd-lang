@@ -1,4 +1,4 @@
-# test: a copy marker after a field label and the copy assignment token parse, also in a same-line suite
+# test: an embedded part labelled in a literal and assigned by its type name parses, also in a same-line suite
 struct Timestamps:
     created_at: i32
     updated_at: i32

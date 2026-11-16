@@ -1,8 +1,8 @@
 # test: a use inside a closure body decides at its source position
+# Spec 04 Open Literal Width: types.literal.local.statement, types.literal.local.block.
 
-fn run(items: List[string]) -> bool:
+fn run(limit: i64) -> bool:
     let i = 0
-    at_end := fn() -> bool: i == items.len()
+    at_end := fn() -> bool: i == limit
     i = i + 1
-    let index: usize = i
     at_end()

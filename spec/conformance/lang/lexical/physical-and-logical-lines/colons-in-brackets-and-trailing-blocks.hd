@@ -1,4 +1,4 @@
-# test: colons in maps, data fields, and type annotations open no suite, while a trailing-block colon is accepted only at depth zero
+# test: colons in maps, data fields, and type annotations open no suite, while a trailing-block colon at depth zero opens a block
 # Spec 01 Suite-Introducing Colons: lex.colon.cooperate, lex.colon.ordinary, lex.colon.trailing-block, lex.block.header.
 # expect-stdout: 2 entries, ada
 # expect-stdout: 2

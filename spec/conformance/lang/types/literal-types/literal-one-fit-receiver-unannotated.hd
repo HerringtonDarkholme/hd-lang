@@ -1,0 +1,12 @@
+# test: an implementation for i64 alone does not give an unannotated literal receiver its width, so the receiver keeps the default usize
+# Spec 04 Open Literal Width: types.literal.local.method, types.literal.local.default.
+trait Halve:
+    fn halve(self) -> Self
+
+impl Halve for i64:
+    fn halve(self) -> i64:
+        self / 2
+
+fn run() -> i64:
+    let n = 10
+    n.halve() # diagnostic: unknown-method
