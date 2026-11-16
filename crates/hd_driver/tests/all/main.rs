@@ -66,6 +66,7 @@ mod session_store;
 mod std_drop_invariant;
 mod std_interfaces;
 mod std_stages;
+mod struct_chain_size;
 mod structure_run;
 mod structure_specialize;
 mod suspension_frame_work;

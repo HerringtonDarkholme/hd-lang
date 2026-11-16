@@ -294,9 +294,10 @@ pub enum Part {
     /// whose frame counts such objects.
     Lent,
     /// `(arguments, providers) -> results` with each parameter of
-    /// `crate::emit::indirect::params` as its address: the worker that
-    /// direct calls make (#2031). The instance's own symbol is then its
-    /// leaf-ABI wrapper.
+    /// `crate::emit::indirect::params` as its address, and, for a result
+    /// passed by address, `(arguments, providers, block) -> ()`: the
+    /// worker that direct calls make (#2031). The instance's own symbol is
+    /// then its leaf-ABI wrapper.
     Indirect,
 }
 
@@ -1203,7 +1204,7 @@ pub struct Module {
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) boundary_counts: Vec<Option<crate::emit::BoundaryCell>>,
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
-    /// Per instance, the parameters its worker takes by address, once
+    /// Per instance, what its worker takes or gives by address, once
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params:
         hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,

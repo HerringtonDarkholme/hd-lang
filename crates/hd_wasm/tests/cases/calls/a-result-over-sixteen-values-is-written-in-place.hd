@@ -1,0 +1,37 @@
+# @dump: wat
+# A function whose result is a struct of more than 16 values that counts
+# nothing writes it into a block its caller provides (#2031). `mk_outer`
+# passes its own block plus `inner`'s offset to `mk_inner` and stores
+# `v` alone; `mk_inner` stores each leaf of its literal in place; `main`
+# reserves the block and passes it on to `sum`, loading nothing.
+struct Inner:
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+struct Outer:
+    inner: Inner
+    v: i32
+
+fn mk_inner(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: x }
+
+fn mk_outer(x: i32) -> Outer: Outer { inner: mk_inner(x), v: +100 }
+
+fn sum(t: Outer) -> i32: t.inner.a + t.inner.q + t.v
+
+fn main():
+    println("${sum(mk_outer(+1))}")

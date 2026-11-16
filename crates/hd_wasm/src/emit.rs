@@ -158,11 +158,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
             | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()]),
         indirect: indirect::params(input, m, id),
     };
-    let Some(ps) = own.indirect.clone() else {
+    let Some(abi) = own.indirect.clone() else {
         return body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b);
     };
-    // The worker takes them by address; the instance's own symbol is the
-    // leaf-ABI wrapper (`indirect.rs`).
+    // The worker takes them, or gives its result, by address; the
+    // instance's own symbol is the leaf-ABI wrapper (`indirect.rs`).
     let worker = body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)?;
     let leaves = param_locals(b)
         .into_iter()
@@ -174,7 +174,18 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
             )
         })
         .collect::<StageResult<Vec<_>>>()?;
-    let wrapper = indirect::wrapper(m, own.key, &worker, &ps, &leaves);
+    let results = vals(
+        input.pool,
+        input.env,
+        subst(
+            input.pool,
+            input.env,
+            item,
+            args,
+            input.env.ret(item).unwrap_or(Ty::VOID),
+        ),
+    )?;
+    let wrapper = indirect::wrapper(m, own.key, &worker, &abi, &leaves, results);
     m.define(Sym::Part(own.key, Part::Indirect), worker);
     Ok(wrapper)
 }
@@ -192,7 +203,7 @@ struct Own {
     /// The parameters the item's release summary lends
     /// (`ProgramEnv::lends`): none for a body that only calls the item.
     lends: u64,
-    /// The parameters this body, an instance's worker, takes by address
+    /// What this body, an instance's worker, takes or gives by address
     /// (`indirect.rs`): none for every other body.
     indirect: Option<indirect::Params>,
 }
@@ -335,7 +346,7 @@ fn body_func<'a>(
     // suspending entries use the selected cold argument convention.
     let by_type = own.cold.is_some() || !suspending && (sub != 0 || !input.env.suspends(item));
     for (k, &l) in plocals.iter().enumerate() {
-        if let Some(Some(mem)) = own.indirect.as_ref().map(|ps| ps[k].clone()) {
+        if let Some(Some(mem)) = own.indirect.as_ref().map(|abi| abi.params[k].clone()) {
             let at = shape::u32_of(params.len());
             em.mem_locals.insert(l, (at, mem));
             params.push(Val::I32);
@@ -376,7 +387,17 @@ fn body_func<'a>(
         em.open_ctx = ctx;
     }
     em.open_base = em.providers.len();
-    let results = em.vals(ret)?;
+    // A worker that writes its result takes the block's address last and
+    // returns nothing (`indirect.rs`).
+    if let Some(mem) = own.indirect.as_ref().and_then(|abi| abi.ret.clone()) {
+        em.sret = Some((shape::u32_of(params.len()), mem));
+        params.push(Val::I32);
+    }
+    let results = if em.sret.is_some() {
+        Vec::new()
+    } else {
+        em.vals(ret)?
+    };
     em.results.clone_from(&results);
     let mut fres = results.clone();
     if suspending {
@@ -696,8 +717,18 @@ fn body_func<'a>(
         em.prepare_short_loans(short_loans);
     }
     let root = b.sub_root[sub as usize];
+    em.place_result(em.live_tail(root))?;
+    if !suspending {
+        em.keep = em.kept_results();
+    }
     em.block_into(root, None)?;
     let tail = em.live_tail(root);
+    if let Some((base, mem)) = em.sret.clone()
+        && tail != NONE
+        && !em.diverges(tail)
+    {
+        em.store_result(tail, base, &mem)?;
+    }
     if !results.is_empty() {
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
@@ -1460,6 +1491,19 @@ struct Em<'i, 'a, 'm> {
     forward: hd_base::HashSet<u32>,
     /// Each such read's value: the address local and the field's offset.
     mem_vals: HashMap<u32, (u32, u32)>,
+    /// In a worker that writes its result (`indirect.rs`): the parameter
+    /// holding the block's address, and the result's layout.
+    sret: Option<(u32, crate::layout::Mem)>,
+    /// Each value written in place into that block ([`Em::place_result`]):
+    /// the block's address local and the value's offset there.
+    placed: HashMap<u32, (u32, u32)>,
+    /// Each placed value its emission did write in place.
+    written: hd_base::HashSet<u32>,
+    /// Each call whose result stays in the block it reserves, for the
+    /// next call to take by address ([`Em::kept_results`]).
+    keep: hd_base::HashSet<u32>,
+    /// Each such result's block, given back after that next call.
+    kept_blocks: HashMap<u32, (u32, i32)>,
     /// Adjacent TIR Retains lowered during construction, before the result's
     /// vtable loads. Their statement must not emit the same count again.
     retained_before_result: hd_base::HashSet<u32>,
@@ -1686,6 +1730,11 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             mem_locals: HashMap::default(),
             forward: hd_base::HashSet::default(),
             mem_vals: HashMap::default(),
+            sret: None,
+            placed: HashMap::default(),
+            written: hd_base::HashSet::default(),
+            keep: hd_base::HashSet::default(),
+            kept_blocks: HashMap::default(),
             retained_before_result: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
@@ -2866,6 +2915,14 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::Hook => {}
+            Tag::NewStruct if self.placed.contains_key(&i) => {
+                let fields = self.rec(bw);
+                self.write_in_place(i, &fields)?;
+            }
+            Tag::NewTuple if self.placed.contains_key(&i) => {
+                let members = self.rec(bw);
+                self.write_in_place(i, &members)?;
+            }
             Tag::NewStruct => self.new_data(i, bw)?,
             Tag::CopyStruct => self.copy_data(i, a, bw)?,
             Tag::NewTuple => {
@@ -3311,22 +3368,27 @@ impl Em<'_, '_, '_> {
             return self.call_known_drive(i, ct, args, on);
         }
         let mut worker = None;
+        let mut dest = None;
         if suspends {
             self.push_cold_args(i, args, ct.item, ct.args, None)?;
         } else {
             let params = self.param_tys(ct.key, ct.item, ct.args);
             let lends = self.env().lends(ct.item, ct.args)
                 | promote::promoted_params(self.input, self.m, ct.key);
-            let ws = self.worker_of(ct.key).filter(|ws| {
-                ws.len() == args.len() && params.as_ref().is_some_and(|p| p.len() == args.len())
-            });
-            if let (Some(ws), Some(params)) = (ws, params.as_deref()) {
-                worker = Some(self.push_worker_args(i, args, params, lends, &ws)?);
+            let abi = self.worker_abi(ct.key, args.len(), params.as_deref());
+            if let (Some(abi), Some(params)) = (abi, params.as_deref()) {
+                // The result's block, reserved before the arguments' so
+                // the two give back in order.
+                dest = abi.ret.as_ref().map(|mem| self.result_dest(i, mem));
+                worker = Some(self.push_worker_args(i, args, params, lends, &abi.params)?);
             } else {
                 self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
             }
         }
         let c = self.push_call_providers(i, ct.item, ct.args);
+        if let Some(d) = &dest {
+            self.push_dest(d);
+        }
         // A frame that only awaits in this body, whose
         // reference arguments' locals outlive it, takes no
         // count of their objects (#1355).
@@ -3344,6 +3406,12 @@ impl Em<'_, '_, '_> {
         });
         if let Some(block) = worker {
             self.release_block(block);
+        }
+        let written = dest.is_some_and(|d| self.dest_written(i, d));
+        self.release_kept(i, args);
+        if written {
+            self.release_call_ctx(i, c);
+            return Ok(());
         }
         // A suspending callee called cold returns its frame.
         let ret = if suspends { self.ty(i) } else { ct.ret };

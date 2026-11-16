@@ -1,0 +1,144 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Each form of a function result that is a struct or tuple over 16 values
+# (#2031): a literal written in place, a call written into a field at a
+# nonzero offset, a field of a field, a tuple, mixed leaves, an early
+# `return`, a local returned whole, a match whose arms make the result, a
+# generic instance, a function value and a closure (which call the
+# leaf-ABI wrapper), a result kept in a local, a result passed straight
+# on to a worker (also from a worker's result, and beside a spilled
+# argument), a result in an `Option`, a recursive builder that reads
+# whole fields, a loop of many calls (each gives its block back), and a
+# struct holding a string (which counts, so returns leaves).
+struct Wide:
+    a: i32
+    b: i64
+    c: f64
+    d: u8
+    e: bool
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+    q: i32
+
+struct Mid:
+    tag: i32
+    wide: Wide
+
+struct Top:
+    x: i64
+    mid: Mid
+    y: u8
+
+struct Gen[T]:
+    wide: Wide
+    extra: T
+
+struct Named:
+    name: string
+    a: i32
+    b: i32
+    c: i32
+    d: i32
+    e: i32
+    f: i32
+    g: i32
+    h: i32
+    i: i32
+    j: i32
+    k: i32
+    l: i32
+    m: i32
+    n: i32
+    o: i32
+    p: i32
+
+fn wide(n: i32) -> Wide:
+    Wide { a: n, b: i64(n) * 2, c: 0.5, d: 7, e: true, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: n + 100 }
+
+fn mid(n: i32) -> Mid: Mid { tag: n * 3, wide: wide(n) }
+
+fn top(n: i32) -> Top: Top { x: i64(n) * 1000, mid: mid(n + 1), y: 9 }
+
+fn sum(w: Wide) -> i64:
+    let flag: i64 = if w.e: 1 else: 0
+    i64(w.a) + w.b + i64(w.d) + flag + i64(w.q) + i64(w.c * 4.0)
+
+fn top_sum(t: Top) -> i64: sum(t.mid.wide) + i64(t.mid.tag) + t.x + i64(t.y)
+
+fn early(n: i32) -> Wide:
+    if n < 0:
+        return wide(0 - n)
+    wide(n * 2)
+
+fn held(n: i32) -> Wide:
+    let w = wide(n)
+    w
+
+fn picked(n: i32) -> Wide:
+    match n:
+        0 => wide(40)
+        1 => Wide { a: +1, b: 2, c: 1.5, d: 3, e: false, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17 }
+        _ => held(n)
+
+fn tuple(n: i32) -> (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32):
+    (n, +2, +3, +4, +5, +6, +7, +8, +9, +10, +11, +12, +13, +14, +15, +16, n + 17)
+
+fn gen[T](n: i32, extra: T) -> Gen[T]: Gen { wide: wide(n), extra: extra }
+
+fn build(n: i32) -> Mid:
+    if n == 0:
+        return mid(1)
+    let m = build(n - 1)
+    Mid { tag: m.tag + 1, wide: m.wide }
+
+fn maybe(n: i32) -> Option[Wide]:
+    if n > 0: .Some(wide(n)) else: .None
+
+fn named(n: i32) -> Named:
+    Named { name: "n", a: n, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: n + 16 }
+
+fn apply(f: fn(i32) -> Wide, n: i32) -> i64: sum(f(n))
+
+fn grow(w: Wide) -> Wide:
+    Wide { a: w.a + 1, b: w.b, c: w.c, d: w.d, e: w.e, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: w.q + 1 }
+
+fn pair(x: Wide, y: Wide) -> i64: sum(x) * 1000 + sum(y)
+
+pub fn main() -> void $ Console:
+    println("${sum(wide(1))}")
+    println("${top_sum(top(2))}")
+    let t = top(3)
+    println("${t.x} ${t.mid.tag} ${t.mid.wide.q} ${t.y}")
+    println("${sum(early(-4))} ${sum(early(4))}")
+    println("${sum(held(5))}")
+    println("${sum(picked(0))} ${sum(picked(1))} ${sum(picked(6))}")
+    let tu = tuple(7)
+    println("${tu._0} ${tu._16}")
+    let g = gen(8, "x")
+    println("${sum(g.wide)} ${g.extra}")
+    let b = build(4)
+    println("${b.tag} ${sum(b.wide)}")
+    match maybe(9):
+        .Some(w) => println("${sum(w)}")
+        .None => println("none")
+    let nm = named(10)
+    println("${nm.name} ${nm.a + nm.p}")
+    println("${apply(wide, 11)}")
+    let make: fn(i32) -> Wide = fn(n) -> Wide:
+        wide(n + 1)
+    println("${sum(make(11))}")
+    println("${sum(grow(grow(wide(12))))}")
+    println("${pair(wide(13), wide(14))}")
+    let total = 0
+    for k in 0..200000:
+        total += sum(wide(k % 7)) + sum(grow(wide(k % 3)))
+    println("${total}")

@@ -263,6 +263,14 @@ impl Em<'_, '_, '_> {
     /// function counts, in the result locals, then out through the exit
     /// ladders of the scopes it leaves and the function's one exit.
     pub(super) fn ret_value(&mut self, a: u32, borrowed: bool) -> StageResult<()> {
+        // A worker that writes its result stores it in its caller's block
+        // and returns nothing (`indirect.rs`).
+        if let Some((base, mem)) = self.sret.clone()
+            && a != NONE
+        {
+            self.store_result(a, base, &mem)?;
+            return self.ret_value(NONE, borrowed);
+        }
         let crossing = self.ctl.last_scope().is_some();
         if !self.counting && !crossing {
             if a != NONE {
