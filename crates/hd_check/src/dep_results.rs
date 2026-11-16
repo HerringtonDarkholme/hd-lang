@@ -4402,69 +4402,170 @@ fn first_block(p: NodeRef<'_>) -> Option<NodeRef<'_>> {
     p.children().find(|c| c.kind() == SyntaxKind::Block)
 }
 
+/// The nearest ancestor of a kind a climb asks for, with its child on the
+/// path; `None` when the climb reached the root.
+type Above = Option<(NodeIdx, NodeIdx)>;
+
+/// One body's scope questions ([`scope_of`]): what a climb from each node
+/// found above it, memoized per node, as rustc's region `ScopeTree` gives
+/// each node its parent scope once. A question climbs only the nodes no
+/// earlier question of the body climbed, then reads the memo, so the
+/// questions of a body cost the nodes between its bindings and their
+/// scopes once, not each binding's depth.
+struct ScopeIndex<'t> {
+    tree: &'t GreenTree,
+    /// The nearest node that may end a binding's scope search: a `let`,
+    /// a binding expression, a `match` arm, a `for`, a comprehension's
+    /// `for`, a block, a closure or a function.
+    anchor: HashMap<u32, Above>,
+    /// The nearest block, closure or function: a suite.
+    suite: HashMap<u32, Above>,
+    /// The loop whose every iteration runs the node, if no closure or
+    /// function comes first.
+    lp: HashMap<u32, Option<(u32, u32)>>,
+}
+
+/// The answer above node `n`: the memo's, or a climb up the parent links
+/// until `stop` answers for a parent and its child on the path, `top` at
+/// the root. Every node climbed takes the answer. Linear in the nodes
+/// climbed, each once per memo.
+fn climb<A: Copy>(
+    tree: &GreenTree,
+    memo: &mut HashMap<u32, A>,
+    n: NodeIdx,
+    top: A,
+    stop: impl Fn(NodeRef<'_>, NodeRef<'_>) -> Option<A>,
+) -> A {
+    let mut climbed = Vec::new();
+    let mut cur = n;
+    let answer = loop {
+        if let Some(&a) = memo.get(&cur.raw()) {
+            break a;
+        }
+        crate::work::scan_work(1);
+        climbed.push(cur.raw());
+        let Some(up) = tree.parent(cur) else {
+            break top;
+        };
+        if let Some(a) = stop(tree.node(up), tree.node(cur)) {
+            break a;
+        }
+        cur = up;
+    };
+    memo.extend(climbed.into_iter().map(|c| (c, answer)));
+    answer
+}
+
+impl<'t> ScopeIndex<'t> {
+    fn new(tree: &'t GreenTree) -> Self {
+        ScopeIndex {
+            tree,
+            anchor: HashMap::default(),
+            suite: HashMap::default(),
+            lp: HashMap::default(),
+        }
+    }
+
+    fn anchor(&mut self, n: NodeIdx) -> Above {
+        climb(self.tree, &mut self.anchor, n, None, |p, c| {
+            matches!(
+                p.kind(),
+                SyntaxKind::LetStmt
+                    | SyntaxKind::BindingExpr
+                    | SyntaxKind::MatchArm
+                    | SyntaxKind::ForExpr
+                    | SyntaxKind::ComprehensionFor
+                    | SyntaxKind::Block
+                    | SyntaxKind::ClosureExpr
+                    | SyntaxKind::FnDecl
+            )
+            .then_some(Some((p.index(), c.index())))
+        })
+    }
+
+    fn suite(&mut self, n: NodeIdx) -> Above {
+        climb(self.tree, &mut self.suite, n, None, |p, c| {
+            matches!(
+                p.kind(),
+                SyntaxKind::Block | SyntaxKind::ClosureExpr | SyntaxKind::FnDecl
+            )
+            .then_some(Some((p.index(), c.index())))
+        })
+    }
+
+    /// The loop whose every iteration runs node `n`: a `for` or `while`
+    /// whose head or body holds it, or a comprehension; none past a
+    /// closure or a function.
+    fn lp(&mut self, n: NodeIdx) -> Option<(u32, u32)> {
+        let own = self.tree.node(n);
+        match own.kind() {
+            SyntaxKind::ComprehensionExpr => return Some(range(own)),
+            SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => return None,
+            _ => {}
+        }
+        climb(self.tree, &mut self.lp, n, None, |p, c| match p.kind() {
+            SyntaxKind::ForExpr | SyntaxKind::WhileExpr => {
+                let head = p.children().next().map(NodeRef::index);
+                let body = first_block(p).map(NodeRef::index);
+                [head, body]
+                    .contains(&Some(c.index()))
+                    .then_some(Some(range(p)))
+            }
+            SyntaxKind::ComprehensionExpr => Some(Some(range(p))),
+            SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => Some(None),
+            _ => None,
+        })
+    }
+}
+
 /// The scope of origin `o`, declared at node `n`. A `let`, `:=` or
 /// pattern binding is in scope from the end of its statement or binding
 /// to the end of its suite, a `match` arm's in its arm, a `for` pattern's
 /// in the loop body, and a comprehension's in the comprehension. A
 /// temporary or a compiler local is in scope from the start of its
 /// statement to the end of its suite (`ref.dep.scope.temporary`).
-fn scope_of(tree: &GreenTree, n: NodeIdx, temp: bool) -> Option<Scope> {
+///
+/// From `n` itself, then the nearest node that can decide (`anchor`), at
+/// most twice: a `let` sets the start, and its suite (`suite`) the end.
+/// Memo reads after the first climb of each node ([`ScopeIndex`]).
+fn scope_of(ix: &mut ScopeIndex<'_>, n: NodeIdx, temp: bool) -> Option<Scope> {
+    let tree = ix.tree;
     let x = n.raw();
-    // The nodes from the root down to `n`: its ancestors by their parent
-    // links, in the depth of `n`, not the siblings scanned at each level.
-    let mut path = vec![tree.node(n)];
-    while let Some(up) = path.last().and_then(|p| tree.parent(p.index())) {
-        path.push(tree.node(up));
-    }
-    path.reverse();
-    crate::work::scan_work(path.len());
+    let lp = ix.lp(n);
     let mut lo = temp.then_some(x);
-    let mut region = None;
-    let mut lp = None;
-    let mut looped = false;
-    for k in (0..path.len()).rev() {
-        let p = path[k];
+    // The node asked and its child on the path from `n`.
+    let mut at = (n, None);
+    loop {
+        let p = tree.node(at.0);
         let (pl, ph) = range(p);
-        let up = k.checked_sub(1).map(|j| path[j]);
-        // The loop whose every iteration runs the declaration.
-        if !looped {
-            let per_iteration = |p: NodeRef<'_>| {
-                let head = p.children().next().map(range);
-                let body = first_block(p).map(range);
-                [head, body].iter().flatten().any(|&(l, h)| l <= x && x < h)
-            };
-            match p.kind() {
-                SyntaxKind::ForExpr | SyntaxKind::WhileExpr if per_iteration(p) => {
-                    lp = Some((pl, ph));
-                    looped = true;
-                }
-                SyntaxKind::ComprehensionExpr => {
-                    lp = Some((pl, ph));
-                    looped = true;
-                }
-                SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => looped = true,
-                _ => {}
+        let region = match p.kind() {
+            SyntaxKind::LetStmt | SyntaxKind::BindingExpr if lo.is_none() => {
+                lo = Some(ph);
+                None
             }
-        }
-        if region.is_some() {
-            continue;
-        }
-        match p.kind() {
-            SyntaxKind::LetStmt | SyntaxKind::BindingExpr if lo.is_none() => lo = Some(ph),
-            SyntaxKind::MatchArm if lo.is_none() => region = Some((pl, ph)),
-            SyntaxKind::ForExpr if lo.is_none() => region = first_block(p).map(range),
-            SyntaxKind::ComprehensionFor if lo.is_none() => region = up.map(range),
+            SyntaxKind::MatchArm if lo.is_none() => Some((pl, ph)),
+            SyntaxKind::ForExpr if lo.is_none() => first_block(p).map(range),
+            SyntaxKind::ComprehensionFor if lo.is_none() => {
+                tree.parent(p.index()).map(|u| range(tree.node(u)))
+            }
             SyntaxKind::Block | SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => {
                 // A temporary's statement uses it from its start.
-                let stmt = path.get(k + 1).map(|c| c.index().raw());
                 let lo = lo?;
-                region = Some((if temp { stmt.unwrap_or(lo) } else { lo }, ph));
+                let stmt = at.1.map(NodeIdx::raw);
+                Some((if temp { stmt.unwrap_or(lo) } else { lo }, ph))
             }
-            _ => {}
+            _ => None,
+        };
+        if let Some((lo, hi)) = region {
+            return Some(Scope { lo, hi, lp });
         }
+        let (up, child) = if lo.is_none() {
+            ix.anchor(at.0)?
+        } else {
+            ix.suite(at.0)?
+        };
+        at = (up, Some(child));
     }
-    let (lo, hi) = region?;
-    Some(Scope { lo, hi, lp })
 }
 
 /// `ref.dep.scope`: each use of a value with a local's origin lies in
@@ -4477,7 +4578,7 @@ fn scoped_uses(
     skip: &HashSet<u32>,
     uses: &dyn Fn(u32) -> Vec<(Option<Origin>, Origin)>,
 ) -> Vec<(NodeIdx, String)> {
-    let tree = &cx.src.parse.tree;
+    let mut ix = ScopeIndex::new(&cx.src.parse.tree);
     let mut scopes: HashMap<Origin, Option<Scope>> = HashMap::default();
     let mut bad: Vec<(NodeIdx, Origin, Option<Origin>, bool, u32)> = Vec::new();
     for i in 0..b.tags.len() {
@@ -4491,7 +4592,7 @@ fn scoped_uses(
             }
             let Some(sc) = *scopes
                 .entry(o)
-                .or_insert_with(|| decl_node(b, cx, o).and_then(|(n, t)| scope_of(tree, n, t)))
+                .or_insert_with(|| decl_node(b, cx, o).and_then(|(n, t)| scope_of(&mut ix, n, t)))
             else {
                 continue;
             };

@@ -1,0 +1,51 @@
+# @dump: diagnostics
+# Each binding form's scope, found by the memoized climb of #1938: a binding
+# deep in a tuple pattern, `:=` in a block and in a `while` body, a
+# `match` arm's, a `for` pattern's, and `:=` inside a local function.
+fn deep_pattern(x: (i32, (i32, (i32, i32)))) -> i32:
+    let r: &i32 = &x._0
+    if x._0 > 0:
+        let (a, (b, (c, d))) = x
+        r = &c
+    *r
+
+fn walrus_in_block(x: i32) -> i32:
+    let r: &i32 = &x
+    if x > 0:
+        c := x + 1
+        r = &c
+    *r
+
+fn walrus_in_while(x: i32) -> i32:
+    let r: &i32 = &x
+    let i = +0
+    while i < 3:
+        c := i + 1
+        if i == 0:
+            r = &c
+        i += *r
+    i
+
+fn arm_binding(o: i32?) -> i32:
+    let t = +0
+    let r: &i32 = &t
+    match o:
+        .Some(v) => r = &v
+        .None => r = &t
+    *r
+
+fn loop_pattern(xs: List[(i32, i32)]) -> i32:
+    let t = +0
+    let r: &i32 = &t
+    for (a, b) in xs:
+        r = &b
+    *r
+
+fn in_closure(x: i32) -> i32:
+    let f = fn(y: i32) -> i32:
+        let r: &i32 = &y
+        if y > 0:
+            c := y + 1
+            r = &c
+        *r
+    f(x)

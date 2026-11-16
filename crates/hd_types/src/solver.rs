@@ -1172,7 +1172,7 @@ impl GlobalMemo {
     }
 
     /// The copy blocker published for the closed type `t`, if any
-    /// ([`Self::publish_copy_blocker`]).
+    /// ([`Self::publish_copy_blockers`]).
     #[must_use]
     pub fn copy_blocker(&self, t: Ty) -> Option<Option<Ty>> {
         self.copy_blockers
@@ -1182,24 +1182,15 @@ impl GlobalMemo {
             .copied()
     }
 
-    /// Publishes the copy blocker of the closed type `t`: the first
-    /// writer wins, and every writer computed the same answer.
-    pub fn publish_copy_blocker(&self, t: Ty, blocker: Option<Ty>) {
-        self.copy_blockers
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .entry(t)
-            .or_insert(blocker);
-    }
-
-    /// Publishes one copy blocker for each of the closed types `ts`, under
-    /// one lock ([`Self::publish_copy_blocker`]).
-    pub fn publish_copy_blockers(&self, ts: impl IntoIterator<Item = Ty>, blocker: Option<Ty>) {
+    /// Publishes the copy blocker of each closed type of `answers`, under
+    /// one lock: the first writer wins, and every writer computed the same
+    /// answer.
+    pub fn publish_copy_blockers(&self, answers: impl IntoIterator<Item = (Ty, Option<Ty>)>) {
         let mut m = self
             .copy_blockers
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        for t in ts {
+        for (t, blocker) in answers {
             m.entry(t).or_insert(blocker);
         }
     }

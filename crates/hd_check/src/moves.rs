@@ -54,127 +54,249 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
     }
 }
 
+/// A member type's own answer ([`blocker`]): the blocker it holds, if
+/// any, and whether that answer depends on the body (`open`).
+#[derive(Clone, Copy)]
+pub(crate) struct CopyAnswer {
+    pub blocker: Option<Ty>,
+    pub open: bool,
+}
+
+/// One type the walk of [`blocker`] has entered and not finished: its
+/// member types not yet asked, its answer so far, and the shallowest
+/// stack level a member on the stack (a cycle) reached.
+struct CopyFrame {
+    t: Ty,
+    members: Vec<Ty>,
+    next: usize,
+    answer: CopyAnswer,
+    low: usize,
+}
+
+/// What `t` holds by itself, before its member types: a blocker, or the
+/// member types to ask in field order. A `*mut T` and a `&T` copy.
+fn copy_step(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
+    let (pool, lookup, relaxed) = cx;
+    match pool.get(t) {
+        TyData::Ref {
+            mutable, counted, ..
+        } => Ok((mutable && !counted).then_some(t)),
+        TyData::Tuple { elems, rest } => {
+            Err(pool.list_items(elems).iter().copied().chain(rest).collect())
+        }
+        TyData::Union(ms) => Err(pool.list_items(ms).to_vec()),
+        TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
+        TyData::Param(p) => Ok((!param_copies((pool, lookup), p)).then_some(t)),
+        TyData::Assoc { assoc, .. } => {
+            let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
+                ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
+                    pool.trait_value(bound).is_some_and(|(trait_, _)| {
+                        lookup
+                            .item(trait_)
+                            .is_some_and(hd_resolve::Item::requires_copy)
+                    })
+                }),
+                _ => false,
+            });
+            Ok((!copies).then_some(t))
+        }
+        TyData::Adt { def, args } => {
+            let Some(item) = lookup.item(def) else {
+                return Ok(None);
+            };
+            match item.copy_decl() {
+                CopyDecl::Copies => Ok(None),
+                CopyDecl::NotCopy => Ok(Some(t)),
+                CopyDecl::Members(ms) => {
+                    let argv = pool.list_items(args);
+                    Err(ms
+                        .iter()
+                        .map(|&m| {
+                            pool.subst(m, &|p| {
+                                (p.owner == def)
+                                    .then(|| argv.get(p.index as usize).copied())
+                                    .flatten()
+                            })
+                        })
+                        .collect())
+                }
+            }
+        }
+        // Values that copy, or hold no value of their own here.
+        TyData::Prim(_)
+        | TyData::Never
+        | TyData::Poison
+        | TyData::Fn { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Opaque { .. }
+        | TyData::Const(_)
+        | TyData::Infer(_)
+        | TyData::Canon(_)
+        | TyData::Row(_)
+        | TyData::Context(_) => Ok(None),
+    }
+}
+
 /// The part of `t` that keeps a value of it from being copied
 /// (`ref.move.holds`, `ref.copy.structure`): a `&mut`, a type declared
 /// `!Copy`, or a type parameter that is not `Copy`, held by value in a
-/// struct, enum, tuple, optional or union. A `*mut T` and a `&T` copy.
+/// struct, enum, tuple, optional or union: the first one in field order.
 /// `relaxed` lists the body's local functions' `?Copy` parameters.
 ///
-/// A depth-first walk over a work stack, in field order, that visits each
-/// type once: a type seen before held no blocker, or the walk would have
-/// stopped. So the work is one step per distinct member type, at any
-/// nesting depth. `open` is set when the walk met a type parameter or a
-/// projection, whose answer depends on the body: the answer of a walk
-/// that left it clear holds in every body ([`Ck::not_copied_by`]).
-///
-/// `known` answers a member type asked before (#1918, #1924): a known
-/// `None` skips its subtree, a known blocker is the walk's, since every
-/// member before it in field order was walked clear. Each type the walk
-/// visits is pushed on `visited`: when the walk ends clear, each one's
-/// whole subtree was walked clear, and the caller memoizes them all, so
-/// a nest's levels, each asked in turn, walk each type once per run.
+/// An iterative post-order over the member types, as rustc's
+/// `is_copy_raw` query answers each type once and caches it: each type
+/// entered gets its own answer, its first member's blocker in field order
+/// or none, and `done` receives it, clear or blocked, so every level of a
+/// nest is answered by one walk and a later question about any of them is
+/// one probe. `known` answers a member type asked before, and a known
+/// answer is not walked again. A type's answer is `open` when it met a
+/// type parameter or a projection, whose answer depends on the body. A
+/// member already on the stack (a type that holds itself, which the
+/// value rule rejects) counts as clear, as a depth-first walk's visited
+/// set did; the types of that cycle do not reach `done`, since their
+/// answer assumed it. Work: one step per distinct member type entered,
+/// at any depth, with no native recursion.
 fn blocker(
     cx: (Types<'_>, &Lookup<'_>, &[Ty]),
     t: Ty,
     normalize: &mut dyn FnMut(Ty) -> Ty,
-    known: &mut dyn FnMut(Ty) -> Option<Option<Ty>>,
-    open: &mut bool,
-    visited: &mut Vec<Ty>,
-) -> Option<Ty> {
-    let (pool, lookup, relaxed) = cx;
-    let root = t;
-    let mut seen: HashSet<Ty> = HashSet::default();
-    let mut work = vec![t];
-    while let Some(t) = work.pop() {
+    known: &mut dyn FnMut(Ty) -> Option<CopyAnswer>,
+    done: &mut dyn FnMut(Ty, CopyAnswer),
+) -> CopyAnswer {
+    let mut walk = CopyWalk {
+        cx,
+        normalize,
+        known,
+        done,
+        finished: HashMap::default(),
+        on_stack: HashMap::default(),
+        stack: Vec::new(),
+    };
+    match walk.enter(t) {
+        Some((a, _)) => a,
+        None => walk.run(),
+    }
+}
+
+/// The state of one [`blocker`] walk.
+struct CopyWalk<'w, 'p> {
+    cx: (Types<'p>, &'w Lookup<'p>, &'w [Ty]),
+    normalize: &'w mut dyn FnMut(Ty) -> Ty,
+    known: &'w mut dyn FnMut(Ty) -> Option<CopyAnswer>,
+    done: &'w mut dyn FnMut(Ty, CopyAnswer),
+    /// Each type answered by this walk, for a type met twice, with the
+    /// shallowest stack level its answer assumed (`usize::MAX`: none).
+    finished: HashMap<Ty, (CopyAnswer, usize)>,
+    /// Each type entered and not finished, by its stack level.
+    on_stack: HashMap<Ty, usize>,
+    stack: Vec<CopyFrame>,
+}
+
+impl CopyWalk<'_, '_> {
+    /// Asks member type `u`: its answer and the shallowest stack level it
+    /// assumed, or `None` when it was pushed to be walked.
+    fn enter(&mut self, u: Ty) -> Option<(CopyAnswer, usize)> {
         crate::work::scan_work(1);
-        let t = if matches!(pool.get(t), TyData::Assoc { .. }) {
-            *open = true;
-            normalize(t)
+        let pool = self.cx.0;
+        let mut open = false;
+        let u = if matches!(pool.get(u), TyData::Assoc { .. }) {
+            open = true;
+            (self.normalize)(u)
         } else {
-            t
+            u
         };
-        if !seen.insert(t) {
-            continue;
-        }
-        if t != root
-            && let Some(b) = known(t)
+        let depth = self.stack.len();
+        let answered = if let Some(&d) = self.on_stack.get(&u) {
+            Some((
+                CopyAnswer {
+                    blocker: None,
+                    open,
+                },
+                d,
+            ))
+        } else if let Some(&a) = self.finished.get(&u) {
+            Some(a)
+        } else if depth > 0
+            && let Some(a) = (self.known)(u)
         {
-            match b {
-                None => continue,
-                Some(_) => return b,
-            }
+            Some((a, usize::MAX))
+        } else {
+            None
+        };
+        if let Some((a, low)) = answered {
+            let open = a.open || open;
+            return Some((
+                CopyAnswer {
+                    blocker: a.blocker,
+                    open,
+                },
+                low,
+            ));
         }
-        visited.push(t);
-        if matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
-            *open = true;
-        }
-        match pool.get(t) {
-            TyData::Ref {
-                mutable, counted, ..
-            } => {
-                if mutable && !counted {
-                    return Some(t);
-                }
+        open |= matches!(pool.get(u), TyData::Param(_) | TyData::Assoc { .. });
+        match copy_step(self.cx, u) {
+            Ok(blocker) => {
+                let a = CopyAnswer { blocker, open };
+                self.finished.insert(u, (a, usize::MAX));
+                (self.done)(u, a);
+                Some((a, usize::MAX))
             }
-            TyData::Tuple { elems, rest } => {
-                work.extend(rest);
-                work.extend(pool.list_items(elems).iter().rev());
-            }
-            TyData::Union(ms) => work.extend(pool.list_items(ms).iter().rev()),
-            TyData::Param(_) if relaxed.contains(&t) => return Some(t),
-            TyData::Param(p) => {
-                if !param_copies((pool, lookup), p) {
-                    return Some(t);
-                }
-            }
-            TyData::Assoc { assoc, .. } => {
-                let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
-                    ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
-                        pool.trait_value(bound).is_some_and(|(trait_, _)| {
-                            lookup
-                                .item(trait_)
-                                .is_some_and(hd_resolve::Item::requires_copy)
-                        })
-                    }),
-                    _ => false,
+            Err(members) => {
+                self.on_stack.insert(u, depth);
+                self.stack.push(CopyFrame {
+                    t: u,
+                    members,
+                    next: 0,
+                    answer: CopyAnswer {
+                        blocker: None,
+                        open,
+                    },
+                    low: depth,
                 });
-                if !copies {
-                    return Some(t);
-                }
+                None
             }
-            TyData::Adt { def, args } => {
-                let Some(item) = lookup.item(def) else {
-                    continue;
-                };
-                let members = match item.copy_decl() {
-                    CopyDecl::Copies => continue,
-                    CopyDecl::NotCopy => return Some(t),
-                    CopyDecl::Members(ms) => ms,
-                };
-                let argv = pool.list_items(args);
-                work.extend(members.iter().rev().map(|&m| {
-                    pool.subst(m, &|p| {
-                        (p.owner == def)
-                            .then(|| argv.get(p.index as usize).copied())
-                            .flatten()
-                    })
-                }));
-            }
-            // Values that copy, or hold no value of their own here.
-            TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Fn { .. }
-            | TyData::TraitValue { .. }
-            | TyData::Opaque { .. }
-            | TyData::Const(_)
-            | TyData::Infer(_)
-            | TyData::Canon(_)
-            | TyData::Row(_)
-            | TyData::Context(_) => {}
         }
     }
-    None
+
+    /// Walks the frames on the stack to the root's answer: each frame
+    /// takes its member's answer, then asks its next member or finishes.
+    fn run(&mut self) -> CopyAnswer {
+        let mut result: Option<(CopyAnswer, usize)> = None;
+        let mut root = CopyAnswer {
+            blocker: None,
+            open: false,
+        };
+        while let Some(mut top) = self.stack.pop() {
+            if let Some((a, low)) = result.take() {
+                top.answer.open |= a.open;
+                top.low = top.low.min(low);
+                if a.blocker.is_some() {
+                    top.answer.blocker = a.blocker;
+                    top.next = top.members.len();
+                }
+            }
+            if top.next < top.members.len() {
+                let u = top.members[top.next];
+                top.next += 1;
+                self.stack.push(top);
+                result = self.enter(u);
+                continue;
+            }
+            self.on_stack.remove(&top.t);
+            // A clear answer that assumed a type still on the stack is
+            // clear only if that type is: it stays out of the memo.
+            let low = if top.low >= self.stack.len() || top.answer.blocker.is_some() {
+                (self.done)(top.t, top.answer);
+                usize::MAX
+            } else {
+                top.low
+            };
+            self.finished.insert(top.t, (top.answer, low));
+            root = top.answer;
+            result = Some((top.answer, low));
+        }
+        root
+    }
 }
 
 /// Whether type parameter `p` is `Copy`: it has a bound on a trait that
@@ -354,7 +476,9 @@ fn field_prefix(proj: &[Proj]) -> (Vec<u32>, bool) {
 /// the body's local functions and inference stay as they are.
 pub(crate) struct CopyQuery {
     relaxed: Vec<Ty>,
-    memo: HashMap<Ty, Option<Ty>>,
+    /// Each type's answer in this body, and whether it depends on the
+    /// body ([`CopyAnswer`]).
+    memo: HashMap<Ty, CopyAnswer>,
     /// The value rule's decisions under this body's lookup alone
     /// (`crate::value::holds_itself`).
     inline: crate::value::InlineDecls,
@@ -404,63 +528,76 @@ impl Ck<'_, '_> {
 
     /// The part of `t` that keeps it from being copied, from `q`'s memo,
     /// then the run's memo of closed types, then one walk ([`blocker`]).
-    /// A walk that met no parameter or projection on a type with no
-    /// inference variable or body-local part is published to the run's
-    /// memo, so a wide type is walked once per run, not once per body.
+    /// Every type the walk answers enters `q`'s memo, and one whose
+    /// answer met no parameter or projection, with no inference variable
+    /// or body-local part, is published to the run's memo, so a wide or
+    /// deep type is walked once per run, not once per body or per level.
     fn not_copied_in(&mut self, q: &mut CopyQuery, t: Ty) -> Option<Ty> {
-        if let Some(&b) = q.memo.get(&t) {
-            return b;
+        if let Some(a) = q.memo.get(&t) {
+            return a.blocker;
         }
         let pool = self.pool();
-        let closed = !t.is_local() && !pool.has_infer(t) && !pool.has_canon(t);
-        if closed && let Some(b) = self.cx.global.copy_blocker(t) {
-            q.memo.insert(t, b);
-            return b;
+        let closed_ty = |u: Ty| !u.is_local() && !pool.has_infer(u) && !pool.has_canon(u);
+        if closed_ty(t)
+            && let Some(blocker) = self.cx.global.copy_blocker(t)
+        {
+            q.memo.insert(
+                t,
+                CopyAnswer {
+                    blocker,
+                    open: false,
+                },
+            );
+            return blocker;
         }
-        let mut open = false;
-        let mut visited = Vec::new();
         let global = self.cx.global;
         let CopyQuery {
             relaxed,
             memo,
             inline,
         } = q;
-        let closed_ty = |u: Ty| !u.is_local() && !pool.has_infer(u) && !pool.has_canon(u);
         let lookup = self.cx.lookup;
-        let b = blocker(
+        let mut answered: Vec<(Ty, CopyAnswer)> = Vec::new();
+        let a = blocker(
             (pool, lookup, relaxed),
             t,
             &mut |ty| self.norm_ty(ty),
             &mut |u| {
                 memo.get(&u)
                     .copied()
-                    .or_else(|| closed_ty(u).then(|| global.copy_blocker(u)).flatten())
+                    .or_else(|| {
+                        closed_ty(u)
+                            .then(|| global.copy_blocker(u))
+                            .flatten()
+                            .map(|blocker| CopyAnswer {
+                                blocker,
+                                open: false,
+                            })
+                    })
                     // An instance of a declaration the value rule rejects
                     // is not walked: its members may grow without end
                     // (`crate::value::holds_itself`), and it is reported.
                     .or_else(|| {
                         matches!(pool.get(u), TyData::Adt { def, .. }
                             if crate::value::holds_itself(global, inline, pool, lookup, def))
-                        .then_some(None)
+                        .then_some(CopyAnswer {
+                            blocker: None,
+                            open: false,
+                        })
                     })
             },
-            &mut open,
-            &mut visited,
+            &mut |u, a| answered.push((u, a)),
         );
-        if b.is_none() {
-            // Each visited type's subtree was walked clear: in this body
-            // whatever it held, in every body when the walk met no
-            // parameter or projection.
-            memo.extend(visited.iter().map(|&u| (u, None)));
-            if !open {
-                global
-                    .publish_copy_blockers(visited.iter().copied().filter(|&u| closed_ty(u)), None);
-            }
-        } else if closed && !open {
-            global.publish_copy_blocker(t, b);
-        }
-        memo.insert(t, b);
-        b
+        // In this body each answer holds whatever it met; in every body
+        // when it met no parameter or projection.
+        memo.extend(answered.iter().copied());
+        memo.insert(t, a);
+        global.publish_copy_blockers(
+            (answered.iter().copied().chain([(t, a)]))
+                .filter(|&(u, a)| !a.open && closed_ty(u))
+                .map(|(u, a)| (u, a.blocker)),
+        );
+        a.blocker
     }
 
     /// The type parameters of the body's generic local functions declared

@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# #1938: the copy walk of `L` meets `L` again on its stack, through an
+# optional tuple; the walk counts it clear, as a visited set did, and keeps
+# the levels between out of the memo. The value rule reports the struct.
+struct L:
+    v: i32
+    next: (L, i32)?
+
+fn keep(x: L) -> L: x
+
+fn keep_pair(x: (L, i32)) -> (L, i32): x

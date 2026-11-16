@@ -3715,6 +3715,93 @@ fn nested_pattern_copy_questions_walk_each_type_once() {
     });
 }
 
+/// A `!Copy` struct held `n` tuples deep through named aliases
+/// (`type D{i} = (D{i-1}, i32)`), and a function reading a value of each
+/// depth, deepest first: each copy question's answer is a blocker below
+/// every level asked before it.
+fn blocked_tuple_aliases(n: usize) -> String {
+    let mut s = String::from("struct T:\n    n: i32\n\nimpl !Copy for T\n\ntype D0 = (T, i32)\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "type D{i} = (D{}, i32)", i - 1);
+    }
+    for i in (0..=n).rev() {
+        let _ = write!(s, "\nfn pass{i}(x: D{i}) -> D{i}: x\n");
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker: #1938, a copy question whose walk found a blocker memoized
+// only the type asked, so the levels of a nest holding a `!Copy` type,
+// asked from the deepest, each walked down to it again: O(depth^2). Now
+// the walk is a post-order over the member types that memoizes every
+// visited type's own answer, clear or blocked.
+#[test]
+fn blocked_copy_questions_walk_each_type_once() {
+    on_test_stack(|| {
+        let work = |k: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&blocked_tuple_aliases(k), &Goal::Analyze)
+            });
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        // The first build also fills what the run's memo then keeps.
+        work(0);
+        let zero = work(0);
+        let small = work(20) - zero;
+        let large = work(200) - zero;
+        assert!(
+            small > 0 && large <= 12 * small,
+            "scan work over depth 0 at depth 20 and 200: {small} and {large}"
+        );
+    });
+}
+
+/// A tuple pattern nested `n` deep binding `a{i}` at depth `i`, and a
+/// reference to each binding: each reference asks its binding's scope.
+fn referenced_pattern_nest(n: usize) -> String {
+    let ty = format!("{}i32{}", "(i32, ".repeat(n), ")".repeat(n));
+    let value = format!("{}t{}", "(t, ".repeat(n), ")".repeat(n));
+    let mut pattern = String::from("z");
+    for i in (0..n).rev() {
+        pattern = format!("(a{i}, {pattern})");
+    }
+    let mut s = format!(
+        "pub fn main() -> void $ Console:\n    let t = +1\n    let x: {ty} = {value}\n    let {pattern} = x\n"
+    );
+    for i in 0..n {
+        let _ = writeln!(s, "    let r{i} = &a{i}\n    t = t + *r{i}");
+    }
+    s.push_str("    println(\"$t $z\")\n");
+    s
+}
+
+// Checker: #1938, each scope question walked from its binding's node up
+// to the root, so `n` bindings at depths 1..n of one pattern cost
+// O(n^2). Now each node's nearest scope node and loop are memoized for
+// the body, and a question climbs only nodes no earlier question did.
+#[test]
+fn scope_questions_climb_each_node_once() {
+    on_test_stack(|| {
+        let work = |k: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&referenced_pattern_nest(k), &Goal::Analyze)
+            });
+            assert!(!out.diags.has_errors(), "{k}: {}", out.render());
+            work
+        };
+        work(0);
+        let zero = work(0);
+        let small = work(14) - zero;
+        let large = work(140) - zero;
+        assert!(
+            small > 0 && large <= 12 * small,
+            "scan work over depth 0 at depth 14 and 140: {small} and {large}"
+        );
+    });
+}
+
 // Emitter: #1918, the walk for a release's `Drop` calls entered every
 // inline part of each value it released, so each level of an option or
 // tuple nest walked the `i` levels below it: O(depth^2). A part that
