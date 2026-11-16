@@ -420,12 +420,6 @@ fn copy_parts(
             }
         }
     }
-    /// A walked node: still on the open path, or done.
-    #[derive(Clone, Copy)]
-    enum Mark {
-        Open,
-        Done(Left),
-    }
     /// Enter a node, or close it, the innermost open one, once its
     /// parts are done.
     enum Step {
@@ -439,21 +433,23 @@ fn copy_parts(
         }
     }
     /// A parameter or variable met for the first time is left.
-    fn leave(pool: Types<'_>, marks: &mut HashMap<Ty, Mark>, subs: &mut Vec<Ty>, t: Ty) -> Left {
-        match marks.get(&t) {
-            Some(Mark::Done(left)) => *left,
-            Some(Mark::Open) => Left::Unknown,
-            None => {
-                let left = Left::List(pool.list(&[t]));
-                marks.insert(t, Mark::Done(left));
-                subs.push(t);
-                left
-            }
+    fn leave(pool: Types<'_>, marks: &mut HashMap<Ty, Left>, subs: &mut Vec<Ty>, t: Ty) -> Left {
+        if let Some(&left) = marks.get(&t) {
+            return left;
         }
+        let left = Left::List(pool.list(&[t]));
+        marks.insert(t, left);
+        subs.push(t);
+        left
     }
     let start = subs.len();
     let mut stack: Vec<Step> = vec![Step::Enter(root)];
-    let mut marks: HashMap<Ty, Mark> = HashMap::default();
+    // What each entered node leaves. A node on the open path reads
+    // `Unknown` until it closes, so a cycle back to it is not kept. A
+    // cycle is a declaration that holds itself: the checker reports it
+    // and its `copy_decl` answers it as copying, so only another
+    // `Declarations` walks one.
+    let mut marks: HashMap<Ty, Left> = HashMap::default();
     // The open path, each node with what its parts so far leave.
     let mut open: Vec<(Ty, Left)> = Vec::new();
     // Entered nodes with parts and no parameter or variable: on success,
@@ -464,7 +460,7 @@ fn copy_parts(
             Step::Enter(t) => t,
             Step::Close(t) => {
                 let left = open.pop().map_or(Left::Unknown, |(_, left)| left);
-                marks.insert(t, Mark::Done(left));
+                marks.insert(t, left);
                 take(&mut open, left);
                 continue;
             }
@@ -480,16 +476,7 @@ fn copy_parts(
                 continue;
             }
             TyData::Tuple { .. } | TyData::Union(_) | TyData::Adt { .. } => {
-                if let Some(&mark) = marks.get(&t) {
-                    let left = match mark {
-                        // A cycle back to a node being walked. The checker
-                        // answers a declaration that holds itself as
-                        // copying (`R: next: R?`, `G[T]: next: G[T]?` tried),
-                        // so no checked program has reached this; another
-                        // `Declarations` may, and the node is not kept.
-                        Mark::Open => Left::Unknown,
-                        Mark::Done(left) => left,
-                    };
+                if let Some(&left) = marks.get(&t) {
                     take(&mut open, left);
                     continue;
                 }
@@ -505,14 +492,14 @@ fn copy_parts(
                         } else {
                             Left::List(list)
                         };
-                        marks.insert(t, Mark::Done(left));
+                        marks.insert(t, left);
                         take(&mut open, left);
                         continue;
                     }
                     None if !pool.has_param(t) && !pool.has_infer(t) => closed.push(t),
                     None => {}
                 }
-                marks.insert(t, Mark::Open);
+                marks.insert(t, Left::Unknown);
                 open.push((t, Left::Nothing));
                 stack.push(Step::Close(t));
             }
@@ -579,18 +566,18 @@ fn copy_parts(
     for t in closed {
         memo.insert(t, Some(TyList::EMPTY));
     }
-    for (&t, &mark) in &marks {
+    for (&t, &left) in &marks {
         if matches!(pool.get(t), TyData::Param(_) | TyData::Infer(_)) {
             continue;
         }
-        match mark {
-            Mark::Done(Left::Nothing) => {
+        match left {
+            Left::Nothing => {
                 memo.insert(t, Some(TyList::EMPTY));
             }
-            Mark::Done(Left::List(list)) => {
+            Left::List(list) => {
                 memo.insert(t, Some(list));
             }
-            Mark::Done(Left::Unknown) | Mark::Open => {}
+            Left::Unknown => {}
         }
     }
     memo.insert(root, Some(pool.list(&subs[start..])));
