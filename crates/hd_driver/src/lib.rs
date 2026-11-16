@@ -11205,7 +11205,7 @@ impl Run<'_> {
                 // does, as no module may use an entry module
                 // (`module.path.main-no-use`, `cli.exe.entry-no-use`,
                 // `cli.task.program-use`), so its cycle is itself alone and
-                // `group_init_order` puts it after every cycle it uses
+                // `init_graph`'s order puts it after every cycle it uses
                 // (`module.init.cycle.once`).
                 let before = inits.iter().take_while(|k| *k != key);
                 let after: Vec<_> = inits.iter().skip_while(|k| *k != key).skip(1).collect();
