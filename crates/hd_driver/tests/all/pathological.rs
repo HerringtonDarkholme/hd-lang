@@ -3240,6 +3240,64 @@ fn bound_dispatch_names_its_impls_once_per_module() {
     });
 }
 
+/// A trait, `n` structs implementing it, and `n` functions each calling
+/// it through a trait value: #1936's trait-value form.
+fn trait_value_dispatch_impls(n: usize) -> String {
+    let mut s = String::from("trait Get:\n    fn get(&self) -> i32\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "\nstruct W{i}:\n    v: i32\n\nimpl Get for W{i}:\n    fn get(&self) -> i32: self.v\n\nfn call{i}(g: &dyn Get) -> i32: g.get()\n"
+        );
+    }
+    s.push_str("\npub fn main() -> void $ Console:\n    println(\"0\")\n");
+    s
+}
+
+// Checker and driver: #1936, a call through a trait value names its
+// dispatch set by one key in each body's init facts, as a call through a
+// bound does (`bound_dispatch_names_its_impls_once_per_module`): n
+// bodies calling through `&dyn Get` with n impls of `Get` in the module
+// store n keys, not n^2 methods, and the summary lists the key's methods
+// once.
+#[test]
+fn trait_value_dispatch_names_its_impls_once_per_module() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&trait_value_dispatch_impls(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(200), work(2_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 200 and 2,000 impls: {small} and {large}"
+        );
+        let bytes = |n: usize| {
+            let mut src = MemorySources::default();
+            src.insert("main.hd", &trait_value_dispatch_impls(n));
+            let store = hd_cache::MemoryStore::default();
+            let host = Host {
+                render_tir: &[],
+                sources: &src,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let out = build(&host, "app", &Goal::Analyze);
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            store.bytes()
+        };
+        let (small, large) = (bytes(200), bytes(2_000));
+        assert!(
+            large <= 12 * small,
+            "cache bytes for 200 and 2,000 impls: {small} and {large}"
+        );
+    });
+}
+
 /// `x.go(if true: x.go(…) else: +0)` nested `depth` deep under an `i32`
 /// binding, with three instantiations of `Go` for `X`: review F9's shape.
 fn nested_method_choice(depth: usize) -> String {
