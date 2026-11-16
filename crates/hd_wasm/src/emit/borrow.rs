@@ -1229,6 +1229,14 @@ impl Em<'_, '_, '_> {
                             st.intern_key(key);
                         }
                         st.call_ptrs.insert(v, (call, mutable, two_phase));
+                        // The read's own place crossings, such as a shared
+                        // variable's cell, take shared loans until the call
+                        // returns, as a `Ref` argument's do
+                        // (`ref.excl.alias.path-pointer`).
+                        if !st.refs.contains_key(&v) {
+                            self.intern_ref_keys(&mut st, v);
+                            st.call_refs.insert(v, (call, false));
+                        }
                     }
                 }
                 if !matches!(self.b.tags[v as usize], Tag::Ref | Tag::Closure) {

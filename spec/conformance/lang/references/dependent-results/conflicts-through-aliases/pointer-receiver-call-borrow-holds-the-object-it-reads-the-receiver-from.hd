@@ -1,0 +1,19 @@
+# test: a receiver read from a field behind a `*T` holds that object during the call, so a write to another of its fields panics
+# Rule: ref.excl.alias.call-loan, ref.excl.alias.path-pointer.
+struct Held:
+    name: string
+
+impl Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+struct Bag:
+    item: *Held
+    count: i32
+
+pub fn main() -> void:
+    bag := box(Bag { item: box(Held { name: "kept" }), count: +0 })
+    alias := bag
+    bump := fn() -> void: alias.count += 1 # panic: borrow-conflict
+    _ := bag.item.text(bump)

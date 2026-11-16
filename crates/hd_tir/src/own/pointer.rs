@@ -568,6 +568,19 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 if b.tags[v] == Tag::Read {
                     let lent =
                         lent_objects(cx, &out.dyn_types, *id, b, params.get(k), v, k, receiver);
+                    // The pointer the call lends is read from its place, so
+                    // the loan also holds each object that place crosses,
+                    // as a `Ref` argument's does (`ref.excl.alias.path-pointer`):
+                    // replacing the pointer slot during the call conflicts.
+                    if !lent.is_empty() {
+                        ref_sites(cx, b, *id, vu, |site, object, excl| {
+                            if program(object, excl, accs[id].get(&vu))
+                                && meets((vu + 1).min(iu), call_end, &[], object, excl)
+                            {
+                                kept.push((site, object, excl));
+                            }
+                        });
+                    }
                     for (mutable, target) in lent {
                         if program(target, mutable, accs[id].get(&vu))
                             && meets((vu + 1).min(iu), call_end, &[], target, mutable)
@@ -666,7 +679,9 @@ fn dyn_types(cx: &impl Context) -> HashMap<DefId, Vec<Ty>> {
     out
 }
 
-/// A reference's crossed objects; only the last can take an exclusive loan.
+/// A reference's or a lent pointer read's crossed objects. Only a `&mut`
+/// reference's last one takes an exclusive loan: a read only reads the
+/// pointer slot it crosses last.
 fn ref_sites(
     cx: &impl Context,
     b: &Body,
@@ -680,7 +695,8 @@ fn ref_sites(
     let Some(crossed) = cx.place_crossings(id, &p) else {
         return;
     };
-    let exclusive = mutable(cx, cx.substitute(id, b.ty[v as usize]));
+    let exclusive =
+        b.tags[v as usize] == Tag::Ref && mutable(cx, cx.substitute(id, b.ty[v as usize]));
     let last = crossed.len().wrapping_sub(1);
     for (n, (k, object)) in crossed.into_iter().enumerate() {
         f(

@@ -1,0 +1,20 @@
+# @dump: wat
+# A `*T` receiver read from a variable a closure shares takes a shared
+# call loan on the variable's cell for the call, as a `&T` argument does
+# (`ref.excl.alias.path-pointer`); the closure's store checks it.
+struct Held:
+    name: string
+
+impl Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *Held:
+    box(Held { name: "${name}" })
+
+pub fn main() -> void:
+    let mut source = make("kept")
+    replace := fn() -> void: source = make("other")
+    # subject
+    _ := source.text(replace)

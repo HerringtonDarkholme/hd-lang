@@ -6907,6 +6907,11 @@ lang/references/dependent-results/writes-while-borrowed/implicit-dynamic-widenin
 lang/references/dependent-results/writes-while-borrowed/implicit-mutable-call-borrow-rejects-later-same-owner-change.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args.after
 lang/references/dependent-results/writes-while-borrowed/implicit-cold-construction-borrow-rejects-same-owner-alias-argument.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.args
 lang/references/dependent-results/conflicts-through-aliases/implicit-dynamic-call-borrow-blocks-source-slot-replacement.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+lang/references/dependent-results/conflicts-through-aliases/implicit-dynamic-call-borrow-blocks-source-slot-replacement-at-a-receiver.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+lang/references/dependent-results/conflicts-through-aliases/implicit-dynamic-call-borrow-blocks-source-slot-replacement-at-a-mut-receiver.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+lang/references/dependent-results/conflicts-through-aliases/implicit-dynamic-call-borrow-at-a-receiver-lets-the-call-read-the-source-slot.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+lang/references/dependent-results/conflicts-through-aliases/pointer-receiver-call-borrow-blocks-source-slot-replacement.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
+lang/references/dependent-results/conflicts-through-aliases/pointer-receiver-call-borrow-holds-the-object-it-reads-the-receiver-from.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.path-pointer
 lang/references/dependent-results/implicit-local-cold-payload-cannot-escape-owned-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.return
 lang/references/dependent-results/writes-while-borrowed/implicit-lend-closure-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 lang/references/dependent-results/writes-while-borrowed/implicit-lend-cancellation-actors.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place

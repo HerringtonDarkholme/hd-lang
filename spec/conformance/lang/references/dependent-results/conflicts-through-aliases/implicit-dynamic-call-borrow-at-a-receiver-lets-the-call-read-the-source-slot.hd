@@ -1,0 +1,29 @@
+# test: a `*dyn` receiver's call borrow is shared, so the call may read the captured source slot, and the slot may change after the call
+# Rule: ref.excl.alias.call-loan, ref.excl.alias.path-pointer.
+# expect-stdout: kept
+# expect-stdout: kept
+# expect-stdout: other
+trait Note:
+    fn text(&self, step: fn() -> void) -> string
+
+struct Held:
+    name: string
+
+impl Note for Held:
+    fn text(&self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *dyn Note:
+    box(Held { name: "${name}" })
+
+pub fn main() -> void $ Console:
+    let mut source = make("kept")
+    let mut seen = ""
+    peek := fn() -> void:
+        seen = source.text(fn() -> void: pass)
+    println(source.text(peek))
+    println(seen)
+    swap := fn() -> void: source = make("other")
+    swap()
+    println(source.text(fn() -> void: pass))

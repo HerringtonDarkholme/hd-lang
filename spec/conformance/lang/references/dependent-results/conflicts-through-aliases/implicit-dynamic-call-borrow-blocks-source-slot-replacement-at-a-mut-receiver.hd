@@ -1,0 +1,20 @@
+# test: a `*mut dyn` receiver's `&mut self` call borrow protects the captured source slot during the call
+# Rule: ref.excl.alias.call-loan, ref.excl.alias.path-pointer.
+trait Note:
+    fn text(&mut self, step: fn() -> void) -> string
+
+struct Held:
+    name: string
+
+impl Note for Held:
+    fn text(&mut self, step: fn() -> void) -> string:
+        step()
+        self.name
+
+fn make(name: string) -> *mut dyn Note:
+    box(Held { name: "${name}" })
+
+pub fn main() -> void:
+    let mut source = make("kept")
+    replace := fn() -> void: source = make("other") # panic: borrow-conflict
+    _ := source.text(replace)

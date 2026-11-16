@@ -1,6 +1,5 @@
-# expect-stdout: first first
 # expect-stdout: second second
-# test: a trait value's object stays alive for a call made through it, when the call replaces the pointer it came from, whether the pointer is the receiver or a copy of it is the argument
+# test: a trait value's object stays alive for a call made through a copy of its pointer, when the call replaces the pointer the copy came from
 # Spec 13 Values and References: ref.excl.alias.shared-variable, ref.excl.alias.conflict.
 trait Note:
     fn text(&self, step: fn() -> void) -> string
@@ -19,11 +18,6 @@ fn make(name: string) -> *dyn Note:
 fn through(note: &dyn Note, step: fn() -> void) -> string:
     note.text(step)
 
-fn replaced_receiver() -> string:
-    let mut p = make("first")
-    replace := fn() -> void: p = make("other")
-    p.text(replace)
-
 fn replaced_behind_reference() -> string:
     let mut p = make("second")
     replace := fn() -> void: p = make("other")
@@ -31,5 +25,4 @@ fn replaced_behind_reference() -> string:
     through(receiver, replace)
 
 pub fn main() -> void $ Console:
-    println("${replaced_receiver()} first")
     println("${replaced_behind_reference()} second")
