@@ -613,7 +613,6 @@ pub struct ImplTable {
     pub trait_: Vec<DefId>,
     pub def: Vec<DefId>,
     pub head_key: Vec<HeadKey>,
-    pub arg_key: Vec<[HeadKey; 2]>,
     pub n_params: Vec<u8>,
     pub head_self: Vec<Ty>,
     pub head_args: Vec<TyList>,
@@ -4145,7 +4144,6 @@ mod tests {
         t.trait_.push(tr);
         t.def.push(DefId::from_raw(6));
         t.head_key.push(HeadKey::Prim(Prim::I32));
-        t.arg_key.push([HeadKey::Any; 2]);
         t.n_params.push(0);
         t.head_self.push(Ty::I32);
         t.head_args.push(TyList::EMPTY);
@@ -4229,7 +4227,6 @@ mod tests {
         t.trait_.push(trait_);
         t.def.push(def);
         t.head_key.push(HeadKey::of(pool, self_ty));
-        t.arg_key.push([HeadKey::Any; 2]);
         t.n_params.push(n_params);
         t.head_self.push(self_ty);
         t.head_args.push(args);

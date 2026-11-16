@@ -697,7 +697,7 @@ outer constructor. Coherence asks for all heads of one trait. Method
 lookup asks for the inherent impls of one type.
 
 `hd_types::solver::ImplTable`, built by `hd_resolve::impl_table`, has row columns `trait_`, `def`,
-`head_key`, `arg_key`, `n_params`, `head_self`, `head_args`, `plan` (the
+`head_key`, `n_params`, `head_self`, `head_args`, `plan` (the
 bound plan), `assoc`, `origin` and `rank`; `by_trait`, each trait's row
 range; and `by_key`, the rows of each trait sorted by head key.
 

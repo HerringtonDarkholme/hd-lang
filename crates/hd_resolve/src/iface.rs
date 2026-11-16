@@ -2853,17 +2853,6 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::UnionTemplate => HeadKey::UnionAny,
             _ => HeadKey::of(names.pool.types(), self_ty),
         });
-        let arg_keys: Vec<HeadKey> = names
-            .pool
-            .list_items(args)
-            .iter()
-            .take(2)
-            .map(|a| HeadKey::of(names.pool.types(), *a))
-            .collect();
-        t.arg_key.push([
-            arg_keys.first().copied().unwrap_or(HeadKey::Any),
-            arg_keys.get(1).copied().unwrap_or(HeadKey::Any),
-        ]);
         t.n_params.push(u8::try_from(n_params).unwrap_or(u8::MAX));
         t.head_self.push(self_ty);
         t.head_args.push(args);

@@ -2110,7 +2110,6 @@ depend on which downstream packages a program adds.
 ```rust
 pub struct ImplTable {                    // per folder (and per module for its own rows); columns
     pub trait_: Vec<DefId>, pub def: Vec<DefId>, pub head_key: Vec<HeadKey>,
-    pub arg_key: Vec<[HeadKey; 2]>,       // filled, not read
     pub n_params: Vec<u8>,
     pub head_self: Vec<Ty>, pub head_args: Vec<TyList>,
     pub plan: Vec<Vec<PlanStep>>,         // the bound plan (section 3.6)
@@ -2133,9 +2132,6 @@ A probe for `S: Tr[A..]` in one table:
 
 Rows from several tables merge in table order, own table first, and an
 impl seen in two tables is one head (`one_row_per_impl`).
-
-Planned, not built: a fast reject on `arg_key`, the head keys of the
-first two trait arguments, after rustc's `DeepRejectCtxt`.
 
 **Fast path (after MoonBit).** A non-generic trait (`Display`, `Eq`,
 `Hash`, `Debug`) with a known self constructor usually has one row per

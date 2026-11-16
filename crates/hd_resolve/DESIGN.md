@@ -492,7 +492,6 @@ pub struct ImplTable {                    // per folder, SoA
     pub trait_: Vec<DefId>,
     pub def: Vec<DefId>,
     pub head_key: Vec<HeadKey>,
-    pub arg_key: Vec<[HeadKey; 2]>,       // head keys of the first two trait arguments; Any when absent
     pub n_params: Vec<u8>,
     pub head_self: Vec<Ty>,
     pub head_args: Vec<TyList>,
