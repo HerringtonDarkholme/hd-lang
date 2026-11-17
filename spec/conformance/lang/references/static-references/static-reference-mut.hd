@@ -1,0 +1,7 @@
+# test: a static reference is read-only
+# Spec 13 Static References: ref.static.no-mut.
+struct Point:
+    x: i32
+
+fn writable(p: &'static mut Point) -> void: # diagnostic: static-reference-mut
+    pass

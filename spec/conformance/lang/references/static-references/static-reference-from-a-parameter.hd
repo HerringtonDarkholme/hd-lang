@@ -1,0 +1,10 @@
+# test: a static reference is not made from a value parameter
+# Spec 13 Static References: ref.static.source.error.
+struct Point:
+    x: i32
+
+fn take(p: &'static Point) -> i32:
+    p.x
+
+fn from_param(p: Point) -> i32:
+    take(&p) # diagnostic: static-reference-source

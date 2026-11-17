@@ -1,0 +1,26 @@
+# test: a static reference is stored in a field, a box and a list, and calls a function field it reads
+# Spec 13 Static References: ref.static.not-local, ref.static.no-count.
+# expect-stdout: 42 42 2 43
+struct Ops:
+    step: fn(i32) -> i32
+    base: i32
+
+struct Holder:
+    ops: &'static Ops
+
+fn inc(n: i32) -> i32:
+    n + 1
+
+let table = Ops { step: inc, base: 42 }
+
+fn keep[T < 'static](value: T) -> *mut T:
+    box(value)
+
+fn run(ops: &'static Ops) -> i32:
+    (ops.step)(ops.base)
+
+pub fn main() -> void $ Console:
+    h := Holder { ops: &table }
+    boxed := keep(&table)
+    let all: List[&'static Ops] = [&table, h.ops]
+    println("{h.ops.base} {boxed.base} {all.len()} {run(&table)}")

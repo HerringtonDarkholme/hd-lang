@@ -1,0 +1,7 @@
+# test: a static reference is not made from a plain local reference
+# Spec 13 Static References: ref.static.source.error.
+struct Point:
+    x: i32
+
+fn from_plain(p: &Point) -> &'static Point:
+    p # diagnostic: static-reference-source

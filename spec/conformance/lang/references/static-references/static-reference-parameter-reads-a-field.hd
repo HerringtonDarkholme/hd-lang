@@ -1,0 +1,7 @@
+# test: a static reference parameter reads a field
+# Spec 13 Static References: ref.static.form, ref.static.value.
+struct R:
+    n: i32
+
+fn f(r: &'static R) -> i32:
+    r.n
