@@ -313,7 +313,7 @@ host-binding-never-exits	cli.host.package.value-conversion
 host-binding-never-returns	cli.host.package.value-conversion
 host-binding-not-safe	cli.host.package.generated
 host-binding-recursive-cycle	cli.host.package.generated,cli.host.package.contract
-host-binding-readiness	cli.host.package.completion-forms,cli.host.package.context-pending,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal
+host-binding-readiness	cli.host.package.completion-forms,cli.host.package.context-pending-notify,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal,cli.host.package.poll-subscribe,cli.host.package.poll-notify,cli.host.package.poll-notify-consume,cli.host.package.poll-notify-again,cli.host.package.poll-unsubscribe,cli.host.package.poll-notify-late,cli.host.package.poll-legacy-sweep,cli.host.package.poll-legacy-cost,cli.host.package.poll-notify-cost,cli.host.package.poll-subscribe-ready
 host-context-console	cli.host.package.context-console,cli.host.package.context-console-allows,cli.host.package.context-console-readonly
 host-context-http	cli.host.package.context-http,cli.host.package.context-http-coverage,cli.host.package.context-http-helpers,cli.host.package.context-http-readonly
 host-declaration-duplicate	cli.host.declaration.map-unique

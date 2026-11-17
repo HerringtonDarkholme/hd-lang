@@ -43,6 +43,7 @@
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.ts), as `hd_run_wasmtime`'s session does.
+import { OperationQueue } from "./operation-queue.ts";
 import { shortest, fixed, lower, upper, parse } from "./float.ts";
 import { bindPackageRuntime } from "./core-package.ts";
 import { WireHttpError as HttpError, METHODS } from "./gen/abi.ts";
@@ -120,6 +121,8 @@ export interface ProviderInterfaceIdentity {
   readonly trait_path: string;
 }
 
+export type ReadinessSubscription = (ready: () => void) => void | (() => void);
+
 export interface ProviderContext {
   readonly interfaceIdentity: ProviderInterfaceIdentity;
   readonly http: ProviderHttpPolicy;
@@ -131,6 +134,7 @@ export interface ProviderContext {
     done: () => ResultValue,
     abort?: (() => void) | null,
     finish?: (() => ResultValue | undefined) | null,
+    subscribe?: ReadinessSubscription | null,
   ): unknown;
 }
 
@@ -437,7 +441,7 @@ function rtImports({
       throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
     }
     const deadline = nextDeadline();
-    if (deadline === null && !st.promiseWaits.size) {
+    if (deadline === null && !st.externalWaits.size) {
       deadlock();
     }
     flush();
@@ -462,6 +466,7 @@ function rtImports({
   const block = (): number | Promise<number> => {
     for (;;) {
       const observed = st.completionToken;
+      const syncObserved = st.completionSyncToken?.();
       const completion = complete();
       if (completion) {
         return completion;
@@ -476,7 +481,11 @@ function rtImports({
         }
         return resumed(ms, observed);
       }
-      sleep(ms);
+      if (st.waitCompletionSync) {
+        st.waitCompletionSync(ms, syncObserved);
+      } else {
+        sleep(ms);
+      }
       if (overran()) {
         throw new TimeLimit();
       }
@@ -560,6 +569,7 @@ class Later {
   poll: (() => boolean) | null;
   abort: (() => void) | null;
   finish: (() => Dynamic) | null;
+  subscribe: ReadinessSubscription | null;
 
   constructor(
     at: number,
@@ -568,11 +578,13 @@ class Later {
       poll = null,
       abort = null,
       finish = null,
+      subscribe = null,
     }: {
       done: (() => Dynamic) | null;
       poll?: (() => boolean) | null;
       abort?: (() => void) | null;
       finish?: (() => Dynamic) | null;
+      subscribe?: ReadinessSubscription | null;
     },
   ) {
     this.at = at;
@@ -580,33 +592,49 @@ class Later {
     this.poll = poll;
     this.abort = abort;
     this.finish = finish;
+    this.subscribe = subscribe;
   }
 }
 const later = (at: number, done: (() => Dynamic) | null = null): Later => new Later(at, { done });
 
 // External I/O supplies a nonblocking readiness probe and a cancellation
 // hook, including when complete() ran but the guest never took .finish.
-// Timed operations keep their existing path. A pending probe is retried
-// after a short wait, from either the async driver or synchronous rt.block.
+// A subscription schedules only the notified operation. Legacy probe-only
+// operations retain their short idle retry and readiness ordering.
 // The optional delivery hook can replace the kept result, such as Closed
 // after a resource closes between readiness and guest delivery.
+// oxlint-disable-next-line max-params -- the approved pending API retains four positional hooks and adds subscription.
 export const pendingOperation = <ResultValue>(
   poll: () => boolean,
   done: () => ResultValue,
   abort: (() => void) | null = null,
   finish: (() => ResultValue | undefined) | null = null,
-): Later => new Later(performance.now(), { done, poll, abort, finish });
+  subscribe: ReadinessSubscription | null = null,
+): Later => new Later(performance.now(), { done, poll, abort, finish, subscribe });
 
 function abortOperation(st: DynamicRecord, handle: number): void {
   const operation = st.ops.get(handle);
-  st.ops.delete(handle);
-  st.promiseWaits.delete(handle);
-  operation?.abort?.();
-  st.wakeCompletion?.();
+  try {
+    st.removeOperation(handle);
+  } finally {
+    try {
+      operation?.abort?.();
+    } finally {
+      st.wakeCompletion?.();
+    }
+  }
 }
 export function clearOperations(st: DynamicRecord): void {
+  let failure: { cause: unknown } | null = null;
   for (const handle of st.ops.keys()) {
-    abortOperation(st, handle);
+    try {
+      abortOperation(st, handle);
+    } catch (cause) {
+      failure ??= { cause };
+    }
+  }
+  if (failure) {
+    throw failure.cause;
   }
 }
 
@@ -681,6 +709,7 @@ function traitImports(
             poll: value.poll,
             abort: value.abort,
             finish: value.finish,
+            subscribe: value.subscribe,
           })
         : [0, written(value)];
     };
@@ -917,6 +946,7 @@ export function httpProvider(
             done: () => result(sent.done!()),
             poll: sent.poll,
             abort: sent.abort,
+            subscribe: sent.subscribe,
           })
         : result(sent);
     },
@@ -943,6 +973,7 @@ function initialState(env: CoreEnv, layer: Dynamic): DynamicRecord {
     out: [],
     ops: new Map(),
     promiseWaits: new Set<number>(),
+    externalWaits: new Set<number>(),
     noticed: new Set(),
     payload: null,
     readyOnly: false,
@@ -1225,6 +1256,24 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // `since` orders delivery: the earliest time its result can be ready.
   // A timer's is `at`. A probed operation's is its start, then its last
   // failed probe, while `at` becomes the next idle retry.
+  const queue = new OperationQueue<Dynamic>();
+  const releaseSubscription = (operation: Dynamic): void => {
+    const unsubscribe = operation.unsubscribe;
+    operation.unsubscribe = null;
+    unsubscribe?.();
+  };
+  const removeOperation = (handle: number): void => {
+    const operation = st.ops.get(handle);
+    if (!operation) {
+      return;
+    }
+    st.ops.delete(handle);
+    st.promiseWaits.delete(handle);
+    st.externalWaits.delete(handle);
+    queue.remove(operation);
+    releaseSubscription(operation);
+  };
+  st.removeOperation = removeOperation;
   const pending = ({
     at,
     done,
@@ -1233,6 +1282,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     abort = null,
     finish = null,
     promise = false,
+    subscribe = null,
   }: {
     at: number;
     done: (() => Dynamic) | null;
@@ -1241,9 +1291,11 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     abort?: (() => void) | null;
     finish?: (() => Dynamic) | null;
     promise?: boolean;
+    subscribe?: ReadinessSubscription | null;
   }): [number, number] => {
     const handle = st.nextHandle++;
-    st.ops.set(handle, {
+    const operation = {
+      handle,
       at,
       since: at,
       done,
@@ -1254,21 +1306,34 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       completed: false,
       promise,
       value: undefined,
-    });
+      unsubscribe: null as (() => void) | null,
+    };
+    st.ops.set(handle, operation);
+    queue.add(operation, subscribe !== null);
+    if (subscribe || promise) {
+      st.externalWaits.add(handle);
+    }
+    if (subscribe) {
+      try {
+        operation.unsubscribe =
+          subscribe(() => {
+            if (!st.closed && st.ops.get(handle) === operation && !operation.completed) {
+              queue.notify(operation);
+              wakeCompletion();
+            }
+          }) ?? null;
+      } catch (error) {
+        removeOperation(handle);
+        operation.abort?.();
+        throw error;
+      }
+    }
     if (promise) {
       st.promiseWaits.add(handle);
     }
     return [1, handle];
   };
-  const nextDeadline = (): number | null => {
-    let value: number | null = null;
-    for (const options of st.ops.values()) {
-      if (!options.completed && !options.promise && (value === null || options.at < value)) {
-        value = options.at;
-      }
-    }
-    return value;
-  };
+  const nextDeadline = (): number | null => queue.nextDeadline();
   // Publish one completion turn: the earliest group of operations that can
   // be ready, by `since`, coalescing equal times. A delayed host turn must
   // not wake later work alongside an earlier timeout: race polls its work
@@ -1276,33 +1341,21 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   // only bounds idle waiting; it never orders a ready probe after a timer
   // started later, so readiness is not hidden while other work wakes.
   const complete = (): number => {
-    const now = performance.now();
-    let readyAt: number | null = null;
-    const due = [...st.ops]
-      .filter(([, options]) => !options.completed && (options.poll || options.at <= now))
-      .sort((left, right) => left[1].since - right[1].since || left[0] - right[0])
-      .filter(([, options]) => {
-        // A successful probe can consume external readiness (connect_poll).
-        // Do not touch a later operation until its result can be delivered.
-        if (readyAt !== null && options.since !== readyAt) {
-          return false;
-        }
-        if (!options.poll || options.poll()) {
-          readyAt = options.since;
-          return true;
-        }
-        const probed = performance.now();
-        options.since = probed;
-        options.at = probed + 1;
-        return false;
-      });
+    platform?.drainReady?.();
+    const due = queue.take(performance.now());
     if (due.length * 4 > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((due.length * 4) / 65536));
     }
     const words = new DataView(st.memory.buffer);
-    due.forEach(([handle, options], i) => {
+    due.forEach((options, i) => {
+      const handle = options.handle;
+      // An earlier result callback may notify another member of this batch.
+      // Its delivery already owns that readiness; remove the duplicate.
+      queue.remove(options);
       options.completed = true;
       st.promiseWaits.delete(handle);
+      st.externalWaits.delete(handle);
+      releaseSubscription(options);
       if (options.done) {
         options.value = options.done();
       }
@@ -1327,10 +1380,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     hostPanic("panic: deadlock: the program waits, but no host operation is pending\n");
     throw new Deadlock();
   };
-  const finish = (handle: number): void => {
-    st.ops.delete(handle);
-    st.promiseWaits.delete(handle);
-  };
+  const finish = removeOperation;
   // The result of the completed operation `h` that `method` started, which
   // its `.finish` takes; any other handle is a broken contract (§17.2).
   const finished = (handle: number, method: string): Dynamic => {
@@ -1341,7 +1391,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     // Ownership transfers only at the validated guest .finish, not when
     // complete() computes the value. Abort still owns an undelivered result.
     const delivered = options.finish?.();
-    st.ops.delete(handle);
+    removeOperation(handle);
     return delivered === undefined ? options.value : delivered;
   };
   // Waits at most until `d`, and never past the timeout: a pending host
@@ -1488,7 +1538,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       if (cleanupBy !== null && !abandoned && (deadline === null || cleanupBy < deadline)) {
         deadline = cleanupBy;
       }
-      if (deadline === null && !st.promiseWaits.size) {
+      if (deadline === null && !st.externalWaits.size) {
         deadlock();
       }
       flush();

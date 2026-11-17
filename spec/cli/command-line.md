@@ -2318,7 +2318,7 @@ hd run --engine node
 22. r[cli.host.package.prebuilt-manifest] A prebuilt Wasm run requiring package capabilities discovers its app manifest above the Wasm file.
 23. r[cli.host.package.prebuilt-no-manifest] A prebuilt Wasm run without that manifest refuses required package capabilities before loading any provider.
 24. r[cli.host.package.value-conversion] Generated bindings apply the JavaScript value conversions of [Package Host Traits](../lang/10-modules.md#package-host-traits).
-25. r[cli.host.package.context-pending] The method context's `pending(poll, done, abort, finish)` factory creates a pollable operation.
+25. r[cli.host.package.context-pending-notify] The method context's `pending(poll, done, abort, finish, subscribe)` factory creates a pollable operation with optional cancellation, delivery and readiness-subscription hooks.
 26. r[cli.host.package.poll-nonblocking] A pollable operation's readiness probe must return a boolean without blocking.
 27. r[cli.host.package.poll-result] Its result callback runs once when readiness first succeeds.
 28. r[cli.host.package.poll-delivery] Its optional delivery hook runs only when the guest takes a valid finish.
@@ -2342,6 +2342,18 @@ hd run --engine node
 46. r[cli.host.package.context-interface-identity-readonly] A provider cannot replace or delete the context's `interfaceIdentity`.
 47. r[cli.host.package.context-interface-identity-binding] Changing generated descriptor metadata after binding preserves an existing method's identity and bound receiver.
 
+48. r[cli.host.package.poll-subscribe] The optional `subscribe(ready)` hook receives a readiness notification function and may return an unsubscribe function.
+49. r[cli.host.package.poll-notify] Calling `ready()` schedules the operation's probe before timeout delivery, preserving earliest-readiness ordering and coalescing repeated notifications.
+50. r[cli.host.package.poll-notify-consume] A notified probe runs only in a turn that can deliver its result.
+51. r[cli.host.package.poll-notify-again] After a probe returns false, a subscribing provider must notify again when readiness changes.
+52. r[cli.host.package.poll-unsubscribe] The unsubscribe function runs once when the operation completes, is cancelled, or its instance closes.
+53. r[cli.host.package.poll-notify-late] Notifications after completion, cancellation or instance closure are ignored.
+54. r[cli.host.package.poll-legacy-sweep] Probe-only operations remain eligible each completion turn, independently of idle retry deadlines.
+55. r[cli.host.package.poll-legacy-cost] Legacy scheduling costs O(p log(p+r+t+1)) per turn, for p probe-only operations, r queued completions and t timers.
+56. r[cli.host.package.poll-notify-cost] Notified-operation scheduling costs O(log(r+1)) per change, for r queued completions, independently of unrelated pending notification-backed calls.
+57. r[cli.host.package.poll-subscribe-ready] A subscribing provider must notify when already ready at registration, or when readiness becomes true later.
+
+> **Why.** Readiness notifications avoid rescanning every pending operation; probe-only providers retain their existing readiness and race behavior.
 
 > **Why.** Provider JavaScript has its host realm's authority; an HD grant cannot sandbox arbitrary JavaScript imports.
 > Root consent makes loading dependency code explicit.

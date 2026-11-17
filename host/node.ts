@@ -61,6 +61,8 @@ interface SyncClient {
   started(): boolean;
   call(request: Dynamic, left?: () => number): Dynamic;
   stop(): void;
+  subscribe(key: string, ready: () => void): () => void;
+  drainReady(): void;
 }
 
 export interface LineReader {
@@ -88,7 +90,8 @@ const {
   statSync,
   writeFileSync,
 } = process.getBuiltinModule("node:fs");
-const { MessageChannel, Worker } = process.getBuiltinModule("node:worker_threads");
+const { MessageChannel, Worker, receiveMessageOnPort } =
+  process.getBuiltinModule("node:worker_threads");
 const {
   arch: osArch,
   availableParallelism,
@@ -132,13 +135,67 @@ const ARCH_NAMES: Record<string, string> = { x64: "x86_64", arm64: "aarch64", ia
 // start/poll/finish/abort requests rather than waiting for their I/O here.
 // A control call waits at most `left()` milliseconds before stopping its
 // client and throwing the `time-limit` panic.
-export const syncClient = (file: string | URL, close: string | null = null): SyncClient => {
+export const syncClient = (
+  file: string | URL,
+  close: string | null = null,
+  reactor?: Int32Array<SharedArrayBuffer>,
+): SyncClient => {
   let client: WorkerClient | null = null;
   let nextCall = 1;
+  const subscriptions = new Map<string, { ready: boolean; callback?: () => void }>();
+  const messages: string[] = [];
+  const dispatch = (): void => {
+    for (const key of messages) {
+      const entry = subscriptions.get(key);
+      if (entry && !entry.ready) {
+        entry.ready = true;
+        entry.callback?.();
+      }
+    }
+    messages.length = 0;
+  };
+  const operationKey = (request: Dynamic): string =>
+    `${request.op.startsWith("connect_") ? "connect" : "wait"}:${request.operation}`;
+  const trackReply = (request: Dynamic, result: Dynamic): void => {
+    if (
+      (request.op === "start" || request.op.endsWith("_start")) &&
+      typeof result?.ok === "number"
+    ) {
+      const key = operationKey({ ...request, operation: result.ok });
+      subscriptions.set(key, { ready: false });
+    }
+    dispatch();
+    if (
+      request.operation !== undefined &&
+      ((request.op.endsWith("poll") && !result?.pending) ||
+        request.op.endsWith("abort") ||
+        request.op.endsWith("finish"))
+    ) {
+      subscriptions.delete(operationKey(request));
+    }
+  };
+  const drainReady = (): void => {
+    if (!client) {
+      return;
+    }
+    for (;;) {
+      const item = receiveMessageOnPort(client.port);
+      if (!item) {
+        break;
+      }
+      if (typeof item.message.ready === "string") {
+        messages.push(item.message.ready);
+      }
+    }
+    dispatch();
+  };
   // Stops the thread, allowing an optional close request to release OS children.
   const stop = () => {
+    subscriptions.clear();
+    messages.length = 0;
     if (client !== null) {
       if (close === null) {
+        client.port.close();
         client.worker.terminate();
       } else {
         // Child processes outlive worker termination. Let this worker kill
@@ -153,6 +210,20 @@ export const syncClient = (file: string | URL, close: string | null = null): Syn
   return {
     // Whether the thread has started, so it may hold something open.
     started: () => client !== null,
+    drainReady,
+    subscribe: (key, callback) => {
+      const entry = subscriptions.get(key);
+      if (!entry) {
+        throw new HostContract("subscription of an unknown worker operation");
+      }
+      entry.callback = callback;
+      if (entry.ready) {
+        callback();
+      }
+      return () => {
+        subscriptions.delete(key);
+      };
+    },
     call: (request: Dynamic, left = () => Infinity): Dynamic => {
       if (left() <= 0) {
         throw new TimeLimit();
@@ -161,10 +232,16 @@ export const syncClient = (file: string | URL, close: string | null = null): Syn
         const { port1, port2 } = new MessageChannel();
         const flag = new Int32Array(new SharedArrayBuffer(4));
         const worker = new Worker(new URL(file, import.meta.url), {
-          workerData: { port: port2, flag },
+          workerData: { port: port2, flag, reactor },
           transferList: [port2],
         });
         worker.unref();
+        port1.on("message", (message: Dynamic) => {
+          if (client?.port === port1 && typeof message.ready === "string") {
+            messages.push(message.ready);
+            dispatch();
+          }
+        });
         port1.unref();
         client = { port: port1, flag, worker };
       }
@@ -172,7 +249,7 @@ export const syncClient = (file: string | URL, close: string | null = null): Syn
       const id = nextCall++;
       Atomics.store(flag, 0, 0);
       port.postMessage({ id, request });
-      const reply = receiveReply(port, flag, id, left);
+      const reply = receiveReply(port, flag, id, { left, ready: (key) => messages.push(key) });
       if (reply === null) {
         stop();
         throw new TimeLimit();
@@ -181,7 +258,9 @@ export const syncClient = (file: string | URL, close: string | null = null): Syn
         stop();
         throw new HostContract(reply.fault);
       }
-      return reply.result;
+      const result = reply.result;
+      trackReply(request, result);
+      return result;
     },
     stop,
   };
@@ -207,6 +286,8 @@ const httpSend = (client: Dynamic, request: Dynamic): Dynamic => {
     poll,
     () => result,
     () => client.cancel({ op: "abort", operation }),
+    null,
+    (ready) => client.subscribe(operation, ready),
   );
 };
 
@@ -345,6 +426,7 @@ function consoleInputProvider({ env, flush, inputClient }: DynamicRecord): Dynam
         output,
         () => inputClient.cancel({ op: "wait_abort", operation }),
         finish,
+        (ready) => inputClient.subscribe(operation, ready),
       );
     };
     return { read_line: () => read("line"), read_all: () => read("all") };
@@ -547,6 +629,7 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
       () => resultOf(result),
       () => netClient.cancel({ op: "wait_abort", operation }),
       finish,
+      (ready) => netClient.subscribe(operation, ready),
     );
   };
   const opened =
@@ -625,6 +708,8 @@ function netProvider({ grant, netClient }: DynamicRecord): DynamicRecord {
             netClient.cancel({ op: "dispose", handle: result.ok });
           }
         },
+        null,
+        (ready) => netClient.subscribe(operation, ready, "connect"),
       );
     },
     listen: opened("listen"),
@@ -779,6 +864,7 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
               () => {
                 fsClient.call({ op: "wait_finish", operation });
               },
+              (ready) => fsClient.subscribe(operation, ready),
             );
           }
           if (module === "hd:FsRead" && typeof kinds[0] === "number") {
@@ -948,6 +1034,7 @@ function processProvider({ grant, env, left, processClient }: DynamicRecord): Dy
       () => {
         finish();
       },
+      (ready) => processClient.subscribe(operation, ready),
     );
   };
   return { run };
@@ -1016,11 +1103,15 @@ export const nodeLayer = {
   providers: ({ env, sink, st, grant, flush, left }: DynamicRecord) => {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
-    const net = syncClient("./net.ts");
-    const http = syncClient("./http.ts");
-    const child = syncClient("./process.ts", "close");
-    const files = syncClient("./fs.ts", "close");
-    const input = syncClient("./input.ts");
+    const reactor = new Int32Array(new SharedArrayBuffer(4));
+    st.completionSyncToken = () => Atomics.load(reactor, 0);
+    st.waitCompletionSync = (ms: number, observed: number) =>
+      Atomics.wait(reactor, 0, observed, ms);
+    const net = syncClient("./net.ts", null, reactor);
+    const http = syncClient("./http.ts", null, reactor);
+    const child = syncClient("./process.ts", "close", reactor);
+    const files = syncClient("./fs.ts", "close", reactor);
+    const input = syncClient("./input.ts", null, reactor);
     // A bare Promise does not keep Node alive. Reference one idle message
     // port while the guest waits, without a polling timer or worker spin.
     let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
@@ -1049,6 +1140,8 @@ export const nodeLayer = {
       return left();
     };
     const client = (worker: SyncClient): Dynamic => ({
+      subscribe: (operation: number, ready: () => void, kind = "wait") =>
+        worker.subscribe(`${kind}:${operation}`, ready),
       call: (request: Dynamic) => worker.call(request, waiting),
       // Cancellation owns no I/O wait. It still releases resources after
       // the program deadline expired, and never starts a replacement worker.
@@ -1072,6 +1165,13 @@ export const nodeLayer = {
       },
       tempDir: testRunner.tempDir,
       keepAlive,
+      drainReady: () => {
+        net.drainReady();
+        http.drainReady();
+        child.drainReady();
+        files.drainReady();
+        input.drainReady();
+      },
       // The sockets still open, by kind (cli.test.leak).
       leaks: () => {
         if (!net.started()) {

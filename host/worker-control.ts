@@ -7,6 +7,50 @@ import type { MessagePort } from "node:worker_threads";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 export type Flag = Int32Array<SharedArrayBuffer>;
+export interface ReadinessTarget {
+  port: Pick<MessagePort, "postMessage">;
+  flag: Flag;
+  reactor?: Flag;
+}
+
+// Publish before waking either a synchronous control caller or the reactor.
+// Worker notifications name just the operation whose result changed.
+export function postReady(target: ReadinessTarget, key: string): void {
+  target.port.postMessage({ ready: key });
+  Atomics.store(target.flag, 0, 1);
+  Atomics.notify(target.flag, 0);
+  if (target.reactor) {
+    Atomics.add(target.reactor, 0, 1);
+    Atomics.notify(target.reactor, 0);
+  }
+}
+
+// Existing worker state machines retain their result until finish/abort.
+// Attach notification to that one transition, including synchronous results.
+export function notifyResult<State extends { result: unknown }>(
+  state: State,
+  target: ReadinessTarget,
+  key: string,
+): State {
+  let value = state.result;
+  let notified = false;
+  const notify = (): void => {
+    if (value !== null && !notified) {
+      notified = true;
+      postReady(target, key);
+    }
+  };
+  Object.defineProperty(state, "result", {
+    enumerable: true,
+    get: () => value,
+    set: (result: unknown) => {
+      value = result;
+      notify();
+    },
+  });
+  notify();
+  return state;
+}
 interface ControlCall<Request> {
   id: number;
   request: Request;
@@ -32,8 +76,10 @@ export function receiveReply(
   port: MessagePort,
   flag: Flag,
   id: number,
-  left: () => number,
+  wait: (() => number) | { left: () => number; ready: (key: string) => void },
 ): ControlReply | null {
+  const { left, ready } =
+    typeof wait === "function" ? { left: wait, ready: (_key: string) => {} } : wait;
   for (;;) {
     const remaining = left();
     if (remaining <= 0) {
@@ -41,6 +87,10 @@ export function receiveReply(
     }
     const reply = receiveMessageOnPort(port);
     if (reply) {
+      if (typeof reply.message.ready === "string") {
+        ready(reply.message.ready);
+        continue;
+      }
       if (reply.message.id === id) {
         return reply.message;
       }

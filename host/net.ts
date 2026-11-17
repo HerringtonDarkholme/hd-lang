@@ -19,7 +19,7 @@
 // (std-net.handles.closed). The program's thread checks the host's form
 // and the grant before it posts an operation that accesses an address;
 // a metadata-only check may first reject a closed or unknown handle.
-import { serve } from "./worker-control.ts";
+import { serve, notifyResult } from "./worker-control.ts";
 import type { Flag } from "./worker-control.ts";
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
@@ -112,6 +112,7 @@ interface ConnectState {
 interface NetWorkerData {
   port: MessagePort;
   flag: Flag;
+  reactor?: Flag;
 }
 
 interface ErrorLike {
@@ -333,7 +334,7 @@ const ops: Record<string, (request: NetRequest) => unknown | Promise<unknown>> =
     }
     const id = nextWait++;
     const state: WaitState = { h, result: null, undo: null, controller: new AbortController() };
-    waits.set(id, state);
+    waits.set(id, notifyResult(state, workerData as NetWorkerData, `wait:${id}`));
     const retain = (undo: () => void): void => {
       if (state.controller.signal.aborted) {
         undo();
@@ -404,7 +405,7 @@ const ops: Record<string, (request: NetRequest) => unknown | Promise<unknown>> =
   connect_start: (request) => {
     const id = nextConnect++;
     const operation: ConnectState = { result: null, abort: null };
-    connects.set(id, operation);
+    connects.set(id, notifyResult(operation, workerData as NetWorkerData, `connect:${id}`));
     try {
       operation.abort = beginConnect(request, (result: NetResult) => {
         operation.result = result;

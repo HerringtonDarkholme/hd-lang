@@ -30,6 +30,7 @@ async function heldLookupHost(testContext: TestContext): Promise<Dynamic> {
     "node.ts",
     "node-files.ts",
     "core.ts",
+    "operation-queue.ts",
     "core-package.ts",
     "session.ts",
     "output.ts",
