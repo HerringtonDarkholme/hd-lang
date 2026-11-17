@@ -399,6 +399,38 @@ fn a_concrete_alias_chain_normalizes_each_shared_part_once() {
     });
 }
 
+// Resolver and checker: #2060, a bounded alias's uses are kept by the
+// item that writes them, each distinct (alias, arguments) once, and
+// stage B asks their bounds there: #1984's chain with one use whose
+// argument misses the bound reports that use once, and the uses asked
+// and the header types grow with the chain, not with its doubled type.
+#[test]
+fn a_bounded_alias_chain_asks_each_use_once() {
+    on_test_stack(|| {
+        let work = |n| {
+            let src = format!(
+                "{}fn bad(x: A{n}[i32]) -> void: pass\n",
+                param_alias_chain(n)
+            );
+            let ((out, headers), uses) = hd_check::work::count_alias_uses(|| {
+                hd_check::work::count_header_types(|| compile(&src, &Goal::Analyze))
+            });
+            let codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+            assert_eq!(codes, ["unsatisfied-trait-bound"], "{n}: {}", out.render());
+            [uses, headers]
+        };
+        work(1);
+        let (small, large) = (work(20), work(200));
+        for (i, what) in ["alias uses", "header types"].into_iter().enumerate() {
+            let (a, b) = (small[i], large[i]);
+            assert!(
+                a > 0 && b <= a * 10 * 5 / 4,
+                "{what} for 20 and 200 levels: {a} and {b}"
+            );
+        }
+    });
+}
+
 /// The header types an alias chain of `n` checks, and its codes.
 fn alias_chain_work(n: u32) -> (u64, Vec<String>) {
     alias_chain_work_of(n, false)

@@ -1,0 +1,10 @@
+# test: a generic alias's type argument in a signature must meet its parameter's bound
+# Spec 09 Traits: trait.bound.unsatisfied.
+
+trait Walk:
+    fn walk(self) -> i32
+
+type Id[T < Walk] = T
+
+fn take(x: Id[bool]) -> void: # diagnostic: unsatisfied-trait-bound
+    pass

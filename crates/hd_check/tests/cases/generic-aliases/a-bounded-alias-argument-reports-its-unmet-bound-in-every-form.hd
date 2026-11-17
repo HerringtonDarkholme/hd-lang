@@ -1,0 +1,95 @@
+# @dump: diagnostics
+# A generic alias's argument meets its parameter's bound where the alias
+# is written (`trait.bound.unsatisfied`, #2060): a let type, a parameter,
+# a result, a field, an enum payload, a trait impl target, a trait
+# method, a generic parameter through a projection alias, an alias body
+# and a nested alias each report once, as do a public function, whose
+# check sees only the folder's interface, a method's own parameter and a
+# local struct's field; a second use with the same arguments in one item
+# adds none. Arguments that meet the bound, a bounded generic parameter
+# among them, report nothing.
+trait Source:
+    type Item
+
+trait Walk:
+    fn walk(self) -> i32
+
+trait Show:
+    fn show(self) -> i32
+
+struct W:
+    n: i32
+
+impl Walk for W:
+    fn walk(self) -> i32:
+        self.n
+
+struct Src:
+    n: i32
+
+impl Source for Src:
+    type Item = i32
+
+type Item2[S < Source] = (S::Item, S::Item)
+type Id[T < Walk] = T
+type Nest[T < Walk] = Id[T]
+type Unbounded[T] = Item2[T]
+
+fn through[T](x: Item2[T]) -> void:
+    pass
+
+fn concrete(x: Item2[i32]) -> void:
+    pass
+
+fn result() -> Id[bool]:
+    true
+
+struct Holds:
+    a: i32
+    b: Id[bool]
+
+enum Pay:
+    A(Id[i32])
+    B
+
+impl Show for Id[bool]:
+    fn show(self) -> i32:
+        0
+
+trait Uses:
+    fn u(self, x: Id[i32]) -> void
+
+fn nested(x: Nest[bool]) -> void:
+    pass
+
+fn twice(x: Id[bool], y: Id[bool]) -> void:
+    pass
+
+fn ok_generic[T < Source](x: Item2[T]) -> void:
+    pass
+
+fn ok_concrete(x: Item2[Src], y: Id[W], z: Nest[W]) -> void:
+    pass
+
+pub fn public_bad(x: Id[i32]) -> void:
+    pass
+
+struct Box[T]:
+    v: T
+
+impl[T] Box[T]:
+    fn ok[U < Walk](self, x: Id[U]) -> i32:
+        0
+    fn bad[U](self, x: Id[U]) -> i32:
+        0
+
+fn outer() -> i32:
+    struct Local:
+        b: Id[bool]
+    0
+
+fn main() -> void:
+    let x: Id[bool] = true
+    let y: Nest[i32] = 0
+    let w: Id[W] = W { n: 1 }
+    pass

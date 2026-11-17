@@ -606,6 +606,13 @@ impl<'a> ItemCheck<'_, 'a> {
             }
             self.check_ty(t, slot)?;
         }
+        // A bounded alias's uses, which expansion leaves no trace of
+        // (`trait.bound.unsatisfied`): each distinct one once.
+        for u in &it.alias_uses {
+            crate::work::alias_use();
+            let goals = crate::written_bounds::of_bounds(self.pool(), &u.goals);
+            self.arg_bounds(goals, u.slot)?;
+        }
         if let ItemData::Fn(sig, attrs) = &it.data
             && attrs.auto_closing
             && self.fails_ref(
@@ -1628,6 +1635,53 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(())
     }
 
+    /// Written type arguments meet their parameters' declared bounds and
+    /// the bounds' bindings, `goals` in [`crate::written_bounds::goals`]
+    /// form (`trait.bound.unsatisfied`, `trait.bound.no-implied.positions`):
+    /// one `unsatisfied-trait-bound` at `slot` per argument that misses.
+    fn arg_bounds(&mut self, goals: Vec<(usize, Ty, TraitRef, Ty)>, slot: u32) -> StageResult<()> {
+        let pool = self.pool();
+        let mut missed = None;
+        for (i, a, tref, bound) in goals {
+            if missed == Some(i) {
+                continue;
+            }
+            if !self.fails_ref(tref, slot)? {
+                // The bound's bindings hold too
+                // (`trait.bound.no-implied.positions`).
+                if let Some((assoc, got, want)) = self.binding_misses(a, bound)?.into_iter().next()
+                {
+                    let message = format!(
+                        "{} does not satisfy {} in `{}`: its `{}` is {}, not {}",
+                        self.show(a),
+                        self.cx.names.display_name(tref.trait_),
+                        self.cx.names.display_name(self.item),
+                        self.cx.names.display_name(assoc),
+                        self.show(got),
+                        self.show(want)
+                    );
+                    self.report(slot, Code::UnsatisfiedTraitBound, message);
+                    missed = Some(i);
+                }
+                continue;
+            }
+            let b = pool.intern_ty(&TyData::TraitValue {
+                def: tref.trait_,
+                args: tref.args,
+                bindings: vec![],
+            });
+            let message = format!(
+                "{} does not implement {} in `{}`",
+                self.show(a),
+                self.show(b),
+                self.cx.names.display_name(self.item)
+            );
+            self.report(slot, Code::UnsatisfiedTraitBound, message);
+            missed = Some(i);
+        }
+        Ok(())
+    }
+
     /// One type of [`Self::check_ty`]'s walk: its own rules, and its
     /// parts appended to `kids` in the order they are checked.
     fn check_ty_node(&mut self, t: Ty, slot: u32, kids: &mut Vec<Work>) -> StageResult<()> {
@@ -1659,47 +1713,8 @@ impl<'a> ItemCheck<'_, 'a> {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
-                    let mut missed = None;
-                    for (i, a, tref, bound) in
-                        crate::written_bounds::goals(pool, def, &target.generics, args_v)
-                    {
-                        if missed == Some(i) {
-                            continue;
-                        }
-                        if !self.fails_ref(tref, slot)? {
-                            // The bound's bindings hold too
-                            // (`trait.bound.no-implied.positions`).
-                            if let Some((assoc, got, want)) =
-                                self.binding_misses(a, bound)?.into_iter().next()
-                            {
-                                let message = format!(
-                                    "{} does not satisfy {} in `{}`: its `{}` is {}, not {}",
-                                    self.show(a),
-                                    self.cx.names.display_name(tref.trait_),
-                                    self.cx.names.display_name(self.item),
-                                    self.cx.names.display_name(assoc),
-                                    self.show(got),
-                                    self.show(want)
-                                );
-                                self.report(slot, Code::UnsatisfiedTraitBound, message);
-                                missed = Some(i);
-                            }
-                            continue;
-                        }
-                        let b = pool.intern_ty(&TyData::TraitValue {
-                            def: tref.trait_,
-                            args: tref.args,
-                            bindings: vec![],
-                        });
-                        let message = format!(
-                            "{} does not implement {} in `{}`",
-                            self.show(a),
-                            self.show(b),
-                            self.cx.names.display_name(self.item)
-                        );
-                        self.report(slot, Code::UnsatisfiedTraitBound, message);
-                        missed = Some(i);
-                    }
+                    let goals = crate::written_bounds::goals(pool, def, &target.generics, args_v);
+                    self.arg_bounds(goals, slot)?;
                 }
                 kids.extend(args_v.iter().map(|&a| Work::Ty(a, slot)));
             }

@@ -52,3 +52,28 @@ pub(crate) fn goals(
     }
     goals
 }
+
+/// [`goals`]' form of goals already substituted: (argument position,
+/// argument, bound) each, as [`hd_resolve::AliasUse::goals`] keeps them.
+pub(crate) fn of_bounds(
+    pool: Types<'_>,
+    bounds: &[(u16, Ty, Ty)],
+) -> Vec<(usize, Ty, TraitRef, Ty)> {
+    bounds
+        .iter()
+        .filter_map(|&(i, arg, bound)| {
+            let TyData::TraitValue {
+                def: trait_, args, ..
+            } = pool.get(bound)
+            else {
+                return None;
+            };
+            let tref = TraitRef {
+                trait_,
+                self_ty: arg,
+                args,
+            };
+            Some((usize::from(i), arg, tref, bound))
+        })
+        .collect()
+}

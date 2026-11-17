@@ -1,0 +1,11 @@
+# test: a generic alias's type argument in a body must meet its parameter's bound
+# Spec 09 Traits: trait.bound.unsatisfied.
+
+trait Walk:
+    fn walk(self) -> i32
+
+type Id[T < Walk] = T
+
+fn check() -> i32:
+    let b: Id[i32] = 0 # diagnostic: unsatisfied-trait-bound
+    b

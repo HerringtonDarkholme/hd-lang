@@ -10,7 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::sync::Arc;
 
 use hd_base::{
@@ -1092,6 +1092,12 @@ struct Resolver<'a, 'b> {
     aliases: RefCell<HashMap<DefId, AliasBody>>,
     /// Each alias's [`Lower::alias_in_order`] answer, asked at every use.
     in_order: RefCell<HashMap<DefId, bool>>,
+    /// The bounded alias uses each item's written types make, by item
+    /// ([`Item::alias_uses`]); moved into the items once they are lowered.
+    alias_uses: RefCell<HashMap<DefId, Vec<crate::AliasUse>>>,
+    /// The item and written slot whose types are being lowered, and the
+    /// slot its next field takes ([`crate::anchor`] slots).
+    use_at: Cell<(DefId, u32, u32)>,
     seeds: HashMap<DefId, Item>,
     /// The declared parameters of the traits of the modules being lowered,
     /// lowered before any other header, so a trait reference fills its
@@ -2269,6 +2275,7 @@ impl Lower<'_, '_, '_> {
     /// local impl of one does ([`Self::outer_generics_at`]).
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
+        self.r.use_at.set((h.def, 0, 1));
         let (lists, self_owner) = match h.local {
             Some(_) => self.r.enclosing(self.module, &self.src).of(h.node.index()),
             None => Default::default(),
@@ -3242,6 +3249,71 @@ impl Lower<'_, '_, '_> {
         crate::instantiate_alias(pool, self.names.known.alias_params, body, args)
     }
 
+    /// Keeps `def[args]` for stage B when `def` bounds a parameter, as
+    /// expansion leaves no trace of it (`trait.bound.unsatisfied`): one
+    /// push per use, O(the alias's parameters and bounds) to substitute.
+    fn record_alias_use(&self, def: DefId, args: &[Ty]) {
+        let (item, slot, _) = self.r.use_at.get();
+        // Types lowered outside an item's header (a supertrait pass, a
+        // broken declaration) belong to no item's check.
+        if item == DefId::NONE {
+            return;
+        }
+        // The goals: each non-default argument with each of its
+        // parameter's bounds, the arguments substituted by position
+        // (`types.generic.default.bound`); the alias's own interface entry
+        // may be private, so stage B gets them here.
+        let pool = self.names.pool;
+        let params = self.names.known.alias_params;
+        let goals_of = |gs: &[Generic]| -> Vec<(u16, Ty, Ty)> {
+            let mut goals = Vec::new();
+            for (i, g) in gs
+                .iter()
+                .enumerate()
+                .filter(|(_, g)| !g.row && !g.bounds.is_empty())
+            {
+                let Some(&arg) = args.get(i) else { continue };
+                if g.default
+                    .is_some_and(|d| arg == crate::instantiate_alias(pool, params, d, args))
+                {
+                    continue;
+                }
+                let at = u16::try_from(i).unwrap_or(u16::MAX);
+                goals.extend(
+                    g.bounds
+                        .iter()
+                        .map(|&b| (at, arg, crate::instantiate_alias(pool, params, b, args))),
+                );
+            }
+            goals
+        };
+        let own = self.r.own_types.borrow().get(&def).map(|gs| goals_of(gs));
+        let goals = own.unwrap_or_else(|| {
+            self.r
+                .item(def)
+                .map_or_else(Vec::new, |it| goals_of(&it.generics))
+        });
+        if goals.is_empty() {
+            return;
+        }
+        self.r
+            .alias_uses
+            .borrow_mut()
+            .entry(item)
+            .or_default()
+            .push(crate::AliasUse { slot, goals });
+    }
+
+    /// Lowers the written type at `slot` of the current item
+    /// ([`Resolver::use_at`]).
+    fn ty_in_slot(&mut self, slot: u32, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
+        let (item, before, next) = self.r.use_at.get();
+        self.r.use_at.set((item, slot, next));
+        let t = self.ty(n, gn);
+        self.r.use_at.set((item, before, next));
+        t
+    }
+
     fn ctor(
         &mut self,
         def: DefId,
@@ -3314,6 +3386,7 @@ impl Lower<'_, '_, '_> {
         };
         match kind {
             HeadKind::Alias => {
+                self.record_alias_use(def, args);
                 let t = self.expand_alias(def, args, span);
                 // A row alias is row-kinded (`req.row.alias.type-or-key`).
                 if matches!(pool.get(t), TyData::Row(_)) {
@@ -4789,7 +4862,11 @@ impl Lower<'_, '_, '_> {
 
     /// A function header: generics, parameters, result, row, `!`.
     fn sig(&mut self, f: NodeRef<'_>, owner: DefId, gn: &mut Gen) -> FnSig {
-        gn.with_scope(|gn| self.sig_in_scope(f, owner, gn))
+        // A method's types are its own item's slots, not its block's.
+        let around = self.r.use_at.replace((owner, 0, 1));
+        let sig = gn.with_scope(|gn| self.sig_in_scope(f, owner, gn));
+        self.r.use_at.set(around);
+        sig
     }
 
     /// Lowers one argument-position `impl Trait` as a fresh anonymous type
@@ -4983,7 +5060,7 @@ impl Lower<'_, '_, '_> {
                     generics.push(generic);
                     ty
                 } else {
-                    self.ty(type_node, gn)
+                    self.ty_in_slot(param_slot(params.len()), type_node, gn)
                 };
                 // `fn.type.lifetime.call.written`: the lifetimes the inputs
                 // and results of its function types write, which no type
@@ -5014,7 +5091,7 @@ impl Lower<'_, '_, '_> {
         let ins = self.slots.as_ref().map_or(0, Vec::len);
         self.result_paths = Some((params.clone(), ins, Vec::new()));
         self.fn_written.clear();
-        let ret = self.ty(Src::type_child(f), gn);
+        let ret = self.ty_in_slot(param_slot(params.len()), Src::type_child(f), gn);
         fn_lifetimes.push(self.take_fn_written(ret));
         let mut paths = self.result_paths.take().map(|p| p.2).unwrap_or_default();
         let written_paths = paths.len();
@@ -5174,7 +5251,9 @@ impl Lower<'_, '_, '_> {
             let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
             let saved_held = std::mem::replace(&mut self.held, lifetimes.then(Vec::new));
             self.fn_written.clear();
-            let ty = self.ty(tn, gn);
+            let (item, at, slot) = self.r.use_at.get();
+            self.r.use_at.set((item, at, slot + 1));
+            let ty = self.ty_in_slot(slot, tn, gn);
             // `fn.type.lifetime.call.written`: the struct's lifetimes the
             // inputs and results of its function types write, which no
             // type keeps.
@@ -7095,7 +7174,7 @@ impl Lower<'_, '_, '_> {
             HeadKind::Newtype => {
                 let mut gn = Gen::default();
                 let generics = self.own_generics(gl, h.def, &mut gn);
-                let t = self.ty(n.children().find(|c| c.kind().is_type()), &gn);
+                let t = self.ty_in_slot(1, n.children().find(|c| c.kind().is_type()), &gn);
                 // `@derive` on a newtype names implementations from the
                 // base type's (`trait.derive.newtype`).
                 self.derived(h, &generics, &[t], out);
@@ -7212,7 +7291,7 @@ impl Lower<'_, '_, '_> {
                     Ty::POISON
                 }
             }
-            b => self.ty(b, &gn),
+            b => self.ty_in_slot(1, b, &gn),
         };
         let lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
         let rows = generics.iter().map(|g| g.row).collect();
@@ -7471,15 +7550,40 @@ fn lower_aliases(
             };
             if alias {
                 low.alias_item(h, cyclic, &mut out[mi]);
+                r.use_at.set((DefId::NONE, 0, 1));
                 if unsupported.is_none() {
                     unsupported = low.unsupported.take();
                 }
             } else {
                 low.record_defaults(h);
+                r.use_at.set((DefId::NONE, 0, 1));
             }
         }
     }
     (out, unsupported)
+}
+
+/// The anchor slot of a signature's type after `params` parameters: its
+/// next parameter's, or its result's.
+fn param_slot(params: usize) -> u32 {
+    u32::try_from(params + 1).unwrap_or(0)
+}
+
+/// Moves the bounded alias uses recorded for `items` into them, each
+/// distinct set of goals once, at its first recorded slot: O(goals).
+fn take_alias_uses(r: &Resolver<'_, '_>, items: &mut [Item]) {
+    let mut uses = r.alias_uses.borrow_mut();
+    if uses.is_empty() {
+        return;
+    }
+    for it in items.iter_mut() {
+        let Some(mut v) = uses.remove(&it.def) else {
+            continue;
+        };
+        let mut seen = HashSet::default();
+        v.retain(|u| seen.insert(u.goals.clone()));
+        it.alias_uses = v;
+    }
 }
 
 /// The written head of an implementation, as `impl_head_rules` reads it.
@@ -8688,6 +8792,8 @@ fn resolver<'a, 'b>(
         const_params: HashMap::default(),
         aliases: RefCell::new(HashMap::default()),
         in_order: RefCell::new(HashMap::default()),
+        alias_uses: RefCell::new(HashMap::default()),
+        use_at: Cell::new((DefId::NONE, 0, 1)),
         seeds: HashMap::default(),
         own_traits: HashMap::default(),
         own_types: RefCell::new(HashMap::default()),
@@ -9006,6 +9112,7 @@ pub fn build_folder(
                     .filter(|h| h.test.is_some() == test && h.kind != HeadKind::Alias)
                 {
                     low.item(h, &mut items);
+                    r.use_at.set((DefId::NONE, 0, 1));
                 }
                 if !test {
                     for (at, n) in m.src.broken().enumerate() {
@@ -9021,6 +9128,7 @@ pub fn build_folder(
             }
         }
         configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
+        take_alias_uses(&r, &mut items);
         {
             let not_copy = r.not_copy.borrow();
             for it in items.iter_mut().filter(|i| not_copy.contains(&i.def)) {

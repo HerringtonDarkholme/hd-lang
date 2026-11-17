@@ -797,6 +797,21 @@ pub struct Item {
     /// an empty path is the type itself. Stored outside semantic blobs.
     pub docs: ItemDocs,
     pub data: ItemData,
+    /// The uses of a bounded generic alias its written types make, which
+    /// expansion leaves no trace of: each distinct set of goals once, at
+    /// the first slot that writes it (`trait.bound.unsatisfied`).
+    pub alias_uses: Vec<AliasUse>,
+}
+
+/// `Alias[args]` written in an item's header, whose alias declares a bound
+/// on a parameter: stage B asks the bounds of `args` at `slot`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct AliasUse {
+    /// The item's written position (`anchor` slots): 0 is its header.
+    pub slot: u32,
+    /// Each argument the bounds ask of, by position, and a bound with the
+    /// arguments substituted: the alias's own entry may be private.
+    pub goals: Vec<(u16, Ty, Ty)>,
 }
 
 /// `FnAttrs::literal_fn` of a suffix function.
@@ -823,6 +838,7 @@ impl Item {
             generics: Vec::new(),
             docs: Vec::new(),
             data,
+            alias_uses: Vec::new(),
         }
     }
     /// A callable's own attributes: a module-level function's or a
@@ -1840,6 +1856,16 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u32(t.sym(it.name));
     w.u8(u8::from(it.public));
     put_generics(w, t, &it.generics)?;
+    w.len_of(&it.alias_uses);
+    for u in &it.alias_uses {
+        w.u32(u.slot);
+        w.len_of(&u.goals);
+        for &(i, arg, bound) in &u.goals {
+            w.u32(u32::from(i));
+            w.u32(t.ty(arg)?);
+            w.u32(t.ty(bound)?);
+        }
+    }
     match &it.data {
         ItemData::Fn(s, a) => {
             w.u8(0);
@@ -1972,6 +1998,16 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let name = t.sym(r.u32())?;
     let public = r.u8() != 0;
     let generics = get_generics(r, t)?;
+    let alias_uses = (0..r.count())
+        .map(|_| {
+            Some(AliasUse {
+                slot: r.u32(),
+                goals: (0..r.count())
+                    .map(|_| Some((u16::try_from(r.u32()).ok()?, t.ty(r.u32())?, t.ty(r.u32())?)))
+                    .collect::<Option<Vec<_>>>()?,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
     let data = match r.u8() {
         0 => {
             let sig = get_sig(r, t)?;
@@ -2101,6 +2137,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         generics,
         docs: Vec::new(),
         data,
+        alias_uses,
     })
 }
 

@@ -192,6 +192,29 @@ pub(crate) fn header_type() {
 }
 
 thread_local! {
+    static ALIAS_USES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the bounded alias uses the header check asks the bounds of on
+/// this thread ([`hd_resolve::AliasUse`]), one per distinct use of an
+/// item. Use the driver's serial executor to measure a whole build.
+pub fn count_alias_uses<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = ALIAS_USES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = ALIAS_USES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One bounded alias use the header check asks the bounds of.
+pub(crate) fn alias_use() {
+    ALIAS_USES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
+
+thread_local! {
     static LAYOUT_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 

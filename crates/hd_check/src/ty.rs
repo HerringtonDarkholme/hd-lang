@@ -915,7 +915,7 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownTrait, n, &msg);
             return Ok(Ty::POISON);
         }
-        self.check_written_bounds(t, def, (&arg_nodes, n))?;
+        self.check_written_bounds(t, (def, &args), (&arg_nodes, n))?;
         Ok(t)
     }
 
@@ -924,25 +924,37 @@ impl Ck<'_, '_> {
     /// `types.map-key.declared-bound`, `trait.bound.no-implied.positions`):
     /// one error at the argument that misses a bound. An argument the
     /// written type did not fix waits for inference.
+    /// An alias's arguments meet its parameters' bounds where it is
+    /// written, as its expansion keeps no trace of them.
     fn check_written_bounds(
         &mut self,
         t: Ty,
-        def: DefId,
+        (def, written): (DefId, &[Ty]),
         (arg_nodes, whole): (&[NodeRef<'_>], NodeRef<'_>),
     ) -> StageResult<()> {
         let pool = self.pool();
-        let TyData::Adt { def: d, args } = pool.get(t) else {
-            return Ok(());
-        };
-        if d != def {
-            return Ok(());
-        }
         let Some(item) = self.cx.lookup.item(def) else {
             return Ok(());
         };
-        let args = pool.list_items(args);
+        let filled;
+        let (owner, args) = match pool.get(t) {
+            TyData::Adt { def: d, args } if d == def => (def, pool.list_items(args)),
+            _ if matches!(item.data, ItemData::Alias { .. }) => {
+                let owner = hd_resolve::params_owner(self.cx.names.known, item);
+                let with_outer = self.with_outer_args(item, written);
+                filled = hd_resolve::fill_type_args(
+                    self.cx.names.pool,
+                    owner,
+                    &item.generics,
+                    &with_outer,
+                );
+                (owner, filled.as_slice())
+            }
+            _ => return Ok(()),
+        };
         let mut missed = None;
-        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, owner, &item.generics, args)
+        {
             if missed == Some(i) {
                 continue;
             }
