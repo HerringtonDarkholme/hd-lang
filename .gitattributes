@@ -1,16 +1,12 @@
+# Every text file checks out with LF on every platform. Tests compare
+# fixtures, snapshots and baselines byte for byte, and Windows' CRLF
+# checkout broke main three times on 2026-11-17 with per-path rules.
+# Files that must keep other bytes opt out below with -text (last match wins).
+* text=auto eol=lf
+
 # Git fast-import streams are fed to git byte-exact: CRLF would corrupt
 # their ref names and data lengths.
 *.fi -text
-# CLI fixtures judge byte offsets of fix-it edits, which depend on the
-# line ending: every .hd source and every expected file under want/ is
-# checked out with LF on all platforms (a per-case list missed
-# lint-map-get-store-back on 2026-11-17, red on Windows). A case that
-# tests CRLF on purpose overrides this below with -text (last match wins).
-spec/conformance/cli/**/*.hd text eol=lf
-spec/conformance/cli/**/want/** text eol=lf
-# Generated-companion snapshots are compared as text: LF on every platform.
-crates/hd_run_wasmtime/tests/native/*.host.rs text eol=lf
-crates/hd_cli/tests/all/native/*.host.rs text eol=lf
 
 # A missing import's fix-it in a CRLF file: stored with CRLF bytes and
 # never converted, so every checkout on every platform has them.
@@ -18,5 +14,6 @@ spec/conformance/cli/check-fix-std-import-crlf/src/*.hd -text
 spec/conformance/cli/check-fix-std-import-crlf/want/* -text
 
 # Byte-sensitive conformance inputs: preserve CRLF and the UTF-8 BOM.
-spec/conformance/runtime/valid/crlf-line-endings.hd -text whitespace=cr-at-eol
-spec/conformance/parse/valid/utf8-bom.hd -text
+spec/conformance/lang/lexical/physical-and-logical-lines/crlf-line-endings.hd -text whitespace=cr-at-eol
+spec/conformance/lang/lexical/physical-and-logical-lines/bare-carriage-return.hd -text
+spec/conformance/lang/lexical/processing-model/utf8-bom.hd -text

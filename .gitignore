@@ -96,3 +96,4 @@ website/playground/assets/hd_wat.wasm
 
 # Server SDK test caches the hd_cli tests create in the worktree.
 /.cache-muse-*/
+*.profraw
