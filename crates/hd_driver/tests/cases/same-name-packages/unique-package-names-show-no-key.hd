@@ -1,0 +1,22 @@
+# @dump: stdout
+# @main: src/main.hd
+# module.dep.key-name: when every dependency's package name is its own,
+# a mismatch between their types names each by its package alone, with
+# no dependency key.
+use dep.wallet
+use dep.bank.{Coin as Note}
+
+pub fn main() -> void $ Console:
+    let n: Note = wallet.make(1)
+    println(n.cents)
+# @dependency: wallet=coins
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32
+
+pub fn make(n: i32) -> Coin:
+    Coin { cents: n * 100 }
+# @dependency: bank=cash
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32

@@ -5088,8 +5088,8 @@ lang/control-flow/for-loops/for-element-references-alias-push-panics.hd	runtime	
 lang/references/element-references/for-element-references-shared-alias-push-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.elem.access.alias
 lang/references/element-references/for-element-references-shared-store-seen.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.access.live-length
 lang/control-flow/for-loops/for-element-references-recursive-calls.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.access
-std/collections/uniqlist/uniq-list-element-alias-push-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
-std/collections/uniqmap/uniq-map-value-alias-insert-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.type
+std/collections/uniqlist/uniq-list-element-alias-push-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqmap/uniq-map-value-alias-insert-panics.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-insert
 lang/references/element-references/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared
 lang/references/element-references/element-reference-mut-short-binding.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.elem.writable
 lang/control-flow/for-loops/for-element-references-mut-short-binding.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.ref.writable
@@ -6231,9 +6231,10 @@ std/collections/uniqmap/uniq-map-reserve-overflow.hd	runtime	panic:heap-exhauste
 std/collections/uniqmap/uniq-map-capacity-overflow.hd	runtime	panic:heap-exhausted	std/collections.md#r-std-collections.uniq-map.reserve-overflow
 std/collections/uniqlist/uniq-list-drain-keeps-mutable-borrow.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-list.drain
 std/collections/uniqmap/uniq-map-drain-keeps-mutable-borrow.hd	type	reject:conflicting-access	std/collections.md#r-std-collections.uniq-map.drain
-std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
-std/collections/uniqlist/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
-std/collections/uniqlist/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.type
+std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqlist/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqlist/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqlist/uniq-list-append-receiver-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
 std/collections/uniqlist/uniq-list-index-in-counted-loops.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
 std/collections/uniqlist/loop-invariant-header-reads-see-every-write.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
 std/collections/uniqlist/uniq-list-index-past-loop-counter.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.uniq-list.index-places

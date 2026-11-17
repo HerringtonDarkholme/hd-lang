@@ -1,0 +1,20 @@
+# test: appending into an alias's list while an element reference into it is live panics borrow-conflict, as the append can move the receiver's elements
+use std.collections.UniqList
+
+struct Bag:
+    items: UniqList[string]
+
+fn change(first: &mut string, alias: *mut Bag) -> void:
+    let mut source = UniqList::[string].new()
+    source.push("moved")
+    alias.items.append(&mut source) # panic: borrow-conflict
+    *first = "still live"
+
+tests:
+    it("keeps a pinned element in its room"):
+        bag := box(Bag { items: UniqList::[string].new() })
+        bag.items.push("original")
+        alias := bag
+        match bag.items.get_mut(0):
+            .Some(first) => change(first, alias)
+            .None => panic("missing element")

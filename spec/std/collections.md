@@ -115,6 +115,7 @@ Its surface is:
 41. r[std-collections.uniq-list.reserve-overflow] A `reserve` whose length sum exceeds the address space panics in every build profile. Panic: `heap-exhausted`.
 42. r[std-collections.uniq-list.into-iter.release-rest] Releasing the consuming cursor drops every element it has not yielded.
 43. r[std-collections.uniq-list.into-iter.linear] Consuming a `UniqList` takes O(n) time, excluding element cleanup; each `next()` moves one element without shifting the rest.
+44. r[std-collections.uniq-list.pinned-moves] `append`, `drain`, `reserve`, and `push` can move the list's elements, so each holds the whole list, by [`ref.excl.alias.conflict`](../lang/13-values-and-references.md#r-ref.excl.alias.conflict); `append` also holds `other`. Called through an alias while a reference into an element of a held list is live, each panics. Panic: `borrow-conflict`.
 
 > Note: hd's `Range[usize]` also represents inclusive bounds, as in `drain(1..=3)`.
 > As with [`Span.slice`](#r-std-collections.span.slice), open bounds are written explicitly: `drain(0..items.len())` drains the whole list.
@@ -187,6 +188,7 @@ This surface has no literal construction.
 26. r[std-collections.uniq-map.index-places] `UniqMap[K, V]` implements `Index[K]` and `IndexMut[K]` for every supported `V`, with `Out = V`; a missing key panics. Panic: `index-out-of-bounds`.
 27. r[std-collections.uniq-map.index-set] Its `IndexSet[K, V]` implementation inserts or replaces the key's value, moving `V` and dropping any previous value.
 28. r[std-collections.uniq-map.pinned-bulk] `drain`, `retain`, and `reserve` hold the whole map, by [`ref.excl.alias.conflict`](../lang/13-values-and-references.md#r-ref.excl.alias.conflict). Called through an alias while a reference into an entry is live, each panics. Panic: `borrow-conflict`.
+29. r[std-collections.uniq-map.pinned-insert] `insert` can rehash the map's buffer, so it holds the whole map, by [`ref.excl.alias.conflict`](../lang/13-values-and-references.md#r-ref.excl.alias.conflict). Called through an alias while a reference into an entry is live, it panics. Panic: `borrow-conflict`.
 
 ## List And Map Values
 

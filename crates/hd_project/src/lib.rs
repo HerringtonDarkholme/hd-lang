@@ -274,29 +274,78 @@ pub fn user_text(text: &str, file_of: &dyn Fn(&str) -> Option<String>) -> String
     out
 }
 
-/// `text` with each module root of `renamed` written as its package's
-/// identifier (`ModuleTable::renamed_roots`). A root is replaced where no
-/// identifier character comes before it and no digit after it.
+/// How user text shows one module root (`ModuleTable::shown_roots`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShownRoot {
+    /// The internal module root, as `money$2`.
+    pub root: String,
+    /// Its package's identifier, which user text shows for it.
+    pub ident: String,
+    /// The dependency key a manifest names the package by, shown after
+    /// each type the package declares when another package shares its name
+    /// (`module.dep.key-name`): `money.Coin (wallet)`.
+    pub key: Option<String>,
+}
+
+/// `text` with each module root of `shown` (sorted by root) written as its
+/// package's identifier, and each type path from a package whose name
+/// another shares followed by its dependency key: `expected money.Coin
+/// (wallet), found money.Coin (bank)`. A root is a whole word, `$` and
+/// digits included, with no identifier character or `$` before it; a key
+/// follows only a root that starts a path (no `.` before it) whose last
+/// segment names a type (an uppercase first letter), so a local or a field
+/// spelled like the package is left alone. Cost: one pass over `text`, a
+/// binary search of `shown` per word.
 #[must_use]
-pub fn rename_roots(text: &str, renamed: &[(String, String)]) -> String {
-    let mut out = text.to_owned();
-    for (root, ident) in renamed {
-        let mut next = String::with_capacity(out.len());
-        let mut rest = out.as_str();
-        while let Some(at) = rest.find(root.as_str()) {
-            let end = at + root.len();
-            let before = rest[..at]
-                .chars()
-                .next_back()
-                .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '$');
-            let after = rest[end..].starts_with(|c: char| c.is_ascii_digit());
-            next.push_str(&rest[..at]);
-            next.push_str(if before || after { root } else { ident });
-            rest = &rest[end..];
+pub fn show_roots(text: &str, shown: &[ShownRoot]) -> String {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let word_end = |from: usize, dollar: bool| {
+        text[from..]
+            .find(|c: char| !(ident(c) || (dollar && c == '$')))
+            .map_or(text.len(), |n| from + n)
+    };
+    let mut out = String::with_capacity(text.len());
+    let (mut copied, mut at, mut before) = (0, 0, None::<char>);
+    while let Some(c) = text[at..].chars().next() {
+        if !ident(c) || before.is_some_and(|b| ident(b) || b == '$') {
+            before = Some(c);
+            at += c.len_utf8();
+            continue;
         }
-        next.push_str(rest);
-        out = next;
+        let end = word_end(at, true);
+        let found = shown
+            .binary_search_by(|s| s.root.as_str().cmp(&text[at..end]))
+            .ok()
+            .map(|i| &shown[i]);
+        let Some(root) = found else {
+            before = text[..end].chars().next_back();
+            at = end;
+            continue;
+        };
+        out.push_str(&text[copied..at]);
+        out.push_str(&root.ident);
+        let mut path_end = end;
+        let mut type_named = false;
+        if root.key.is_some() && before != Some('.') {
+            while text[path_end..].starts_with('.')
+                && text[path_end + 1..].starts_with(|c: char| ident(c))
+            {
+                let segment = &text[path_end + 1..word_end(path_end + 1, false)];
+                type_named = segment.starts_with(|c: char| c.is_uppercase());
+                path_end += 1 + segment.len();
+            }
+        }
+        out.push_str(&text[end..path_end]);
+        if let (true, Some(key)) = (type_named, &root.key) {
+            out.push_str(" (");
+            out.push_str(key);
+            out.push(')');
+        }
+        copied = path_end;
+        before = text[..path_end].chars().next_back();
+        at = path_end;
     }
+    out.push_str(&text[copied..]);
     out
 }
 
@@ -1363,16 +1412,44 @@ impl ModuleTable {
         }
     }
 
-    /// The module roots that differ from their package's identifier, each
-    /// with that identifier: what user text shows for them.
+    /// How user text shows each module root that differs from its
+    /// package's identifier, or whose package shares its name with another,
+    /// sorted by root ([`show_roots`]). A shared name's key is the one the
+    /// root package's manifest names it by, else the first requiring
+    /// package's, in package order; the root package itself has none.
+    /// Cost: O(packages + requirements), once per build.
     #[must_use]
-    pub fn renamed_roots(&self) -> Vec<(String, String)> {
-        self.roots
+    pub fn shown_roots(&self) -> Vec<ShownRoot> {
+        let idents: Vec<String> = self.packages.iter().map(|p| package_ident(p)).collect();
+        let mut sharing: hd_base::HashMap<&str, u32> = hd_base::HashMap::default();
+        for ident in &idents {
+            *sharing.entry(ident.as_str()).or_default() += 1;
+        }
+        let mut keys: Vec<Option<&str>> = vec![None; idents.len()];
+        let root_edges = self
+            .requires
+            .first()
+            .into_iter()
+            .chain(self.dev_requires.first());
+        for (key, p) in root_edges.chain(self.requires.iter().skip(1)).flatten() {
+            keys[usize::from(*p)].get_or_insert(key.as_str());
+        }
+        let mut shown: Vec<ShownRoot> = self
+            .roots
             .iter()
-            .zip(&self.packages)
-            .map(|(root, name)| (root.clone(), package_ident(name)))
-            .filter(|(root, ident)| root != ident)
-            .collect()
+            .enumerate()
+            .filter_map(|(p, root)| {
+                let ident = &idents[p];
+                let key = keys[p].filter(|_| p != 0 && sharing[ident.as_str()] > 1);
+                (root != ident || key.is_some()).then(|| ShownRoot {
+                    root: root.clone(),
+                    ident: ident.clone(),
+                    key: key.map(str::to_owned),
+                })
+            })
+            .collect();
+        hd_base::SliceSort::sort_stable_by(&mut shown[..], |a, b| a.root.cmp(&b.root));
+        shown
     }
 
     /// Whether package `from` reaches package `to` through requirements.
@@ -2041,9 +2118,54 @@ mod tests {
             t.use_roots(t.module("money$3").expect("b")).deps,
             [("fx".to_owned(), "std".to_owned())]
         );
+        let shown = t.shown_roots();
         assert_eq!(
-            super::rename_roots("`money$2.f` and `money$23` x$2", &t.renamed_roots()),
+            super::show_roots("`money$2.f` and `money$23` x$2", &shown),
             "`money.f` and `money$23` x$2"
+        );
+        // A type path of a shared name shows the key the root's manifest
+        // names it by; the root package, a path's later segment, a
+        // non-type path and a lone root show none.
+        assert_eq!(
+            super::show_roots(
+                "expected money$2.Coin, found money$3.rates.Rate; money.Coin, x.money$2.Coin, money$2.make, money$3",
+                &shown
+            ),
+            "expected money.Coin (money), found money.rates.Rate (cash); money.Coin, x.money.Coin, money.make, money"
+        );
+        assert_eq!(shown.iter().filter(|s| s.key.is_some()).count(), 2);
+    }
+
+    /// A shared name the root package does not require shows the key of
+    /// the first package that requires it, in package order; a unique name
+    /// shows none.
+    #[test]
+    fn a_shared_name_out_of_the_roots_reach_shows_its_requirers_key() {
+        let lib = MemorySources::default();
+        let p = |name, identity, requires| PackageIn {
+            name,
+            identity,
+            sources: &lib,
+            scope: Scope::Library,
+            requires,
+            entries: Vec::new(),
+            dev_requires: Vec::new(),
+        };
+        let t = ModuleTable::discover_all(&[
+            p("app", "app", vec![("shop".to_owned(), 1)]),
+            p(
+                "shop",
+                "/w/s",
+                vec![("wallet".to_owned(), 2), ("bank".to_owned(), 3)],
+            ),
+            p("money", "/w/a", Vec::new()),
+            p("money", "/w/b", vec![("wallet".to_owned(), 2)]),
+        ]);
+        assert!(t.problems.is_empty(), "{:?}", t.problems);
+        assert_eq!(t.roots, ["app", "shop", "money$2", "money"]);
+        assert_eq!(
+            super::show_roots("money$2.Coin, money.Coin, shop.Cart", &t.shown_roots()),
+            "money.Coin (wallet), money.Coin (bank), shop.Cart"
         );
     }
 

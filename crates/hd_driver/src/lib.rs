@@ -587,9 +587,9 @@ pub struct Output {
     /// Each selected test case's body, by its stable item path
     /// (`shop/$test0`), with the case's registered name.
     test_bodies: Vec<(String, String)>,
-    /// The module roots that differ from their package's identifier, each
-    /// with that identifier (`ModuleTable::renamed_roots`).
-    pub renamed: Vec<(String, String)>,
+    /// How user text shows the module roots that differ from their
+    /// package's identifier or share its name (`ModuleTable::shown_roots`).
+    pub shown_roots: Vec<hd_project::ShownRoot>,
     pub counters: Counters,
     pub report: PipelineReport,
     /// Each built folder interface's blob, by folder path.
@@ -656,17 +656,18 @@ impl Output {
 
     /// Text for the user: each internal module path of test or task code
     /// named by its file (`hd_project::user_text`), and each package named
-    /// by its name (`hd_project::rename_roots`).
+    /// by its name, with its dependency key after a type when another
+    /// package shares that name (`hd_project::show_roots`).
     #[must_use]
     pub fn user_text(&self, text: &str) -> String {
         let text = hd_project::user_text(text, &|path| {
             let i = self.modules.iter().position(|m| m == path)?;
             self.files.get(i).cloned()
         });
-        if self.renamed.is_empty() {
+        if self.shown_roots.is_empty() {
             text
         } else {
-            hd_project::rename_roots(&text, &self.renamed)
+            hd_project::show_roots(&text, &self.shown_roots)
         }
     }
 
@@ -3064,7 +3065,7 @@ fn build_packages_inner(
             .map(|m| run.frame_module(&m.path))
             .collect(),
         test_bodies: run.test_bodies(),
-        renamed: run.table.renamed_roots(),
+        shown_roots: run.table.shown_roots(),
         counters,
         report,
         ifaces,
@@ -3180,7 +3181,7 @@ fn stored_output(
         },
         printed: Vec::new(),
         test_bodies: Vec::new(),
-        renamed: table.renamed_roots(),
+        shown_roots: table.shown_roots(),
         counters,
         report: PipelineReport {
             package: package.to_owned(),

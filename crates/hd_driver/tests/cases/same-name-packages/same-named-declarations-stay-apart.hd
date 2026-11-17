@@ -2,13 +2,18 @@
 # @main: src/main.hd
 # module.dep.identity, module.package.no-sharing: two packages whose
 # manifests share the name `money` are two packages, so one's `Coin` is
-# not the other's, and the mismatch names neither by an internal `$` root.
+# not the other's. The mismatch names neither by an internal `$` root:
+# each type shows its dependency key, inside a generic type too, while a
+# function path shows none.
 use dep.euro
 use dep.yen.{Coin as Yen}
 
 pub fn main() -> void $ Console:
     let y: Yen = euro.make(1)
-    println(y.cents)
+    let ys: List[Yen] = [euro.make(2)]
+    let f: fn(i32) -> Yen = euro.make
+    println(y.cents + f(3).cents)
+    println(ys.len())
 # @dependency: euro=money
 # @file: src/lib.hd
 pub struct Coin:
