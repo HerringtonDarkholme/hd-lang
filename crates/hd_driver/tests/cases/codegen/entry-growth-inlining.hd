@@ -1,0 +1,34 @@
+# @dump: wat
+# @build: release std
+# expected: entry-path growth helpers remain calls; conditional fast paths and Always keep their existing eligibility
+use std.annotation.inline
+use std.rt.memory.grow
+
+fn reserve_pages(count: usize) -> usize:
+    match grow(count):
+        .Some(first) => first
+        .None => panic("growth failed")
+
+@inline(.Auto)
+fn preferred_pages(count: usize) -> usize:
+    match grow(count):
+        .Some(first) => first
+        .None => panic("growth failed")
+
+@inline(.Always)
+fn forced_pages(count: usize) -> usize:
+    match grow(count):
+        .Some(first) => first
+        .None => panic("growth failed")
+
+@inline(.Auto)
+fn conditional_pages(count: usize) -> usize:
+    if count == 0:
+        return 0
+    match grow(count):
+        .Some(first) => first
+        .None => panic("growth failed")
+
+# subject
+pub fn exercise(count: usize) -> usize:
+    reserve_pages(count) + preferred_pages(count) + forced_pages(count) + conditional_pages(count)
