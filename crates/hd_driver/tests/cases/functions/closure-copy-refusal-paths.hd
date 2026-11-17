@@ -1,0 +1,95 @@
+# @dump: own wat stdout
+# @build: release checked
+# expected: generic, wide-capture and reference-writing literals retain valid call boundaries.
+use std.annotation.cold
+use std.testing.assert_equal
+
+struct Counter:
+    value: usize
+
+@cold
+fn generic(seed: usize) -> usize:
+    fn identity[T](value: T) -> T:
+        value
+    local := identity::[usize]
+    local(seed)
+
+@cold
+fn wide(seed: usize) -> usize:
+    value0 := seed + 0
+    value1 := seed + 1
+    value2 := seed + 2
+    value3 := seed + 3
+    value4 := seed + 4
+    value5 := seed + 5
+    value6 := seed + 6
+    value7 := seed + 7
+    value8 := seed + 8
+    value9 := seed + 9
+    value10 := seed + 10
+    value11 := seed + 11
+    value12 := seed + 12
+    value13 := seed + 13
+    value14 := seed + 14
+    value15 := seed + 15
+    value16 := seed + 16
+    local := fn() -> usize:
+        (
+            value0
+            + value1
+            + value2
+            + value3
+            + value4
+            + value5
+            + value6
+            + value7
+            + value8
+            + value9
+            + value10
+            + value11
+            + value12
+            + value13
+            + value14
+            + value15
+            + value16
+        )
+    local()
+
+@cold
+# subject
+fn written(seed: usize) -> usize:
+    let mut counter = Counter { value: seed }
+    local := fn(value: &mut Counter) -> void: value.value += 1
+    local(&mut counter)
+    counter.value
+
+@cold
+fn nested(seed: usize) -> usize:
+    let callback = fn() -> usize: seed + 1
+    local := fn() -> usize: callback()
+    local() + callback()
+
+@cold
+fn recursive_capture(seed: usize) -> usize:
+    outer := fn() -> usize:
+        fn recurse(depth: usize) -> usize:
+            if depth == 0: seed else: recurse(depth - 1)
+        local := fn() -> usize: recurse(2)
+        local()
+    outer()
+
+@cold
+fn counted_writer(seed: usize) -> usize:
+    value := box(Counter { value: seed })
+    local := fn(item: *mut Counter) -> usize:
+        item.value += seed
+        item.value
+    local(value)
+
+pub fn main() -> void:
+    assert_equal(generic(7), 7)
+    assert_equal(wide(7), 255)
+    assert_equal(written(7), 8)
+    assert_equal(nested(7), 16)
+    assert_equal(recursive_capture(7), 7)
+    assert_equal(counted_writer(7), 14)

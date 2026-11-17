@@ -237,11 +237,9 @@ fn awaited_slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
             *st = UNSEEN;
         }
     }
+    // Insertion calls this before emitting ownership statements (invariant 22).
     let mut ops = Vec::new();
     for j in 0..b.len() {
-        if matches!(b.tags[j], Tag::Drop | Tag::LoanEnd) {
-            continue;
-        }
         super::operands(b, j, &mut ops);
         for op in &ops {
             let st = &mut state[op.value as usize];

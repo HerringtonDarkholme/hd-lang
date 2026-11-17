@@ -195,10 +195,9 @@ impl ElementChecks {
                                 if loans.get(j) != Some(&epoch) {
                                     return false;
                                 }
-                                let Some((root, value)) = elements[j] else {
-                                    return false;
-                                };
-                                args.push((root, value));
+                                // A current loan is set only for Some(element).
+                                // Append that fact without a redundant refusal.
+                                args.extend(elements[j]);
                                 true
                             })
                         });

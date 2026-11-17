@@ -1,0 +1,99 @@
+# @dump: own wat stdout
+# @build: release checked
+# expected: copied closure metadata preserves checked arithmetic, strings and a call-result loan.
+use std.annotation.cold
+use std.testing.assert_equal
+
+@cold
+fn first(values: &List[string]) -> &string:
+    &values[0]
+
+@cold
+fn arithmetic(seed: usize) -> string:
+    let mut value = 1
+    if seed == 0:
+        value = 2
+    next := fn() -> string:
+        number := value + 1
+        "$number"
+    next()
+
+@cold
+fn label(seed: usize) -> string:
+    render := fn() -> string: "value $seed"
+    render()
+
+@cold
+# subject
+fn borrowed(values: List[string]) -> usize:
+    reader := fn() -> usize:
+        let current: &string = first(&values)
+        current.len()
+    reader()
+
+struct Pair:
+    value: usize
+
+@cold
+fn projected(seed: usize) -> usize:
+    local := fn() -> usize:
+        let mut value = Pair { value: seed }
+        value.value += 1
+        value.value
+    local()
+
+@cold
+fn target(value: usize) -> usize:
+    value + 1
+
+@cold
+fn function_reference(seed: usize) -> usize:
+    local := fn() -> fn(usize) -> usize: target
+    local()(seed)
+
+@cold
+fn indexed(seed: usize) -> usize:
+    let mut values = [seed]
+    local := fn() -> usize:
+        values[0] += 1
+        values[0]
+    local()
+
+@cold
+fn shared_counter(seed: usize) -> usize:
+    let count = seed
+    increment := fn() -> usize:
+        count += 1
+        count
+    increment() + increment()
+
+@cold
+fn shared_callback(seed: usize) -> usize:
+    let callback = fn() -> usize: seed
+    replace := fn() -> usize:
+        callback = fn() -> usize: seed + 1
+        callback()
+    replace() + callback()
+
+@cold
+fn shared_environment(seed: usize) -> (usize, fn() -> usize):
+    let count = seed
+    update := fn() -> usize:
+        count += 1
+        count
+    escaped := fn() -> usize: count
+    (update(), escaped)
+
+pub fn main() -> void:
+    assert_equal(arithmetic(7), "2")
+    assert_equal(arithmetic(0), "3")
+    assert_equal(label(7), "value 7")
+    assert_equal(borrowed(["kept"]), 4)
+    assert_equal(projected(7), 8)
+    assert_equal(function_reference(7), 8)
+    assert_equal(indexed(7), 8)
+    assert_equal(shared_counter(7), 17)
+    assert_equal(shared_callback(7), 16)
+    shared := shared_environment(7)
+    assert_equal(shared._0, 8)
+    assert_equal((shared._1)(), 8)

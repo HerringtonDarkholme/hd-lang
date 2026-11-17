@@ -7,12 +7,12 @@
 //! holds no counted leaf is the backend's question; these are the TIR
 //! halves: which parameters the body only reads through
 //! ([`read_only_params`]), the copy ([`promote`]), which calls may run
-//! it ([`promoted_call`]), and which an inlined copy may bind by value
+//! it ([`promoted_call_in`]), and which an inlined copy may bind by value
 //! ([`inline_args`]).
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Proj, Ref, Root, Tag, place};
+use crate::ir::{Body, Proj, Ref, Root, Tag, place, u32_of};
 
 /// The parameters of `b` among `candidates` (bit k: parameter k, the
 /// receiver first) that the body only reads through: every place rooted
@@ -57,7 +57,7 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
         };
         let mut steps = p.steps(b);
         let ok = match tag {
-            Tag::Read if p.whole() => only_deref(b, i),
+            Tag::Read if p.whole() => only_deref(b, u32_of(i)),
             Tag::Read => {
                 steps.next() == Some(Proj::Deref)
                     && steps.all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
@@ -77,15 +77,12 @@ pub fn read_only_params(b: &Body, candidates: u64) -> u64 {
 /// first and then names fields or variant payloads, or a `Drop` of all of
 /// it, and its one other use is a `Match`'s scrutinee, as `match self:` in
 /// a `&self` method reads its arms' tags and payloads through it.
-fn only_deref(b: &Body, v: usize) -> bool {
-    let Ok(value) = u32::try_from(v) else {
-        return false;
-    };
+fn only_deref(b: &Body, value: u32) -> bool {
     let mut ops = Vec::new();
     let mut uses = ReadThroughUses::default();
     (0..b.len()).all(|j| {
         super::operands(b, j, &mut ops);
-        !ops.iter().any(|o| o.value as usize == v) || uses.permits(b, j, value)
+        !ops.iter().any(|o| o.value == value) || uses.permits(b, j, value)
     })
 }
 
@@ -194,12 +191,7 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
 /// only other uses are `Drop`s. The emitter then reads the local's value
 /// for the argument, and the local needs no memory for it. A body with a
 /// suspension point keeps the plain callee.
-#[must_use]
-pub fn promoted_call(b: &Body, call: usize, mask: u64) -> bool {
-    promoted_call_in(b, call, mask, &Promotion::new(b))
-}
-
-/// [`promoted_call`] with `b`'s facts made once ([`Promotion`]).
+/// Uses `b`'s facts made once ([`Promotion`]).
 #[must_use]
 pub fn promoted_call_in(b: &Body, call: usize, mask: u64, facts: &Promotion) -> bool {
     mask != 0 && promotable_args_in(b, call, facts) & mask == mask
@@ -231,15 +223,7 @@ pub fn held_args(b: &Body, call: usize) -> u64 {
         .fold(0, |mask, (k, _)| mask | 1 << k)
 }
 
-/// The arguments of `Call` `call` of `b` that a promoted copy may take by
-/// value (bit k: argument k), as [`promoted_call`] reads them; none in a
-/// body with a suspension point.
-#[must_use]
-pub fn promotable_args(b: &Body, call: usize) -> u64 {
-    promotable_args_in(b, call, &Promotion::new(b))
-}
-
-/// What [`promotable_args`] reads of a whole body, made once for all its
+/// What [`promotable_args_in`] reads of a whole body, made once for all its
 /// call sites: whether it has a suspension point, and the [`Census`] of
 /// its `Ref`s' uses. A caller that asks per call site of an unchanging
 /// body makes one, so `n` calls cost one pass over the body, not `n`.
@@ -258,8 +242,8 @@ impl Promotion {
     }
 }
 
-/// [`promotable_args`] with `b`'s facts made once ([`Promotion`]): each
-/// argument is one census lookup.
+/// Arguments eligible for promotion, using `b`'s shared [`Promotion`]
+/// facts: each argument is one census lookup.
 #[must_use]
 pub fn promotable_args_in(b: &Body, call: usize, facts: &Promotion) -> u64 {
     if !matches!(b.tags[call], Tag::Call | Tag::DefaultCall) || facts.suspends {
@@ -435,7 +419,7 @@ fn lent_ref_with(b: &Body, i: usize, user: usize, facts: Option<&Census>) -> Opt
 /// The arguments of `Call` `call` of `b` that an inlined copy may bind by
 /// value (#1151; bit k: argument k), with
 /// `hd_tir::inline::Site::by_value`: a lent `Ref` of a part of a local
-/// as [`promotable_args`] takes, or, for an argument in `relaxed`, of an
+/// as [`promotable_args_in`] takes, or, for an argument in `relaxed`, of an
 /// element of a list the local holds or of what a reference reaches from
 /// it (`xs[i].len()`, `self.s.len()` in a `&self` method). The inliner
 /// relaxes the arguments whose referents hold counted parts, where the

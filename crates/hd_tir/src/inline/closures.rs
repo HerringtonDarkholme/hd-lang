@@ -184,13 +184,15 @@ impl Index {
                             out.extra.extend_from_slice(&copied);
                             at
                         });
-                        *word = at;
                         if op == Op::Place {
                             places.insert(at);
-                            if let Root::Local(local) = out.view(at).root {
+                            // The copy's local table is populated below. Its
+                            // record still names the source body's locals.
+                            if let Root::Local(local) = body.view(*word).root {
                                 locals.insert(local);
                             }
                         }
+                        *word = at;
                     }
                     Op::Meta if matches!(tag, Tag::ItemRef | Tag::ProviderGet) => {
                         if !records.contains_key(word) {
@@ -618,14 +620,15 @@ struct Template {
 }
 
 fn template(body: &Body, index: &Index, made: usize, limit: usize) -> Option<Template> {
-    let [start, count] = body.record(body.data[made][1]) else {
-        return None;
-    };
+    // Flow selects only ordinary Closure rows: instantiations are excluded
+    // when origins are seeded, and close_sub writes their two-word record.
+    let record = body.record(body.data[made][1]);
+    let (start, count) = (record[0], record[1]);
     // Capture lifetime uses alone already consume the instruction allowance.
-    if *count as usize >= limit {
+    if count as usize >= limit {
         return None;
     }
-    let captures: Vec<_> = (*start..*start + *count)
+    let captures: Vec<_> = (start..start + count)
         .map(|c| {
             let local = body.cap_local[c as usize];
             (
@@ -637,9 +640,8 @@ fn template(body: &Body, index: &Index, made: usize, limit: usize) -> Option<Tem
         })
         .collect();
     let sub = body.data[made][0] as usize;
-    if sub == 0 || body.sub_is_generic(sub) {
-        return None;
-    }
+    // Ordinary closures come from open_sub (sub >0); a generic local
+    // function is referenced only by the instantiation Flow excluded.
     // Independently cap projected IR and source metadata. The instruction
     // heuristic does not count operand records or inline ancestry; without
     // this bound many tiny literals could each scan the same deep trace.
@@ -665,17 +667,6 @@ pub fn inline_local_closures(
     fits: &dyn Fn(&Body, usize, &mut Body) -> bool,
 ) -> Result<bool, String> {
     if !body.tags.contains(&Tag::Closure) {
-        return Ok(false);
-    }
-    if (0..body.len()).any(|i| {
-        matches!(body.tags[i], Tag::Call | Tag::Await)
-            && body
-                .record(body.data[i][1])
-                .iter()
-                .rev()
-                .nth(2)
-                .is_some_and(|&p| p > 2)
-    }) {
         return Ok(false);
     }
     let flow = Flow::new(body);

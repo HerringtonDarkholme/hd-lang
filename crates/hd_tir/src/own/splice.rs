@@ -359,6 +359,13 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         t.locs.clear();
         slots(b, i, |at, _, _| t.locs.push(at));
         for x in 0..t.locs.len() {
+            // A shared record already contains destination IDs after its first
+            // visit. Validate only source IDs, before that word is remapped.
+            if let Loc::Extra(p) = t.locs[x]
+                && t.done.get(p as usize).copied().unwrap_or(false)
+            {
+                continue;
+            }
             let word = match t.locs[x] {
                 Loc::Data(k) => b.data[i][usize::from(k)],
                 Loc::Extra(p) => *b

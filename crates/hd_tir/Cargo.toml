@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "TIR: the typed IR in columns, its builder, verifier, printer and wire form"
 
+[features]
+test-utils = []
+
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_intern = { path = "../hd_intern" }

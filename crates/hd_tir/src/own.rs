@@ -85,6 +85,8 @@ pub(crate) mod map_key;
 pub(crate) mod map_probe_unique;
 pub(crate) mod map_value;
 mod moves;
+#[cfg(feature = "test-utils")]
+pub use moves::part_hook_guard;
 pub(crate) mod overwrites;
 pub(crate) mod parameter_copy;
 pub(crate) mod parts;
@@ -108,6 +110,8 @@ pub mod values;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use reason::check_copy_reasons;
+#[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
+pub use reason::check_write_sweep;
 pub use reason::{Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
@@ -512,14 +516,16 @@ pub struct Operand {
 /// use is.
 pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
     out.clear();
+    let mut provider = 0;
     slots(b, i, |at, value, slot| {
         let role = match slot {
             Word::Value(role) => role,
             Word::Provider if b.tags[i] == Tag::ContextNew => {
-                let Loc::Extra(at) = at else {
-                    return;
-                };
-                Role::Arg((at - b.data[i][0] - 2) / 2)
+                // Pair slots are emitted in order, including constants,
+                // before the value-operand filter below.
+                let role = Role::Arg(provider);
+                provider += 1;
+                role
             }
             Word::Provider | Word::ProviderRef => Role::Lend,
             Word::Block | Word::Inst => return,
@@ -853,7 +859,7 @@ fn consumes_operand(
                 Tag::CallValue => {
                     let fn_ty = match Ref(a).as_inst() {
                         Some(x) => b.ty[x.0 as usize],
-                        None => return false,
+                        None => b.consts[(a & !Ref::CONST_BIT) as usize].0,
                     };
                     cx.pass_value(fn_ty, k as usize, n) == Pass::Owned
                 }
@@ -1691,7 +1697,7 @@ impl<'a> WriteEffects<'a> {
             .element_calls
             .get_or_init(|| readonly_elements::Calls::new(b))
             .lending(b, cx);
-        let mut origins = Some(AllocationOrigins::new(b, cx));
+        let mut origins = AllocationOrigins::new(b, cx);
         let mut out = BodyEffects {
             direct: Writes::default(),
             calls: Vec::new(),
@@ -1705,27 +1711,38 @@ impl<'a> WriteEffects<'a> {
             let [a, _] = b.data[i];
             if b.tags[i] == Tag::Call {
                 if let Some(callee) = Callee::from_words(b.record(a)) {
-                    if cx.call_memory(&callee) == CallMemory::None {
-                        let arguments = b
-                            .call_args(i)
-                            .iter()
-                            .take(64)
-                            .map(|&value| self.places.reference_source(value))
-                            .collect();
-                        out.calls.push(CallEffect {
-                            instruction: crate::ir::u32_of(i),
-                            callee,
-                            transfer: Transfer::Arguments(arguments),
-                        });
-                    } else if write_at(self, i, &|_| true, None, &mut origins) {
-                        out.direct.join(Writes::EXTERNAL);
+                    match cx.call_memory(&callee) {
+                        CallMemory::None => {
+                            let arguments = b
+                                .call_args(i)
+                                .iter()
+                                .take(64)
+                                .map(|&value| self.places.reference_source(value))
+                                .collect();
+                            out.calls.push(CallEffect {
+                                instruction: crate::ir::u32_of(i),
+                                callee,
+                                transfer: Transfer::Arguments(arguments),
+                            });
+                        }
+                        CallMemory::Allocate | CallMemory::Derive(_) => {}
+                        CallMemory::Write(k) => {
+                            if !origins
+                                .call_args(i)
+                                .get(k as usize)
+                                .copied()
+                                .is_some_and(|value| origins.fresh_before(value, i))
+                            {
+                                out.direct.join(Writes::EXTERNAL);
+                            }
+                        }
                     }
                 } else {
                     out.direct.join(Writes::EXTERNAL);
                 }
                 continue;
             }
-            if !write_at(self, i, &|_| true, None, &mut origins) {
+            if !write_at(self, i, &|_| true, Some(&mut origins)) {
                 continue;
             }
             let mut writes = match b.tags[i] {
@@ -1810,7 +1827,7 @@ impl<'a> WriteEffects<'a> {
         range: std::ops::Range<usize>,
         may_write: &dyn Fn(&Callee) -> bool,
     ) -> bool {
-        writes_with(self, range, may_write, None, None, || {})
+        writes_with(self, range, may_write, || {})
     }
 }
 
@@ -1829,16 +1846,13 @@ fn writes_with(
     effects: &WriteEffects<'_>,
     mut range: std::ops::Range<usize>,
     may_write: &dyn Fn(&Callee) -> bool,
-    cx: Option<&dyn OwnCx>,
-    readonly: Option<&[bool]>,
     mut visit: impl FnMut(),
 ) -> bool {
-    let mut origins = cx.map(|cx| AllocationOrigins::new(effects.body, cx));
     range.any(|i| {
         visit();
         #[cfg(test)]
         effect_places::work(1);
-        write_at(effects, i, may_write, readonly, &mut origins)
+        write_at(effects, i, may_write, None)
     })
 }
 
@@ -1846,8 +1860,7 @@ fn write_at(
     effects: &WriteEffects<'_>,
     i: usize,
     may_write: &dyn Fn(&Callee) -> bool,
-    readonly: Option<&[bool]>,
-    origins: &mut Option<AllocationOrigins<'_>>,
+    mut origins: Option<&mut AllocationOrigins<'_>>,
 ) -> bool {
     let b = effects.body;
     let place = |word| effects.places.get(b, word);
@@ -1883,9 +1896,6 @@ fn write_at(
             if !writes || w & crate::ir::ref_word::MUT != 0 {
                 return writes;
             }
-            if readonly.is_some_and(|elements| elements[i]) {
-                return false;
-            }
             let pinned = effects.pinned.get_or_init(|| {
                 let mut elements = Vec::new();
                 insert::pinned_elements(b, &Topology::new(b), &mut elements);
@@ -1898,20 +1908,9 @@ fn write_at(
                 || changed(b, i)
                     .any(|(_, v)| read(v).is_none_or(|r| !place(b.data[r.0 as usize][0]).0))
         }
-        Tag::Call => Callee::from_words(b.record(a)).is_none_or(|callee| {
-            let Some(origins) = origins.as_mut() else {
-                return may_write(&callee);
-            };
-            match origins.cx.call_memory(&callee) {
-                CallMemory::Allocate | CallMemory::Derive(_) => false,
-                CallMemory::Write(k) => !origins
-                    .call_args(i)
-                    .get(k as usize)
-                    .copied()
-                    .is_some_and(|v| origins.fresh_before(v, i)),
-                CallMemory::None => may_write(&callee),
-            }
-        }),
+        // Concrete call-memory effects are dispatched once in equation_in.
+        // The range-only query supplies its own conservative call policy.
+        Tag::Call => Callee::from_words(b.record(a)).is_none_or(|callee| may_write(&callee)),
         Tag::CallValue
         | Tag::CallHost
         | Tag::DefaultCall

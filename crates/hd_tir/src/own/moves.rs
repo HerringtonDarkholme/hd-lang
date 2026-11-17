@@ -215,6 +215,13 @@ impl Hooks {
     }
 }
 
+/// Exercise part-hook guards with a real program's type/layout environment.
+#[cfg(feature = "test-utils")]
+#[must_use]
+pub fn part_hook_guard(b: &Body, cx: &dyn OwnCx, word: u32) -> bool {
+    Hooks::default().under(b, cx, word)
+}
+
 impl Tables {
     fn reset(&mut self, n: usize, locals: usize) {
         fill(&mut self.lnum, locals, NONE);
