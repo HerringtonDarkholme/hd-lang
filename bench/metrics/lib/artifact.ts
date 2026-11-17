@@ -115,6 +115,66 @@ export const microPackage = (context: MetricContext, name: string): Files =>
     ["src/main.hd", microSource(context, name)],
   ]);
 
+/** The least time one timed batch of a self-timed case takes: std.time reads milliseconds, so 50 ms reads a batch to about 2%. */
+export const BATCH_MS = 50;
+
+/**
+ * A bench/micro case timed inside its own program, as the Node side times
+ * its `main` in one warm process: the case's `main` becomes `case_main`;
+ * 3 warm-up calls; a batch size that doubles until one batch takes
+ * `BATCH_MS`; then `runs` batches, each printing `CALLS MS`. Cost: about
+ * `2 * BATCH_MS` to size the batch, then `runs` batches.
+ */
+export function selfTimedSource(source: string, runs: number): string {
+  const main = /^pub fn main\(\) -> void:$/m;
+  if (!main.test(source)) {
+    throw new Error("a micro case needs `pub fn main() -> void:`");
+  }
+  return [
+    "use std.time.{Clock, elapsed, monotonic}",
+    source.replace(main, "fn case_main() -> void:").trimEnd(),
+    "",
+    "pub fn main() -> void $ Console + Clock:",
+    "    for _ in 0..3:",
+    "        case_main()",
+    "    let batch: i64 = 1",
+    "    while true:",
+    "        start := monotonic()",
+    "        for _ in 0..batch:",
+    "            case_main()",
+    `        if elapsed(start).as_milliseconds() >= ${BATCH_MS}:`,
+    "            break",
+    "        batch *= 2",
+    `    for _ in 0..${runs}:`,
+    "        start := monotonic()",
+    "        for _ in 0..batch:",
+    "            case_main()",
+    '        println("$batch ${elapsed(start).as_milliseconds()}")',
+    "",
+  ].join("\n");
+}
+
+/** The package of a self-timed bench/micro case; it needs the `Clock` grant. */
+export const selfTimedPackage = (context: MetricContext, name: string, runs: number): Files =>
+  new Map([
+    ["hd.toml", manifest(PACKAGE, { capabilities: ["Console", "Clock"] })],
+    ["src/main.hd", selfTimedSource(microSource(context, name), runs)],
+  ]);
+
+/** The ms per call of each batch a self-timed case printed. */
+export function selfTimedMs(stdout: string): number[] {
+  return stdout
+    .trim()
+    .split("\n")
+    .map((line) => {
+      const [calls, ms] = line.trim().split(" ").map(Number);
+      if (!(calls! > 0) || !Number.isFinite(ms)) {
+        throw new Error(`not a timed batch: ${JSON.stringify(line)}`);
+      }
+      return ms! / calls!;
+    });
+}
+
 /** Writes a package (lib/fixtures.ts) and builds it. Throws when the build fails. */
 export async function buildProgram(
   hd: HdCommand,

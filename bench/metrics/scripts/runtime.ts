@@ -3,13 +3,14 @@
 // The cases are the microbenchmarks of bench/micro: recursive fib(30),
 // the sum of 1..10M, building a string of 100k parts, a map with 100k
 // inserts and lookups, and sorting 100k items. Each checks its own result.
-// hd: each case is built as an executable (lib/artifact.ts), next to a
-// baseline program that does no work. After one warm-up run of each, they
-// run RUNS times, interleaved, and a case's time is run i minus baseline
-// run i, which cancels start-up and instantiation. The line gives the
-// median and the 10th and 90th percentiles.
-// Node: the case's .js `main`, wrapped in a self-timing program that runs
-// it 3 times to warm up, then times 7 runs; the median counts. Python's
+// hd: each case is built as an executable that times itself in one warm
+// process, as the Node side does (`selfTimedSource`, lib/artifact.ts): 3
+// warm-up calls, then RUNS batches of calls, each at least BATCH_MS since
+// std.time reads milliseconds. A case's time is each batch's ms per call;
+// start-up and instantiation are outside every timed batch. The line gives
+// the median and the 10th and 90th percentiles.
+// Node: the case's .js `main`, timed by the same batch method in one Node
+// process; the median of the batches' ms per call counts. Python's
 // median, from the case's .py, is in the note when python3 is installed.
 // Targets (Pillar 3): geomean of hd/Node ≤ 1.5x; every case ≤ 3x.
 // n/a: never; a case that fails to build or run fails its line.
@@ -18,15 +19,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
-  buildFixture,
+  BATCH_MS,
   buildProgram,
   howNote,
   MICRO_CASES,
-  microPackage,
   nodeMedian,
   runNodeProgram,
-  timeInterleaved,
-  type Program,
+  runProgram,
+  selfTimedMs,
+  selfTimedPackage,
 } from "../lib/artifact.ts";
 import { runProcess } from "../lib/hd.ts";
 import type { MetricContext, TargetResult } from "../lib/metric.ts";
@@ -44,14 +45,36 @@ const microDir = (context: MetricContext): string => join(context.repoRoot, "ben
 
 /**
  * The self-timing Node body for a micro case: the case's own `main`, with
- * its timing tail replaced by `measure`.
+ * its timing tail replaced by the batch method of the hd side
+ * (`selfTimedSource`, lib/artifact.ts): 3 warm-up calls, a batch size that
+ * doubles until one batch takes BATCH_MS, then `runs` batches. It prints
+ * `{ ms: [...] }`, the ms per call of each batch.
  */
-export function nodeBody(source: string): string {
+export function nodeBody(source: string, runs: number): string {
   const tail = source.indexOf("const times = [];");
   if (tail < 0 || !source.includes("function main(")) {
     throw new Error("not a micro case program");
   }
-  return `${source.slice(0, tail)}console.log(JSON.stringify({ ms: measure(main) }));\n`;
+  return [
+    source.slice(0, tail).trimEnd(),
+    "",
+    "for (let i = 0; i < 3; i++) main();",
+    "let batch = 1;",
+    "while (true) {",
+    "  const start = performance.now();",
+    "  for (let i = 0; i < batch; i++) main();",
+    `  if (performance.now() - start >= ${BATCH_MS}) break;`,
+    "  batch *= 2;",
+    "}",
+    "const ms = [];",
+    `for (let run = 0; run < ${runs}; run++) {`,
+    "  const start = performance.now();",
+    "  for (let i = 0; i < batch; i++) main();",
+    "  ms.push((performance.now() - start) / batch);",
+    "}",
+    "console.log(JSON.stringify({ ms }));",
+    "",
+  ].join("\n");
 }
 
 /** The median ms that a micro case's Python program prints, or undefined without python3. */
@@ -77,39 +100,26 @@ export const runtime: Metric = {
   async run(context) {
     const results: TargetResult[] = [];
     const ratios: number[] = [];
-    let baseline: Program;
-    try {
-      baseline = await buildFixture(context.hd, "runtime/baseline");
-    } catch (error) {
-      return [
-        failed(NAME, "geomean hd / Node", `≤ ${GEOMEAN_LIMIT.toFixed(2)}x`, errorText(error)),
-      ];
-    }
-    context.log(`${NAME}: ${MICRO_CASES.length} cases, ${RUNS} runs each after a warm-up`);
+    context.log(`${NAME}: ${MICRO_CASES.length} cases, ${RUNS} timed batches each after a warm-up`);
     for (const name of MICRO_CASES) {
       const label = `${name}: hd / Node`;
       const target = `≤ ${CASE_LIMIT.toFixed(2)}x`;
       try {
         const program = await buildProgram(
           context.hd,
-          microPackage(context, name),
+          selfTimedPackage(context, name, RUNS),
           `runtime-${name}`,
         );
-        const [caseMs, baseMs] = await timeInterleaved(
-          [program, baseline],
-          RUNS,
-          `${name}`,
-          TIMEOUT_MS,
-        );
-        const work = spread(caseMs!.map((ms, index) => ms - baseMs![index]!));
+        const ran = await runProgram(program, name, { timeoutMs: TIMEOUT_MS });
+        const work = spread(selfTimedMs(ran.stdout));
         const source = readFileSync(join(microDir(context), `${name}.js`), "utf8");
-        const node = nodeMedian(await runNodeProgram(nodeBody(source), name), "ms");
+        const node = nodeMedian(await runNodeProgram(nodeBody(source, RUNS), name), "ms");
         const python = await pythonMs(context, name);
         const note =
           `hd ${fmt(work.p50)} ms (p10 ${fmt(work.p10)}, p90 ${fmt(work.p90)}), Node ${fmt(node)} ms` +
           `${python === undefined ? "" : `, Python ${fmt(python)} ms`}; ${howNote(program)}`;
         if (work.p50 <= 0) {
-          results.push(failed(NAME, label, target, `no work measured beyond start-up; ${note}`));
+          results.push(failed(NAME, label, target, `the timed batches read 0 ms; ${note}`));
           continue;
         }
         const ratio = work.p50 / Math.max(node, 0.01);

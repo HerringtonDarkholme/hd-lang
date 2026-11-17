@@ -20,10 +20,13 @@ import { fixtureChecks, markerProblem, mistakeProblem } from "./check-fixtures.t
 import {
   freedBytes,
   MICRO_CASES,
+  microFile,
   passedCount,
   perUnit,
   pickArtifact,
   printed,
+  selfTimedMs,
+  selfTimedSource,
 } from "./lib/artifact.ts";
 import {
   appendMetricsHistory,
@@ -674,14 +677,31 @@ describe("pillar 3 helpers", () => {
     const root = join(import.meta.dirname, "..", "..");
     for (const name of MICRO_CASES) {
       const source = readFileSync(join(root, "bench", "micro", `${name}.js`), "utf8");
-      assert.match(
-        nodeBody(source),
-        /console\.log\(JSON\.stringify\(\{ ms: measure\(main\) \}\)\);\n$/,
-      );
+      const body = nodeBody(source, 7);
+      assert.match(body, /^for \(let i = 0; i < 3; i\+\+\) main\(\);$/m);
+      assert.match(body, /performance\.now\(\) - start >= 50\) break;/);
+      assert.match(body, /^for \(let run = 0; run < 7; run\+\+\) \{$/m);
+      assert.match(body, /console\.log\(JSON\.stringify\(\{ ms \}\)\);\n$/);
       assert.match(nodeOnce(source), /\nmain\(\);\n$/);
-      assert.ok(!nodeBody(source).includes("const times"), name);
+      assert.ok(!body.includes("const times"), name);
     }
-    assert.throws(() => nodeBody("console.log(1)"), /not a micro case/);
+    assert.throws(() => nodeBody("console.log(1)", 7), /not a micro case/);
+  });
+
+  it("turns each micro case into a self-timing hd program", () => {
+    const root = join(import.meta.dirname, "..", "..");
+    for (const name of MICRO_CASES) {
+      const source = readFileSync(join(root, "bench", "micro", microFile(name)), "utf8");
+      const timed = selfTimedSource(source, 7);
+      assert.equal(timed.match(/^pub fn main\(/gm)?.length, 1, name);
+      assert.match(timed, /^fn case_main\(\) -> void:$/m);
+      assert.match(timed, /^use std\.time\.\{Clock, elapsed, monotonic\}$/m);
+      assert.match(timed, /for _ in 0\.\.7:/);
+    }
+    assert.throws(() => selfTimedSource("fn helper() -> void: 1", 7), /needs `pub fn main/);
+    assert.deepEqual(selfTimedMs("10 50\n20 60\n"), [5, 3]);
+    assert.throws(() => selfTimedMs("10 50\nwrong: 3\n"), /not a timed batch/);
+    assert.throws(() => selfTimedMs("0 50\n"), /not a timed batch/);
   });
 
   it("generates unit, integration and doc test packages of the asked size", () => {
