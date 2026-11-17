@@ -3,9 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -128,7 +126,7 @@
     local.tee $key
     if
       local.get $key
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $self
     local.get $value.0
@@ -137,7 +135,7 @@
     local.get $value.1
     i32.store $heap offset=20
   )
-  (func $generic_first (param $xs i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 30 |     first(xs).len()
     global.get $locals
     global.get $locals_base
@@ -193,32 +191,10 @@
     i32.add
     local.tee $xs
     i32.load $heap
-    local.tee $t2
     local.get $xs
     i32.load $heap offset=4
-    local.tee $xs
-    call $rt:retain
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $t1
-      if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref'2
-        end
-      end
-    end
-    local.get $t2
-    if
-      local.get $t2
-      call $rt:release_ref'1
-    end
+    local.set $xs
+    drop
     local.get $xs
     local.get $t0
     i32.const 16

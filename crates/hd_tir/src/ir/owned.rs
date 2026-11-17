@@ -89,7 +89,9 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         })
         .collect();
     let reference_uses = crate::own::derive::reference_uses(b, cx);
-    let reference_roots = crate::own::derive::frame_reference_roots(b, || {});
+    let forwarding = crate::own::derive::rc_sources(b, cx);
+    let reference_roots = crate::own::derive::frame_reference_roots(b, &forwarding, || {});
+    let frame_lends = crate::own::derive::frame_lending_roots(b, cx, &reference_roots);
     let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {
@@ -100,7 +102,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         reference_calls: &reference_uses.calls,
         reference_values: &reference_values,
         reference_roots: &reference_roots,
-        read_through: &reference_uses.read_through,
+        frame_lends: &frame_lends,
     };
     decided(b, &mut errs);
     crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
@@ -113,7 +115,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Empties::new(&cx, own).walk(&mut errs);
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
-    borrowed_wrappers(b, own, &mut errs);
+    borrowed_wrappers(b, &forwarding, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
@@ -121,10 +123,9 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 
 /// A wrapper `Scope` a borrow goes through ([`Body::borrowed_alias`]) has
 /// that borrow's `Break` as its one way out, so its value is that borrow.
-fn borrowed_wrappers(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+fn borrowed_wrappers(b: &Body, sources: &[u32], errs: &mut Vec<VerifyError>) {
     if !b.forwarded_reads.is_empty() {
-        let constructors = crate::own::derive::constructor_sources(b, cx);
-        let roots = b.forwarding_reads(&constructors, || {});
+        let roots = b.forwarding_reads(sources, || {});
         for (at, &(value, read)) in b.forwarded_reads.iter().enumerate() {
             if roots.get(value as usize) != Some(&read)
                 || read == NONE
@@ -845,7 +846,7 @@ struct Cx<'a> {
     reference_calls: &'a [u32],
     reference_values: &'a [u32],
     reference_roots: &'a [u32],
-    read_through: &'a [bool],
+    frame_lends: &'a [bool],
 }
 
 /// The value stored once into each unaddressed local. Multiple stores,
@@ -1287,7 +1288,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
                 == ref_word::LOCAL | ref_word::FRAME
-            && (binding[l.idx()] && (call != NONE || cx.read_through[i])
+            && (binding[l.idx()] && cx.frame_lends[l.idx()]
                 || !binding[l.idx()]
                     && (no_external_write
                         || (call != NONE
@@ -1672,6 +1673,11 @@ impl Backward for Live<'_> {
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
         let mut x = v;
         for _ in 0..b.len() {
+            if let Some(&bit) = self.bit.get(x as usize)
+                && bit != NONE
+            {
+                s.set(live, bit, true);
+            }
             if let Some(&local) = self.cx.reference_roots.get(x as usize)
                 && local != NONE
                 && self.holds[local as usize] != NONE
@@ -2378,7 +2384,11 @@ mod forwarded_read_tests {
         let (b, value, read) = chain();
         assert_eq!(b.forwarded_reads, [(value, read)]);
         let mut errors = vec![];
-        borrowed_wrappers(&b, &crate::own::tests::Cx, &mut errors);
+        borrowed_wrappers(
+            &b,
+            &crate::own::derive::rc_sources(&b, &crate::own::tests::Cx),
+            &mut errors,
+        );
         assert!(errors.is_empty(), "{errors:?}");
         for rows in [
             vec![(value, value)],
@@ -2390,7 +2400,11 @@ mod forwarded_read_tests {
             let mut malformed = b.clone();
             malformed.forwarded_reads = rows;
             let mut errors = vec![];
-            borrowed_wrappers(&malformed, &crate::own::tests::Cx, &mut errors);
+            borrowed_wrappers(
+                &malformed,
+                &crate::own::derive::rc_sources(&malformed, &crate::own::tests::Cx),
+                &mut errors,
+            );
             assert!(
                 errors
                     .iter()
@@ -2425,7 +2439,11 @@ mod forwarded_read_tests {
             Some(map[read as usize])
         );
         let mut errors = vec![];
-        borrowed_wrappers(&b, &crate::own::tests::Cx, &mut errors);
+        borrowed_wrappers(
+            &b,
+            &crate::own::derive::rc_sources(&b, &crate::own::tests::Cx),
+            &mut errors,
+        );
         assert!(errors.is_empty(), "{errors:?}");
     }
 }

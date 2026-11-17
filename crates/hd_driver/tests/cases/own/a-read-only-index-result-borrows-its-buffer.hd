@@ -1,0 +1,49 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: first_len and wide_len borrow the indexed value in release.
+# A dependent result keeps the constructor's snapshot through later writes.
+use std.ops.Index
+use std.annotation.cold
+
+struct Names:
+    first: string
+    second: string
+
+struct Wrapped:
+    values: Names
+    n: i64
+
+struct View['a]:
+    text: &'a string
+
+@cold
+fn view(value: &Wrapped) -> View:
+    View { text: &value.values.second }
+
+fn first[T, C < Index[usize, Out = T]](items: C) -> T:
+    items[0]
+
+fn first_len(items: List[string]) -> usize:
+    first(items).len()
+
+type Wide = (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)
+
+fn make_wide(text: string) -> Wide:
+    (text, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+fn wide_len(items: List[Wide]) -> usize:
+    first(items)._0.len()
+
+@cold
+fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
+    seen := view(&Wrapped { values: *source, n: 1 })
+    alias.second = "fresh"
+    churn := alias.first + "!"
+    println(churn)
+    if *seen.text == "beta": 100 else: 1000
+
+pub fn main() -> void $ Console:
+    println(first_len(["b" + "eta", "other" + "word"]))
+    println(wide_len([make_wide("b" + "eta")]))
+    shared := box(Names { first: "alpha" + "one", second: "b" + "eta" })
+    println(after_alias(shared, shared))

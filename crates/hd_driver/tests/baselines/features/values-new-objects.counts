@@ -13,8 +13,6 @@ fn make(s: string) -> Named:
 
 fn temp_ref(s: string) -> usize:
     n := &make(s)
-> app/main/temp_ref
->   release app.main.Named [name.0] (last use)
     n.name.len()
 
 fn new_mut(s: string, t: string) -> usize:
