@@ -3101,6 +3101,74 @@ fn a_by_value_struct_chain_is_laid_out_once_per_run() {
     });
 }
 
+/// A tuple doubled through `n` aliases (`type D1 = (D0, D0)`) over the
+/// empty tuple, so its `2^n` parts take no storage, built level by level
+/// and passed through a function: a generic one at `D{n}` when `generic`,
+/// else a plain one. The source grows linearly in `n`.
+fn doubled_through_aliases(n: usize, generic: bool) -> String {
+    let mut s = String::from("type D0 = ()\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "type D{i} = (D{p}, D{p})", p = i - 1);
+    }
+    s.push_str("\nfn make0() -> D0: ()\n");
+    for i in 1..=n {
+        let _ = write!(
+            s,
+            "fn make{i}() -> D{i}:\n    let h = make{p}()\n    (h, h)\n",
+            p = i - 1
+        );
+    }
+    if generic {
+        s.push_str("\nfn hold[T](x: T) -> T: x\n");
+    } else {
+        let _ = writeln!(s, "\nfn hold(x: D{n}) -> D{n}: x");
+    }
+    let _ = write!(
+        s,
+        "\npub fn main() -> void $ Console:\n    let v = hold(make{n}())\n    let (a, _) = v\n    println(\"held\")\n"
+    );
+    s
+}
+
+// Driver: the ownership passes ask a type's layout through the run's
+// memo keyed by type id, each entry made from its parts' entries:
+// `holds_ref` and `counted_refs_only` walked every part of a type, so
+// depth 24 took 9 s and depth 130 did not end. Collection keeps instance
+// arguments under `instantiation-too-deep`'s 32 levels, so the generic
+// shape runs at 3 and 30.
+#[test]
+fn layout_probes_grow_linearly_in_alias_depth() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let probes = |n: usize, generic: bool| {
+            let (out, probes) = hd_driver::work::count_layout_probes(|| {
+                compile(&doubled_through_aliases(n, generic), &goal)
+            });
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            probes
+        };
+        for (small, large, generic) in [(13, 130, false), (3, 30, true)] {
+            // The first build owns std's bodies, which later builds take
+            // from the store; depth 1 is then the probes of the program's
+            // other bodies, which the depth adds to.
+            probes(2, generic);
+            let base = probes(1, generic);
+            let (a, b) = (probes(small, generic), probes(large, generic));
+            let (a, b) = (a.saturating_sub(base), b.saturating_sub(base));
+            // Per level past the first, the large depth asks at most twice
+            // what the small one does: 44 at 13 and at 130, plain.
+            let levels = |n: usize| u64::try_from(n - 1).expect("a depth");
+            assert!(
+                a > 0 && b * levels(small) <= 2 * a * levels(large),
+                "layout probes past depth 1 at depth {small} and {large} \
+                 (generic: {generic}): {a} and {b}"
+            );
+        }
+    });
+}
+
 /// One struct implementing `n` traits, each declaring its own method,
 /// and each method called once: #2029's shape.
 fn struct_of_many_traits(n: usize) -> String {

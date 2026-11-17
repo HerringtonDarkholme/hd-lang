@@ -1648,10 +1648,12 @@ struct Run<'a> {
     /// thread outside a link (`hd_wasm::with_layout_cache`): unique per
     /// run in the process, so no body reads another run's layouts.
     layout_key: u64,
-    /// The layout facts the ownership passes ask of a type, computed once
-    /// per run (`own.rs`): whether it holds a counted leaf, and whether it
-    /// is a local reference or a counted owning reference.
-    own_types: Mutex<HashMap<Ty, (bool, Option<bool>)>>,
+    /// The run's layout memo, keyed by type id (`own::TypeFacts`): the
+    /// facts the ownership passes ask of a type, each computed once per run
+    /// from its parts' entries. Whether it holds a counted leaf, whether
+    /// it is a local reference or a counted owning reference, and what
+    /// references it may hold.
+    own_types: Mutex<HashMap<Ty, own::TypeFacts>>,
     /// Lazily indexed type edges used to find shared reference fields.
     own_place_parts: Mutex<HashMap<own::PlacePart, Option<Ty>>>,
     own_place_substs: Mutex<own::PlaceSubstitutions>,

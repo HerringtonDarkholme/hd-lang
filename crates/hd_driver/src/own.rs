@@ -191,9 +191,11 @@ pub(super) struct Summaries {
 
 /// The most parts by value an instance's type arguments may hold for the
 /// instance to get a body of its own ([`Env::inlined_instance`]); past it
-/// the item's generic body serves. The passes'
-/// layout queries walk every part of a concrete type, and a type that
-/// doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
+/// the item's generic body serves. The passes' reference and count facts
+/// cost one memo entry per distinct type (`Run::own_types`), but the
+/// backend's layout, which the passes also ask (`hd_wasm` `Mem::leaves`,
+/// `vals`, `in_place_parts`), holds one entry per part held by value, and
+/// a type that doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
 /// exponentially many: owning its instances would not end before
 /// collection reaches the depth limit (`instantiation-too-deep`).
 const MAX_INSTANCE_LEAVES: u64 = 1 << 12;
@@ -1088,7 +1090,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
-        holds_ref(&self.run.pool, self.run.known.ptr, ty, 0)
+        self.ref_facts(ty).holds
     }
 
     fn function_value(&self, ty: Ty) -> bool {
@@ -1104,10 +1106,8 @@ impl OwnCx for Env<'_> {
     fn counted_refs_only(&self, ty: Ty) -> bool {
         // A type of counted references: what `holds_ref` finds with each
         // counted `Ref` taken out holds none.
-        let pool = &self.run.pool;
-        let mut counted = false;
-        let only = refs_kinds(pool, self.run.known.ptr, ty, 0, &mut counted);
-        only && counted
+        let f = self.ref_facts(ty);
+        f.only_counted && f.counted
     }
 
     fn copies(&self, ty: Ty) -> Tri {
@@ -1333,46 +1333,150 @@ fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
     Ok(())
 }
 
-/// Whether a value of type `t` may hold a reference: a reference type,
-/// a trait value, a `Ptr[T]` (`ptr`),
-/// whose address `as_ref` makes a reference of, so a `Ptr` read from what
-/// a reference reaches lives on what it reaches, or a type whose
-/// arguments or parts are one. A type parameter's value may hold a local
-/// reference (`ref.generic.local`), but never one into a local of the
-/// body that holds it: no expression makes a `T` from that body's storage
-/// (`ref.generic.body`), so for frame locals it holds none.
-/// Whether every reference `t` may hold is a counted `Ref`, setting
-/// `counted` when it holds one: no local `Ref`, trait value, `Ptr`, cell
-/// or open type.
-fn refs_kinds(
+/// One type's entry in the run's layout memo (`Run::own_types`), keyed by
+/// type id: what the ownership passes ask of the type's layout. The
+/// reference facts are filled when the entry is made, from its parts'
+/// entries; the counted facts the first time a pass asks them of a type
+/// that names no parameter ([`Env::layout_facts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct TypeFacts {
+    refs: RefFacts,
+    /// Whether it holds a counted leaf, and its reference ownership.
+    layout: Option<(bool, Option<bool>)>,
+}
+
+/// The references a value of a type may hold, from its own kind and its
+/// parts' facts ([`ref_facts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RefFacts {
+    /// It may hold a reference ([`OwnCx::holds_ref`]): a reference type, a
+    /// trait value, a function value, which may hold the references its
+    /// closure captured, a `Ptr[T]`, whose address `as_ref` makes a
+    /// reference of, so a `Ptr` read from what a reference reaches lives
+    /// on what it reaches, or a type whose arguments or parts are one. A
+    /// type parameter's value may hold a local reference
+    /// (`ref.generic.local`), but never one into a local of the body that
+    /// holds it: no expression makes a `T` from that body's storage
+    /// (`ref.generic.body`), so for frame locals it holds none.
+    holds: bool,
+    /// Every reference it may hold is a counted `Ref`: no local `Ref`,
+    /// trait value, function value, `Ptr` or type parameter.
+    only_counted: bool,
+    /// It holds a counted `Ref` ([`OwnCx::counted_refs_only`] with
+    /// `only_counted`).
+    counted: bool,
+}
+
+impl RefFacts {
+    /// A type that holds no reference and nothing open.
+    const NONE: Self = Self {
+        holds: false,
+        only_counted: true,
+        counted: false,
+    };
+
+    /// The facts of a value holding values of `self` and of `other`.
+    fn and(self, other: Self) -> Self {
+        Self {
+            holds: self.holds || other.holds,
+            only_counted: self.only_counted && other.only_counted,
+            counted: self.counted || other.counted,
+        }
+    }
+}
+
+/// The types whose facts make `t`'s ([`ref_facts`]): a type's arguments,
+/// a tuple's members and rest, a union's members. A reference's referent
+/// is not one: the reference alone decides.
+fn ref_parts(pool: &hd_types::InternPool, t: Ty, out: &mut Vec<Ty>) {
+    let (list, rest) = match pool.get(t) {
+        TyData::Adt { args: l, .. } | TyData::Union(l) => (l, None),
+        TyData::Tuple { elems, rest } => (elems, rest),
+        _ => (TyList::EMPTY, None),
+    };
+    out.extend(pool.list_items(list));
+    out.extend(rest);
+}
+
+/// `t`'s reference facts from its kind and its parts' facts, which `part`
+/// reads.
+fn ref_facts_of(
     pool: &hd_types::InternPool,
     ptr: DefId,
     t: Ty,
-    depth: u32,
-    counted: &mut bool,
-) -> bool {
-    if depth > 32 {
-        return false;
-    }
-    let all = |l, counted: &mut bool| {
-        pool.list_items(l)
-            .iter()
-            .all(|&a| refs_kinds(pool, ptr, a, depth + 1, counted))
-    };
+    part: &dyn Fn(Ty) -> RefFacts,
+) -> RefFacts {
+    let all = |ts: &[Ty]| ts.iter().fold(RefFacts::NONE, |f, &u| f.and(part(u)));
     match pool.get(t) {
-        TyData::Ref { counted: true, .. } => {
-            *counted = true;
-            true
-        }
-        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => false,
-        TyData::Adt { def, args } => def != ptr && all(args, counted),
+        TyData::Ref { counted: true, .. } => RefFacts {
+            holds: true,
+            only_counted: true,
+            counted: true,
+        },
+        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => RefFacts {
+            holds: true,
+            only_counted: false,
+            counted: false,
+        },
+        TyData::Adt { def, args } if def == ptr => RefFacts {
+            holds: true,
+            only_counted: false,
+            ..all(pool.list_items(args))
+        },
+        TyData::Adt { args: l, .. } | TyData::Union(l) => all(pool.list_items(l)),
         TyData::Tuple { elems, rest } => {
-            all(elems, counted) && rest.is_none_or(|r| refs_kinds(pool, ptr, r, depth + 1, counted))
+            let mut ts = pool.list_items(elems).to_vec();
+            ts.extend(rest);
+            all(&ts)
         }
-        TyData::Union(members) => all(members, counted),
-        TyData::Param(..) => false,
-        _ => true,
+        TyData::Param(..) => RefFacts {
+            only_counted: false,
+            ..RefFacts::NONE
+        },
+        _ => RefFacts::NONE,
     }
+}
+
+/// `t`'s reference facts, from the run's layout memo `memo`: each type
+/// without an entry gets one from its parts' entries, which an explicit
+/// stack makes first. Cost: one probe of `memo` for a type with an entry;
+/// otherwise one entry per distinct type not yet in it, each made from
+/// its direct parts, with no native recursion. A type that doubles at each
+/// level, `(D, D)` over `n` aliases, costs `n` entries, not its `2^n`
+/// leaves.
+fn ref_facts(
+    pool: &hd_types::InternPool,
+    ptr: DefId,
+    t: Ty,
+    memo: &mut HashMap<Ty, TypeFacts>,
+) -> RefFacts {
+    crate::work::layout_probe();
+    if let Some(f) = memo.get(&t) {
+        return f.refs;
+    }
+    let mut stack = vec![(t, false)];
+    let mut parts = Vec::new();
+    while let Some((u, ready)) = stack.pop() {
+        if memo.contains_key(&u) {
+            continue;
+        }
+        if !ready {
+            parts.clear();
+            ref_parts(pool, u, &mut parts);
+            stack.push((u, true));
+            stack.extend(
+                parts
+                    .iter()
+                    .filter(|p| !memo.contains_key(p))
+                    .map(|&p| (p, false)),
+            );
+            continue;
+        }
+        crate::work::layout_probe();
+        let refs = ref_facts_of(pool, ptr, u, &|p| memo[&p].refs);
+        memo.insert(u, TypeFacts { refs, layout: None });
+    }
+    memo[&t].refs
 }
 
 #[test]
@@ -1398,29 +1502,13 @@ fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
             rest: None,
         })
     };
-    assert!(refs_kinds(&pool, ptr, pair(Ty::STRING), 0, &mut false));
-    assert!(!refs_kinds(&pool, ptr, pair(callback), 0, &mut false));
-}
-
-fn holds_ref(pool: &hd_types::InternPool, ptr: DefId, t: Ty, depth: u32) -> bool {
-    if depth > 32 {
-        return true;
-    }
-    let any = |l| {
-        pool.list_items(l)
-            .iter()
-            .any(|&a| holds_ref(pool, ptr, a, depth + 1))
+    let mut memo = HashMap::default();
+    let mut only = |t| {
+        let f = ref_facts(&pool, ptr, t, &mut memo);
+        f.only_counted && f.counted
     };
-    match pool.get(t) {
-        // A function value may hold the references its closure captured.
-        TyData::Ref { .. } | TyData::TraitValue { .. } | TyData::Fn { .. } => true,
-        TyData::Adt { def, args } => def == ptr || any(args),
-        TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| holds_ref(pool, ptr, r, depth + 1))
-        }
-        TyData::Union(members) => any(members),
-        _ => false,
-    }
+    assert!(only(pair(Ty::STRING)));
+    assert!(!only(pair(callback)));
 }
 
 impl Env<'_> {
@@ -1728,16 +1816,33 @@ impl Env<'_> {
     /// for a local loan, true for a counted reference): one normalized kind
     /// query per distinct type, with constant-time warm lookup.
     fn layout_facts(&self, t: Ty) -> (bool, Option<bool>) {
-        if let Some(&facts) = lock(&self.run.own_types).get(&t) {
+        crate::work::layout_probe();
+        if let Some(facts) = lock(&self.run.own_types).get(&t).and_then(|f| f.layout) {
             return facts;
         }
+        // The backend's queries may ask this run's other facts: no lock
+        // is held across them.
         let pool = &self.run.pool;
         let facts = (
             hd_wasm::counted_type(pool, self, t),
             hd_wasm::reference_ownership(pool, self, t),
         );
-        lock(&self.run.own_types).insert(t, facts);
+        let mut memo = lock(&self.run.own_types);
+        ref_facts(pool, self.run.known.ptr, t, &mut memo);
+        if let Some(entry) = memo.get_mut(&t) {
+            entry.layout = Some(facts);
+        }
         facts
+    }
+
+    /// `t`'s reference facts from the run's layout memo ([`ref_facts`]).
+    fn ref_facts(&self, t: Ty) -> RefFacts {
+        ref_facts(
+            &self.run.pool,
+            self.run.known.ptr,
+            t,
+            &mut lock(&self.run.own_types),
+        )
     }
 
     /// Runs the ownership passes over `body`, then, in checked and debug

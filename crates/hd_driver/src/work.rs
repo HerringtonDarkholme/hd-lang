@@ -7,6 +7,7 @@ use std::cell::Cell;
 thread_local! {
     static ROOT_LOOKUPS: Cell<Option<u64>> = const { Cell::new(None) };
     static INIT_ORDER_STEPS: Cell<Option<u64>> = const { Cell::new(None) };
+    static LAYOUT_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts the collect step's root lookups on this thread: each extra root
@@ -46,6 +47,25 @@ pub(crate) fn init_order_steps(n: usize) {
     INIT_ORDER_STEPS.with(|c| {
         if let Some(k) = c.get() {
             c.set(Some(k.saturating_add(n)));
+        }
+    });
+}
+
+/// Counts the ownership passes' layout questions on this thread: each
+/// probe of the run's layout memo (`Run::own_types`), and each entry it
+/// makes from a type's parts.
+pub fn count_layout_probes<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = LAYOUT_PROBES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = LAYOUT_PROBES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One probe of the layout memo, or one entry made.
+pub(crate) fn layout_probe() {
+    LAYOUT_PROBES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
         }
     });
 }
