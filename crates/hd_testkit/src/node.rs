@@ -300,6 +300,25 @@ mod tests {
         );
     }
 
+    /// `hd test` refuses a Node older than package.json's `engines.node`
+    /// and CI installs that one, while the tests pick `.node-version`'s:
+    /// the two must name one version.
+    #[test]
+    fn node_version_and_package_engines_name_one_version() {
+        let package = include_str!("../../../package.json");
+        let engines = &package[package.find("\"engines\"").expect("engines")..];
+        let node = engines
+            .find("\"node\"")
+            .map(|at| &engines[at + "\"node\"".len()..])
+            .and_then(|rest| rest.split('"').nth(1))
+            .expect("engines.node");
+        assert_eq!(
+            node,
+            pinned(),
+            "package.json engines.node and .node-version"
+        );
+    }
+
     #[test]
     fn this_machine_resolves_a_node_at_least_the_pinned_one() {
         let ran = command()
