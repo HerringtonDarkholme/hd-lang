@@ -26,7 +26,9 @@
 //! `host/call.rs` routes to; what they share (the reactor, the `hd-io`
 //! runtime, the epoch ticker, native error categories) is `runtime/`.
 //! A module that imports any other is refused at
-//! load with a message naming it; `hd` runs those on Node.
+//! load with a message naming it; `hd` runs those on Node. `native` is the
+//! surface a Rust embedder registers package host providers through, by
+//! the companion `hd build --engine wasmtime` writes.
 
 pub mod abi;
 mod cache;
@@ -44,6 +46,7 @@ mod host;
 mod http;
 mod instance;
 mod limits;
+pub mod native;
 mod net;
 pub mod prim;
 mod process;

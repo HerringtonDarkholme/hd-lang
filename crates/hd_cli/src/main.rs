@@ -1491,7 +1491,7 @@ fn workspace_member(
 /// (`cli.build.output`, `cli.build.output.file`).
 fn write_module(
     root: &Path,
-    release: bool,
+    (release, target): (bool, hd_base::EngineTarget),
     files: bool,
     stem: &str,
     (wasm, text): (&[u8], Option<&str>),
@@ -1511,18 +1511,33 @@ fn write_module(
         let wat = dir.join(format!("{stem}.wat"));
         std::fs::write(&wat, text).map_err(|e| format!("{}: {e}", wat.display()))?;
     }
-    let glue = dir.join(format!("{stem}.host.mjs"));
-    if let Some(artifacts) = artifacts {
-        std::fs::write(&glue, artifacts.javascript)
-            .map_err(|e| format!("{}: {e}", glue.display()))?;
-    } else {
-        match std::fs::remove_file(&glue) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("{}: {e}", glue.display())),
+    // The JavaScript glue always, and for a Wasmtime build the Rust
+    // companion too (`cli.host.package.native-companion`); the `.wasm` is
+    // the same either way (`native-wasm-identity`). A build that needs
+    // neither removes a stale one.
+    let native = match &artifacts {
+        Some(a) if target == hd_base::EngineTarget::Wasmtime => {
+            Some(hd_host_abi::native_rust::generate(&a.contract).map_err(str::to_owned)?)
         }
+        _ => None,
+    };
+    companion(
+        &dir.join(format!("{stem}.host.mjs")),
+        artifacts.map(|a| a.javascript),
+    )?;
+    companion(&dir.join(format!("{stem}.host.rs")), native)
+}
+
+/// Writes `text` to `path`, or removes a stale `path` when there is none.
+fn companion(path: &Path, text: Option<String>) -> Result<(), String> {
+    match text {
+        Some(text) => std::fs::write(path, text),
+        None => match std::fs::remove_file(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            other => other,
+        },
     }
-    Ok(())
+    .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// `hd build [FILE]` (`cli.build.*`). Every module is tuned for the engine
@@ -1591,8 +1606,14 @@ fn build_package(
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
         let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
-        write_module(root, release, false, &exe.name, (&wasm, text.as_deref()))
-            .map_err(|e| rep.fail(&e))?;
+        write_module(
+            root,
+            (release, pipeline.target),
+            false,
+            &exe.name,
+            (&wasm, text.as_deref()),
+        )
+        .map_err(|e| rep.fail(&e))?;
     }
     Ok(())
 }
@@ -1628,7 +1649,14 @@ fn build_file(
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    write_module(&root, release, true, &stem, (&wasm, text.as_deref())).map_err(|e| rep.fail(&e))
+    write_module(
+        &root,
+        (release, pipeline.target),
+        true,
+        &stem,
+        (&wasm, text.as_deref()),
+    )
+    .map_err(|e| rep.fail(&e))
 }
 
 #[cfg(all(test, unix))]

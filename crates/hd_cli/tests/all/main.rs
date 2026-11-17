@@ -76,6 +76,8 @@ mod install;
 mod interrupt_signal;
 #[cfg(unix)]
 mod metrics_fixtures;
+#[cfg(feature = "wasmtime")]
+mod native_companion;
 mod node_host_exit;
 mod panic_frames;
 mod property_tests;

@@ -14,8 +14,10 @@ handles the Wasm ABI. The decided surface is the
 General exported-function embedding and dylib loading are deferred with no
 design. Native provider registration on Wasmtime is the accepted
 [Native Package Host Bindings](../future-work/NATIVE_PACKAGE_HOST_BINDINGS.md),
-specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
-and not yet built.
+specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
+`hd build --engine wasmtime` writes its Rust companion `NAME.host.rs`, and
+`hd_run_wasmtime::native` is the embedder surface it registers through;
+linking and calling the providers is not yet built (#2078 to #2083).
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

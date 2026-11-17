@@ -1,6 +1,7 @@
 # Native Package Host Bindings
 
-Status: accepted design, 2026-11-02; domain: runtime and host; specified, not built.
+Status: accepted design, 2026-11-02; domain: runtime and host; specified; the companion
+and embedder surface are built (#2077), loading and calls are not.
 Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
 The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
 and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);

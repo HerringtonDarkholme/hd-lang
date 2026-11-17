@@ -100,6 +100,32 @@ impl WasmtimeEngine {
         self.instantiate_host(m, host)
     }
 
+    /// [`WasmtimeEngine::instantiate_with`] with an embedder's native
+    /// package providers (`cli.host.package.native-registration`): the one
+    /// registry its generated companion built, passed by value.
+    ///
+    /// Preflight runs before linking or guest start. Every module `load`
+    /// accepts today has no package host contract (`load` refuses one;
+    /// #2078 moves that refusal here and links the registered imports), so
+    /// a registration names no trait the module requires and is refused.
+    pub fn instantiate_with_bindings(
+        &self,
+        m: &Module,
+        setup: &HostSetup,
+        io: HostIo,
+        bindings: crate::native::Bindings,
+    ) -> Result<WasmtimeInstance, StartError> {
+        // The instance takes the providers over; a refusal drops them.
+        let registrations = bindings.into_registrations();
+        if let Some(r) = registrations.first() {
+            return Err(StartError::Refused(format!(
+                "native provider for package host trait {:?} names no trait this module requires",
+                r.identity
+            )));
+        }
+        self.instantiate_with(m, setup, io)
+    }
+
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
     /// through `interrupt` (`cancel.rs`), with the cleanup bound `bound`.
     pub(crate) fn instantiate_cancellable(

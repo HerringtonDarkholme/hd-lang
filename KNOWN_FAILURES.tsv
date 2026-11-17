@@ -1,2 +1,1 @@
 path	issue	engine	reason
-cli/host-binding-native-companion	#2077		hd build --engine wasmtime writes no NAME.host.rs yet

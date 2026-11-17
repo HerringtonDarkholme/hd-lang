@@ -3,3 +3,8 @@ run: hd build --engine wasmtime
 file: build/debug/host_probe.wasm
 file: build/debug/host_probe.host.mjs
 file: build/debug/host_probe.host.rs
+# A Node build writes no Rust companion, and removes a stale one.
+run: hd build --engine node
+file: build/debug/host_probe.wasm
+file: build/debug/host_probe.host.mjs
+no-file: build/debug/host_probe.host.rs

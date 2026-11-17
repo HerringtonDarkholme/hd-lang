@@ -12,6 +12,8 @@
 //! and the wasmtime host's `hd_run_wasmtime/src/abi.rs`.
 
 pub mod javascript;
+#[cfg(feature = "native-rust")]
+pub mod native_rust;
 pub mod schema;
 
 /// Compatibility revision for installed Wasm programs. Bump this whenever

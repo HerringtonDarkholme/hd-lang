@@ -57,6 +57,9 @@ name = "child_signals"
 harness = false
 
 [dev-dependencies]
+# The Rust companion generator, whose output `tests/native_companion.rs`
+# snapshots and compiles against this crate's `native` surface.
+hd_host_abi = { path = "../hd_host_abi", features = ["native-rust"] }
 # Reads a stream's keep-alive idle time back in tests (`tcp_keepalive_time`).
 socket2 = { version = "0.6", features = ["all"] }
 # Errno constants in tests.

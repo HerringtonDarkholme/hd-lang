@@ -14,3 +14,12 @@ hd_testkit = { path = "../hd_testkit" }
 
 [lints]
 workspace = true
+
+[features]
+# The Rust companion generator (`native_rust`): native CLI builds enable
+# it; `hd_web` leaves it off so it never enters the web compiler.
+native-rust = ["dep:hd_base"]
+
+[dependencies]
+# The generator's fixed-seed hash maps (`native_rust`).
+hd_base = { path = "../hd_base", optional = true }
