@@ -1670,6 +1670,10 @@ enum Origin {
 /// no top-level binding's raw id reaches.
 const LITERAL: u32 = u32::MAX;
 
+/// The slot [`Ck::field_inputs`] gives a function type's input written
+/// `&'static T` in a field: no slot of the struct, but `'static` itself.
+const STATIC_SLOT: usize = usize::MAX;
+
 /// An instruction's, a local's or a parameter's index as a word.
 fn w(i: usize) -> u32 {
     hd_tir::ir::u32_of(i)
@@ -2550,7 +2554,9 @@ impl Ck<'_, '_> {
         push: &mut dyn FnMut(usize, Var),
     ) {
         for (k, slot) in self.field_inputs(ls, dep.ret, path, at).unwrap_or_default() {
-            if let Some(Some(l)) = dep.outs.get(slot) {
+            if slot == STATIC_SLOT {
+                push(k, Var::Life(STATIC));
+            } else if let Some(Some(l)) = dep.outs.get(slot) {
                 push(k, Var::At(v, *l));
             }
         }
@@ -2637,7 +2643,10 @@ impl Ck<'_, '_> {
                     {
                         return found
                             .into_iter()
-                            .map(|(k, s)| Some((k, *slots.get(s)?)))
+                            .map(|(k, s)| match s {
+                                STATIC_SLOT => Some((k, s)),
+                                _ => Some((k, *slots.get(s)?)),
+                            })
                             .collect();
                     }
                     let (child, map) = ls.field_slots(self.cx, ty, variant.take(), j)?;
@@ -2704,7 +2713,9 @@ impl Ck<'_, '_> {
         };
         let mut out = Vec::new();
         for (k, &l) in field.fn_lifetimes.get(lo..lo + n)?.iter().enumerate() {
-            if l != 0 {
+            if l == hd_resolve::STATIC_LIFETIME {
+                out.push((k, STATIC_SLOT));
+            } else if l != 0 {
                 out.push((k, ls.lifetime_slot(&item.generics, argv, l)?));
             }
         }
@@ -2775,7 +2786,10 @@ impl Ck<'_, '_> {
             Spot::Field(at) => {
                 let &(ty, ref ids) = values.mine?.params.get(p)?;
                 for (k, slot) in self.field_inputs(ls, ty, path, at)? {
-                    push(k, Var::Own(*ids.get(slot)?));
+                    match slot {
+                        STATIC_SLOT => push(k, Var::Life(STATIC)),
+                        _ => push(k, Var::Own(*ids.get(slot)?)),
+                    }
                 }
             }
             Spot::ResultField { from, at, lo, ty } => {

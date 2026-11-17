@@ -1,0 +1,56 @@
+# @dump: diagnostics
+# A function value whose type writes `&'static T` takes only a static source
+# there (`ref.static.source.error`), whichever way the value comes: a
+# parameter, a struct field, a call's result, and a field of one. A
+# top-level binding and a literal pass; a local is static-reference-source.
+# A closure literal's `'static` annotation is a lifetime inside a body,
+# which is not checked yet (`ref.lifetime.not-yet.body`).
+struct Point:
+    x: i32
+
+struct Holder:
+    f: fn(&'static Point) -> i32
+
+let origin = Point { x: 1 }
+
+fn read(p: &'static Point) -> i32:
+    p.x
+
+fn get() -> fn(&'static Point) -> i32:
+    read
+
+fn param_ok(f: fn(&'static Point) -> i32) -> i32:
+    f(&origin)
+
+fn param_bad(f: fn(&'static Point) -> i32) -> i32:
+    q := Point { x: 2 }
+    f(&q)
+
+fn field_ok(h: Holder) -> i32:
+    (h.f)(&origin)
+
+fn field_bad(h: Holder) -> i32:
+    q := Point { x: 2 }
+    (h.f)(&q)
+
+fn closure_bad() -> i32:
+    g := fn(p: &'static Point) -> i32: p.x
+    q := Point { x: 2 }
+    g(&q)
+
+fn result_ok() -> i32:
+    get()(&origin)
+
+fn result_bad() -> i32:
+    q := Point { x: 2 }
+    get()(&q)
+
+fn literal_ok(f: fn(&'static i32) -> i32) -> i32:
+    f(&5)
+
+fn holder() -> Holder:
+    Holder { f: read }
+
+fn result_field_bad() -> i32:
+    q := Point { x: 2 }
+    (holder().f)(&q)

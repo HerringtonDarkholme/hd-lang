@@ -765,8 +765,17 @@ impl Gen<'_, '_> {
         // The variables at one of the body's own lifetimes: those and the
         // ones the links make one with them. A call has a few links.
         let mut fixed: Vec<Var> = Vec::new();
+        // The variables a function type's written `'static` gives
+        // (`ref.static.source.error`), and the ones the links make one with
+        // them: each argument there is checked into `'static`, as at a
+        // static parameter of a named function.
+        let mut statics: Vec<Var> = vec![Var::Life(STATIC)];
         for v in owns {
             let r = match v {
+                Var::Own(STATIC) | Var::At(_, STATIC) => {
+                    statics.push(v);
+                    continue;
+                }
                 Var::Own(l) => self.own_lifetime(l),
                 // The variable of an earlier call's lifetime that the
                 // function value it returned writes (`fn.type.lifetime.call.written`).
@@ -781,14 +790,16 @@ impl Gen<'_, '_> {
         for &(l, r) in self.returned.get(&self.at).into_iter().flatten() {
             vars.entry(Var::Life(l)).or_insert(r);
         }
-        let mut grew = !fixed.is_empty();
-        while grew {
-            grew = false;
-            for &(x, y) in &sig.links {
-                for (a, b) in [(x, y), (y, x)] {
-                    if fixed.contains(&a) && !fixed.contains(&b) {
-                        fixed.push(b);
-                        grew = true;
+        for set in [&mut fixed, &mut statics] {
+            let mut grew = !set.is_empty();
+            while grew {
+                grew = false;
+                for &(x, y) in &sig.links {
+                    for (a, b) in [(x, y), (y, x)] {
+                        if set.contains(&a) && !set.contains(&b) {
+                            set.push(b);
+                            grew = true;
+                        }
                     }
                 }
             }
@@ -797,9 +808,9 @@ impl Gen<'_, '_> {
         // A parameter slot written `&'static T` is checked at its argument
         // into `'static` (`ref.static.source.error`), and its variable
         // takes the argument as any other.
-        let pinned = |v: &Var| fixed.contains(v) || *v == Var::Life(STATIC);
+        let pinned = |v: &Var| fixed.contains(v) || statics.contains(v);
         let into = |v: Var| match cat {
-            _ if v == Var::Life(STATIC) => Category::Static,
+            _ if statics.contains(&v) => Category::Static,
             Category::Flow if fixed.contains(&v) => Category::Bound,
             _ => cat,
         };
