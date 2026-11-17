@@ -431,3 +431,25 @@ pub(crate) fn trait_lookup(n: u64) {
         }
     });
 }
+
+thread_local! {
+    static GLOBAL_MUTABILITY: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count entries visited or indexed by global mutability questions on
+/// this thread. Use the driver's serial executor for a whole build.
+pub fn count_global_mutability_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = GLOBAL_MUTABILITY.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = GLOBAL_MUTABILITY.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One entry visited or probed by a global mutability question.
+pub(crate) fn global_mutability_probe() {
+    GLOBAL_MUTABILITY.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}

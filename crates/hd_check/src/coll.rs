@@ -61,9 +61,7 @@ impl Ck<'_, '_> {
     /// Whether top-level binding `def` is a `let mut` binding, of this
     /// module's init or an earlier one.
     fn global_mutable(&self, def: hd_base::DefId) -> bool {
-        let init = self.cx.init.borrow();
-        init.globals.values().any(|g| g.def == def && g.mutable)
-            || init.earlier.values().any(|g| g.def == def && g.mutable)
+        self.cx.init.borrow().global_mutable(&self.cx.names, def)
     }
 
     /// Whether the value `br` reads a place a change may write through

@@ -4806,3 +4806,31 @@ fn a_joined_repl_build_deals_its_inits_in_one_pass() {
         );
     });
 }
+
+// Checker: #2097, each global collection mutation must probe the existing
+// name index instead of scanning every top-level binding.
+#[test]
+fn global_mutability_questions_use_the_name_index() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let mut source = String::new();
+            for i in 0..n {
+                let _ = writeln!(source, "let mut xs{i}: List[i32] = []");
+            }
+            source.push_str("\nfn push_all() -> void:\n");
+            for i in 0..n {
+                let _ = writeln!(source, "    xs{i}.push(+1)");
+            }
+            source.push_str("    ()\n");
+            let (out, work) =
+                hd_check::work::count_global_mutability_work(|| compile(&source, &Goal::Analyze));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            work
+        };
+        let small = work(1_000);
+        let large = work(10_000);
+        eprintln!("global mutability probes: {small} / {large}");
+        assert_eq!(small, 1_000);
+        assert_eq!(large, 10 * small, "{small} / {large}");
+    });
+}

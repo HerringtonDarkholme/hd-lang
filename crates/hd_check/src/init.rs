@@ -356,13 +356,16 @@ impl ModuleInit {
         let Some(sym) = names.syms.find(names.display_name(def)) else {
             return false;
         };
+        crate::work::global_mutability_probe();
         self.globals
             .get(&sym)
             .is_some_and(|g| g.def == def && g.mutable)
-            || self
-                .earlier
-                .get(&sym)
-                .is_some_and(|g| g.def == def && g.mutable)
+            || {
+                crate::work::global_mutability_probe();
+                self.earlier
+                    .get(&sym)
+                    .is_some_and(|g| g.def == def && g.mutable)
+            }
     }
 
     /// `f` of the index of the module's impl methods: the one built
