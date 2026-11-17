@@ -100,7 +100,7 @@ impl FolderImpls {
             {
                 continue;
             }
-            let row = u32::try_from(r).expect("impls");
+            let row = crate::word(r);
             if pool
                 .list_items(table.head_args[r])
                 .iter()
@@ -146,7 +146,7 @@ impl RefTable {
         let mut traits_by_key: HashMap<u64, Vec<DefId>> = HashMap::default();
         let mut last = None;
         for (i, (t, k, _)) in rows.iter().enumerate() {
-            let i = u32::try_from(i).expect("rows");
+            let i = crate::word(i);
             by_trait
                 .entry(*t)
                 .and_modify(|e| e.1 = i + 1)

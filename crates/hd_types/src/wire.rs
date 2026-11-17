@@ -97,7 +97,7 @@ impl<'a> TableWriter<'a> {
             return r;
         }
         let parent = self.path(self.paths.parent(p));
-        let row = u32::try_from(self.path_rows.len()).expect("paths");
+        let row = crate::word(self.path_rows.len());
         self.path_rows.push((parent, p));
         self.path_index.insert(p, row);
         row
@@ -111,7 +111,7 @@ impl<'a> TableWriter<'a> {
         if let Some(&r) = self.sym_index.get(&s) {
             return r;
         }
-        let row = u32::try_from(self.sym_rows.len()).expect("symbols");
+        let row = crate::word(self.sym_rows.len());
         self.sym_rows.push(s);
         self.sym_index.insert(s, row);
         row
@@ -133,7 +133,7 @@ impl<'a> TableWriter<'a> {
 
     /// Assign the row ID after its dependencies, regardless of word storage order.
     fn finish_row(&mut self, tag: u8, words: std::ops::Range<usize>) -> u32 {
-        let row = u32::try_from(self.ty_rows.len()).expect("types");
+        let row = crate::word(self.ty_rows.len());
         self.ty_rows.push((tag, words));
         row
     }
@@ -181,7 +181,7 @@ impl<'a> TableWriter<'a> {
             )
         });
         let words = self.reserve_words(1 + d.keys.len() + 2 * d.params.len());
-        self.ty_words[words.start] = u32::try_from(d.keys.len()).expect("row keys");
+        self.ty_words[words.start] = crate::word(d.keys.len());
         let mut at = words.start + 1;
         for k in &d.keys {
             let row = self.ty(*k)?;
@@ -357,7 +357,7 @@ impl<'a> TableWriter<'a> {
                 ];
                 // A dependency map follows as its lifetimes, inputs first.
                 if let Some((ins, outs)) = self.pool.types().deps_of(deps) {
-                    words.push(u32::try_from(ins.len()).expect("slots"));
+                    words.push(crate::word(ins.len()));
                     words.extend_from_slice(ins);
                     words.extend_from_slice(outs);
                 }
@@ -407,7 +407,7 @@ impl<'a> TableWriter<'a> {
                     ConstValue::Str(p) => u64::from(self.path(p)),
                     v => v.bits(),
                 };
-                let word = |w: u64| u32::try_from(w & 0xFFFF_FFFF).expect("low word");
+                let word = crate::low32;
                 self.row(tag::CONST, &[v.prim() as u32, word(bits), word(bits >> 32)])
             }
             TyData::Row(r) => {

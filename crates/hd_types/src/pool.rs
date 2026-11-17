@@ -193,9 +193,7 @@ impl ConstValue {
                     .and_then(char::from_u32)
                     .expect("const char"),
             ),
-            Prim::String => {
-                ConstValue::Str(PathId::from_raw(u32::try_from(bits).expect("const string")))
-            }
+            Prim::String => ConstValue::Str(PathId::from_raw(crate::low32(bits))),
             prim => ConstValue::Int { prim, bits },
         }
     }
@@ -540,11 +538,11 @@ impl Cols {
     /// stay row-aligned.
     fn push(&self, c: &Content<'_>, meta: u32, slots: Slots) -> u32 {
         let data = if c.tag == PoolTag::List {
-            let len = u32::try_from(c.tys.len()).expect("list");
+            let len = crate::word(c.tys.len());
             let start = self.tys.push_run(len, Ty::NEVER, c.tys.iter().copied());
             self.extra.push_run(2, 0, [start, len])
         } else if c.tag.has_record() {
-            let len = u32::try_from(c.head.len()).expect("record");
+            let len = crate::word(c.head.len());
             self.extra.push_run(len, 0, c.head.iter().copied())
         } else {
             c.data
@@ -638,7 +636,7 @@ fn split(w: u64) -> (u32, u32) {
 
 /// The low 32 bits of a word.
 fn low(w: u64) -> u32 {
-    u32::try_from(w & 0xFFFF_FFFF).expect("low word")
+    crate::low32(w)
 }
 
 /// A hash-to-index table (§3.9.4: hash maps are only indexes): open
@@ -1147,9 +1145,9 @@ impl<'a> Types<'a> {
         if !params.is_empty() {
             meta |= meta::HAS_PARAM;
         }
-        let mut words: Vec<u32> = vec![u32::try_from(keys.len()).expect("row keys")];
+        let mut words: Vec<u32> = vec![crate::word(keys.len())];
         words.extend(keys.iter().map(|t| t.0));
-        words.push(u32::try_from(params.len()).expect("row params"));
+        words.push(crate::word(params.len()));
         for p in &params {
             words.push(p.owner.raw());
             words.push(u32::from(p.index));
@@ -1183,30 +1181,22 @@ impl<'a> Types<'a> {
             work += 1;
         }
         let mut seen = HashMap::default();
-        // ruled out: the pool's dependency record and canonical slot IDs
-        // share the existing u32 slot-count domain.
-        let mut words = vec![
-            u32::try_from(ins.len()).expect("slots"),
-            u32::try_from(outs.len()).expect("slots"),
-        ];
+        let mut words = vec![crate::word(ins.len()), crate::word(outs.len())];
         for (k, &l) in ins.iter().enumerate() {
             work += 1;
-            // ruled out: the encoded record bounds its input slots to u32.
             let l = if retained.contains(&l) {
                 l
             } else {
-                1 << 31 | u32::try_from(k).expect("slots")
+                1 << 31 | crate::word(k)
             };
             let next = seen.len();
             let at = *seen.entry(l).or_insert(next);
-            // ruled out: canonical slots cannot exceed the input count.
-            words.push(u32::try_from(at + 1).expect("slots"));
+            words.push(crate::word(at + 1));
         }
         for &l in outs {
             work += 1;
             let at = (l != 0).then(|| seen.get(&l).copied()).flatten();
-            // ruled out: canonical slots cannot exceed the input count.
-            words.push(at.map_or(0, |at| u32::try_from(at + 1).expect("slots")));
+            words.push(at.map_or(0, |at| crate::word(at + 1)));
         }
         (words, work)
     }
@@ -1222,7 +1212,7 @@ impl<'a> Types<'a> {
         let n_out = self.ref_slots(result);
         let at = |k: usize| written.get(k).copied().filter(|&l| l != 0).map(u32::from);
         let ins: Vec<u32> = (0..n_in)
-            .map(|k| at(k).unwrap_or(1 << 16 | u32::try_from(k).expect("slots")))
+            .map(|k| at(k).unwrap_or(1 << 16 | crate::word(k)))
             .collect();
         let mut distinct = ins.clone();
         distinct.sort_stable();
@@ -1491,7 +1481,7 @@ impl<'a> Types<'a> {
             .chunks(2)
             .map(|c| RowParamRef {
                 owner: DefId::from_raw(c[0]),
-                index: u16::try_from(c[1]).expect("row param"),
+                index: crate::low16(c[1]),
             })
             .collect();
         RowData { keys, params }
@@ -1910,7 +1900,7 @@ impl<'a> Types<'a> {
             },
             PoolTag::Param => TyData::Param(ParamRef {
                 owner: DefId::from_raw(x[0]),
-                index: u16::try_from(x[1]).expect("param"),
+                index: crate::low16(x[1]),
             }),
             PoolTag::Const => TyData::Const(ConstValue::from_bits(
                 Prim::ALL[x[0] as usize],
@@ -1943,7 +1933,8 @@ impl<'a> Types<'a> {
                 counted: true,
             },
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
-            PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
+            // The word holds the `u8` that `TyData::Canon` was interned with.
+            PoolTag::Canon => TyData::Canon(d.to_le_bytes()[0]),
             PoolTag::RowTy => TyData::Row(RowId(d)),
             PoolTag::Context => TyData::Context(RowId(d)),
             PoolTag::List | PoolTag::Row | PoolTag::Deps => unreachable!("not a type index"),

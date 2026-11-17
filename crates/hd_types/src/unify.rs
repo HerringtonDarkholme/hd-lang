@@ -205,7 +205,7 @@ pub struct TrialMark {
 
 impl InferTable {
     pub fn fresh(&mut self, pool: Types<'_>, kind: VarKind) -> Ty {
-        let v = u32::try_from(self.parent.len()).expect("vars");
+        let v = crate::word(self.parent.len());
         self.parent.push(v);
         self.rank.push(0);
         self.binding.push(None);
@@ -430,9 +430,7 @@ impl InferTable {
     pub fn open_literals_since(&self, pool: Types<'_>, start: usize) -> Vec<(Ty, VarKind)> {
         (start..self.parent.len())
             .filter_map(|v| {
-                let t = pool.intern_ty(&TyData::Infer(InferVar::from_raw(
-                    u32::try_from(v).expect("vars"),
-                )));
+                let t = pool.intern_ty(&TyData::Infer(InferVar::from_raw(crate::word(v))));
                 match self.kind_of(pool, t) {
                     Some(k) if k != VarKind::General => Some((t, k)),
                     _ => None,

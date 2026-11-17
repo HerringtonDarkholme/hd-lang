@@ -289,7 +289,7 @@ impl ImplUniverses {
         list.dedup_by_key(|(f, _)| *f);
         let key: Vec<FolderId> = list.iter().map(|(f, _)| *f).collect();
         let mut m = self.by_list.lock().unwrap_or_else(PoisonError::into_inner);
-        let next = ImplUniverseId(u32::try_from(m.len()).expect("universes"));
+        let next = ImplUniverseId(crate::word(m.len()));
         m.entry(key)
             .or_insert_with(|| (next, Arc::new(UniverseImpls::new(&list))))
             .clone()
@@ -676,7 +676,7 @@ impl NameIndex {
 impl ImplTable {
     /// Builds the head index once the rows are in place.
     pub fn index(&mut self) {
-        let mut perm: Vec<u32> = (0..u32::try_from(self.def.len()).expect("impls")).collect();
+        let mut perm: Vec<u32> = (0..crate::word(self.def.len())).collect();
         let mut traits_by_key: HashMap<u64, Vec<DefId>> = HashMap::default();
         for &(s, e) in self.by_trait.values() {
             let rows = &mut perm[s as usize..e as usize];
@@ -1186,7 +1186,7 @@ impl GlobalMemo {
             env.clause_origin.clone(),
         );
         let mut m = self.envs.lock().unwrap_or_else(PoisonError::into_inner);
-        let next = EnvKey(u32::try_from(m.len() + 1).expect("envs"));
+        let next = EnvKey(crate::word(m.len() + 1));
         *m.entry(clauses).or_insert(next)
     }
 
@@ -2523,7 +2523,7 @@ impl<'s, 'a> Search<'s, 'a> {
         };
         let entry = MemoEntry {
             answer: 0,
-            children: u32::try_from(children.len()).expect("children"),
+            children: crate::word(children.len()),
             height,
             kind,
             heads,
@@ -2541,11 +2541,11 @@ impl<'s, 'a> Search<'s, 'a> {
         } else {
             let bm = &mut *self.cx.body_memo;
             bm.entries.push(MemoEntry {
-                answer: u32::try_from(bm.records.len()).expect("memo"),
+                answer: crate::word(bm.records.len()),
                 ..entry
             });
             bm.records.push(rec);
-            u32::try_from(bm.entries.len() - 1).expect("memo") | BODY_ENTRY
+            crate::word(bm.entries.len() - 1) | BODY_ENTRY
         };
         self.cx.body_memo.table.insert(key, slot);
         self.children.push(slot);
