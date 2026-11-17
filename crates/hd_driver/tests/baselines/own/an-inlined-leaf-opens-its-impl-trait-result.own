@@ -8,6 +8,6 @@ app/main/total
   %3 = Break L0 %2 : never
   %4 = Block - : Square
   %5 = Scope %4 [] : Square
-  %6 = Call app/main/Shape.area for Square [] via Bound (%5) : i32
+  %6 = Call app/main/Shape.area for Square [] via Impl (%5) : i32
   %7 = Block %6 : i32
-  summary kept [] writes
+  summary kept []

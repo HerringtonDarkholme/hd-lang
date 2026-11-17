@@ -66,10 +66,33 @@ pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
     Some(callee)
 }
 
-/// Chooses each `Bound` trait call of `k` again as an `Impl` call of the
-/// impl `pick` names for its trait, receiver type and type arguments, as
-/// substitution may have made them concrete.
-pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<DefId>) {
+/// What a trait call chosen through a bound runs once its receiver is
+/// concrete: an impl item, or a compiler-supplied implementation, whose
+/// word is the checker's (`1 +` the solver's `BuiltinImpl`, or 0 for one
+/// the solver does not name, `hd_check` `choice_of`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Chosen {
+    Impl(DefId),
+    Builtin(u32),
+}
+
+impl Chosen {
+    /// The callee record's choice words.
+    #[must_use]
+    pub fn choice(self) -> (ChoiceKind, u32) {
+        match self {
+            Chosen::Impl(d) => (ChoiceKind::Impl, d.raw()),
+            Chosen::Builtin(v) => (ChoiceKind::Builtin, v),
+        }
+    }
+}
+
+/// Chooses each `Bound` trait call of `k` again as what `pick` names for
+/// its trait, receiver type and type arguments, as substitution may have
+/// made them concrete: an impl call or a builtin call. A call `pick`
+/// answers `None` for (an open receiver, a trait value) stays `Bound`.
+/// One pass over the instructions.
+pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>) {
     for i in 0..k.len() {
         let at = k.data[i][0] as usize;
         if k.tags[i] == Tag::Call
@@ -80,11 +103,12 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<DefId>)
                 choice: (ChoiceKind::Bound, _),
                 ..
             }) = Callee::from_words(k.record(k.data[i][0]))
-            && let Some(d) = pick(trait_, self_ty, targs)
+            && let Some(chosen) = pick(trait_, self_ty, targs)
         {
             // `[len, 1, trait, method, self_ty, targs, kind, value]`.
-            k.extra[at + 6] = ChoiceKind::Impl as u32;
-            k.extra[at + 7] = d.raw();
+            let (kind, value) = chosen.choice();
+            k.extra[at + 6] = kind as u32;
+            k.extra[at + 7] = value;
         }
     }
 }
@@ -787,7 +811,7 @@ mod tests {
     use hd_types::{Ty, TyList};
 
     use super::{
-        Site, copyable, inlinable, inline_calls, known_call, leaf, plain_call, push_record,
+        Chosen, Site, copyable, inlinable, inline_calls, known_call, leaf, plain_call, push_record,
         rechoose, u32_of,
     };
     use crate::ir::{
@@ -1261,9 +1285,10 @@ mod tests {
     }
 
     /// A `Bound` call at a receiver substitution made concrete is chosen
-    /// again as the impl `pick` names; one `pick` refuses stays a `Bound`.
+    /// again as the impl or builtin `pick` names; one `pick` refuses stays
+    /// a `Bound`.
     #[test]
-    fn a_concrete_bound_call_is_chosen_again_as_an_impl() {
+    fn a_concrete_bound_call_is_chosen_again_as_an_impl_or_a_builtin() {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
         let at = |self_ty| Callee::TraitMethod {
@@ -1276,10 +1301,13 @@ mod tests {
         let s = b.const_str("s");
         b.call(&at(Ty::STRING), &[s], Providers::None, Ty::VOID, N);
         b.call(&at(T), &[s], Providers::None, Ty::VOID, N);
+        b.call(&at(Ty::I32), &[s], Providers::None, Ty::VOID, N);
         let root = b.close_block(blk, None, Ty::VOID, N);
         let mut b = b.finish(root, &[]).expect("verifies");
-        rechoose(&mut b, &|_, t, _| {
-            (t == Ty::STRING).then(|| DefId::from_raw(7))
+        rechoose(&mut b, &|_, t, _| match t {
+            Ty::STRING => Some(Chosen::Impl(DefId::from_raw(7))),
+            Ty::I32 => Some(Chosen::Builtin(3)),
+            _ => None,
         });
         let choice = |i| match plain_call(&b, i) {
             Some(Callee::TraitMethod { choice, .. }) => choice,
@@ -1287,6 +1315,7 @@ mod tests {
         };
         assert_eq!(choice(0), (ChoiceKind::Impl, 7));
         assert_eq!(choice(1), (ChoiceKind::Bound, 0));
+        assert_eq!(choice(2), (ChoiceKind::Builtin, 3));
         assert_eq!(verify(&b), []);
     }
 

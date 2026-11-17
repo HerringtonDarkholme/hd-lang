@@ -27,6 +27,7 @@ use hd_mono::layout::LayoutEnv as _;
 use hd_opt::fact_specialize::FactEnv;
 use hd_opt::inline::{InlineEnv, InlineHint};
 use hd_opt::structure_specialize::{GeneratedHandle, StructureEnv};
+use hd_tir::inline::Chosen;
 use hd_tir::ir::{Body, Callee, ChoiceKind, Tag};
 use hd_tir::own::{CallMemory, OwnCx, OwnScratch, Pass, Summary, Tri, Uncopied};
 use hd_types::solver::{
@@ -2365,6 +2366,36 @@ impl InlineEnv for Env<'_> {
     /// collection selects it; `None` for an open type or a compiler-supplied
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId> {
+        match self.solve(trait_, self_ty, targs)? {
+            Chosen::Impl(d) => Some(d),
+            Chosen::Builtin(_) => None,
+        }
+    }
+
+    /// As `hd_mono`'s collection chooses a bound's call (`Cx::scan`): a
+    /// trait value dispatches through its table, whatever was chosen, so
+    /// it is left to that; the private `DbgStructural` trait, which no
+    /// impl answers, is the compiler's template at every receiver
+    /// (`ProgramEnv::dbg_structure`; collection reads no choice for it);
+    /// any other closed receiver runs the impl or builtin the solver
+    /// selects.
+    fn select_choice(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<Chosen> {
+        if hd_mono::is_trait_value(&self.run.pool, self.ref_target_or(self_ty)) {
+            return None;
+        }
+        if ProgramEnv::dbg_structure(self).is_some_and(|(.., dbg)| dbg == trait_) {
+            return Some(Chosen::Builtin(0));
+        }
+        self.solve(trait_, self_ty, targs)
+    }
+}
+
+impl Env<'_> {
+    /// What the solver selects for `trait_` at a closed receiver and trait
+    /// arguments: an impl item, or a compiler-supplied implementation by
+    /// the checker's word for it (`hd_check` `choice_of`); `None` for an
+    /// open type or no selection.
+    fn solve(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<Chosen> {
         let types = self.run.pool.types();
         let items = types.list_items(targs);
         let args = &items[..self.trait_arity(trait_).min(items.len())];
@@ -2390,10 +2421,10 @@ impl InlineEnv for Env<'_> {
             global,
         };
         match TableSolver.select(&mut cx, ConcreteTraitRef(tref)).ok()? {
-            Selection::Impl { impl_row, .. } => {
-                Some(self.impls.table(impl_row.module)?.def[impl_row.row as usize])
-            }
-            Selection::Builtin(_) => None,
+            Selection::Impl { impl_row, .. } => Some(Chosen::Impl(
+                self.impls.table(impl_row.module)?.def[impl_row.row as usize],
+            )),
+            Selection::Builtin(b) => Some(Chosen::Builtin(1 + b as u32)),
         }
     }
 }
@@ -2837,8 +2868,9 @@ impl Env<'_> {
     }
 
     /// Instance `node`'s body before the passes: an item's own body, or a
-    /// generic item's at its type arguments, with its types substituted
-    /// and its trait calls chosen as impl calls; then folded and inlined
+    /// generic item's at its type arguments (`hd_mono::instantiate`: its
+    /// types substituted, its bound calls chosen as impl or builtin
+    /// calls); then folded and inlined
     /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
     /// one instance's. In dev, a generic instance substitutes its item's
     /// body after the folds and the inliner ([`Env::generic_inlined`]):
@@ -2851,8 +2883,8 @@ impl Env<'_> {
         }
         let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
         let supplied = self.supplied_walk_family((def, args));
-        let (mut body, hash) = if let Some(family) = &supplied {
-            (family.bodies[0].clone(), family.hash)
+        let (generic, hash) = if let Some(family) = &supplied {
+            (&family.bodies[0], family.hash)
         } else {
             let (raw, hash) = if dev {
                 self.generic_inlined(def)?
@@ -2861,25 +2893,25 @@ impl Env<'_> {
                     .lazy_body(self.p, def)
                     .and_then(|b| self.run.decode(b))?
             };
-            (raw.clone(), *hash)
+            (raw, *hash)
         };
-        if args != TyList::EMPTY {
-            let pool = &self.run.pool;
-            let ty = |t: Ty| hd_mono::subst(pool, self, def, args, t);
-            let list = |l| {
-                pool.list(
-                    &pool
-                        .list_items(l)
-                        .iter()
-                        .map(|&t| ty(t))
-                        .collect::<Vec<_>>(),
-                )
-            };
-            hd_tir::ir::map_body_types(&mut body, &ty, &list);
-            hd_tir::inline::rechoose(&mut body, &|trait_, self_ty, targs| {
-                InlineEnv::select_impl(self, trait_, self_ty, targs)
-            });
-        }
+        let mut body = if args == TyList::EMPTY {
+            generic.clone()
+        } else {
+            lock(&self.run.counters).instances_built += 1;
+            // The private `DbgStructural` template's own `Structure` calls
+            // are the compiler's walk at its receiver, as collection
+            // chooses them for that item alone (`private_structure`).
+            let walk = ProgramEnv::dbg_structure(self)
+                .filter(|&(show, ..)| show == def)
+                .map(|(_, structure, _)| structure);
+            hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|t, s, a| {
+                if walk == Some(t) {
+                    return Some(Chosen::Builtin(0));
+                }
+                InlineEnv::select_choice(self, t, s, a)
+            })
+        };
         if dev {
             return Some((body, hash));
         }

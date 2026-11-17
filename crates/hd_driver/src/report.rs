@@ -100,6 +100,9 @@ pub struct Counters {
     pub bodies_owned: Vec<String>,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
+    /// Generic instance bodies built (`hd_mono::instantiate`): one per
+    /// distinct item and type arguments the run owns.
+    pub instances_built: usize,
     /// How many folder interface item records were decoded from blobs:
     /// only the ones the run reads (#213).
     pub iface_records: usize,

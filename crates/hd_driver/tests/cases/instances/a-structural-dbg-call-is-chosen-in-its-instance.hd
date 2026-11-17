@@ -1,0 +1,19 @@
+# @dump: stdout wat
+# Instance TIR step 3 (#2103): `std.format.dbg_structural` calls the
+# private `DbgStructural.show` through a bound, which no impl answers. Its
+# instance at a struct with no `Debug` chooses that call as the compiler's
+# template (a builtin call), as collection does, so the instance holds no
+# bound call at a concrete receiver (invariant 24). `dbg` is dev only.
+# expected: the program builds and runs, and `dbg` writes the structural
+# dump to stderr; `main` passes `Outer`'s parts and one call-site record
+# to `dbg[(Outer)]`.
+struct Plain:
+    x: i32
+
+struct Outer:
+    plain: Plain
+    tag: string
+
+pub fn main() -> void $ Console:
+    dbg(Outer { plain: Plain { x: +7 }, tag: "t" })
+    println("done")

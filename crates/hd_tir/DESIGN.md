@@ -1111,18 +1111,21 @@ The verifier checks each of these:
 24. **An instance body holds no generic form**: a body marked
     `Phase::Instance` names no type parameter and no unnormalized
     projection in its instruction, local and constant columns or in a
-    record's type words, and has no generic local function's sub-body
-    (`docs/future-work/INSTANCE_TIR.md`, "Verifier"). The driver marks
-    and checks each body it owns for an instance before the ownership
-    passes (`verify_instance`). Until #2104 a generic local function's own
-    parameters are allowed in a body that has one; until #2103 a trait
-    call left chosen through a bound is not checked.
+    record's type words, has no generic local function's sub-body, and
+    has no trait call chosen through a bound (`Bound`) at a receiver that
+    is not a trait value (`docs/future-work/INSTANCE_TIR.md`, "Verifier"):
+    `hd_mono::instantiate` chooses each one at a concrete receiver as an
+    `Impl` or `Builtin` call. The driver marks and checks each body it
+    owns for an instance before the ownership passes (`verify_instance`).
+    Until #2104 a generic local function's own parameters are allowed in a
+    body that has one, and so is a bound's call at a receiver naming them.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
 same with 23 in place of 22, for a body after the ownership passes.
 `verify_instance` checks 24 on every instance body the driver owns, in
-every compiler: one pass over the columns, O(1) per type by its flags.
+every compiler: one pass over the columns and the calls, O(1) per type
+by its flags.
 The checker finishes each body with `verify_checked` in debug compilers,
 allocation/count audit builds, or explicit verification (`HD_VERIFY=1` in
 the CLI and CI, `Packages::verify_tir` for embedders). Ordinary compilers

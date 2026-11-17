@@ -11,14 +11,15 @@
 //! - a generic local function's sub-body (`sub_flags::GENERIC`), unless
 //!   the caller passes [`LocalGenerics`]: until the driver instantiates
 //!   them (gap: #2104), their own parameters, numbered after the item's
-//!   (`hd_check/src/local.rs`), are allowed and no other.
+//!   (`hd_check/src/local.rs`), are allowed and no other;
+//! - a trait call still chosen through a bound (`ChoiceKind::Bound`) at a
+//!   receiver that is not a trait value: `hd_mono::instantiate` chooses
+//!   each one at a concrete receiver as an impl or builtin call
+//!   (`crate::inline::rechoose`). A trait value's call dispatches through
+//!   its table, and a receiver naming a parameter is the type check's
+//!   (a generic local function's own, or reported above).
 //!
-//! Not yet checked (gap: #2103): a trait call left chosen through a bound.
-//! Today `hd_tir::inline::rechoose` writes only impl choices, so a call a
-//! builtin impl answers, and one at a trait-value receiver, stay bound
-//! calls the emitter chooses; `hd_mono::instantiate` is to choose them.
-//!
-//! Cost: one pass over the columns and the records. A type's flags answer
+//! Cost: one pass over the columns, the calls and the records. A type's flags answer
 //! "names a parameter" and "names a projection" in O(1); only a body with
 //! a generic local function walks a parameter-holding type's parts, once
 //! per distinct type (a memo), so the check is linear in the body's size.
@@ -26,7 +27,20 @@
 use hd_base::{DefId, HashMap};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
-use super::{Body, Phase, TypeWord, VerifyError, record_type_words, sub_flags, u32_of};
+use super::{
+    Body, Callee, ChoiceKind, Phase, Tag, TypeWord, VerifyError, record_type_words, sub_flags,
+    u32_of,
+};
+
+/// Whether `t`, or what reference `t` refers to, is a trait value: its
+/// trait calls dispatch through the value's table.
+fn is_trait_value(pool: &InternPool, t: Ty) -> bool {
+    let t = match pool.get(t) {
+        TyData::Ref { inner, .. } => inner,
+        _ => t,
+    };
+    matches!(pool.get(t), TyData::TraitValue { .. })
+}
 
 /// The parameters of a body's generic local functions: those of `owner`
 /// (the item's generics owner) numbered from `first`, past the owner's own.
@@ -82,6 +96,24 @@ pub fn verify_instance(
     for (k, &(t, _)) in b.consts.iter().enumerate() {
         if let Some(what) = open.why(t) {
             err(0, format!("constant {k}'s type {what}"));
+        }
+    }
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Call) {
+        if let Some(Callee::TraitMethod {
+            self_ty,
+            choice: (ChoiceKind::Bound, _),
+            ..
+        }) = Callee::from_words(b.record(b.data[i][0]))
+            && !pool.has_param(self_ty)
+            && !is_trait_value(pool, self_ty)
+        {
+            err(
+                i,
+                format!(
+                    "a trait call chosen through a bound at `{}`",
+                    (open.name)(self_ty)
+                ),
+            );
         }
     }
     let mut words = Vec::new();
@@ -171,8 +203,8 @@ impl Open<'_> {
 mod tests {
     use super::{LocalGenerics, verify_instance};
     use crate::ir::{
-        Body, BodyKind, Callee, Phase, Providers, Tag, TirBuilder, TirSink as _, local_flags,
-        sub_flags,
+        Body, BodyKind, Callee, ChoiceKind, Phase, Providers, Tag, TirBuilder, TirSink as _,
+        local_flags, sub_flags,
     };
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{InternPool, ParamRef, RowData, RowParamRef, Ty, TyData};
@@ -210,6 +242,65 @@ mod tests {
                 e.what
             })
             .collect()
+    }
+
+    /// `fn f(x: t): x.m()`, a trait call chosen `choice` at `t`.
+    fn trait_call(pool: &InternPool, t: Ty, choice: (ChoiceKind, u32)) -> Body {
+        let n = NodeIdx::from_raw(0);
+        let mut b = TirBuilder::new(F, BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(t, Symbol::from_raw(0), local_flags::PARAM, n);
+        let get = b.get(x, t, n);
+        let callee = Callee::TraitMethod {
+            trait_: DefId::from_raw(5),
+            method: DefId::from_raw(6),
+            self_ty: t,
+            targs: pool.list(&[]),
+            choice,
+        };
+        b.call(&callee, &[get], Providers::None, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        body.phase = Phase::Instance;
+        body
+    }
+
+    /// A bound's call left at a concrete receiver is rejected; one chosen
+    /// as an impl or builtin passes, as does a bound's call at a trait
+    /// value or a reference to one, which dispatches through its table.
+    #[test]
+    fn a_bound_call_passes_only_at_a_trait_value() {
+        let pool = InternPool::new();
+        let bound = (ChoiceKind::Bound, 0);
+        assert_eq!(
+            found(&trait_call(&pool, Ty::I32, bound), &pool, None),
+            [format!(
+                "a trait call chosen through a bound at `t{}`",
+                Ty::I32.0
+            )]
+        );
+        for choice in [(ChoiceKind::Impl, 9), (ChoiceKind::Builtin, 1)] {
+            assert!(found(&trait_call(&pool, Ty::I32, choice), &pool, None).is_empty());
+        }
+        let dyn_ = pool.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(5),
+            args: pool.list(&[]),
+            bindings: Vec::new(),
+        });
+        let by_ref = pool.intern_ty(&TyData::Ref {
+            inner: dyn_,
+            mutable: false,
+            counted: false,
+        });
+        for t in [dyn_, by_ref] {
+            assert!(found(&trait_call(&pool, t, bound), &pool, None).is_empty());
+        }
+        // A receiver naming a parameter is the type check's finding only.
+        let what = found(&trait_call(&pool, param(&pool, 0), bound), &pool, None);
+        assert!(
+            what.iter().all(|w| !w.starts_with("a trait call")),
+            "{what:?}"
+        );
     }
 
     #[test]

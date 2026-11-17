@@ -2,7 +2,9 @@
 
 Status: accepted design (owner, 2026-11-17: "Approve, build it"); domain:
 compiler internals; step 1 built (#2101: `Phase` with `Checked` and
-`Instance`, `verify_instance` in the driver's `Env::mark_instance`). From [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
+`Instance`, `verify_instance` in the driver's `Env::mark_instance`);
+step 3 built (#2103: `hd_mono::instantiate`, which `Env::inlined_instance`
+calls, and the bound-call rule). From [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
 option B of [review-2026-11-12 §14](../audit/review-2026-11-12.md#generic-or-instance-tir),
 and [tir-v2.md "As built"](../compiler/tir-v2.md#as-built-2026-11-13).
 D01 is §14's per-function code cache ("direction 1", #1783).
@@ -102,13 +104,19 @@ owned form is cached under its instance key plus the hashes it read.
 - **Phase mark.** `Body` gains `phase: Checked | Instance | Owned`. A
   non-generic item's checked body becomes its instance body by setting the
   mark: no copy (§14: "A non-generic function costs nothing extra").
-- **One builder.** `hd_mono::instantiate(item, sub, args) -> Arc<Body>`,
-  memoized per run in the `InstanceTable` by `InstId`. It clones the
-  generic body once, maps `ty`, `local_ty` and `consts` through `subst`
-  (memoized per distinct `Ty`), rechooses trait calls (today's
-  `inline::rechoose`), and instantiates each generic local function at
-  each `Closure` that instantiates it, as a new sub-body, deduplicated by
-  `(sub, args)`. This is today's driver code (`own.rs:2627`), moved.
+- **One builder.** `hd_mono::instantiate(item, args, generic) -> Body`.
+  It clones the generic body once, maps `ty`, `local_ty`, `consts` and
+  the record type words through `subst` (memoized per distinct `Ty` and
+  `TyList`), rechooses each bound's trait call at a concrete receiver as
+  an impl or builtin call (`inline::rechoose`), and (step 4)
+  instantiates each generic local function at each `Closure` that
+  instantiates it, as a new sub-body, deduplicated by `(sub, args)`. As
+  built in step 3, the generic body is the caller's (dev: folded and
+  inlined once per item; release: as checked), and the memo per exact
+  substitution is the driver's per instance node (`Run::instances`, the
+  release bottom-up walk), not the `InstanceTable`: collection asks for
+  an instance's body (`ProgramEnv::instance_body`) while it is still
+  filling the table, before the instance has a settled place in it.
 - **Folds and the inliner keep their place.** A dev build folds and
   inlines each generic body once and instantiates the result, as today
   (`Env::generic_inlined`). A release build instantiates first, then folds
@@ -119,9 +127,11 @@ owned form is cached under its instance key plus the hashes it read.
   probe away; the body stores no copy of it.
 - **Verifier.** `verify_instance(body)` runs at the end of `instantiate`,
   in release compilers on CI too. It rejects a `ty`, `local_ty` or const
-  type that contains a type parameter, a `TraitMethod` callee whose
-  choice is not an impl or builtin, and a sub-body with
-  `sub_flags::GENERIC`. One pass over the columns: O(instructions).
+  type that contains a type parameter, a `TraitMethod` callee chosen
+  through a bound (`Bound`) at a receiver that is not a trait value (a
+  trait value's call dispatches through its table, legitimately, in an
+  instance), and a sub-body with `sub_flags::GENERIC`. One pass over the
+  columns: O(instructions).
 - **Passes and emission.** `hd_tir::own::run`, the inliner and the
   emitter take instance bodies only (`phase == Instance`). `Em::sub`,
   `Em::ty`'s substitution memo and the emitter's body-type `subst` calls

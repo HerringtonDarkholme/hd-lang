@@ -3375,8 +3375,9 @@ method. A trait value receiver and a derived newtype impl stay calls,
 as collection dispatches them elsewhere. In each copy,
 `inline::rechoose` turns a `Bound` call whose receiver and trait
 arguments substitution made concrete into an `Impl` call of the impl
-the solver selects; a compiler-supplied implementation leaves it a
-`Bound`, which collection resolves the same way. A copy with a
+the solver selects, or a `Builtin` call of the compiler-supplied
+implementation it selects (#2103); a trait value receiver stays a
+`Bound`, which collection dispatches through the value's table. A copy with a
 parameter that may hold a list or a map waits for commit 3: a call
 lends such an argument, but a `Store` copies its header, so an iterator
 or a reference made in the copy would name the copy (`List.iter`'s

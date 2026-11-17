@@ -9,6 +9,7 @@
 
 pub mod defaults;
 pub mod dyn_graph;
+pub mod instance;
 pub mod layout;
 pub mod opaque;
 pub mod plan;
@@ -32,6 +33,7 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 mod type_depth;
+pub use instance::instantiate;
 pub use type_depth::type_argument_depth;
 
 pub use crate::layout::Sub;

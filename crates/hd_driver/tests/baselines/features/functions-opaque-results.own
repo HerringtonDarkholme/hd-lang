@@ -59,7 +59,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %17 = Ref mut local frame [$2] : &mut ListIter[string]
 >   %18 = Store [$3] %17 : ()
 >   %19 = Read borrow [$3] : &mut ListIter[string]
->   %20 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%19) : string?
+>   %20 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%19) : string?
 >   %29 = Block - : ()
 >   %30 = Break L0 - : never
 >   %31 = Block - : ()
@@ -87,4 +87,4 @@ fn count_long(xs: List[string]) -> usize:
 >   %46 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $2 slot
->   summary kept [$0] writes
+>   summary kept [$0]

@@ -588,7 +588,7 @@ fn instantiate(
         return None;
     }
     hd_tir::inline::rechoose(&mut copy, &|trait_, self_ty, targs| {
-        env.select_impl(trait_, self_ty, targs)
+        env.select_choice(trait_, self_ty, targs)
     });
     Some((copy, hash))
 }

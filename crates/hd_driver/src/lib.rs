@@ -14889,6 +14889,71 @@ mod verification_tests {
 mod instantiation_chain_tests {
     use super::*;
 
+    /// Each generic instance's body is built once per run
+    /// (`hd_mono::instantiate`), however many calls reach it, in dev and
+    /// release: `n` types, each with two calls of a never-inlined generic
+    /// function, build `n - 1` more instances than one type does, at n
+    /// and 10n.
+    #[test]
+    fn each_generic_instance_is_built_once() {
+        use std::fmt::Write as _;
+        for (name, packages) in [
+            ("dev", Packages::default()),
+            (
+                "release",
+                Packages {
+                    level: OptLevel::Optimized,
+                    build_profile: BuildProfile::Release,
+                    ..Packages::default()
+                },
+            ),
+        ] {
+            let built = |n: usize| {
+                let mut source = String::from(
+                    "use std.annotation.inline\n\
+                     @inline(.Never)\n\
+                     fn depth[T](x: T, k: i32) -> i32:\n    \
+                     if k == 0: 0 else: depth(x, k - 1) + 1\n",
+                );
+                let mut main = String::from("pub fn main() -> void $ Console:\n");
+                for i in 0..n {
+                    writeln!(source, "struct S{i}:\n    v: i32").unwrap();
+                    for _ in 0..2 {
+                        writeln!(main, "    println(depth(S{i} {{ v: {i} }}, 2))").unwrap();
+                    }
+                }
+                source.push_str(&main);
+                let mut sources = MemorySources::default();
+                sources.insert("main.hd", &source);
+                let store = warm_std_store();
+                let host = Host {
+                    render_tir: &[],
+                    sources: &sources,
+                    store: &store,
+                    clock: &NoClock,
+                    executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+                };
+                let out = build_packages(
+                    &host,
+                    "instances_once",
+                    &packages,
+                    &Goal::Program {
+                        entry: "main".into(),
+                    },
+                );
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                assert!(out.wasm.is_some());
+                out.counters.instances_built
+            };
+            // One type's run builds `depth` at it plus what `println`
+            // needs; each further type adds `depth` at it alone.
+            let base = built(1);
+            for n in [10, 100] {
+                assert_eq!(built(n) - base, n - 1, "{name}, n = {n}");
+            }
+        }
+    }
+
     #[test]
     fn copied_wrapper_keeps_its_active_never_inline_ancestor() {
         let source = r"use std.annotation.inline

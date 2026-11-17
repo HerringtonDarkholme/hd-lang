@@ -119,6 +119,16 @@ pub trait InlineEnv: ProgramEnv {
     /// collection selects it; `None` for an open type or a compiler-supplied
     /// implementation.
     fn select_impl(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<DefId>;
+    /// What a bound's trait call at a concrete receiver and trait
+    /// arguments runs, as collection selects it: an impl or a
+    /// compiler-supplied implementation; `None` for an open type or a
+    /// trait value (`hd_tir::inline::rechoose`).
+    fn select_choice(
+        &self,
+        trait_: DefId,
+        self_ty: Ty,
+        targs: TyList,
+    ) -> Option<hd_tir::inline::Chosen>;
     /// The referent of a reference of type `t` that an inlined copy may
     /// take by value (`hd_wasm::lent_referent`, counted parts
     /// allowed), in every build (#1151, #1167). The environment also
@@ -497,6 +507,8 @@ impl dyn InlineEnv + '_ {
                 // `Store` binds, a result the root's `Break` carries, a value
                 // the caller stores) has one type on both sides. One that does
                 // not open stays as it is: no copy names it (`fits_call`).
+                // A bound's call at a receiver that opened is chosen
+                // again, as an instance's is (`hd_mono::instantiate`).
                 let ty = |t: Ty| hd_mono::reveal(pool, self, t).unwrap_or(t);
                 let list = |l| {
                     pool.list(
@@ -508,6 +520,7 @@ impl dyn InlineEnv + '_ {
                     )
                 };
                 hd_tir::ir::map_body_types(body, &ty, &list);
+                hd_tir::inline::rechoose(body, &|t, s, a| self.select_choice(t, s, a));
             }
             hash = h;
             if !(copied && release) {
@@ -1036,7 +1049,7 @@ impl dyn InlineEnv + '_ {
         }) {
             return None;
         }
-        hd_tir::inline::rechoose(&mut scratch, &|t, s, a| self.select_impl(t, s, a));
+        hd_tir::inline::rechoose(&mut scratch, &|t, s, a| self.select_choice(t, s, a));
         let prepared = self.prepare_copy(&mut scratch, hash);
         Some((scratch, hash, prepared))
     }
@@ -1224,7 +1237,7 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_impl(t, s, a));
+        hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_choice(t, s, a));
         let fits = self.fits(def, targs, &copy);
         Some((copy, hash, fits))
     }
