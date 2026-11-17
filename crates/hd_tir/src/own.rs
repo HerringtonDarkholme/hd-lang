@@ -2470,6 +2470,26 @@ pub(crate) mod tests {
         assert!(!text.contains("[$0]"), "{text}");
         assert!(text.contains("Store [$1]"), "{text}");
         assert!(text.contains("Read move [$1]"), "{text}");
+
+        // No local has just one store/read pair, so the projection census
+        // is absent. Repeated whole assignments still forward normally.
+        let text = passes_in(
+            &NoRefs,
+            |b| {
+                let n = NodeIdx::from_raw(1);
+                let repeated = local(b, 0);
+                for _ in 0..2 {
+                    let s = call(b, 7, &[], Ty::STRING);
+                    b.set(repeated, s, n);
+                    let r = b.get(repeated, Ty::STRING, n);
+                    call(b, 9, &[r], Ty::VOID);
+                }
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(!text.contains("Store"), "{text}");
+        assert!(!text.contains("Read"), "{text}");
     }
 
     /// The result of a body moves out as its root block's tail.

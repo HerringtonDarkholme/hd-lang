@@ -224,7 +224,7 @@
     local.get $t1
     i32.store $heap offset=12
   )
-  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32)
+  (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i64) (local $t4 i64)
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
     local.get $counts
     i32.load $heap
@@ -236,7 +236,7 @@
     local.tee $t1
     i32.const 0
     i32.ge_s
-    if (result i32)
+    if
       i32.const 1
       local.get $t0
       local.get $t0
@@ -252,18 +252,16 @@
       i32.add
       i64.load $heap offset=8
       local.set $t2
-    else
-      i32.const 0
+      local.set $t3
     end
-    local.set $t0
     block
       block
         block
-          local.get $t0
+          local.get $t3
           i32.eqz
           br_if 1
           local.get $t2
-          local.set $t3
+          local.set $t4
           br 0
           unreachable
         end
@@ -274,40 +272,40 @@
     local.get $counts
     i32.load $heap
     call $rt:map_unique'1
-    local.set $t0
+    local.set $t3
     local.get $counts
-    local.get $t0
+    local.get $t3
     i32.store $heap
     local.get $other.0
     local.get $other.1
-    local.get $t0
+    local.get $t3
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $t1
+    local.set $t0
+    local.get $t3
     local.get $t0
-    local.get $t1
     local.get $other.0
     local.get $other.1
     call $rt:map_find
-    local.set $t4
+    local.set $t1
     local.get $other.0
     if
       local.get $other.0
       call $retain
     end
+    local.get $t3
     local.get $t0
     local.get $t1
-    local.get $t4
     local.get $other.0
     local.get $other.1
     i64.const 0
     call $rt:map_put
-    local.set $t0
+    local.set $t3
     local.get $counts
-    local.get $t0
+    local.get $t3
     i32.store $heap
     ;; 17 |     seen := counts.get(word).unwrap_or(0)
-    local.get $t3
+    local.get $t4
     ;; 19 |     counts[word] = seen + 1
     i64.const 1
     i64.add
@@ -326,7 +324,7 @@
     local.get $word.0
     local.get $word.1
     call $rt:map_find
-    local.set $t0
+    local.set $t3
     local.get $word.0
     if
       local.get $word.0
@@ -334,7 +332,7 @@
     end
     local.get $other.0
     local.get $other.1
-    local.get $t0
+    local.get $t3
     local.get $word.0
     local.get $word.1
     local.get $t2
@@ -473,7 +471,7 @@
     local.get $t1
     i64.store $heap offset=8
   )
-  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64)
+  (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i64) (local $t5 i64)
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
     local.get $counts
     i32.load $heap
@@ -486,7 +484,7 @@
     local.tee $t2
     i32.const 0
     i32.ge_s
-    if (result i32)
+    if
       i32.const 1
       local.get $t0
       local.get $t0
@@ -502,34 +500,32 @@
       i32.add
       i64.load $heap offset=8
       local.set $t3
-    else
-      i32.const 0
+      local.set $t4
     end
-    local.set $t0
     block
       block
         block
-          local.get $t0
+          local.get $t4
           i32.eqz
           br_if 1
           local.get $t3
-          local.set $t4
+          local.set $t5
           br 0
           unreachable
         end
         br 1
       end
     end
-    local.get $t4
+    local.get $t5
     i64.const 1
     i64.add
     local.set $t3
     local.get $counts
     i32.load $heap
     call $rt:map_unique'1
-    local.set $t0
+    local.set $t4
     local.get $counts
-    local.get $t0
+    local.get $t4
     i32.store $heap
     local.get $word.0
     if
@@ -537,7 +533,7 @@
       call $retain
     end
     local.get $counts
-    local.get $t0
+    local.get $t4
     local.get $t1
     local.get $t2
     local.get $word.0

@@ -206,7 +206,7 @@
     end
     i32.const 0
   )
-  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
+  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
     local.get $m
     local.get $s.0
@@ -222,7 +222,7 @@
     local.tee $s.0
     i32.const 0
     i32.ge_s
-    if (result i32)
+    if
       i32.const 1
       local.get $m
       local.get $m
@@ -238,13 +238,11 @@
       i32.add
       i32.load $heap offset=12
       local.set $t0
-    else
-      i32.const 0
+      local.set $t1
     end
-    local.set $m
     block
       block
-        local.get $m
+        local.get $t1
         i32.eqz
         br_if 1
         br 0

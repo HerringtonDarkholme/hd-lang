@@ -24,7 +24,5 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 > app/main/use_generic
 >   retain string (stored)
 >   release List[string] (last use)
->   retain string (stored)
->   release string? (last use)
 >   release string (last use)
 >   release List[string] (last use)

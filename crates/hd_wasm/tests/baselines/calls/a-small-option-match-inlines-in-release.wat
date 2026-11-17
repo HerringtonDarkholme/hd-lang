@@ -120,7 +120,7 @@
     i32.add
     global.set $locals
   )
-  (func $copied_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t3 f64) (local $t2 f64)
+  (func $copied_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 f64) (local $t3 f64)
     ;; 26 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap
@@ -381,7 +381,7 @@
     ;; 15 |     total
     local.get $total
   )
-  (func $map_value (param $values i32) (param $key i32) (result f64) (local $t0 f64) (local $t1 f64)
+  (func $map_value (param $values i32) (param $key i32) (result f64) (local $t1 i32) (local $t0 f64) (local $t2 f64)
     ;; 31 |     values.get(key).unwrap_or(0.0)
     local.get $values
     i32.load $heap
@@ -392,7 +392,7 @@
     local.tee $key
     i32.const 0
     i32.ge_s
-    if (result i32)
+    if
       i32.const 1
       local.get $values
       local.get $values
@@ -408,13 +408,11 @@
       i32.add
       f64.load $heap
       local.set $t0
-    else
-      i32.const 0
+      local.set $t1
     end
-    local.set $values
     block
       block
-        local.get $values
+        local.get $t1
         i32.eqz
         br_if 1
         br 0
@@ -423,7 +421,7 @@
       local.get $t0
       return
     end
-    local.get $t1
+    local.get $t2
   )
   (func $loan_value (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 35 |     value.expect("value")

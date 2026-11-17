@@ -1,0 +1,86 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: option_len retains only the element returned from its list.
+# Promoted enum payloads survive branches, repeated loop uses and alias writes.
+use std.annotation.cold
+
+struct Names:
+    left: string
+    right: string
+
+enum Choice:
+    One(text: string)
+    Pair(first: string, second: string)
+    Empty
+
+@cold
+fn make_choice(text: string, other: string, kind: usize) -> Choice:
+    if kind == 0: Choice.One(text) else if kind == 1: Choice.Pair(text, other) else: Choice.Empty
+
+fn choose(text: string, other: string, kind: usize) -> string:
+    value := make_choice(text, other, kind)
+    fallback := "none"
+    match value:
+        .One(text) => text
+        .Pair(first, _) => first
+        .Empty => fallback
+
+fn first[T](items: List[T]) -> T?:
+    if items.len() > 0: .Some(items[0]) else: .None
+
+fn option_len(items: List[string]) -> usize:
+    first(items).unwrap_or("").len()
+
+fn loop_read(text: string, n: usize) -> usize:
+    value := Choice.Pair(text, "other" + "word")
+    let i = 0
+    let total = 0
+    while i < n:
+        total += match value:
+            .One(text) => text.len()
+            .Pair(first, _) => first.len()
+            .Empty => 0
+        i += 1
+    total
+
+fn mixed_lookup(values: Map[usize, i32]) -> i32:
+    let total: i32 = 0
+    let i = 0
+    while i < 4:
+        total += values.get(i % 2).unwrap_or(0)
+        i += 1
+    total
+
+@cold
+fn snapshot(source: *mut Names, alias: *mut Names) -> string:
+    value := Choice.Pair(source.left, source.right)
+    alias.left = "fresh"
+    match value:
+        .One(text) => text
+        .Pair(first, _) => first
+        .Empty => "none"
+
+@cold
+fn nested_plain(t: i32) -> i32:
+    let x: (i32, (i32, (i32, (i32, i32)))) = (t, (t, (t, (t, t))))
+    let (a, (b, (c, (d, z)))) = x
+    a + b + c + d + z
+
+@cold
+fn nested_counted(text: string) -> string:
+    let x = (text, (text, (text, (text, text))))
+    let (_, (_, (_, (_, z)))) = x
+    z
+
+pub fn main() -> void $ Console:
+    println(option_len(["b" + "eta"]))
+    println(option_len([]))
+    println(choose("b" + "eta", "other" + "word", 0).len())
+    println(choose("b" + "eta", "other" + "word", 1).len())
+    println(choose("b" + "eta", "other" + "word", 2).len())
+    println(loop_read("b" + "eta", 3))
+    println(mixed_lookup({ 0: 7 }))
+    shared := box(Names { left: "b" + "eta", right: "other" + "word" })
+    println(snapshot(shared, shared))
+    println(nested_plain(+3))
+    println(nested_counted("b" + "eta"))
