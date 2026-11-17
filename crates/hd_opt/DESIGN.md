@@ -66,9 +66,10 @@ a decision must be known while collection runs, and collection is the only
 place instances are made. `ValueFlow` reads only the body's own TIR, so it
 runs once per body, not once per instance.
 
-Planned, not built: instance-unit passes. `use_counts`, `inline_plan`,
-`escape` and `scalar_replace` are declaration markers;
-`summaries` is declared, and the driver does that work: it owns bodies
+Planned, not built: instance-unit passes such as use counts, an inline
+plan, escape analysis and scalar replacement; the pass table declares
+none of them until something runs it. `summaries` is declared, and the
+driver does that work: it owns bodies
 callees first, in `inline::bottom_up`'s order, and records their release
 summaries ([§9](#9-release-summaries)); the inliner
 (`inline.rs`) runs before the ownership passes, outside the pass table;
@@ -162,10 +163,10 @@ added, which emits the count fast paths inline
 (`crates/hd_wasm/DESIGN.md` §23.30, #644). Each column is data in
 the crate that reads it.
 
-| Level | Passes (`tir`) | Link passes (hashed only) | Knobs | Engine |
+| Level | Passes (`tir`) | Link passes | Knobs | Engine |
 | --- | --- | --- | --- | --- |
-| `DEV` | `liveness` | `fold` | none | V8 tiers by itself; Cranelift `None` |
-| `OPTIMIZED` | `value_flow`, `use_counts`, `inline_plan`, `devirt_known`, `closure_spec`, `summaries`, `escape`, `scalar_replace`, `liveness` | `drop_dead`, `fold`, `leb_compact`, `compact_names` | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
+| `DEV` | `liveness` | none (wasmtime: `inline_counts`) | none | V8 tiers by itself; Cranelift `None` |
+| `OPTIMIZED` | `value_flow`, `const_fold`, `devirt_known`, `closure_spec`, `summaries`, `arg_promote`, `liveness` | none (wasmtime: `inline_counts`) | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
 
 Code generation is shared by every target (§4), except that inlining:
 Cranelift does not inline the small count helpers, while V8 does and ran

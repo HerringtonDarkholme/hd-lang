@@ -502,7 +502,7 @@ the baseline emission without any pass is defined there too.
 | constant folding and dead branches during the walk (a fact's value is a run-time read, §12.3) | yes | yes | planned, not built |
 | constant hoisting: an enum or tuple box whose payloads are constants is an immutable global, so `.Err(ParseError.Empty)` never allocates | yes | yes | planned, not built |
 | trivial inlining: the walk descends into a callee of at most 8 instructions with no loop, no suspension point and no closure | yes | yes | planned, not built |
-| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | planned, not built (`inline_plan` is a declared stub) |
+| bounded inlining: callees up to a size budget, and closures passed to a known callee, such as iterator adapters (budgets in §12.8) | no | yes | planned, not built |
 | scalar replacement: a non-escaping closure, cell, box or data value after inlining becomes locals, mutable data included; an escape analysis in the analysis passes of §12.1, before emission | no | yes | planned, not built |
 | known-vtable devirtualization: a `CallDyn` on a value whose vtable is a constant global becomes a direct call | no | yes | planned, not built (vtables are not globals) |
 | known closure calls: `devirt_known` (A1), `closure_spec` (A2; [details](../hd_opt/DESIGN.md#calling-known-closures-directly-53)) | no | yes | yes |
@@ -1161,16 +1161,10 @@ declarations `T` reaches enter as one Merkle hash over `T`'s parts
 then each part's reach hash), memoized per type for the build, so each
 distinct type is hashed once however deep a nest of them is (#1915).
 
-Implementation differs: `hd_cache::code_key` hashes the pipeline,
-profile, instance key and item TIR hash with one dependency hash
-(`hd_driver`, `Collect`): the toolchain key and the instance's callee
-representation hash. That hash holds the `layout_hash` of every type the
-instance's instructions have, each callee's path, instance key and
-signature layouts, and the instance's own signature `layout_hash`es and
-row keys. So a field added to one struct re-emits only the instances
-that lay it out. The per-item interface hashes and selected-impl hashes
-above are not read separately. Inline summaries and literal numbers are not
-needed while nothing inlines and literals are keyed by content.
+Implementation differs: no per-instance code entry exists, and
+`hd_cache` has no `code_key`. The per-group code cache left with the Wasm
+GC backend (`dc358a56e`); `Link` emits the whole program on every miss of
+its `link` entry (`crates/hd_cache/DESIGN.md` §5.2).
 
 `pipeline_hash` replaces the earlier `tier` key part, and the profile is
 a separate part, since `hd test --release` pairs the test profile with
@@ -1288,7 +1282,7 @@ numbering, packs and filtered test programs are the largest for latency.
    its module reaches, in `InitOrder`'s order (docs/compiler/engines-and-test-runner.md §19.1).
 8. **Code.** Copy each representative's body and patch its relocations in
    place. In the optimized pipeline, re-encode the padded LEBs at minimal
-   width (the `leb_compact` pass); the dev pipeline keeps them, since
+   width; the dev pipeline keeps them, since
    size does not matter there. Planned, not built: no build compacts LEBs.
    Re-encoding moves every later byte, so the encoder builds an
    old-to-new offset map per body as it goes (a sorted list of

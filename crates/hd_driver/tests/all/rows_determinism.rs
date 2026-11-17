@@ -180,7 +180,7 @@ fn an_unrelated_edit_keeps_the_untouched_instances() {
     let (other, other_entries) = build_in(&edited, Executor::Serial(SerialOrder::Shuffled(9)));
     assert_eq!(other.wasm, cold.wasm);
     for (k, bytes) in &cold_entries {
-        if matches!(k.0, EntryKind::Codepack | EntryKind::Clpack) {
+        if k.0 == EntryKind::Clpack {
             assert_eq!(other_entries.get(k), Some(bytes), "{:?}", k.0);
         }
     }

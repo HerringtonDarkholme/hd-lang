@@ -153,12 +153,11 @@ This is better: a body is planned once whatever its instance count, an
 edit re-plans one body, and specialization makes instances instead of
 needing an instance IR.
 
-Declared in the pass table but with no body (they report `Skipped`):
-`use_counts`, `inline_plan`, `escape`, `scalar_replace`. Planned, not
-built: bounded inlining, escape analysis and scalar replacement, which
-the `allocations` target (0 per counted loop, at most 1 per iterator
-chain) needs. The link passes `drop_dead` and `leb_compact` are hashed
-into the pipeline but never run; planned, not built. Merging
+Planned, not built: bounded inlining, escape analysis and scalar
+replacement, which the `allocations` target (0 per counted loop, at most
+1 per iterator chain) needs. The pass table declares a pass only once
+something runs it. Dead-function removal and LEB compaction at link: planned,
+not built. Merging
 byte-identical functions (`fold`): not built yet; see #175. The compact
 `hd.names` section replaces `name` in release builds; the emitter writes
 it, not a link pass.

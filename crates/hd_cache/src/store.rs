@@ -7,41 +7,30 @@ use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap};
 use std::sync::{Arc, Mutex};
 
-/// Entry kinds (§5.2). `Code` exists only inside packs.
+/// Entry kinds (§5.2). A kind's discriminant is written into its entries,
+/// so removing or reordering one bumps `LAYOUT_VERSION`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
 pub enum EntryKind {
     Iface,
     Check,
-    CheckTest,
     Graph,
-    Pkgres,
     Depfiles,
-    Codepack,
     Clpack,
-    Packhint,
     Link,
-    Cwasm,
-    Code,
     Parse,
     Lint,
     Owned,
 }
 
 impl EntryKind {
-    pub const ALL: [EntryKind; 15] = [
+    pub const ALL: [EntryKind; 9] = [
         EntryKind::Iface,
         EntryKind::Check,
-        EntryKind::CheckTest,
         EntryKind::Graph,
-        EntryKind::Pkgres,
         EntryKind::Depfiles,
-        EntryKind::Codepack,
         EntryKind::Clpack,
-        EntryKind::Packhint,
         EntryKind::Link,
-        EntryKind::Cwasm,
-        EntryKind::Code,
         EntryKind::Parse,
         EntryKind::Lint,
         EntryKind::Owned,
@@ -51,16 +40,10 @@ impl EntryKind {
         match self {
             EntryKind::Iface => "iface",
             EntryKind::Check => "check",
-            EntryKind::CheckTest => "check-test",
             EntryKind::Graph => "graph",
-            EntryKind::Pkgres => "pkgres",
             EntryKind::Depfiles => "depfiles",
-            EntryKind::Codepack => "codepack",
             EntryKind::Clpack => "clpack",
-            EntryKind::Packhint => "packhint",
             EntryKind::Link => "link",
-            EntryKind::Cwasm => "cwasm",
-            EntryKind::Code => "code",
             EntryKind::Parse => "parse",
             EntryKind::Lint => "lint",
             EntryKind::Owned => "owned",

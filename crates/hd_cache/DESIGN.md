@@ -34,10 +34,8 @@ says.
 | `owned` | one std body after the ownership passes, in the wire form's owned section, and its hash; keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423) | `Collect`, after the passes on a miss | `Collect`, before running them |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
 
-`EntryKind` also names `check-test`, `pkgres`, `cwasm`, `code`,
-`codepack` and `packhint`; no code writes them. `code_key`,
-`codepack_key` and `packhint_key` are defined, and only their own tests
-call them. The per-group code cache left with the Wasm GC backend
+`EntryKind` names only the kinds above; a kind's discriminant is part of
+the entry layout. The per-group code cache left with the Wasm GC backend
 (`dc358a56e`); `Link` emits the whole program on every miss of its `link`
 entry. Planned, not built: code packs again (§5.4, #49 point 4).
 
@@ -79,7 +77,7 @@ Every key is `H(kind tag, fields...)` over canonical bytes, with
 xxh3-128 (`hd_base::StableHasher`). The built keys:
 
 ```text
-toolchain_key = H("tc", compiler id, target ("wasm32-gc"), layout version, "xxh3-128",
+toolchain_key = H("tc", compiler id, target ("wasm32"), layout version, "xxh3-128",
                   options: lowering mode and the std sources hash)
 package key   = root: H("pkg", name), plus the traits of a non-default runtime profile;
                 a dependency: H("pkg", its identity); a dependency's module check

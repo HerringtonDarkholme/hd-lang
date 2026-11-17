@@ -10,9 +10,9 @@ use hd_mono::ProgramEnv;
 use hd_mono::plan::{BodyPlan, Planner};
 use hd_tir::ir::Body;
 
-use crate::passes::{BodyCx, BodyFacts, PassOutcome, Pipeline, Run, body_gate, spec};
+use crate::passes::{BodyCx, BodyFacts, Pipeline, Run, body_gate, spec};
 
-type BodyRun = fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> hd_base::StageResult<PassOutcome>;
+type BodyRun = fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> hd_base::StageResult<()>;
 
 /// A body pass of a pipeline: its gate, its body, its knob values.
 type BodyStep = (u8, BodyRun, Vec<(&'static str, u32)>);

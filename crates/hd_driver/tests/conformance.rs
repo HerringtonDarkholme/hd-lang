@@ -415,7 +415,6 @@ fn new_store() -> Store {
         &[
             EntryKind::Iface,
             EntryKind::Check,
-            EntryKind::CheckTest,
             EntryKind::Graph,
             EntryKind::Parse,
             EntryKind::Link,

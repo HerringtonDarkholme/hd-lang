@@ -1215,11 +1215,10 @@ mod packed {
     /// other programs' runs wait for that whole command. The std skims,
     /// which their reader computes at once, are claimed through
     /// [`CacheStore::get_claimed`].
-    const CLAIMED: [EntryKind; 5] = [
+    const CLAIMED: [EntryKind; 4] = [
         EntryKind::Parse,
         EntryKind::Iface,
         EntryKind::Check,
-        EntryKind::CheckTest,
         EntryKind::Graph,
     ];
 
@@ -6891,8 +6890,8 @@ mod tests {
         std::fs::write(pkg.join("hd.toml"), "[package]\nname = \"json\"\n").expect("manifest");
         let store = DiskStore::new(root.clone()).with_cap(0);
         let k = key(3, 1);
-        store.put_loose(EntryKind::Codepack, &k, &[1; 64]);
-        let shard = root.join("codepack/03");
+        store.put_loose(EntryKind::Clpack, &k, &[1; 64]);
+        let shard = root.join("clpack/03");
         // A temporary file, a foreign name, and a key of another shard stay.
         for name in [
             "00000000000000000000000000000001.tmp42",
@@ -6913,7 +6912,7 @@ mod tests {
         }
         let got = store.collect()?;
         assert_eq!((got.before, got.after), (64, 0));
-        assert!(!store.path(EntryKind::Codepack, &k).exists());
+        assert!(!store.path(EntryKind::Clpack, &k).exists());
         assert_eq!(
             std::fs::read_dir(&shard).expect("shard").count(),
             if cfg!(unix) { 4 } else { 3 }

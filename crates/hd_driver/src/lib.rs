@@ -229,7 +229,7 @@ pub use report::{Counters, PipelineReport, Tally};
 
 /// The compiler build id: `build.rs` hashes the compiler crates' sources.
 const COMPILER: &str = concat!("hd 0 ", env!("HD_BUILD_ID"));
-const TARGET: &str = "wasm32-gc";
+const TARGET: &str = "wasm32";
 const ROLE: &str = "lib";
 const LAYOUT: u16 = hd_cache::LAYOUT_VERSION;
 

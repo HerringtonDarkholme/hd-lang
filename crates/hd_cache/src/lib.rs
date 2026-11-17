@@ -19,7 +19,7 @@ pub use store::{
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 39;
+pub const LAYOUT_VERSION: u16 = 40;
 
 /// One file's part of a folder key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
@@ -206,52 +206,6 @@ pub fn prog_key(
     k.finish()
 }
 
-/// `code_key = H("code", pipeline, profile, instance key, TIR hash, callee
-/// representation summaries)` (`crates/hd_mono/DESIGN.md` §13.8; walking skeleton, SK-3).
-#[must_use]
-pub fn code_key(
-    pipeline: Hash128,
-    profile: BuildProfile,
-    instance: Hash128,
-    tir: Hash128,
-    callee_reps: Hash128,
-) -> Hash128 {
-    let mut k = StableHasher::new("code");
-    k.hash(pipeline);
-    k.str(profile.name());
-    k.hash(instance);
-    k.hash(tir);
-    k.hash(callee_reps);
-    k.finish()
-}
-
-/// `codepack_key = H("codepack", the code keys of a folder group's
-/// instances, in content order)`: names one `codepack` entry, the code of
-/// every instance of the group (`docs/compiler/data-structures.md` §3.22).
-#[must_use]
-pub fn codepack_key(codes: &[Hash128]) -> Hash128 {
-    let mut k = StableHasher::new("codepack");
-    k.u32(u32::try_from(codes.len()).expect("codepack"));
-    for c in codes {
-        k.hash(*c);
-    }
-    k.finish()
-}
-
-/// `packhint_key = H("packhint", pipeline, profile, package key)`: names
-/// the package's `packhint` entry, which holds each folder group's last
-/// `codepack` keys, so a build whose group changed reuses the unchanged
-/// instances' code. A hint is the one entry a later run overwrites with
-/// other bytes; its reader checks each code key.
-#[must_use]
-pub fn packhint_key(pipeline: Hash128, profile: BuildProfile, package: Hash128) -> Hash128 {
-    let mut k = StableHasher::new("packhint");
-    k.hash(pipeline);
-    k.str(profile.name());
-    k.hash(package);
-    k.finish()
-}
-
 thread_local! {
     /// How many [`task`] frames this thread is inside.
     static TASK_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
@@ -301,22 +255,9 @@ mod tests {
 
     #[test]
     fn keys_change_with_each_field() {
-        let tc = toolchain_key("hd 0", "wasm32-gc", "");
-        let (dev, opt) = (Hash128(10), Hash128(11));
+        let tc = toolchain_key("hd 0", "wasm32", "");
+        let dev = Hash128(10);
         let (checked, release) = (BuildProfile::Checked, BuildProfile::Release);
-        let a = code_key(dev, checked, Hash128(1), Hash128(2), Hash128(3));
-        assert_ne!(
-            a,
-            code_key(dev, checked, Hash128(1), Hash128(2), Hash128(4))
-        );
-        assert_ne!(
-            a,
-            code_key(opt, checked, Hash128(1), Hash128(2), Hash128(3))
-        );
-        assert_ne!(
-            a,
-            code_key(dev, release, Hash128(1), Hash128(2), Hash128(3))
-        );
         let modules = [("pkg.main", Hash128(1))];
         let p = prog_key(tc, dev, checked, "pkg.main", &modules);
         assert_ne!(p, prog_key(tc, dev, release, "pkg.main", &modules));

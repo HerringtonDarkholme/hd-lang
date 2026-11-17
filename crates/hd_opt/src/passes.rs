@@ -40,10 +40,7 @@ pub mod gate {
 /// Facts passes read and write (side tables).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FactId {
-    UseCounts,
-    InlinePlan,
     Liveness,
-    Escape,
     ClosureSpec,
     ValueFlow,
     KnownCallees,
@@ -57,7 +54,7 @@ impl FactId {
     pub const fn is_body(self) -> bool {
         match self {
             Self::ValueFlow | Self::KnownCallees | Self::ClosureSpec => true,
-            Self::UseCounts | Self::InlinePlan | Self::Liveness | Self::Escape => false,
+            Self::Liveness => false,
         }
     }
 }
@@ -143,16 +140,11 @@ pub fn body_gate(body: &Body) -> u8 {
     g
 }
 
-pub enum PassOutcome {
-    Done,
-    Skipped,
-}
-
 /// A pass body, by the unit it runs on.
 #[derive(Clone, Copy)]
 pub enum Run {
     /// Per generic body, before and during collection.
-    Body(fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> StageResult<PassOutcome>),
+    Body(fn(&BodyCx<'_>, &mut BodyFacts, &mut Fuel) -> StageResult<()>),
     /// Per instance, outside the body-unit planner.
     Instance,
 }
@@ -180,23 +172,21 @@ fn charge_body(body: &Body, fuel: &mut Fuel) -> StageResult<()> {
 }
 
 /// `value_flow`: the body's data flow (`ValueFlow`).
-fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<PassOutcome> {
+fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
     charge_body(cx.body, fuel)?;
     facts.value_flow = Some(ValueFlow::new(cx.body));
-    Ok(PassOutcome::Done)
+    Ok(())
 }
 
 /// `devirt_known`, option A1 of `crates/hd_opt/DESIGN.md` (known closure calls): each `CallValue` whose
 /// callee is a closure value made in the call's own sub-body
 /// (`ValueFlow::made`) has that instruction as its callee's source.
 /// Collection makes the call direct where that instruction is a closure.
-fn devirt_known(
-    cx: &BodyCx<'_>,
-    facts: &mut BodyFacts,
-    fuel: &mut Fuel,
-) -> StageResult<PassOutcome> {
+fn devirt_known(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
+    // No pipeline reaches this without the fact: test
+    // `a_body_fact_reader_runs_only_where_its_writer_ran`.
     let Some(flow) = &facts.value_flow else {
-        return Ok(PassOutcome::Skipped);
+        return Ok(());
     };
     charge_body(cx.body, fuel)?;
     let body = cx.body;
@@ -210,7 +200,7 @@ fn devirt_known(
             facts.known_callees.push((at, Source::Made(made)));
         }
     }
-    Ok(PassOutcome::Done)
+    Ok(())
 }
 
 /// `closure_spec`, option A2 of `crates/hd_opt/DESIGN.md` (known closure calls): a small callee that calls
@@ -229,13 +219,11 @@ fn devirt_known(
 ///   instance carries into it.
 /// - Per `CallValue` of a parameter, `Source::Param`, which is direct in an
 ///   instance specialized on it.
-fn closure_spec(
-    cx: &BodyCx<'_>,
-    facts: &mut BodyFacts,
-    fuel: &mut Fuel,
-) -> StageResult<PassOutcome> {
+fn closure_spec(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
+    // No pipeline reaches this without the fact: test
+    // `a_body_fact_reader_runs_only_where_its_writer_ran`.
     let Some(flow) = &facts.value_flow else {
-        return Ok(PassOutcome::Skipped);
+        return Ok(());
     };
     charge_body(cx.body, fuel)?;
     let (body, env, def) = (cx.body, cx.env, cx.def);
@@ -288,7 +276,7 @@ fn closure_spec(
         }
     }
     facts.closure_spec = spec;
-    Ok(PassOutcome::Done)
+    Ok(())
 }
 
 macro_rules! pass {
@@ -312,24 +300,6 @@ macro_rules! pass {
 
 pub static PASSES: &[PassSpec] = &[
     pass!(
-        "use_counts",
-        TirAnalysis,
-        [],
-        [UseCounts],
-        0,
-        Optional,
-        Instance
-    ),
-    pass!(
-        "inline_plan",
-        TirDecision,
-        [UseCounts],
-        [InlinePlan],
-        gate::HAS_CALL,
-        Optional,
-        Instance
-    ),
-    pass!(
         "value_flow",
         TirAnalysis,
         [],
@@ -346,7 +316,7 @@ pub static PASSES: &[PassSpec] = &[
     pass!(
         "const_fold",
         TirDecision,
-        [InlinePlan],
+        [],
         [],
         gate::HAS_CALL,
         Optional,
@@ -384,24 +354,6 @@ pub static PASSES: &[PassSpec] = &[
         [],
         [],
         gate::HAS_CALL,
-        Optional,
-        Instance
-    ),
-    pass!(
-        "escape",
-        TirAnalysis,
-        [InlinePlan],
-        [Escape],
-        gate::HAS_ALLOC,
-        Optional,
-        Instance
-    ),
-    pass!(
-        "scalar_replace",
-        TirDecision,
-        [Escape],
-        [],
-        gate::HAS_ALLOC,
         Optional,
         Instance
     ),
@@ -453,25 +405,21 @@ impl Pipeline {
 pub static DEV: Pipeline = Pipeline {
     name: "dev",
     tir: &["liveness"],
-    link: &["fold"],
+    link: &[],
     knobs: &[],
 };
 pub static OPTIMIZED: Pipeline = Pipeline {
     name: "optimized",
     tir: &[
         "value_flow",
-        "use_counts",
-        "inline_plan",
         "const_fold",
         "devirt_known",
         "closure_spec",
         "summaries",
         "arg_promote",
-        "escape",
-        "scalar_replace",
         "liveness",
     ],
-    link: &["drop_dead", "fold", "leb_compact", "compact_names"],
+    link: &[],
     // `closure_spec`'s bounds (`crates/hd_opt/DESIGN.md` (known closure calls) §3.1): bodies of at most
     // 64 TIR instructions, and a specialized instance requested from
     // inside a specialized instance is the last. Measured per target in
@@ -500,20 +448,14 @@ pub static OPTIMIZED: Pipeline = Pipeline {
 pub static DEV_WASMTIME: Pipeline = Pipeline {
     name: "dev",
     tir: DEV.tir,
-    link: &["fold", "inline_counts"],
+    link: &["inline_counts"],
     knobs: DEV.knobs,
 };
 /// [`OPTIMIZED`] for wasmtime, with `inline_counts` as [`DEV_WASMTIME`].
 pub static OPTIMIZED_WASMTIME: Pipeline = Pipeline {
     name: "optimized",
     tir: OPTIMIZED.tir,
-    link: &[
-        "drop_dead",
-        "fold",
-        "leb_compact",
-        "compact_names",
-        "inline_counts",
-    ],
+    link: &["inline_counts"],
     knobs: OPTIMIZED.knobs,
 };
 
@@ -647,7 +589,7 @@ mod tests {
         assert_ne!(validate(&DEV), validate(&OPTIMIZED));
         let bad = Pipeline {
             name: "bad",
-            tir: &["escape", "liveness"],
+            tir: &["devirt_known", "value_flow", "liveness"],
             link: &[],
             knobs: &[],
         };
@@ -669,6 +611,28 @@ mod tests {
         }
         for p in PASSES.iter().filter(|p| matches!(p.run, Run::Instance)) {
             assert!(p.writes.iter().all(|f| !f.is_body()), "{}", p.name);
+        }
+    }
+
+    /// The planner runs a body pass when the body passes its gate, so a
+    /// reader of a body fact runs only where the fact's writer ran: the
+    /// writer always runs (gate 0) or the reader's gate is within the
+    /// writer's, so a `ValueFlow` reader never finds the fact missing.
+    #[test]
+    fn a_body_fact_reader_runs_only_where_its_writer_ran() {
+        let body = || PASSES.iter().filter(|p| matches!(p.run, Run::Body(_)));
+        for reader in body() {
+            for fact in reader.reads {
+                let writer = body()
+                    .find(|w| w.writes.contains(fact))
+                    .unwrap_or_else(|| panic!("{} reads {fact:?}", reader.name));
+                assert!(
+                    writer.gate == 0 || (reader.gate != 0 && reader.gate & !writer.gate == 0),
+                    "{} runs where {} did not",
+                    reader.name,
+                    writer.name
+                );
+            }
         }
     }
 
@@ -758,17 +722,18 @@ mod tests {
     /// A change to these values changes every code key. Job (c1) changed
     /// both: the hash dropped the pipeline name and gained the knob values
     /// and the link passes; the release summaries, argument promotion and
-    /// `const_fold` changed the optimized one, and only it.
+    /// `const_fold` changed the optimized one, and only it. Dropping the passes
+    /// and link passes that nothing ran (draft 32) changed both.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
         let optimized = validate(&OPTIMIZED).expect("optimized validates").0;
         assert_eq!(
-            dev, 226_259_624_280_722_390_681_558_611_773_950_027_154,
+            dev, 267_503_090_908_493_650_351_639_382_035_530_010_973,
             "dev"
         );
         assert_eq!(
-            optimized, 19_408_209_892_203_045_537_533_861_478_783_717_452,
+            optimized, 287_426_176_041_767_063_452_556_693_868_884_101_925,
             "optimized"
         );
     }
