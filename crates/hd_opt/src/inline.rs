@@ -1413,7 +1413,16 @@ impl dyn InlineEnv + '_ {
             InlineHint::Always => hd_tir::inline::copyable(body),
             InlineHint::Never => false,
         };
-        if !body_fits || self.calls(body, def) {
+        // Memory growth enters the VM even when its TIR is small. Keep
+        // an entry-path growth helper as a call: copying its result/error
+        // handling into hot callers does not remove that VM transition.
+        // Explicit Always retains its contract; a conditional fast path
+        // before growth retains ordinary eligibility.
+        if !body_fits
+            || (hint != InlineHint::Always
+                && entry_calls(body, |callee| self.intrinsic(callee).as_deref() == Some("mem_grow")))
+            || self.calls(body, def)
+        {
             return None;
         }
         Some((self.fresh_body(def)?, *hash))
@@ -1743,6 +1752,39 @@ impl dyn InlineEnv + '_ {
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
             && (!rebound || kinds_agree(copy))
     }
+}
+
+/// Whether the root's straight-line prefix calls `matches`. Do not enter
+/// child blocks or continue past a control transfer: growth after an early
+/// return or inside a branch is not an entry-path operation. This reads at
+/// most the candidate's root rows, with no allocation or native recursion;
+/// release preparation memoizes both admitted and rejected instances.
+fn entry_calls(body: &Body, mut matches: impl FnMut(DefId) -> bool) -> bool {
+    let Some(&root) = body.sub_root.first() else {
+        return false;
+    };
+    let root = root as usize;
+    if body.tags[root] != Tag::Block {
+        return false;
+    }
+    for &row in body.record(body.data[root][0]) {
+        let i = row as usize;
+        if let Some(Callee::Item { def, .. }) = hd_tir::inline::known_call(body, i)
+            && matches(def)
+        {
+            return true;
+        }
+        let (a, b) = body.tags[i].operands();
+        if body.ty[i] == Ty::NEVER
+            || body.tags[i] == Tag::Block
+            || [a, b]
+                .iter()
+                .any(|op| matches!(op, hd_tir::ir::Op::Block | hd_tir::ir::Op::Blocks))
+        {
+            return false;
+        }
+    }
+    false
 }
 
 /// Constant-time vector-length checks and at most K string rows, before any
@@ -2275,6 +2317,51 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn entry_call_work_is_linear_and_does_not_enter_nested_blocks() {
+        use hd_tir::ir::{Callee, Providers, TirBuilder};
+        let at = hd_base::NodeIdx::NONE;
+        let callee = Callee::Item {
+            def: DefId::from_raw(2),
+            targs: hd_types::TyList::EMPTY,
+        };
+        for width in [1000, 10_000] {
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = b.open_block();
+            for _ in 0..width {
+                b.call(&callee, &[], Providers::None, Ty::VOID, at);
+            }
+            let root = b.close_block(root, None, Ty::VOID, at);
+            let body = b.finish(root, &[]).expect("straight-line calls");
+            let mut visits = 0;
+            assert!(!super::entry_calls(&body, |_| {
+                visits += 1;
+                false
+            }));
+            assert_eq!(visits, width);
+            assert!(super::entry_calls(&body, |def| def == DefId::from_raw(2)));
+        }
+        for depth in [1, 20] {
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = b.open_block();
+            let nested: Vec<_> = (0..depth).map(|_| b.open_block()).collect();
+            b.call(&callee, &[], Providers::None, Ty::VOID, at);
+            for mark in nested.into_iter().rev() {
+                b.close_block(mark, None, Ty::VOID, at);
+            }
+            // A call after a child block is also outside the proven prefix.
+            b.call(&callee, &[], Providers::None, Ty::VOID, at);
+            let root = b.close_block(root, None, Ty::VOID, at);
+            let body = b.finish(root, &[]).expect("nested calls");
+            let mut visits = 0;
+            assert!(!super::entry_calls(&body, |_| {
+                visits += 1;
+                true
+            }));
+            assert_eq!(visits, 0);
+        }
+    }
 
     #[test]
     fn recursive_copy_publication_precedes_the_completed_cache() {
