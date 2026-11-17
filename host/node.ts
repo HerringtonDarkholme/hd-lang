@@ -695,7 +695,11 @@ const fileOpening = new Set([
   "append_text",
   "copy",
 ]);
-const specialFile = (path: string): boolean => {
+// What a file-opening call finds at `path`: "special" for a FIFO, device
+// or socket, whose call is offloaded; a regular file's size, so a read
+// makes no second stat (#1901); or null (missing, a directory, a stat
+// error), which the operation itself reports.
+const fileKind = (path: string): "special" | number | null => {
   if (process.platform === "win32") {
     // Inspecting a Windows pipe can itself open/wait on it. Native uses
     // these same device namespace spellings without touching the device.
@@ -706,15 +710,19 @@ const specialFile = (path: string): boolean => {
       normalized.startsWith("\\\\?\\globalroot\\device\\") ||
       /^\\\\(?:\?\\unc\\)?[^\\]+\\pipe\\/.test(normalized)
     ) {
-      return true;
+      return "special";
     }
   }
+  let st;
   try {
-    const st = statSync(path);
-    return !st.isFile() && !st.isDirectory();
+    st = statSync(path);
   } catch {
-    return false;
+    return null;
   }
+  if (st.isFile()) {
+    return st.size;
+  }
+  return st.isDirectory() ? null : "special";
 };
 
 // `hd:FsRead` and `hd:FsWrite`: the file providers (std.fs).
@@ -751,7 +759,9 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
             }
           }
           flush();
-          if (fileOpening.has(name) && ps.some(specialFile)) {
+          // cost: one stat per path a file-opening call names.
+          const kinds = fileOpening.has(name) ? ps.map(fileKind) : [];
+          if (kinds.includes("special")) {
             const { ok: operation } = fsClient.call({ op: "wait_start", module, name, args });
             let result: Dynamic = null;
             const poll = () => {
@@ -770,6 +780,9 @@ function fsProviders({ grant, flush, fsClient }: DynamicRecord): DynamicRecord {
                 fsClient.call({ op: "wait_finish", operation });
               },
             );
+          }
+          if (module === "hd:FsRead" && typeof kinds[0] === "number") {
+            return fileOperation(module, name, [...args, kinds[0]]);
           }
           return fileOperation(module, name, args);
         };

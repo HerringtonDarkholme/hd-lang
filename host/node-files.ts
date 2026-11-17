@@ -17,6 +17,7 @@ const {
   readdirSync,
   readFileSync,
   readlinkSync,
+  readSync,
   realpathSync,
   renameSync,
   rmdirSync,
@@ -52,11 +53,26 @@ export function resolvePath(path: string, cwd = process.cwd(), links = 0): strin
     .filter((part) => part !== "" && part !== ".");
   let start = parts.length;
   let out: string | null = realOf(root + parts.join(sep));
-  while (out === null && start > 0) {
-    start -= 1;
-    out = realOf(root + parts.slice(0, start).join(sep));
+  if (out === null) {
+    // The longest prefix the OS resolves, by binary search (#1901): a
+    // prefix resolves only when every shorter one does, since the OS walks
+    // each name's directory before the name. Invariant: prefix `start`
+    // resolves (to `found`, or is the root), prefix `end` does not.
+    // cost: O(log n) realpath calls, each O(n), for n names.
+    let end = parts.length;
+    let found: string | null = null;
+    start = 0;
+    while (end - start > 1) {
+      const mid = (start + end) >>> 1;
+      const real = realOf(root + parts.slice(0, mid).join(sep));
+      if (real === null) {
+        end = mid;
+      } else {
+        [start, found] = [mid, real];
+      }
+    }
+    out = found ?? realOf(root) ?? root;
   }
-  out ??= root;
   // How many names at the end of `out` do not exist.
   let missing = 0;
   for (const name of parts.slice(start)) {
@@ -198,6 +214,33 @@ export const beforeDotDot = (path: string): "NotFound" | "NotADirectory" | undef
   return undefined;
 };
 
+// One decoder for every `read_text!` (#1901): a fatal decoder throws on
+// invalid UTF-8, and `decode` without `stream` keeps no state between calls.
+const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+// `left` before `right` in the byte order of their UTF-8 encodings, without
+// encoding them (#1901). UTF-8 orders as code points; UTF-16 code units
+// order the same except that a surrogate (a code point from U+10000) must
+// sort after U+E000..U+FFFF, so where both differing units are at or past
+// U+D800 they are moved: U+E000..U+FFFF down by 0x800, surrogates up by
+// 0x2000. This is ICU's code point order fix-up (`u_strCompare`).
+// cost: O(the common prefix), no allocation.
+export const byteOrder = (left: string, right: string): number => {
+  const shorter = Math.min(left.length, right.length);
+  for (let i = 0; i < shorter; i++) {
+    let mine = left.charCodeAt(i);
+    let theirs = right.charCodeAt(i);
+    if (mine !== theirs) {
+      if (mine >= 0xd800 && theirs >= 0xd800) {
+        mine += mine >= 0xe000 ? -0x800 : 0x2000;
+        theirs += theirs >= 0xe000 ? -0x800 : 0x2000;
+      }
+      return mine - theirs;
+    }
+  }
+  return left.length - right.length;
+};
+
 // An `Entry`: path, kind, size, and an optional Unix-millisecond timestamp.
 const entry = (path: string, st: BigIntStats) => {
   let kind = "File";
@@ -214,13 +257,41 @@ const entry = (path: string, st: BigIntStats) => {
   return { path, kind: { tag: kind }, size: kind === "Directory" ? 0n : st.size, modified };
 };
 
+// `path`'s bytes. `size` is a regular file's size from the stat the
+// provider just made (#1901): the read then opens, reads and closes, and
+// makes no second stat, as readFileSync's fstat would. Like readFileSync it
+// reads `size` bytes, stops at the end of a file that shrank, and reads to
+// the end when the size is 0, as a Linux /proc file reports. Without
+// `size` (the special-file helper) it is readFileSync.
+const readBytes = (path: string, size?: number): Uint8Array => {
+  if (size === undefined || size === 0) {
+    return opening(path, () => readFileSync(path));
+  }
+  const fd = opening(path, () => openSync(path, "r"));
+  try {
+    const bytes = Buffer.allocUnsafeSlow(size);
+    let filled = 0;
+    // cost: one read call for a file that keeps its size.
+    while (filled < size) {
+      const read = readSync(fd, bytes, filled, size - filled, null);
+      if (read === 0) {
+        return bytes.subarray(0, filled);
+      }
+      filled += read;
+    }
+    return bytes;
+  } finally {
+    closeSync(fd);
+  }
+};
+
 export const fileOperations = {
   "hd:FsRead": {
-    read_bytes: (path: string) => Ok(opening(path, () => readFileSync(path))),
-    read_text: (path: string) => {
-      const bytes = opening(path, () => readFileSync(path));
+    read_bytes: (path: string, size?: number) => Ok(readBytes(path, size)),
+    read_text: (path: string, size?: number) => {
+      const bytes = readBytes(path, size);
       try {
-        return Ok(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+        return Ok(utf8.decode(bytes));
       } catch {
         return fsErr(path, "InvalidUtf8");
       }
@@ -228,9 +299,8 @@ export const fileOperations = {
     // The entries in the byte order of their names; each path is the
     // directory's, `/`, and the name (as `MemoryFs` lists them).
     list_dir: (path: string) => {
-      const names = opening(path, () => readdirSync(path)).sort((left, right) =>
-        Buffer.compare(Buffer.from(left), Buffer.from(right)),
-      );
+      // cost: O(n log n) comparisons for n names, none allocating.
+      const names = opening(path, () => readdirSync(path)).sort(byteOrder);
       const under = path.endsWith("/") ? path : `${path}/`;
       const found = [];
       for (const count of names) {

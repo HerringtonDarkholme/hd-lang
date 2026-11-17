@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { once } from "node:events";
-import { symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { byteOrder, fileOperations, resolvePath } from "./node-files.ts";
 import { fixture, netHost } from "./node-test-support.ts";
 import { Err, Ok } from "./wire.ts";
 
@@ -311,3 +312,92 @@ test(
     assert.deepEqual(alive(), [], "abrupt worker termination leaves no file helper process");
   },
 );
+
+// #1901: a path whose last names do not exist finds its longest existing
+// prefix in O(log n) realpath calls, not one per missing name, and still
+// resolves to the same path.
+test("resolvePath of a missing tail asks the OS a logarithmic number of times", (testContext) => {
+  const fs = process.getBuiltinModule("node:fs");
+  const native = fs.realpathSync.native;
+  let calls = 0;
+  fs.realpathSync.native = ((path: string) => {
+    calls += 1;
+    return native(path);
+  }) as typeof native;
+  testContext.after(() => {
+    fs.realpathSync.native = native;
+  });
+  const root = fixture(testContext, {});
+  mkdirSync(join(root, "a/b"), { recursive: true });
+  const counts = [8, 80].map((missing) => {
+    const tail = Array.from({ length: missing }, (_, i) => `m${i}`);
+    const path = join(root, "a/b", ...tail);
+    calls = 0;
+    assert.equal(resolvePath(path), path);
+    return calls;
+  });
+  // 6 calls at 8 missing names and 9 at 80; one call per missing name took
+  // 10 and 82.
+  assert.ok(counts[1]! - counts[0]! <= 4, `realpath calls at 8 and 80 missing names: ${counts}`);
+  // A `..` after a missing name removes it, and the rest still resolves
+  // (joined by hand: path.join would remove the `..` itself).
+  assert.equal(resolvePath(`${root}/a/missing/../b`), join(root, "a/b"));
+  assert.equal(resolvePath(`${root}/a/missing/../b/new`), join(root, "a/b/new"));
+});
+
+// #1901: list_dir sorts its names in UTF-8 byte order without encoding
+// them, at n and 10n entries; U+E000 sorts before U+10000, as its bytes do,
+// though its UTF-16 code unit is larger than a surrogate's.
+test("list_dir orders names by their UTF-8 bytes without allocating per comparison", (testContext) => {
+  const from = Buffer.from;
+  testContext.after(() => {
+    Buffer.from = from;
+  });
+  for (const count of [10, 100]) {
+    const names = Array.from({ length: count }, (_, i) => `f${(i * 7919) % count}`);
+    names.push("\uE000", "\u{10000}", "Z", "a", "\u00e9");
+    const root = fixture(testContext, Object.fromEntries(names.map((name) => [name, ""])));
+    let encoded = 0;
+    Buffer.from = ((...args: Parameters<typeof from>) => {
+      encoded += 1;
+      return from(...args);
+    }) as typeof from;
+    const listed = (
+      fileOperations["hd:FsRead"].list_dir(root) as { value: { path: string }[] }
+    ).value.map((item) => item.path.slice(root.length + 1));
+    Buffer.from = from;
+    assert.equal(encoded, 0, `${count} entries`);
+    const bytes = [...names].sort((left, right) => Buffer.compare(from(left), from(right)));
+    assert.deepEqual(listed, bytes);
+    assert.ok(listed.indexOf("\uE000") < listed.indexOf("\u{10000}"));
+  }
+  assert.ok(byteOrder("\uFFFF", "\u{10000}") < 0);
+  assert.ok(byteOrder("\uD7FF", "\uE000") < 0);
+  assert.equal(byteOrder("ab", "ab"), 0);
+  assert.ok(byteOrder("ab", "abc") < 0);
+});
+
+// #1901: a read the provider has stat'ed takes the regular file's size and
+// opens, reads and closes with no second stat; it keeps readFileSync's
+// results when the file changed size after that stat, and reads to the
+// end when the stat said 0 bytes (a Linux /proc file).
+test("read_bytes and read_text read a regular file by the size its stat gave", (testContext) => {
+  const root = fixture(testContext, { six: "abcdef", empty: "" });
+  const six = join(root, "six");
+  const read = fileOperations["hd:FsRead"];
+  const bytes = (size: number) =>
+    Buffer.from((read.read_bytes(six, size) as { value: Uint8Array }).value).toString();
+  assert.deepEqual(read.read_text(six, 6), Ok("abcdef"));
+  assert.equal(bytes(6), "abcdef");
+  assert.equal(bytes(9), "abcdef", "a file that shrank since its stat");
+  assert.equal(bytes(4), "abcd", "a file that grew since its stat, as readFileSync reads it");
+  assert.equal(bytes(0), "abcdef", "a stat of 0 bytes reads to the end");
+  assert.deepEqual(read.read_text(join(root, "empty"), 0), Ok(""));
+  // Through the provider, a regular file, an empty one and a directory.
+  const api = netHost(testContext, "hd:FsRead");
+  assert.deepEqual(api.call("read_text", six), { result: Ok("abcdef") });
+  assert.deepEqual(api.call("read_text", join(root, "empty")), { result: Ok("") });
+  assert.deepEqual(api.call("read_text", root), {
+    result: Err({ tag: "IsADirectory", path: root }),
+  });
+});

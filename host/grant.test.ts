@@ -26,3 +26,28 @@ test("total denials and scoped grants remain limited", () => {
   assert.equal(grant.coversHost("Net", "example.test", 80), false);
   assert.equal(grant.limited("Clock"), false);
 });
+
+// #1901: an unrestricted grant or a total deny answers without resolving
+// the path; a scoped grant resolves it once, however many names it has.
+test("coversPath resolves a path only under a scoped grant, once per call", () => {
+  let resolved = 0;
+  const counting = (path: string) => {
+    resolved += 1;
+    return path;
+  };
+  for (const names of [8, 80]) {
+    const path = `/${Array.from({ length: names }, (_, i) => `d${i}`).join("/")}`;
+    for (const [limits, covered, calls] of [
+      [{}, true, 0],
+      [{ FsRead: true }, true, 0],
+      [{ FsRead: false }, false, 0],
+      [{ FsRead: ["/d0"] }, true, 1],
+      [{ FsRead: ["/elsewhere"] }, false, 1],
+    ] as [Record<string, boolean | string[]>, boolean, number][]) {
+      resolved = 0;
+      const grant = createGrant(limits, counting);
+      assert.equal(grant.coversPath("FsRead", path, "/"), covered, JSON.stringify(limits));
+      assert.equal(resolved, calls, `${names} names under ${JSON.stringify(limits)}`);
+    }
+  }
+});

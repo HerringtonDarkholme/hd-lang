@@ -333,11 +333,17 @@ export function createGrant(
     allows: (key: string) => limit(key) !== false,
     limited: (key: string) => limit(key) !== null && limit(key) !== true,
     // An entry covers the file it names or every path under the directory
-    // it names (cli.cap.scope.path); a relative path is from `cwd`.
+    // it names (cli.cap.scope.path); a relative path is from `cwd`. Only a
+    // scoped grant resolves the path: an unrestricted grant or a total deny
+    // answers without touching the file system (#1901).
     coversPath: (key: string, path: string, cwd?: string) => {
+      const scope = limit(key);
+      if (!Array.isArray(scope)) {
+        return scope !== false;
+      }
+      // cost: one resolution per call, then one comparison per entry.
       const target = resolveTarget(path, cwd);
-      return check(
-        key,
+      return scope.some(
         (entry) => target === entry || target.startsWith(entry.endsWith(sep) ? entry : entry + sep),
       );
     },
