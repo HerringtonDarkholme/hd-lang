@@ -14,7 +14,6 @@
 //! later input reads the rebuilt bindings.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use super::{Repl, build_linked_input, repl, text, with_session};
 use hd_run::Outcome;
@@ -143,7 +142,7 @@ fn a_session_runs_and_replays_the_same_on_node() {
     let inputs: Vec<String> = numbers.iter().map(u32::to_string).collect();
     dir.write("inputs", inputs.join("\n").as_bytes());
 
-    let node = Command::new("node")
+    let node = hd_testkit::node::command()
         .arg(script())
         .arg(&dir.0)
         .output()

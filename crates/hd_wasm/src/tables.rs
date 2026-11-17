@@ -272,7 +272,7 @@ mod tests {
     use crate::module::{Module, Sym};
     use hd_base::Hash128;
     use std::io::Write as _;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     #[test]
     fn dense_tables_preserve_scalar_bits_and_the_default_for_any_index() {
@@ -344,7 +344,7 @@ for (const [input, index] of [[0,0],[1,1],[2,2],[3,2],[0xffffffff,2],[-1,2]]) {{
 }}
 "
         );
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .arg("--input-type=module")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

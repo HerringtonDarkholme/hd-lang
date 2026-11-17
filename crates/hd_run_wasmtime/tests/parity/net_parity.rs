@@ -1329,7 +1329,7 @@ fn aborted_pending_connects_release_their_operations_before_a_ready_connect() {
 #[test]
 fn node_zero_bound_accept_observes_kernel_input_before_callback_dispatch() {
     let test = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.test.ts");
-    let output = std::process::Command::new("node")
+    let output = hd_testkit::node::command()
         .args([
             "--test",
             "--test-reporter=tap",
@@ -1377,7 +1377,7 @@ fn net_backpressured_write_keeps_a_sibling_running_on_both_engines() {
     use hd_driver::{Executor, Goal, Host, NoClock};
     use hd_project::MemorySources;
     use hd_sched::SerialOrder;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     use std::sync::mpsc;
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let template = std::fs::read_to_string(
@@ -1464,7 +1464,7 @@ fn net_backpressured_write_keeps_a_sibling_running_on_both_engines() {
             std::fs::write(&file, wasm).unwrap();
             let config = scratch.at("run.json");
             std::fs::write(&config, "{\"timeLimitMs\":20000}").unwrap();
-            let mut node = Command::new("node")
+            let mut node = hd_testkit::node::command()
                 .arg(root.join("host/run.ts"))
                 .arg(file)
                 .arg(config)

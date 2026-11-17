@@ -3466,7 +3466,7 @@ assert.equal(w.poll(b), 0, 'old input wake cannot touch the next scoped call');
 mark(h2 + 0x200000); assert.equal(w.poll(b), 1); assert.equal(w.head(), 0);
 assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
 ";
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["-e", script])
             .stdin(Stdio::piped())
             .stderr(Stdio::piped())
@@ -3585,7 +3585,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
     }
 
     use std::io::Write as _;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     use super::{Helper, Instruction as I, W_READY, W_SLOT};
     use crate::module::{HEAP, Module, Sym, Val, mem};
@@ -3741,7 +3741,7 @@ for (const n of [0, 1, 31, 32, 961, 962, 2000]) {
   calls.length = 0; w.poll(other); assert.deepEqual(calls, [], 'cancelled all never polls children');
 }
 ";
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["-e", script])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -3861,7 +3861,7 @@ w.link(child, last, 32);
 w.notify(child);
 assert.equal(w.ready(last), 32, 'weak lookup survives registry growth');
 ";
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["-e", script])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -786,6 +786,7 @@ version = "0.0.0"
 dependencies = [
  "hd_base",
  "hd_syntax",
+ "hd_testkit",
 ]
 
 [[package]]
@@ -882,6 +883,7 @@ dependencies = [
  "hd_project",
  "hd_run",
  "hd_sched",
+ "hd_testkit",
  "hostname",
  "nix",
  "process-wrap",

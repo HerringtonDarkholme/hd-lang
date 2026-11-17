@@ -186,7 +186,7 @@ fn quoted(s: &str) -> String {
 mod tests {
     use super::*;
     use std::io::Write as _;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     #[test]
     fn ordinary_programs_emit_no_glue() {
@@ -237,7 +237,7 @@ console.log('generated glue ok');
             quoted(&glue),
             quoted(&c.interfaces[0].methods[0].name)
         );
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["--input-type=module"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -6,7 +6,7 @@ use std::fs;
 use std::io::{Read, Write as IoWrite};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
@@ -599,7 +599,7 @@ pub fn run_node(
         .join("../..")
         .join("host/run.ts");
     let spawn = CHILD_SPAWN.lock().unwrap();
-    let mut node = Command::new("node")
+    let mut node = hd_testkit::node::command()
         .arg(root)
         .arg(file)
         .arg(config)

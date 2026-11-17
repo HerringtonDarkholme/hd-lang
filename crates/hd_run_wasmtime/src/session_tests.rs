@@ -2193,7 +2193,7 @@ try {{
 ",
             host = host.to_string_lossy()
         );
-        let mut child = std::process::Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["--input-type=module"])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -2299,7 +2299,7 @@ try {{
 ",
                 host = host.to_string_lossy()
             );
-            let mut child = std::process::Command::new("node")
+            let mut child = hd_testkit::node::command()
                 .args(["--input-type=module"])
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::piped())

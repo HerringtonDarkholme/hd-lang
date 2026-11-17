@@ -577,7 +577,7 @@ mod tests {
             .validate_all(&bytes)
             .expect("validate constant copies");
         // cost: one Node process covers all 31 fixed widths, independent of repository size.
-        let mut child = std::process::Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["--input-type=module", "-e", r"
                 import assert from 'node:assert/strict';
                 const chunks=[]; for await(const c of process.stdin) chunks.push(c);
@@ -639,7 +639,7 @@ mod tests {
         wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
             .validate_all(&bytes)
             .expect("validate lowered bulk operations");
-        let mut child = std::process::Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args(["--input-type=module", "-e", r"
                 import assert from 'node:assert/strict';
                 const chunks=[]; for await (const c of process.stdin) chunks.push(c);

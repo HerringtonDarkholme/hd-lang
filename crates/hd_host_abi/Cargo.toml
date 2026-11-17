@@ -9,6 +9,8 @@ rust-version.workspace = true
 hd_base = { path = "../hd_base" }
 # Reads std's declarations for the ABI model (`tests/abi_model.rs`).
 hd_syntax = { path = "../hd_syntax" }
+# The pinned Node (`hd_testkit::node`) for the JavaScript adapter test.
+hd_testkit = { path = "../hd_testkit" }
 
 [lints]
 workspace = true

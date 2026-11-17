@@ -3391,7 +3391,7 @@ for (const bad of [[2], [1,2], [1,1,128,128,8]]) {{
 console.log('owned and discarded boundary decoders passed');
 "
         );
-        let output = std::process::Command::new("node")
+        let output = hd_testkit::node::command()
             .args(["--input-type=module", "-e", &script])
             .output()
             .expect("Node available");

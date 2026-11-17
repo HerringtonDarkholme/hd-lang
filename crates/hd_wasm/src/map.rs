@@ -1480,7 +1480,7 @@ console.log('ok');
         );
         // cost: one Node process runs a fixed Wasm module with two fixed run seeds;
         // its replay and lifecycle checks use a constant number of seed requests.
-        let output = std::process::Command::new("node")
+        let output = hd_testkit::node::command()
             .args(["--input-type=module", "-e", &script])
             .output()?;
         assert!(

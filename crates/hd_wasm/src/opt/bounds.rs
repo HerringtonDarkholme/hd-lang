@@ -474,7 +474,7 @@ console.log('ok');
 "
         );
         // cost: one Node process per comparison of two fixed-size test modules.
-        let mut child = std::process::Command::new("node")
+        let mut child = hd_testkit::node::command()
             .arg("-")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())

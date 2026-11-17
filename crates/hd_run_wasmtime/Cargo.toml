@@ -67,6 +67,8 @@ hd_driver = { path = "../hd_driver", default-features = false }
 hd_mono = { path = "../hd_mono" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
+# The pinned Node (`hd_testkit::node`) for the parity and session tests.
+hd_testkit = { path = "../hd_testkit" }
 
 [target.'cfg(windows)'.dependencies]
 # `Process.run!` puts each child in a Job object whose termination kills

@@ -919,7 +919,7 @@ console.log('session extension passed');
         tail = extension.wasm,
         third = third.wasm
     );
-    let output = std::process::Command::new("node")
+    let output = hd_testkit::node::command()
         .args(["--input-type=module", "-e", &script])
         .output()
         .expect("Node available");
@@ -985,8 +985,8 @@ if (base.call() !== 66 || extension.call() !== 266 || base.call() !== 66) throw 
 
 fn run_session_node(script: &str) {
     use std::io::Write;
-    use std::process::{Command, Stdio};
-    let mut child = Command::new("node")
+    use std::process::Stdio;
+    let mut child = hd_testkit::node::command()
         .args(["--input-type=module"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -1924,7 +1924,7 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     let wasm = m.finish()?;
     validate(&wasm);
     // cost: one Node process pushes/reads 16,379 fixed values; no repository scan.
-    let mut child=std::process::Command::new("node").args(["--input-type=module","-e",r"
+    let mut child=hd_testkit::node::command().args(["--input-type=module","-e",r"
         import assert from 'node:assert/strict';
         const chunks=[];for await(const c of process.stdin)chunks.push(c);
         const module=await WebAssembly.compile(Buffer.concat(chunks));

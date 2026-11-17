@@ -995,7 +995,7 @@ fn handle_once_cell_runs_its_body_once() {
     m.define(Sym::Inst(Hash128(617)), runs);
     m.export("runs", Sym::Inst(Hash128(617)));
     let wasm = m.finish().expect("link counter fixture");
-    let mut child = std::process::Command::new("node")
+    let mut child = hd_testkit::node::command()
         .args([
             "--input-type=module",
             "-e",

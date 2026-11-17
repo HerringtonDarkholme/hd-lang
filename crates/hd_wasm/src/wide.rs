@@ -733,7 +733,7 @@ mod tests {
         wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
             .validate_all(&bytes)
             .expect("validate shadow storage");
-        let mut child = std::process::Command::new("node")
+        let mut child = hd_testkit::node::command()
             .args([
                 "--input-type=module",
                 "-e",
