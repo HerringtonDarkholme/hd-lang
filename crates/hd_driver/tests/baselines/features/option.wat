@@ -6,12 +6,12 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $question (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     s := o?
+    ;; 14 |     s := o?
     block
       local.get $o.0
       i32.eqz
       br_if 0
-    ;; 13 |     .Some(s + "!")
+    ;; 15 |     .Some(s + "!")
       local.get $o.1
       i32.const 1
       i32.add
@@ -32,32 +32,32 @@
         local.get $o.0
         call $rt:release_ref
       end
-    ;; 12 |     s := o?
+    ;; 14 |     s := o?
     end
     local.get $t1
     local.get $t0
   )
   (func $unwrap (param $o.0 i32) (param $o.1 i32) (result i32)
-    ;; 7 |     match o:
+    ;; 9 |     match o:
     block
       block
-    ;; 8 |         .Some(s) => s.len()
+    ;; 10 |         .Some(s) => s.len()
         local.get $o.0
         i32.eqz
         br_if 1
         br 0
-    ;; 7 |     match o:
+    ;; 9 |     match o:
         unreachable
       end
-    ;; 8 |         .Some(s) => s.len()
+    ;; 10 |         .Some(s) => s.len()
       local.get $o.1
-    ;; 7 |     match o:
+    ;; 9 |     match o:
       return
     end
     i32.const 0
   )
   (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
-    ;; 16 |     o.unwrap_or("none")
+    ;; 18 |     o.unwrap_or("none")
     i32.const 105 ;; &"none"
     i32.const 4
     local.set $t0

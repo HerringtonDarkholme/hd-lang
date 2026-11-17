@@ -119,6 +119,22 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 /// A wrapper `Scope` a borrow goes through ([`Body::borrowed_alias`]) has
 /// that borrow's `Break` as its one way out, so its value is that borrow.
 fn borrowed_wrappers(b: &Body, errs: &mut Vec<VerifyError>) {
+    if !b.forwarded_reads.is_empty() {
+        let roots = b.forwarding_reads(|| {});
+        for (at, &(value, read)) in b.forwarded_reads.iter().enumerate() {
+            if roots.get(value as usize) != Some(&read)
+                || read == NONE
+                || value == read
+                || (at > 0 && b.forwarded_reads[at - 1].0 >= value)
+            {
+                err(
+                    errs,
+                    value,
+                    "an invalid or unsorted forwarded Read identity".into(),
+                );
+            }
+        }
+    }
     // Per instruction: the `Break`s to the label it is, if any.
     let mut breaks = vec![0u32; b.len()];
     for i in 0..b.len() {
@@ -2313,5 +2329,85 @@ mod deferred_tests {
             "{errors:?}"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod forwarded_read_tests {
+    use super::*;
+    use crate::ir::{BodyKind, Coercion, TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
+
+    fn chain() -> (Body, u32, u32) {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let syn = NodeIdx::from_raw(0);
+        let root = b.open_block();
+        let local = b.local(Ty::STRING, Symbol::from_raw(0), local_flags::PARAM, syn);
+        let read = b.get(local, Ty::STRING, syn);
+        let first = b.coerce(Coercion::Identity, NONE, read, Ty::STRING, syn);
+        let second = b.coerce(Coercion::Identity, NONE, first, Ty::STRING, syn);
+        b.emit(Tag::Return, second.0, NONE, Ty::NEVER, syn);
+        let root = b.close_block(root, None, Ty::NEVER, syn);
+        let mut b = b.finish(root, &[]).expect("valid forwarding chain");
+        b.data[read.0 as usize][1] = ReadMode::Borrow as u32;
+        b.index_forwarded_reads();
+        (b, second.0, read.0)
+    }
+
+    #[test]
+    fn forwarded_read_metadata_rejects_stale_self_and_unsorted_rows() {
+        let (b, value, read) = chain();
+        assert_eq!(b.forwarded_reads, [(value, read)]);
+        let mut errors = vec![];
+        borrowed_wrappers(&b, &mut errors);
+        assert!(errors.is_empty(), "{errors:?}");
+        for rows in [
+            vec![(value, value)],
+            vec![(read, read)],
+            vec![(value, NONE)],
+            vec![(value, read), (value, read)],
+            vec![(u32_of(b.len()), read)],
+        ] {
+            let mut malformed = b.clone();
+            malformed.forwarded_reads = rows;
+            let mut errors = vec![];
+            borrowed_wrappers(&malformed, &mut errors);
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.what.contains("forwarded Read identity"))
+            );
+        }
+        let back = crate::ir::parse(&crate::ir::print(&b)).expect("text roundtrip");
+        assert_eq!(back, b);
+    }
+
+    #[test]
+    fn splicing_remaps_both_sides_of_a_forwarded_read() {
+        let (mut b, value, read) = chain();
+        let topo = Topology::new(&b);
+        let inserts = [crate::own::splice::BatchInsert {
+            block: b.sub_root[0],
+            pos: 0,
+            tag: Tag::Read,
+            data: b.data[read as usize],
+            ty: Ty::STRING,
+            syn: NodeIdx::from_raw(0),
+        }];
+        let map = crate::own::splice::insert_batch(&mut b, &topo, &inserts)
+            .expect("insert unrelated read before chain");
+        assert_ne!(map[read as usize], read);
+        assert_eq!(
+            b.forwarded_reads,
+            [(map[value as usize], map[read as usize])]
+        );
+        assert_eq!(
+            b.borrowed_alias(map[value as usize]),
+            Some(map[read as usize])
+        );
+        let mut errors = vec![];
+        borrowed_wrappers(&b, &mut errors);
+        assert!(errors.is_empty(), "{errors:?}");
     }
 }

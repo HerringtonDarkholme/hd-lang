@@ -100,6 +100,78 @@ fn parameter_with(b: &Body, mut visit: impl FnMut()) -> Option<u8> {
     u8::try_from(k).ok()
 }
 
+/// Forward address uses of a returned-argument call to that argument, while
+/// retaining the call and its effects (LLVM `InstCombine`'s `returned` rule).
+/// One SSA pass canonicalizes call chains; each shared place is copied once.
+/// Cleanup still names the call result, whose loan lifetime is independent.
+pub(super) fn forward_places(b: &mut Body, cx: &dyn super::OwnCx) {
+    forward_places_with(b, |callee| cx.returned_loan(callee), |_| {});
+}
+
+fn forward_places_with(
+    b: &mut Body,
+    mut returned: impl FnMut(&crate::ir::Callee) -> Option<u8>,
+    mut visit: impl FnMut(usize),
+) {
+    if !b.tags.contains(&Tag::Call) {
+        return;
+    }
+    let mut sources: Vec<u32> = (0..b.len()).map(crate::ir::u32_of).collect();
+    let mut found = false;
+    for i in 0..b.len() {
+        visit(1);
+        if b.tags[i] != Tag::Call {
+            continue;
+        }
+        let Some(callee) = crate::ir::Callee::from_words(b.record(b.data[i][0])) else {
+            continue;
+        };
+        let Some(k) = returned(&callee) else {
+            continue;
+        };
+        let Some(arg) = b.record(b.data[i][1]).get(usize::from(k)).copied() else {
+            continue;
+        };
+        let Some(arg) = Ref(arg).as_inst().map(|v| v.0 as usize).filter(|&v| v < i) else {
+            continue;
+        };
+        // Exact types preserve the interpretation of every field projection.
+        // A representation-changing return needs its original result type.
+        if b.ty[arg] == b.ty[i] {
+            sources[i] = sources[arg];
+            found = true;
+        }
+    }
+    if !found {
+        return;
+    }
+    let mut places = hd_base::HashMap::default();
+    for i in 0..b.len() {
+        visit(1);
+        if !matches!(b.tags[i], Tag::Read | Tag::Ref | Tag::Store | Tag::IsUnique) {
+            continue;
+        }
+        let old = b.data[i][0];
+        let Root::Value(value) = b.view(old).root else {
+            continue;
+        };
+        let source = sources[value as usize];
+        if source == value {
+            continue;
+        }
+        let new = *places.entry(old).or_insert_with(|| {
+            let mut words = b.record(old).to_vec();
+            visit(words.len());
+            words[1] = source;
+            let at = crate::ir::u32_of(b.extra.len());
+            b.extra.push(crate::ir::u32_of(words.len()));
+            b.extra.extend(words);
+            at
+        });
+        b.data[i][0] = new;
+    }
+}
+
 /// Apply a proven root result convention before ownership insertion. The
 /// driver first checks the declaration fact, concrete layout and call ABI.
 /// Nested closures retain their independent result convention.
@@ -325,5 +397,109 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod forwarded_place_tests {
+    use super::*;
+    use crate::ir::{BodyKind, Callee, Place, PlaceRoot, Proj, Providers, TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::{Ty, TyList};
+
+    const POINTER: Ty = Ty(1_000_000);
+
+    fn generated(width: usize, depth: usize) -> (Body, Vec<(u32, u32, u32)>) {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let node = NodeIdx::from_raw(0);
+        let block = b.open_block();
+        let param = b.local(POINTER, Symbol::NONE, crate::ir::local_flags::PARAM, node);
+        let callee = Callee::Item {
+            def: DefId::from_raw(8),
+            targs: TyList::EMPTY,
+        };
+        let mut expected = vec![];
+        for _ in 0..width {
+            let source = b.get(param, POINTER, node);
+            let mut value = source;
+            for _ in 0..depth {
+                value = b.call(&callee, &[value], Providers::None, POINTER, node);
+            }
+            let place = b.place(&Place {
+                root: PlaceRoot::Value(value),
+                proj: vec![Proj::Deref, Proj::Field(0)],
+            });
+            let read = b.emit(
+                Tag::Read,
+                place,
+                crate::ir::ReadMode::Use as u32,
+                Ty::STRING,
+                node,
+            );
+            expected.push((read.0, source.0, value.0));
+        }
+        let root = b.close_block(block, None, Ty::VOID, node);
+        (
+            b.finish(root, &[]).expect("valid returned-place graph"),
+            expected,
+        )
+    }
+
+    #[test]
+    fn returned_places_forward_in_linear_work_at_width_and_depth() {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let (mut b, expected) = generated(width, depth);
+                let n = b.len();
+                let mut work = 0;
+                forward_places_with(&mut b, |_| Some(0), |n| work += n);
+                assert_eq!(work, 2 * n + 4 * width);
+                assert_eq!(
+                    b.tags.iter().filter(|&&t| t == Tag::Call).count(),
+                    width * depth
+                );
+                for (read, source, _) in expected {
+                    let place = b.view(b.data[read as usize][0]);
+                    assert_eq!(place.root, Root::Value(source));
+                    assert_eq!(
+                        place.steps(&b).collect::<Vec<_>>(),
+                        [Proj::Deref, Proj::Field(0)]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn returned_places_preserve_calls_cleanup_and_unproved_results() {
+        let (original, expected) = generated(1, 2);
+        let (read, _source, call) = expected[0];
+        let mut unknown = original.clone();
+        forward_places_with(&mut unknown, |_| None, |_| {});
+        assert_eq!(unknown, original);
+        let mut different = original.clone();
+        different.ty[call as usize] = Ty::I32;
+        let before = different.clone();
+        forward_places_with(&mut different, |_| Some(0), |_| {});
+        assert_eq!(different.data[read as usize], before.data[read as usize]);
+        let mut cleanup = original.clone();
+        cleanup.tags[read as usize] = Tag::LoanEnd;
+        let old = cleanup.data[read as usize];
+        forward_places_with(&mut cleanup, |_| Some(0), |_| {});
+        assert_eq!(cleanup.data[read as usize], old);
+        assert_eq!(cleanup.tags[call as usize], Tag::Call);
+
+        let (mut b, expected) = generated(2, 2);
+        let (read, source, call) = expected[0];
+        let other = expected[1].0 as usize;
+        let old = b.data[read as usize][0];
+        b.data[other][0] = old;
+        let old_len = b.extra.len();
+        forward_places_with(&mut b, |_| Some(0), |_| {});
+        assert_eq!(b.extra.len(), old_len + 5, "shared place copied once");
+        assert_eq!(b.data[read as usize][0], b.data[other][0]);
+        assert_eq!(b.view(b.data[read as usize][0]).root, Root::Value(source));
+        assert_eq!(b.tags[call as usize], Tag::Call);
+        assert_eq!(b.record(old)[1], call, "old record remains immutable");
     }
 }

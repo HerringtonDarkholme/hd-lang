@@ -1,0 +1,33 @@
+# @dump: counts own stdout wat
+# @build: dev | checked | release
+# expected: the forwarding call still prints and the original box remains
+# readable in all builds. Release forwards the field read to its borrowed
+# argument with no string count; dev/checked retain their owning call ABI.
+use std.annotation.inline
+
+struct Item:
+    text: string
+
+@inline(.Never)
+fn announce(value: *Item) -> *Item $ Console:
+    println("forward")
+    value
+
+@inline(.Never)
+fn replace_holder(value: *Item, holder: &mut *Item) -> *Item $ Console:
+    *holder = box(Item { text: "new" })
+    churn := box(Item { text: "reused" })
+    println(churn.text)
+    value
+
+# subject
+fn length(value: *Item) -> usize $ Console:
+    announce(value).text.len()
+
+pub fn main() -> void $ Console:
+    value := box(Item { text: "hello" + " world" })
+    println(length(value))
+    println(value.text)
+    let mut holder: *Item = box(Item { text: "old" })
+    println(replace_holder(holder, &mut holder).text)
+    println(holder.text)

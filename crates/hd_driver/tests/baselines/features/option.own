@@ -2,8 +2,10 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: `Option` and `?` (#1364).
-# expected: no count in `unwrap` or `question`: the payload is only read
-# or consumed by `+`; `or_default` moves the payload out.
+# expected: `unwrap` only reads its payload and takes no count.
+# `question` cleans up its owned option state and the old string after
+# concatenation; `+` creates a new string. `or_default` retains the owned
+# string it returns from its borrowed input, whose caller keeps its count.
 fn unwrap(o: string?) -> usize:
 > app/main/unwrap
 >   local $0 o: string? [param read] value

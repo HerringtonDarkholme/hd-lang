@@ -7,7 +7,7 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Display for FsError.to_string" (param $self i32) (result i32 i32) (local $path.0 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 13 |         match *self:
+    ;; 15 |         match *self:
     local.get $self
     i32.load $heap
     local.get $self
@@ -18,7 +18,7 @@
       br 0
       unreachable
     end
-    ;; 14 |             FsError.NotFound(path) => "not found: " + path
+    ;; 16 |             FsError.NotFound(path) => "not found: " + path
     i32.const 11
     local.get $self
     i32.add
@@ -45,7 +45,7 @@
     local.get $t0
   )
   (func $load (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 22 |     text := read_config(path)?
+    ;; 24 |     text := read_config(path)?
     local.get $path.0
     local.get $path.1
     call $"impl string.len"
@@ -98,13 +98,13 @@
       i32.const 364 ;; &vtable[rt:dyn_slot]
       return
     end
-    ;; 23 |     .Ok(text)
+    ;; 25 |     .Ok(text)
     i32.const 0
     local.get $t1
     local.get $path.1
   )
   (func $read_config (param $path.0 i32) (param $path.1 i32) (result i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 19 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
+    ;; 21 |     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
     local.get $path.1
     if (result i32)
       local.get $path.1

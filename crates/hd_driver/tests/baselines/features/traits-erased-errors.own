@@ -2,8 +2,10 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Error Trait, Erased Errors (spec/lang/09-traits.md, #1364).
-# expected: the `Ok` path of `load` moves `text` with no count and
-# no allocation; the `Err` path boxes the `FsError` once.
+# expected: `.Ok(text)` in `load` transfers the already-created result
+# with no count or allocation. `read_config` allocates `path + "!"` and
+# releases its input on success; `load` also releases its consumed path.
+# The Err path moves the path into `FsError` and boxes that error once.
 use std.error.Error
 
 enum FsError:

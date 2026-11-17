@@ -3,9 +3,10 @@
 # @build: v8 release
 # Feature: Generic Traits, Associated Types, Associated Type Bindings,
 # Bound Associated Types (spec/lang/09-traits.md, #1364).
-# expected: `first` and `read` return the stored `string` with one
-# retain; `first_len` reads it with no count; `read` dispatches through
-# the vtable with no count.
+# expected: `Constant.get` retains the stored string it returns;
+# `first` returns `get`'s owned result; `first_len` reads it with no count.
+# `read` releases the owned result of the dynamic `get`: an implementation
+# can return a fresh string. Dispatch takes no count of `source`.
 trait Supplier:
     type Item
     fn get(&self) -> Self::Item
@@ -25,8 +26,6 @@ fn first[T < Supplier](source: T) -> T::Item:
 
 fn first_len(c: Constant) -> usize:
     first(c).len()
-> app/main/first_len
->   release string (last use)
 
 fn read(source: &dyn Supplier[Item = string]) -> usize:
     source.get().len()

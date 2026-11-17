@@ -3,7 +3,7 @@
 # expected: an explicit parameter states its conditional entry copy.
 # Plain counted pointer and string inputs arrive owned; local references borrow.
 # Function-value Copy inputs borrow and an owning closure copies at entry.
-# A plain-call caller with a still-live counted input supplies its copy.
+# An owning call copies a live input; a returned-argument field read borrows its source.
 # Capture loading is separate from the creator's argument transfer.
 use std.annotation.cold
 use std.collections.UniqList

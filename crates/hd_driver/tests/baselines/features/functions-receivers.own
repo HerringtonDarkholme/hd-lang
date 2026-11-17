@@ -5,8 +5,8 @@
 # expected: `temp_receiver` frees the temporary once; `element_receiver`
 # changes the element in place (one uniqueness check, no element
 # count); `element_read` takes no count; `place_receiver` takes no
-# count; `mut_self` copies `v` once (it is read after); `counted`
-# retains `b` only if `keep`'s result outlives the call.
+# count; `mut_self` copies `v` once (it is read after). `counted` reads
+# the returned argument's field with no count: `keep` forwards the same box.
 struct Vec2:
     name: string
     x: i64
@@ -247,18 +247,17 @@ fn counted(b: *Vec2) -> usize:
 >     uses $0: entry -> %1 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %5 -> %6 lend last
->   %0 = Release %12 Exit local $0 #2 : ()
+>   %0 = Release %11 Exit local $0 #2 : ()
     b.keep().name.len()
 >   %1 = Read borrow [$0] : *Vec2
 >   %2 = Call app/main/impl Vec2.keep[] (%1) : *Vec2
->   %3 = Read copy [*%2 .name] : string
->   %4 = LoanEnd [%2] : ()
->   %5 = Store [$1] %3 : ()
+>   %3 = LoanEnd [%2] : ()
+>   %4 = Read borrow [*%1 .name] : string
+>   %5 = Store [$1] %4 : ()
 >   %6 = Read borrow [$1] : string
 >   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
->   %11 = Drop [$1] : ()
->   %12 = Block %10 : usize
+>   %11 = Block %10 : usize
 >   summary kept [] borrows [$0]

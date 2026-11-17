@@ -239,50 +239,28 @@
     i32.store $heap offset=4
     local.get $shared
     ;; 47 |     println(same(shared).text)
+    local.tee $items
     i32.const 12
     call_indirect $table0 (param i32) (result i32)
-    local.tee $items
-    if
-      local.get $items
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $items
-        call $rt:retain_known
-      end
-    end
+    drop
     local.get $items
     i32.load $heap
     local.get $items
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t2
+    local.set $items
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       call $retain
     end
-    local.get $items
-    if
-      local.get $items
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $items
-        call $rt:release_ref'2
-      end
-    end
-    local.get $t2
     local.get $t1
+    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t2
+    local.get $t1
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref'1
     end
     ;; 48 |     println(keep(shared)().text)

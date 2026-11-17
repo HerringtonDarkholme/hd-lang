@@ -5,8 +5,8 @@
 # expected: `temp_receiver` frees the temporary once; `element_receiver`
 # changes the element in place (one uniqueness check, no element
 # count); `element_read` takes no count; `place_receiver` takes no
-# count; `mut_self` copies `v` once (it is read after); `counted`
-# retains `b` only if `keep`'s result outlives the call.
+# count; `mut_self` copies `v` once (it is read after). `counted` reads
+# the returned argument's field with no count: `keep` forwards the same box.
 struct Vec2:
     name: string
     x: i64
@@ -61,6 +61,3 @@ fn mut_self(v: Vec2, n: string) -> usize:
 
 fn counted(b: *Vec2) -> usize:
     b.keep().name.len()
-> app/main/counted
->   retain string (conservative: copy read)
->   release string (last use)

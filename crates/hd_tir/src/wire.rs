@@ -551,6 +551,7 @@ fn owned(b: &Body) -> bool {
         && b.full_cells.is_empty()
         && b.stable_lists.is_empty()
         && b.regions.is_empty()
+        && b.forwarded_reads.is_empty()
         && b.anchors.is_empty()
         && b.inlined.is_empty()
         && b.inlined_origins.is_empty()
@@ -641,6 +642,9 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
             .collect::<Vec<_>>()
             .into_iter(),
     );
+    if !b.forwarded_reads.is_empty() {
+        pairs(w, &b.forwarded_reads);
+    }
 }
 
 /// Reads the owned section into `b` ([`write_owned`]); `None` on a
@@ -694,6 +698,9 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
             )
         })
         .collect();
+    if !r.at_end() {
+        b.forwarded_reads = pairs(col(r));
+    }
     Some(())
 }
 
@@ -929,6 +936,7 @@ mod tests {
         body.live = vec![(1, vec![3, 4]), (2, vec![])];
         body.full_cells = vec![(0, 0)];
         body.stable_lists = vec![(2, crate::ir::place::BARE_LOCAL)];
+        body.forwarded_reads = vec![(2, 0)];
         body.anchors = vec![0, crate::ir::NONE, 2];
         body.inlined = vec![[3, 2, g.raw(), 1]];
         body.inlined_origins = vec![[4, 1]];

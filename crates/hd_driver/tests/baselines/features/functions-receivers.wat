@@ -113,25 +113,17 @@
     local.get $s.1
     local.get $t0
   )
-  (func $counted (param $b i32) (result i32) (local $t0 i32)
+  (func $counted (param $b i32) (result i32)
     ;; 49 |     b.keep().name.len()
     local.get $b
     call $"impl Vec2.keep"
-    local.tee $b
+    drop
+    local.get $b
     i32.load $heap
     local.get $b
     i32.load $heap offset=4
     local.set $b
-    local.tee $t0
-    if
-      local.get $t0
-      call $retain
-    end
-    local.get $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
+    drop
     local.get $b
   )
   (func $mut_self (param $v.name.0 i32) (param $v.name.1 i32) (param $v.x i64) (param $n.0 i32) (param $n.1 i32) (result i32)

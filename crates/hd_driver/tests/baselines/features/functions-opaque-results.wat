@@ -8,14 +8,14 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $names (param $xs i32) (result i32 i32)
-    ;; 7 |     xs.iter()
+    ;; 9 |     xs.iter()
     local.get $xs
     i32.load $heap
     call $rt:coll_copy
     i32.const 0
   )
   (func $count_long (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $n i32) (local $t2 i32) (local $x.1 i32)
-    ;; 10 |     let n: usize = 0
+    ;; 12 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -54,7 +54,7 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    ;; 11 |     for x in names(&xs):
+    ;; 13 |     for x in names(&xs):
     local.get $xs
     i32.load $heap
     call $rt:coll_copy
@@ -104,12 +104,12 @@
               br 0
               unreachable
             end
-    ;; 12 |         n += x.len()
+    ;; 14 |         n += x.len()
             local.get $n
             local.get $x.1
             i32.add
             local.set $n
-    ;; 11 |     for x in names(&xs):
+    ;; 13 |     for x in names(&xs):
             br 1
           end
           br 2
@@ -136,9 +136,9 @@
         end
       end
     end
-    ;; 13 |     n
+    ;; 15 |     n
     local.get $n
-    ;; 10 |     let n: usize = 0
+    ;; 12 |     let n: usize = 0
     local.get $t0
     i32.const 32
     i32.add
