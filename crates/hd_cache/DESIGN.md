@@ -429,8 +429,20 @@ obj/
   exclusive lock, releases it if granted, and restores its shared lock.
   This uses neither directory locking nor lock conversion: Windows stacks
   overlapping locks on one handle. The gate keeps another join or probe
-  out of that temporary membership gap. A successful probe runs alone,
-  and claims nothing: no run can wait for it, and a claim costs a file.
+  out of that temporary membership gap. A successful probe runs alone
+  and claims nothing, since a claim costs a file: it notes the miss in
+  memory, and its first such probe takes the `solo` regular file's lock
+  exclusively, inside the gate (#2056). A run whose probe finds another
+  member waits for `solo` before its first claim; it holds no claim, so
+  the wait closes no cycle. The lone run probes again at its next miss
+  and at the put of a noted miss. Finding the other run, it claims each
+  noted miss not yet published, a put one as computed so that it is
+  published at once, and lets `solo` go. The joiner then waits on those
+  claims as on any other, so no entry a lone run computes is computed
+  twice, and a joiner waits at most one entry's computation per lone
+  run. Cost alone: one `solo` lock per run, one probe per miss and per
+  put of a miss, no claim file; the claims are made once, and only when
+  another run joins.
   Beside other runs, a miss of
   `parse`, `iface`, `check`, `check-test` or `graph` locks
   `claims/<kind><key>`.
@@ -470,7 +482,7 @@ obj/
     appends one byte before its flush check. After contention, each put
     may publish its current batch until the command ends.
   - A store that finds other runs beside it after running alone publishes
-    what it put while alone at its next put.
+    what it put while alone at its next put or miss.
   - Runs of different programs wait only for keys both miss, such as
     std's: keys are content hashes.
   - `depfiles` is not claimed, except the std skims. A run writes its

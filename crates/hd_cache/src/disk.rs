@@ -56,6 +56,14 @@ mod cost {
         pub lock_waits: u64,
         /// Misses that waited for another run's claim.
         pub claim_waits: u64,
+        /// Run-membership probes: one per claimable miss while alone.
+        pub run_probes: u64,
+        /// Times a lone run took the `solo` lock: once per run.
+        pub solo_locks: u64,
+        /// Joining runs that waited for a lone run to claim its misses.
+        pub solo_waits: u64,
+        /// A lone run's misses claimed when it found other runs.
+        pub lone_claims: u64,
         /// Contested misses a task computed instead of waiting, because a
         /// task suspended below it on the thread holds a claim.
         pub claim_nested: u64,
@@ -1134,6 +1142,10 @@ mod packed {
         runs: Mutex<Option<RunLocks>>,
         /// Another store ran beside this one once: it claims every miss.
         crowded: AtomicBool,
+        /// The misses this store computes alone, unclaimed, until their
+        /// publication (#2056). When it finds another run, it claims them
+        /// before it lets that run on.
+        lone: Mutex<BTreeMap<Key, LoneMiss>>,
         /// The store became crowded since its caller last published.
         flush: AtomicBool,
         /// The threads whose contested miss asked their caller to publish
@@ -1156,9 +1168,14 @@ mod packed {
     /// Explicit unlocks avoid Windows' stacking (rather than converting)
     /// overlapping locks on one handle. The gate prevents two probes from
     /// simultaneously dropping their membership and both seeing no peer.
+    /// `solo` is held exclusively by a run that probed alone, from its
+    /// first such probe until it has claimed the misses it computes
+    /// alone (#2056): a run that finds another waits for it first.
     struct RunLocks {
         run: LockFile,
         gate: LockFile,
+        solo: LockFile,
+        solo_held: bool,
     }
 
     impl RunLocks {
@@ -1174,22 +1191,38 @@ mod packed {
             };
             let gate = open("run-lock")?;
             let run = open("run")?;
+            let solo = open("solo")?;
             gate.lock()?;
             let joined = run.lock_shared();
             gate.unlock()?;
             joined?;
-            Ok(Self { run, gate })
+            Ok(Self {
+                run,
+                gate,
+                solo,
+                solo_held: false,
+            })
         }
 
-        fn alone(&self) -> io::Result<bool> {
+        /// Whether no other run is a member. Alone, the run takes `solo`
+        /// inside the gate, so a run joining after this probe finds it
+        /// held: a joiner waits on `solo` only after the gate shows it a
+        /// member, and no member holds `solo` while another run is alone.
+        fn alone(&mut self) -> io::Result<bool> {
+            count!(run_probes, 1);
             self.gate.lock()?;
             let probed = (|| {
                 self.run.unlock()?;
-                let alone = self.run.try_lock().is_ok();
+                let mut alone = self.run.try_lock().is_ok();
                 if alone {
                     self.run.unlock()?;
                 }
                 self.run.lock_shared()?;
+                if alone && !self.solo_held {
+                    alone = self.solo.try_lock().is_ok();
+                    self.solo_held = alone;
+                    count!(solo_locks, u64::from(alone));
+                }
                 Ok(alone)
             })();
             self.gate.unlock()?;
@@ -1204,6 +1237,14 @@ mod packed {
         thread: std::thread::ThreadId,
         /// The thread's [`crate::task`] depth at the miss: a claim of a
         /// smaller depth belongs to a task suspended below this one.
+        depth: u32,
+        done: bool,
+    }
+
+    /// A miss a lone run computes without a claim: what its claim takes
+    /// when the run finds another.
+    struct LoneMiss {
+        thread: std::thread::ThreadId,
         depth: u32,
         done: bool,
     }
@@ -2455,6 +2496,7 @@ mod packed {
                 claiming: false,
                 runs: Mutex::new(None),
                 crowded: AtomicBool::new(false),
+                lone: Mutex::new(BTreeMap::new()),
                 flush: AtomicBool::new(false),
                 flush_before_wait: Mutex::new(Vec::new()),
                 waits: Mutex::new(None),
@@ -3028,23 +3070,122 @@ mod packed {
             runs
         }
 
-        /// No claim files are needed while alone. Membership probes hold
-        /// the gate for a constant number of lock calls, with no directory
-        /// walk or entry I/O. Once crowded there are no further probes.
-        fn crowded(&self) -> bool {
+        /// No claim files are needed while alone: a lone `miss` is noted
+        /// in memory instead. Membership probes hold the gate for a
+        /// constant number of lock calls, with no directory walk or entry
+        /// I/O. Once crowded there are no further probes. On finding other
+        /// runs, a store that was alone claims its noted misses and then
+        /// lets go of `solo`; one that was not waits for `solo`, so no
+        /// run computes what a lone run is computing (#2056). The note and
+        /// the claims are made under the membership lock, so no miss
+        /// noted alone escapes them.
+        fn crowded(&self, miss: Option<Key>) -> bool {
             if self.crowded.load(Ordering::Relaxed) {
                 return true;
             }
-            let runs = self.join();
-            let Some(runs) = runs.as_ref() else {
+            let mut runs = self.join();
+            let Some(locks) = runs.as_mut() else {
                 return false;
             };
-            let alone = runs.alone().unwrap_or(false);
-            if !alone {
-                self.crowded.store(true, Ordering::Relaxed);
-                self.flush.store(true, Ordering::Relaxed);
+            if locks.alone().unwrap_or(false) {
+                if let Some(k) = miss {
+                    self.lone().insert(
+                        k,
+                        LoneMiss {
+                            thread: std::thread::current().id(),
+                            depth: crate::task_depth(),
+                            done: false,
+                        },
+                    );
+                }
+                return false;
             }
-            !alone
+            if locks.solo_held {
+                self.claim_lone();
+                let _ = locks.solo.unlock();
+                locks.solo_held = false;
+                drop(runs);
+            } else {
+                drop(runs);
+                self.wait_for_lone_runs();
+            }
+            self.crowded.store(true, Ordering::Relaxed);
+            self.flush.store(true, Ordering::Relaxed);
+            true
+        }
+
+        fn lone(&self) -> MutexGuard<'_, BTreeMap<Key, LoneMiss>> {
+            self.lone
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        }
+
+        /// Claims the misses this store computed alone and has not
+        /// published, each as computed or not, as its own miss would have.
+        /// Cost: one claim file per such miss, once per run, and only when
+        /// another run joins.
+        fn claim_lone(&self) {
+            let lone = std::mem::take(&mut *self.lone());
+            // The notification baseline goes before owning any claim.
+            drop(self.waits());
+            for (k, m) in lone {
+                if let Some(file) = self.open_claim(k)
+                    && file.try_lock().is_ok()
+                {
+                    count!(lone_claims, 1);
+                    self.claims().insert(
+                        k,
+                        Claim {
+                            _lock: file,
+                            thread: m.thread,
+                            depth: m.depth,
+                            done: m.done,
+                        },
+                    );
+                }
+            }
+        }
+
+        /// Waits until no run holds `solo`: a lone run claims what it
+        /// computes before it lets go. This store holds no claim yet, so
+        /// the wait closes no cycle. An unopenable file does not wait.
+        fn wait_for_lone_runs(&self) {
+            let Ok(solo) = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(self.root.join("solo"))
+                .map(LockFile)
+            else {
+                return;
+            };
+            if solo.try_lock_shared().is_err() {
+                count!(solo_waits, 1);
+                #[cfg(test)]
+                self.pause("solo-wait");
+                let _ = solo.lock_shared();
+            }
+        }
+
+        /// `claims/<kind><key>`, opened, made with its directory at the
+        /// first claim; `None` when the cache is unwritable.
+        fn open_claim(&self, k: Key) -> Option<LockFile> {
+            let dir = self.root.join("claims");
+            let path = dir.join(format!("{:04x}{:032x}", k.0, k.1));
+            let open = || {
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(&path)
+            };
+            let file = match open() {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    std::fs::create_dir_all(&dir).and_then(|()| open())
+                }
+                opened => opened,
+            };
+            file.map(LockFile::from).ok()
         }
 
         /// Reads `key`; a miss of a [`CLAIMED`] kind, beside another run,
@@ -3078,35 +3219,16 @@ mod packed {
             if let Some(bytes) = self.get(kind, key) {
                 return Some(bytes);
             }
-            if !self.claiming || !claimed || !self.crowded() {
+            let k = (kind as u16, key.0);
+            if !self.claiming || !claimed || !self.crowded(Some(k)) {
                 return None;
             }
-            let k = (kind as u16, key.0);
             // A key this store already holds: it is computing it.
             if self.claims().contains_key(&k) {
                 return None;
             }
-            let dir = self.root.join("claims");
-            let path = dir.join(format!("{:04x}{:032x}", k.0, k.1));
-            let open = || {
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open(&path)
-            };
-            // The directory is made at the first claim only.
-            let file = match open() {
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    std::fs::create_dir_all(&dir).and_then(|()| open())
-                }
-                opened => opened,
-            };
             // An unwritable cache computes without a claim.
-            let Ok(file) = file.map(LockFile::from) else {
-                return None;
-            };
+            let file = self.open_claim(k)?;
             // Establish the notification baseline before owning any claim:
             // a waiter can announce itself as soon as this lock is taken.
             drop(self.waits());
@@ -3211,9 +3333,15 @@ mod packed {
         /// Cancel only this unfinished key, with one indexed lookup. A
         /// completed deferred put still owes its publication to waiters.
         pub(super) fn abandon(&self, kind: EntryKind, key: &Hash128) {
+            let k = (kind as u16, key.0);
+            {
+                let mut lone = self.lone();
+                if lone.get(&k).is_some_and(|m| !m.done) {
+                    lone.remove(&k);
+                }
+            }
             let mut claims = self.claims();
-            if let std::collections::btree_map::Entry::Occupied(claim) =
-                claims.entry((kind as u16, key.0))
+            if let std::collections::btree_map::Entry::Occupied(claim) = claims.entry(k)
                 && !claim.get().done
             {
                 claim.remove();
@@ -3233,6 +3361,13 @@ mod packed {
         /// ([`Store::flush_requested`]). A run that no one waits for pays
         /// nothing more than its batch.
         pub(super) fn put_wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
+            // A miss computed alone probes again at its put, so a run that
+            // joined meanwhile waits for one entry's computation at most.
+            let k = (kind as u16, key.0);
+            let lone = self.lone().get_mut(&k).map(|m| m.done = true).is_some();
+            if lone {
+                self.crowded(None);
+            }
             let any = {
                 let mut claims = self.claims();
                 if let Some(claim) = claims.get_mut(&(kind as u16, key.0)) {
@@ -3306,8 +3441,10 @@ mod packed {
         /// published.
         pub(super) fn release(&self, keys: impl Iterator<Item = Key>) {
             let mut claims = self.claims();
+            let mut lone = self.lone();
             for key in keys {
                 claims.remove(&key);
+                lone.remove(&key);
             }
         }
 
@@ -5901,14 +6038,76 @@ mod packed {
         /// A run alone claims nothing (#1932): no claim file, no wait.
         #[test]
         fn a_lone_run_claims_nothing() {
-            let root = scratch("claim-lone");
-            let store = DiskStore::new(root.clone()).with_claims();
-            cost::take();
-            for key in 0..8 {
-                assert!(store.get(EntryKind::Check, &Hash128(key)).is_none());
+            // A lone run's misses at n and 10n: one membership probe per
+            // miss, one `solo` lock for the run, no claim file (#2056).
+            for n in [8, 80] {
+                let root = scratch(&format!("claim-lone-{n}"));
+                let store = DiskStore::new(root.clone()).with_claims();
+                cost::take();
+                for key in 0..n {
+                    assert!(store.get(EntryKind::Check, &Hash128(key)).is_none());
+                }
+                let counts = cost::take();
+                assert_eq!(counts.run_probes, u64::try_from(n).unwrap());
+                assert_eq!(counts.solo_locks, 1);
+                assert_eq!(counts.claim_waits + counts.lone_claims, 0);
+                assert!(!root.join(NAMESPACE).join("claims").exists());
             }
-            assert_eq!(cost::take().claim_waits, 0);
-            assert!(!root.join(NAMESPACE).join("claims").exists());
+        }
+
+        /// A run that joins while a lone run computes a miss waits for the
+        /// lone run to claim it, then for the claim, and reads the entry
+        /// (#2056): store A misses key 7 alone; B joins and misses 7, and
+        /// waits on `solo`; A's next miss finds B, claims 7 and lets B on;
+        /// A puts 7, which B reads.
+        #[test]
+        fn a_run_joining_a_lone_runs_computation_waits_for_its_entry() {
+            let root = scratch("claim-lone-join");
+            let a = DiskStore::new(root.clone()).with_claims();
+            assert!(a.get(EntryKind::Check, &Hash128(7)).is_none());
+            let mut b = DiskStore::new(root.clone()).with_claims();
+            let (waiting, waits) = std::sync::mpsc::channel();
+            b.packed.on_pause = Some(Arc::new(move |at| {
+                if at == "solo-wait" {
+                    let _ = waiting.send(());
+                }
+            }));
+            drop(b.packed.join());
+            // cost: one test thread, one miss.
+            let joiner = std::thread::spawn(move || {
+                cost::take();
+                let got = b.get(EntryKind::Check, &Hash128(7));
+                (got, cost::take())
+            });
+            waits.recv().unwrap();
+            cost::take();
+            assert!(a.get(EntryKind::Check, &Hash128(8)).is_none());
+            assert_eq!(cost::take().lone_claims, 1);
+            a.put(EntryKind::Check, &Hash128(7), b"computed");
+            let (got, counts) = joiner.join().unwrap();
+            assert_eq!(got.as_deref(), Some(&b"computed"[..]));
+            assert_eq!((counts.solo_waits, counts.claim_waits), (1, 1));
+        }
+
+        /// A lone run's miss put before another run joins is claimed as
+        /// computed, and the probe at its put asks for publication; an
+        /// abandoned lone miss is forgotten, so nothing claims it.
+        #[test]
+        fn a_lone_runs_put_probes_and_its_abandoned_miss_is_not_claimed() {
+            let root = scratch("claim-lone-put");
+            let a = DiskStore::new(root.clone()).with_claims();
+            assert!(a.get(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(a.get(EntryKind::Check, &Hash128(2)).is_none());
+            a.abandon(EntryKind::Check, &Hash128(2));
+            cost::take();
+            assert!(!a.wanted(EntryKind::Check, &Hash128(1)));
+            assert_eq!(cost::take().run_probes, 1);
+            let b = DiskStore::new(root.clone()).with_claims();
+            drop(b.packed.join());
+            assert!(a.get(EntryKind::Check, &Hash128(3)).is_none());
+            assert!(a.packed.held(EntryKind::Check, &Hash128(1)));
+            assert!(!a.packed.held(EntryKind::Check, &Hash128(2)));
+            assert!(a.wanted(EntryKind::Check, &Hash128(1)));
         }
 
         /// Repeated sole-run probes must neither stack locks nor lose
@@ -5919,16 +6118,16 @@ mod packed {
             let root = scratch("run-membership");
             let a = Store::new(&root);
             for _ in 0..32 {
-                assert!(!a.crowded());
+                assert!(!a.crowded(None));
             }
             assert!(a.root.join("run").is_file());
             let b = Store::new(&root);
             drop(b.join());
-            assert!(a.crowded());
-            assert!(b.crowded());
+            assert!(a.crowded(None));
+            assert!(b.crowded(None));
             drop(b);
-            let runs = a.join();
-            assert!(runs.as_ref().unwrap().alone().unwrap());
+            let mut runs = a.join();
+            assert!(runs.as_mut().unwrap().alone().unwrap());
             assert_eq!(cost::take().claim_waits, 0);
         }
 
