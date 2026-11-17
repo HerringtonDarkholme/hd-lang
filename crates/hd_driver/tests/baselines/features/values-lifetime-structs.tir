@@ -28,23 +28,19 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >   local $1 fallback: &string [param read]
 >   local $2 w: &string [read assigned]
 >   %0 = Read [$0] : Token[string]
->   %16 = Block - : never
->   %17 = Match %0 [%16 %2 %4] : &string
->   %18 = Block %17 : &string
+>   %12 = Block - : never
+>   %13 = Match %0 [%12 %2 %4] : &string
+>   %14 = Block %13 : &string
         Token.Word(w) => w
 >   %1 = Read [$2] : &string
 >   %2 = Block %1 : &string
 >   %5 = Read [%0 as #0 .0] : &string
 >   %6 = Store [$2] %5 : ()
 >   %8 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#0 %8 %14] : never
+>   %11 = SwitchTag %0 [#0 %8 %10] : never
         Token.End => fallback
 >   %3 = Read [$1] : &string
 >   %4 = Block %3 : &string
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %0 [#1 %10 %12] : never
 
 fn length(text: string) -> usize:
     p := parser(&text)

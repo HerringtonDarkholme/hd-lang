@@ -18,7 +18,7 @@ fn has_style(facts: Facts) -> bool:
 >     uses $0: entry -> %1 lend last
 >   local $2 self: RenameAll? [read] value
 >     uses $2: %4 -> %5 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     facts.find::[RenameAll]().is_some()
 >   %1 = Read borrow [$0] : Facts
 >   %2 = Call std/structure/impl Facts.find[RenameAll] (%1) : RenameAll?
@@ -29,17 +29,13 @@ fn has_style(facts: Facts) -> bool:
 >   %7 = Block 0:bool : bool
 >   %8 = Read copy [%5] : RenameAll?
 >   %10 = Block - : never
->   %12 = Block - : never
+>   %13 = SwitchTag %8 [#1 %10 %12] : never
 >   %14 = Block - : never
->   %15 = SwitchTag %8 [#0 %12 %14] : never
->   %16 = Block - : never
->   %17 = SwitchTag %8 [#1 %10 %16] : never
->   %18 = Block - : never
->   %19 = Match %5 [%18 %6 %7] : bool
->   %20 = Break L0 %19 : never
->   %21 = Block - : bool
->   %22 = Scope %21 [] : bool
->   %23 = Block %22 : bool
+>   %15 = Match %5 [%14 %6 %7] : bool
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : bool
+>   %18 = Scope %17 [] : bool
+>   %19 = Block %18 : bool
 >   summary kept [] borrows [$0]
 
 fn name_of(m: &Member, frames: &List[Frame]) -> string:

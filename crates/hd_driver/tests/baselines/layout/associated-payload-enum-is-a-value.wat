@@ -25,15 +25,7 @@
           local.get $value.0
           i32.eqz
           br_if 0
-    ;; 27 |         .Present(n) => n
-          local.get $value.0
-          i32.const 1
-          i32.eq
-          if
-            br 2
-          else
-            unreachable
-          end
+          br 1
     ;; 25 |     match value:
           unreachable
         end

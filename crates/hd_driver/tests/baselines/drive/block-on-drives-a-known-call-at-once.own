@@ -48,7 +48,6 @@ fn direct(key: string) -> usize:
 >   %12 = Read borrow [%3 as #0 .0] : string
 >   %13 = Store [$1] %12 : ()
 >   %15 = Block - : never
->   %17 = Block - : never
 >   %18 = SwitchTag %3 [#0 %15 %17] : never
         _ => 0
 >   %11 = Block 0:usize : usize
@@ -82,7 +81,6 @@ fn stored(key: string) -> usize:
 >   %12 = Read borrow [%3 as #0 .0] : string
 >   %13 = Store [$2] %12 : ()
 >   %15 = Block - : never
->   %17 = Block - : never
 >   %18 = SwitchTag %3 [#0 %15 %17] : never
         _ => 0
 >   %11 = Block 0:usize : usize
@@ -126,7 +124,6 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 >   %17 = Read borrow [%8 as #0 .0] : string
 >   %18 = Store [$3] %17 : ()
 >   %20 = Block - : never
->   %22 = Block - : never
 >   %23 = SwitchTag %8 [#0 %20 %22] : never
         _ => 0
 >   %16 = Block 0:usize : usize

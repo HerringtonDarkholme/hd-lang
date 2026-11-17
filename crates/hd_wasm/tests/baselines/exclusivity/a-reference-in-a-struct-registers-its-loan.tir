@@ -44,23 +44,19 @@ fn in_option(t: &Team, alias: *mut User) -> string:
 >   %0 = Ref local [*$0 .lead * .name] : &string
 >   %1 = NewVariant #1 [%0] : &string?
 >   %2 = Store [$2] %1 : ()
->   %21 = Block %20 : string
+>   %17 = Block %16 : string
     alias.name = "b"
 >   %3 = Store [*$1 .name] "b" : ()
     match held:
 >   %4 = Read [$2] : &string?
->   %19 = Block - : never
->   %20 = Match %4 [%19 %6 %7] : string
+>   %15 = Block - : never
+>   %16 = Match %4 [%15 %6 %7] : string
         .Some(name) => *name
 >   %5 = Read [*$3] : string
 >   %6 = Block %5 : string
 >   %8 = Read [%4 as #1 .0] : &string
 >   %9 = Store [$3] %8 : ()
 >   %11 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %4 [#1 %11 %17] : never
+>   %14 = SwitchTag %4 [#1 %11 %13] : never
         .None => ""
 >   %7 = Block "" : string
->   %13 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %4 [#0 %13 %15] : never

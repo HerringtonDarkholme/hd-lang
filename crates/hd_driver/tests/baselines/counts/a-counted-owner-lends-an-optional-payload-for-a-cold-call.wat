@@ -10,16 +10,9 @@
       block
     ;; 10 |         .Some(item) => *item
         local.get $value
-        if
-          br 1
-        else
-    ;; 11 |         .None => -1
-          local.get $value
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 10 |         .Some(item) => *item
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 9 |     match value:
         unreachable
       end

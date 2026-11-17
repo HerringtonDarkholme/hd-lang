@@ -74,16 +74,9 @@
       block
     ;; 15 |         .Some(v) => v.len()
         local.get $m
-        if
-          br 1
-        else
-    ;; 16 |         .None => 0
-          local.get $m
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 15 |         .Some(v) => v.len()
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 14 |     match m.get_ref(k):
         unreachable
       end

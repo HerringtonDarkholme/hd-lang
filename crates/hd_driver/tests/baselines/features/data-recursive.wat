@@ -14,16 +14,9 @@
             block
     ;; 19 |             .Some(c) =>
               local.get $head
-              if
-                br 1
-              else
-    ;; 22 |             .None => break
-                local.get $head
-                i32.eqz
-                br_if 2
-                unreachable
-    ;; 19 |             .Some(c) =>
-              end
+              i32.eqz
+              br_if 1
+              br 0
     ;; 18 |         match cur:
               unreachable
             end

@@ -15,9 +15,7 @@
     local.set $self
     local.set $path.0
     block
-    ;; 14 |             FsError.NotFound(path) => "not found: " + path
       br 0
-    ;; 13 |         match *self:
       unreachable
     end
     ;; 14 |             FsError.NotFound(path) => "not found: " + path

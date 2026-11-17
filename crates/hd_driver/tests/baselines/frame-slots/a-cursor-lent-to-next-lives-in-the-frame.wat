@@ -60,18 +60,9 @@
             block
     ;; 24 |             .Some(item) => sum = sum + item
               local.get $t1
-              i32.const 1
-              i32.eq
-              if
-                br 1
-              else
-    ;; 25 |             .None => break
-                local.get $t1
-                i32.eqz
-                br_if 2
-                unreachable
-    ;; 24 |             .Some(item) => sum = sum + item
-              end
+              i32.eqz
+              br_if 1
+              br 0
     ;; 23 |         match cursor.next():
               unreachable
             end

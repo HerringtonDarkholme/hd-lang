@@ -11,17 +11,9 @@
     ;; 14 |         .Full(value) => value.bump()
         local.get $slot
         i32.load $heap offset=4
-        local.tee $t0
-        if
-          br 1
-        else
-    ;; 15 |         .Empty => pass
-          local.get $t0
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 14 |         .Full(value) => value.bump()
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 13 |     match slot:
         unreachable
       end

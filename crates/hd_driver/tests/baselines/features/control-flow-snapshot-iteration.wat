@@ -207,12 +207,9 @@
         block
     ;; 19 |         .Some(first) => first.len() + items.len()
           local.get $s.1
-          br_if 0
-    ;; 20 |         .None => items.len()
-          local.get $s.1
           i32.eqz
           br_if 1
-          unreachable
+          br 0
     ;; 18 |     match cursor.next():
           unreachable
         end

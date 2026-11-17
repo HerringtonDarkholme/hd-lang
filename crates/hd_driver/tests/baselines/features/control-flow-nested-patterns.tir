@@ -21,9 +21,9 @@ fn read_nested(s: Shape) -> usize:
 >   local $3 a: string [read assigned captured]
 >   local $4 b: string [read assigned captured]
 >   %0 = Read [$0] : Shape
->   %39 = Block - : never
->   %40 = Match %0 [%39 %3 %7 %13] : usize
->   %41 = Block %40 : usize
+>   %35 = Block - : never
+>   %36 = Match %0 [%35 %3 %7 %13] : usize
+>   %37 = Block %36 : usize
         .Dot(User { name, age: 0 }) => name.len()
 >   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
@@ -37,8 +37,7 @@ fn read_nested(s: Shape) -> usize:
 >   %23 = Block - : never
 >   %24 = If %17 [%20 %23] : never
 >   %25 = Block - : never
->   %37 = Block - : never
->   %38 = SwitchTag %0 [#0 %25 %37] : never
+>   %34 = SwitchTag %0 [#0 %25 %33] : never
         .Dot(User { name: n }) => n.len() + 1
 >   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
@@ -58,9 +57,6 @@ fn read_nested(s: Shape) -> usize:
 >   %29 = Read [%27 .name] : string
 >   %30 = Store [$3] %28 : ()
 >   %31 = Store [$4] %29 : ()
->   %33 = Block - : never
->   %35 = Block - : never
->   %36 = SwitchTag %0 [#1 %33 %35] : never
 
 fn owner(s: Shape) -> string:
     match s:
@@ -69,9 +65,9 @@ fn owner(s: Shape) -> string:
 >   local $1 name: string [read assigned]
 >   local $2 name: string [read assigned]
 >   %0 = Read [$0] : Shape
->   %20 = Block - : never
->   %21 = Match %0 [%20 %2 %4] : string
->   %22 = Block %21 : string
+>   %16 = Block - : never
+>   %17 = Match %0 [%16 %2 %4] : string
+>   %18 = Block %17 : string
         .Dot(User { name }) => name
 >   %1 = Read [$1] : string
 >   %2 = Block %1 : string
@@ -79,14 +75,10 @@ fn owner(s: Shape) -> string:
 >   %6 = Read [%5 .name] : string
 >   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
->   %18 = Block - : never
->   %19 = SwitchTag %0 [#0 %9 %18] : never
+>   %15 = SwitchTag %0 [#0 %9 %14] : never
         .Line(start=_, end=User { name }) => name
 >   %3 = Read [$2] : string
 >   %4 = Block %3 : string
 >   %10 = Read [%0 as #1 .1] : User
 >   %11 = Read [%10 .name] : string
 >   %12 = Store [$2] %11 : ()
->   %14 = Block - : never
->   %16 = Block - : never
->   %17 = SwitchTag %0 [#1 %14 %16] : never

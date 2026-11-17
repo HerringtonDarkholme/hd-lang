@@ -51,25 +51,21 @@ fn first(xs: List[Option[Body]]) -> f64:
 >     uses $0: entry -> %1 lend last
 >   local $1 b: Body [read assigned] value
 >     uses $1: %6 -> %2 consume last
->   %0 = Release %18 Exit local $0 #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     match xs[0]:
 >   %1 = Read copy [$0 [0:usize]] : Body?
->   %16 = Block - : never
->   %17 = Match %1 [%16 %3 %4] : f64
->   %18 = Block %17 : f64
+>   %12 = Block - : never
+>   %13 = Match %1 [%12 %3 %4] : f64
+>   %14 = Block %13 : f64
         .Some(b) => b.x
 >   %2 = Read copy [$1 .x] : f64
 >   %3 = Block %2 : f64
 >   %5 = Read copy [%1 as #1 .0] : Body
 >   %6 = Store [$1] %5 : ()
 >   %8 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %1 [#1 %8 %14] : never
+>   %11 = SwitchTag %1 [#1 %8 %10] : never
         .None => 0.0
 >   %4 = Block 0.0:f64 : f64
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %1 [#0 %10 %12] : never
 
 fn sum(p: Body) -> f64:
     p.x + p.vx

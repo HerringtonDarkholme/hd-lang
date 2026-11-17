@@ -139,7 +139,7 @@ pub(crate) struct Tables {
     keep: Vec<bool>,
     stack: Vec<u32>,
     ops: Vec<Operand>,
-    variant_parts: Vec<hd_types::Ty>,
+    empty_variants: std::cell::OnceCell<super::parts::EmptyVariants>,
     /// Rule 5: each addressed local's bit, or `NONE`, set where the local
     /// may hold no value, after the parts' bits from `cfirst`; the local
     /// of each.
@@ -164,6 +164,7 @@ pub(crate) fn run(
     edits: &mut splice::Tables,
 ) {
     let n = b.len();
+    t.empty_variants.take();
     b.unwind_drops.clear();
     b.full_cells.clear();
     t.cells.clear();
@@ -792,7 +793,14 @@ impl Forward for Walk<'_> {
     }
 
     fn case(&mut self, b: &Body, x: u32, blk: u32, s: &mut BitArena, st: usize) {
-        if let Some(v) = super::parts::empty_variant(b, self.cx, x, blk, &mut self.t.variant_parts)
+        if b.tags[x as usize] != Tag::SwitchTag {
+            return;
+        }
+        if let Some(v) = self
+            .t
+            .empty_variants
+            .get_or_init(|| super::parts::EmptyVariants::build(b, self.cx))
+            .get(x, blk)
         {
             let bit = self.t.vbit[v as usize];
             if bit != NONE {

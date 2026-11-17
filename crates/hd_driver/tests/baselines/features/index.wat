@@ -109,16 +109,9 @@
       block
     ;; 29 |         .Some(s) => s.len()
         local.get $xs
-        if
-          br 1
-        else
-    ;; 30 |         .None => 0
-          local.get $xs
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 29 |         .Some(s) => s.len()
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 28 |     match xs.get_ref(i):
         unreachable
       end
@@ -164,12 +157,9 @@
       block
     ;; 21 |         .Some(v) => v.len()
         local.get $t0
-        br_if 0
-    ;; 22 |         .None => 0
-        local.get $t0
         i32.eqz
         br_if 1
-        unreachable
+        br 0
     ;; 20 |     match m.get(k):
         unreachable
       end
@@ -202,16 +192,9 @@
         block
     ;; 34 |         .Some(r) => *r = s
           local.get $xs
-          if
-            br 1
-          else
-    ;; 35 |         .None => panic("index")
-            local.get $xs
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 34 |         .Some(r) => *r = s
-          end
+          i32.eqz
+          br_if 1
+          br 0
     ;; 33 |     match xs.get_mut(i):
           unreachable
         end

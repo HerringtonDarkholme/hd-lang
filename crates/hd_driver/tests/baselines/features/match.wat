@@ -15,7 +15,7 @@
             block
               block
                 local.get $n.1
-                br_table 0 1 5 5
+                br_table 0 1 5
               end
               local.get $s
               i32.load $heap offset=4
@@ -68,7 +68,7 @@
             block
               block
                 local.get $s.0
-                br_table 0 1 5 5
+                br_table 0 1 5
               end
               br 2
             end
@@ -101,7 +101,7 @@
             block
               block
                 local.get $s.0
-                br_table 0 1 5 5
+                br_table 0 1 5
               end
               br 2
             end

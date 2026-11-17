@@ -256,6 +256,32 @@ pub fn in_place_parts(
     }
 }
 
+/// Classifies all variants of an in-place enum in one layout query.
+/// Each flag says that the variant has no counted field. As with
+/// `in_place_parts(_, Some(_), _)`, newtypes and boxed layouts do not
+/// expose variants. The caller excludes open types and runtime Drop hooks.
+pub fn in_place_empty_variants(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    ty: Ty,
+    out: &mut Vec<bool>,
+    mut counted: impl FnMut(Ty) -> bool,
+) {
+    out.clear();
+    if matches!(pool.get(ty), TyData::Adt { def, .. } if env.newtype_base(def).is_some())
+        || !matches!(layout::kind(pool, env, ty), layout::Kind::Value)
+    {
+        return;
+    }
+    if let Some(variants) = layout::variants(pool, env, ty) {
+        out.extend(
+            variants
+                .iter()
+                .map(|fields| !fields.iter().copied().any(&mut counted)),
+        );
+    }
+}
+
 /// `ty` with newtypes erased, as the layouts read it
 /// (`layout::strip`).
 #[must_use]

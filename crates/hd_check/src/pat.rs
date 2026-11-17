@@ -262,10 +262,9 @@ enum Step<'t> {
     Chain(Box<Chain<'t>>),
 }
 
-/// A chain of tests on one value, each in the fail block of the one
-/// before: a `SwitchTag` per variant a column names, or an `If` per
-/// literal or range ([`Ck::chain`]). Each case's tree, then the rest's
-/// tree in the last fail block, is built from the work stack.
+/// A decision on one value: one tag table, or nested literal/range tests.
+/// Cases and the default are built iteratively from the work stack.
+/// Tag cases are siblings; literal tests own nested fail blocks.
 struct Chain<'t> {
     /// The value tested.
     v: Ref,
@@ -276,9 +275,8 @@ struct Chain<'t> {
     /// The case whose tree is being built: its test, its block, its
     /// syntax.
     open: Option<(Head, BlockMark, NodeIdx)>,
-    /// Each case built: its test, its block, its syntax and its fail
-    /// block, still open.
-    fails: Vec<(Head, Ref, NodeIdx, BlockMark)>,
+    /// Each built case, with an open fail block only for literal tests.
+    fails: Vec<(Head, Ref, NodeIdx, Option<BlockMark>)>,
     /// What the last fail block holds.
     rest: Rest<'t>,
 }
@@ -315,8 +313,8 @@ enum Rest<'t> {
     Tree(Vec<(Ref, Ty)>, Vec<DRow<'t>>),
     /// `Unreachable`: the cases cover every value.
     Unreachable,
-    /// Already built.
-    Built,
+    /// Already built; a tag table's default block is still open.
+    Built(Option<BlockMark>),
 }
 
 /// The one value a literal pattern names ([`Ck::lit_key`]).
@@ -1788,11 +1786,9 @@ impl Ck<'_, '_> {
         (occs, m)
     }
 
-    /// A tag switch on column `j`: a `SwitchTag` per variant the rows
-    /// name, in the order they first name it, each over the rows that
-    /// variant leaves, with the variant's fields as new columns. The
-    /// last default holds the rows with no test there, or is
-    /// `Unreachable` when the rows name every variant.
+    /// A tag switch on column `j`, with each variant's fields as new
+    /// columns. An exhaustive table takes its last variant by default;
+    /// otherwise the default retains the rows with no test in the column.
     fn switch<'t>(&mut self, occs: Vec<(Ref, Ty)>, m: Vec<DRow<'t>>, j: usize) -> Chain<'t> {
         crate::work::decision_rows(m.len());
         let (v, t) = occs[j];
@@ -1872,7 +1868,8 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         if let Some((head, mark, at)) = c.open.take() {
             let ok = self.b.close_block(mark, None, Ty::NEVER, at);
-            c.fails.push((head, ok, at, self.b.open_block()));
+            let fail = matches!(head, Head::If(_)).then(|| self.b.open_block());
+            c.fails.push((head, ok, at, fail));
         }
         let case = match &mut c.links {
             Links::Lit { t, cases } => match cases.next() {
@@ -1896,10 +1893,20 @@ impl Ck<'_, '_> {
                 is_option,
             } => match named.next() {
                 Some((idx, fs, at)) => {
-                    let mark = self.b.open_block();
+                    let last = named.len() == 0 && matches!(c.rest, Rest::Unreachable);
+                    // Payload reads belong inside the selected case,
+                    // including the implicit last variant. A single
+                    // constructor needs no block around its straight line.
+                    let mark = (!last || !c.fails.is_empty()).then(|| self.b.open_block());
                     let (occs, m) =
                         self.variant_case(rows, &c.occs, m, *j, (idx, &fs), tags, *is_option);
-                    Some((Head::Tag(idx), mark, at, occs, m))
+                    if last {
+                        c.rest = Rest::Built(mark);
+                        stack.push(Step::Chain(c));
+                        stack.push(Step::Tree(occs, m));
+                        return Ok(());
+                    }
+                    mark.map(|mark| (Head::Tag(idx), mark, at, occs, m))
                 }
                 None => None,
             },
@@ -1910,29 +1917,45 @@ impl Ck<'_, '_> {
             stack.push(Step::Tree(occs, m));
             return Ok(());
         }
-        match std::mem::replace(&mut c.rest, Rest::Built) {
+        let tags = matches!(c.links, Links::Tag { .. });
+        let default = match std::mem::replace(&mut c.rest, Rest::Built(None)) {
             Rest::Tree(occs, m) => {
+                // A one-variant decision stays straight-line. Otherwise
+                // tag cases share one default block rather than nesting it.
+                c.rest = Rest::Built((tags && !c.fails.is_empty()).then(|| self.b.open_block()));
                 stack.push(Step::Chain(c));
                 stack.push(Step::Tree(occs, m));
                 return Ok(());
             }
             Rest::Unreachable => {
+                let mark = (tags && !c.fails.is_empty()).then(|| self.b.open_block());
                 self.b
                     .emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+                mark.map(|mark| self.b.close_block(mark, None, Ty::NEVER, NodeIdx::NONE))
             }
-            Rest::Built => {}
-        }
-        while let Some((head, ok, at, fb)) = c.fails.pop() {
-            let fail = self.b.close_block(fb, None, Ty::NEVER, at);
-            match head {
-                Head::If(cond) => {
-                    let rec = self.b.refs_record(&[ok, fail]);
-                    self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, at);
+            Rest::Built(mark) => {
+                mark.map(|mark| self.b.close_block(mark, None, Ty::NEVER, NodeIdx::NONE))
+            }
+        };
+        if tags {
+            if let Some(default) = default {
+                let at = c.fails.first().map_or(NodeIdx::NONE, |case| case.2);
+                let mut cases = Vec::with_capacity(2 * c.fails.len() + 1);
+                for (head, block, _, _) in c.fails {
+                    if let Head::Tag(tag) = head {
+                        cases.extend([Ref(tag), block]);
+                    }
                 }
-                Head::Tag(idx) => {
-                    let rec = self.b.refs_record(&[Ref(idx), ok, fail]);
-                    self.b.emit(Tag::SwitchTag, c.v.0, rec, Ty::NEVER, at);
-                }
+                cases.push(default);
+                let record = self.b.refs_record(&cases);
+                self.b.emit(Tag::SwitchTag, c.v.0, record, Ty::NEVER, at);
+            }
+        } else {
+            // Literal chains retain their open, nested fail blocks.
+            while let Some((Head::If(cond), ok, at, Some(fb))) = c.fails.pop() {
+                let fail = self.b.close_block(fb, None, Ty::NEVER, at);
+                let rec = self.b.refs_record(&[ok, fail]);
+                self.b.emit(Tag::If, cond.0, rec, Ty::NEVER, at);
             }
         }
         Ok(())

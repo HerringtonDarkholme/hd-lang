@@ -15,18 +15,15 @@ impl Display for FsError:
 > app/main/impl Display for FsError.to_string
 >   local $1 path: string [read assigned]
 >   %0 = Read [*$0] : FsError
->   %11 = Block - : never
->   %12 = Match %0 [%11 %3] : string
->   %13 = Block %12 : string
+>   %7 = Block - : never
+>   %8 = Match %0 [%7 %3] : string
+>   %9 = Block %8 : string
             FsError.NotFound(path) => "not found: " + path
 >   %1 = Read [$1] : string
 >   %2 = Intrinsic StrConcat ["not found: " %1] : string
 >   %3 = Block %2 : string
 >   %4 = Read [%0 as #0 .0] : string
 >   %5 = Store [$1] %4 : ()
->   %7 = Block - : never
->   %9 = Block - : never
->   %10 = SwitchTag %0 [#0 %7 %9] : never
 
 impl Error for FsError
 

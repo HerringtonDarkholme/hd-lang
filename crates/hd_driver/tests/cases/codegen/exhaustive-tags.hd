@@ -1,0 +1,34 @@
+# @dump: tir wat
+# @build: release
+# expected: a single SwitchTag tests First and Second, defaulting to Last;
+# no final tag comparison or unreachable fail block. The 0/1 domain needs
+# no equality test, while a partial three-variant match still does.
+enum Choice:
+    First
+    Second
+    Last
+
+fn ordinal(value: Choice) -> usize:
+    match value:
+        .First => 10
+        .Second => 20
+        .Last => 30
+
+enum Binary:
+    Left
+    Right
+
+fn binary(value: Binary) -> usize:
+    match value:
+        .Right => 10
+        .Left => 20
+
+fn partial(value: Choice) -> usize:
+    match value:
+        .Second => 20
+        _ => 0
+
+fn optional(value: usize?) -> usize:
+    match value:
+        .Some(number) => number
+        .None => 0

@@ -103,18 +103,17 @@ fn through_parent(node: *mut Node) -> i64:
 >     uses $0: entry -> %1 lend, %3 lend last
 >   local $1 left: *Node [read assigned] value
 >     uses $1: %13 -> %6 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     match node.left:
 >   %1 = Read borrow [*$0 .left] : *Node?
 >   %8 = Drop [$1] : ()
->   %21 = Block - : never
->   %22 = Match %1 [%21 %2 %9] : i64
->   %23 = Block %22 : i64
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %2 %9] : i64
+>   %19 = Block %18 : i64
         .None => 0
 >   %2 = Block 0:i64 : i64
 >   %11 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %1 [#0 %11 %19] : never
+>   %16 = SwitchTag %1 [#0 %11 %15] : never
         .Some(left) => prune(node) + left.value
 >   %3 = Read borrow [$0] : *mut Node
 >   %4 = Call app/main/prune[] (%3) : i64
@@ -124,9 +123,6 @@ fn through_parent(node: *mut Node) -> i64:
 >   %9 = Block %7 : i64
 >   %12 = Read copy [%1 as #1 .0] : *Node
 >   %13 = Store [$1] %12 : ()
->   %15 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %1 [#1 %15 %17] : never
 >   summary kept [] borrows [$0] writes
 
 fn through_alias(node: &Node) -> i64:
@@ -138,14 +134,13 @@ fn through_alias(node: &Node) -> i64:
 >     uses $1: %10 -> %3 lend last
 >   %0 = Read borrow [*$0 .left] : *Node?
 >   %5 = Drop [$1] : ()
->   %18 = Block - : never
->   %19 = Match %0 [%18 %1 %6] : i64
->   %20 = Block %19 : i64
+>   %14 = Block - : never
+>   %15 = Match %0 [%14 %1 %6] : i64
+>   %16 = Block %15 : i64
         .None => 0
 >   %1 = Block 0:i64 : i64
 >   %8 = Block - : never
->   %16 = Block - : never
->   %17 = SwitchTag %0 [#0 %8 %16] : never
+>   %13 = SwitchTag %0 [#0 %8 %12] : never
         .Some(left) => prune_global(0) + left.value
 >   %2 = Call app/main/prune_global[] (0:i64) : i64
 >   %3 = Read copy [*$1 .value] : i64
@@ -153,9 +148,6 @@ fn through_alias(node: &Node) -> i64:
 >   %6 = Block %4 : i64
 >   %9 = Read copy [%0 as #1 .0] : *Node
 >   %10 = Store [$1] %9 : ()
->   %12 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#1 %12 %14] : never
 >   summary kept [] writes relies [$0]
 
 fn through_a_cycle(node: *mut Node) -> i64:
@@ -164,18 +156,17 @@ fn through_a_cycle(node: *mut Node) -> i64:
 >     uses $0: entry -> %1 lend, %3 lend last
 >   local $1 left: *Node [read assigned] value
 >     uses $1: %13 -> %6 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     match node.left:
 >   %1 = Read borrow [*$0 .left] : *Node?
 >   %8 = Drop [$1] : ()
->   %21 = Block - : never
->   %22 = Match %1 [%21 %2 %9] : i64
->   %23 = Block %22 : i64
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %2 %9] : i64
+>   %19 = Block %18 : i64
         .None => 0
 >   %2 = Block 0:i64 : i64
 >   %11 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %1 [#0 %11 %19] : never
+>   %16 = SwitchTag %1 [#0 %11 %15] : never
         .Some(left) => ping(node, 3) + left.value
 >   %3 = Read borrow [$0] : *mut Node
 >   %4 = Call app/main/ping[] (%3, 3:i64) : i64
@@ -185,7 +176,4 @@ fn through_a_cycle(node: *mut Node) -> i64:
 >   %9 = Block %7 : i64
 >   %12 = Read copy [%1 as #1 .0] : *Node
 >   %13 = Store [$1] %12 : ()
->   %15 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %1 [#1 %15 %17] : never
 >   summary kept [] borrows [$0] writes

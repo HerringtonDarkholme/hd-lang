@@ -20,20 +20,16 @@
         local.get $node
         if
           local.get $node
+          i32.const 8
+          i32.sub
+          i32.load $heap
           if
             local.get $node
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            if
-              local.get $node
-              call $rt:retain_known
-            end
+            call $rt:retain_known
           end
-          br 2
-        else
-          unreachable
         end
+    ;; 10 |         .None => 1
+        br 1
     ;; 9 |     match node.next:
         unreachable
       end
