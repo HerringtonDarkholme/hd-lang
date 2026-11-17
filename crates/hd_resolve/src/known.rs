@@ -25,6 +25,8 @@ pub struct KnownItems {
     pub map: DefId,
     // std.function
     pub function_module: PathId,
+    /// The `std.core` module, which owns every built-in type's methods.
+    pub core_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
     /// remains the compiler's `Fn[I, O, $R]` function type constructor.
     pub fn_trait: DefId,
@@ -142,6 +144,9 @@ pub struct KnownItems {
     /// `std.format.dbg`, each reference to which the checker notes for the
     /// release check (spec/lang/10-modules.md "Release Builds And Dependencies").
     pub dbg: DefId,
+    /// `std.ops.default`, the decorator that marks an enum's default
+    /// variant for a derived `Default`.
+    pub default_marker: DefId,
     /// `std.format.debug`, the prelude function whose bare call of a
     /// statement value the checker leaves unwarned.
     pub debug_fn: DefId,
@@ -201,6 +206,24 @@ pub struct KnownItems {
     pub drop_trait: DefId,
     /// `std.rt.Drop.drop`.
     pub drop_method: DefId,
+    /// `std.rt.memory.room` and `std.rt.alloc.alloc`, which a checked
+    /// build's room allocation swaps for `std.rt.checked.allocate`.
+    pub room: DefId,
+    pub alloc: DefId,
+    pub checked_allocate: DefId,
+    /// `std.rt.memory.free_room` and `std.rt.cycle.collect`, whose
+    /// `std.rt.alloc.free_block` a checked build swaps for
+    /// `std.rt.checked.free_acyclic`.
+    pub free_room: DefId,
+    pub cycle_collect: DefId,
+    pub free_block: DefId,
+    pub checked_free_acyclic: DefId,
+    /// The `std.host` functions a host boundary calls
+    /// (`hd_mono::HostItems`).
+    pub host_encode: DefId,
+    pub host_decode: DefId,
+    pub package_encode: DefId,
+    pub package_decode: DefId,
     pub block_on: DefId,
     /// `std.task.race`, whose call needs a task (`req.combinator.race-empty`).
     pub race: DefId,
@@ -322,7 +345,19 @@ impl KnownItems {
             ptr: item("std.rt.memory", "Ptr"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
+            room: item("std.rt.memory", "room"),
+            alloc: item("std.rt.alloc", "alloc"),
+            checked_allocate: item("std.rt.checked", "allocate"),
+            free_room: item("std.rt.memory", "free_room"),
+            cycle_collect: item("std.rt.cycle", "collect"),
+            free_block: item("std.rt.alloc", "free_block"),
+            checked_free_acyclic: item("std.rt.checked", "free_acyclic"),
+            host_encode: item("std.host", "host_encode"),
+            host_decode: item("std.host", "host_decode"),
+            package_encode: item("std.host", "package_encode"),
+            package_decode: item("std.host", "package_decode"),
             function_module: module("std.function"),
+            core_module: module("std.core"),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),
             fn_mut_trait,
@@ -402,6 +437,7 @@ impl KnownItems {
             site_args: item("std.debug", "site_args"),
             site_function_text: item("std.debug", "site_function_text"),
             dbg: item("std.format", "dbg"),
+            default_marker: item("std.ops", "default"),
             debug_fn: item("std.format", "debug"),
             dbg_structural: item("std.format", "DbgStructural"),
             repl_text: item("std.format", "repl_text"),
@@ -487,5 +523,52 @@ impl KnownItems {
     #[must_use]
     pub fn is_sealed(&self, d: DefId) -> bool {
         self.sealed.contains(&d)
+    }
+}
+
+/// The prelude (spec/lang/10-modules.md#prelude) as fixed uses: origin
+/// module and names. `lib/std/prelude.hd` re-exports exactly these; a test
+/// checks the two agree. The `std.testing` row is test code only.
+pub const PRELUDE: &[(&str, &[&str])] = &[
+    (
+        "std.core",
+        &[
+            "never", "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "f32",
+            "f64", "char", "string", "void", "List", "Map", "Any", "AnyVal", "AnyRef", "Option",
+            "Result", "panic", "box",
+        ],
+    ),
+    ("std.format", &["Display", "Debug", "debug", "dbg"]),
+    ("std.cmp", &["Eq", "PartialOrd", "Ord", "Ordering"]),
+    ("std.hash", &["Hash"]),
+    ("std.iter", &["Iterator", "Iterable"]),
+    ("std.console", &["Console", "ConsoleError", "println"]),
+    ("std.task", &["Suspend"]),
+    ("std.ops", &["Copy"]),
+];
+
+/// The prelude names of test code (`module.prelude.test-assertions`): bound only
+/// in test code, but no declaration of a module may take their place.
+pub(crate) const TEST_PRELUDE: &[(&str, &[&str])] =
+    &[("std.testing", &["it", "assert", "assert_equal"])];
+
+/// Whether `module` is a runtime module, `std.rt` or one under it
+/// (`module.rt.std-only`).
+#[must_use]
+pub fn runtime_module(module: &str) -> bool {
+    module
+        .strip_prefix("std.rt")
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
+/// The prelude rows `module` sees: `std.core` and a runtime module, std's
+/// leaf layer, see only `std.core`'s names (`module.core.prelude`,
+/// `module.rt.core-prelude`); every other module sees them all.
+#[must_use]
+pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {
+    if module == "std.core" || runtime_module(module) {
+        &PRELUDE[..1]
+    } else {
+        PRELUDE
     }
 }

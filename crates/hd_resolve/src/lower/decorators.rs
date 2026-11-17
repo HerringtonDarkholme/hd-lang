@@ -1050,7 +1050,7 @@ impl Lower<'_, '_, '_> {
                 })
             });
         let Some(derive) = derive else { return };
-        let marker = self.names.item("std.ops", "default");
+        let marker = self.names.known.default_marker;
         let marks: Vec<NodeRef<'_>> = variants
             .iter()
             .flat_map(|v| v.children().filter(|c| c.kind() == SyntaxKind::Decorator))

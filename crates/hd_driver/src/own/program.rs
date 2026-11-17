@@ -58,7 +58,7 @@ impl Env<'_> {
             };
             let n = body.record(body.data[i][1]).len().saturating_sub(3);
             for k in (0..n).filter(|&k| k < 64 && self.pass(&callee, k, n) == Pass::Owned) {
-                out.insert((method, u32::try_from(k).expect("arguments")));
+                out.insert((method, hd_tir::ir::u32_of(k)));
             }
         }
     }

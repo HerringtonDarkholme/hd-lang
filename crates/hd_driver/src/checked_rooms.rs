@@ -13,18 +13,11 @@ impl Run<'_> {
             return hash;
         }
         let names = self.names();
-        let (from, to) = if body.item == names.item("std.rt.memory", "room") {
-            (
-                names.item("std.rt.alloc", "alloc"),
-                names.item("std.rt.checked", "allocate"),
-            )
-        } else if body.item == names.item("std.rt.memory", "free_room")
-            || body.item == names.item("std.rt.cycle", "collect")
-        {
-            (
-                names.item("std.rt.alloc", "free_block"),
-                names.item("std.rt.checked", "free_acyclic"),
-            )
+        let known = names.known;
+        let (from, to) = if body.item == known.room {
+            (known.alloc, known.checked_allocate)
+        } else if body.item == known.free_room || body.item == known.cycle_collect {
+            (known.free_block, known.checked_free_acyclic)
         } else {
             return hash;
         };

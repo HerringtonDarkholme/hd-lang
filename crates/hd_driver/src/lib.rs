@@ -2843,14 +2843,14 @@ fn build_packages_inner(
     {
         let mut g = TaskGraph::default();
         let mut skims = Vec::new();
-        for i in 0..n {
-            skims.push(g.add(TaskKind::Skim(u32::try_from(i).expect("files")), &[]));
+        for (file, i) in (0u32..).zip(0..n) {
+            skims.push(g.add(TaskKind::Skim(file), &[]));
             // The embedded std always parses, so analysis parses it only
             // where a later stage reads it (`parse_of`).
             let embedded_std = embedded.is_some()
                 && usize::from(run.table.modules[i].package) + 1 == run.table.packages.len();
             if matches!(goal, Goal::Analyze | Goal::CheckTests) && !embedded_std {
-                g.add(TaskKind::Parse(u32::try_from(i).expect("files")), &[]);
+                g.add(TaskKind::Parse(file), &[]);
             }
         }
         g.add(TaskKind::FolderGraph, &skims);
@@ -3909,13 +3909,13 @@ impl Run<'_> {
     /// reads its calls from, and an entry's status functions.
     /// The std items a host boundary calls (`hd_mono::HostItems`).
     fn host_items(&self) -> HostItems {
-        let names = self.names();
+        let known = self.names().known;
         HostItems {
-            encode: names.item("std.host", "host_encode"),
-            decode: names.item("std.host", "host_decode"),
-            package_encode: names.item("std.host", "package_encode"),
-            package_decode: names.item("std.host", "package_decode"),
-            host_provider: names.item(ENTRY_MODULE, "host_provider"),
+            encode: known.host_encode,
+            decode: known.host_decode,
+            package_encode: known.package_encode,
+            package_decode: known.package_decode,
+            host_provider: known.host_provider,
         }
     }
 
@@ -3976,11 +3976,7 @@ impl Run<'_> {
     }
 
     fn put(&self, kind: EntryKind, key: Hash128, sections: &[&[u8]]) {
-        let s: Vec<(u16, u32, &[u8])> = sections
-            .iter()
-            .enumerate()
-            .map(|(i, b)| (u16::try_from(i).expect("sections"), 0, *b))
-            .collect();
+        let s: Vec<(u16, u32, &[u8])> = (0u16..).zip(sections).map(|(i, b)| (i, 0, *b)).collect();
         let bytes = hd_cache::encode_entry(kind, LAYOUT, key, self.toolchain, 0, &s);
         self.host.store.put(kind, &key, &bytes);
     }
@@ -4183,8 +4179,7 @@ impl Run<'_> {
         }
         let pr = sp.add_held(TaskKind::PackageResult, &[]);
         let order = graph.order.clone();
-        let _ = self.graph.set(GraphOut { graph });
-        let g = &self.graph.get().expect("set above").graph;
+        let g = &self.graph.get_or_init(|| GraphOut { graph }).graph;
         // The earlier REPL inputs are the session's, read here: they get
         // no task, so a build's tasks do not grow with the session.
         let kept = self.kept.get_or_init(|| {

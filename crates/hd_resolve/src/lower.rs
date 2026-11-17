@@ -38,32 +38,9 @@ use crate::view::Src;
 
 mod decls;
 mod decorators;
+use crate::known::TEST_PRELUDE;
+pub use crate::known::{PRELUDE, prelude_rows, runtime_module};
 use crate::{Binding, BindingKind, ModuleScope, Origin};
-
-/// The prelude (spec/lang/10-modules.md#prelude) as fixed uses: origin
-/// module and names. `lib/std/prelude.hd` re-exports exactly these; a test
-/// checks the two agree. The `std.testing` row is test code only.
-pub const PRELUDE: &[(&str, &[&str])] = &[
-    (
-        "std.core",
-        &[
-            "never", "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "f32",
-            "f64", "char", "string", "void", "List", "Map", "Any", "AnyVal", "AnyRef", "Option",
-            "Result", "panic", "box",
-        ],
-    ),
-    ("std.format", &["Display", "Debug", "debug", "dbg"]),
-    ("std.cmp", &["Eq", "PartialOrd", "Ord", "Ordering"]),
-    ("std.hash", &["Hash"]),
-    ("std.iter", &["Iterator", "Iterable"]),
-    ("std.console", &["Console", "ConsoleError", "println"]),
-    ("std.task", &["Suspend"]),
-    ("std.ops", &["Copy"]),
-];
-
-/// The prelude names of test code (`module.prelude.test-assertions`): bound only
-/// in test code, but no declaration of a module may take their place.
-const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it", "assert", "assert_equal"])];
 
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
@@ -85,27 +62,6 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .iter()
         .find(|(_, list)| list.contains(&name))
         .map(|(module, _)| names.item(module, name))
-}
-
-/// Whether `module` is a runtime module, `std.rt` or one under it
-/// (`module.rt.std-only`).
-#[must_use]
-pub fn runtime_module(module: &str) -> bool {
-    module
-        .strip_prefix("std.rt")
-        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
-}
-
-/// The prelude rows `module` sees: `std.core` and a runtime module, std's
-/// leaf layer, see only `std.core`'s names (`module.core.prelude`,
-/// `module.rt.core-prelude`); every other module sees them all.
-#[must_use]
-pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {
-    if module == "std.core" || runtime_module(module) {
-        &PRELUDE[..1]
-    } else {
-        PRELUDE
-    }
 }
 
 /// The modules the prelude's names come from: each module's folder gets an
@@ -7837,7 +7793,7 @@ pub fn impl_placement(
                 Some(names.module_node(def))
             }
             TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } | TyData::Ref { .. } => {
-                Some(names.module("std.core"))
+                Some(names.known.core_module)
             }
             _ => None,
         }

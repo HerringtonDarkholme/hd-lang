@@ -782,11 +782,7 @@ impl OwnCx for Env<'_> {
             Callee::Item { def, .. } => *def,
             Callee::TraitMethod { method, .. } => *method,
         };
-        let key = (
-            def,
-            u32::try_from(k).expect("arguments"),
-            u32::try_from(n).expect("arguments"),
-        );
+        let key = (def, hd_tir::ir::u32_of(k), hd_tir::ir::u32_of(n));
         let cached = lock(&self.run.own_params).get(&key).copied();
         let p = cached.unwrap_or_else(|| {
             let p = self.declared_pass(def, k, n);
@@ -1742,7 +1738,7 @@ impl Env<'_> {
         // body, the inliner's copies their call: the line table's anchors
         // stay the `check` entry's.
         if body.anchors.is_empty() {
-            body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
+            body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
         let returns = summarize
@@ -2802,7 +2798,7 @@ impl Env<'_> {
             let read = lock(&all.read);
             let mut lent = !s.kept
                 & u64::MAX
-                    .checked_shr(64 - u32::try_from(n).expect("params"))
+                    .checked_shr(64 - hd_tir::ir::u32_of(n))
                     .unwrap_or(0);
             if glue {
                 lent = 0;
@@ -2816,7 +2812,7 @@ impl Env<'_> {
                 );
                 lent = fixed;
             }
-            for k in 0..u32::try_from(n).expect("params") {
+            for k in 0..hd_tir::ir::u32_of(n) {
                 if read.get(&(node, k)) == Some(&false) {
                     lent &= !(1 << k);
                 }
@@ -2842,7 +2838,7 @@ impl Env<'_> {
         if let Some(&m) = lock(&all.assume).get(&node) {
             return k < 64 && m & (1 << k) != 0;
         }
-        let key = (node, u32::try_from(k).expect("arguments"));
+        let key = (node, hd_tir::ir::u32_of(k));
         let mut read = lock(&all.read);
         *read.entry(key).or_insert_with(|| {
             k < 64
@@ -2888,7 +2884,7 @@ impl Env<'_> {
                 let read = lock(&all.read);
                 let params = hd_tir::own::params(b);
                 for (k, &l) in params.iter().enumerate().take(64) {
-                    let kept_before = read.get(&(m, u32::try_from(k).expect("params")));
+                    let kept_before = read.get(&(m, hd_tir::ir::u32_of(k)));
                     if self.counted(b.local_ty[l as usize])
                         && self.received(m.0, k, params.len()) == Pass::Owned
                         && kept_before != Some(&false)
@@ -2929,7 +2925,7 @@ impl Env<'_> {
     fn trial_kept(&self, mut body: Body) -> Option<u64> {
         let mut scratch = SCRATCH.with(RefCell::take);
         if body.anchors.is_empty() {
-            body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
+            body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
         let kept = hd_wasm::with_layout_cache(self.run.layout_key, || {
