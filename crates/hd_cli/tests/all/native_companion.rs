@@ -144,7 +144,9 @@ fn leak(text: String) -> &'static str {
 
 #[test]
 fn the_companion_of_a_wasmtime_build_answers_its_guest() {
-    use hd_run::{Engine as _, Grants, HostSetup, Instance as _, Limits, Outcome};
+    use hd_run::{
+        Consent, Engine as _, GrantValue, Grants, HostSetup, Instance as _, Limits, Outcome,
+    };
     use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine, native};
 
     let root = package("native-companion-run", MANIFEST, MAIN);
@@ -207,9 +209,14 @@ fn the_companion_of_a_wasmtime_build_answers_its_guest() {
         err: Box::new(std::io::sink()),
         input: None,
     };
+    // The app manifest consents to the trait (`native-two-keys`): a
+    // registration alone grants nothing.
     let setup = HostSetup {
         providers: vec![],
-        grants: Grants::default(),
+        grants: Grants {
+            consent: Consent::new(&[("pkg.main.Server".to_owned(), GrantValue::All)], &[]),
+            ..Grants::default()
+        },
         limits: Limits::default(),
         args: vec![],
         program: "probe".into(),
