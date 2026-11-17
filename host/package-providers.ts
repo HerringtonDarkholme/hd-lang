@@ -2,6 +2,7 @@
 // trusted JS selected from package manifests after the root grants access.
 // Guest contract data is never interpreted as module code or import paths.
 import { Dec, Enc, HostContract, decodeUtf8 } from "./wire.ts";
+import { identityName } from "./core-package.ts";
 export { readPackageContract } from "./package-contract.ts";
 import { readPackageContract } from "./package-contract.ts";
 import type {
@@ -74,8 +75,7 @@ const own = (value: Dynamic, k: string): Dynamic => {
   return value[k];
 };
 const object = (fields: [string, Dynamic][]): DynamicRecord => Object.fromEntries(fields);
-const named = (i: ContractInterface): string =>
-  `${i.identity.package}@${i.identity.version}/${i.identity.trait_path}`;
+const named = (i: ContractInterface): string => identityName(i.identity);
 
 function encodePrimitive(value: Dynamic, tokens: Dynamic[]): boolean {
   if (value === null) {

@@ -2,6 +2,18 @@ import { HostContract } from "./wire.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 
+// `package@version/trait_path`, or `package/trait_path` for a local
+// package, whose identity has no version (module.host.package.local-identity).
+// The Rust side's `hd_host_abi::schema::Identity` displays the same text.
+export const identityName = (identity: {
+  package: string;
+  version: string;
+  trait_path: string;
+}): string =>
+  identity.version === ""
+    ? `${identity.package}/${identity.trait_path}`
+    : `${identity.package}@${identity.version}/${identity.trait_path}`;
+
 // Installs invoker-selected package providers, or rejects a module whose
 // embedded package requirements have no explicitly registered provider.
 export function bindPackageRuntime(options: Dynamic): Dynamic {
@@ -42,7 +54,7 @@ export function bindPackageRuntime(options: Dynamic): Dynamic {
       const item = required.find((requiredItem: Dynamic) => !requiredItem.handle) ?? required[0];
       if (item) {
         throw new HostContract(
-          `missing package host provider for ${item.identity.package}@${item.identity.version}/${item.identity.trait_path}; register it explicitly`,
+          `missing package host provider for ${identityName(item.identity)}; register it explicitly`,
         );
       }
     }

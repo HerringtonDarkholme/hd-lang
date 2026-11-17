@@ -4,6 +4,7 @@
 // thread or a supervised worker), and `stage-host.ts` for each run it is
 // sent, so both report the same status and output for the same program.
 import { createStartupHost } from "./startup.ts";
+import { identityName } from "./core-package.ts";
 import { HostContract } from "./run-support.ts";
 import type { Sink } from "./core.ts";
 import type { EntryCancel } from "./run-support.ts";
@@ -93,7 +94,7 @@ async function packageHost(module: WebAssembly.Module, config: RunConfig): Promi
     registrations.set(item.module, registration);
   }
   for (const item of required.filter((entry) => !entry.handle)) {
-    const name = `${item.identity.package}@${item.identity.version}/${item.identity.trait_path}`;
+    const name = identityName(item.identity);
     if (item.selectors.some((selector) => grants[selector] === false)) {
       throw new HostContract(`package capability denied: ${name}`);
     }

@@ -16,6 +16,20 @@ pub struct Identity {
     pub trait_path: String,
 }
 
+/// `package@version/trait_path`, or `package/trait_path` for a local
+/// package, whose identity has no version
+/// (`module.host.package.local-identity`). The JS host's `identityName`
+/// (`host/core-package.ts`) writes the same text.
+impl std::fmt::Display for Identity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.version.is_empty() {
+            write!(f, "{}/{}", self.package, self.trait_path)
+        } else {
+            write!(f, "{}@{}/{}", self.package, self.version, self.trait_path)
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     Void,
@@ -583,6 +597,22 @@ pub fn from_wasm(wasm: &[u8]) -> Result<Option<Contract>, &'static str> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[test]
+    fn identity_names_its_version_only_when_it_has_one() {
+        let fetched = Identity {
+            package: "example.org/sdk".into(),
+            version: "1.2.3".into(),
+            trait_path: "server.Server".into(),
+        };
+        assert_eq!(fetched.to_string(), "example.org/sdk@1.2.3/server.Server");
+        let local = Identity {
+            package: "local:7269fb96".into(),
+            version: String::new(),
+            trait_path: "main.Server".into(),
+        };
+        assert_eq!(local.to_string(), "local:7269fb96/main.Server");
+    }
 
     /// `enum Tree: Leaf | Node(kids: List[kid])`.
     fn tree(kid: Value) -> Value {

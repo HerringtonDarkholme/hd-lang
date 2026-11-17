@@ -49,10 +49,7 @@ pub(crate) fn manifest_providers(
     };
     let mut selected = Vec::new();
     for interface in artifacts.contract.interfaces.iter().filter(|i| !i.handle) {
-        let name = format!(
-            "{}@{}/{}",
-            interface.identity.package, interface.identity.version, interface.identity.trait_path
-        );
+        let name = interface.identity.to_string();
         if interface.selectors.iter().any(|path| !grants.allows(path)) {
             return Err(format!("package capability denied: {name}"));
         }

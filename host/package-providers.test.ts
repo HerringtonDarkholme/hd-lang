@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createPackageRuntime, readPackageContract } from "./package-providers.ts";
 import { Dec, Enc, HostContract } from "./wire.ts";
 import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./core.ts";
+import { identityName } from "./core-package.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 
@@ -251,6 +252,18 @@ function operationHost(
     },
   };
 }
+
+test("an identity names its version only when it has one, as the Rust host does", () => {
+  const trait_path = "main.Server";
+  assert.equal(
+    identityName({ package: "example.org/sdk", version: "1.2.3", trait_path }),
+    "example.org/sdk@1.2.3/main.Server",
+  );
+  assert.equal(
+    identityName({ package: "local:7269fb96", version: "", trait_path }),
+    "local:7269fb96/main.Server",
+  );
+});
 
 test("provider interface identity stays checked and immutable after metadata changes", () => {
   const expected = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };

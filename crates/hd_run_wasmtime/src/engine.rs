@@ -245,12 +245,7 @@ impl Engine for WasmtimeEngine {
                 .find(|i| !i.handle)
                 .or_else(|| contract.interfaces.first())
         {
-            let id = &interface.identity;
-            let name = if id.version.is_empty() {
-                format!("{}/{}", id.package, id.trait_path)
-            } else {
-                format!("{}@{}/{}", id.package, id.version, id.trait_path)
-            };
+            let name = interface.identity.to_string();
             return Err(LoadError::Engine(format!(
                 "package host trait {name:?} requires a JS host; wasmtime does not load package host providers"
             )));
