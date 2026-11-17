@@ -1467,7 +1467,7 @@ fn ref_facts(
             stack.extend(
                 parts
                     .iter()
-                    .filter(|p| !memo.contains_key(p))
+                    .filter(|p| !memo.contains_key(*p))
                     .map(|&p| (p, false)),
             );
             continue;
