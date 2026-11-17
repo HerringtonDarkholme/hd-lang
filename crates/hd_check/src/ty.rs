@@ -1183,6 +1183,57 @@ impl Ck<'_, '_> {
     }
 
     /// The type a type node names.
+    /// The reference slots of type node `n`, in
+    /// [`hd_types::Types::ref_slots`] order, each with its `&'static` node
+    /// if it is written so (`ref.static.form`): the reference type nodes in
+    /// preorder, as [`Ck::closure_param_annotation`] places written
+    /// lifetimes. `None` when a part may place its slots elsewhere: an
+    /// alias, a union, a function, `impl`, projection, context or rest
+    /// type, or a counted reference; the caller checks the count after
+    /// lowering. One pass over the annotation's nodes.
+    pub(crate) fn static_slots(&self, n: NodeRef<'_>) -> Option<Vec<Option<hd_base::NodeIdx>>> {
+        let toks = &self.cx.src.parse.tokens;
+        let mut out = Vec::new();
+        for c in std::iter::once(n).chain(n.descendants()) {
+            let kind = c.kind();
+            let unplaced = matches!(
+                kind,
+                SyntaxKind::UnionType
+                    | SyntaxKind::FunctionType
+                    | SyntaxKind::ImplType
+                    | SyntaxKind::ProjectionType
+                    | SyntaxKind::ContextType
+                    | SyntaxKind::RestType
+            ) || kind == SyntaxKind::RefType
+                && c.direct_token(toks, hd_syntax::TokenKind::Star).is_some()
+                // An alias places what it is given anywhere, so it may
+                // hold no reference: `i32` is one.
+                || kind == SyntaxKind::NamedType && self.alias_with_refs(c);
+            if unplaced {
+                return None;
+            }
+            if kind == SyntaxKind::RefType {
+                out.push(self.static_ref_type(c).then_some(c.index()));
+            }
+        }
+        Some(out)
+    }
+
+    /// Whether the named type `c` is an alias that holds a reference, or
+    /// is given one, so it may place its reference slots anywhere.
+    fn alias_with_refs(&self, c: NodeRef<'_>) -> bool {
+        let alias = self.resolve_path(&self.segments(c)).and_then(|d| {
+            match &self.cx.lookup.item(d)?.data {
+                ItemData::Alias { body, .. } => Some(*body),
+                _ => None,
+            }
+        });
+        alias.is_some_and(|body| {
+            self.pool().ref_slots(body) != 0
+                || c.descendants().any(|r| r.kind() == SyntaxKind::RefType)
+        })
+    }
+
     /// Whether `n` is a reference type written `&'static T` (`ref.static.form`).
     pub(crate) fn static_ref_type(&self, n: NodeRef<'_>) -> bool {
         n.kind() == SyntaxKind::RefType
@@ -1534,7 +1585,9 @@ impl Ck<'_, '_> {
                 if self.written_lifetimes.is_none()
                     && n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
                         .is_some()
-                    && !(self.static_annotation == Some(n.index()) && self.static_ref_type(n))
+                    && (self.static_annotation)
+                        .binary_search_by_key(&n.index().raw(), |x| x.raw())
+                        .is_err()
                 {
                     self.err(
                         Code::ReferencesNotYetChecked,

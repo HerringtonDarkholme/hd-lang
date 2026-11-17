@@ -1,0 +1,39 @@
+# @dump: diagnostics
+# `'static` written inside a `let` annotation's type is checked per slot
+# (`ref.static.value`): in a list, a map value, a tuple, an optional, a
+# struct argument and under another reference. A static source passes, a
+# local is static-reference-source, and only the slot written `'static` is
+# checked. An alias that holds a reference does not place the slot, so its
+# `'static` is not checked yet (`ref.lifetime.not-yet.body`).
+struct Point:
+    x: i32
+
+struct Box1[T]:
+    v: T
+
+type PointRef = &Point
+
+let origin = Point { x: 1 }
+
+fn ok() -> usize:
+    let ps: List[&'static Point] = [&origin, &origin]
+    let m: Map[string, &'static Point] = {"o": &origin}
+    let t: (i32, &'static Point) = (1, &origin)
+    let o: (&'static Point)? = &origin
+    let b: Box1[&'static Point] = Box1 { v: &origin }
+    ps.len() + m.len()
+
+fn bad() -> usize:
+    q := Point { x: 2 }
+    let ps: List[&'static Point] = [&origin, &q]
+    let m: Map[string, &'static Point] = {"q": &q}
+    let t: (&Point, &'static Point) = (&q, &q)
+    let o: (&'static Point)? = &q
+    let b: Box1[&'static Point] = Box1 { v: &q }
+    let inner: &'static i32 = &5
+    let r: &'static (&'static i32) = &inner
+    ps.len() + m.len()
+
+fn alias() -> i32:
+    let a: List[&'static PointRef] = []
+    0

@@ -1713,7 +1713,7 @@ struct Inputs<'a> {
     annotated: HashMap<u32, Vec<u32>>,
     /// The values bound to a binding written `&'static T`
     /// ([`Ck::static_values`]).
-    statics: &'a [hd_tir::ir::Ref],
+    statics: &'a [(hd_tir::ir::Ref, Box<[u32]>)],
 }
 
 impl Inputs<'_> {

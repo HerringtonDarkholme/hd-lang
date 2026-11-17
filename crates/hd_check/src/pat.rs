@@ -1086,12 +1086,32 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         // A `using` binding keeps its initializer's access (flow.using.access.v2).
         let using = std::mem::take(&mut self.using_bind);
+        // `ref.static.value`: the reference slots the annotation writes
+        // `'static`, each checked into `'static` once the annotation's
+        // slots are known to line up with its written references.
+        let mut statics: Vec<u32> = Vec::new();
         let annot = match ty_node {
             Some(t) => {
-                let outer = self.static_annotation.replace(t.index());
+                let slots = self.static_slots(t).unwrap_or_default();
+                let nodes: Vec<hd_base::NodeIdx> = slots.iter().flatten().copied().collect();
+                let outer = std::mem::replace(&mut self.static_annotation, nodes);
                 let annot = self.ty_node(t);
                 self.static_annotation = outer;
-                Some(annot?)
+                let annot = annot?;
+                if self.pool().ref_slots(annot) == slots.len() {
+                    statics.extend(
+                        (0..slots.len())
+                            .filter(|&k| slots[k].is_some())
+                            .map(hd_tir::ir::u32_of),
+                    );
+                } else if slots.iter().any(Option::is_some) {
+                    self.err(
+                        Code::ReferencesNotYetChecked,
+                        t,
+                        "a lifetime inside a function body is not checked yet",
+                    );
+                }
+                Some(annot)
             }
             None => None,
         };
@@ -1159,8 +1179,8 @@ impl Ck<'_, '_> {
         };
         // `ref.static.value`: a binding written `&'static T` takes only a
         // static source.
-        if ty_node.is_some_and(|n| self.static_ref_type(n)) {
-            self.static_values.push(r);
+        if !statics.is_empty() {
+            self.static_values.push((r, statics.into()));
         }
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive-local,
         // types.bind.let-mut-tuple-valid).

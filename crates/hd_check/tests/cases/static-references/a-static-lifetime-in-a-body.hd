@@ -1,8 +1,7 @@
 # @dump: diagnostics
-# In a body, `'static` is checked on a `let` annotation's own reference
-# (`ref.static.value`); written deeper in a body type it is not checked yet
-# (`ref.lifetime.not-yet.body`), and `&'static mut T` is no type
-# (`ref.static.no-mut`).
+# In a body, `'static` is checked on a `let` annotation's reference slots
+# (`ref.static.value`), its own and one nested in a list, and
+# `&'static mut T` is no type (`ref.static.no-mut`).
 struct Point:
     x: i32
 
