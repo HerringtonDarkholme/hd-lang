@@ -9,20 +9,21 @@ pub const CONTRACT: &[u8] = &[
     114, 105, 110, 103, 11, 104, 100, 58, 112, 107, 103, 58, 116, 101, 120, 116, 0, 1, 0, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47,
     117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 14, 115, 99, 114, 101, 101, 110, 46, 83, 117, 114, 102, 97, 99, 101, 13, 104, 100, 58, 112,
     107, 103, 58, 115, 99, 114, 101, 101, 110, 1, 25, 100, 101, 112, 46, 117, 105, 95, 116, 117, 105, 46, 115, 99, 114, 101, 101, 110, 46, 83, 117, 114,
-    102, 97, 99, 101, 0, 3, 4, 100, 114, 97, 119, 4, 100, 114, 97, 119, 1, 24, 0, 1, 2, 3, 8, 1, 3, 16, 1, 3, 32, 1, 3, 64,
+    102, 97, 99, 101, 0, 3, 4, 100, 114, 97, 119, 4, 100, 114, 97, 119, 1, 25, 0, 1, 2, 3, 8, 1, 3, 16, 1, 3, 32, 1, 3, 64,
     1, 3, 8, 0, 3, 64, 0, 4, 5, 6, 7, 8, 6, 9, 14, 10, 1, 1, 10, 2, 0, 3, 32, 0, 18, 6, 11, 2, 1, 120, 5, 1,
     121, 5, 13, 11, 2, 1, 120, 5, 1, 121, 5, 6, 11, 3, 4, 116, 121, 112, 101, 6, 4, 115, 101, 108, 102, 1, 2, 97, 116, 11, 2, 1,
     120, 5, 1, 121, 5, 12, 2, 4, 83, 101, 108, 102, 0, 5, 77, 111, 118, 101, 100, 1, 5, 109, 97, 116, 99, 104, 11, 2, 1, 120, 5, 1,
     121, 5, 16, 0, 12, 2, 4, 76, 101, 97, 102, 0, 4, 78, 111, 100, 101, 2, 4, 107, 105, 100, 115, 8, 17, 0, 6, 112, 97, 114, 101, 110,
-    116, 9, 17, 0, 11, 1, 6, 101, 118, 101, 110, 116, 115, 15, 13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 11, 1, 5, 105,
-    110, 110, 101, 114, 11, 1, 6, 101, 118, 101, 110, 116, 115, 15, 13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 15, 13, 104, 100,
-    58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 4, 116, 121, 112, 101, 4, 116, 121, 112, 101, 0, 0, 19, 4, 104, 97, 108, 116, 4, 104, 97,
-    108, 116, 1, 0, 19, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 14, 119,
-    105, 110, 100, 111, 119, 46, 83, 117, 114, 102, 97, 99, 101, 13, 104, 100, 58, 112, 107, 103, 58, 119, 105, 110, 100, 111, 119, 1, 25, 100, 101, 112,
-    46, 117, 105, 95, 116, 117, 105, 46, 119, 105, 110, 100, 111, 119, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 5, 99, 108, 111, 115, 101, 5, 99,
-    108, 111, 115, 101, 0, 0, 0, 5, 102, 108, 117, 115, 104, 5, 102, 108, 117, 115, 104, 1, 0, 0, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111,
-    114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 13, 115, 99, 114, 101, 101, 110, 46, 69, 118, 101, 110, 116, 115, 13, 104, 100,
-    58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 0, 1, 1, 4, 110, 101, 120, 116, 4, 110, 101, 120, 116, 1, 0, 9, 6,
+    116, 9, 17, 0, 12, 2, 2, 95, 48, 1, 1, 48, 3, 32, 1, 2, 95, 49, 1, 1, 48, 6, 11, 1, 6, 101, 118, 101, 110, 116, 115, 15,
+    13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 11, 1, 5, 105, 110, 110, 101, 114, 11, 1, 6, 101, 118, 101, 110, 116, 115, 15,
+    13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 15, 13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 4, 116, 121,
+    112, 101, 4, 116, 121, 112, 101, 0, 0, 19, 4, 104, 97, 108, 116, 4, 104, 97, 108, 116, 1, 0, 19, 18, 101, 120, 97, 109, 112, 108, 101, 46,
+    111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 14, 119, 105, 110, 100, 111, 119, 46, 83, 117, 114, 102, 97, 99, 101, 13,
+    104, 100, 58, 112, 107, 103, 58, 119, 105, 110, 100, 111, 119, 1, 25, 100, 101, 112, 46, 117, 105, 95, 116, 117, 105, 46, 119, 105, 110, 100, 111, 119,
+    46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 5, 99, 108, 111, 115, 101, 5, 99, 108, 111, 115, 101, 0, 0, 0, 5, 102, 108, 117, 115, 104, 5,
+    102, 108, 117, 115, 104, 1, 0, 0, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46,
+    48, 13, 115, 99, 114, 101, 101, 110, 46, 69, 118, 101, 110, 116, 115, 13, 104, 100, 58, 112, 107, 103, 58, 101, 118, 101, 110, 116, 115, 0, 1, 1,
+    4, 110, 101, 120, 116, 4, 110, 101, 120, 116, 1, 0, 9, 6,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
@@ -127,12 +128,46 @@ impl SurfaceDrawArg21 {
     }
 }
 
-pub struct SurfaceDrawArg22 {
-    pub events: Box<dyn Events>,
+#[derive(Clone, Debug, PartialEq)]
+pub enum SurfaceDrawArg22 {
+    _0 {
+        _0: i32,
+    },
+    _1 {
+        _0: String,
+    },
 }
 
 #[allow(dead_code)]
 impl SurfaceDrawArg22 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        match self {
+            Self::_0 { _0: f0 } => {
+                e.tag(0);
+                e.signed(i64::from(f0));
+            }
+            Self::_1 { _0: f0 } => {
+                e.tag(1);
+                e.string(&f0);
+            }
+        }
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(match d.tag(2)? {
+            0 => Self::_0 { _0: d.signed::<i32>()? },
+            _ => Self::_1 { _0: d.string()? },
+        })
+    }
+}
+
+pub struct SurfaceDrawArg23 {
+    pub events: Box<dyn Events>,
+}
+
+#[allow(dead_code)]
+impl SurfaceDrawArg23 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { events: f0 } = self;
         e.handle(Box::new(f0), 4, dispatch_Events)?;
@@ -144,20 +179,20 @@ impl SurfaceDrawArg22 {
     }
 }
 
-pub struct SurfaceDrawArg23 {
-    pub inner: SurfaceDrawArg22,
+pub struct SurfaceDrawArg24 {
+    pub inner: SurfaceDrawArg23,
 }
 
 #[allow(dead_code)]
-impl SurfaceDrawArg23 {
+impl SurfaceDrawArg24 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { inner: f0 } = self;
-        SurfaceDrawArg22::wire_encode(f0, e)?;
+        SurfaceDrawArg23::wire_encode(f0, e)?;
         Ok(())
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(Self { inner: SurfaceDrawArg22::wire_decode(d)? })
+        Ok(Self { inner: SurfaceDrawArg23::wire_decode(d)? })
     }
 }
 
@@ -171,7 +206,7 @@ pub trait String2 {
 
 /// `example.org/ui-tui@0.3.0/screen.Surface`.
 pub trait Surface {
-    fn draw(&mut self, arg0: (), arg1: bool, arg2: char, arg3: i8, arg4: i16, arg5: i32, arg6: i64, arg7: u8, arg8: u64, arg9: f32, arg10: f64, arg11: String, arg12: Vec<u8>, arg13: Vec<String>, arg14: Option<hd_run_wasmtime::native::Serde>, arg15: (bool,), arg16: ((), u32), arg17: Vec<(String, SurfaceDrawArg17Value)>, arg18: Result<SurfaceDrawArg17Value, String>, arg19: SurfaceDrawArg19, arg20: SurfaceDrawArg20, arg21: SurfaceDrawArg21, arg22: SurfaceDrawArg22, arg23: SurfaceDrawArg23, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Box<dyn Events>>;
+    fn draw(&mut self, arg0: (), arg1: bool, arg2: char, arg3: i8, arg4: i16, arg5: i32, arg6: i64, arg7: u8, arg8: u64, arg9: f32, arg10: f64, arg11: String, arg12: Vec<u8>, arg13: Vec<String>, arg14: Option<hd_run_wasmtime::native::Serde>, arg15: (bool,), arg16: ((), u32), arg17: Vec<(String, SurfaceDrawArg17Value)>, arg18: Result<SurfaceDrawArg17Value, String>, arg19: SurfaceDrawArg19, arg20: SurfaceDrawArg20, arg21: SurfaceDrawArg21, arg22: SurfaceDrawArg22, arg23: SurfaceDrawArg23, arg24: SurfaceDrawArg24, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Box<dyn Events>>;
     fn r#type(&mut self) -> hd_run_wasmtime::native::HostResult<std::convert::Infallible>;
     fn halt(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<std::convert::Infallible>;
 }
@@ -242,8 +277,9 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             let arg21 = SurfaceDrawArg21::wire_decode(d)?;
             let arg22 = SurfaceDrawArg22::wire_decode(d)?;
             let arg23 = SurfaceDrawArg23::wire_decode(d)?;
+            let arg24 = SurfaceDrawArg24::wire_decode(d)?;
             d.finish()?;
-            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, hd_run_wasmtime::native::CallContext::new()), |value: Box<dyn Events>, handles: &mut hd_run_wasmtime::native::Handles| {
+            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, arg24, hd_run_wasmtime::native::CallContext::new()), |value: Box<dyn Events>, handles: &mut hd_run_wasmtime::native::Handles| {
                 let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
                 let e = &mut enc;
                 e.handle(Box::new(value), 4, dispatch_Events)?;

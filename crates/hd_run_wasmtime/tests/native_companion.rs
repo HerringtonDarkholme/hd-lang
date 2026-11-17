@@ -187,6 +187,12 @@ fn forms_contract() -> Contract {
             variant("Moved", vec![field("match", point())]),
         ]),
         tree,
+        // An anonymous union `i32 | string`: each case's one payload is
+        // its field `0`.
+        Value::Enum(vec![
+            variant("_0", vec![field("0", int(32, true))]),
+            variant("_1", vec![field("0", Value::String)]),
+        ]),
         Value::Record(vec![field("events", Value::Handle("hd:pkg:events".into()))]),
         // The same handle record again, inside another: both derive nothing.
         Value::Record(vec![field(
@@ -556,6 +562,7 @@ fn every_root_trait_of_a_companion_gets_a_setter() {
             tree: forms::SurfaceDrawArg21,
             _: forms::SurfaceDrawArg22,
             _: forms::SurfaceDrawArg23,
+            _: forms::SurfaceDrawArg24,
             _cx: CallContext<'_>,
         ) -> NativeCall<Box<dyn forms::Events>> {
             let forms::SurfaceDrawArg21::Node { kids, parent } = tree else {

@@ -701,7 +701,9 @@ fn snake(s: &str) -> String {
 }
 
 /// A Rust identifier for an hd name: a raw identifier for a Rust keyword,
-/// and a trailing `_` for the four keywords no raw identifier may spell.
+/// a trailing `_` for the four keywords no raw identifier may spell, and a
+/// leading `_` for a union case's positional payload `0`, which no Rust
+/// field declaration may spell.
 fn ident(s: &str) -> String {
     const STRICT: &[&str] = &[
         "as", "async", "await", "break", "const", "continue", "dyn", "else", "enum", "extern",
@@ -710,7 +712,9 @@ fn ident(s: &str) -> String {
         "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro",
         "override", "priv", "typeof", "unsized", "virtual", "yield",
     ];
-    if matches!(s, "self" | "Self" | "super" | "crate" | "_") {
+    if s.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("_{s}")
+    } else if matches!(s, "self" | "Self" | "super" | "crate" | "_") {
         format!("{s}_")
     } else if STRICT.contains(&s) {
         format!("r#{s}")
