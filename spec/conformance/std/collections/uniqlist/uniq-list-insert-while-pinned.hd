@@ -1,0 +1,18 @@
+# test: inserting into an alias's list while an element reference into it is live panics borrow-conflict, as the insert can move the list's elements
+use std.collections.UniqList
+
+struct Bag:
+    items: UniqList[string]
+
+fn change(first: &mut string, alias: *mut Bag) -> void:
+    alias.items.insert(0, "moved") # panic: borrow-conflict
+    *first = "still live"
+
+tests:
+    it("keeps a pinned element in its room"):
+        bag := box(Bag { items: UniqList::[string].new() })
+        bag.items.push("original")
+        alias := bag
+        match bag.items.get_mut(0):
+            .Some(first) => change(first, alias)
+            .None => panic("missing element")

@@ -1,0 +1,18 @@
+# test: setting a new key by index through a box alias while a value reference into the unique map behind it is live panics borrow-conflict, as the insert can rehash the map's buffer
+use std.collections.UniqMap
+
+struct Stock:
+    counts: UniqMap[string, i32]
+
+fn add(apples: &mut i32, alias: *mut Stock) -> void:
+    alias.counts["pear"] = 1 # panic: borrow-conflict
+    *apples += 1
+
+tests:
+    it("the value reference pins the unique map"):
+        stock := box(Stock { counts: UniqMap::[string, i32].new() })
+        _ := stock.counts.insert("apple", 3)
+        alias := stock
+        match stock.counts.get_mut("apple"):
+            .Some(apples) => add(apples, alias)
+            .None => pass

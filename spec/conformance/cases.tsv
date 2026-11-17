@@ -6235,6 +6235,8 @@ std/collections/uniqlist/uniq-list-reserve-while-pinned.hd	runtime	panic:borrow-
 std/collections/uniqlist/uniq-list-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
 std/collections/uniqlist/uniq-list-append-source-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
 std/collections/uniqlist/uniq-list-append-receiver-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqlist/uniq-list-insert-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
+std/collections/uniqlist/uniq-list-extend-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-list.pinned-moves
 std/collections/uniqlist/uniq-list-index-in-counted-loops.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
 std/collections/uniqlist/loop-invariant-header-reads-see-every-write.hd	runtime	accept	std/collections.md#r-std-collections.uniq-list.index-places
 std/collections/uniqlist/uniq-list-index-past-loop-counter.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.uniq-list.index-places
@@ -6244,6 +6246,9 @@ std/collections/uniqlist/masked-uniq-list-index-of-an-empty-list-panics.hd	runti
 std/collections/uniqmap/uniq-map-reserve-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-bulk
 std/collections/uniqmap/uniq-map-drain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-bulk
 std/collections/uniqmap/uniq-map-retain-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-bulk
+std/collections/uniqmap/uniq-map-get-or-insert-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-insert
+std/collections/uniqmap/uniq-map-index-set-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-insert
+std/collections/uniqmap/uniq-map-extend-while-pinned.hd	runtime	panic:borrow-conflict	std/collections.md#r-std-collections.uniq-map.pinned-insert
 lang/references/reference-types/pointer-impl-keeps-declared-pointer-parameters.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-distinct
 lang/references/boxes/pointer-impl-returns-a-counted-box.hd	runtime	accept	lang/13-values-and-references.md#r-ref.box.lifetime
 lang/references/reference-types/reference-impls-keep-their-kind.hd	runtime	accept	lang/13-values-and-references.md#r-ref.type.kind-impl
