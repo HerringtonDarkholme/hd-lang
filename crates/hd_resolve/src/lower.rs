@@ -3956,7 +3956,7 @@ impl Lower<'_, '_, '_> {
             return 0;
         }
         if self.r.frozen.is_none() && self.src.text(t) == "'static" {
-            // ref.generic.static.bound-only
+            // ref.static.form: not checked yet (#1435)
             self.diags.error(
                 Code::ReferencesNotYetChecked,
                 self.src.token_span(t),

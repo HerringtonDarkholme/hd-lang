@@ -1233,13 +1233,12 @@ fn demo(u: User) -> string:
 ```
 
 1. r[ref.generic.static] A type parameter bounded by `'static`, as in `T < 'static` or `W < Display & 'static`, stands only for a type that meets `'static`.
-2. r[ref.generic.static.no-local] A type meets `'static` when it holds no local reference, by [`ref.local.holding`](#r-ref.local.holding) and [`ref.local.holding.counted`](#r-ref.local.holding.counted), and each type parameter it names is bounded by `'static`. A function type always meets it, since a closure captures no local reference.
+2. r[ref.generic.static.no-local] A type meets `'static` when it holds no local reference other than a [static reference](#static-references), by [`ref.local.holding`](#r-ref.local.holding) and [`ref.local.holding.counted`](#r-ref.local.holding.counted), and each type parameter it names is bounded by `'static`. A function type always meets it, since a closure captures no local reference.
 3. r[ref.generic.static.error] At a call, a written or inferred type argument that does not meet `'static`, for a parameter bounded by it, is an error. Error: `local-reference-escapes`.
 4. r[ref.generic.static.impl] An implementation whose type parameter is bounded by `'static` applies only where that parameter's argument meets `'static`, as for any other bound.
 5. r[ref.generic.static.capture] A closure's capture whose type names a type parameter must meet `'static`. Error: `local-reference-escapes`.
 6. r[ref.generic.static.no-fix] Neither diagnostic has a fix-it.
-7. r[ref.generic.static.bound-only] `'static` is written only as a type parameter's bound. A reference type that writes it, as `&'static T`, is an error. Error: `references-not-yet-checked`.
-8. r[ref.generic.static.fn-conjunction] A generic callback that is kept past its call is bounded by both `'static` and `Fn(...)`. The bounds join with `&` in either order: `F < 'static & Fn(A) -> R` and `F < Fn(A) -> R & 'static` are equivalent.
+7. r[ref.generic.static.fn-conjunction] A generic callback that is kept past its call is bounded by both `'static` and `Fn(...)`. The bounds join with `&` in either order: `F < 'static & Fn(A) -> R` and `F < Fn(A) -> R & 'static` are equivalent.
 
 ```text
 struct User:
@@ -1253,14 +1252,80 @@ fn hold[T < 'static](value: T) -> void:
 
 fn wrap(u: &User) -> void:
     hold(box(u))  # error: local-reference-escapes
-
-fn view(u: &'static User) -> void:  # error: references-not-yet-checked
-    pass
 ```
 
 > **Why.** This is Rust's `T: 'static`. A function value carries no
 > lifetime, so a value kept in one must hold no local reference. A counted
 > reference carries its referent's, as Rust's `Rc<&'a T>` does.
+
+### Static References
+
+A **static reference** `&'static T` refers to a value that lives for the whole program and never changes. It is made from a top-level binding, a constant literal, or data the compiler places in static memory, and it reads like a `&T`:
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+let origin = Point { x: 3, y: 4 }
+
+fn home() -> &'static Point:
+    &origin  # valid: a top-level binding bound without `mut`
+
+fn sum(p: &Point) -> i32:
+    p.x + p.y
+
+fn demo() -> i32:
+    p := home()
+    let x: &'static i32 = &origin.x
+    let one: &'static i32 = &1
+    sum(p) + *x + *one  # p coerces to &Point
+```
+
+1. r[ref.static.form] `&'static T` is a static reference type. Its operand takes the forms of `&T`'s, by [`ref.type.forms`](#r-ref.type.forms), and it may be written wherever a `&T` may.
+2. r[ref.static.distinct] `&'static T` is distinct from `&T` and from `*T`, and invariant in `T`.
+3. r[ref.static.coerce] A static reference coerces to `&T` where a `&T` is expected: an argument, a binding, a result, or the receiver of a `&self` method. The `&T` it gives depends on no local, so it may be returned from any function.
+4. r[ref.static.place] `&e` makes a static reference when `e` is a top-level binding bound without `mut`, or a struct or tuple field reached from one through no reference.
+5. r[ref.static.literal] `&e` makes a static reference when `e` is a constant literal: an integer, float, boolean, character, or string literal. The value lives in static memory, made once for the program.
+6. r[ref.static.value] A parameter, a call result, or a binding of a static reference type is a static reference, as is a value the compiler places in static memory and gives that type.
+7. r[ref.static.source.error] Any other expression where a static reference is expected is an error. That covers `&` of a local, a parameter, a `box`, a `let mut` top-level binding, or a call result. It covers `&` of a value reached through a `*T` or a `&T`, or of a field of any of them. It covers a `&T` or a `*T` value too. Error: `static-reference-source`.
+8. r[ref.static.source.message] The diagnostic's message names the source and the three it may be. It has no fix-it.
+9. r[ref.static.no-mut] `&'static mut T` is an error, since a source that can change would need a count. Error: `static-reference-mut`.
+10. r[ref.static.not-local] A static reference is not a local reference, so the rules of [Local References](#local-references) do not hold for it. It may be stored in a field, an element, a box, or a top-level binding, and captured by any closure.
+11. r[ref.static.no-count] Making, copying, or ending a static reference changes no count. Neither does a read through one, including a read of a counted reference or a function value the referent holds: the referent holds it for the whole program.
+
+```text
+struct Point:
+    x: i32
+
+let origin = Point { x: 0 }
+let mut moving = Point { x: 0 }
+let shared: *Point = box(Point { x: 0 })
+
+fn from_local() -> &'static Point:
+    p := Point { x: 1 }
+    &p  # error: static-reference-source
+
+fn from_mut() -> &'static Point:
+    &moving  # error: static-reference-source
+
+fn from_counted() -> &'static Point:
+    shared  # error: static-reference-source
+
+fn from_plain(p: &Point) -> &'static Point:
+    p  # error: static-reference-source
+
+fn writable(p: &'static mut Point) -> void:  # error: static-reference-mut
+    pass
+```
+
+> **Why.** hd follows Rust's `&'static T` for the type and its coercion
+> to a shorter-lived `&T`. It follows Swift's immortal objects for the
+> cost: a referent that is never freed needs no count, so a read through
+> it takes no retain or release. Unlike Rust, hd has no `&'static mut T`, since
+> Rust's `static mut` is `unsafe` and a writable source would need a
+> count. Rust promotes any constant expression; hd takes only a literal or
+> a top-level binding, so the source is visible where it is written.
 
 ### Lifetime Bounds
 

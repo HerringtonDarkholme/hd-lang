@@ -1,0 +1,41 @@
+# test: static references from top-level bindings and literals read and coerce to &T
+# Spec 13 Static References: ref.static.place, ref.static.literal, ref.static.coerce, ref.static.value.
+# expect-stdout: 7 4 5 hi 9
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn sum(&self) -> i32:
+        self.x + self.y
+
+struct Pair:
+    p: Point
+    tag: string
+
+let origin = Point { x: 3, y: 4 }
+let pair = Pair { p: Point { x: 5, y: 6 }, tag: "pair" }
+
+fn home() -> &'static Point:
+    &origin
+
+fn forward(p: &'static Point) -> &'static Point:
+    p
+
+fn plain(p: &Point) -> i32:
+    p.x + p.y
+
+fn widen(p: &'static Point) -> &Point:
+    p
+
+fn word() -> &'static string:
+    &"hi"
+
+pub fn main() -> void $ Console:
+    p := forward(home())
+    let y: &'static i32 = &origin.y
+    let x5: &'static i32 = &pair.p.x
+    let nine: &'static i32 = &9
+    println("{plain(p)} {*y} {*x5} {*word()} {*nine}")
+    if p.sum() != widen(p).sum():
+        panic("coercion changed the value")

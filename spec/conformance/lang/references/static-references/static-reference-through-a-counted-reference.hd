@@ -1,0 +1,9 @@
+# test: a static reference is not made from a field read through a counted reference
+# Spec 13 Static References: ref.static.source.error.
+struct Point:
+    x: i32
+
+let shared: *Point = box(Point { x: 0 })
+
+fn through_counted() -> &'static i32:
+    &shared.x # diagnostic: static-reference-source

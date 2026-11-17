@@ -1,0 +1,9 @@
+# test: a static reference is not made from a let mut top-level binding
+# Spec 13 Static References: ref.static.source.error.
+struct Point:
+    x: i32
+
+let mut moving = Point { x: 0 }
+
+fn from_mut() -> &'static Point:
+    &moving # diagnostic: static-reference-source
