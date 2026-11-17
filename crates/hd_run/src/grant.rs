@@ -4,7 +4,6 @@
 //! program, built from a table and flags, and the scope checks a provider
 //! asks before it touches a resource.
 
-use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
@@ -292,9 +291,16 @@ impl Grants {
         flags: &[(String, GrantValue)],
         flag_base: &Path,
     ) -> Grants {
-        let mut keys: Vec<&str> = table.iter().chain(flags).map(|(k, _)| k.as_str()).collect();
-        keys.sort_stable();
-        keys.dedup();
+        // Each key's table values and flag values, in written order, grouped
+        // in one pass: O((t + f) log k) rather than a scan of both lists
+        // per key.
+        let mut keys: BTreeMap<&str, (Vec<&GrantValue>, Vec<&GrantValue>)> = BTreeMap::new();
+        for (k, v) in table {
+            keys.entry(k.as_str()).or_default().0.push(v);
+        }
+        for (k, v) in flags {
+            keys.entry(k.as_str()).or_default().1.push(v);
+        }
         let entries = |key: &str, list: &[String], base: &Path| -> Vec<String> {
             list.iter()
                 .map(|e| {
@@ -307,17 +313,11 @@ impl Grants {
                 .collect()
         };
         let mut limits = Vec::new();
-        for key in keys {
-            let mut in_table = table.iter().filter(|(k, _)| k == key).map(|(_, v)| v);
-            let in_flags: Vec<&GrantValue> = flags
-                .iter()
-                .filter(|(k, _)| k == key)
-                .map(|(_, v)| v)
-                .collect();
+        for (key, (in_table, in_flags)) in keys {
             let limit = if in_table
-                .clone()
-                .chain(in_flags.iter().copied())
-                .any(|v| *v == GrantValue::Deny)
+                .iter()
+                .chain(&in_flags)
+                .any(|v| **v == GrantValue::Deny)
             {
                 Some(Limit::Deny)
             } else if !in_flags.is_empty() {
@@ -333,7 +333,7 @@ impl Grants {
                     Some(Limit::Entries(all))
                 }
             } else {
-                match in_table.next_back() {
+                match in_table.last() {
                     Some(GrantValue::Scopes(list)) => {
                         Some(Limit::Entries(entries(key, list, table_base)))
                     }
@@ -511,6 +511,31 @@ mod tests {
         assert!(g.covers_name("Env", "HOME"));
         assert!(g.covers_name("Console", "anything"));
         assert_eq!(g.limit("Console"), None);
+    }
+
+    #[test]
+    fn resolve_groups_each_keys_values_in_written_order() {
+        // A combined production and development table may name a key twice:
+        // the last table value is the limit, and the keys come out sorted
+        // however they were written.
+        let base = std::env::temp_dir();
+        let table = [
+            kv("Net", scopes(&["a.example"])),
+            kv("Http", scopes(&["first.example"])),
+            kv("Http", scopes(&["last.example"])),
+        ];
+        let flags = [kv("Env", scopes(&["HOME"])), kv("Env", scopes(&["PATH"]))];
+        let g = Grants::resolve(&table, &base, &flags, &base);
+        let keys: Vec<&str> = g.limits.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(keys, ["Env", "Http", "Net"]);
+        assert_eq!(
+            g.limit("Http"),
+            Some(&Limit::Entries(vec!["last.example".into()]))
+        );
+        assert_eq!(
+            g.limit("Env"),
+            Some(&Limit::Entries(vec!["HOME".into(), "PATH".into()]))
+        );
     }
 
     fn root(selectors: &[&str]) -> Interface {
