@@ -5,11 +5,8 @@
 # (#walkers-describers-and-sources). The compiler supplies `Structure` and
 # the traversals, and fills the `hd_` fields.
 #
-# The typed-derivation pass declares this module in a program that derives
-# or calls `facts_of`, before the rest of std is joined
-# (checker/typed-derivation.ts). The pass carries its `use` lines itself,
-# so it may use `std.inspect` and `std.format` names the pass knows.
-# Anything else stays unresolvable in the early copy.
+# Resolution seeds the items the compiler supplies here, `Structure` among
+# them (crates/hd_resolve/src/seed.rs); the rest is an ordinary std module.
 # The handle declarations name their parameters `HdS` and `HdF`: the
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
