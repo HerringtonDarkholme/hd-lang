@@ -3955,14 +3955,11 @@ impl Lower<'_, '_, '_> {
             // Past the limit, already reported: a name left out.
             return 0;
         }
-        if self.r.frozen.is_none() && self.src.text(t) == "'static" {
-            // ref.static.form: not checked yet (#1435)
-            self.diags.error(
-                Code::ReferencesNotYetChecked,
-                self.src.token_span(t),
-                "`'static` is written only as a type parameter's bound so far",
-            );
-        } else if self.r.frozen.is_none() {
+        if self.src.text(t) == "'static" {
+            // ref.static.form: the reserved static lifetime.
+            return crate::iface::STATIC_LIFETIME;
+        }
+        if self.r.frozen.is_none() {
             let text = self.src.text(t);
             let msg = format!(
                 "no lifetime named `{text}` here: declare it in the generic list, as in `['{}]`",
@@ -4339,6 +4336,14 @@ impl Lower<'_, '_, '_> {
                     .direct_token(&self.src.parse.tokens, TokenKind::Star)
                     .is_some();
                 let lifetime = self.lifetime(n, gn);
+                if lifetime == crate::iface::STATIC_LIFETIME && mutable && self.r.frozen.is_none() {
+                    // ref.static.no-mut
+                    self.diags.error(
+                        Code::StaticReferenceMut,
+                        self.src.span(n),
+                        "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes",
+                    );
+                }
                 if !counted && let Some(slots) = &mut self.slots {
                     slots.push(lifetime);
                 }
@@ -5204,7 +5209,9 @@ impl Lower<'_, '_, '_> {
                 token.map_or_else(|| self.sym(&text), |t| self.sym_token(t))
             };
             let outer = std::mem::replace(&mut self.in_field, true);
-            let saved = std::mem::replace(&mut self.slots, lifetimes.then(Vec::new));
+            // A struct without lifetimes records its fields' slots too, and
+            // keeps them only when one is `&'static T` (`ref.static.not-local`).
+            let saved = self.slots.replace(Vec::new());
             let saved_held = std::mem::replace(&mut self.held, lifetimes.then(Vec::new));
             self.fn_written.clear();
             let (item, at, slot) = self.r.use_at.get();
@@ -5217,6 +5224,9 @@ impl Lower<'_, '_, '_> {
             let mut slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
             let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
             with_held(&mut slots, [ty], &held, self.names.pool.types());
+            if !lifetimes && !slots.contains(&crate::iface::STATIC_LIFETIME) {
+                slots.clear();
+            }
             self.in_field = outer;
             out.push(Field {
                 name,

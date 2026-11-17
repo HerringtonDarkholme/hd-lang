@@ -1,0 +1,26 @@
+# @dump: diagnostics
+# A static reference parameter is a static source: it may be returned as
+# one and passed on to another static parameter, and it coerces to `&T`
+# (`ref.static.value`, `ref.static.coerce`). A plain one is not.
+struct Point:
+    x: i32
+
+let origin = Point { x: 1 }
+
+fn home() -> &'static Point:
+    &origin
+
+fn forward(p: &'static Point) -> &'static Point:
+    p
+
+fn plain(p: &Point) -> i32:
+    p.x
+
+fn widen(p: &'static Point) -> &Point:
+    p
+
+fn chain() -> i32:
+    plain(forward(forward(home()))) + widen(home()).x
+
+fn narrow(p: &Point) -> i32:
+    forward(p).x

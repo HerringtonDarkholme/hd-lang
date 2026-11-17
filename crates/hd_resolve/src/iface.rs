@@ -517,6 +517,12 @@ pub struct FnSig {
     pub paths: Vec<ResultPath>,
 }
 
+/// The slot lifetime of a reference written `&'static T` (`ref.static.form`),
+/// in [`FnSig::lifetimes`], [`Field::lifetimes`] and the written slots of
+/// a binding: a reserved number past every lifetime in scope, which the
+/// limit on generic parameters keeps far below.
+pub const STATIC_LIFETIME: u16 = u16::MAX;
+
 /// A result reference slot written `&'param.field T` (`ref.result.path.form`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResultPath {

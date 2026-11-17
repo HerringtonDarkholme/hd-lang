@@ -1,0 +1,67 @@
+# @dump: diagnostics
+# A field written `&'static T` may be stored and kept (`ref.static.not-local`),
+# so what a construction or an assignment puts there must be a static source
+# (`ref.static.source.error`); a read of one is a static reference.
+struct Ops:
+    base: i32
+
+struct Holder:
+    ops: &'static Ops
+
+enum Slot:
+    Full(&'static Ops)
+    Empty
+
+let table = Ops { base: 1 }
+
+fn built() -> Holder:
+    Holder { ops: &table }
+
+fn read(h: Holder) -> &'static Ops:
+    h.ops
+
+fn from_local() -> Holder:
+    o := Ops { base: 2 }
+    Holder { ops: &o }
+
+fn assigned(o: &Ops) -> Holder:
+    let mut h = Holder { ops: &table }
+    h.ops = o
+    h
+
+fn variant_from_local() -> i32:
+    o := Ops { base: 3 }
+    s := Slot.Full(&o)
+    match s:
+        .Full(ops) => ops.base
+        .Empty => 0
+
+struct Outer:
+    inner: Holder
+
+let mut kept = Holder { ops: &table }
+
+fn through_mut(h: &mut Holder, o: &Ops) -> void:
+    h.ops = o
+
+fn nested(o: &Ops) -> Outer:
+    let mut w = Outer { inner: Holder { ops: &table } }
+    w.inner.ops = o
+    w
+
+fn top_level(o: &Ops) -> void:
+    kept.ops = o
+
+fn element(o: &Ops) -> List[Holder]:
+    let mut hs = [Holder { ops: &table }]
+    hs[0].ops = o
+    hs
+
+fn value(o: &Ops) -> Map[i32, Holder]:
+    let mut m: Map[i32, Holder] = {}
+    m[1] = Holder { ops: &table }
+    m[1].ops = o
+    m
+
+fn kept_static() -> void:
+    kept.ops = &table

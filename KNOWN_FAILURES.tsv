@@ -1,12 +1,3 @@
 path	issue	engine	reason
-lang/references/static-references/static-reference-from-a-call-result.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-from-a-counted-reference.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-from-a-local.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-from-a-mut-binding.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-from-a-parameter.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-from-a-plain-reference.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-mut.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-parameter-reads-a-field.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-sources-and-coercion.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-stored-and-called.hd	#1435		static references are not checked yet
-lang/references/static-references/static-reference-through-a-counted-reference.hd	#1435		static references are not checked yet
+lang/references/static-references/static-reference-sources-and-coercion.hd	#1435		`&<literal>` is not promoted to static data yet
+lang/references/static-references/static-reference-stored-and-called.hd	#1435		`T < 'static` rejects a `&T` argument by its type; the static source is not asked

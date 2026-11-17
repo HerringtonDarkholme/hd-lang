@@ -1087,7 +1087,12 @@ impl Ck<'_, '_> {
         // A `using` binding keeps its initializer's access (flow.using.access.v2).
         let using = std::mem::take(&mut self.using_bind);
         let annot = match ty_node {
-            Some(t) => Some(self.ty_node(t)?),
+            Some(t) => {
+                let outer = self.static_annotation.replace(t.index());
+                let annot = self.ty_node(t);
+                self.static_annotation = outer;
+                Some(annot?)
+            }
             None => None,
         };
         let name = (pat.kind() == SyntaxKind::BindingPattern && els.is_none())
@@ -1152,6 +1157,11 @@ impl Ck<'_, '_> {
             ),
             None => (r, t),
         };
+        // `ref.static.value`: a binding written `&'static T` takes only a
+        // static source.
+        if ty_node.is_some_and(|n| self.static_ref_type(n)) {
+            self.static_values.push(r);
+        }
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive-local,
         // types.bind.let-mut-tuple-valid).
         let let_mut = pat.kind() == SyntaxKind::BindingPattern

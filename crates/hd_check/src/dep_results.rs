@@ -59,6 +59,10 @@ const ANY: u32 = u32::MAX;
 /// A declared result slot with no source, while lining up.
 const NO_SOURCE: u32 = u32::MAX - 1;
 
+/// The static lifetime of a slot written `&'static T` (`ref.static.form`):
+/// what flows into it must be a static source (`ref.static.source.error`).
+const STATIC: u32 = hd_resolve::STATIC_LIFETIME as u32;
+
 /// The mark of a returned slot that names result path `k`: `PATH + k`
 /// beside its lifetime (`ref.result.path.callee`).
 const PATH: u32 = 1 << 30;
@@ -1156,6 +1160,9 @@ struct FieldMap {
     /// which hold no captured origins (`ref.generic.outlives.written`):
     /// a read of the field takes none from the instance.
     written: Vec<usize>,
+    /// The field is written `&'static T`: what is stored into it must be
+    /// a static source (`ref.static.not-local`, `ref.static.source.error`).
+    statik: bool,
 }
 
 /// The slot layouts of the types one check meets, and the slot maps of
@@ -1219,6 +1226,11 @@ impl<'a> Layouts<'a> {
     }
 
     /// `f` of field `j`'s [`FieldMap`], made once.
+    /// Whether field `j` is written `&'static T` ([`FieldMap::statik`]).
+    fn field_static(&self, cx: &BodyCx<'_>, t: Ty, variant: Option<u32>, j: u32) -> bool {
+        self.field_entry(cx, t, variant, j, |m| m.statik) == Some(true)
+    }
+
     fn field_entry<R>(
         &self,
         cx: &BodyCx<'_>,
@@ -1286,6 +1298,7 @@ impl<'a> Layouts<'a> {
                     ty: e,
                     at: run(start, e),
                     written: Vec::new(),
+                    statik: false,
                 })
             }
             (TyData::Adt { def, args }, _) => {
@@ -1355,7 +1368,14 @@ impl<'a> Layouts<'a> {
                     })
                     .map(|(k, _)| k)
                     .collect();
-                Some(FieldMap { ty, at, written })
+                let statik = field.lifetimes.first() == Some(&hd_resolve::STATIC_LIFETIME)
+                    && matches!(pool.get(f), TyData::Ref { counted: false, .. });
+                Some(FieldMap {
+                    ty,
+                    at,
+                    written,
+                    statik,
+                })
             }
             _ => None,
         }
@@ -1568,6 +1588,12 @@ struct CallSig {
 }
 
 impl CallSig {
+    /// Whether the call passes an argument at a parameter slot written
+    /// `&'static T`, which is checked at the call (`ref.static.source.error`).
+    fn passes_static(&self) -> bool {
+        (self.params.iter()).any(|p| p.1.iter().any(|x| x.0 == Var::Life(STATIC)))
+    }
+
     /// Whether the call passes an argument at one of the body's own
     /// lifetimes, or at one a function value it calls writes, which it
     /// checks there (`ref.lifetime.trait.bound-argument`,
@@ -1625,6 +1651,10 @@ enum Origin {
     Hidden(u32),
     /// A top-level binding.
     Global(u32),
+    /// What a static reference may refer to: a top-level binding bound
+    /// without `mut`, reached through no reference, by its definition
+    /// (`ref.static.place`). It is a top-level binding everywhere else.
+    Static(u32),
     /// A mark that the value may point into result path `k`'s parameter
     /// outside that path (`ref.result.path.callee`).
     Outside(u32),
@@ -1671,6 +1701,9 @@ struct Inputs<'a> {
     /// local, where the closure's annotation writes one
     /// ([`Ck::annotated_params`]), 0 elsewhere.
     annotated: HashMap<u32, Vec<u32>>,
+    /// The values bound to a binding written `&'static T`
+    /// ([`Ck::static_values`]).
+    statics: &'a [hd_tir::ir::Ref],
 }
 
 impl Inputs<'_> {
@@ -3439,9 +3472,10 @@ impl Ck<'_, '_> {
         let values = FnValues::new(body, mine.as_ref());
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
-        let mut through = body.local_ty.iter().enumerate().any(|(l, &t)| {
-            body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
-        });
+        let mut through = !self.static_values.is_empty()
+            || body.local_ty.iter().enumerate().any(|(l, &t)| {
+                body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
+            });
         for i in 0..body.tags.len() {
             if matches!(
                 body.tags[i],
@@ -3451,7 +3485,7 @@ impl Ck<'_, '_> {
                 // A suspension that holds an argument may be kept
                 // (`ref.dep.suspension.local`).
                 let held = sig.result && ls.of(body.ty[i]).slots.iter().any(|s| s.hold);
-                through |= sig.store || held || sig.passes_own();
+                through |= sig.store || held || sig.passes_own() || sig.passes_static();
                 calls.insert(w(i), sig);
             }
             // A call that takes a reference beside another argument
@@ -3522,6 +3556,17 @@ impl Ck<'_, '_> {
                     through |= v & hd_tir::ir::Ref::CONST_BIT == 0
                         && body.ty.get(v as usize).is_some_and(|&t| ls.holds(t));
                 }
+                // A reference stored into a field written `&'static T`
+                // (`ref.static.not-local`): one field map lookup per part.
+                tag @ (Tag::NewStruct | Tag::NewVariant) => {
+                    let [a, d] = body.data[i];
+                    let variant = (tag == Tag::NewVariant).then_some(a);
+                    through |= body.record(d).iter().enumerate().any(|(j, &v)| {
+                        v & hd_tir::ir::Ref::CONST_BIT == 0
+                            && constraints::is_ref(pool, body.ty[v as usize])
+                            && ls.field_static(self.cx, body.ty[i], variant, w(j))
+                    });
+                }
                 // A list push or a map store (`ref.dep.store`).
                 Tag::Intrinsic => {
                     through |= intrinsic_ops(body, i).iter().any(|&v| {
@@ -3551,9 +3596,7 @@ impl Ck<'_, '_> {
                 | Tag::AwaitAll
                 | Tag::AwaitRace
                 | Tag::Hook
-                | Tag::NewStruct
                 | Tag::CopyStruct
-                | Tag::NewVariant
                 | Tag::NewTuple
                 | Tag::NewList
                 | Tag::NewMap
@@ -3655,6 +3698,7 @@ impl Ck<'_, '_> {
             reported: &self.ref_captured,
             paths: &paths,
             annotated: self.annotated_params(ls),
+            statics: &self.static_values,
         };
         let slots = own
             .as_ref()
@@ -3880,6 +3924,11 @@ impl Ck<'_, '_> {
         }
         for (at, o) in v.closures {
             push(at, &|| closure_message(body, self.cx, o));
+        }
+        for (at, o) in v.statics {
+            if at != NodeIdx::NONE && seen.insert(at) {
+                out.push((at, Code::StaticReferenceSource, self.static_message(o)));
+            }
         }
         let scope = v.scope.into_iter();
         out.extend(scope.map(|(at, msg)| (at, Code::LocalReferenceOutlivesLocal, msg)));
@@ -4132,8 +4181,33 @@ impl Ck<'_, '_> {
             Origin::Hidden(_) | Origin::Site(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }
-            Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
+            Origin::Global(_) | Origin::Static(_) => {
+                "the value refers to a top-level binding".to_owned()
+            }
         }
+    }
+
+    /// `ref.static.source.message`: what a static reference was made from,
+    /// and the three sources it may be.
+    fn static_message(&self, o: Origin) -> String {
+        let body = self.b.body();
+        let name = |l: u32| self.cx.names.text(body.local_name[l as usize]).to_owned();
+        let param = |l: u32| body.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM != 0;
+        let what = match o {
+            Origin::Param(p, _) => {
+                format!("the value borrows from `{}`, a plain reference", name(p))
+            }
+            Origin::Local(l) if param(l) => format!("`{}` is a parameter", name(l)),
+            Origin::Local(l) if !name(l).starts_with('$') => format!("`{}` is a local", name(l)),
+            Origin::Global(_) => {
+                "the value refers to a `let mut` top-level binding or through a reference"
+                    .to_owned()
+            }
+            _ => "the value refers to a temporary".to_owned(),
+        };
+        format!(
+            "{what}; a static reference is made only from a top-level binding bound without `mut`, a constant literal, or data the compiler places in static memory"
+        )
     }
 }
 
@@ -4163,7 +4237,9 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
             format!("the value borrows from `{}`", name(p))
         }
         Origin::Local(l) if !name(l).starts_with('$') => format!("`{}` is a local", name(l)),
-        Origin::Global(_) => "the value refers to a top-level binding".to_owned(),
+        Origin::Global(_) | Origin::Static(_) => {
+            "the value refers to a top-level binding".to_owned()
+        }
         _ => "the value refers to a temporary".to_owned(),
     };
     format!(
@@ -4188,6 +4264,9 @@ struct Verdicts {
     bounds: Vec<(NodeIdx, Origin, u32, bool)>,
     /// Closures' returned values and the origin.
     closures: Vec<(NodeIdx, Origin)>,
+    /// Values where a static reference is expected, and the origin that
+    /// is no static source (`ref.static.source.error`).
+    statics: Vec<(NodeIdx, Origin)>,
     /// `local-reference-outlives-local`.
     scope: Vec<(NodeIdx, String)>,
     /// `conflicting-access` (`ref.excl.shared`, `ref.excl.mut`).
