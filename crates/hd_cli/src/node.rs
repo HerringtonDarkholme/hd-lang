@@ -267,7 +267,8 @@ impl NodeInstance {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
         let _ = std::io::stdout().flush();
-        let status = Command::new("node")
+        // cost: one Node process per program run.
+        let status = Command::new(node_program())
             .arg(dir.0.join("run.js"))
             .arg(dir.0.join("main.wasm"))
             .arg(&config)
@@ -629,6 +630,20 @@ fn grants_json(g: &Grants) -> String {
     out
 }
 
+/// The Node every host process starts: `node` from PATH; in `hd_cli`'s own
+/// unit tests, the version `.node-version` pins, so an older PATH Node
+/// fails them once at setup (`hd_testkit::node`, #2059).
+pub(crate) fn node_program() -> &'static std::ffi::OsStr {
+    #[cfg(test)]
+    {
+        hd_testkit::node::binary().as_os_str()
+    }
+    #[cfg(not(test))]
+    {
+        std::ffi::OsStr::new("node")
+    }
+}
+
 /// The test host's exit status when `node` is older than [`NODE_ENGINE`]
 /// (`host/test.ts`).
 const OLD_NODE: i32 = 78;
@@ -656,7 +671,8 @@ fn run_host(
     let config = dir.0.join("config.json");
     std::fs::write(&config, host_config(env, cases, node))
         .map_err(|e| format!("{}: {e}", config.display()))?;
-    let mut command = Command::new("node");
+    // cost: one Node process per test program, which runs its cases.
+    let mut command = Command::new(node_program());
     command
         .arg(dir.0.join("test.js"))
         .arg(dir.0.join("main.wasm"))
