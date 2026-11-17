@@ -1682,7 +1682,7 @@ struct Run<'a> {
     instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
-    entry_roots: OnceLock<Vec<DefId>>,
+    entry_roots: OnceLock<hd_base::HashSet<DefId>>,
     /// Per generic item, the bodies its folded and inlined form
     /// (`BodyForms::inlined`) read: a body that substitutes the cached
     /// form reads them too (`own::Run::package_owned_key`, #2028).
