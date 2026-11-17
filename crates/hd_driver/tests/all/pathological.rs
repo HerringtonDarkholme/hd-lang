@@ -4882,3 +4882,46 @@ fn global_mutability_questions_use_the_name_index() {
         assert_eq!(large, 10 * small, "{small} / {large}");
     });
 }
+
+// #2112: every local reference used to start another whole-body solve
+// after each 64 owners. Match the scale metric's trait-items shape.
+fn trait_item_cells(n: usize) -> String {
+    let mut source = String::new();
+    for i in 0..n {
+        let _ = write!(
+            source,
+            "trait T{i}:\n    fn m{i}(&self) -> i32\n\nstruct S{i}:\n    a: i32\n\nimpl T{i} for S{i}:\n    fn m{i}(&self) -> i32: self.a\n\n"
+        );
+    }
+    source.push_str("pub fn main() -> void $ Console:\n    let t = +0\n");
+    for i in 0..n {
+        let _ = write!(
+            source,
+            "    s{i} := S{i} {{ a: +1 }}\n    t = t + s{i}.m{i}()\n"
+        );
+    }
+    source.push_str("    println(\"$t\")\n");
+    source
+}
+
+#[test]
+fn frame_cell_layout_probes_grow_linearly_with_locals() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let probes = |n| {
+            let (out, probes) =
+                hd_driver::work::count_layout_probes(|| compile(&trait_item_cells(n), &goal));
+            assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+            probes
+        };
+        probes(1); // Warm std's bodies, as in the scale metric.
+        let (small, large) = (probes(500), probes(2000));
+        eprintln!("frame cell layout probes: 500={small}, 2000={large}");
+        assert!(
+            small > 0 && large <= 5 * small,
+            "4x the locals must ask at most 5x the ownership questions: {small} -> {large}"
+        );
+    });
+}

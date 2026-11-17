@@ -139,3 +139,107 @@ fn an_owner_with_a_local_or_mixed_reference_still_lives_until_its_use() {
         );
     }
 }
+
+fn local_chains(width: usize, depth: usize) -> (Body, Vec<(u32, u32)>) {
+    let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+    let root = b.open_block();
+    let mut consumers = Vec::new();
+    for _ in 0..width {
+        let owner = b.local(Ty::STRING, Symbol::NONE, 0, NodeIdx::NONE);
+        let initial = call(&mut b, &[], Ty::STRING);
+        b.set(owner, initial, NodeIdx::NONE);
+        let place = b.place(&Place::local(owner));
+        let mut reference = b.emit(Tag::Ref, place, ref_word::LOCAL, LOCAL, NodeIdx::NONE);
+        for _ in 0..depth {
+            reference = call(&mut b, &[reference], LOCAL);
+        }
+        let used = call(&mut b, &[reference], Ty::VOID).0;
+        consumers.push((used, owner.raw()));
+    }
+    let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+    // ruled out: all builder blocks are closed and all values have types.
+    (
+        b.finish(root, &[]).expect("valid local-reference chains"),
+        consumers,
+    )
+}
+
+#[test]
+fn all_cell_owners_are_solved_together_at_large_width_and_depth() {
+    for (width, depth) in [(1000, 20), (20, 1000)] {
+        let (body, consumers) = local_chains(width, depth);
+        let cx = Cx::default();
+        let mut uses = hd_base::HashSet::default();
+        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
+            uses.insert((i, l));
+        });
+        for pair in consumers {
+            assert!(uses.contains(&pair), "lost cell use {pair:?}");
+        }
+        assert!(
+            cx.transfers.get() < 16 * body.len(),
+            "transfers must be linear in instructions at width {width}, depth {depth}: {} for {} instructions",
+            cx.transfers.get(),
+            body.len()
+        );
+    }
+}
+
+// Reverse stores force the flow-insensitive solve to discover one new
+// local at a time. The initial external references have no local origin;
+// a late assignment of the local reference seeds the complete chain.
+fn reverse_stores(width: usize, depth: usize) -> (Body, Vec<(u32, u32)>) {
+    let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+    let root = b.open_block();
+    let mut consumers = Vec::new();
+    for _ in 0..width {
+        let owner = b.local(Ty::STRING, Symbol::NONE, 0, NodeIdx::NONE);
+        let initial = call(&mut b, &[], Ty::STRING);
+        b.set(owner, initial, NodeIdx::NONE);
+        let mut locals = Vec::new();
+        for _ in 0..=depth {
+            let l = b.local(LOCAL, Symbol::NONE, 0, NodeIdx::NONE);
+            let value = call(&mut b, &[], LOCAL);
+            b.set(l, value, NodeIdx::NONE);
+            locals.push(l);
+        }
+        for i in (1..=depth).rev() {
+            let p = b.place(&Place::local(locals[i - 1]));
+            let value = b.emit(Tag::Read, p, 0, LOCAL, NodeIdx::NONE);
+            b.set(locals[i], value, NodeIdx::NONE);
+        }
+        let place = b.place(&Place::local(owner));
+        let reference = b.emit(Tag::Ref, place, ref_word::LOCAL, LOCAL, NodeIdx::NONE);
+        b.set(locals[0], reference, NodeIdx::NONE);
+        let p = b.place(&Place::local(locals[depth]));
+        let value = b.emit(Tag::Read, p, 0, LOCAL, NodeIdx::NONE);
+        consumers.push((call(&mut b, &[value], Ty::VOID).0, owner.raw()));
+    }
+    let root = b.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+    // ruled out: all blocks are closed and each local is initialized before use.
+    (
+        b.finish(root, &[]).expect("valid reverse local flows"),
+        consumers,
+    )
+}
+
+#[test]
+fn cell_origin_worklist_does_not_rescan_the_body_per_alias_depth() {
+    for (width, depth) in [(1000, 20), (20, 1000)] {
+        let (body, consumers) = reverse_stores(width, depth);
+        let cx = Cx::default();
+        let mut uses = hd_base::HashSet::default();
+        extra_cell_uses(&body, &cx, &Tables::default(), |_| true, &mut |i, l, _| {
+            uses.insert((i, l));
+        });
+        for pair in consumers {
+            assert!(uses.contains(&pair), "lost transitive cell use {pair:?}");
+        }
+        assert!(
+            cx.transfers.get() < 32 * body.len(),
+            "independent of width {width} and reverse-flow depth {depth}: {} queries for {} instructions",
+            cx.transfers.get(),
+            body.len()
+        );
+    }
+}

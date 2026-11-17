@@ -61,6 +61,9 @@
 
 use hd_base::SliceSort as _;
 
+mod origins;
+use origins::{Column, Origins, Worklist};
+
 #[cfg(test)]
 mod tests;
 
@@ -74,28 +77,30 @@ use crate::ir::{
 #[derive(Default)]
 pub(crate) struct Tables {
     /// Per local: its candidate bit, or 0.
-    bit: Vec<u64>,
+    bit: Vec<Origins>,
     /// Per local: whether some `Ref` of its storage rules it out.
     bad: Vec<bool>,
     /// The candidates, by bit.
     cands: Vec<u32>,
     /// Per value and per local: the candidates it may point into.
-    val: Vec<u64>,
+    val: Vec<Origins>,
     /// Root-owner queries only: the local each Read chain takes storage from.
     read_roots: Vec<u32>,
-    held: Vec<u64>,
+    held: Vec<Origins>,
     /// Per value and per local: the candidates a value read through a
     /// reference lives on, as a borrow of it does (a superset of `val`'s
     /// and `held`'s uses: these only extend a local's life).
-    dep: Vec<u64>,
-    ldep: Vec<u64>,
+    dep: Vec<Origins>,
+    ldep: Vec<Origins>,
     /// The candidates a use lets escape.
-    out: u64,
+    out: Origins,
     /// The candidates the last run found frame locals.
-    frame: u64,
+    frame: Origins,
     /// Projected places for a field-liveness query; empty for frame planning.
     targets: Vec<(u32, u32)>,
     ops: Vec<super::Operand>,
+    /// Subscribers of the unbounded cell-origin analysis.
+    work: Option<std::cell::RefCell<Worklist>>,
     /// Roots (rule 5): a value whose references are all counted, or a
     /// call's result of a counted type that holds no reference, keeps its
     /// own count of what it points into (or the borrow pass lends it only
@@ -103,6 +108,8 @@ pub(crate) struct Tables {
     /// read through the root still does: an address may become a `Ptr`
     /// and then a reference.
     roots: bool,
+    /// Unbounded whole-local liveness has no projected-field mask.
+    whole: bool,
     /// Frame cells ([`frame_cells`]): a closure points into the locals it
     /// shares, and a call that may keep an argument, an instruction the
     /// compiler supplies, or another closure's capture lets it escape.
@@ -118,47 +125,88 @@ pub(crate) struct Tables {
 }
 
 impl Tables {
+    /// Read an origin fact and subscribe the current transfer to it.
+    fn fact(&self, kind: Column, index: usize) -> Origins {
+        let column = match kind {
+            Column::Value => &self.val,
+            Column::Held => &self.held,
+            Column::Dependency => &self.dep,
+            Column::LocalDependency => &self.ldep,
+        };
+        let Some(value) = column.get(index) else {
+            return Origins::default();
+        };
+        if let Some(work) = &self.work {
+            work.borrow_mut().read(kind, index);
+        }
+        value.clone()
+    }
+
+    fn grow_fact(&mut self, kind: Column, index: usize, value: Origins) -> bool {
+        let column = match kind {
+            Column::Value => &mut self.val,
+            Column::Held => &mut self.held,
+            Column::Dependency => &mut self.dep,
+            Column::LocalDependency => &mut self.ldep,
+        };
+        let grew = grow(&mut column[index], value);
+        if grew && let Some(work) = &mut self.work {
+            work.get_mut().grew(kind, index);
+        }
+        grew
+    }
+
     /// Whether the last [`run`] found local `l` a frame local.
     pub(crate) fn is_frame(&self, l: usize) -> bool {
-        self.bit.get(l).is_some_and(|&m| m & self.frame != 0)
+        self.bit
+            .get(l)
+            .is_some_and(|m| m.clone() & self.frame.clone() != 0)
     }
 
     /// The candidates the value word `v` may point into.
-    fn of(&self, v: u32) -> u64 {
+    fn of(&self, v: u32) -> Origins {
         if v == NONE || Ref(v).as_inst().is_none() {
-            return 0;
+            return Origins::default();
         }
-        self.val.get(v as usize).copied().unwrap_or(0)
+        self.fact(Column::Value, v as usize)
     }
 
     /// The candidates the place at `word` lies in and those the value there
     /// may point into; `None` for a place no local of the body holds (a
     /// parameter's referent, a top-level binding).
-    fn place(&self, b: &Body, word: u32) -> Option<(u64, u64)> {
+    fn place(&self, b: &Body, word: u32) -> Option<(Origins, Origins)> {
         let p = b.view(word);
         let (mut lies, mut held) = match p.root {
-            Root::Local(l) => (self.bit[l as usize], self.held[l as usize]),
+            Root::Local(l) => (
+                self.bit[l as usize].clone(),
+                self.fact(Column::Held, l as usize),
+            ),
             // A read of all of a local (`%h = Read [$xs]`) is that local's
             // storage, a borrow's, or a copy sharing its buffer.
             Root::Value(v) if self.roots => {
                 let local = self.read_roots[v as usize];
                 (
                     if local == NONE {
-                        0
+                        Origins::default()
                     } else {
-                        self.bit[local as usize]
+                        self.bit[local as usize].clone()
                     },
                     self.of(v),
                 )
             }
             Root::Value(v) => match whole_local_read(b, v) {
-                Some(w) => (self.place(b, w).map_or(0, |(lies, _)| lies), self.of(v)),
-                None => (0, self.of(v)),
+                Some(w) => (
+                    self.place(b, w)
+                        .map_or_else(Origins::default, |(lies, _)| lies),
+                    self.of(v),
+                ),
+                None => (Origins::default(), self.of(v)),
             },
             _ => return None,
         };
         if let Root::Local(l) = p.root
             && !self.targets.is_empty()
+            && !self.whole
         {
             // A direct field reference lends just that field. A reference
             // derived through another reference keeps its parent's origins.
@@ -166,7 +214,7 @@ impl Tables {
                 .steps(b)
                 .take_while(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
                 .collect();
-            let mut mask = 0;
+            let mut mask = Origins::default();
             for (k, &(local, word)) in self.targets.iter().enumerate() {
                 if local == l
                     && prefix
@@ -175,7 +223,7 @@ impl Tables {
                         .zip(b.view(word).steps(b))
                         .all(|(a, c)| a == c)
                 {
-                    mask |= 1 << k;
+                    mask |= Origins::bit(k);
                 }
             }
             lies &= mask;
@@ -183,13 +231,13 @@ impl Tables {
         for s in p.steps(b) {
             match s {
                 // Through a reference: where it points, and what is there.
-                Proj::Deref if held != 0 => (lies, held) = (held, self.holdings(held)),
+                Proj::Deref if held != 0 => (lies, held) = (held.clone(), self.holdings(&held)),
                 Proj::Deref | Proj::Elem(_) if !self.targets.is_empty() => {
                     return Some((lies, held));
                 }
                 // An element lies in the buffer, and what it holds is what
                 // the list holds: its local's reference or closure.
-                Proj::Deref | Proj::Elem(_) => lies = 0,
+                Proj::Deref | Proj::Elem(_) => lies = Origins::default(),
                 _ => {}
             }
         }
@@ -201,26 +249,30 @@ impl Tables {
     /// the candidates a reference on the way points into. An element is
     /// held by whatever holds its list. A frame cell's closure in an element
     /// has no such holder: it escapes ([`Self::stored`]).
-    fn slot_holders(&self, b: &Body, word: u32) -> (Option<u32>, u64) {
+    fn slot_holders(&self, b: &Body, word: u32) -> (Option<u32>, Origins) {
         let p = b.view(word);
         if self.cells && p.kinds(b).1 {
-            return (None, 0);
+            return (None, Origins::default());
         }
         let (mut direct, mut lies, mut held) = match p.root {
-            Root::Local(l) => (Some(l), self.bit[l as usize], self.held[l as usize]),
+            Root::Local(l) => (
+                Some(l),
+                self.bit[l as usize].clone(),
+                self.fact(Column::Held, l as usize),
+            ),
             Root::Value(v) => (
                 whole_local_read(b, v).and_then(|w| b.view(w).local()),
                 whole_local_read(b, v)
                     .and_then(|w| self.place(b, w))
-                    .map_or(0, |(lies, _)| lies),
+                    .map_or_else(Origins::default, |(lies, _)| lies),
                 self.of(v),
             ),
-            _ => return (None, 0),
+            _ => return (None, Origins::default()),
         };
         for s in p.steps(b) {
             if s == Proj::Deref {
                 direct = None;
-                (lies, held) = (held, self.holdings(held));
+                (lies, held) = (held.clone(), self.holdings(&held));
             }
         }
         (direct, lies)
@@ -228,24 +280,24 @@ impl Tables {
 
     /// A slot of the collection value `v` (`ListPush`, `MapSet`): who holds
     /// it, as [`Self::slot_holders`].
-    fn collection_holders(&self, b: &Body, v: u32) -> (Option<u32>, u64) {
+    fn collection_holders(&self, b: &Body, v: u32) -> (Option<u32>, Origins) {
         match Ref(v).as_inst() {
             Some(x) if b.tags[x.0 as usize] == Tag::Read => {
                 self.slot_holders(b, b.data[x.0 as usize][0])
             }
-            _ => (None, 0),
+            _ => (None, Origins::default()),
         }
     }
 
     /// A slot `holders` hold now holds what `m` points into: if no local
     /// of the body holds it, that escapes. Whether any set grew.
-    fn stored(&mut self, (direct, holders): (Option<u32>, u64), m: u64) -> bool {
+    fn stored(&mut self, (direct, holders): (Option<u32>, Origins), m: Origins) -> bool {
         let mut changed = false;
         if let Some(l) = direct {
-            changed |= self.hold(l, m);
+            changed |= self.hold(l, m.clone());
         }
-        for k in bits(holders) {
-            changed |= self.hold(self.cands[k], m);
+        for k in holders.bits() {
+            changed |= self.hold(self.cands[k], m.clone());
         }
         if direct.is_none() && holders == 0 {
             changed |= grow(&mut self.out, m);
@@ -255,24 +307,24 @@ impl Tables {
 
     /// Local `l` holds what `m` points into. What it outlives the round of
     /// escapes (a local reference cannot: `ref.dep.scope.loop`).
-    fn hold(&mut self, l: u32, m: u64) -> bool {
-        let mut out = 0;
+    fn hold(&mut self, l: u32, m: Origins) -> bool {
+        let mut out = Origins::default();
         if !self.round.is_empty() {
-            for k in bits(m) {
+            for k in m.bits() {
                 let (first, end) = self.round[self.cands[k] as usize];
                 if first != NONE && !(first..=end).contains(&self.decl[l as usize]) {
-                    out |= 1 << k;
+                    out |= Origins::bit(k);
                 }
             }
         }
-        grow(&mut self.held[l as usize], m) | grow(&mut self.out, out)
+        self.grow_fact(Column::Held, l as usize, m) | grow(&mut self.out, out)
     }
 
     /// What the candidates `m` hold.
-    fn holdings(&self, m: u64) -> u64 {
-        let mut out = 0;
-        for k in bits(m) {
-            out |= self.held[self.cands[k] as usize];
+    fn holdings(&self, m: &Origins) -> Origins {
+        let mut out = Origins::default();
+        for k in m.bits() {
+            out |= self.fact(Column::Held, self.cands[k] as usize);
         }
         out
     }
@@ -301,12 +353,12 @@ pub(crate) fn run(
     mut uses: impl FnMut(u32, u32, bool),
 ) {
     let (n, locals) = (b.len(), b.local_ty.len());
-    fill(&mut t.bit, locals, 0);
+    fill(&mut t.bit, locals, Origins::default());
     fill(&mut t.bad, locals, false);
     t.cands.clear();
     t.targets.clear();
-    t.out = 0;
-    t.frame = 0;
+    t.out = Origins::default();
+    t.frame = Origins::default();
     // A suspending root keeps its locals in its frame object, so none is
     // a frame slot, but a reference into one of its cells, or one its
     // synchronous closures lend, holds no count of the cell.
@@ -341,24 +393,24 @@ pub(crate) fn run(
                 continue;
             };
             if t.bad[l] == cells && t.bit[l] == 0 && t.cands.len() < 64 {
-                t.bit[l] = 1 << t.cands.len();
+                t.bit[l] = Origins::bit(t.cands.len());
                 t.cands.push(u32_of(l));
             }
         }
     }
     for k in 0..t.cands.len() {
         if t.bad[t.cands[k] as usize] {
-            t.out |= 1 << k;
+            t.out |= Origins::bit(k);
         }
     }
     if t.cands.is_empty() {
         root_uses(b, cx, &mut uses);
         return;
     }
-    fill(&mut t.val, n, 0);
-    fill(&mut t.held, locals, 0);
-    fill(&mut t.dep, n, 0);
-    fill(&mut t.ldep, locals, 0);
+    fill(&mut t.val, n, Origins::default());
+    fill(&mut t.held, locals, Origins::default());
+    fill(&mut t.dep, n, Origins::default());
+    fill(&mut t.ldep, locals, Origins::default());
     let mut ops = std::mem::take(&mut t.ops);
     let mut changed = true;
     while changed {
@@ -369,27 +421,27 @@ pub(crate) fn run(
     }
     escape_exits(b, true, t, &mut ops);
     t.ops = ops;
-    let tracked = u64::MAX >> (64 - t.cands.len());
-    let frame = !t.out & tracked;
-    t.frame = frame;
+    let tracked = Origins::Small(u64::MAX >> (64 - t.cands.len()));
+    let frame = tracked.without(&t.out);
+    t.frame = frame.clone();
     for i in 0..n {
         let [a, w] = b.data[i];
-        let mut m = 0;
+        let mut m = Origins::default();
         if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
             && let Some(l) = b.view(a).local()
         {
-            m |= t.held[l as usize] | t.ldep[l as usize];
+            m |= t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
         }
         operands(b, i, &mut t.ops);
         for op in &t.ops {
-            m |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
+            m |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
         }
-        for k in bits(m & tracked) {
-            uses(u32_of(i), t.cands[k], frame & (1 << k) != 0);
+        for k in (m & tracked.clone()).bits() {
+            uses(u32_of(i), t.cands[k], frame.clone() & Origins::bit(k) != 0);
         }
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(a)
-            && frame & t.bit[l.idx()] != 0
+            && frame.clone() & t.bit[l.idx()].clone() != 0
         {
             b.data[i][1] = w | crate::ir::ref_word::FRAME;
         }
@@ -439,14 +491,14 @@ fn rounds(b: &Body, topo: &Topology, t: &mut Tables) {
 /// `Intrinsic` or host call reads it, or another closure captures it. A
 /// local some closure copies or moves, one a closure outside the root
 /// shares, or one with a `Ref` that rule 1 rules out, is none.
-fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 {
+fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> Origins {
     let (n, locals) = (b.len(), b.local_ty.len());
     t.cells = true;
     t.cands.clear();
     t.targets.clear();
-    t.out = 0;
-    t.frame = 0;
-    fill(&mut t.bit, locals, 0);
+    t.out = Origins::default();
+    t.frame = Origins::default();
+    fill(&mut t.bit, locals, Origins::default());
     fill(&mut t.bad, locals, false);
     rounds(b, topo, t);
     for i in 0..n {
@@ -476,7 +528,7 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 
     for i in (0..n).filter(|&i| b.tags[i] == Tag::Closure && topo.sub[i] == 0) {
         for (l, _) in closure_caps(b, i) {
             if !t.bad[l.idx()] && t.bit[l.idx()] == 0 && t.cands.len() < 64 {
-                t.bit[l.idx()] = 1 << t.cands.len();
+                t.bit[l.idx()] = Origins::bit(t.cands.len());
                 t.cands.push(l.raw());
             }
         }
@@ -484,17 +536,17 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 
     for &(sub, capture) in &b.inlined_shared {
         let l = b.cap_local[capture as usize];
         if sub.raw() == 0 && !t.bad[l.idx()] && t.bit[l.idx()] == 0 && t.cands.len() < 64 {
-            t.bit[l.idx()] = 1 << t.cands.len();
+            t.bit[l.idx()] = Origins::bit(t.cands.len());
             t.cands.push(l.raw());
         }
     }
     if t.cands.is_empty() {
-        return 0;
+        return Origins::default();
     }
-    fill(&mut t.val, n, 0);
-    fill(&mut t.held, locals, 0);
-    fill(&mut t.dep, n, 0);
-    fill(&mut t.ldep, locals, 0);
+    fill(&mut t.val, n, Origins::default());
+    fill(&mut t.held, locals, Origins::default());
+    fill(&mut t.dep, n, Origins::default());
+    fill(&mut t.ldep, locals, Origins::default());
     let mut ops = std::mem::take(&mut t.ops);
     let mut changed = true;
     while changed {
@@ -505,8 +557,8 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> u64 
     }
     escape_exits(b, false, t, &mut ops);
     t.ops = ops;
-    t.frame = !t.out & (u64::MAX >> (64 - t.cands.len()));
-    t.frame
+    t.frame = Origins::Small(u64::MAX >> (64 - t.cands.len())).without(&t.out);
+    t.frame.clone()
 }
 
 /// Rule 6 in a body with no suspension point in its root: each frame
@@ -523,17 +575,17 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
         return;
     }
     for i in 0..b.len() {
-        let mut m = 0;
+        let mut m = Origins::default();
         if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
             && let Some(l) = b.view(b.data[i][0]).local()
         {
-            m |= t.held[l as usize] | t.ldep[l as usize];
+            m |= t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
         }
         operands(b, i, &mut t.ops);
         for op in &t.ops {
-            m |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
+            m |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
         }
-        for k in bits(m & frame) {
+        for k in (m & frame.clone()).bits() {
             uses(u32_of(i), t.cands[k], true);
         }
         if b.tags[i] == Tag::Closure {
@@ -541,7 +593,7 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
             let (start, len) = (rec[0] as usize, rec[1] as usize);
             for c in start..start + len {
                 if b.cap_mode[c] == crate::ir::CaptureMode::Shared
-                    && t.bit[b.cap_local[c].idx()] & frame != 0
+                    && t.bit[b.cap_local[c].idx()].clone() & frame.clone() != 0
                 {
                     b.cap_mode[c] = crate::ir::CaptureMode::Frame;
                 }
@@ -550,7 +602,7 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
     }
     for &(_, capture) in &b.inlined_shared {
         let c = capture as usize;
-        if t.bit[b.cap_local[c].idx()] & frame != 0 {
+        if t.bit[b.cap_local[c].idx()].clone() & frame.clone() != 0 {
             b.cap_mode[c] = crate::ir::CaptureMode::Frame;
         }
     }
@@ -632,7 +684,11 @@ pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
             continue;
         }
         // A `Break` that lands outside every loop never comes back.
-        let outer = topo.loop_of.get(target as usize).copied().unwrap_or(0);
+        let outer = topo
+            .loop_of
+            .get(target as usize)
+            .copied()
+            .unwrap_or_default();
         if b.tags[j] == Tag::Break
             && target != NONE
             && (outer == NONE || topo.sub[outer as usize] != topo.sub[i])
@@ -771,36 +827,37 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
     locals.dedup();
     let mut extra = Tables {
         roots: true,
+        whole: true,
         read_roots,
         ..Tables::default()
     };
-    for batch in locals.chunks(64) {
-        let targets: Vec<_> = batch
-            .iter()
-            .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
-            .collect();
-        part_uses(b, cx, &mut extra, &targets, |i, k| uses(i, batch[k], false));
-    }
+    let targets: Vec<_> = locals
+        .iter()
+        .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
+        .collect();
+    origin_uses(b, cx, &mut extra, &targets, |i, k| {
+        uses(i, locals[k], false);
+    });
 }
 
 /// What a coercion `i` that lends a counted reference as a local one
 /// (`ref.convert.lend`) points into: where the counted reference it reads
 /// lies, as a `Ref` through it would (`[*$p]`), so the local holding the
 /// counted reference lives until the local one's last use.
-fn lent_from(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> u64 {
+fn lent_from(b: &Body, cx: &dyn OwnCx, t: &Tables, i: usize) -> Origins {
     let mut lent = Vec::new();
     super::lent_values(b, cx, i, &mut lent);
     lent.iter()
         .filter(|&&v| b.tags[v as usize] == Tag::Read)
-        .fold(0, |m, &v| {
+        .fold(Origins::default(), |m, &v| {
             m | t
                 .place(b, b.data[v as usize][0])
-                .map_or(0, |(lies, _)| lies)
+                .map_or_else(Origins::default, |(lies, _)| lies)
         })
 }
 
 /// Frame-slot promotion is bounded, but cell liveness is required for
-/// every uncounted reference. Track the remaining owners in batches.
+/// every uncounted reference. Track all remaining owners together.
 fn extra_cell_uses(
     b: &Body,
     cx: &dyn OwnCx,
@@ -813,7 +870,7 @@ fn extra_cell_uses(
         if tag == Tag::Ref
             && eligible(i)
             && let Some(l) = b.local_in_place(b.data[i][0])
-            && t.bit.get(l.idx()).is_none_or(|&m| m == 0)
+            && t.bit.get(l.idx()).is_none_or(|m| m == 0)
             // A counted Ref retains the cell itself. Only a local view
             // needs the local's count to outlive its uses (ref.count.local).
             && b.data[i][1] & crate::ir::ref_word::LOCAL != 0
@@ -823,14 +880,20 @@ fn extra_cell_uses(
     }
     locals.sort_stable();
     locals.dedup();
-    let mut extra = Tables::default();
-    for batch in locals.chunks(64) {
-        let targets: Vec<_> = batch
-            .iter()
-            .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
-            .collect();
-        part_uses(b, cx, &mut extra, &targets, |i, k| uses(i, batch[k], false));
-    }
+    let targets: Vec<_> = locals
+        .iter()
+        .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
+        .collect();
+    origin_uses(
+        b,
+        cx,
+        &mut Tables {
+            whole: true,
+            ..Tables::default()
+        },
+        &targets,
+        |i, k| uses(i, locals[k], false),
+    );
 }
 
 /// Uses through references into up to 64 projected places. Reuse the
@@ -845,50 +908,67 @@ pub(crate) fn part_uses(
     mut uses: impl FnMut(u32, usize),
 ) -> u64 {
     debug_assert!(targets.len() <= 64);
+    origin_uses(b, cx, t, targets, &mut uses);
+    t.out.first_word()
+}
+
+fn origin_uses(
+    b: &Body,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    targets: &[(u32, u32)],
+    mut uses: impl FnMut(u32, usize),
+) {
+    t.out = Origins::default();
+    if targets.is_empty() {
+        return;
+    }
     let (n, locals) = (b.len(), b.local_ty.len());
-    fill(&mut t.bit, locals, 0);
+    fill(&mut t.bit, locals, Origins::default());
     t.cands.clear();
     t.targets.clear();
     t.targets.extend_from_slice(targets);
-    t.out = 0;
-    t.frame = 0;
+    t.out = Origins::default();
+    t.frame = Origins::default();
     for (k, &(local, _)) in targets.iter().enumerate() {
-        t.bit[local as usize] |= 1 << k;
+        t.bit[local as usize] |= Origins::bit(k);
         t.cands.push(local);
     }
-    fill(&mut t.val, n, 0);
-    fill(&mut t.held, locals, 0);
-    fill(&mut t.dep, n, 0);
-    fill(&mut t.ldep, locals, 0);
+    fill(&mut t.val, n, Origins::default());
+    fill(&mut t.held, locals, Origins::default());
+    fill(&mut t.dep, n, Origins::default());
+    fill(&mut t.ldep, locals, Origins::default());
     let mut ops = std::mem::take(&mut t.ops);
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for i in 0..n {
-            changed |= step(b, cx, t, &mut ops, i);
-        }
+    t.work = Some(std::cell::RefCell::new(Worklist::new(n, locals)));
+    loop {
+        let next = t.work.as_mut().and_then(|work| work.get_mut().next());
+        let Some(i) = next else {
+            break;
+        };
+        step(b, cx, t, &mut ops, i);
     }
+    t.work = None;
     escape_exits(b, false, t, &mut ops);
     for i in 0..n {
         if b.tags[i] == Tag::Drop {
             continue;
         }
-        let mut origins = 0;
+        let mut origins = Origins::default();
         if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
             && let Some(l) = b.view(b.data[i][0]).local()
         {
-            origins |= t.held[l as usize] | t.ldep[l as usize];
+            origins |=
+                t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
         }
         operands(b, i, &mut ops);
         for op in &ops {
-            origins |= t.of(op.value) | t.dep.get(op.value as usize).copied().unwrap_or(0);
+            origins |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
         }
-        for k in bits(origins) {
+        for k in origins.bits() {
             uses(u32_of(i), k);
         }
     }
     t.ops = ops;
-    t.out
 }
 
 /// Returned values and cleanup suites outlive the ordinary instruction
@@ -901,7 +981,7 @@ pub(crate) fn part_uses(
 /// still escapes: a jump may drop that first.
 fn escape_exits(b: &Body, planning: bool, t: &mut Tables, ops: &mut Vec<super::Operand>) {
     for &r in &b.sub_root {
-        t.out |= t.val.get(r as usize).copied().unwrap_or(0);
+        t.out |= t.val.get(r as usize).cloned().unwrap_or_default();
     }
     let mut stack = Vec::new();
     for i in 0..b.len() {
@@ -911,9 +991,9 @@ fn escape_exits(b: &Body, planning: bool, t: &mut Tables, ops: &mut Vec<super::O
             _ => continue,
         };
         let (held_out, val_out, own) = (
-            std::cell::Cell::new(0u64),
-            std::cell::Cell::new(0u64),
-            std::cell::Cell::new(0u64),
+            std::cell::RefCell::new(Origins::default()),
+            std::cell::RefCell::new(Origins::default()),
+            std::cell::RefCell::new(Origins::default()),
         );
         let (held, val, bit) = (&t.held, &t.val, &t.bit);
         suite_touches(
@@ -923,21 +1003,28 @@ fn escape_exits(b: &Body, planning: bool, t: &mut Tables, ops: &mut Vec<super::O
             ops,
             true,
             |l| {
-                held_out.set(held_out.get() | held[l as usize]);
-                own.set(own.get() | bit.get(l as usize).copied().unwrap_or(0));
+                *held_out.borrow_mut() |= held[l as usize].clone();
+                *own.borrow_mut() |= bit.get(l as usize).cloned().unwrap_or_default();
             },
-            |v| val_out.set(val_out.get() | val.get(v as usize).copied().unwrap_or(0)),
+            |v| *val_out.borrow_mut() |= val.get(v as usize).cloned().unwrap_or_default(),
         );
-        let kept = if planning { own.get() } else { 0 };
-        t.out |= held_out.get() | (val_out.get() & !kept);
+        let kept = if planning {
+            own.into_inner()
+        } else {
+            Origins::default()
+        };
+        t.out |= held_out.into_inner() | val_out.into_inner().without(&kept);
     }
 }
 
 /// Adds `m` to `set`: whether it grew.
-fn grow(set: &mut u64, m: u64) -> bool {
-    let old = *set;
-    *set |= m;
-    *set != old
+fn grow(set: &mut Origins, m: Origins) -> bool {
+    let next = set.clone() | m;
+    if *set == next {
+        return false;
+    }
+    *set = next;
+    true
 }
 
 /// One instruction's constraints: whether any set grew. A read through a
@@ -955,32 +1042,36 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
     }
     let [a, w] = b.data[i];
     let dep = |t: &Tables, v: u32| match Ref(v).as_inst() {
-        Some(_) => t.dep.get(v as usize).copied().unwrap_or(0) | t.of(v),
-        None => 0,
+        Some(_) => t.fact(Column::Dependency, v as usize) | t.of(v),
+        None => Origins::default(),
     };
     let p = b.view(a);
     let d = match b.tags[i] {
         Tag::Read | Tag::Ref => {
             let root = match p.root {
-                Root::Local(l) => t.ldep[l as usize],
+                Root::Local(l) => t.fact(Column::LocalDependency, l as usize),
                 Root::Value(v) => dep(t, v),
-                _ => 0,
+                _ => Origins::default(),
             };
             let through = p.steps(b).any(|s| s == Proj::Deref);
             root | if through {
-                t.place(b, a).map_or(0, |(lies, _)| lies)
+                t.place(b, a)
+                    .map_or_else(Origins::default, |(lies, _)| lies)
             } else {
-                0
+                Origins::default()
             }
         }
         Tag::Coerce => dep(t, a) | lent_from(b, cx, t, i),
         // A value that may hold a reference, a `Ptr` too, made from
         // others lives on what they live on: `Ptr.as_ref` of an address
         // read out of a borrowed buffer points into its owner.
-        Tag::Store | Tag::Break => 0,
+        Tag::Store | Tag::Break => Origins::default(),
         _ if cx.holds_ref(b.ty[i]) => {
             operands(b, i, ops);
-            let mut m = ops.iter().fold(0, |m, op| m | dep(t, op.value)) | lent_from(b, cx, t, i);
+            let mut m = ops
+                .iter()
+                .fold(Origins::default(), |m, op| m | dep(t, op.value))
+                | lent_from(b, cx, t, i);
             slots(b, i, |_, x, word| {
                 if word == Word::Block {
                     m |= dep(t, x);
@@ -988,22 +1079,22 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
             });
             m
         }
-        _ => 0,
+        _ => Origins::default(),
     };
-    let mut changed = grow(&mut t.dep[i], d);
+    let mut changed = t.grow_fact(Column::Dependency, i, d);
     if b.tags[i] == Tag::Break
         && let Some(&x) = b.label_inst.get(a as usize)
         && x != NONE
         && (x as usize) < t.dep.len()
     {
         let m = dep(t, w);
-        changed |= grow(&mut t.dep[x as usize], m);
+        changed |= t.grow_fact(Column::Dependency, x as usize, m);
     }
     if let (Tag::Store, Root::Local(l)) = (b.tags[i], p.root)
         && p.in_place(b)
     {
         let m = dep(t, w);
-        changed |= grow(&mut t.ldep[l as usize], m);
+        changed |= t.grow_fact(Column::LocalDependency, l as usize, m);
     }
     changed | step_val(b, cx, t, ops, i)
 }
@@ -1021,23 +1112,23 @@ fn step_val(
     match tag {
         Tag::Ref => {
             // A frame cell's reference to an element takes what is there.
-            let m = t
-                .place(b, a)
-                .map_or(0, |(lies, held)| lies | if t.cells { held } else { 0 });
-            return grow(&mut t.val[i], m);
+            let m = t.place(b, a).map_or_else(Origins::default, |(lies, held)| {
+                lies | if t.cells { held } else { Origins::default() }
+            });
+            return t.grow_fact(Column::Value, i, m);
         }
         Tag::Coerce if super::lending_coercion(b, cx, i) => {
             let m = lent_from(b, cx, t, i) | t.of(a);
-            return grow(&mut t.val[i], m);
+            return t.grow_fact(Column::Value, i, m);
         }
         Tag::Read if cx.holds_ref(b.ty[i]) => {
-            let (lies, held) = t.place(b, a).unwrap_or((0, 0));
+            let (lies, held) = t.place(b, a).unwrap_or_default();
             let m = if super::lending_read(b, cx, i) {
                 lies | held
             } else {
                 held
             };
-            return grow(&mut t.val[i], m);
+            return t.grow_fact(Column::Value, i, m);
         }
         Tag::Store if t.of(w) != 0 => {
             let m = t.of(w);
@@ -1050,30 +1141,30 @@ fn step_val(
         Tag::Closure => {
             let rec = b.record(w);
             let (start, len) = (rec[0] as usize, rec[1] as usize);
-            let mut m = 0;
+            let mut m = Origins::default();
             for c in &b.cap_local[start..start + len] {
-                m |= t.held[c.idx()];
+                m |= t.fact(Column::Held, c.idx());
             }
             if t.cells {
                 // A frame cell's closure captured by another escapes; the
                 // closure points into the cells it shares.
-                let mut cells = 0;
+                let mut cells = Origins::default();
                 for (l, mode) in closure_caps(b, i) {
                     if mode.shares() {
-                        cells |= t.bit[l.idx()];
+                        cells |= t.bit[l.idx()].clone();
                     }
                 }
-                return grow(&mut t.out, m) | grow(&mut t.val[i], cells);
+                return grow(&mut t.out, m) | t.grow_fact(Column::Value, i, cells);
             }
             // The closure points where the references it captured do; a
             // use that lets it escape lets them escape.
-            return grow(&mut t.val[i], m);
+            return t.grow_fact(Column::Value, i, m);
         }
         Tag::Break => {
             let m = t.of(w);
             return match b.label_inst.get(a as usize) {
                 Some(&x) if x != NONE && (x as usize) < t.val.len() => {
-                    grow(&mut t.val[x as usize], m)
+                    t.grow_fact(Column::Value, x as usize, m)
                 }
                 _ => false,
             };
@@ -1088,22 +1179,25 @@ fn step_val(
             Some(IntrinsicOp::ListPush | IntrinsicOp::MapSet)
         )
     {
-        let m = ops.iter().skip(1).fold(0, |m, op| m | t.of(op.value));
+        let m = ops
+            .iter()
+            .skip(1)
+            .fold(Origins::default(), |m, op| m | t.of(op.value));
         if m == 0 {
             return false;
         }
         let holders = if t.cells {
-            (None, 0)
+            (None, Origins::default())
         } else {
             t.collection_holders(b, ops[0].value)
         };
         return t.stored(holders, m);
     }
-    let mut m = 0;
-    let mut consumed = 0;
+    let mut m = Origins::default();
+    let mut consumed = Origins::default();
     for op in ops.iter() {
         let o = t.of(op.value);
-        m |= o;
+        m |= o.clone();
         if op.role == Role::Consume {
             consumed |= o;
         }
@@ -1154,20 +1248,20 @@ fn step_val(
                     }
                     _ => true,
                 })
-                .fold(0, |acc, o| acc | t.of(o.value));
+                .fold(Origins::default(), |acc, o| acc | t.of(o.value));
             if others == 0 {
                 continue;
             }
-            for k in bits(t.of(op.value)) {
+            for k in t.of(op.value).bits() {
                 let l = t.cands[k] as usize;
                 if cx.holds_ref(b.local_ty[l]) {
-                    changed |= grow(&mut t.held[l], others);
+                    changed |= t.grow_fact(Column::Held, l, others.clone());
                 }
             }
             if let Some(l) = b.local_in_place(b.data[v][0]).map(hd_base::LocalId::idx)
                 && cx.holds_ref(b.local_ty[l])
             {
-                changed |= grow(&mut t.held[l], others);
+                changed |= t.grow_fact(Column::Held, l, others.clone());
             }
         }
     }
@@ -1180,5 +1274,5 @@ fn step_val(
             m |= t.of(x);
         }
     });
-    grow(&mut t.val[i], m) | changed
+    t.grow_fact(Column::Value, i, m) | changed
 }
