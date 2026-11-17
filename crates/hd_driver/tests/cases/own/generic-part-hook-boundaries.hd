@@ -1,0 +1,28 @@
+# @dump: own
+# @build: release
+# expected: open nested parts keep a copy when an unknown payload may own a Drop hook.
+
+struct Inner[T < ?Copy]:
+    payload: T
+    label: string
+
+impl[T < ?Copy] !Copy for Inner[T]
+
+struct Outer[T < ?Copy]:
+    inner: Inner[T]
+
+impl[T < ?Copy] !Copy for Outer[T]
+
+fn label[T < ?Copy](value: Outer[T]) -> string:
+    value.inner.label
+
+enum Choice[T < ?Copy]:
+    Payload(value: T, label: string)
+    Empty
+
+impl[T < ?Copy] !Copy for Choice[T]
+
+fn enum_label[T < ?Copy](value: Choice[T]) -> string:
+    match value:
+        .Payload(_, label) => label
+        .Empty => "empty"

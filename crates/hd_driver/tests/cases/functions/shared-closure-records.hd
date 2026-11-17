@@ -1,0 +1,92 @@
+# @dump: own wat stdout
+# @build: checked | release checked
+# expected: shared capture descriptors survive removal of a separate immediately-called closure.
+use std.annotation.{cold, inline}
+use std.testing.assert_equal
+
+trait Base:
+    fn base(&self) -> usize
+
+trait Named < Base:
+    fn name(&self) -> usize
+
+struct Provider:
+    value: usize
+
+impl Base for Provider:
+    fn base(&self) -> usize:
+        self.value
+
+impl Named for Provider:
+    fn name(&self) -> usize:
+        self.value
+
+@cold
+fn needs_base(value: usize) -> usize $ Base:
+    value + $.use(Base).base()
+
+@cold
+# subject
+fn projected(value: usize) -> usize $ Named:
+    needs_base(value)
+
+@inline(.Auto)
+fn forwarded(callback: fn(usize) -> usize $ Base, value: usize) -> usize:
+    $.with(Named=box(Provider { value: 1 })):
+        callback(value)
+
+@cold
+fn plain(value: usize) -> usize:
+    value + 1
+
+@cold
+fn unused_provider(value: usize) -> usize:
+    $.with(Named=box(Provider { value: 99 })):
+        plain(value)
+
+@cold
+fn context_spread(callback: fn(usize) -> usize $ Named, value: usize) -> usize:
+    $.with($.context(Named=box(Provider { value: value }))...):
+        callback(value)
+
+@cold
+fn scoped_call(callback: fn(usize) -> usize, value: usize) -> usize:
+    $.with(Named=box(Provider { value: 99 })):
+        callback(value)
+
+@cold
+fn make_provider(value: usize) -> *mut Provider:
+    box(Provider { value: value })
+
+@cold
+fn erased_provider(factory: fn(usize) -> *mut Provider, value: usize) -> *dyn Base:
+    factory(value)
+
+@cold
+fn local_base(provider: &dyn Base) -> usize:
+    provider.base()
+
+@cold
+fn make(seed: usize) -> (fn() -> usize, fn() -> usize):
+    left := fn() -> usize: seed + 1
+    right := fn() -> usize: seed + 2
+    scratch := fn() -> usize:
+        left_value := seed + 3
+        right_value := seed + 3
+        left_value + right_value
+    _ := scratch()
+    (left, right)
+
+pub fn main() -> void:
+    $.with(Named=box(Provider { value: 1 })):
+        assert_equal(projected(7), 8)
+        assert_equal(forwarded(needs_base, 7), 8)
+    assert_equal(unused_provider(7), 8)
+    assert_equal(context_spread(projected, 7), 14)
+    assert_equal(scoped_call(plain, 7), 8)
+    erased := erased_provider(make_provider, 7)
+    assert_equal(erased.base(), 7)
+    assert_equal(local_base(erased_provider(make_provider, 7)), 7)
+    pair := make(7)
+    assert_equal((pair._0)(), 8)
+    assert_equal((pair._1)(), 9)

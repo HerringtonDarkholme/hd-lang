@@ -1741,6 +1741,8 @@ impl Env<'_> {
             body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
+        #[cfg(all(test, not(target_arch = "wasm32")))]
+        metadata_tests::verify_checked_variants(self, &body);
         let returns = summarize
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
@@ -1782,6 +1784,8 @@ impl Env<'_> {
                 ));
             }
         }
+        #[cfg(all(test, not(target_arch = "wasm32")))]
+        metadata_tests::verify_fresh(self, &body);
         Ok((body, summary, relies))
     }
 
@@ -3551,6 +3555,9 @@ impl Run<'_> {
     }
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod metadata_tests;
+
 #[cfg(test)]
 pub(super) mod owned_cache_tests {
     use std::cell::Cell;
@@ -3567,7 +3574,7 @@ pub(super) mod owned_cache_tests {
 
     thread_local! {
         /// While set, how many stored bodies a build verified.
-        static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
+        pub(super) static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
     }
 
     /// Verifies a std body a build took from the store
@@ -3588,6 +3595,10 @@ pub(super) mod owned_cache_tests {
             );
         }
         VERIFIED.set(Some(n + 1));
+        #[cfg(not(target_arch = "wasm32"))]
+        if super::metadata_tests::active() {
+            run.with_env(p, |env| super::metadata_tests::verify_fresh(env, body));
+        }
     }
 
     /// Programs over much of std: JSON and serde, maps, sorting, strings,
@@ -3601,6 +3612,15 @@ pub(super) mod owned_cache_tests {
     ];
 
     fn build(store: &MemoryStore, text: &str, profile: BuildProfile) -> crate::Output {
+        build_at(store, text, profile, hd_base::OptLevel::Dev)
+    }
+
+    pub(super) fn build_at(
+        store: &MemoryStore,
+        text: &str,
+        profile: BuildProfile,
+        level: hd_base::OptLevel,
+    ) -> crate::Output {
         let mut sources = MemorySources::default();
         sources.insert("main.hd", text);
         let host = Host {
@@ -3612,6 +3632,7 @@ pub(super) mod owned_cache_tests {
         };
         let packages = Packages {
             build_profile: profile,
+            level,
             ..Packages::default()
         };
         let out = build_packages(

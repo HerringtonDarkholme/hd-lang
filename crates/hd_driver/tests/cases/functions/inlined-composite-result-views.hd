@@ -1,0 +1,31 @@
+# @dump: own wat stdout
+# @build: release checked
+# expected: declared result conversions survive copied tails and explicit returns.
+use std.annotation.{cold, inline}
+use std.testing.assert_equal
+
+struct Holder[+T]:
+    value: T
+
+@cold
+fn read(value: &i32) -> i32:
+    *value
+
+@inline(.Always)
+fn holder() -> Holder[fn(*i32) -> i32]:
+    let original: Holder[fn(&i32) -> i32] = Holder { value: read }
+    original
+
+@inline(.Always)
+fn tuple(first: bool) -> (fn(*i32) -> i32,):
+    if first:
+        return (read,)
+    return (read,)
+
+# subject
+fn exercise(first: bool, value: *i32) -> i32:
+    (holder().value)(value) + (tuple(first)._0)(value)
+
+pub fn main() -> void:
+    for first in [false, true]:
+        assert_equal(exercise(first, box(+7)), 14)

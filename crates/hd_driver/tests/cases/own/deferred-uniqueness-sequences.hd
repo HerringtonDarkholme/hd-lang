@@ -1,0 +1,46 @@
+# @dump: own counts stdout
+# @build: release checked
+# expected: sequential deferred uniqueness decisions for one list have disjoint loop ranges.
+use std.annotation.cold
+use std.testing.assert_equal
+
+@cold
+# subject
+fn fill_twice(xs: &mut List[usize], n: usize) -> void:
+    let i = 0
+    while true:
+        if i == n:
+            break
+        xs.push(i)
+        i += 1
+    i = 0
+    while true:
+        if i == n:
+            break
+        xs.push(i)
+        i += 1
+
+@cold
+fn local_fill(input: List[usize], n: usize) -> usize:
+    let mut xs = input
+    let i = 0
+    while true:
+        if i == n:
+            break
+        xs.push(i)
+        i += 1
+    i = 0
+    while true:
+        if i == n:
+            break
+        xs.push(i)
+        i += 1
+    xs.len()
+
+pub fn main() -> void:
+    assert_equal(local_fill([9], 3), 7)
+    let mut values: List[usize] = []
+    fill_twice(&mut values, 0)
+    assert_equal(values.len(), 0)
+    fill_twice(&mut values, 3)
+    assert_equal(values.len(), 6)

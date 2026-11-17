@@ -1375,18 +1375,18 @@ fn parameter_joins(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         let Some(reads) = b.parameter_join_with(u32_of(i), |v| t.v[v as usize].uses <= 1) else {
             continue;
         };
+        // parameter_join_with already admits only whole PARAM reads.
         let eligible = reads.iter().all(|&r| {
-            let Some(p) = b.view(b.data[r as usize][0]).local() else {
-                return false;
-            };
-            let p = t.l[p as usize];
-            p.stores == 0
-                && !p.captured
-                && !p.reached
-                && !p.changed
-                && cx.counted(b.ty[r as usize])
-                && cx.copies(b.ty[r as usize]) == Tri::Yes
-                && cx.holds_drop(b.ty[r as usize]) == Tri::No
+            b.view(b.data[r as usize][0]).local().is_some_and(|p| {
+                let p = t.l[p as usize];
+                p.stores == 0
+                    && !p.captured
+                    && !p.reached
+                    && !p.changed
+                    && cx.counted(b.ty[r as usize])
+                    && cx.copies(b.ty[r as usize]) == Tri::Yes
+                    && cx.holds_drop(b.ty[r as usize]) == Tri::No
+            })
         });
         if !eligible {
             continue;
@@ -1618,15 +1618,11 @@ fn lend_copied_parameters_with(
         }
         if b.tags[i] == Tag::Drop {
             let p = b.view(b.data[i][0]);
-            if p.whole()
-                && match p.root {
-                    Root::Local(l) => eligible[l as usize],
-                    Root::Value(v) => {
-                        moved_from[v as usize] != NONE && eligible[moved_from[v as usize] as usize]
-                    }
-                    _ => false,
-                }
-            {
+            // Insertion emits whole drops only for locals or SSA values.
+            let source = p
+                .local()
+                .or_else(|| p.value().map(|v| moved_from[v as usize]));
+            if p.whole() && source.is_some_and(|l| l != NONE && eligible[l as usize]) {
                 // Keep the original parameter words intact: a caller may
                 // still use the owned ABI, whose common-exit descriptor
                 // releases the incoming count. A LoanEnd would zero them.

@@ -1134,18 +1134,19 @@ impl Body {
             return &[];
         };
         let start = self.data[i][1] as usize + 1;
-        let start = if tag == Tag::CallDyn {
-            let Some(&evidence) = self.extra.get(start + 2) else {
+        // call_footer validated the complete record and its three-word
+        // footer, so this prefix is in bounds even for malformed headers.
+        let record = &self.extra[start..footer];
+        if tag == Tag::CallDyn {
+            // Split before indexing evidence: no header-length addition can
+            // overflow on malformed records, including on a 32-bit host.
+            let Some((&evidence, tail)) = record.get(2..).and_then(|r| r.split_first()) else {
                 return &[];
             };
-            let Some(start) = start.checked_add(3 + evidence as usize) else {
-                return &[];
-            };
-            start
+            tail.get(evidence as usize..).unwrap_or(&[])
         } else {
-            start
-        };
-        self.extra.get(start..footer).unwrap_or(&[])
+            record
+        }
     }
 
     /// The provider footer of any call form; noncalls and empty records

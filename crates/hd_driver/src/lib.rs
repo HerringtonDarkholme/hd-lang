@@ -15084,3 +15084,6 @@ pub fn main() -> void $ Console: println(root(4))
         assert!(counts[1] <= 11 * counts[0], "decoded bodies: {counts:?}");
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod program_ir_tests;

@@ -178,12 +178,10 @@ fn inst_refs(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
             record_span(b, Holder::Data(i, k), word, f)?;
         }
     }
-    if let crate::ir::Providers::Pairs(r) = b.call_providers(i)
+    if let Some(footer) = b.call_footer(i)
+        && let crate::ir::Providers::Pairs(r) = b.call_providers(i)
         && r.len > 0
     {
-        let footer = b.call_footer(i).ok_or_else(|| {
-            NotImplemented::bug(Stage::ModuleFinish, "provider pairs have no call footer")
-        })?;
         f(Reach::Span {
             at: Holder::Extra(crate::ir::u32_of(footer + 1)),
             start: r.start,
@@ -416,14 +414,14 @@ pub fn write_body(
     syms: &ShardedInterner,
 ) -> StageResult<Vec<u8>> {
     let out = encode(compact(b)?.as_ref(), pool, paths, syms)?;
-    if cfg!(debug_assertions) {
-        let again = read_body(&out, pool, paths, syms).map(|back| encode(&back, pool, paths, syms));
-        assert!(
-            matches!(&again, Some(Ok(again)) if *again == out),
-            "item {}: a decoded body encodes differently",
-            b.item.raw()
-        );
-    }
+    debug_assert!(
+        matches!(
+            read_body(&out, pool, paths, syms).map(|back| encode(&back, pool, paths, syms)),
+            Some(Ok(again)) if again == out
+        ),
+        "item {}: a decoded body encodes differently",
+        b.item.raw()
+    );
     Ok(out)
 }
 

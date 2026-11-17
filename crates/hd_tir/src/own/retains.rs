@@ -373,7 +373,6 @@ pub(crate) fn handed(
     i: usize,
     end: Tag,
 ) -> Option<u32> {
-    let members = member_list(b, topo, i)?;
     let ends = |x: u32, v: u32| b.tags[x as usize] == end && whole_value(b, x, v);
     if b.tags[i] == Tag::Coerce {
         let next = next_after(b, topo, i)?;
@@ -397,12 +396,13 @@ pub(crate) fn handed(
     }
     // A borrowed result dropped at once: nothing wanted the count.
     if b.tags[i] == Tag::Call {
-        let next = *members.first()?;
+        let next = next_after(b, topo, i)?;
         return ends(next, u32_of(i)).then_some(next);
     }
     if b.tags[i] != Tag::ProviderGet {
         return None;
     }
+    let members = member_list(b, topo, i)?;
     let (&coercion, rest) = members.split_first()?;
     if !b.provider_ref(coercion as usize) || b.data[coercion as usize][0] != u32_of(i) {
         return None;
@@ -536,10 +536,21 @@ pub fn took_source(b: &Body, topo: &Topology, i: usize) -> bool {
         .is_some_and(|x| b.tags[x as usize] == Tag::LoanEnd && whole_value(b, x, b.data[i][0]))
 }
 
-/// The statement that runs next after `i`: the next in its block; or, past a
-/// `&dyn` built from the block `i` ends, the one after that.
+/// The next value/lifetime statement after `i`, skipping its ABI packet;
+/// or, past a `&dyn` built from the block `i` ends, the one after that.
+/// Only adjacent packets are visited, so all lookups together cost the
+/// body's instruction and packet words, with at most one parent step.
 fn next_after(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
-    if let Some(&x) = member_list(b, topo, i)?.first() {
+    // Operation count packets describe their target's ABI action rather
+    // than a new value use. counts::run adds them after retains::run;
+    // producer and verifier must see the same adjacent source cleanup.
+    let next = |members: &[u32]| {
+        members
+            .iter()
+            .copied()
+            .find(|&x| !crate::ir::count::boundary(b, x as usize))
+    };
+    if let Some(x) = next(member_list(b, topo, i)?) {
         return Some(x);
     }
     let block = topo.blk[i] as usize;
@@ -547,7 +558,7 @@ fn next_after(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
     if b.data[block][1] != u32_of(i) || owner == NONE || b.tags[owner as usize] != Tag::RefDyn {
         return None;
     }
-    member_list(b, topo, owner as usize)?.first().copied()
+    next(member_list(b, topo, owner as usize)?)
 }
 
 /// The statements after `i` in its block.
