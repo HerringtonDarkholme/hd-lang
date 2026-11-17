@@ -98,8 +98,10 @@ const COMMANDS: &[Command] = &[
         usage: "hd build [--release] [--engine NAME] [-p NAME] [FILE]",
         about: &[
             "Build each executable NAME of the package to build/debug/NAME.wasm, or to",
-            "build/release/ with --release; with FILE, its module to build/debug/files/STEM.wasm.",
+            "build/release/ with --release. With FILE, a file of the package, build its module",
+            "to build/debug/files/STEM.wasm, or to build/release/files/ with --release.",
             "A package with no executable is checked, and no .wasm file is written.",
+            "Outside a package, hd build is an error.",
         ],
         flags: &[RELEASE, ENGINE, PACKAGE, FORMAT, JOBS],
     },

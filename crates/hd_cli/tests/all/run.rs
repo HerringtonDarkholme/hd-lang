@@ -1228,6 +1228,16 @@ fn help_lists_the_commands_and_each_commands_flags() {
     assert!(add.out.contains("--dev"), "{}", add.out);
     assert_eq!(ran(&dir, &["add", "--help"]).out, add.out);
     assert!(ran(&dir, &["clean", "--help"]).out.contains("--cache"));
+    // `cli.build.output.file`, `cli.run.package-only`: what `hd build FILE`
+    // writes, in both profiles, and that it needs a package.
+    let build = ran(&dir, &["help", "build"]).out;
+    for words in [
+        "build/debug/files/STEM.wasm",
+        "build/release/files/",
+        "Outside a package",
+    ] {
+        assert!(build.contains(words), "{words}: {build}");
+    }
     assert_eq!(ran(&dir, &["help", "bogus"]).code, Some(101));
 }
 
