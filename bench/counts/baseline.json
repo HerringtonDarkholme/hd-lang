@@ -222,11 +222,10 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2380002",
-      "released": "3400097",
-      "uniques": "12240015",
-      "total": "18020114",
-      "noOpsAndSkipped": "22610132",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "released": "3400093",
+      "uniques": "10540015",
+      "total": "16320110",
+      "noOpsAndSkipped": "20060132"
     },
     {
       "program": "bench/study/mandelbrot.hd",
