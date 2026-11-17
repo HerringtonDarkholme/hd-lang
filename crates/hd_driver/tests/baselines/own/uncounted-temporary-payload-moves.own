@@ -10,11 +10,7 @@ app/main/route
   %5 = Read move [%0 as #1 .0] : Empty
   %6 = Store [$0] %5 : ()
   %8 = Block - : never
-  %10 = Block - : never
+  %11 = SwitchTag %0 [#1 %8 %10] : never
   %12 = Block - : never
-  %13 = SwitchTag %0 [#0 %10 %12] : never
-  %14 = Block - : never
-  %15 = SwitchTag %0 [#1 %8 %14] : never
-  %16 = Block - : never
-  %17 = Match %0 [%16 %3 %4] : ()
-  %18 = Block - : ()
+  %13 = Match %0 [%12 %3 %4] : ()
+  %14 = Block - : ()

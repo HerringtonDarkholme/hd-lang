@@ -15,9 +15,9 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %0 = Read [*$0] : Map[string, string]
 >   %1 = Read [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : string?
->   %18 = Block - : never
->   %19 = Match %2 [%18 %5 %6] : usize
->   %20 = Block %19 : usize
+>   %14 = Block - : never
+>   %15 = Match %2 [%14 %5 %6] : usize
+>   %16 = Block %15 : usize
         .Some(v) => v.len()
 >   %3 = Ref local [$2] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
@@ -25,13 +25,9 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %7 = Read [%2 as #1 .0] : string
 >   %8 = Store [$2] %7 : ()
 >   %10 = Block - : never
->   %16 = Block - : never
->   %17 = SwitchTag %2 [#1 %10 %16] : never
+>   %13 = SwitchTag %2 [#1 %10 %12] : never
         .None => 0
 >   %6 = Block 0:usize : usize
->   %12 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %2 [#0 %12 %14] : never
 
 fn put(m: &mut Map[string, string], k: string, v: string) -> void:
     m[k] = v

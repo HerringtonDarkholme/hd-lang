@@ -10,15 +10,7 @@
           local.get $s.0
           i32.eqz
           br_if 0
-    ;; 13 |         Shape.Box(width, height) =>
-          local.get $s.0
-          i32.const 1
-          i32.eq
-          if
-            br 2
-          else
-            unreachable
-          end
+          br 1
     ;; 11 |     match s:
           unreachable
         end

@@ -16,7 +16,6 @@ fn count_long(xs: List[string]) -> usize:
 >   copy List[string] (stored)
 >   release List[string] (last use)
 >   release string? (last use)
->   release string? (last use)
 >   release std.iter.ListIter[string] [items] (last use)
         n += x.len()
     n

@@ -25,13 +25,9 @@ app/main/lookup_size
   %16 = Read borrow [%7 as #1 .0] : string
   %17 = Store [$3] %16 : ()
   %19 = Block - : never
-  %21 = Block - : never
+  %22 = SwitchTag %7 [#1 %19 %21] : never
   %23 = Block - : never
-  %24 = SwitchTag %7 [#0 %21 %23] : never
-  %25 = Block - : never
-  %26 = SwitchTag %7 [#1 %19 %25] : never
-  %27 = Block - : never
-  %28 = Match %7 [%27 %14 %15] : usize
-  %29 = Drop [%7] : ()
-  %30 = Block %28 : usize
+  %24 = Match %7 [%23 %14 %15] : usize
+  %25 = Drop [%7] : ()
+  %26 = Block %24 : usize
   summary kept [] borrows [$0 $1]

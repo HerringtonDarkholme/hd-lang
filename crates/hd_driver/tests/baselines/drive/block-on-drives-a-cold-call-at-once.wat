@@ -124,7 +124,7 @@
             block
               block
                 local.get $text.1
-                br_table 0 3 4 4
+                br_table 0 3 4
               end
               local.get $s.0
               local.set $n

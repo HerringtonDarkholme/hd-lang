@@ -17,16 +17,7 @@
           if
             br 1
           else
-    ;; 11 |         ._1(value) => println(value)
-            local.get $t0
-            i32.const 1
-            i32.eq
-            if
-              br 3
-            else
-              unreachable
-            end
-    ;; 10 |         ._0(value) => println(value)
+            br 2
           end
     ;; 9 |     match choose(true):
           unreachable

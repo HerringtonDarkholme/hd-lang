@@ -81,9 +81,6 @@
     ;; 27 |     for x in xs.iter():
             br 1
           end
-          local.get $t3
-          local.get $x.1
-          call $rt:release
           br 2
         end
         local.get $t3
@@ -146,9 +143,6 @@
     ;; 29 |     for x in xs.iter():
             br 1
           end
-          local.get $x.1
-          local.get $t2
-          call $rt:release
           br 2
         end
         local.get $x.1
@@ -250,9 +244,6 @@
     ;; 21 |     for w in words:
             br 1
           end
-          local.get $t2
-          local.get $words.at
-          call $rt:release
           br 2
         end
         local.get $t2

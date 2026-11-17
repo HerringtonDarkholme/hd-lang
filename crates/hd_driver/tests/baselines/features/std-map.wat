@@ -215,12 +215,9 @@
       block
     ;; 11 |         .Some(v) => v.len()
         local.get $t0
-        br_if 0
-    ;; 12 |         .None => 0
-        local.get $t0
         i32.eqz
         br_if 1
-        unreachable
+        br 0
     ;; 10 |     match m.get(k):
         unreachable
       end

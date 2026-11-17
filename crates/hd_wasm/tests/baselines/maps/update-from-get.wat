@@ -260,18 +260,11 @@
       block
         block
           local.get $t0
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            local.set $t3
-            br 1
-          else
-            local.get $t0
-            i32.eqz
-            br_if 2
-            unreachable
-          end
+          i32.eqz
+          br_if 1
+          local.get $t2
+          local.set $t3
+          br 0
           unreachable
         end
         br 1
@@ -387,18 +380,9 @@
         block
     ;; 10 |         .Some(seen) => seen + 1
           local.get $t3
-          i32.const 1
-          i32.eq
-          if
-            br 1
-          else
-    ;; 11 |         .None => 1
-            local.get $t3
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 10 |         .Some(seen) => seen + 1
-          end
+          i32.eqz
+          br_if 1
+          br 0
     ;; 9 |     counts[word] = match counts.get(word):
           unreachable
         end
@@ -526,18 +510,11 @@
       block
         block
           local.get $t0
-          i32.const 1
-          i32.eq
-          if
-            local.get $t3
-            local.set $t4
-            br 1
-          else
-            local.get $t0
-            i32.eqz
-            br_if 2
-            unreachable
-          end
+          i32.eqz
+          br_if 1
+          local.get $t3
+          local.set $t4
+          br 0
           unreachable
         end
         br 1

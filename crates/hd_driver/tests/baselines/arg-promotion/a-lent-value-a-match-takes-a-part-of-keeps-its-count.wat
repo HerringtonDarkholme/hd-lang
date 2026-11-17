@@ -55,22 +55,15 @@
             br 1
           else
     ;; 24 |             .Bad(left) =>
-            local.get $self.0
-            i32.const 1
-            i32.eq
+            local.get $self.1
             if
               local.get $self.1
-              if
-                local.get $self.1
-                call $retain
-              end
-              local.get $self.1
-              local.set $left.0'2
-              br 3
-            else
-              unreachable
+              call $retain
             end
+            local.get $self.1
+            local.set $left.0'2
     ;; 20 |             .Good(left) =>
+            br 2
           end
     ;; 19 |         match *self:
           unreachable
@@ -81,25 +74,15 @@
             block
     ;; 22 |                     .Good(right) => left == right
               local.get $other.0
-              i32.eqz
+              br_if 1
+              local.get $other.1
               if
                 local.get $other.1
-                if
-                  local.get $other.1
-                  call $retain
-                end
-                local.get $other.1
-                local.set $right.0'1
-                br 1
-              else
-    ;; 23 |                     .Bad(_) => false
-                local.get $other.0
-                i32.const 1
-                i32.eq
-                br_if 2
-                unreachable
-    ;; 22 |                     .Good(right) => left == right
+                call $retain
               end
+              local.get $other.1
+              local.set $right.0'1
+              br 0
     ;; 21 |                 match *other:
               unreachable
             end
@@ -128,25 +111,16 @@
           block
     ;; 26 |                     .Bad(right) => left == right
             local.get $other.0
-            i32.const 1
-            i32.eq
+            i32.eqz
+            br_if 1
+            local.get $other.1
             if
               local.get $other.1
-              if
-                local.get $other.1
-                call $retain
-              end
-              local.get $other.1
-              local.set $right.0'2
-              br 1
-            else
-    ;; 27 |                     .Good(_) => false
-              local.get $other.0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 26 |                     .Bad(right) => left == right
+              call $retain
             end
+            local.get $other.1
+            local.set $right.0'2
+            br 0
     ;; 25 |                 match *other:
             unreachable
           end
@@ -210,22 +184,15 @@
             br 1
           else
     ;; 24 |             .Bad(left) =>
-            local.get $t1
-            i32.const 1
-            i32.eq
+            local.get $t0
             if
               local.get $t0
-              if
-                local.get $t0
-                call $retain
-              end
-              local.get $t0
-              local.set $left.0'2
-              br 3
-            else
-              unreachable
+              call $retain
             end
+            local.get $t0
+            local.set $left.0'2
     ;; 20 |             .Good(left) =>
+            br 2
           end
     ;; 19 |         match *self:
           unreachable
@@ -245,25 +212,15 @@
             block
     ;; 22 |                     .Good(right) => left == right
               local.get $other
-              i32.eqz
+              br_if 1
+              local.get $t2
               if
                 local.get $t2
-                if
-                  local.get $t2
-                  call $retain
-                end
-                local.get $t2
-                local.set $right.0
-                br 1
-              else
-    ;; 23 |                     .Bad(_) => false
-                local.get $other
-                i32.const 1
-                i32.eq
-                br_if 2
-                unreachable
-    ;; 22 |                     .Good(right) => left == right
+                call $retain
               end
+              local.get $t2
+              local.set $right.0
+              br 0
     ;; 21 |                 match *other:
               unreachable
             end
@@ -301,25 +258,16 @@
           block
     ;; 26 |                     .Bad(right) => left == right
             local.get $right.0
-            i32.const 1
-            i32.eq
+            i32.eqz
+            br_if 1
+            local.get $other
             if
               local.get $other
-              if
-                local.get $other
-                call $retain
-              end
-              local.get $other
-              local.set $right.1'1
-              br 1
-            else
-    ;; 27 |                     .Good(_) => false
-              local.get $right.0
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 26 |                     .Bad(right) => left == right
+              call $retain
             end
+            local.get $other
+            local.set $right.1'1
+            br 0
     ;; 25 |                 match *other:
             unreachable
           end

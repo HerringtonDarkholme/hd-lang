@@ -595,6 +595,9 @@ impl Em<'_, '_, '_> {
         // A move out of a counted parameter: its drop skips the field. A
         // whole move out of a counted frame local leaves its slot dead.
         let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
+        if moved {
+            self.borrow_moved_slots(i, l, part.first..part.first + part.count);
+        }
         if moved
             && fields.is_empty()
             && let Some(&live) = self.mem_live.get(&l)

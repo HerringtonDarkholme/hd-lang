@@ -39,12 +39,9 @@
       block
     ;; 12 |         .Some(value) => value.len()
         local.get $t0
-        br_if 0
-    ;; 13 |         .None => 0
-        local.get $t0
         i32.eqz
         br_if 1
-        unreachable
+        br 0
     ;; 11 |     match readonly.get(key):
         unreachable
       end

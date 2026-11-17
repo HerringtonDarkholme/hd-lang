@@ -1591,6 +1591,9 @@ impl Em<'_, '_, '_> {
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;
+        if mode == Some(ReadMode::Move) {
+            self.borrow_moved_slots(i, l, 0..ls.len());
+        }
         for x in &ls {
             self.f.get(*x);
         }

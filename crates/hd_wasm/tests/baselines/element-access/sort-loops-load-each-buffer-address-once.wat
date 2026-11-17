@@ -204,7 +204,7 @@
             block
               block
                 local.get $t10
-                br_table 0 1 2 2
+                br_table 0 1 2
                 unreachable
               end
               i32.const 1

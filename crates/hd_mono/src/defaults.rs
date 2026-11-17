@@ -414,16 +414,19 @@ impl Values {
     /// The block switch `i` runs, where its operand's value decides it.
     fn switched(&self, body: &Body, i: usize) -> Option<u32> {
         let rec = body.record(body.data[i][1]);
-        let equal = match (body.tags[i], self.word(body, body.data[i][0])?) {
-            (Tag::SwitchTag, Value::Variant(tag)) => tag == rec[0],
+        let key = match (body.tags[i], self.word(body, body.data[i][0])?) {
+            (Tag::SwitchTag, Value::Variant(tag)) => tag,
             (Tag::SwitchInt | Tag::SwitchChar, Value::Scalar(bits)) => {
-                bits & u64::from(u32::MAX) == u64::from(rec[0])
+                u32::try_from(bits & u64::from(u32::MAX)).ok()?
             }
             _ => return None,
         };
-        rec.get(if equal { 1 } else { 2 })
-            .copied()
-            .filter(|&k| k != NONE)
+        let (&default, pairs) = rec.split_last()?;
+        let block = pairs
+            .chunks_exact(2)
+            .find(|case| case[0] == key)
+            .map_or(default, |case| case[1]);
+        (block != NONE).then_some(block)
     }
 
     /// Follow a pure match decision to its arm. Binding patterns and
@@ -435,22 +438,13 @@ impl Values {
         }
         for &i in body.record(body.data[block as usize][0]) {
             let i = i as usize;
-            let [a, b] = body.data[i];
+            let a = body.data[i][0];
             match body.tags[i] {
                 Tag::Block => {}
                 Tag::Read if self.pure[i] || self.val[i].is_some() => {}
                 Tag::ToArm => return Some(a),
                 Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    let val = self.word(body, a)?;
-                    let rec = body.record(b);
-                    let equal = match (body.tags[i], val) {
-                        (Tag::SwitchTag, Value::Variant(tag)) => tag == rec[0],
-                        (Tag::SwitchInt | Tag::SwitchChar, Value::Scalar(bits)) => {
-                            bits & u64::from(u32::MAX) == u64::from(rec[0])
-                        }
-                        _ => return None,
-                    };
-                    return self.arm(body, rec[if equal { 1 } else { 2 }], depth + 1);
+                    return self.arm(body, self.switched(body, i)?, depth + 1);
                 }
                 _ => return None,
             }
@@ -494,17 +488,19 @@ impl Arms {
                     }
                 }
             }
-            // A decision's arms: an `if`'s or a `match`'s blocks, a
-            // switch's two after its value.
+            // A switch's odd record words and its final default are
+            // successors; an If or Match lists blocks directly.
+            let switch = matches!(tag, Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar);
             let arms = match tag {
-                Tag::If | Tag::Match => body.record(b),
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    body.record(b).get(1..3).unwrap_or(&[])
+                Tag::If | Tag::Match | Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
+                    body.record(b)
                 }
                 _ => &[],
             };
-            for &k in arms {
-                if let Some(d) = decision.get_mut(k as usize) {
+            for (j, &k) in arms.iter().enumerate() {
+                if (!switch || j % 2 == 1 || j + 1 == arms.len())
+                    && let Some(d) = decision.get_mut(k as usize)
+                {
                     *d = index(i);
                 }
             }
@@ -812,6 +808,14 @@ pub fn value_given(body: &Body, calls: &dyn Fn(usize) -> Option<Value>) -> Optio
     Values::compute(body, &[], calls).word(body, root)
 }
 
+/// The explicit case targets and the default of a switch record.
+fn switch_blocks(body: &Body, record: u32) -> impl Iterator<Item = u32> + '_ {
+    let row = body.record(record);
+    row.iter()
+        .enumerate()
+        .filter_map(move |(j, &block)| (j % 2 == 1 || j + 1 == row.len()).then_some(block))
+}
+
 /// Reachable instructions under independently proved call results, without
 /// copying or rewriting the body. Known results never erase their producers.
 /// Values and normal completion are computed once in topological order; an
@@ -918,7 +922,7 @@ fn reachable_given_with(
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
         ) {
             work.push(a);
-            work.extend(body.record(b).iter().skip(1).take(2));
+            work.extend(switch_blocks(body, b));
             continue;
         }
         for (op, word) in [body.tags[i].operands().0, body.tags[i].operands().1]
@@ -1104,7 +1108,7 @@ fn mark(body: &Body, root: u32) -> Vec<bool> {
             body.tags[i],
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
         ) {
-            work.extend(body.record(b).iter().skip(1).take(2));
+            work.extend(switch_blocks(body, b));
             work.push(a);
             continue;
         }
@@ -1676,6 +1680,54 @@ mod tests {
         }
         Ok(())
     }
+    #[test]
+    fn flat_switch_reachability_selects_each_case_and_the_default() -> Result<(), String> {
+        let n = NodeIdx::NONE;
+        for tag in [Tag::SwitchInt, Tag::SwitchTag] {
+            for key in [None, Some(7), Some(8), Some(9)] {
+                let mut b = TirBuilder::new(DefId::from_raw(41), BodyKind::Fn);
+                let root = b.open_block();
+                let selector = b.call(&item(42), &[], Providers::None, Ty::I32, n);
+                let mut blocks = Vec::new();
+                let mut effects = Vec::new();
+                for _ in 0..3 {
+                    let block = b.open_block();
+                    effects.push(b.call(&item(43), &[], Providers::None, Ty::VOID, n));
+                    blocks.push(b.close_block(block, None, Ty::VOID, n));
+                }
+                let arms = b.words_record(&[7, blocks[0].0, 8, blocks[1].0, blocks[2].0]);
+                b.emit(tag, selector.0, arms, Ty::VOID, n);
+                let root = b.close_block(root, None, Ty::VOID, n);
+                let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                let live = reachable_given(&body, &|i| {
+                    (i == selector.0 as usize)
+                        .then_some(key)
+                        .flatten()
+                        .map(|key| {
+                            if tag == Tag::SwitchTag {
+                                Value::Variant(key)
+                            } else {
+                                Value::Scalar(u64::from(key))
+                            }
+                        })
+                });
+                for (arm, effect) in effects.iter().enumerate() {
+                    let selected = match key {
+                        Some(7) => 0,
+                        Some(8) => 1,
+                        _ => 2,
+                    };
+                    assert_eq!(
+                        live[effect.0 as usize],
+                        key.is_none() || arm == selected,
+                        "{tag:?} {key:?} arm {arm}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
     #[test]
     fn call_only_value_queries_distinguish_constants_known_calls_and_unknown_calls()
     -> Result<(), String> {

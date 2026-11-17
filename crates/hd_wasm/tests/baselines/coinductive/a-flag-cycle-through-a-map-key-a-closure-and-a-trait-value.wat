@@ -100,18 +100,11 @@
       block
         block
           local.get $t2
-          i32.const 1
-          i32.eq
-          if
-            local.get $t1
-            local.set $t3
-            br 1
-          else
-            local.get $t2
-            i32.eqz
-            br_if 2
-            unreachable
-          end
+          i32.eqz
+          br_if 1
+          local.get $t1
+          local.set $t3
+          br 0
           unreachable
         end
         br 1

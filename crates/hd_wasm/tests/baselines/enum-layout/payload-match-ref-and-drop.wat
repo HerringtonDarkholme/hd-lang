@@ -25,7 +25,7 @@
                 block
                   block
                     local.get $b
-                    br_table 0 1 2 7 7
+                    br_table 0 1 2 7
                   end
                   local.get $s
                   f64.load $heap offset=8
@@ -132,7 +132,7 @@
     end
     i32.const 0
   )
-  (func $code_of (param $r i32) (result i32) (local $e.code i32) (local $t0 i32)
+  (func $code_of (param $r i32) (result i32) (local $e.code i32)
     ;; 35 |     match r:
     block
       block
@@ -140,19 +140,14 @@
     ;; 36 |         .Ok(_) => 0
           local.get $r
           i32.load $heap
-          local.tee $t0
           i32.eqz
           br_if 0
     ;; 37 |         .Err(e) => e.code
-          local.get $t0
-          if
-            local.get $r
-            i32.load $heap offset=8
-            local.set $e.code
-            br 2
-          else
-            unreachable
-          end
+          local.get $r
+          i32.load $heap offset=8
+          local.set $e.code
+    ;; 36 |         .Ok(_) => 0
+          br 1
     ;; 35 |     match r:
           unreachable
         end

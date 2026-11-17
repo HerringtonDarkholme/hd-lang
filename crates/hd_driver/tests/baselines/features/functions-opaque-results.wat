@@ -112,9 +112,6 @@
     ;; 11 |     for x in names(&xs):
             br 1
           end
-          local.get $t2
-          local.get $x.1
-          call $rt:release
           br 2
         end
         local.get $t2

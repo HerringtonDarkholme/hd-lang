@@ -3,7 +3,7 @@
 //! and the verifier's `Balance` share this type arithmetic; each tracks
 //! on its own which slots a path took.
 
-use hd_base::SliceSort as _;
+use hd_base::{HashMap, HashSet, SliceSort as _};
 use std::ops::Range;
 
 use hd_types::Ty;
@@ -11,43 +11,126 @@ use hd_types::Ty;
 use super::{OwnCx, fill};
 use crate::ir::{Body, NONE, ReadMode, Tag, place, u32_of};
 
-/// An unaddressed owned value whose selected tag-switch block can only
-/// receive in-place variants with no counted fields. Every case sharing
-/// the block must qualify; defaults, unknown layouts and writable aliases do not.
-pub(crate) fn empty_variant(
-    b: &Body,
-    cx: &dyn OwnCx,
-    x: u32,
-    block: u32,
-    parts: &mut Vec<Ty>,
-) -> Option<u32> {
-    if b.tags[x as usize] != Tag::SwitchTag {
-        return None;
-    }
-    let [value, record] = b.data[x as usize];
-    let v = crate::ir::Ref(value).as_inst()?.0 as usize;
-    if v >= b.len() || b.is_borrow(value) || !cx.counted(b.ty[v]) {
-        return None;
-    }
-    let cases = b.record(record);
-    let (&default, cases) = cases.split_last()?;
-    if default == block {
-        return None;
-    }
-    let mut found = false;
-    for case in cases.chunks_exact(2).filter(|case| case[1] == block) {
-        if !cx.parts(b.ty[v], Some(case[0]), parts) || parts.iter().any(|&ty| cx.counted(ty)) {
-            return None;
+/// Empty-payload edge facts for one body. LLVM's `LazyValueInfo` computes
+/// a switch default by excluding cases that target other successors;
+/// explicit cases sharing the default remain possible. Here the finite
+/// variant set makes that a single pass, cached before the flow walk.
+/// Cost: O(instructions + case words + distinct types' variant fields),
+/// with O(1) edge queries, independent of flow rounds and nesting depth.
+#[derive(Default)]
+pub(crate) struct EmptyVariants {
+    edges: HashMap<(u32, u32), u32>,
+    #[cfg(test)]
+    visits: usize,
+}
+
+impl EmptyVariants {
+    pub fn build(b: &Body, cx: &dyn OwnCx) -> Self {
+        struct Variants {
+            empty: Vec<bool>,
+            nonempty: usize,
+            excluded: Vec<usize>,
+            complete: bool,
         }
-        found = true;
+        let mut out = Self::default();
+        let mut addressed = HashSet::default();
+        for i in 0..b.len() {
+            #[cfg(test)]
+            {
+                out.visits += 1;
+            }
+            if matches!(b.tags[i], Tag::Ref | Tag::Store)
+                && let Some(v) = b.view(b.data[i][0]).value()
+            {
+                addressed.insert(v);
+            }
+        }
+        let mut types: HashMap<Ty, Variants> = HashMap::default();
+        let mut explicit: HashMap<(Ty, u32), bool> = HashMap::default();
+        let mut parts = Vec::new();
+        let mut blocks: HashMap<u32, bool> = HashMap::default();
+        for x in 0..b.len() {
+            #[cfg(test)]
+            {
+                out.visits += 1;
+            }
+            if b.tags[x] != Tag::SwitchTag {
+                continue;
+            }
+            let [value, record] = b.data[x];
+            let Some(v) = crate::ir::Ref(value).as_inst().map(|v| v.0 as usize) else {
+                continue;
+            };
+            if v >= b.len()
+                || b.is_borrow(value)
+                || addressed.contains(&value)
+                || !cx.counted(b.ty[v])
+            {
+                continue;
+            }
+            let ty = b.ty[v];
+            let info = types.entry(ty).or_insert_with(|| {
+                let mut empty = Vec::new();
+                let complete = cx.empty_variants(ty, &mut empty);
+                Variants {
+                    nonempty: empty.iter().filter(|&&empty| !empty).count(),
+                    excluded: vec![usize::MAX; empty.len()],
+                    empty,
+                    complete,
+                }
+            });
+            let Some((&default, cases)) = b.record(record).split_last() else {
+                continue;
+            };
+            blocks.clear();
+            let mut remaining = info.nonempty;
+            for case in cases.chunks_exact(2) {
+                #[cfg(test)]
+                {
+                    out.visits += 1;
+                }
+                let (tag, block) = (case[0], case[1]);
+                let empty = if info.complete {
+                    info.empty.get(tag as usize).copied().unwrap_or(false)
+                } else {
+                    *explicit.entry((ty, tag)).or_insert_with(|| {
+                        cx.parts(ty, Some(tag), &mut parts)
+                            && !parts.iter().any(|&field| cx.counted(field))
+                    })
+                };
+                blocks
+                    .entry(block)
+                    .and_modify(|all| *all &= empty)
+                    .or_insert(empty);
+                if block != default
+                    && info.empty.get(tag as usize) == Some(&false)
+                    && info.excluded[tag as usize] != x
+                {
+                    info.excluded[tag as usize] = x;
+                    remaining -= 1;
+                }
+            }
+            let empty_default = info.complete && !info.empty.is_empty() && remaining == 0;
+            blocks
+                .entry(default)
+                .and_modify(|all| *all &= empty_default)
+                .or_insert(empty_default);
+            for (&block, &empty) in &blocks {
+                #[cfg(test)]
+                {
+                    out.visits += 1;
+                }
+                if empty && block != NONE {
+                    out.edges.insert((u32_of(x), block), value);
+                }
+            }
+        }
+        out
     }
-    // Scan aliases only for a branch that can actually lose a count.
-    (found
-        && !(0..b.len()).any(|i| {
-            matches!(b.tags[i], Tag::Ref | Tag::Store)
-                && b.view(b.data[i][0]).value() == Some(value)
-        }))
-    .then_some(value)
+
+    pub fn get(&self, switch: u32, block: u32) -> Option<u32> {
+        self.edges.get(&(switch, block)).copied()
+    }
 }
 
 /// The `move` reads and the `Drop`s that `drop` keeps, by index, with the
@@ -210,5 +293,167 @@ impl Slots {
             x = end;
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EmptyVariants;
+    use crate::ir::{Body, BodyKind, Callee, ReadMode, Tag, u32_of};
+    use crate::own::{OwnCx, Pass};
+    use hd_base::{DefId, Symbol};
+    use hd_types::Ty;
+    use std::cell::Cell;
+
+    struct Cx {
+        empty: Vec<bool>,
+        queries: Cell<usize>,
+        fields: Cell<usize>,
+    }
+
+    impl OwnCx for Cx {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn counted(&self, _: Ty) -> bool {
+            true
+        }
+        fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            false
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            panic!("a complete variant classification must not repeat parts queries")
+        }
+        fn empty_variants(&self, _: Ty, out: &mut Vec<bool>) -> bool {
+            self.queries.set(self.queries.get() + 1);
+            self.fields.set(self.fields.get() + self.empty.len());
+            out.clone_from(&self.empty);
+            true
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Owned
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+    }
+
+    fn context(empty: Vec<bool>) -> Cx {
+        Cx {
+            empty,
+            queries: Cell::new(0),
+            fields: Cell::new(0),
+        }
+    }
+
+    fn inst(b: &mut Body, tag: Tag, a: u32, w: u32) -> u32 {
+        let i = u32_of(b.len());
+        b.tags.push(tag);
+        b.data.push([a, w]);
+        b.ty.push(Ty::STRING);
+        i
+    }
+
+    fn switch(b: &mut Body, cases: &[u32]) -> u32 {
+        let r = u32_of(b.extra.len());
+        b.extra.push(u32_of(cases.len()));
+        b.extra.extend_from_slice(cases);
+        inst(b, Tag::SwitchTag, 0, r)
+    }
+
+    fn body() -> Body {
+        let mut b = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        inst(&mut b, Tag::Poison, 0, 0);
+        b
+    }
+
+    #[test]
+    fn switch_default_excludes_only_tags_that_target_another_block() {
+        let cx = context(vec![false, true, false, true]);
+        let mut b = body();
+        let all_counted_explicit = switch(&mut b, &[0, 100, 2, 102, 103]);
+        let shared_counted_default = switch(&mut b, &[0, 100, 2, 103, 103]);
+        let shared_empty_default = switch(&mut b, &[0, 100, 1, 103, 2, 102, 103]);
+        let mixed_explicit_target = switch(&mut b, &[0, 100, 1, 100, 2, 102, 103]);
+        let duplicate_tag = switch(&mut b, &[0, 100, 0, 100, 103]);
+        let edges = EmptyVariants::build(&b, &cx);
+        assert_eq!(edges.get(all_counted_explicit, 103), Some(0));
+        assert_eq!(edges.get(shared_counted_default, 103), None);
+        assert_eq!(edges.get(shared_empty_default, 103), Some(0));
+        assert_eq!(edges.get(mixed_explicit_target, 100), None);
+        assert_eq!(edges.get(duplicate_tag, 103), None);
+        assert_eq!(cx.queries.get(), 1);
+        assert_eq!(cx.fields.get(), 4);
+    }
+
+    #[test]
+    fn switch_edges_do_not_empty_borrowed_or_addressed_values_or_unknown_layouts() {
+        let mut b = body();
+        let sw = switch(&mut b, &[0, 100, 101]);
+        assert_eq!(
+            EmptyVariants::build(&b, &context(vec![false, true])).get(sw, 101),
+            Some(0)
+        );
+        assert_eq!(
+            EmptyVariants::build(&b, &context(vec![])).get(sw, 101),
+            None
+        );
+        let borrow = inst(&mut b, Tag::Read, 0, ReadMode::Borrow as u32);
+        b.data[sw as usize][0] = borrow;
+        assert_eq!(
+            EmptyVariants::build(&b, &context(vec![false, true])).get(sw, 101),
+            None
+        );
+        b.data[sw as usize][0] = 0;
+        let place = u32_of(b.extra.len());
+        b.extra.extend([2, crate::ir::place::ROOT_VALUE, 0]);
+        inst(&mut b, Tag::Ref, place, 0);
+        assert_eq!(
+            EmptyVariants::build(&b, &context(vec![false, true])).get(sw, 101),
+            None
+        );
+    }
+
+    #[test]
+    fn switch_edge_work_is_linear_in_width_and_independent_of_nesting() {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let mut b = body();
+                let cx = context((0..width).map(|k| k == width - 1).collect());
+                let block = |b: &mut Body, items: &[u32]| {
+                    let r = u32_of(b.extra.len());
+                    b.extra.push(u32_of(items.len()));
+                    b.extra.extend_from_slice(items);
+                    inst(b, Tag::Block, r, crate::ir::NONE)
+                };
+                let mut default = block(&mut b, &[]);
+                let mut switches = Vec::new();
+                for _ in 0..depth {
+                    let explicit = block(&mut b, &[]);
+                    let mut cases: Vec<u32> =
+                        (0..u32_of(width - 1)).flat_map(|k| [k, explicit]).collect();
+                    cases.push(default);
+                    let sw = switch(&mut b, &cases);
+                    switches.push((sw, default));
+                    default = block(&mut b, &[sw]);
+                }
+                let edges = EmptyVariants::build(&b, &cx);
+                assert_eq!(cx.queries.get(), 1);
+                assert_eq!(cx.fields.get(), width);
+                assert_eq!(edges.visits, 2 * b.len() + depth * (width + 1));
+                for _ in 0..20 {
+                    for &(sw, target) in &switches {
+                        assert_eq!(edges.get(sw, target), Some(0));
+                    }
+                }
+                assert_eq!(cx.queries.get(), 1, "flow rounds reuse edge facts");
+            }
+        }
     }
 }

@@ -36,20 +36,13 @@
         block
     ;; 17 |         .Some(x) => x.len()
           local.get $a.0
-          if
-            local.get $a.0
-            local.get $q
-            local.set $x.1
-            drop
-            br 1
-          else
-    ;; 18 |         .None => 0
-            local.get $a.0
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 17 |         .Some(x) => x.len()
-          end
+          i32.eqz
+          br_if 1
+          local.get $a.0
+          local.get $q
+          local.set $x.1
+          drop
+          br 0
     ;; 16 |     match q.pop_front():
           unreachable
         end
@@ -78,20 +71,13 @@
         block
     ;; 23 |         .Some(x) => x.len()
           local.get $a.0
-          if
-            local.get $a.0
-            local.get $h
-            local.set $x.1
-            drop
-            br 1
-          else
-    ;; 24 |         .None => 0
-            local.get $a.0
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 23 |         .Some(x) => x.len()
-          end
+          i32.eqz
+          br_if 1
+          local.get $a.0
+          local.get $h
+          local.set $x.1
+          drop
+          br 0
     ;; 22 |     match h.pop():
           unreachable
         end

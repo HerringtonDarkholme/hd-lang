@@ -59,9 +59,21 @@
     local.get $other
     local.get $t3
     i32.store $heap offset=4
-    local.get $text
+    block
+      block
+        block
+          local.get $text
+          i32.eqz
+          br_if 1
+          local.get $text
+          local.set $other
+          br 0
+          unreachable
+        end
+        br 1
+      end
+    end
     local.get $other
-    call $word
     call $"impl string.len"
     local.get $t0
     i32.const 32
@@ -74,16 +86,9 @@
       block
     ;; 20 |         Token.Word(w) => w
         local.get $t
-        if
-          br 1
-        else
-    ;; 21 |         Token.End => fallback
-          local.get $t
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 20 |         Token.Word(w) => w
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 19 |     match t:
         unreachable
       end

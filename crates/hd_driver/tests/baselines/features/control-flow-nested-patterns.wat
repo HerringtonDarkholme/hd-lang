@@ -11,14 +11,7 @@
         if
           br 1
         else
-    ;; 23 |         .Line(start=_, end=User { name }) => name
-          local.get $s.0
-          if
-            br 3
-          else
-            unreachable
-          end
-    ;; 22 |         .Dot(User { name }) => name
+          br 2
         end
     ;; 21 |     match s:
         unreachable
@@ -51,18 +44,10 @@
         block
     ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
           local.get $s.0
-          i32.eqz
-          if
-            local.get $s.3
-            br_if 2
-            br 1
-          else
-    ;; 18 |         .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
-            local.get $s.0
-            br_if 3
-            unreachable
-    ;; 16 |         .Dot(User { name, age: 0 }) => name.len()
-          end
+          br_if 2
+          local.get $s.3
+          br_if 1
+          br 0
     ;; 15 |     match s:
           unreachable
         end

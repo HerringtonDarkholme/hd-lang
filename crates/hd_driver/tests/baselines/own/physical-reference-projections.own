@@ -104,12 +104,8 @@ app/main/impl Probes.variant
   %11 = Block - : never
   %12 = Ref local [*%0 as #1 .0] : &Payload
   %13 = Store [$1] %12 : ()
-  %15 = Block - : never
+  %16 = SwitchTag %9 [#0 %11 %15] : never
   %17 = Block - : never
-  %18 = SwitchTag %9 [#1 %15 %17] : never
-  %19 = Block - : never
-  %20 = SwitchTag %9 [#0 %11 %19] : never
-  %21 = Block - : never
-  %22 = Match %0 [%21 %1 %8] : usize
-  %23 = Block %22 : usize
+  %18 = Match %0 [%17 %1 %8] : usize
+  %19 = Block %18 : usize
   summary kept []

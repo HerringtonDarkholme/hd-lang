@@ -166,23 +166,15 @@
                 block
                   local.get $t13
                   i32.load $heap
-                  local.tee $t14
                   i32.eqz
                   br_if 0
-                  local.get $t14
-                  i32.const 1
-                  i32.eq
-                  if
-                    local.get $t13
-                    i32.load $heap offset=4
-                    local.get $t13
-                    i32.load $heap offset=8
-                    local.set $t13
-                    local.set $t14
-                    br 2
-                  else
-                    unreachable
-                  end
+                  local.get $t13
+                  i32.load $heap offset=4
+                  local.get $t13
+                  i32.load $heap offset=8
+                  local.set $t13
+                  local.set $t14
+                  br 1
                   unreachable
                 end
                 br 1

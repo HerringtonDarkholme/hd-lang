@@ -102,7 +102,6 @@ impl[T < Ord] Queue[T]:
 >   %32 = Store [$6] %31 : ()
 >   %33 = Block - : ()
 >   %36 = Block - : never
->   %38 = Block - : never
 >   %39 = SwitchTag %27 [#0 %36 %38] : never
                     _ => pass
 >   %34 = Block - : ()
@@ -119,7 +118,6 @@ impl[T < Ord] Queue[T]:
                 .Less => pass
 >   %51 = Block - : ()
 >   %55 = Block - : never
->   %57 = Block - : never
 >   %58 = SwitchTag %48 [#0 %55 %57] : never
                 _ => break
 >   %52 = Break L0 - : never

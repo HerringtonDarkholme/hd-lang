@@ -36,15 +36,15 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 >     uses $1: entry -> %2 consume last
 >   local $2 v: &string [read assigned] value
 >     uses $2: %9 -> %4 lend last
->   %0 = Retain %22 Entry local $1 #0 : ()
+>   %0 = Retain %18 Entry local $1 #0 : ()
     match m.get_ref(k):
 >   %1 = Read borrow [$0] : &UniqMap[string, string]
 >   %2 = Read move [$1] : string
 >   %3 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string] (%1, %2) : &string?
->   %19 = Block - : never
->   %20 = Match %3 [%19 %6 %7] : usize
->   %21 = Drop [%3] : ()
->   %22 = Block %20 : usize
+>   %15 = Block - : never
+>   %16 = Match %3 [%15 %6 %7] : usize
+>   %17 = Drop [%3] : ()
+>   %18 = Block %16 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
@@ -52,13 +52,9 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 >   %8 = Read borrow [%3 as #1 .0] : &string
 >   %9 = Store [$2] %8 : ()
 >   %11 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %3 [#1 %11 %17] : never
+>   %14 = SwitchTag %3 [#1 %11 %13] : never
         .None => 0
 >   %7 = Block 0:usize : usize
->   %13 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %3 [#0 %13 %15] : never
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 

@@ -5,16 +5,9 @@
     block
       block
         local.get $found.0
-        i32.const 1
-        i32.eq
-        if
-          br 1
-        else
-          local.get $found.0
-          i32.eqz
-          br_if 2
-          unreachable
-        end
+        i32.eqz
+        br_if 1
+        br 0
         unreachable
       end
       local.get $found.1

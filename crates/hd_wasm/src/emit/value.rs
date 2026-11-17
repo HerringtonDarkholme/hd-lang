@@ -11,8 +11,8 @@ use std::rc::Rc;
 
 use super::Em;
 use crate::layout::{
-    Discr, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, payload_mem, variant_steps,
-    variants, walk,
+    Discr, Enc, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, payload_mem,
+    variant_steps, variants, walk,
 };
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
@@ -744,6 +744,12 @@ impl Em<'_, '_, '_> {
         let flat = self.enum_flat(self.ty_of(a))?;
         match flat.test(v) {
             Test::Const(b) => self.f.i32(i32::from(b)),
+            // A direct two-variant tag is already the bool for variant
+            // one. Use the type's domain even when that variant's target
+            // reads a payload and cannot use `switch_two_arms`.
+            Test::Read(d, Is::Eq(1)) if d.enc == Enc::Direct && flat.positions.len() == 2 => {
+                self.discr_cell(a, d)?;
+            }
             Test::Read(d, is) => {
                 self.discr_cell(a, d)?;
                 for op in is.ops() {

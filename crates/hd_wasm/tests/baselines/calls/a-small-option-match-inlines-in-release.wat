@@ -2,12 +2,11 @@
 (module
   (import "fixture" "impl[T] List[T].get[f64]" (func $"impl[T] List[T].get[f64]" (param i32 i32) (result i32 f64)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32) (result i32)))
-  (import "fixture" "impl[T < ?Copy] T?.expect[&string]" (func $"impl[T < ?Copy] T?.expect[&string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $scalar_value (param $slot i32) (result i32) (local $v i32) (local $t0 i32)
+  (func $scalar_value (param $slot i32) (result i32) (local $v i32)
     ;; 53 |     match slot:
     block
       block
@@ -15,21 +14,14 @@
     ;; 54 |         .Deleted => +0
           local.get $slot
           i32.load $heap
-          local.tee $t0
           i32.eqz
           br_if 0
     ;; 55 |         .Occupied(_, v) => v
-          local.get $t0
-          i32.const 1
-          i32.eq
-          if
-            local.get $slot
-            i32.load $heap offset=8
-            local.set $v
-            br 2
-          else
-            unreachable
-          end
+          local.get $slot
+          i32.load $heap offset=8
+          local.set $v
+    ;; 54 |         .Deleted => +0
+          br 1
     ;; 53 |     match slot:
           unreachable
         end
@@ -38,7 +30,7 @@
     end
     local.get $v
   )
-  (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t3 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32)
+  (func $repeated_scalar_read (result i32) (local $slot i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 58 |     slot := Slot.Occupied(1, +3)
     global.get $locals
     global.get $locals_base
@@ -92,20 +84,12 @@
         block
           local.get $t1
           i32.load $heap
-          local.tee $t2
           i32.eqz
           br_if 0
-          local.get $t2
-          i32.const 1
-          i32.eq
-          if
-            local.get $t1
-            i32.load $heap offset=8
-            local.set $t3
-            br 2
-          else
-            unreachable
-          end
+          local.get $t1
+          i32.load $heap offset=8
+          local.set $t2
+          br 1
           unreachable
         end
         br 1
@@ -116,27 +100,19 @@
         block
           local.get $slot
           i32.load $heap
-          local.tee $t1
           i32.eqz
           br_if 0
-          local.get $t1
-          i32.const 1
-          i32.eq
-          if
-            local.get $slot
-            i32.load $heap offset=8
-            local.set $t4
-            br 2
-          else
-            unreachable
-          end
+          local.get $slot
+          i32.load $heap offset=8
+          local.set $t3
+          br 1
           unreachable
         end
         br 1
       end
     end
+    local.get $t2
     local.get $t3
-    local.get $t4
     i32.add
     ;; 58 |     slot := Slot.Occupied(1, +3)
     local.get $t0
@@ -173,16 +149,9 @@
           block
             block
               local.get $i
-              i32.const 1
-              i32.eq
-              if
-                br 1
-              else
-                local.get $i
-                i32.eqz
-                br_if 2
-                unreachable
-              end
+              i32.eqz
+              br_if 1
+              br 0
               unreachable
             end
             br 1
@@ -203,8 +172,29 @@
   )
   (func $loan_explicit_user (param $value i32) (result i32)
     ;; 43 |     explicit_loan(value)
-    local.get $value
-    call $explicit_loan
+    block
+      block
+        block
+          block
+            local.get $value
+            i32.eqz
+            br_if 1
+            br 0
+            unreachable
+          end
+          local.get $value
+          return
+          br 1
+        end
+        i32.const 65 ;; &"value"
+        i32.const 5
+        i32.const 0
+        call_indirect $table0 (param i32 i32)
+        unreachable
+      end
+      unreachable
+    end
+    i32.const 0
   )
   (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 f64) (local $t4 f64)
     ;; 19 |     for i in 0..xs.len():
@@ -249,16 +239,9 @@
           block
             block
               local.get $t2
-              i32.const 1
-              i32.eq
-              if
-                br 1
-              else
-                local.get $t2
-                i32.eqz
-                br_if 2
-                unreachable
-              end
+              i32.eqz
+              br_if 1
+              br 0
               unreachable
             end
             br 1
@@ -285,16 +268,9 @@
           block
     ;; 39 |         .Some(v) => return v
             local.get $value
-            if
-              br 1
-            else
-    ;; 40 |         .None => panic("value")
-              local.get $value
-              i32.eqz
-              br_if 2
-              unreachable
-    ;; 39 |         .Some(v) => return v
-            end
+            i32.eqz
+            br_if 1
+            br 0
     ;; 38 |     match value:
             unreachable
           end
@@ -323,18 +299,9 @@
         block
     ;; 8 |         .Some(v) => v
           local.get $value.0
-          i32.const 1
-          i32.eq
-          if
-            br 1
-          else
-    ;; 9 |         .None => fallback
-            local.get $value.0
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 8 |         .Some(v) => v
-          end
+          i32.eqz
+          br_if 1
+          br 0
     ;; 7 |     match value:
           unreachable
         end
@@ -393,16 +360,9 @@
           block
             block
               local.get $t2
-              i32.const 1
-              i32.eq
-              if
-                br 1
-              else
-                local.get $t2
-                i32.eqz
-                br_if 2
-                unreachable
-              end
+              i32.eqz
+              br_if 1
+              br 0
               unreachable
             end
             br 1
@@ -455,16 +415,9 @@
     block
       block
         local.get $values
-        i32.const 1
-        i32.eq
-        if
-          br 1
-        else
-          local.get $values
-          i32.eqz
-          br_if 2
-          unreachable
-        end
+        i32.eqz
+        br_if 1
+        br 0
         unreachable
       end
       local.get $t0
@@ -472,11 +425,30 @@
     end
     local.get $t1
   )
-  (func $loan_value (param $value i32) (result i32)
+  (func $loan_value (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 35 |     value.expect("value")
-    local.get $value
     i32.const 65 ;; &"value"
     i32.const 5
-    call $"impl[T < ?Copy] T?.expect[&string]"
+    local.set $t0
+    local.set $t1
+    block
+      block
+        block
+          local.get $value
+          i32.eqz
+          br_if 1
+          br 0
+          unreachable
+        end
+        local.get $value
+        return
+      end
+      local.get $t1
+      local.get $t0
+      i32.const 0
+      call_indirect $table0 (param i32 i32)
+      unreachable
+    end
+    i32.const 0
   )
 )

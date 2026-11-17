@@ -29,15 +29,15 @@ fn count_long(xs: List[string]) -> usize:
 >   local $3 $iter: &mut ListIter[string] [assigned] value
 >     uses $3: %18 -> %19 lend
 >   local $4 x: string [read assigned] value
->     uses $4: %34 -> %22 lend last
+>     uses $4: %33 -> %22 lend last
 >   local $6 xs: &List[string] [read] value
 >     uses $6: %3 -> %4 lend last
 >   local $7 self: List[string] [read] value
 >     uses $7: %5 -> %6 consume last
->   %0 = Retain %49 Entry local $0 #0 : ()
+>   %0 = Retain %48 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %49 = Block %48 : usize
+>   %48 = Block %47 : usize
     for x in names(&xs):
 >   %2 = Ref local frame [$0] : &List[string]
 >   %3 = Store [$6] %2 : ()
@@ -59,21 +59,20 @@ fn count_long(xs: List[string]) -> usize:
 >   %19 = Read borrow [$3] : &mut ListIter[string]
 >   %20 = Call std/iter/Iterator.next for ListIter[string] [string] via Bound (%19) : string?
 >   %29 = Block - : ()
->   %30 = Drop [%20] : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = Read borrow [%20 as #1 .0] : string
->   %34 = Store [$4] %33 : ()
->   %35 = Release %34 Operation #3 : ()
->   %41 = Block - : never
->   %42 = Match %20 [%41 %29 %32] : ()
->   %43 = Drop [%20] : ()
->   %44 = Block - : ()
->   %45 = Loop %44 - : ()
->   %46 = LoanEnd [$3] : ()
->   %47 = Drop [$2] : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = Read borrow [%20 as #1 .0] : string
+>   %33 = Store [$4] %32 : ()
+>   %34 = Release %33 Operation #3 : ()
+>   %40 = Block - : never
+>   %41 = Match %20 [%40 %29 %31] : ()
+>   %42 = Drop [%20] : ()
+>   %43 = Block - : ()
+>   %44 = Loop %43 - : ()
+>   %45 = LoanEnd [$3] : ()
+>   %46 = Drop [$2] : ()
 >   %17 finds [$2] full
->   %45 finds [$2] full
+>   %44 finds [$2] full
         n += x.len()
 >   %21 = Read copy [$1] : usize
 >   %22 = Read borrow [$4] : string
@@ -84,7 +83,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %27 = Prim Add [%21 %26] : usize
 >   %28 = Store [$1] %27 : ()
     n
->   %48 = Read copy [$1] : usize
+>   %47 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [$0] writes
