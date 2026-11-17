@@ -870,6 +870,8 @@ impl Ck<'_, '_> {
                 );
                 return Ok(());
             }
+            // ruled out: every other syntax kind of a top-level statement has no early answer here;
+            // the open set of syntax kinds continues below.
             _ => {}
         }
         self.top_level_binding(s)

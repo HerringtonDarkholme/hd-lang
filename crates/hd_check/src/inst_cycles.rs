@@ -370,6 +370,8 @@ fn head_match(pool: Types<'_>, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<O
             }
             head_match(pool, owner, r, s, out);
         }
+        // ruled out: two types of different kinds, or of a kind without type arguments, have no
+        // heads to pair; the pairs are the open product of the type kinds.
         _ => {}
     }
 }

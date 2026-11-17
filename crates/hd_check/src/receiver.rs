@@ -712,6 +712,8 @@ impl Ck<'_, '_> {
                         .add_fix(&title, FixSafety::Suggestion, &[(at(lo, lo), "mut ")]);
                 }
             }
+            // ruled out: a binding declared by any other syntax has no `mut` spelling to suggest;
+            // syntax kinds are an open set.
             _ => {}
         }
     }

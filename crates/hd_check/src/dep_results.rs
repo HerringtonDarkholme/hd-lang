@@ -1035,7 +1035,18 @@ impl Layout {
                     });
                 }
             }
-            _ => {}
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Union(_)
+            | TyData::Opaque { borrows: false, .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
         // Only a walk the depth limit cut nowhere is the type's whole
         // answer.
@@ -3521,7 +3532,63 @@ impl Ck<'_, '_> {
                                 .is_some_and(|&t| holds_local_ref(pool, t))
                     });
                 }
-                _ => {}
+                Tag::ItemRef
+                | Tag::ProviderGet
+                | Tag::Hole
+                | Tag::Poison
+                | Tag::Prim
+                | Tag::And
+                | Tag::Or
+                | Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::Is
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Coerce
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
+                | Tag::Hook
+                | Tag::NewStruct
+                | Tag::CopyStruct
+                | Tag::NewVariant
+                | Tag::NewTuple
+                | Tag::NewList
+                | Tag::NewMap
+                | Tag::Closure
+                | Tag::RefDyn
+                | Tag::RefIdentity
+                | Tag::Read
+                | Tag::Ref
+                | Tag::Drop
+                | Tag::IsUnique
+                | Tag::FlagSet
+                | Tag::FlagClear
+                | Tag::With
+                | Tag::ContextNew
+                | Tag::ContextFor
+                | Tag::Block
+                | Tag::Scope
+                | Tag::Defer
+                | Tag::If
+                | Tag::Loop
+                | Tag::Break
+                | Tag::Continue
+                | Tag::Return
+                | Tag::Unreachable
+                | Tag::Match
+                | Tag::SwitchTag
+                | Tag::SwitchInt
+                | Tag::SwitchChar
+                | Tag::SwitchStr
+                | Tag::Guard
+                | Tag::ToArm
+                | Tag::LoanEnd
+                | Tag::Retain
+                | Tag::Release
+                | Tag::MakeUnique => {}
             }
         }
         // The arguments a call's result holds, for the backend's run-time
@@ -4189,7 +4256,63 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
         match b.tags[i as usize] {
             Tag::Return => out.push(b.data[i as usize][0]),
             Tag::Closure => continue,
-            _ => {}
+            Tag::ItemRef
+            | Tag::ProviderGet
+            | Tag::Hole
+            | Tag::Poison
+            | Tag::Prim
+            | Tag::And
+            | Tag::Or
+            | Tag::Call
+            | Tag::CallValue
+            | Tag::CallDyn
+            | Tag::Is
+            | Tag::CallHost
+            | Tag::Intrinsic
+            | Tag::DefaultCall
+            | Tag::Coerce
+            | Tag::Await
+            | Tag::AwaitValue
+            | Tag::AwaitAll
+            | Tag::AwaitRace
+            | Tag::Hook
+            | Tag::NewStruct
+            | Tag::CopyStruct
+            | Tag::NewVariant
+            | Tag::NewTuple
+            | Tag::NewList
+            | Tag::NewMap
+            | Tag::RefDyn
+            | Tag::RefIdentity
+            | Tag::Read
+            | Tag::Store
+            | Tag::Ref
+            | Tag::Drop
+            | Tag::IsUnique
+            | Tag::FlagSet
+            | Tag::FlagClear
+            | Tag::With
+            | Tag::ContextNew
+            | Tag::ContextFor
+            | Tag::Block
+            | Tag::Scope
+            | Tag::Defer
+            | Tag::If
+            | Tag::Loop
+            | Tag::Break
+            | Tag::Continue
+            | Tag::Unreachable
+            | Tag::Match
+            | Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::SwitchStr
+            | Tag::Guard
+            | Tag::ToArm
+            | Tag::LoanEnd
+            | Tag::Retain
+            | Tag::Release
+            | Tag::MakeUnique => {}
         }
         if i == root && b.tags[i as usize] == Tag::Block {
             out.push(b.data[i as usize][1]);
@@ -4511,6 +4634,8 @@ impl<'t> ScopeIndex<'t> {
         match own.kind() {
             SyntaxKind::ComprehensionExpr => return Some(range(own)),
             SyntaxKind::ClosureExpr | SyntaxKind::FnDecl => return None,
+            // ruled out: any other node climbs on to its parent below; syntax kinds are an open
+            // set.
             _ => {}
         }
         climb(self.tree, &mut self.lp, n, None, |p, c| match p.kind() {

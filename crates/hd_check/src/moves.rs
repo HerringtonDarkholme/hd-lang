@@ -445,7 +445,62 @@ impl Forward for Walk<'_> {
                     }
                 }
             }
-            _ => {}
+            Tag::ItemRef
+            | Tag::ProviderGet
+            | Tag::Hole
+            | Tag::Poison
+            | Tag::Prim
+            | Tag::And
+            | Tag::Or
+            | Tag::Call
+            | Tag::CallValue
+            | Tag::CallDyn
+            | Tag::Is
+            | Tag::CallHost
+            | Tag::Intrinsic
+            | Tag::DefaultCall
+            | Tag::Coerce
+            | Tag::Await
+            | Tag::AwaitValue
+            | Tag::AwaitAll
+            | Tag::AwaitRace
+            | Tag::Hook
+            | Tag::NewStruct
+            | Tag::CopyStruct
+            | Tag::NewVariant
+            | Tag::NewTuple
+            | Tag::NewList
+            | Tag::NewMap
+            | Tag::Closure
+            | Tag::RefDyn
+            | Tag::RefIdentity
+            | Tag::Drop
+            | Tag::IsUnique
+            | Tag::FlagSet
+            | Tag::FlagClear
+            | Tag::With
+            | Tag::ContextNew
+            | Tag::ContextFor
+            | Tag::Block
+            | Tag::Scope
+            | Tag::Defer
+            | Tag::If
+            | Tag::Loop
+            | Tag::Break
+            | Tag::Continue
+            | Tag::Return
+            | Tag::Unreachable
+            | Tag::Match
+            | Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::SwitchStr
+            | Tag::Guard
+            | Tag::ToArm
+            | Tag::LoanEnd
+            | Tag::Retain
+            | Tag::Release
+            | Tag::MakeUnique => {}
         }
     }
 

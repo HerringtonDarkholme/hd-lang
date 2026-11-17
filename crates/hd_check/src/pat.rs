@@ -1043,6 +1043,8 @@ impl Ck<'_, '_> {
                     }
                     neg = false;
                 }
+                // ruled out: a range pattern's direct tokens are `-`, `..` or `..=`, and integer
+                // literals (grammar `range_pattern_bound`); token kinds are an open set.
                 _ => {}
             }
         }
@@ -1214,19 +1216,20 @@ impl Ck<'_, '_> {
         // `flow.let.refutable.else`, `flow.let.else.unreachable`. A pattern
         // that does not fit `t` already reported; skip the cascade.
         let refutable = self.refutable(pat, t)?;
-        match els {
-            _ if self.diags.len() != before => {}
-            None if refutable => self.err(
-                Code::RefutableLetPattern,
-                pat,
-                "this pattern can fail to match; add an `else` block",
-            ),
-            Some(e) if !refutable => self.err(
-                Code::UnreachableMatchArm,
-                e,
-                "the pattern always matches, so `else` never runs",
-            ),
-            _ => {}
+        if self.diags.len() == before {
+            match (els, refutable) {
+                (None, true) => self.err(
+                    Code::RefutableLetPattern,
+                    pat,
+                    "this pattern can fail to match; add an `else` block",
+                ),
+                (Some(e), false) => self.err(
+                    Code::UnreachableMatchArm,
+                    e,
+                    "the pattern always matches, so `else` never runs",
+                ),
+                (None, false) | (Some(_), true) => {}
+            }
         }
         let open = self.b.open_block();
         let first = self.b.close_block(open, None, Ty::VOID, pat.index());
@@ -1478,6 +1481,8 @@ impl Ck<'_, '_> {
                         settled = false;
                         continue;
                     }
+                    // ruled out: every other pattern kind keeps its column for the decision tree;
+                    // the match is over all syntax kinds, an open set.
                     _ => {}
                 }
             }

@@ -1066,7 +1066,54 @@ impl Gen<'_, '_> {
                 parts(&|w| w == Word::Provider, Category::Provider, true);
             }
             Tag::CallHost => parts(&|w| matches!(w, Word::Value(_)), Category::HostCall, true),
-            _ => {}
+            Tag::ItemRef
+            | Tag::ProviderGet
+            | Tag::Hole
+            | Tag::Poison
+            | Tag::Prim
+            | Tag::And
+            | Tag::Or
+            | Tag::Call
+            | Tag::CallValue
+            | Tag::CallDyn
+            | Tag::Is
+            | Tag::DefaultCall
+            | Tag::Coerce
+            | Tag::Await
+            | Tag::AwaitValue
+            | Tag::AwaitAll
+            | Tag::AwaitRace
+            | Tag::Hook
+            | Tag::Closure
+            | Tag::RefDyn
+            | Tag::RefIdentity
+            | Tag::Read
+            | Tag::Ref
+            | Tag::Drop
+            | Tag::IsUnique
+            | Tag::FlagSet
+            | Tag::FlagClear
+            | Tag::ContextFor
+            | Tag::Block
+            | Tag::Scope
+            | Tag::Defer
+            | Tag::If
+            | Tag::Loop
+            | Tag::Break
+            | Tag::Continue
+            | Tag::Return
+            | Tag::Unreachable
+            | Tag::Match
+            | Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::SwitchStr
+            | Tag::Guard
+            | Tag::ToArm
+            | Tag::LoanEnd
+            | Tag::Retain
+            | Tag::Release
+            | Tag::MakeUnique => {}
         }
         for (v, cat, held) in kept {
             let at = self.node(v);
@@ -1323,12 +1370,11 @@ impl Gen<'_, '_> {
                 (_, Some(p)) => self.relate(&p, &me, false, false),
                 // A trait value through a counted reference has the origins
                 // of the place that reference was read from.
-                (at, None)
-                    if super::is_dyn(pool, me.1) && !matches!(at, Some(Ok(Origin::Global(_)))) =>
-                {
-                    me.0.iter().for_each(|&r| self.lies_in(at, r));
+                (at, None) => {
+                    if super::is_dyn(pool, me.1) && !matches!(at, Some(Ok(Origin::Global(_)))) {
+                        me.0.iter().for_each(|&r| self.lies_in(at, r));
+                    }
                 }
-                _ => {}
             },
             Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue => {
                 let s = self.s;

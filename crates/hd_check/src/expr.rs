@@ -1155,6 +1155,8 @@ impl Ck<'_, '_> {
                 }
                 return self.trait_call_args(tr, method, r, t, &[], n);
             }
+            // ruled out: every other unary operator and operand pair is valid here and is lowered
+            // below; token kinds are an open set.
             _ => {}
         }
         Ok(match op {
@@ -3812,6 +3814,8 @@ impl Ck<'_, '_> {
                     let [blk] = clause.parts();
                     last_else = Some((clause, blk));
                 }
+                // ruled out: an `if`'s other children are its condition and first suite, read
+                // above; syntax kinds are an open set.
                 _ => {}
             }
         }

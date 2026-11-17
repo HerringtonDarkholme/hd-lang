@@ -612,6 +612,8 @@ impl Ck<'_, '_> {
                     };
                     a.named.push((name, e));
                 }
+                // ruled out: an argument list's children are `Argument` and `NamedArgument` nodes;
+                // the match is over all syntax kinds, an open set.
                 _ => {}
             }
         }

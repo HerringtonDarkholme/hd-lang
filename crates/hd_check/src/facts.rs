@@ -678,6 +678,8 @@ fn check_enum_tagging(
                 break;
             }
             Some(def) if def == untagged => return,
+            // ruled out: any other item, or a value naming none, is not a tagging fact; items are
+            // an open set of definitions.
             _ => {}
         }
         if !concrete_fact(cx, *value, tagging) {
