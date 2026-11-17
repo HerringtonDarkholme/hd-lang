@@ -134,12 +134,6 @@ pub(crate) fn preflight(
                 "native provider for package host trait {name:?} was generated from a different contract"
             )));
         }
-        let Some(dispatch) = registration.dispatch else {
-            // gap: #2079 generates the companion's dispatch and codecs.
-            return Err(refused(format!(
-                "native provider for package host trait {name:?} has no generated dispatch"
-            )));
-        };
         if let Some(method) = interface.methods.iter().find(|m| m.suspends) {
             // gap: #2081 drives pending native calls from the reactor.
             return Err(refused(format!(
@@ -149,7 +143,7 @@ pub(crate) fn preflight(
         }
         natives.push(Native {
             provider: registration.provider,
-            dispatch,
+            dispatch: registration.dispatch,
         });
     }
     if let Some(r) = registrations.iter().flatten().next() {
@@ -215,7 +209,7 @@ pub(crate) fn define(
                     }
                     _ => {
                         return Err(Stop::Contract(format!(
-                            "{label}: the provider returned from a method that never returns"
+                            "{label}: package host: the method never returns, but its provider returned"
                         ))
                         .into());
                     }

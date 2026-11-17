@@ -10,6 +10,7 @@ spec/conformance/cli/**/*.hd text eol=lf
 spec/conformance/cli/**/want/** text eol=lf
 # Generated-companion snapshots are compared as text: LF on every platform.
 crates/hd_run_wasmtime/tests/native/*.host.rs text eol=lf
+crates/hd_cli/tests/all/native/*.host.rs text eol=lf
 
 # A missing import's fix-it in a CRLF file: stored with CRLF bytes and
 # never converted, so every checkout on every platform has them.

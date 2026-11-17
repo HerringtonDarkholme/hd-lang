@@ -29,6 +29,11 @@ mod forms {
     include!("native/forms.host.rs");
 }
 
+#[allow(dead_code, clippy::all, clippy::pedantic)]
+mod values {
+    include!("native/values.host.rs");
+}
+
 fn int(bits: u8, signed: bool) -> Value {
     Value::Int { bits, signed }
 }
@@ -218,6 +223,109 @@ fn forms_contract() -> Contract {
     }
 }
 
+/// `example.org/ui-tui@0.3.0/values.Values`, the codec contract: `make`
+/// returns a record with a field of every value form and `take` takes the
+/// same forms as its arguments, so `make`'s result bytes are `take`'s
+/// argument bytes. Two records of one Rust shape (`data: Vec<u8>`) differ
+/// only in encoding: bytes, and a list of `u8`.
+fn values_contract() -> Contract {
+    let point = || Value::Record(vec![field("x", Value::F64), field("y", Value::F64)]);
+    let tree = Value::Rec(
+        0,
+        Box::new(Value::Enum(vec![
+            variant("Leaf", vec![field("value", int(32, true))]),
+            variant(
+                "Node",
+                vec![
+                    field("kids", Value::List(Box::new(Value::Ref(0)))),
+                    field("parent", Value::Option(Box::new(Value::Ref(0)))),
+                ],
+            ),
+        ])),
+    );
+    let forms = vec![
+        ("unit", Value::Void),
+        ("flag", Value::Bool),
+        ("letter", Value::Char),
+        ("tiny", int(8, true)),
+        ("small", int(16, true)),
+        ("medium", int(32, true)),
+        ("large", int(64, true)),
+        ("byte", int(8, false)),
+        ("word", int(16, false)),
+        ("dword", int(32, false)),
+        ("qword", int(64, false)),
+        ("single", Value::F32),
+        ("double", Value::F64),
+        ("text", Value::String),
+        ("blob", Value::Bytes),
+        ("octets", Value::List(Box::new(int(8, false)))),
+        ("words", Value::List(Box::new(Value::String))),
+        ("maybe", Value::Option(Box::new(int(64, true)))),
+        (
+            "outcome",
+            Value::Result(Box::new(point()), Box::new(Value::String)),
+        ),
+        ("pair", Value::Tuple(vec![Value::Bool, Value::Void])),
+        ("one", Value::Tuple(vec![Value::String])),
+        (
+            "table",
+            Value::Map(Box::new(Value::String), Box::new(int(32, true))),
+        ),
+        (
+            "person",
+            Value::Record(vec![
+                field("name", Value::String),
+                field("at", point()),
+                field("trail", Value::List(Box::new(point()))),
+            ]),
+        ),
+        (
+            "event",
+            Value::Enum(vec![
+                variant("Quit", vec![]),
+                variant(
+                    "Resize",
+                    vec![
+                        field("width", int(32, false)),
+                        field("height", int(32, false)),
+                    ],
+                ),
+            ]),
+        ),
+        (
+            "only",
+            Value::Enum(vec![variant("Ping", vec![field("id", int(8, false))])]),
+        ),
+        ("tree", tree),
+        ("private", Value::Json),
+        ("bin", Value::Record(vec![field("data", Value::Bytes)])),
+        (
+            "nums",
+            Value::Record(vec![field("data", Value::List(Box::new(int(8, false))))]),
+        ),
+        // An enum without variants has no value, so only `None` crosses.
+        ("nothing", Value::Option(Box::new(Value::Enum(vec![])))),
+        ("empty", Value::Record(vec![])),
+    ];
+    let record = Value::Record(forms.iter().map(|(n, v)| field(n, v.clone())).collect());
+    let params = forms.into_iter().map(|(_, v)| v).collect();
+    Contract {
+        interfaces: vec![interface(
+            "values.Values",
+            "hd:pkg:values",
+            false,
+            vec![
+                method("make", vec![], record, false),
+                method("take", params, Value::Void, false),
+                method("text", vec![Value::String], Value::String, false),
+                method("bad", vec![], Value::Json, false),
+                method("stop", vec![], Value::Never, false),
+            ],
+        )],
+    }
+}
+
 fn snapshot(name: &str, contract: &Contract) {
     let text = hd_host_abi::native_rust::generate(contract).unwrap();
     assert_eq!(
@@ -247,6 +355,11 @@ fn the_companion_of_hdrus_surface_is_its_snapshot() {
 #[test]
 fn the_companion_of_every_value_form_is_its_snapshot() {
     snapshot("forms.host.rs", &forms_contract());
+}
+
+#[test]
+fn the_companion_of_every_codec_is_its_snapshot() {
+    snapshot("values.host.rs", &values_contract());
 }
 
 #[test]
@@ -517,5 +630,403 @@ fn instantiation_takes_the_registry_by_value() {
     assert_eq!(
         message,
         "native provider for package host trait \"example.org/ui-tui@0.3.0/surface.Surface\" names no trait this module requires"
+    );
+}
+
+/// A `Values` provider: `make` returns `made`, `take` records each
+/// argument's `Debug` text.
+struct Codecs {
+    made: values::ValuesMakeResult,
+    taken: Rc<std::cell::RefCell<Vec<String>>>,
+}
+
+impl values::Values for Codecs {
+    fn make(&mut self) -> HostResult<values::ValuesMakeResult> {
+        Ok(self.made.clone())
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::many_single_char_names)]
+    fn take(
+        &mut self,
+        a0: (),
+        a1: bool,
+        a2: char,
+        a3: i8,
+        a4: i16,
+        a5: i32,
+        a6: i64,
+        a7: u8,
+        a8: u16,
+        a9: u32,
+        a10: u64,
+        a11: f32,
+        a12: f64,
+        a13: String,
+        a14: Vec<u8>,
+        a15: Vec<u8>,
+        a16: Vec<String>,
+        a17: Option<i64>,
+        a18: Result<values::ValuesMakeResultOutcomeOk, String>,
+        a19: (bool, ()),
+        a20: (String,),
+        a21: Vec<(String, i32)>,
+        a22: values::ValuesMakeResultPerson,
+        a23: values::ValuesMakeResultEvent,
+        a24: values::ValuesMakeResultOnly,
+        a25: values::ValuesTakeArg25,
+        a26: Serde,
+        a27: values::ValuesMakeResultBin,
+        a28: values::ValuesMakeResultNums,
+        a29: Option<values::ValuesMakeResultNothing>,
+        a30: values::ValuesMakeResultEmpty,
+    ) -> HostResult<()> {
+        *self.taken.borrow_mut() = vec![
+            format!("{a0:?}"),
+            format!("{a1:?}"),
+            format!("{a2:?}"),
+            format!("{a3:?}"),
+            format!("{a4:?}"),
+            format!("{a5:?}"),
+            format!("{a6:?}"),
+            format!("{a7:?}"),
+            format!("{a8:?}"),
+            format!("{a9:?}"),
+            format!("{a10:?}"),
+            format!("{a11:?}"),
+            format!("{a12:?}"),
+            format!("{a13:?}"),
+            format!("{a14:?}"),
+            format!("{a15:?}"),
+            format!("{a16:?}"),
+            format!("{a17:?}"),
+            format!("{a18:?}"),
+            format!("{a19:?}"),
+            format!("{a20:?}"),
+            format!("{a21:?}"),
+            format!("{a22:?}"),
+            format!("{a23:?}"),
+            format!("{a24:?}"),
+            format!("{a25:?}"),
+            format!("{a26:?}"),
+            format!("{a27:?}"),
+            format!("{a28:?}"),
+            format!("{a29:?}"),
+            format!("{a30:?}"),
+        ];
+        Ok(())
+    }
+
+    fn text(&mut self, text: String) -> HostResult<String> {
+        Ok(text.to_uppercase())
+    }
+
+    fn bad(&mut self) -> HostResult<Serde> {
+        Ok(Serde::Map(vec![(Serde::I64(1), Serde::Unit)]))
+    }
+
+    fn stop(&mut self) -> HostResult<std::convert::Infallible> {
+        Err(HostError("stopped".into()))
+    }
+}
+
+/// Each field of `made`, as `take` records its arguments.
+fn fields_of(made: &values::ValuesMakeResult) -> Vec<String> {
+    let m = made;
+    vec![
+        format!("{:?}", m.unit),
+        format!("{:?}", m.flag),
+        format!("{:?}", m.letter),
+        format!("{:?}", m.tiny),
+        format!("{:?}", m.small),
+        format!("{:?}", m.medium),
+        format!("{:?}", m.large),
+        format!("{:?}", m.byte),
+        format!("{:?}", m.word),
+        format!("{:?}", m.dword),
+        format!("{:?}", m.qword),
+        format!("{:?}", m.single),
+        format!("{:?}", m.double),
+        format!("{:?}", m.text),
+        format!("{:?}", m.blob),
+        format!("{:?}", m.octets),
+        format!("{:?}", m.words),
+        format!("{:?}", m.maybe),
+        format!("{:?}", m.outcome),
+        format!("{:?}", m.pair),
+        format!("{:?}", m.one),
+        format!("{:?}", m.table),
+        format!("{:?}", m.person),
+        format!("{:?}", m.event),
+        format!("{:?}", m.only),
+        format!("{:?}", m.tree),
+        format!("{:?}", m.private),
+        format!("{:?}", m.bin),
+        format!("{:?}", m.nums),
+        format!("{:?}", m.nothing),
+        format!("{:?}", m.empty),
+    ]
+}
+
+fn made(first: bool) -> values::ValuesMakeResult {
+    use values::{
+        ValuesMakeResultBin as Bin, ValuesMakeResultEvent as Event, ValuesMakeResultNums as Nums,
+        ValuesMakeResultOnly as Only, ValuesMakeResultOutcomeOk as Point,
+        ValuesMakeResultPerson as Person, ValuesMakeResultTree as Tree,
+    };
+    let point = |x, y| Point { x, y };
+    values::ValuesMakeResult {
+        unit: (),
+        flag: first,
+        letter: if first { '字' } else { '\0' },
+        tiny: if first { i8::MIN } else { i8::MAX },
+        small: -2,
+        medium: if first { i32::MAX } else { i32::MIN },
+        large: if first { i64::MIN } else { i64::MAX },
+        byte: u8::MAX,
+        word: u16::MAX,
+        dword: u32::MAX,
+        qword: u64::MAX,
+        single: if first { -0.0 } else { f32::MAX },
+        double: if first { -0.0 } else { f64::MIN_POSITIVE },
+        text: if first {
+            "héllo\n\"".into()
+        } else {
+            String::new()
+        },
+        blob: vec![0, 255],
+        octets: vec![200, 1],
+        words: if first {
+            vec!["a".into(), String::new()]
+        } else {
+            vec![]
+        },
+        maybe: first.then_some(i64::MAX),
+        outcome: if first {
+            Ok(point(1.5, -2.0))
+        } else {
+            Err("no".into())
+        },
+        pair: (!first, ()),
+        one: ("solo".into(),),
+        // Map order is kept, not sorted.
+        table: vec![("b".into(), 2), ("a".into(), -1)],
+        person: Person {
+            name: "Ada".into(),
+            at: point(0.0, 1.0),
+            trail: vec![point(2.0, 3.0), point(-0.0, f64::MAX)],
+        },
+        event: if first {
+            Event::Resize {
+                width: 80,
+                height: 24,
+            }
+        } else {
+            Event::Quit
+        },
+        only: Only::Ping { id: 7 },
+        tree: if first {
+            Tree::Node {
+                kids: vec![Tree::Leaf { value: 1 }, Tree::Leaf { value: -1 }],
+                parent: Some(Box::new(Tree::Leaf { value: 3 })),
+            }
+        } else {
+            Tree::Node {
+                kids: vec![],
+                parent: None,
+            }
+        },
+        private: if first {
+            Serde::Map(vec![
+                (
+                    Serde::String("name".into()),
+                    Serde::String("x\u{1}\"\\é😀".into()),
+                ),
+                (Serde::String("n".into()), Serde::I64(i64::MIN)),
+                (Serde::String("u".into()), Serde::U64(u64::MAX)),
+                (Serde::String("f".into()), Serde::F64(-0.0)),
+                (
+                    Serde::String("xs".into()),
+                    Serde::Seq(vec![Serde::Bool(true), Serde::None, Serde::Bool(false)]),
+                ),
+                (Serde::String("empty".into()), Serde::Map(vec![])),
+                (Serde::String("seq".into()), Serde::Seq(vec![])),
+            ])
+        } else {
+            // A private record whose custom serializer writes a string.
+            Serde::String("custom".into())
+        },
+        bin: Bin { data: vec![200] },
+        nums: Nums { data: vec![200] },
+        nothing: None,
+        empty: values::ValuesMakeResultEmpty {},
+    }
+}
+
+type Taken = Rc<std::cell::RefCell<Vec<String>>>;
+
+fn codecs(made: values::ValuesMakeResult) -> (Box<dyn std::any::Any>, Taken) {
+    let taken = Rc::default();
+    let provider: Box<dyn values::Values> = Box::new(Codecs {
+        made,
+        taken: Rc::clone(&taken),
+    });
+    (Box::new(provider), taken)
+}
+
+#[test]
+fn every_value_form_round_trips_through_a_native_provider() {
+    for first in [true, false] {
+        let made = made(first);
+        let (mut provider, taken) = codecs(made.clone());
+        let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+        // `bin` is bytes, its length then its bytes; `nums` a list of
+        // `u8`, its count then each LEB128 value; `nothing` is `None`.
+        assert!(bytes.ends_with(&[1, 200, 1, 0xc8, 1, 0]), "{bytes:?}");
+        assert!(
+            values::dispatch_Values(provider.as_mut(), 1, &bytes)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(*taken.borrow(), fields_of(&made), "first: {first}");
+    }
+    let (mut provider, _) = codecs(made(true));
+    // `-0.0` keeps its sign bit through both directions.
+    let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+    assert!(bytes.windows(8).any(|w| w == (-0.0_f64).to_le_bytes()));
+}
+
+#[test]
+fn a_single_string_argument_is_its_bare_utf8() {
+    let (mut provider, _) = codecs(made(true));
+    let mut expected = native::wire::Encoder::default();
+    expected.string("HÉ");
+    assert_eq!(
+        values::dispatch_Values(provider.as_mut(), 2, "hé".as_bytes()).unwrap(),
+        expected.into_bytes()
+    );
+}
+
+#[test]
+fn a_malformed_value_fails_the_call_with_the_js_hosts_message() {
+    let (mut provider, _) = codecs(made(true));
+    let fail = |provider: &mut Box<dyn std::any::Any>, method, args: &[u8]| {
+        values::dispatch_Values(provider.as_mut(), method, args)
+            .unwrap_err()
+            .0
+    };
+    assert_eq!(
+        fail(&mut provider, 3, &[]),
+        "package host: invalid private object key"
+    );
+    assert_eq!(fail(&mut provider, 4, &[]), "stopped");
+    let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+    assert_eq!(
+        fail(&mut provider, 1, &bytes[..bytes.len() - 1]),
+        "an argument does not decode"
+    );
+    assert_eq!(
+        fail(&mut provider, 1, &[bytes.as_slice(), &[0]].concat()),
+        "package host: trailing argument bytes"
+    );
+    // `nothing` as `Some`: an enum without variants has no tag.
+    let some = [&bytes[..bytes.len() - 1], &[1, 0]].concat();
+    assert_eq!(fail(&mut provider, 1, &some), "an argument does not decode");
+    assert_eq!(
+        fail(&mut provider, 5, &[]),
+        "package host: no provider method at index 5"
+    );
+    let mut other: Box<dyn std::any::Any> = Box::new(7_u32);
+    assert_eq!(
+        fail(&mut other, 0, &[]),
+        "package host: the registered provider is not this dispatch's trait object"
+    );
+}
+
+/// A module embedding the `Values` contract whose `hd.init` runs `body`
+/// over the imports `make`, `take` and `bad`, at indices 2, 3 and 4.
+fn values_module(body: &[wasm_encoder::Instruction<'static>]) -> Vec<u8> {
+    use wasm_encoder::ValType;
+    let mut p = support::Program::new();
+    assert_eq!(p.import("hd:pkg:values", "make", &[], &[ValType::I32]), 2);
+    assert_eq!(p.import("hd:pkg:values", "take", &[ValType::I32], &[]), 3);
+    assert_eq!(p.import("hd:pkg:values", "bad", &[], &[ValType::I32]), 4);
+    p.instructions(body);
+    let (mut wasm, _) = p.finish(0);
+    // The contract's custom section, which may follow every other one.
+    let mut payload = support::Enc(Vec::new())
+        .bytes(hd_host_abi::schema::SECTION.as_bytes())
+        .0;
+    payload.extend_from_slice(values::CONTRACT);
+    wasm.push(0);
+    wasm.extend_from_slice(&support::Enc(Vec::new()).bytes(&payload).0);
+    wasm
+}
+
+fn run_values(
+    body: &[wasm_encoder::Instruction<'static>],
+    made: values::ValuesMakeResult,
+) -> (Outcome, String, Taken) {
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let module = engine
+        .load(&values_module(body), &MemoryStore::default())
+        .unwrap();
+    let taken = Taken::default();
+    let bindings = values::Bindings::builder()
+        .values(Codecs {
+            made,
+            taken: Rc::clone(&taken),
+        })
+        .build()
+        .unwrap();
+    let err = Captured::default();
+    let io = HostIo {
+        out: Box::new(std::io::sink()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let mut instance = engine
+        .instantiate_with_bindings(&module, &setup(), io, bindings)
+        .unwrap();
+    let outcome = instance.init();
+    let text = String::from_utf8(err.0.lock().unwrap().clone()).unwrap();
+    (outcome, text, taken)
+}
+
+/// Standard error, kept for the test to read.
+#[derive(Clone, Default)]
+struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for Captured {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_generated_companion_answers_the_guest_through_the_engine() {
+    use wasm_encoder::Instruction as I;
+    // `make`'s result length is `take`'s argument length: the guest hands
+    // the provider's own encoded value back to it.
+    let made = made(true);
+    let (outcome, error, taken) = run_values(&[I::Call(2), I::Call(3)], made.clone());
+    assert_eq!(outcome, Outcome::Exit(0), "{error}");
+    assert_eq!(*taken.borrow(), fields_of(&made));
+}
+
+#[test]
+fn a_provider_value_failing_its_codec_is_a_host_contract_panic_naming_the_method() {
+    use wasm_encoder::Instruction as I;
+    let (outcome, error, _) = run_values(&[I::Call(4), I::Drop], made(false));
+    assert_eq!(outcome, Outcome::Exit(3));
+    assert!(
+        error.starts_with(
+            "panic: host-contract: example.org/ui-tui@0.3.0/values.Values.bad: package host: invalid private object key"
+        ),
+        "{error}"
     );
 }

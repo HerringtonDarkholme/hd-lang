@@ -9,11 +9,23 @@
 //! the contract alone, so two builds write the same bytes
 //! (`native-deterministic`).
 //!
+//! Each contract type also gets its codec (`native-generated`): an encode
+//! statement over a borrowed value and a decode expression, in the
+//! exchange-buffer encoding of the JS host's codecs, through the scalar
+//! steps of `hd_run_wasmtime::native::wire`. A record or an enum carries
+//! its codec as two methods of its own type; every other form is written
+//! inline where it occurs. Each root trait gets one `dispatch_TRAIT`, which
+//! the registry registers with its provider: it decodes a call's arguments,
+//! calls the method, and encodes its result.
+//!
 //! Cost: one pass over the contract's values. Records and enums are
-//! hash-consed bottom-up (a child's Rust type is rendered before its
-//! parent's key is built), so each structural type is named once and every
-//! lookup is one hash probe; the boundary depth limit of the contract
-//! bounds each key's length.
+//! hash-consed bottom-up (a child's Rust type and codec are rendered before
+//! its parent's key is built), so each structural type is named once and
+//! every lookup is one hash probe; the boundary depth limit of the contract
+//! bounds each key's length. The key holds the decoder as well as the
+//! type, so two shapes with one Rust type and two encodings (`Vec<u8>` for
+//! bytes and for a list of `u8`) stay two types. A generated codec is
+//! linear in the value it reads or writes.
 
 use crate::schema::{Contract, Field, Interface, Value};
 use hd_base::{HashMap, HashSet};
@@ -23,6 +35,37 @@ use std::fmt::Write as _;
 /// that an unused trait form would leave unused, and no generated type
 /// name can shadow one.
 const NATIVE: &str = "hd_run_wasmtime::native";
+
+/// The codec steps a companion calls.
+const WIRE: &str = "hd_run_wasmtime::native::wire";
+
+/// Where an encode template puts the borrowed value it writes: always an
+/// identifier, never a character a name can hold.
+const V: &str = "\u{1}";
+
+/// A contract type's Rust type and codec.
+struct Ty {
+    rust: String,
+    /// Statements writing the `&T` at [`V`] to the encoder `e`.
+    enc: String,
+    /// An expression reading a `T` from the decoder `d`.
+    dec: String,
+}
+
+impl Ty {
+    fn new(rust: impl Into<String>, enc: impl Into<String>, dec: impl Into<String>) -> Self {
+        Self {
+            rust: rust.into(),
+            enc: enc.into(),
+            dec: dec.into(),
+        }
+    }
+
+    /// The statements writing the value bound to `value`.
+    fn enc(&self, value: &str) -> String {
+        self.enc.replace(V, value)
+    }
+}
 
 /// The companion text, or `""` for a module with no package host interface.
 pub fn generate(contract: &Contract) -> Result<String, &'static str> {
@@ -62,8 +105,9 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
         g.handles.insert(i.module.clone(), name.clone());
     }
     let mut methods = String::new();
+    let mut dispatches = String::new();
     for (i, name) in contract.interfaces.iter().zip(&traits) {
-        g.interface(&mut methods, i, name);
+        g.interface(&mut methods, &mut dispatches, i, name);
     }
 
     let mut out = String::from(
@@ -80,6 +124,7 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
     out.push_str(",\n];\n");
     out.push_str(&g.types);
     out.push_str(&methods);
+    out.push_str(&dispatches);
 
     // The registry: one setter per root interface, in contract order.
     let roots: Vec<(&Interface, &String)> = contract
@@ -108,10 +153,10 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
         out,
         "    /// The registry, or the first root trait left without a provider.\n    pub fn build(self) -> Result<{NATIVE}::Bindings, {NATIVE}::Unregistered> {{\n        let mut bindings = {NATIVE}::Bindings::new(CONTRACT);\n"
     );
-    for ((i, _), s) in roots.iter().zip(&setters) {
+    for ((i, t), s) in roots.iter().zip(&setters) {
         let _ = writeln!(
             out,
-            "        let Some(provider) = self.{s} else {{\n            return Err({NATIVE}::Unregistered::new({}));\n        }};\n        bindings.register({}, {}, Box::new(provider));",
+            "        let Some(provider) = self.{s} else {{\n            return Err({NATIVE}::Unregistered::new({}));\n        }};\n        bindings.register_dispatch({}, {}, Box::new(provider), dispatch_{t});",
             quoted(&i.identity.to_string()),
             quoted(&i.identity.to_string()),
             quoted(&i.module),
@@ -159,86 +204,251 @@ impl Gen {
         }
     }
 
-    fn interface(&mut self, out: &mut String, i: &Interface, name: &str) {
+    /// The provider trait of `i` into `out`, and for a root trait its
+    /// dispatch into `dispatches`.
+    fn interface(&mut self, out: &mut String, dispatches: &mut String, i: &Interface, name: &str) {
         let _ = write!(out, "\n/// `{}`", i.identity);
         if i.handle {
             out.push_str(", a host handle trait");
         }
         let _ = write!(out, ".\npub trait {name} {{\n");
-        for m in &i.methods {
+        let mut arms = String::new();
+        // Whether any method reads its arguments: the dispatch of a trait
+        // whose methods take none leaves `args` unread.
+        let mut reads = false;
+        for (index, m) in i.methods.iter().enumerate() {
             let base = format!("{name}{}", camel(&m.member));
-            let params: Vec<String> = m
+            let params: Vec<Ty> = m
                 .params
                 .iter()
                 .enumerate()
                 .map(|(n, p)| self.ty(p, &format!("{base}Arg{n}"), false))
                 .collect();
             let result = self.ty(&m.result, &format!("{base}Result"), false);
-            let _ = write!(out, "    fn {}(&mut self", ident(&snake(&m.member)));
+            let member = ident(&snake(&m.member));
+            let _ = write!(out, "    fn {member}(&mut self");
             for (n, p) in params.iter().enumerate() {
-                let _ = write!(out, ", arg{n}: {p}");
+                let _ = write!(out, ", arg{n}: {}", p.rust);
             }
             if m.suspends {
                 let _ = writeln!(
                     out,
-                    ", cx: {NATIVE}::CallContext<'_>) -> {NATIVE}::NativeCall<{result}>;"
+                    ", cx: {NATIVE}::CallContext<'_>) -> {NATIVE}::NativeCall<{}>;",
+                    result.rust
                 );
             } else {
-                let _ = writeln!(out, ") -> {NATIVE}::HostResult<{result}>;");
+                let _ = writeln!(out, ") -> {NATIVE}::HostResult<{}>;", result.rust);
+            }
+            if !i.handle {
+                reads |= !params.is_empty();
+                arms.push_str(&Self::arm(index, m, &member, &params, &result));
             }
         }
         out.push_str("}\n");
+        if !i.handle {
+            let args = if reads { "args" } else { "_args" };
+            let _ = write!(
+                dispatches,
+                "\n/// Calls the method at index `method` of the registered `{name}` with its\n/// encoded arguments and returns its encoded result.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8]) -> {NATIVE}::HostResult<Vec<u8>> {{\n    let provider = {WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
+            );
+        }
     }
 
-    /// The Rust type of `v`; `hint` names a record or enum defined here.
-    /// A recursive reference is boxed unless a list already holds it
-    /// (`in_list`).
-    fn ty(&mut self, v: &Value, hint: &str, in_list: bool) -> String {
+    /// The dispatch arm of method `index`: its arguments decoded in order
+    /// (one `string` argument is its bare UTF-8 bytes, as the JS host
+    /// passes it), the call, and its result encoded.
+    fn arm(
+        index: usize,
+        m: &crate::schema::Method,
+        member: &str,
+        params: &[Ty],
+        result: &Ty,
+    ) -> String {
+        let mut arm = format!("        {index} => {{\n");
+        if matches!(m.params[..], [Value::String]) {
+            let _ = writeln!(arm, "            let arg0 = {WIRE}::text(args);");
+        } else if !params.is_empty() {
+            let _ = writeln!(arm, "            let d = &mut {WIRE}::Decoder::new(args);");
+            for (n, p) in params.iter().enumerate() {
+                let _ = writeln!(arm, "            let arg{n} = {};", p.dec);
+            }
+            arm.push_str("            d.finish()?;\n");
+        }
+        let args: Vec<String> = (0..params.len()).map(|n| format!("arg{n}")).collect();
+        let mut call = format!("provider.{member}({}", args.join(", "));
+        if m.suspends {
+            if !params.is_empty() {
+                call.push_str(", ");
+            }
+            let _ = write!(call, "{NATIVE}::CallContext::new()");
+            call = format!("{WIRE}::ready({call}))");
+        } else {
+            call.push(')');
+        }
+        match m.result {
+            Value::Void => {
+                let _ = writeln!(
+                    arm,
+                    "            let () = {call}?;\n            Ok(Vec::new())"
+                );
+            }
+            Value::Never => {
+                let _ = writeln!(
+                    arm,
+                    "            let value = {call}?;\n            match value {{}}"
+                );
+            }
+            _ => {
+                let _ = writeln!(
+                    arm,
+                    "            let value = &{call}?;\n            let e = &mut {WIRE}::Encoder::default();\n            {}\n            Ok(std::mem::take(e).into_bytes())",
+                    result.enc("value")
+                );
+            }
+        }
+        arm.push_str("        }\n");
+        arm
+    }
+
+    /// The Rust type and codec of `v`; `hint` names a record or enum
+    /// defined here. A recursive reference is boxed unless a list already
+    /// holds it (`in_list`).
+    fn ty(&mut self, v: &Value, hint: &str, in_list: bool) -> Ty {
+        let int = |rust: String, signed: bool| {
+            let (enc, dec) = if signed {
+                (
+                    format!("e.signed(i64::from(*{V}));"),
+                    format!("d.signed::<{rust}>()?"),
+                )
+            } else {
+                (
+                    format!("e.unsigned(u64::from(*{V}));"),
+                    format!("d.unsigned::<{rust}>()?"),
+                )
+            };
+            Ty::new(rust, enc, dec)
+        };
         match v {
-            Value::Void => "()".into(),
-            Value::Bool => "bool".into(),
-            Value::Char => "char".into(),
-            Value::Int { bits, signed } => format!("{}{bits}", if *signed { 'i' } else { 'u' }),
-            Value::F32 => "f32".into(),
-            Value::F64 => "f64".into(),
-            Value::String => "String".into(),
-            Value::Bytes => "Vec<u8>".into(),
-            Value::Json => format!("{NATIVE}::Serde"),
-            Value::Never => "std::convert::Infallible".into(),
+            Value::Void => Ty::new("()", format!("let _ = {V};"), "()"),
+            Value::Bool => Ty::new("bool", format!("e.bool(*{V});"), "d.bool()?"),
+            Value::Char => Ty::new("char", format!("e.char(*{V});"), "d.char()?"),
+            Value::Int { bits, signed } => int(
+                format!("{}{bits}", if *signed { 'i' } else { 'u' }),
+                *signed,
+            ),
+            Value::F32 => Ty::new("f32", format!("e.f32(*{V});"), "d.f32()?"),
+            Value::F64 => Ty::new("f64", format!("e.f64(*{V});"), "d.f64()?"),
+            Value::String => Ty::new("String", format!("e.string({V});"), "d.string()?"),
+            Value::Bytes => Ty::new("Vec<u8>", format!("e.bytes({V});"), "d.bytes()?"),
+            Value::Json => Ty::new(
+                format!("{NATIVE}::Serde"),
+                format!("e.serde({V})?;"),
+                "d.serde()?",
+            ),
+            // ruled out: `Contract::validate` keeps `never` to a method's
+            // whole result, which `arm` writes without a codec.
+            Value::Never => Ty::new(
+                "std::convert::Infallible",
+                format!("match *{V} {{}}"),
+                "d.absent()?",
+            ),
             Value::Handle(module) => {
                 self.plain = false;
-                format!("Box<dyn {}>", self.handles[module.as_str()])
+                Ty::new(
+                    format!("Box<dyn {}>", self.handles[module.as_str()]),
+                    format!("e.handle({V})?;"),
+                    "d.handle()?",
+                )
             }
-            Value::List(t) => format!("Vec<{}>", self.ty(t, &format!("{hint}Item"), true)),
-            Value::Option(t) => format!("Option<{}>", self.ty(t, hint, false)),
-            Value::Result(a, b) => format!(
-                "Result<{}, {}>",
-                self.ty(a, &format!("{hint}Ok"), false),
-                self.ty(b, &format!("{hint}Err"), false)
-            ),
-            Value::Map(k, v) => format!(
-                "Vec<({}, {})>",
-                self.ty(k, &format!("{hint}Key"), false),
-                self.ty(v, &format!("{hint}Value"), false)
-            ),
+            Value::List(t) => {
+                let t = self.ty(t, &format!("{hint}Item"), true);
+                Ty::new(
+                    format!("Vec<{}>", t.rust),
+                    format!(
+                        "{{ e.count({V}.len()); for x in {V} {{ {} }} }}",
+                        t.enc("x")
+                    ),
+                    format!(
+                        "{{ let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n {{ x.push({}); }} x }}",
+                        t.dec
+                    ),
+                )
+            }
+            Value::Option(t) => {
+                let t = self.ty(t, hint, false);
+                Ty::new(
+                    format!("Option<{}>", t.rust),
+                    format!(
+                        "match {V} {{ None => e.tag(0), Some(x) => {{ e.tag(1); {} }} }}",
+                        t.enc("x")
+                    ),
+                    format!("if d.tag(2)? == 0 {{ None }} else {{ Some({}) }}", t.dec),
+                )
+            }
+            Value::Result(a, b) => {
+                let a = self.ty(a, &format!("{hint}Ok"), false);
+                let b = self.ty(b, &format!("{hint}Err"), false);
+                Ty::new(
+                    format!("Result<{}, {}>", a.rust, b.rust),
+                    format!(
+                        "match {V} {{ Ok(x) => {{ e.tag(0); {} }} Err(x) => {{ e.tag(1); {} }} }}",
+                        a.enc("x"),
+                        b.enc("x")
+                    ),
+                    format!(
+                        "if d.tag(2)? == 0 {{ Ok({}) }} else {{ Err({}) }}",
+                        a.dec, b.dec
+                    ),
+                )
+            }
+            // `Map` has no Native Value Table row yet: its entries in map
+            // order, as the JS host's `Map` iterates them.
+            Value::Map(k, v) => {
+                let k = self.ty(k, &format!("{hint}Key"), false);
+                let v = self.ty(v, &format!("{hint}Value"), false);
+                Ty::new(
+                    format!("Vec<({}, {})>", k.rust, v.rust),
+                    format!(
+                        "{{ e.count({V}.len()); for (k, x) in {V} {{ {} {} }} }}",
+                        k.enc("k"),
+                        v.enc("x")
+                    ),
+                    format!(
+                        "{{ let n = d.map_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n {{ let k = {}; x.push((k, {})); }} x }}",
+                        k.dec, v.dec
+                    ),
+                )
+            }
             Value::Tuple(ts) => {
-                let parts: Vec<String> = ts
+                let parts: Vec<Ty> = ts
                     .iter()
                     .enumerate()
                     .map(|(n, t)| self.ty(t, &format!("{hint}{n}"), false))
                     .collect();
-                if parts.len() == 1 {
-                    format!("({},)", parts[0])
-                } else {
-                    format!("({})", parts.join(", "))
-                }
+                let names: Vec<String> = (0..parts.len()).map(|n| format!("t{n}")).collect();
+                let rust: Vec<&str> = parts.iter().map(|p| p.rust.as_str()).collect();
+                let decs: Vec<&str> = parts.iter().map(|p| p.dec.as_str()).collect();
+                let encs: Vec<String> = parts.iter().zip(&names).map(|(p, n)| p.enc(n)).collect();
+                let comma = if parts.len() == 1 { "," } else { "" };
+                Ty::new(
+                    format!("({}{comma})", rust.join(", ")),
+                    format!(
+                        "{{ let ({}{comma}) = {V}; {} }}",
+                        names.join(", "),
+                        encs.join(" ")
+                    ),
+                    format!("({}{comma})", decs.join(", ")),
+                )
             }
             Value::Ref(id) => {
                 let name = self.recs[id].clone();
+                let enc = format!("{name}::wire_encode({V}, e)?;");
                 if in_list {
-                    name
+                    let dec = format!("{name}::wire_decode(d)?");
+                    Ty::new(name, enc, dec)
                 } else {
-                    format!("Box<{name}>")
+                    let dec = format!("Box::new({name}::wire_decode(d)?)");
+                    Ty::new(format!("Box<{name}>"), enc, dec)
                 }
             }
             Value::Rec(id, body) => {
@@ -246,54 +456,129 @@ impl Gen {
                 // use it; a recursive type is never shared structurally.
                 let name = self.fresh(hint);
                 self.recs.insert(*id, name.clone());
-                let (_, text, plain) = self.body(body, &name);
-                self.emit(&name, &text, matches!(**body, Value::Enum(_)), plain);
+                let (_, text, codec, plain) = self.body(body, &name);
+                self.emit(
+                    &name,
+                    &text,
+                    &codec,
+                    matches!(**body, Value::Enum(_)),
+                    plain,
+                );
                 self.recs.remove(id);
-                name
+                Self::named(name)
             }
             Value::Record(_) | Value::Enum(_) => {
-                let (key, text, plain) = self.body(v, hint);
+                let (key, text, codec, plain) = self.body(v, hint);
                 let name = if let Some(name) = self.interned.get(&key) {
                     name.clone()
                 } else {
                     let name = self.fresh(hint);
                     self.interned.insert(key, name.clone());
-                    self.emit(&name, &text, matches!(v, Value::Enum(_)), plain);
+                    self.emit(&name, &text, &codec, matches!(v, Value::Enum(_)), plain);
                     name
                 };
                 if self.opaque.contains(&name) {
                     self.plain = false;
                 }
-                name
+                Self::named(name)
             }
         }
     }
 
-    /// The structural key and item body of a record or an enum, and
-    /// whether it holds no handle.
-    fn body(&mut self, v: &Value, hint: &str) -> (String, String, bool) {
+    /// A record or an enum defined here: its codec is its own two methods.
+    fn named(name: String) -> Ty {
+        let enc = format!("{name}::wire_encode({V}, e)?;");
+        let dec = format!("{name}::wire_decode(d)?");
+        Ty::new(name, enc, dec)
+    }
+
+    /// The structural key, item body and codec methods of a record or an
+    /// enum, and whether it holds no handle. The key holds the decoder, so
+    /// one Rust shape of two encodings is two types.
+    fn body(&mut self, v: &Value, hint: &str) -> (String, String, String, bool) {
         let outer = std::mem::replace(&mut self.plain, true);
-        let (key, text) = match v {
+        let (key, text, enc, dec) = match v {
             Value::Record(fs) => {
-                let fields = self.fields(fs, hint, "    pub ");
-                (format!("struct{{{fields}}}"), format!(" {{\n{fields}}}\n"))
+                let fields = self.fields(fs, hint);
+                let mut lines = String::new();
+                for (name, t) in &fields {
+                    let _ = writeln!(lines, "    pub {name}: {},", t.rust);
+                }
+                let (pattern, encs, decs) = Self::codec_fields(&fields);
+                // A record without fields reads and writes no bytes.
+                let (enc, dec) = if fields.is_empty() {
+                    (
+                        "        let _ = e;\n        Ok(())\n".to_owned(),
+                        "        let _ = d;\n        Ok(Self {})\n".to_owned(),
+                    )
+                } else {
+                    (
+                        format!("        let Self {{ {pattern} }} = self;\n{encs}        Ok(())\n"),
+                        format!("        Ok(Self {{ {decs} }})\n"),
+                    )
+                };
+                (
+                    format!("struct{{{lines}}}"),
+                    format!(" {{\n{lines}}}\n"),
+                    enc,
+                    dec,
+                )
             }
             Value::Enum(vs) => {
                 let mut body = String::new();
-                for var in vs {
+                let mut encs = String::new();
+                // Each variant's value, decoded after its tag.
+                let mut ctors = Vec::with_capacity(vs.len());
+                for (n, var) in vs.iter().enumerate() {
                     let name = ident(&var.name);
                     if var.fields.is_empty() {
                         let _ = writeln!(body, "    {name},");
+                        let _ = writeln!(encs, "            Self::{name} => e.tag({n}),");
+                        ctors.push(format!("Self::{name}"));
                     } else {
-                        let fields = self.fields(
-                            &var.fields,
-                            &format!("{hint}{}", camel(&var.name)),
-                            "        ",
+                        let fields =
+                            self.fields(&var.fields, &format!("{hint}{}", camel(&var.name)));
+                        let _ = writeln!(body, "    {name} {{");
+                        for (field, t) in &fields {
+                            let _ = writeln!(body, "        {field}: {},", t.rust);
+                        }
+                        body.push_str("    },\n");
+                        let (pattern, fenc, fdec) = Self::codec_fields(&fields);
+                        let _ = write!(
+                            encs,
+                            "            Self::{name} {{ {pattern} }} => {{\n                e.tag({n});\n{}            }}\n",
+                            fenc.replace("        ", "                ")
                         );
-                        let _ = write!(body, "    {name} {{\n{fields}    }},\n");
+                        ctors.push(format!("Self::{name} {{ {fdec} }}"));
                     }
                 }
-                (format!("enum{{{body}}}"), format!(" {{\n{body}}}\n"))
+                let enc = if vs.is_empty() {
+                    "        let _ = e;\n        match *self {}\n".to_owned()
+                } else {
+                    format!("        match self {{\n{encs}        }}\n        Ok(())\n")
+                };
+                // The last variant takes every other tag, which `tag` has
+                // already refused.
+                let dec = match &ctors[..] {
+                    [] => "        d.absent()\n".to_owned(),
+                    [one] => format!("        d.tag(1)?;\n        Ok({one})\n"),
+                    [init @ .., last] => {
+                        let mut arms = String::new();
+                        for (n, ctor) in init.iter().enumerate() {
+                            let _ = writeln!(arms, "            {n} => {ctor},");
+                        }
+                        format!(
+                            "        Ok(match d.tag({})? {{\n{arms}            _ => {last},\n        }})\n",
+                            ctors.len()
+                        )
+                    }
+                };
+                (
+                    format!("enum{{{body}}}"),
+                    format!(" {{\n{body}}}\n"),
+                    enc,
+                    dec,
+                )
             }
             // ruled out: `Contract::validate` refuses a recursive body other
             // than a record or an enum, and only those reach here.
@@ -301,19 +586,37 @@ impl Gen {
         };
         let plain = self.plain;
         self.plain = outer && plain;
-        (key, text, plain)
+        let codec = format!(
+            "    fn wire_encode(&self, e: &mut {WIRE}::Encoder) -> {NATIVE}::HostResult<()> {{\n{enc}    }}\n\n    fn wire_decode(d: &mut {WIRE}::Decoder<'_>) -> {NATIVE}::HostResult<Self> {{\n{dec}    }}\n"
+        );
+        (format!("{key}{dec}"), text, codec, plain)
     }
 
-    fn fields(&mut self, fs: &[Field], hint: &str, indent: &str) -> String {
-        let mut out = String::new();
-        for f in fs {
-            let t = self.ty(&f.value, &format!("{hint}{}", camel(&f.name)), false);
-            let _ = writeln!(out, "{indent}{}: {t},", ident(&snake(&f.name)));
+    /// Each field's Rust name and type, in contract order.
+    fn fields(&mut self, fs: &[Field], hint: &str) -> Vec<(String, Ty)> {
+        fs.iter()
+            .map(|f| {
+                let t = self.ty(&f.value, &format!("{hint}{}", camel(&f.name)), false);
+                (ident(&snake(&f.name)), t)
+            })
+            .collect()
+    }
+
+    /// A pattern binding each field to `f0`, `f1`..., the statements
+    /// encoding them, and the field initializers decoding them in order.
+    fn codec_fields(fields: &[(String, Ty)]) -> (String, String, String) {
+        let mut pattern = Vec::with_capacity(fields.len());
+        let mut encs = String::new();
+        let mut decs = Vec::with_capacity(fields.len());
+        for (n, (name, t)) in fields.iter().enumerate() {
+            pattern.push(format!("{name}: f{n}"));
+            let _ = writeln!(encs, "        {}", t.enc(&format!("f{n}")));
+            decs.push(format!("{name}: {}", t.dec));
         }
-        out
+        (pattern.join(", "), encs, decs.join(", "))
     }
 
-    fn emit(&mut self, name: &str, body: &str, is_enum: bool, plain: bool) {
+    fn emit(&mut self, name: &str, body: &str, codec: &str, is_enum: bool, plain: bool) {
         // A handle is a trait object: no derives cross it.
         if plain {
             self.types.push_str("\n#[derive(Clone, Debug, PartialEq)]");
@@ -324,6 +627,12 @@ impl Gen {
             self.types,
             "\npub {} {name}{body}",
             if is_enum { "enum" } else { "struct" }
+        );
+        // A type only a handle trait's method crosses has no dispatch to
+        // call its codec until #2082.
+        let _ = write!(
+            self.types,
+            "\n#[allow(dead_code)]\nimpl {name} {{\n{codec}}}\n"
         );
     }
 }

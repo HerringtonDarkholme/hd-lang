@@ -378,17 +378,6 @@ fn a_companion_of_other_method_schemas_is_refused() {
 }
 
 #[test]
-fn a_registration_without_a_dispatch_is_refused() {
-    let contract = server(sdk());
-    let mut bindings = Bindings::new(contract_bytes(&contract));
-    bindings.register(SERVER, "hd:pkg:server", Box::new(Recorder::default()));
-    assert_eq!(
-        refusal(&guarded(&contract), bindings),
-        format!("native provider for package host trait {SERVER:?} has no generated dispatch")
-    );
-}
-
-#[test]
 fn suspending_methods_and_returned_handles_are_refused_before_the_guest_starts() {
     let mut waiting = server(sdk());
     waiting.interfaces[0]
@@ -513,7 +502,7 @@ fn a_provider_returning_from_a_never_method_is_a_host_contract_panic() {
     assert_eq!(outcome, Outcome::Exit(3));
     assert!(
         error.starts_with(&format!(
-            "panic: host-contract: {SERVER}.read: the provider returned from a method that never returns"
+            "panic: host-contract: {SERVER}.read: package host: the method never returns, but its provider returned"
         )),
         "{error}"
     );

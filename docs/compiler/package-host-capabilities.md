@@ -18,9 +18,11 @@ specified in [Native Package Providers](../../spec/cli/command-line.md#native-pa
 `hd build --engine wasmtime` writes its Rust companion `NAME.host.rs`, and
 `hd_run_wasmtime::native` is the embedder surface it registers through.
 Instantiation resolves each root trait to its registration by nominal identity
-and links its ready methods to the registration's dispatch (#2078); the
-generated dispatch and codecs, consent, pending calls and handles are not yet
-built (#2079 to #2083).
+and links its ready methods to the registration's dispatch (#2078). The
+companion generates that dispatch and one codec per contract type, in the JS
+host's exchange-buffer encoding, with private-field values as a typed Serde
+tree (`hd_run_wasmtime::native::wire`, #2079); consent, pending calls and
+handles are not yet built (#2080 to #2083).
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

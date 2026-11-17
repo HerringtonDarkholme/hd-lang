@@ -42,6 +42,12 @@ impl Enc {
     }
 
     /// Raw IEEE 754 bits, little-endian, including NaN payloads and signed zero.
+    pub fn f32(&mut self, value: f32) -> &mut Self {
+        self.buf.extend_from_slice(&value.to_le_bytes());
+        self
+    }
+
+    /// Raw IEEE 754 bits, little-endian, including NaN payloads and signed zero.
     pub fn f64(&mut self, value: f64) -> &mut Self {
         self.buf.extend_from_slice(&value.to_le_bytes());
         self
@@ -84,6 +90,19 @@ impl<'a> Dec<'a> {
             }
         }
         Err(decode_error())
+    }
+
+    /// The bytes not read yet.
+    pub fn rest(&self) -> usize {
+        self.bytes.len() - self.at
+    }
+
+    /// The next `N` bytes, as a float's raw little-endian bits.
+    pub fn raw<const N: usize>(&mut self) -> wasmtime::Result<[u8; N]> {
+        let end = self.at.checked_add(N).ok_or_else(decode_error)?;
+        let bytes = self.bytes.get(self.at..end).ok_or_else(decode_error)?;
+        self.at = end;
+        bytes.try_into().map_err(|_| decode_error())
     }
 
     pub fn bytes(&mut self) -> wasmtime::Result<&'a [u8]> {

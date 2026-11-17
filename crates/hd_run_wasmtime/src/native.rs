@@ -13,14 +13,17 @@
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
 //! resolves the registrations by nominal identity and links each root
 //! method's import to its registration's [`Dispatch`] before the guest
-//! starts. What builds on this surface: #2079 generates the companion's
-//! dispatch and codecs and the typed [`Serde`] transport; #2080 checks consent
-//! in the same preflight; #2081 drives [`PendingCall`] from the reactor and
-//! gives [`CallContext`] the instance identity; #2082 keeps returned handle
-//! trait objects in the instance's registry.
+//! starts. The companion's dispatch decodes each call's arguments and
+//! encodes its result with the codecs of [`wire`]. What builds on this
+//! surface: #2080 checks consent in the same preflight; #2081 drives
+//! [`PendingCall`] from the reactor and gives [`CallContext`] the instance
+//! identity; #2082 keeps returned handle trait objects in the instance's
+//! registry.
 
 use std::any::Any;
 use std::sync::mpsc;
+
+pub mod wire;
 
 /// A provider method's failure: a `host-contract` failure of the call
 /// (`cli.host.package.native-call-failure`).
@@ -125,7 +128,14 @@ impl Default for CallContext<'_> {
 
 /// A private-field value as a typed Serde tree
 /// (`module.host.package.native-private-serde`): integers keep their
-/// width and sign, floats their bits. #2079 encodes and decodes it.
+/// width and sign, floats their bits.
+///
+/// A value from the guest holds the JSON data model its `Serialize` writes:
+/// `None` for null, `Bool`, `I64` or `U64`, finite `F64`, `String`, `Seq`,
+/// and `Map` with distinct `String` keys. A provider may also return
+/// `Unit` (null), `Some` (its value), `F32` (widened), a non-finite float
+/// (null, as the JS host writes it), `Char` (text) and `Bytes` (a list of
+/// `u8`); a map key must be distinct `String` or `Char` text.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Serde {
     Unit,
@@ -180,9 +190,7 @@ pub struct Registration {
     pub identity: &'static str,
     pub module: &'static str,
     pub provider: Box<dyn Any>,
-    /// gap: #2079 generates the companion's dispatch; a registration
-    /// without one is refused before the guest starts.
-    pub dispatch: Option<Dispatch>,
+    pub dispatch: Dispatch,
 }
 
 /// The providers an embedder passes, by value, to one instantiation. The
@@ -202,22 +210,6 @@ impl Bindings {
         }
     }
 
-    /// Adds the provider of one root trait, without a dispatch: the
-    /// companion's form until #2079 generates its codecs.
-    pub fn register(
-        &mut self,
-        identity: &'static str,
-        module: &'static str,
-        provider: Box<dyn Any>,
-    ) {
-        self.registrations.push(Registration {
-            identity,
-            module,
-            provider,
-            dispatch: None,
-        });
-    }
-
     /// Adds the provider of one root trait and the dispatch its calls go
     /// through.
     pub fn register_dispatch(
@@ -231,7 +223,7 @@ impl Bindings {
             identity,
             module,
             provider,
-            dispatch: Some(dispatch),
+            dispatch,
         });
     }
 

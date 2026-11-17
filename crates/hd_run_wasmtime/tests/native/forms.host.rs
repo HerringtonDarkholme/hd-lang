@@ -30,11 +30,40 @@ pub struct SurfaceDrawArg17Value {
     pub y: f64,
 }
 
+#[allow(dead_code)]
+impl SurfaceDrawArg17Value {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        let Self { x: f0, y: f1 } = self;
+        e.f64(*f0);
+        e.f64(*f1);
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(Self { x: d.f64()?, y: d.f64()? })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurfaceDrawArg19 {
     pub r#type: String,
     pub self_: bool,
     pub at: SurfaceDrawArg17Value,
+}
+
+#[allow(dead_code)]
+impl SurfaceDrawArg19 {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        let Self { r#type: f0, self_: f1, at: f2 } = self;
+        e.string(f0);
+        e.bool(*f1);
+        SurfaceDrawArg17Value::wire_encode(f2, e)?;
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(Self { r#type: d.string()?, self_: d.bool()?, at: SurfaceDrawArg17Value::wire_decode(d)? })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +72,27 @@ pub enum SurfaceDrawArg20 {
     Moved {
         r#match: SurfaceDrawArg17Value,
     },
+}
+
+#[allow(dead_code)]
+impl SurfaceDrawArg20 {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        match self {
+            Self::Self_ => e.tag(0),
+            Self::Moved { r#match: f0 } => {
+                e.tag(1);
+                SurfaceDrawArg17Value::wire_encode(f0, e)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(match d.tag(2)? {
+            0 => Self::Self_,
+            _ => Self::Moved { r#match: SurfaceDrawArg17Value::wire_decode(d)? },
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,12 +104,60 @@ pub enum SurfaceDrawArg21 {
     },
 }
 
+#[allow(dead_code)]
+impl SurfaceDrawArg21 {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        match self {
+            Self::Leaf => e.tag(0),
+            Self::Node { kids: f0, parent: f1 } => {
+                e.tag(1);
+                { e.count(f0.len()); for x in f0 { SurfaceDrawArg21::wire_encode(x, e)?; } }
+                match f1 { None => e.tag(0), Some(x) => { e.tag(1); SurfaceDrawArg21::wire_encode(x, e)?; } }
+            }
+        }
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(match d.tag(2)? {
+            0 => Self::Leaf,
+            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceDrawArg21::wire_decode(d)?); } x }, parent: if d.tag(2)? == 0 { None } else { Some(Box::new(SurfaceDrawArg21::wire_decode(d)?)) } },
+        })
+    }
+}
+
 pub struct SurfaceDrawArg22 {
     pub events: Box<dyn Events>,
 }
 
+#[allow(dead_code)]
+impl SurfaceDrawArg22 {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        let Self { events: f0 } = self;
+        e.handle(f0)?;
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(Self { events: d.handle()? })
+    }
+}
+
 pub struct SurfaceDrawArg23 {
     pub inner: SurfaceDrawArg22,
+}
+
+#[allow(dead_code)]
+impl SurfaceDrawArg23 {
+    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+        let Self { inner: f0 } = self;
+        SurfaceDrawArg22::wire_encode(f0, e)?;
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(Self { inner: SurfaceDrawArg22::wire_decode(d)? })
+    }
 }
 
 /// `example.org/ui-tui@0.3.0/dialog.Surface2`, a host handle trait.
@@ -84,6 +182,66 @@ pub trait Surface3 {
 /// `example.org/ui-tui@0.3.0/screen.Events`, a host handle trait.
 pub trait Events {
     fn next(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Option<String>>;
+}
+
+/// Calls the method at index `method` of the registered `Surface` with its
+/// encoded arguments and returns its encoded result.
+#[allow(non_snake_case)]
+pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<Vec<u8>> {
+    let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface>>(provider)?;
+    match method {
+        0 => {
+            let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
+            let arg0 = ();
+            let arg1 = d.bool()?;
+            let arg2 = d.char()?;
+            let arg3 = d.signed::<i8>()?;
+            let arg4 = d.signed::<i16>()?;
+            let arg5 = d.signed::<i32>()?;
+            let arg6 = d.signed::<i64>()?;
+            let arg7 = d.unsigned::<u8>()?;
+            let arg8 = d.unsigned::<u64>()?;
+            let arg9 = d.f32()?;
+            let arg10 = d.f64()?;
+            let arg11 = d.string()?;
+            let arg12 = d.bytes()?;
+            let arg13 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(d.string()?); } x };
+            let arg14 = if d.tag(2)? == 0 { None } else { Some(d.serde()?) };
+            let arg15 = (d.bool()?,);
+            let arg16 = ((), d.unsigned::<u32>()?);
+            let arg17 = { let n = d.map_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { let k = d.string()?; x.push((k, SurfaceDrawArg17Value::wire_decode(d)?)); } x };
+            let arg18 = if d.tag(2)? == 0 { Ok(SurfaceDrawArg17Value::wire_decode(d)?) } else { Err(d.string()?) };
+            let arg19 = SurfaceDrawArg19::wire_decode(d)?;
+            let arg20 = SurfaceDrawArg20::wire_decode(d)?;
+            let arg21 = SurfaceDrawArg21::wire_decode(d)?;
+            let arg22 = SurfaceDrawArg22::wire_decode(d)?;
+            let arg23 = SurfaceDrawArg23::wire_decode(d)?;
+            d.finish()?;
+            let value = &hd_run_wasmtime::native::wire::ready(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, hd_run_wasmtime::native::CallContext::new()))?;
+            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
+            e.handle(value)?;
+            Ok(std::mem::take(e).into_bytes())
+        }
+        1 => {
+            let value = provider.r#type()?;
+            match value {}
+        }
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+    }
+}
+
+/// Calls the method at index `method` of the registered `Surface3` with its
+/// encoded arguments and returns its encoded result.
+#[allow(non_snake_case)]
+pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args: &[u8]) -> hd_run_wasmtime::native::HostResult<Vec<u8>> {
+    let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface3>>(provider)?;
+    match method {
+        0 => {
+            let () = provider.close()?;
+            Ok(Vec::new())
+        }
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+    }
 }
 
 /// The providers of this module's root host traits.
@@ -123,11 +281,11 @@ impl BindingsBuilder {
         let Some(provider) = self.surface else {
             return Err(hd_run_wasmtime::native::Unregistered::new("example.org/ui-tui@0.3.0/screen.Surface"));
         };
-        bindings.register("example.org/ui-tui@0.3.0/screen.Surface", "hd:pkg:screen", Box::new(provider));
+        bindings.register_dispatch("example.org/ui-tui@0.3.0/screen.Surface", "hd:pkg:screen", Box::new(provider), dispatch_Surface);
         let Some(provider) = self.surface3 else {
             return Err(hd_run_wasmtime::native::Unregistered::new("example.org/ui-tui@0.3.0/window.Surface"));
         };
-        bindings.register("example.org/ui-tui@0.3.0/window.Surface", "hd:pkg:window", Box::new(provider));
+        bindings.register_dispatch("example.org/ui-tui@0.3.0/window.Surface", "hd:pkg:window", Box::new(provider), dispatch_Surface3);
         Ok(bindings)
     }
 }
