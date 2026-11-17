@@ -59,7 +59,7 @@ impl BodyFacts {
             if b.tags[i] == hd_tir::ir::Tag::Break {
                 break_counts[b.data[i][0] as usize] += 1;
             }
-            if b.tags[i] == hd_tir::ir::Tag::Closure && !b.is_instantiation(i) {
+            if b.tags[i] == hd_tir::ir::Tag::Closure {
                 closures[b.data[i][0] as usize].get_or_insert(i);
             }
         }

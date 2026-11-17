@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 24 funcref))
+  (import "fixture" "table0" (table $table0 23 funcref))
   (func $written (param $seed i32) (result i32) (local $counter i32) (local $t0 i32)
     ;; 61 |     let mut counter = Counter { value: seed }
     global.get $locals

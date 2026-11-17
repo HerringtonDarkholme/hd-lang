@@ -10405,17 +10405,23 @@ impl Run<'_> {
                     names.path(d)
                 ));
             }
-            if let Some((body, _)) = self.body_of(p, d) {
-                for sub in 1..body.sub_root.len() {
-                    if body.sub_is_generic(sub)
-                        && !collected.table.item.iter().enumerate().any(|(i, item)| {
-                            *item == d && matches!(collected.table.sub[i], hd_mono::Sub::Body(k) if usize::from(k) == sub)
-                        })
+            // A generic local function nothing instantiates gets no copy
+            // (`hd_mono::instantiate_locals`): its checker's body names it.
+            // Cost: one pass over each definition's checker's body.
+            if let Some((body, _)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) {
+                let mut instantiated = vec![false; body.sub_root.len()];
+                for i in 0..body.len() {
+                    if body.is_instantiation(i)
+                        && let Some(x) = instantiated.get_mut(body.data[i][0] as usize)
                     {
+                        *x = true;
+                    }
+                }
+                for (sub, made) in instantiated.into_iter().enumerate() {
+                    if body.sub_is_generic(sub) && !made {
                         notes.push(format!(
-                            "skipped {}#{}: no concrete instantiation named by the case",
-                            names.path(d),
-                            sub
+                            "skipped {}#{sub}: no concrete instantiation named by the case",
+                            names.path(d)
                         ));
                     }
                 }
@@ -14950,6 +14956,65 @@ mod instantiation_chain_tests {
             let base = built(1);
             for n in [10, 100] {
                 assert_eq!(built(n) - base, n - 1, "{name}, n = {n}");
+            }
+        }
+    }
+
+    /// A generic local function gets one sub-body per distinct type
+    /// arguments in its context (`hd_mono::instantiate_locals`, #2104):
+    /// `n` types, each instantiating it twice, make `n` sub-bodies, at n
+    /// and 10n, in dev and release.
+    #[test]
+    fn each_local_instantiation_is_one_sub_body() {
+        use std::fmt::Write as _;
+        for (name, packages) in [
+            ("dev", Packages::default()),
+            (
+                "release",
+                Packages {
+                    level: OptLevel::Optimized,
+                    build_profile: BuildProfile::Release,
+                    ..Packages::default()
+                },
+            ),
+        ] {
+            let made = |n: usize| {
+                let mut source = String::new();
+                let mut main = String::from(
+                    "pub fn main() -> void $ Console:\n    \
+                     fn tag[S](s: S, k: i32) -> i32:\n        k\n",
+                );
+                for i in 0..n {
+                    writeln!(source, "struct S{i}:\n    v: i32").unwrap();
+                    for _ in 0..2 {
+                        writeln!(main, "    println(tag(S{i} {{ v: {i} }}, {i}))").unwrap();
+                    }
+                }
+                source.push_str(&main);
+                let mut sources = MemorySources::default();
+                sources.insert("main.hd", &source);
+                let store = warm_std_store();
+                let host = Host {
+                    render_tir: &[],
+                    sources: &sources,
+                    store: &store,
+                    clock: &NoClock,
+                    executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+                };
+                let out = build_packages(
+                    &host,
+                    "local_instances_once",
+                    &packages,
+                    &Goal::Program {
+                        entry: "main".into(),
+                    },
+                );
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                assert!(out.wasm.is_some());
+                out.counters.local_instances_built
+            };
+            for n in [10, 100] {
+                assert_eq!(made(n), n, "{name}, n = {n}");
             }
         }
     }

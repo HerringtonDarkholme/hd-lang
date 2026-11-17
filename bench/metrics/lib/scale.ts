@@ -146,6 +146,9 @@ const ENTRIES: Readonly<Record<string, Entry>> = {
   "row-traits": { construct: "traits of one requirement row and `$.use`", n: 100 },
   // Statements and expressions.
   closures: { construct: "closures" },
+  "generic-local-fns": {
+    construct: "instantiations of one generic local function, one sub-body per type (#2104)",
+  },
   "let-statements": { construct: "`let` statements of one body" },
   matches: { construct: "`match` expressions with guards" },
   "enum-arms": { construct: "arms of one `match`" },

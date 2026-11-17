@@ -2277,7 +2277,7 @@ pub(crate) fn entry_locals(b: &Body, s: usize) -> Vec<usize> {
         out.extend(b.sub_param_locals(s).iter().map(|&local| local as usize));
     }
     for i in 0..b.len() {
-        if b.tags[i] == Tag::Closure && b.data[i][0] as usize == s && !b.is_instantiation(i) {
+        if b.tags[i] == Tag::Closure && b.data[i][0] as usize == s {
             let rec = b.record(b.data[i][1]);
             for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
                 out.push(b.cap_local[c].idx());

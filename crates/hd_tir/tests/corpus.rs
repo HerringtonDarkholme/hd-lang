@@ -213,7 +213,7 @@ fn instance_errors(body: &hd_tir::ir::Body) -> Vec<hd_tir::ir::VerifyError> {
     }));
     assert_eq!(t, Ty(PARAM_T), "the corpus names `T` by its pool row");
     let mut errors = verify(body);
-    errors.extend(verify_instance(body, &pool, None, &|t| format!("t{}", t.0)));
+    errors.extend(verify_instance(body, &pool, &|t| format!("t{}", t.0)));
     errors
 }
 

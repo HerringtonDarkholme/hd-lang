@@ -61,8 +61,8 @@
     local.get $provider0.vtable
     call $"println[string]"
   )
-  (func $"main#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32)
+  (func $main#1 (param $env i32) (param $make i32) (param $ctx i32) (result i32)
     ;; 12 |         result := Box { item: value }
-    local.get $value
+    local.get $make
   )
 )

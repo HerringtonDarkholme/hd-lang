@@ -160,7 +160,13 @@ fn f(x: i32) -> i32:
     for level in [OptLevel::Dev, OptLevel::Optimized] {
         let out = fixture(text, level);
         let bodies = bodies(&out);
-        for part in ["app/main/f#1", "app/main/f#2", "app/main/identity#0"] {
+        // `local` at i32 is a plain closure (#2104): release's closure
+        // inliner copies it into its one call, so only dev keeps `f#2`.
+        let local = (level == OptLevel::Dev).then_some("app/main/f#2");
+        for part in ["app/main/f#1", "app/main/identity#0"]
+            .into_iter()
+            .chain(local)
+        {
             assert!(bodies.contains_key(part), "{part}: {bodies:?}");
         }
         assert_eq!(

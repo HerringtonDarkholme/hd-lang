@@ -33,7 +33,7 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 mod type_depth;
-pub use instance::instantiate;
+pub use instance::{instantiate, instantiate_locals};
 pub use type_depth::type_argument_depth;
 
 pub use crate::layout::Sub;
@@ -563,7 +563,12 @@ pub struct DefIdOrd(pub Hash128, pub u32);
 /// base becomes concrete resolves to the impl's binding (`crates/hd_mono/DESIGN.md` §13).
 #[must_use]
 pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList, t: Ty) -> Ty {
-    let s = substitute(pool, env, item, args, t);
+    close(pool, env, substitute(pool, env, item, args, t))
+}
+
+/// A substituted type `s` with its opaque results opened and its
+/// projections normalized, as [`subst`] leaves them.
+pub(crate) fn close(pool: &InternPool, env: &dyn ProgramEnv, s: Ty) -> Ty {
     let s = reveal(pool, env, s).unwrap_or(Ty::POISON);
     if pool.has_assoc(s) {
         // An impl's binding may name a function type with a dependency map.
@@ -3269,7 +3274,6 @@ impl Cx<'_> {
         for ty in signature {
             self.note_drop(s(ty), id)?;
         }
-        let hidden = hidden_insts(body, sub);
         let plan = if instance_body.is_some() {
             self.planner.plan(item, body, env)
         } else {
@@ -3298,9 +3302,7 @@ impl Cx<'_> {
                 .clone()
         });
         for i in 0..body.len() {
-            if hidden.as_ref().is_some_and(|h| h[i])
-                || own_sub.is_some_and(|k| subs.as_ref().is_some_and(|s| s[i] != k))
-            {
+            if own_sub.is_some_and(|k| subs.as_ref().is_some_and(|s| s[i] != k)) {
                 continue;
             }
             let ty = s(body.ty[i]);
@@ -3515,28 +3517,6 @@ impl Cx<'_> {
                 }
                 Tag::Closure => {
                     let sub_k = u16::try_from(a).expect("subs");
-                    let inst = body.is_instantiation(i);
-                    // A generic local function's defining closure makes
-                    // no value; each use instantiates it (`sub_flags::GENERIC`).
-                    if body.sub_is_generic(usize::from(sub_k)) && !inst {
-                        continue;
-                    }
-                    let targs = if inst {
-                        // Its own parameters follow the instance's: the
-                        // arguments before them are this instance's, those
-                        // of sibling local functions' slots unused.
-                        let rec = body.record(b);
-                        let owner = env.generics_owner(item);
-                        let base = env.parent(owner).map_or(0, |p| p.1) + rec[2] as usize;
-                        let cur = pool.list_items(args);
-                        let mut v: Vec<Ty> = (0..base)
-                            .map(|j| cur.get(j).copied().unwrap_or(Ty::VOID))
-                            .collect();
-                        v.extend(pool.list_items(TyList(rec[3])).iter().copied().map(s));
-                        pool.list(&v)
-                    } else {
-                        args
-                    };
                     // Collection rule 3 of `crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2, carrying:
                     // a closure that a specialized instance creates carries
                     // the known closures for the parameters its plan lists,
@@ -3561,8 +3541,8 @@ impl Cx<'_> {
                     let key = self.push_specialized(
                         item,
                         Sub::Body(sub_k),
-                        targs,
-                        targs,
+                        args,
+                        args,
                         &carried,
                         &defaults,
                         id,
@@ -3571,7 +3551,7 @@ impl Cx<'_> {
                         && let Some(child) = self.out.table.get_with_defaults(
                             item,
                             Sub::Body(sub_k),
-                            targs,
+                            args,
                             &carried,
                             &defaults,
                         )
@@ -3666,7 +3646,7 @@ impl Cx<'_> {
             }
         }
         if let Some(plan) = &plan {
-            direct_calls(body, plan, sub, hidden.as_deref(), &known, &mut calls);
+            direct_calls(body, plan, sub, &known, &mut calls);
         }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
@@ -3682,62 +3662,6 @@ impl Cx<'_> {
     }
 }
 
-/// The instructions an instance of `sub` does not reach: those inside a
-/// generic local function's body (`sub_flags::GENERIC`) that is neither
-/// `sub` nor a sub enclosing it, so the instance's arguments bind none of
-/// that function's own type parameters. `None` when the body has no
-/// generic local function.
-fn hidden_insts(body: &Body, sub: Sub) -> Option<Vec<bool>> {
-    let n = body.sub_root.len();
-    if !(0..n).any(|k| body.sub_is_generic(k)) {
-        return None;
-    }
-    let subs = body.inst_subs();
-    // A sub's parent is the sub holding its defining closure, opened
-    // before it, so it has the smaller number.
-    let mut parent = vec![0usize; n];
-    for (i, &s) in subs.iter().enumerate() {
-        if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
-            let k = body.data[i][0] as usize;
-            if k < n && (s as usize) < k {
-                parent[k] = s as usize;
-            }
-        }
-    }
-    let k = match sub {
-        Sub::Body(k) => usize::from(k).min(n - 1),
-        Sub::Adapter => 0,
-    };
-    let mut visible = vec![false; n];
-    let mut c = k;
-    loop {
-        visible[c] = true;
-        if c == 0 {
-            break;
-        }
-        c = parent[c];
-    }
-    let hidden_sub: Vec<bool> = (0..n)
-        .map(|s| {
-            let mut c = s;
-            loop {
-                if body.sub_is_generic(c) && !visible[c] {
-                    return true;
-                }
-                if c == 0 {
-                    return false;
-                }
-                c = parent[c];
-            }
-        })
-        .collect();
-    Some(
-        subs.iter()
-            .map(|&s| hidden_sub.get(s as usize).copied().unwrap_or(false))
-            .collect(),
-    )
-}
-
 /// Collection rule 1 of `crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2, direct calls: each
 /// `CallValue` the plan gives a callee source records
 /// `Target::KnownClosure` when that source is a known closure in the
@@ -3748,7 +3672,6 @@ fn direct_calls(
     body: &Body,
     plan: &BodyPlan,
     sub: Sub,
-    hidden: Option<&[bool]>,
     known: &[(u32, Hash128)],
     calls: &mut HashMap<u32, Target>,
 ) {
@@ -3759,10 +3682,7 @@ fn direct_calls(
         .then(|| body.inst_subs());
     for &(ix, source) in &plan.direct {
         let i = ix as usize;
-        if body.tags.get(i) != Some(&Tag::CallValue)
-            || hidden.is_some_and(|h| h[i])
-            || calls.contains_key(&ix)
-        {
+        if body.tags.get(i) != Some(&Tag::CallValue) || calls.contains_key(&ix) {
             continue;
         }
         let key = match source {

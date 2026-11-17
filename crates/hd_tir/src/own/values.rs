@@ -552,7 +552,7 @@ pub(crate) fn capture_moves(
     t: &mut Tables,
     edits: &mut splice::Tables,
 ) {
-    use crate::ir::{CaptureMode, sub_flags};
+    use crate::ir::CaptureMode;
     if !b.cap_mode.contains(&CaptureMode::Copy) {
         return;
     }
@@ -565,16 +565,11 @@ pub(crate) fn capture_moves(
         if !u.last || b.tags[i] != Tag::Closure || topo.blk[i] == NONE {
             continue;
         }
-        let [sub, w] = b.data[i];
-        let generic = b
-            .sub_flags
-            .get(sub as usize)
-            .is_some_and(|f| f & sub_flags::GENERIC != 0)
-            || b.is_instantiation(i);
+        let w = b.data[i][1];
         let ty = b.local_ty[u.local as usize];
         let holds_value = cx.counted(ty) && b.exit_drops.iter().any(|e| e.1.raw() == u.local)
             || !cx.counted(ty) && cx.copies(ty) != super::Tri::Yes;
-        if generic || !holds_value || holds_borrow(b, u.local) {
+        if !holds_value || holds_borrow(b, u.local) {
             continue;
         }
         let [start, len] = b.record(w)[..2] else {

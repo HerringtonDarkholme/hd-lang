@@ -1,7 +1,9 @@
 # @dump: own counts wat
-# expected: two instantiations of one generic local body share one Entry
-# captures declaration. A cold closure sharing a scalar cell also states
-# Entry captures, separately from its Cold constructor packet.
+# expected: each instantiation of a generic local function is its own
+# sub-body (#2104): `pair` at i32 and at string each state their Entry
+# captures, and only the string copy retains its `value`. A cold closure
+# sharing a scalar cell also states Entry captures, separately from its
+# Cold constructor packet.
 # A locally called plain closure keeps its shared scalar in a frame slot.
 fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string, string)):
     fn pair[T](value: T) -> (string, T):

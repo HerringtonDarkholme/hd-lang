@@ -44,8 +44,8 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, CaptureMode, TirBuilder, TirSink, Topology, local_flags, sub_flags,
-        u32_of, verify_owned,
+        BodyKind, Callee, CaptureMode, TirBuilder, TirSink, Topology, local_flags, u32_of,
+        verify_owned,
     };
     use crate::own::{Pass, counts as statements, splice};
     use hd_base::{DefId, NodeIdx, Symbol};
@@ -136,13 +136,10 @@ mod tests {
     }
 
     #[test]
-    fn generic_constructions_share_one_cold_sub_body_declaration() {
+    fn two_constructions_share_one_cold_sub_body_declaration() {
         let mut b = body(Ty::STRING, CaptureMode::Copy, Ty(45));
-        b.sub_flags[1] |= sub_flags::GENERIC;
         let ci = b.tags.iter().position(|&t| t == Tag::Closure).unwrap();
-        let rec = b.record(b.data[ci][1]).to_vec();
-        let at = u32_of(b.extra.len());
-        b.extra.extend([4, rec[0], rec[1], 0, 0]);
+        let at = b.data[ci][1];
         let topo = Topology::new(&b);
         let mut edits = splice::Tables::default();
         edits.insert(

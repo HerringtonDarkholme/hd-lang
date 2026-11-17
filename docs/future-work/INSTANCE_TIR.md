@@ -4,7 +4,9 @@ Status: accepted design (owner, 2026-11-17: "Approve, build it"); domain:
 compiler internals; step 1 built (#2101: `Phase` with `Checked` and
 `Instance`, `verify_instance` in the driver's `Env::mark_instance`);
 step 3 built (#2103: `hd_mono::instantiate`, which `Env::inlined_instance`
-calls, and the bound-call rule). From [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
+calls, and the bound-call rule); step 4 built (#2104:
+`hd_tir::ir::instantiate_local_functions`, run by `hd_mono::instantiate`
+and `Env::fold_and_inline`). From [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
 option B of [review-2026-11-12 §14](../audit/review-2026-11-12.md#generic-or-instance-tir),
 and [tir-v2.md "As built"](../compiler/tir-v2.md#as-built-2026-11-13).
 D01 is §14's per-function code cache ("direction 1", #1783).

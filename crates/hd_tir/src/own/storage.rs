@@ -296,11 +296,8 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
             // A closure's copy of a capture is a value of its own.
             let mut copy = vec![false; n];
             if s != 0
-                && let Some(ci) = (0..b.len()).find(|&i| {
-                    b.tags[i] == Tag::Closure
-                        && b.data[i][0] as usize == s
-                        && !b.is_instantiation(i)
-                })
+                && let Some(ci) =
+                    (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] as usize == s)
             {
                 for (l, shared) in captures(b, ci, &recursive) {
                     copy[l] |= !shared;

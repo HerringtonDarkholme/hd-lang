@@ -455,7 +455,7 @@ impl Flow {
         }
         for (i, origin) in origins.iter_mut().enumerate().take(n) {
             work!(1);
-            if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
+            if body.tags[i] == Tag::Closure {
                 *origin = u32_of(i);
                 queue.push(i);
             } else if body.tags[i] == Tag::Coerce && body.same_value_coercion(i) {

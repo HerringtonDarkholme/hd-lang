@@ -2744,6 +2744,16 @@ impl Env<'_> {
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
     pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+        // Generic local functions first (`hd_mono::instantiate_locals`,
+        // #2104), so no fold, inliner or pass sees one; a generic
+        // instance's were instantiated with it. A malformed body is left
+        // as it is, and the instance verifier rejects it
+        // (`Env::mark_instance`).
+        if let Ok(made) = hd_mono::instantiate_locals(&self.run.pool, self, body.item, body)
+            && made > 0
+        {
+            lock(&self.run.counters).local_instances_built += made;
+        }
         // A body with no type arguments gets no `hd_mono::instantiate`,
         // so its bound calls at a closed receiver are chosen here, as
         // collection selects them: at an opaque result's hidden type, or
@@ -3016,28 +3026,22 @@ impl Env<'_> {
     fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
         let owner = ProgramEnv::generics_owner(self, body.item);
         if args == TyList::EMPTY && !ProgramEnv::generic_rows(self, owner).is_empty() {
+            // ruled out: the generic body that serves past the leaf limit
+            // had its local functions instantiated in its own parameters
+            // (`Env::fold_and_inline`), whose one failure is a closure word
+            // outside its context, which the checker never writes (tried:
+            // nested, recursive, capturing and twice-instantiated local
+            // functions, `hd_tir::ir::local_fns` tests).
+            assert!(
+                !(0..body.sub_root.len()).any(|s| body.sub_is_generic(s)),
+                "generic body `{}` serves its instances with a generic local function",
+                self.run.names().path(body.item)
+            );
             return Ok(());
         }
         body.phase = hd_tir::ir::Phase::Instance;
-        // A generic local function's own parameters follow its owner's
-        // (`hd_check/src/local.rs`); they stay until #2104.
-        let own = self.sig(owner).map_or_else(
-            || {
-                self.p
-                    .items
-                    .get(owner)
-                    .map_or(0, |item| item.generics.len())
-            },
-            |sig| sig.generics.len(),
-        );
-        let local = hd_tir::ir::LocalGenerics {
-            owner,
-            first: u16::try_from(own).unwrap_or(u16::MAX),
-        };
         let pool = &self.run.pool;
-        let errs = hd_tir::ir::verify_instance(body, pool, Some(local), &|t| {
-            hd_mono::shown_type(pool, self, t)
-        });
+        let errs = hd_tir::ir::verify_instance(body, pool, &|t| hd_mono::shown_type(pool, self, t));
         let Some(e) = errs.first() else {
             return Ok(());
         };

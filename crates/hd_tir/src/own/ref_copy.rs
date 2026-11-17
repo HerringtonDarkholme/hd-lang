@@ -14,7 +14,7 @@ pub(super) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
     let recursive = super::RecursiveBindings::new(b);
     let mut copied = Vec::new();
     for i in 0..b.len() {
-        if b.tags[i] != Tag::Closure || b.is_instantiation(i) {
+        if b.tags[i] != Tag::Closure {
             continue;
         }
         let own = recursive.self_local(i);

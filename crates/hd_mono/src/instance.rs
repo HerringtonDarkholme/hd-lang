@@ -26,7 +26,8 @@ use crate::{ProgramEnv, subst};
 /// checked, or folded and inlined once per generic body in dev): types
 /// substituted ([`subst`]) and bound calls chosen by `pick`, which answers
 /// as collection selects. `args` is not empty: a non-generic item's own
-/// body is its instance's, with no copy.
+/// body is its instance's, with no copy; its generic local functions
+/// are instantiated too ([`instantiate_locals`]).
 #[must_use]
 pub fn instantiate(
     pool: &InternPool,
@@ -38,8 +39,78 @@ pub fn instantiate(
 ) -> Body {
     let mut body = generic.clone();
     substitute_body(pool, &mut body, &mut |t| subst(pool, env, item, args, t));
+    // Its generic local functions are instantiated at the now concrete
+    // arguments, so their bound calls are chosen with the rest.
+    // A malformed body is left as it is, and the instance verifier
+    // rejects its generic local function (`hd_tir::ir::verify_instance`).
+    let _ = instantiate_locals(pool, env, item, &mut body);
     rechoose(&mut body, pick);
     body
+}
+
+/// Instantiates `body`'s generic local functions in place
+/// (`hd_tir::ir::instantiate_local_functions`): one sub-body per distinct
+/// `(function, type arguments)` in its context, each type substituted
+/// through [`subst`] once per distinct type per context. Returns the
+/// number of sub-bodies made, 0 when it has none.
+///
+/// # Errors
+/// A malformed body, whose closure names a word outside its own context.
+pub fn instantiate_locals(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    item: DefId,
+    body: &mut Body,
+) -> Result<usize, String> {
+    let owner = env.generics_owner(item);
+    let mut types = Locals {
+        pool,
+        env,
+        owner,
+        memo: HashMap::default(),
+    };
+    let Some((out, made)) = hd_tir::ir::instantiate_local_functions(body, pool, &mut types)? else {
+        return Ok(0);
+    };
+    *body = out;
+    Ok(made)
+}
+
+/// [`subst`] for a context of generic local functions: their own
+/// parameters, which follow the item's (`hd_check/src/local.rs`), bound;
+/// the item's own left as they are.
+struct Locals<'a> {
+    pool: &'a InternPool,
+    env: &'a dyn ProgramEnv,
+    owner: DefId,
+    memo: HashMap<(u32, Ty), Ty>,
+}
+
+impl hd_tir::ir::LocalTypes for Locals<'_> {
+    fn ty(&mut self, ctx: u32, bind: &[(u32, Ty)], t: Ty) -> Ty {
+        if !self.pool.has_param(t) {
+            return t;
+        }
+        if let Some(&u) = self.memo.get(&(ctx, t)) {
+            return u;
+        }
+        let owner = self.owner;
+        let s = self.pool.subst(t, &|p: hd_types::ParamRef| {
+            if p.owner != owner {
+                return None;
+            }
+            bind.iter().find(|b| b.0 == u32::from(p.index)).map(|b| b.1)
+        });
+        // In a generic item's own body (dev folds it once) the item's
+        // parameters stay; its instances close the type.
+        let u = if self.pool.has_param(s) {
+            s
+        } else {
+            crate::close(self.pool, self.env, s)
+        };
+        self.memo.insert((ctx, t), u);
+        u
+    }
 }
 
 /// Maps every type `body` records through `ty` (`hd_tir::ir::map_body_types`),

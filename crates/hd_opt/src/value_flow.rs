@@ -17,8 +17,6 @@ pub struct ValueFlow {
     params: Vec<u32>,
     /// Per sub-body, the sub holding its defining closure (0 for sub 0).
     parent: Vec<u32>,
-    /// Per sub-body, whether it is a generic local function's body.
-    generic: Vec<bool>,
     /// Each call of an item parameter (`ValueFlow::param`): the parameter's
     /// index and the sub-body the call is in.
     param_calls: Vec<(u32, u32)>,
@@ -54,7 +52,7 @@ impl ValueFlow {
         let n = body.sub_root.len();
         let mut parent = vec![0u32; n];
         for (i, &s) in subs.iter().enumerate() {
-            if body.tags[i] == Tag::Closure && !body.is_instantiation(i) {
+            if body.tags[i] == Tag::Closure {
                 let k = body.data[i][0] as usize;
                 if k < n && s < body.data[i][0] {
                     parent[k] = s;
@@ -66,7 +64,6 @@ impl ValueFlow {
             subs,
             params,
             parent,
-            generic: (0..n).map(|k| body.sub_is_generic(k)).collect(),
             param_calls: Vec::new(),
         };
         for i in 0..body.len() {
@@ -86,9 +83,8 @@ impl ValueFlow {
     }
 
     /// Whether item parameter `p` is called in sub-body `k` or in a sub
-    /// nested in it, with no generic local function's body on the way: the
-    /// calls an instance of `k` specialized on `p` makes direct, itself or
-    /// through the sub-bodies it creates (`crates/hd_opt/DESIGN.md` (known closure calls) §3.1).
+    /// nested in it: the calls an instance of `k` specialized on `p` makes
+    /// direct, itself or through the sub-bodies it creates (`crates/hd_opt/DESIGN.md` (known closure calls) §3.1).
     #[must_use]
     pub fn called_under(&self, p: u32, k: u32) -> bool {
         self.param_calls.iter().any(|&(q, s)| {
@@ -97,9 +93,6 @@ impl ValueFlow {
             }
             let mut c = s as usize;
             loop {
-                if self.generic.get(c).copied().unwrap_or(true) {
-                    return false;
-                }
                 if c == k as usize {
                     return true;
                 }

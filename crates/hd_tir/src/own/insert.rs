@@ -587,9 +587,7 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
                     if b.cap_mode.get(c).is_some_and(|m| m.shares()) {
                         t.celled[l as usize] = true;
                     }
-                    if !b.is_instantiation(i) {
-                        t.entries.push((a, l));
-                    }
+                    t.entries.push((a, l));
                 }
             }
             _ => {}

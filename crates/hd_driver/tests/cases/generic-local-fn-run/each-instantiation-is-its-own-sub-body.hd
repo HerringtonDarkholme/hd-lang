@@ -1,0 +1,66 @@
+# @dump: own wat stdout
+# fn.local.declare and fn.generic.call-list: a generic local function
+# instantiated at two types is two plain sub-bodies, each with its types
+# substituted (`hd_mono::instantiate_locals`, #2104).
+# expected: `pair` at i32 and at string are generic#1 and generic#2;
+# the second call at i32 reuses generic#1. `wrap` captures the item's `T`
+# and is substituted with the item's arguments first. A nested generic,
+# a recursive one, a bounded one and one in a trait default each run.
+fn generic(captured: string) -> (string, i32, string):
+    fn pair[T](value: T) -> (string, T):
+        (captured, value)
+    let (a, n) = pair(1)
+    let (_, m) = pair(2)
+    let (_, s) = pair("s")
+    (a, n + m, s)
+
+fn outer[T](x: T) -> (T, i32):
+    fn wrap[U](u: U, t: T) -> (T, U):
+        (t, u)
+    let (t, k) = wrap(4, x)
+    let (_, b) = wrap(true, x)
+    (t, if b: k else: 0)
+
+fn nested[T](x: T) -> T:
+    fn a[S](s: S) -> S:
+        fn b[U](u: U) -> U:
+            u
+        b(b(s))
+    a(a(x))
+
+fn countdown(n: i32) -> i32:
+    fn down[S](k: i32, s: S) -> i32:
+        if k == 0: 0 else: down(k - 1, s) + 1
+    down(n, "x") + down(n, 1)
+
+trait Area:
+    fn area(self) -> i32
+
+struct Sq:
+    side: i32
+
+impl Area for Sq:
+    fn area(self) -> i32:
+        self.side * self.side
+
+fn bounded() -> i32:
+    fn total[S < Area](a: S, b: S) -> i32:
+        a.area() + b.area()
+    total(Sq { side: 2 }, Sq { side: 3 })
+
+trait Named:
+    fn name(self) -> string
+    fn shout(self) -> string:
+        fn twice[S](s: S) -> (S, S):
+            (s, s)
+        let (a, b) = twice(self.name())
+        a + b
+
+impl Named for Sq:
+    fn name(self) -> string:
+        "sq"
+
+pub fn main() -> void $ Console:
+    let (a, n, s) = generic("c")
+    let (t, k) = outer("o")
+    println("${a} ${n} ${s} ${t} ${k} ${nested(7)} ${countdown(3)} ${bounded()} ${Sq { side: 1 }.shout()}")

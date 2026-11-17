@@ -15,12 +15,14 @@ use hd_base::{
 use hd_types::{Ty, TyList};
 
 mod instance;
+mod local_fns;
 mod owned;
 mod root;
 mod slots;
 mod topo;
 mod view;
-pub use instance::{LocalGenerics, verify_instance};
+pub use instance::verify_instance;
+pub use local_fns::{LocalTypes, instantiate_local_functions};
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
@@ -2468,35 +2470,7 @@ pub enum TypeWord {
 /// keys and place roots that instructions may share.
 pub fn record_type_words(b: &Body, f: &mut dyn FnMut(usize, TypeWord)) {
     for i in 0..b.tags.len() {
-        let [a, w] = b.data[i];
-        match b.tags[i] {
-            Tag::Call | Tag::Await => {
-                // `[0, def, targs]` or `[1, trait, method, self_ty, targs,
-                // kind, value]` (`Callee::words`).
-                let at = a as usize + 1;
-                match b.extra.get(at).copied() {
-                    Some(0) => f(at + 2, TypeWord::List),
-                    Some(1) => {
-                        f(at + 3, TypeWord::Ty);
-                        f(at + 4, TypeWord::List);
-                    }
-                    _ => {}
-                }
-            }
-            Tag::Coerce if b.row_adaptation(i).is_some() => f(w as usize + 2, TypeWord::List),
-            Tag::ProviderGet => f(a as usize + 1, TypeWord::Ty),
-            Tag::With | Tag::ContextNew => {
-                let len = b.extra[a as usize] as usize;
-                for k in 0..len / 2 {
-                    f(a as usize + 1 + 2 * k, TypeWord::Ty);
-                }
-            }
-            Tag::ItemRef => f(w as usize + 1, TypeWord::List),
-            Tag::CallDyn => f(w as usize + 2, TypeWord::List),
-            Tag::DefaultCall => f(a as usize + 2, TypeWord::List),
-            Tag::Closure if b.is_instantiation(i) => f(w as usize + 4, TypeWord::List),
-            _ => {}
-        }
+        inst_record_type_words(b, i, f);
     }
     let mut keys = Vec::new();
     for i in 0..b.len() {
@@ -2513,6 +2487,40 @@ pub fn record_type_words(b: &Body, f: &mut dyn FnMut(usize, TypeWord)) {
     // is visited once.
     for at in global_place_types(b) {
         f(at, TypeWord::Ty);
+    }
+}
+
+/// The type words of instruction `i`'s own records ([`record_type_words`]),
+/// without its call's provider keys or a global place root's type.
+pub fn inst_record_type_words(b: &Body, i: usize, f: &mut dyn FnMut(usize, TypeWord)) {
+    let [a, w] = b.data[i];
+    match b.tags[i] {
+        Tag::Call | Tag::Await => {
+            // `[0, def, targs]` or `[1, trait, method, self_ty, targs,
+            // kind, value]` (`Callee::words`).
+            let at = a as usize + 1;
+            match b.extra.get(at).copied() {
+                Some(0) => f(at + 2, TypeWord::List),
+                Some(1) => {
+                    f(at + 3, TypeWord::Ty);
+                    f(at + 4, TypeWord::List);
+                }
+                _ => {}
+            }
+        }
+        Tag::Coerce if b.row_adaptation(i).is_some() => f(w as usize + 2, TypeWord::List),
+        Tag::ProviderGet => f(a as usize + 1, TypeWord::Ty),
+        Tag::With | Tag::ContextNew => {
+            let len = b.extra[a as usize] as usize;
+            for k in 0..len / 2 {
+                f(a as usize + 1 + 2 * k, TypeWord::Ty);
+            }
+        }
+        Tag::ItemRef => f(w as usize + 1, TypeWord::List),
+        Tag::CallDyn => f(w as usize + 2, TypeWord::List),
+        Tag::DefaultCall => f(a as usize + 2, TypeWord::List),
+        Tag::Closure if b.is_instantiation(i) => f(w as usize + 4, TypeWord::List),
+        _ => {}
     }
 }
 

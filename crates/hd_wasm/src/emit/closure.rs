@@ -14,7 +14,7 @@ use hd_base::HashSet;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, ref_word, sub_flags};
+use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, ref_word};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -638,18 +638,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `Closure`: the code instance's table slot and a new environment
-    /// holding the captures, each counted once more, or 0 for none. The
-    /// defining `Closure` of a generic local function makes no value.
+    /// holding the captures, each counted once more, or 0 for none.
     pub(super) fn closure(&mut self, i: u32) -> StageResult<()> {
-        let sub = self.b.data[i as usize][0];
-        let generic = self
-            .b
-            .sub_flags
-            .get(sub as usize)
-            .is_some_and(|f| f & sub_flags::GENERIC != 0);
-        if generic && !self.b.is_instantiation(i as usize) {
-            return Ok(());
-        }
         let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
             unreachable!("collection selects every emitted closure's code instance");
         };

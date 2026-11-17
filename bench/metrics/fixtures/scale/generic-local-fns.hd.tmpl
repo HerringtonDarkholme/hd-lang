@@ -1,0 +1,14 @@
+{{! One struct per `items` entry, and two calls of one generic local function at it in main. }}
+{{#each items}}
+struct S{{i}}:
+    v: i32
+
+{{/each}}
+pub fn main() -> void $ Console:
+    fn tag[T](x: T, k: i32) -> i32:
+        k
+    let t = +0
+{{#each items}}
+    t = tag(S{{i}} { v: t }, t) + tag(S{{i}} { v: +1 }, +1)
+{{/each}}
+    println("$t")

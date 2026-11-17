@@ -15,9 +15,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
     let recursive = super::RecursiveBindings::new(b);
     let mut out = Vec::new();
     for (i, &tag) in b.tags.iter().enumerate() {
-        if tag != Tag::Closure
-            || (b.sub_is_generic(b.data[i][0] as usize) && !b.is_instantiation(i))
-        {
+        if tag != Tag::Closure {
             continue;
         }
         let record = b.record(b.data[i][1]);
@@ -42,7 +40,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, CaptureMode, TirBuilder, TirSink, Topology, local_flags, sub_flags, verify_owned,
+        BodyKind, CaptureMode, TirBuilder, TirSink, Topology, local_flags, verify_owned,
     };
     use crate::own::{counts, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
@@ -183,18 +181,7 @@ mod tests {
     }
 
     #[test]
-    fn generic_declarations_and_self_only_captures_make_no_copy_packet() {
-        let mut b = body(&[(Ty::STRING, CaptureMode::Shared)]);
-        let ci = closure(&b);
-        b.sub_flags[1] |= sub_flags::GENERIC;
-        assert!(super::counts(&b, &Cx).is_empty());
-        // The same capture layout at a concrete construction does own its
-        // packet; only the uninstantiated definition is nonexecuting.
-        let record = b.record(b.data[ci][1]).to_vec();
-        let at = u32_of(b.extra.len());
-        b.extra.extend([4, record[0], record[1], 0, 0]);
-        b.data[ci][1] = at;
-        assert_eq!(super::counts(&b, &Cx).len(), 1);
+    fn self_only_captures_make_no_copy_packet() {
         let mut b = body(&[(Ty(43), CaptureMode::Shared)]);
         let ci = closure(&b);
         let syn = NodeIdx::from_raw(1);
