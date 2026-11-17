@@ -14,7 +14,10 @@
 //! argument and result bytes. A pending call adds one insert into the
 //! reactor's operation map at `.start`, one queue push at its completion,
 //! one map probe when the reactor takes that push, and one removal at
-//! `.finish` or abort: nothing scans the pending calls.
+//! `.finish` or abort: nothing scans the pending calls. A returned handle
+//! costs one insert into the instance's handle registry, and each method
+//! call or release on it one slot probe (`native::handles`): nothing scans
+//! the handles.
 
 use std::any::Any;
 
@@ -25,7 +28,7 @@ use wasmtime::Linker;
 
 use super::reply::{bytes, handle, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
-use crate::native::{Answer, Bindings, Dispatch, Unregistered};
+use crate::native::{Answer, Bindings, Dispatch, HostError, Unregistered};
 
 /// A module's package host contract and the imports it describes.
 pub(crate) struct Package {
@@ -50,7 +53,9 @@ impl Package {
     }
 }
 
-/// One linked root provider, at its interface's index in the contract.
+/// One linked root provider. The instance holds one slot per contract
+/// interface, at its index; a handle trait's slot is empty, since each
+/// handle carries its own trait object and dispatch.
 pub(crate) struct Native {
     provider: Box<dyn Any>,
     dispatch: Dispatch,
@@ -70,7 +75,7 @@ pub(crate) fn preflight(
     package: Option<&Package>,
     bindings: Option<Bindings>,
     consent: &Consent,
-) -> Result<Vec<Native>, StartError> {
+) -> Result<Vec<Option<Native>>, StartError> {
     let Some(bindings) = bindings else {
         return match package.and_then(Package::first_root) {
             Some(root) => Err(refused(
@@ -102,25 +107,38 @@ pub(crate) fn preflight(
     }
     let interfaces = package.map_or(&[][..], |p| &p.contract.interfaces[..]);
     let mut natives = Vec::with_capacity(interfaces.len());
-    // The companion's contract, by module, once.
-    let generated: HashMap<String, Interface> = if interfaces.is_empty() {
+    // The companion's contract, by module, once, with each interface's
+    // index: the companion names a handle trait by that index.
+    let generated: HashMap<String, (usize, Interface)> = if interfaces.is_empty() {
         HashMap::default()
     } else {
         Contract::decode(companion)
             .map_err(|why| refused(format!("invalid native provider contract: {why}")))?
             .interfaces
             .into_iter()
-            .map(|i| (i.module.clone(), i))
+            .enumerate()
+            .map(|(n, i)| (i.module.clone(), (n, i)))
             .collect()
     };
-    for interface in interfaces {
+    let differs = |name: &str| {
+        refused(format!(
+            "native provider for package host trait {name:?} was generated from a different contract"
+        ))
+    };
+    for (index, interface) in interfaces.iter().enumerate() {
         let name = interface.identity.to_string();
         if interface.handle {
-            // gap: #2082 keeps returned handle trait objects in the
-            // instance's registry.
-            return Err(refused(format!(
-                "package host trait {name:?} crosses as a native handle, which wasmtime does not hold yet"
-            )));
+            // A handle trait has no registration: a result's handle brings
+            // its trait object and the companion's dispatch, which names
+            // the trait by its index, so the index must mean this trait.
+            if !generated
+                .get(&interface.module)
+                .is_some_and(|(n, i)| *n == index && i == interface)
+            {
+                return Err(differs(&name));
+            }
+            natives.push(None);
+            continue;
         }
         let Some(&n) = by_identity.get(name.as_str()) else {
             return Err(refused(
@@ -143,15 +161,13 @@ pub(crate) fn preflight(
             .map_err(|why| refused(why.message(interface)))?;
         // The companion's interface of the registered module: the same
         // methods in the same order, so a method index means one method.
-        if generated.get(registration.module) != Some(interface) {
-            return Err(refused(format!(
-                "native provider for package host trait {name:?} was generated from a different contract"
-            )));
+        if generated.get(registration.module).map(|(_, i)| i) != Some(interface) {
+            return Err(differs(&name));
         }
-        natives.push(Native {
+        natives.push(Some(Native {
             provider: registration.provider,
             dispatch: registration.dispatch,
-        });
+        }));
     }
     if let Some(r) = registrations.iter().flatten().next() {
         return Err(refused(format!(
@@ -162,7 +178,14 @@ pub(crate) fn preflight(
     Ok(natives)
 }
 
-/// Defines each module import of a root method that preflight linked to
+/// The handle number a handle method or `$release` gets first. The
+/// registry issues positive numbers only, so a negative one reads as 0,
+/// which names no handle.
+fn handle_number(params: &[wasmtime::Val]) -> wasmtime::Result<u32> {
+    Ok(u32::try_from(int_arg(params, 0)?).unwrap_or(0))
+}
+
+/// Defines each module import of a method that preflight linked to
 /// its provider, and records it in `defined`. Every other described import
 /// is left to `define`, which names it. A suspending method is two
 /// imports: `.start` answers at once or registers its pending call with
@@ -188,14 +211,18 @@ pub(crate) fn define(
         let method = &declared.methods[index];
         let label = format!("{}.{}", declared.identity, method.member);
         // `.start` and a plain call take one argument length when the
-        // method takes any argument, `.finish` its handle. A plain call
+        // method takes any argument, after the handle a handle method is
+        // called on; `.finish` and `$release` take a handle. A plain call
         // has one result length unless it returns `()` or never returns,
-        // `.start` a status and its length or handle, `.finish` a length.
+        // `.start` a status and its length or handle, `.finish` a length,
+        // `$release` nothing.
+        let on_handle = declared.handle && matches!(part, Part::Call | Part::Start);
         let takes = match part {
-            Part::Finish => 1,
-            _ => usize::from(!method.params.is_empty()),
+            Part::Finish | Part::Release => 1,
+            _ => usize::from(on_handle) + usize::from(!method.params.is_empty()),
         };
         let gives = match (part, &method.result) {
+            (Part::Release, _) => Some(0),
             (Part::Start, _) => Some(2),
             (_, Value::Never) => None,
             (Part::Call, Value::Void) => Some(0),
@@ -209,9 +236,14 @@ pub(crate) fn define(
         let results: Vec<_> = ty.results().collect();
         let result = method.result.clone();
         let call = (interface, index);
+        // The handle trait's index in the registry; contracts hold far
+        // fewer interfaces than `u32::MAX`.
+        let trait_index = u32::try_from(interface).unwrap_or(u32::MAX);
         linker
             .func_new(m, n, ty, move |mut caller, params, out| {
                 let fail = |why: &str| Stop::Contract(format!("{label}: {why}"));
+                // The JS host names no method for a bad handle.
+                let invalid = |error: HostError| Stop::Contract(error.0);
                 // The reply: `.start`'s status (0 ready, 1 pending) and its
                 // result length or handle, or a call's or `.finish`'s
                 // length. The signature check above fixed the counts.
@@ -224,24 +256,62 @@ pub(crate) fn define(
                     }
                 };
                 let value = match part {
-                    Part::Finish => {
-                        let h = handle(int_arg(params, 0)?);
+                    Part::Release => {
+                        // The last hd reference is gone: the trait object
+                        // drops with no provider call (`native-handle-release`).
+                        let number = handle_number(params)?;
                         caller
                             .data_mut()
-                            .reactor
-                            .finish_native(h, call)
+                            .handles
+                            .release(number, trait_index)
+                            .map_err(invalid)?;
+                        return Ok(());
+                    }
+                    Part::Finish => {
+                        let h = handle(int_arg(params, 0)?);
+                        let host = caller.data_mut();
+                        host.reactor
+                            .finish_native(h, call, &mut host.handles)
                             .ok_or_else(|| fail("a finish of an operation that is not pending"))?
                             .map_err(|error| fail(&error.to_string()))?
                     }
                     Part::Call | Part::Start => {
-                        let args = if takes == 0 {
+                        let args = if params.len() == usize::from(on_handle) {
                             Vec::new()
                         } else {
-                            bytes(&mut caller, int_arg(params, 0)?)?
+                            bytes(&mut caller, int_arg(params, usize::from(on_handle))?)?
                         };
-                        let native = &mut caller.data_mut().natives[interface];
-                        let answer = (native.dispatch)(native.provider.as_mut(), index, &args)
-                            .map_err(|error| fail(&error.to_string()))?;
+                        let host = caller.data_mut();
+                        let answer = if on_handle {
+                            // A handle this instance issued for this trait
+                            // and has not released, or no method runs
+                            // (`native-handle-check`). Its trait object
+                            // leaves its slot for the call, so a handle
+                            // the result returns can enter the registry.
+                            let mut lent = host
+                                .handles
+                                .lend(handle_number(params)?, trait_index)
+                                .map_err(invalid)?;
+                            let answer = (lent.dispatch)(
+                                lent.value.as_mut(),
+                                index,
+                                &args,
+                                &mut host.handles,
+                            );
+                            host.handles.restore(lent);
+                            answer
+                        } else {
+                            let Some(native) = host.natives[interface].as_mut() else {
+                                unreachable!("ruled out: preflight links every root interface")
+                            };
+                            (native.dispatch)(
+                                native.provider.as_mut(),
+                                index,
+                                &args,
+                                &mut host.handles,
+                            )
+                        }
+                        .map_err(|error| fail(&error.to_string()))?;
                         match (part, answer) {
                             (_, Answer::Ready(value)) => value,
                             (Part::Start, Answer::Pending(pending)) => {

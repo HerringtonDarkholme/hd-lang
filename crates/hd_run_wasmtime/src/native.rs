@@ -21,15 +21,18 @@
 //! The companion's dispatch decodes each call's arguments and encodes its
 //! result with the codecs of [`wire`]. A suspending method's
 //! [`PendingCall`] is held by the instance's reactor, which its
-//! [`Completion`] wakes from any thread. What builds on this surface:
-//! #2082 keeps returned handle trait objects in the instance's registry.
+//! [`Completion`] wakes from any thread. A returned handle trait object
+//! lives in the instance's [`Handles`] until hd releases it.
 
 use std::any::Any;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::runtime::reactor::Wake;
 
+pub mod handles;
 pub mod wire;
+
+pub use handles::Handles;
 
 /// A provider method's failure: a `host-contract` failure of the call
 /// (`cli.host.package.native-call-failure`).
@@ -202,7 +205,7 @@ pub struct Suspension(Box<dyn Suspended>);
 
 impl Suspension {
     #[must_use]
-    pub fn new<T: 'static>(call: PendingCall<T>, encode: fn(&T) -> HostResult<Vec<u8>>) -> Self {
+    pub fn new<T: 'static>(call: PendingCall<T>, encode: Encode<T>) -> Self {
         Self(Box::new(Encoded { call, encode }))
     }
 
@@ -210,20 +213,25 @@ impl Suspension {
         self.0.bind(wake)
     }
 
-    /// The delivered value, encoded; `None` while pending.
-    pub(crate) fn finish(&mut self) -> Option<HostResult<Vec<u8>>> {
-        self.0.finish()
+    /// The delivered value, encoded, with any handle it holds issued in
+    /// `handles`; `None` while pending.
+    pub(crate) fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>> {
+        self.0.finish(handles)
     }
 }
 
+/// A suspending method's result codec: it takes the value, since a
+/// handle it holds moves into the instance's registry.
+pub type Encode<T> = fn(T, &mut Handles) -> HostResult<Vec<u8>>;
+
 trait Suspended {
     fn bind(&mut self, wake: Wake) -> Bound;
-    fn finish(&mut self) -> Option<HostResult<Vec<u8>>>;
+    fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>>;
 }
 
 struct Encoded<T> {
     call: PendingCall<T>,
-    encode: fn(&T) -> HostResult<Vec<u8>>,
+    encode: Encode<T>,
 }
 
 impl<T> Suspended for Encoded<T> {
@@ -231,8 +239,12 @@ impl<T> Suspended for Encoded<T> {
         self.call.bind(wake)
     }
 
-    fn finish(&mut self) -> Option<HostResult<Vec<u8>>> {
-        Some(self.call.take()?.and_then(|value| (self.encode)(&value)))
+    fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>> {
+        Some(
+            self.call
+                .take()?
+                .and_then(|value| (self.encode)(value, handles)),
+        )
     }
 }
 
@@ -310,12 +322,19 @@ impl std::fmt::Display for Unregistered {
 
 impl std::error::Error for Unregistered {}
 
-/// The byte-level entry of one root provider: calls the method at index
+/// The byte-level entry of one provider trait: calls the method at index
 /// `method` of its interface in the contract, with that method's encoded
 /// arguments, and returns its encoded result (empty for `()`), or a
-/// suspending method's pending call. The companion generates one per root
-/// trait; it downcasts `provider` to the trait object it registered.
-pub type Dispatch = fn(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer>;
+/// suspending method's pending call. A handle the result holds is issued
+/// in `handles`. The companion generates one per trait; it downcasts
+/// `provider` to the trait object it registered, or for a handle trait to
+/// the one a result returned.
+pub type Dispatch = fn(
+    provider: &mut dyn Any,
+    method: usize,
+    args: &[u8],
+    handles: &mut Handles,
+) -> HostResult<Answer>;
 
 /// One root provider: its trait's nominal identity, its import module, the
 /// generated trait object (`Box<dyn Trait>`, boxed again as `Any`), and its

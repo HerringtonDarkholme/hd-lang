@@ -326,6 +326,15 @@ the codecs generated from the ABI model (`host/gen/abi.ts`), built on
   A runtime profile's own trait that a profile method returns crosses
   the same way, its slots imported from `hd:<Trait>` by method name with
   the number first (the `disposed-file` profile's `FileHandle`).
+- **Native package handles.** A native provider's returned handle trait
+  object moves into its instance's registry (`native/handles.rs`) as the
+  result is encoded, with its contract interface and its trait's
+  generated dispatch. Its number has the operation handles' slot and
+  generation layout plus one; a method call or `$release` checks slot,
+  generation and trait in O(1), the call lends the object out of its slot
+  so its result may issue more, and the release drops it with no provider
+  call. A released slot's generation moves on, and a slot whose
+  generations are spent retires, so no number is issued twice.
 - **Recursion.** A recursive struct or enum crosses through one encoder
   and one decoder, each calling itself where the type recurs (#1550), so a
   value crosses at any depth. An hd value at the boundary has no cycle:

@@ -19,21 +19,23 @@ pub trait Server {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Server>>(provider)?;
     match method {
         0 => {
-            let value = &provider.read()?;
-            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-            e.signed(i64::from(*value));
-            Ok(hd_run_wasmtime::native::Answer::Ready(std::mem::take(e).into_bytes()))
+            let value = provider.read()?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
+            e.signed(i64::from(value));
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         1 => {
-            hd_run_wasmtime::native::wire::answer(provider.wait(hd_run_wasmtime::native::CallContext::new()), |value: &i32| {
-                let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-                e.signed(i64::from(*value));
-                Ok(std::mem::take(e).into_bytes())
-            })
+            hd_run_wasmtime::native::wire::answer(provider.wait(hd_run_wasmtime::native::CallContext::new()), |value: i32, handles: &mut hd_run_wasmtime::native::Handles| {
+                let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+                let e = &mut enc;
+                e.signed(i64::from(value));
+                Ok(enc.into_bytes())
+            }, handles)
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }

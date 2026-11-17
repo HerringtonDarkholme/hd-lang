@@ -33,10 +33,10 @@ pub struct SurfaceDrawArg17Value {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg17Value {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { x: f0, y: f1 } = self;
-        e.f64(*f0);
-        e.f64(*f1);
+        e.f64(f0);
+        e.f64(f1);
         Ok(())
     }
 
@@ -54,10 +54,10 @@ pub struct SurfaceDrawArg19 {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg19 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { r#type: f0, self_: f1, at: f2 } = self;
-        e.string(f0);
-        e.bool(*f1);
+        e.string(&f0);
+        e.bool(f1);
         SurfaceDrawArg17Value::wire_encode(f2, e)?;
         Ok(())
     }
@@ -77,7 +77,7 @@ pub enum SurfaceDrawArg20 {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg20 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Self_ => e.tag(0),
             Self::Moved { r#match: f0 } => {
@@ -107,13 +107,13 @@ pub enum SurfaceDrawArg21 {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg21 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Leaf => e.tag(0),
             Self::Node { kids: f0, parent: f1 } => {
                 e.tag(1);
                 { e.count(f0.len()); for x in f0 { SurfaceDrawArg21::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); SurfaceDrawArg21::wire_encode(x, e)?; } }
+                match f1 { None => e.tag(0), Some(x) => { e.tag(1); SurfaceDrawArg21::wire_encode(*x, e)?; } }
             }
         }
         Ok(())
@@ -133,9 +133,9 @@ pub struct SurfaceDrawArg22 {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg22 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { events: f0 } = self;
-        e.handle(f0)?;
+        e.handle(Box::new(f0), 4, dispatch_Events)?;
         Ok(())
     }
 
@@ -150,7 +150,7 @@ pub struct SurfaceDrawArg23 {
 
 #[allow(dead_code)]
 impl SurfaceDrawArg23 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { inner: f0 } = self;
         SurfaceDrawArg22::wire_encode(f0, e)?;
         Ok(())
@@ -187,11 +187,33 @@ pub trait Events {
     fn next(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Option<String>>;
 }
 
+/// Calls the method at index `method` of a returned `Surface2` with its
+/// encoded arguments and returns its encoded result, or a suspending
+/// method's pending call.
+#[allow(non_snake_case)]
+pub fn dispatch_Surface2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+    hd_run_wasmtime::native::wire::provider::<Box<dyn Surface2>>(provider)?;
+    match method {
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+    }
+}
+
+/// Calls the method at index `method` of a returned `String2` with its
+/// encoded arguments and returns its encoded result, or a suspending
+/// method's pending call.
+#[allow(non_snake_case)]
+pub fn dispatch_String2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+    hd_run_wasmtime::native::wire::provider::<Box<dyn String2>>(provider)?;
+    match method {
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+    }
+}
+
 /// Calls the method at index `method` of the registered `Surface` with its
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface>>(provider)?;
     match method {
         0 => {
@@ -221,18 +243,19 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             let arg22 = SurfaceDrawArg22::wire_decode(d)?;
             let arg23 = SurfaceDrawArg23::wire_decode(d)?;
             d.finish()?;
-            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, hd_run_wasmtime::native::CallContext::new()), |value: &Box<dyn Events>| {
-                let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-                e.handle(value)?;
-                Ok(std::mem::take(e).into_bytes())
-            })
+            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, hd_run_wasmtime::native::CallContext::new()), |value: Box<dyn Events>, handles: &mut hd_run_wasmtime::native::Handles| {
+                let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+                let e = &mut enc;
+                e.handle(Box::new(value), 4, dispatch_Events)?;
+                Ok(enc.into_bytes())
+            }, handles)
         }
         1 => {
             let value = provider.r#type()?;
             match value {}
         }
         2 => {
-            hd_run_wasmtime::native::wire::answer(provider.halt(hd_run_wasmtime::native::CallContext::new()), |value: &std::convert::Infallible| match *value {})
+            hd_run_wasmtime::native::wire::answer(provider.halt(hd_run_wasmtime::native::CallContext::new()), |value: std::convert::Infallible, _: &mut hd_run_wasmtime::native::Handles| match value {}, handles)
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }
@@ -242,7 +265,7 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface3>>(provider)?;
     match method {
         0 => {
@@ -250,7 +273,26 @@ pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args:
             Ok(hd_run_wasmtime::native::Answer::Ready(Vec::new()))
         }
         1 => {
-            hd_run_wasmtime::native::wire::answer(provider.flush(hd_run_wasmtime::native::CallContext::new()), |(): &()| Ok(Vec::new()))
+            hd_run_wasmtime::native::wire::answer(provider.flush(hd_run_wasmtime::native::CallContext::new()), |(): (), _: &mut hd_run_wasmtime::native::Handles| Ok(Vec::new()), handles)
+        }
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+    }
+}
+
+/// Calls the method at index `method` of a returned `Events` with its
+/// encoded arguments and returns its encoded result, or a suspending
+/// method's pending call.
+#[allow(non_snake_case)]
+pub fn dispatch_Events(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+    let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Events>>(provider)?;
+    match method {
+        0 => {
+            hd_run_wasmtime::native::wire::answer(provider.next(hd_run_wasmtime::native::CallContext::new()), |value: Option<String>, handles: &mut hd_run_wasmtime::native::Handles| {
+                let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+                let e = &mut enc;
+                match value { None => e.tag(0), Some(x) => { e.tag(1); e.string(&x); } }
+                Ok(enc.into_bytes())
+            }, handles)
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }

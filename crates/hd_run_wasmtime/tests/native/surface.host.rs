@@ -22,10 +22,10 @@ pub struct SurfaceApplyArg0ItemStyleStyle {
 
 #[allow(dead_code)]
 impl SurfaceApplyArg0ItemStyleStyle {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { fg: f0, bold: f1 } = self;
-        match f0 { None => e.tag(0), Some(x) => { e.tag(1); e.unsigned(u64::from(*x)); } }
-        e.bool(*f1);
+        match f0 { None => e.tag(0), Some(x) => { e.tag(1); e.unsigned(u64::from(x)); } }
+        e.bool(f1);
         Ok(())
     }
 
@@ -51,21 +51,21 @@ pub enum SurfaceApplyArg0Item {
 
 #[allow(dead_code)]
 impl SurfaceApplyArg0Item {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Text { node: f0, text: f1 } => {
                 e.tag(0);
-                e.unsigned(u64::from(*f0));
-                e.string(f1);
+                e.unsigned(u64::from(f0));
+                e.string(&f1);
             }
             Self::Style { node: f0, style: f1 } => {
                 e.tag(1);
-                e.unsigned(u64::from(*f0));
+                e.unsigned(u64::from(f0));
                 SurfaceApplyArg0ItemStyleStyle::wire_encode(f1, e)?;
             }
             Self::Remove { node: f0 } => {
                 e.tag(2);
-                e.unsigned(u64::from(*f0));
+                e.unsigned(u64::from(f0));
             }
         }
         Ok(())
@@ -98,21 +98,21 @@ pub enum SurfaceNextEventResult {
 
 #[allow(dead_code)]
 impl SurfaceNextEventResult {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Key { code: f0, ctrl: f1 } => {
                 e.tag(0);
-                e.string(f0);
-                e.bool(*f1);
+                e.string(&f0);
+                e.bool(f1);
             }
             Self::Resize { width: f0, height: f1 } => {
                 e.tag(1);
-                e.unsigned(u64::from(*f0));
-                e.unsigned(u64::from(*f1));
+                e.unsigned(u64::from(f0));
+                e.unsigned(u64::from(f1));
             }
             Self::Click { node: f0 } => {
                 e.tag(2);
-                e.unsigned(u64::from(*f0));
+                e.unsigned(u64::from(f0));
             }
             Self::Quit => e.tag(3),
         }
@@ -139,7 +139,7 @@ pub trait Surface {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface>>(provider)?;
     match method {
         0 => {
@@ -150,11 +150,12 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             Ok(hd_run_wasmtime::native::Answer::Ready(Vec::new()))
         }
         1 => {
-            hd_run_wasmtime::native::wire::answer(provider.next_event(hd_run_wasmtime::native::CallContext::new()), |value: &SurfaceNextEventResult| {
-                let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
+            hd_run_wasmtime::native::wire::answer(provider.next_event(hd_run_wasmtime::native::CallContext::new()), |value: SurfaceNextEventResult, handles: &mut hd_run_wasmtime::native::Handles| {
+                let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+                let e = &mut enc;
                 SurfaceNextEventResult::wire_encode(value, e)?;
-                Ok(std::mem::take(e).into_bytes())
-            })
+                Ok(enc.into_bytes())
+            }, handles)
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }

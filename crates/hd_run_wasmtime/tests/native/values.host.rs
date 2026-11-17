@@ -37,10 +37,10 @@ pub struct ValuesMakeResultOutcomeOk {
 
 #[allow(dead_code)]
 impl ValuesMakeResultOutcomeOk {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { x: f0, y: f1 } = self;
-        e.f64(*f0);
-        e.f64(*f1);
+        e.f64(f0);
+        e.f64(f1);
         Ok(())
     }
 
@@ -58,9 +58,9 @@ pub struct ValuesMakeResultPerson {
 
 #[allow(dead_code)]
 impl ValuesMakeResultPerson {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { name: f0, at: f1, trail: f2 } = self;
-        e.string(f0);
+        e.string(&f0);
         ValuesMakeResultOutcomeOk::wire_encode(f1, e)?;
         { e.count(f2.len()); for x in f2 { ValuesMakeResultOutcomeOk::wire_encode(x, e)?; } }
         Ok(())
@@ -82,13 +82,13 @@ pub enum ValuesMakeResultEvent {
 
 #[allow(dead_code)]
 impl ValuesMakeResultEvent {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Quit => e.tag(0),
             Self::Resize { width: f0, height: f1 } => {
                 e.tag(1);
-                e.unsigned(u64::from(*f0));
-                e.unsigned(u64::from(*f1));
+                e.unsigned(u64::from(f0));
+                e.unsigned(u64::from(f1));
             }
         }
         Ok(())
@@ -111,11 +111,11 @@ pub enum ValuesMakeResultOnly {
 
 #[allow(dead_code)]
 impl ValuesMakeResultOnly {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Ping { id: f0 } => {
                 e.tag(0);
-                e.unsigned(u64::from(*f0));
+                e.unsigned(u64::from(f0));
             }
         }
         Ok(())
@@ -140,16 +140,16 @@ pub enum ValuesMakeResultTree {
 
 #[allow(dead_code)]
 impl ValuesMakeResultTree {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Leaf { value: f0 } => {
                 e.tag(0);
-                e.signed(i64::from(*f0));
+                e.signed(i64::from(f0));
             }
             Self::Node { kids: f0, parent: f1 } => {
                 e.tag(1);
                 { e.count(f0.len()); for x in f0 { ValuesMakeResultTree::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesMakeResultTree::wire_encode(x, e)?; } }
+                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesMakeResultTree::wire_encode(*x, e)?; } }
             }
         }
         Ok(())
@@ -170,9 +170,9 @@ pub struct ValuesMakeResultBin {
 
 #[allow(dead_code)]
 impl ValuesMakeResultBin {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { data: f0 } = self;
-        e.bytes(f0);
+        e.bytes(&f0);
         Ok(())
     }
 
@@ -188,9 +188,9 @@ pub struct ValuesMakeResultNums {
 
 #[allow(dead_code)]
 impl ValuesMakeResultNums {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { data: f0 } = self;
-        { e.count(f0.len()); for x in f0 { e.unsigned(u64::from(*x)); } }
+        { e.count(f0.len()); for x in f0 { e.unsigned(u64::from(x)); } }
         Ok(())
     }
 
@@ -205,9 +205,9 @@ pub enum ValuesMakeResultNothing {
 
 #[allow(dead_code)]
 impl ValuesMakeResultNothing {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let _ = e;
-        match *self {}
+        match self {}
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
@@ -221,7 +221,7 @@ pub struct ValuesMakeResultEmpty {
 
 #[allow(dead_code)]
 impl ValuesMakeResultEmpty {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let _ = e;
         Ok(())
     }
@@ -269,35 +269,35 @@ pub struct ValuesMakeResult {
 
 #[allow(dead_code)]
 impl ValuesMakeResult {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { unit: f0, flag: f1, letter: f2, tiny: f3, small: f4, medium: f5, large: f6, byte: f7, word: f8, dword: f9, qword: f10, single: f11, double: f12, text: f13, blob: f14, octets: f15, words: f16, maybe: f17, outcome: f18, pair: f19, one: f20, table: f21, person: f22, event: f23, only: f24, tree: f25, private: f26, bin: f27, nums: f28, nothing: f29, empty: f30 } = self;
         let _ = f0;
-        e.bool(*f1);
-        e.char(*f2);
-        e.signed(i64::from(*f3));
-        e.signed(i64::from(*f4));
-        e.signed(i64::from(*f5));
-        e.signed(i64::from(*f6));
-        e.unsigned(u64::from(*f7));
-        e.unsigned(u64::from(*f8));
-        e.unsigned(u64::from(*f9));
-        e.unsigned(u64::from(*f10));
-        e.f32(*f11);
-        e.f64(*f12);
-        e.string(f13);
-        e.bytes(f14);
-        { e.count(f15.len()); for x in f15 { e.unsigned(u64::from(*x)); } }
-        { e.count(f16.len()); for x in f16 { e.string(x); } }
-        match f17 { None => e.tag(0), Some(x) => { e.tag(1); e.signed(i64::from(*x)); } }
-        match f18 { Ok(x) => { e.tag(0); ValuesMakeResultOutcomeOk::wire_encode(x, e)?; } Err(x) => { e.tag(1); e.string(x); } }
-        { let (t0, t1) = f19; e.bool(*t0); let _ = t1; }
-        { let (t0,) = f20; e.string(t0); }
-        { e.count(f21.len()); for (k, x) in f21 { e.string(k); e.signed(i64::from(*x)); } }
+        e.bool(f1);
+        e.char(f2);
+        e.signed(i64::from(f3));
+        e.signed(i64::from(f4));
+        e.signed(i64::from(f5));
+        e.signed(i64::from(f6));
+        e.unsigned(u64::from(f7));
+        e.unsigned(u64::from(f8));
+        e.unsigned(u64::from(f9));
+        e.unsigned(u64::from(f10));
+        e.f32(f11);
+        e.f64(f12);
+        e.string(&f13);
+        e.bytes(&f14);
+        { e.count(f15.len()); for x in f15 { e.unsigned(u64::from(x)); } }
+        { e.count(f16.len()); for x in f16 { e.string(&x); } }
+        match f17 { None => e.tag(0), Some(x) => { e.tag(1); e.signed(i64::from(x)); } }
+        match f18 { Ok(x) => { e.tag(0); ValuesMakeResultOutcomeOk::wire_encode(x, e)?; } Err(x) => { e.tag(1); e.string(&x); } }
+        { let (t0, t1) = f19; e.bool(t0); let _ = t1; }
+        { let (t0,) = f20; e.string(&t0); }
+        { e.count(f21.len()); for (k, x) in f21 { e.string(&k); e.signed(i64::from(x)); } }
         ValuesMakeResultPerson::wire_encode(f22, e)?;
         ValuesMakeResultEvent::wire_encode(f23, e)?;
         ValuesMakeResultOnly::wire_encode(f24, e)?;
         ValuesMakeResultTree::wire_encode(f25, e)?;
-        e.serde(f26)?;
+        e.serde(&f26)?;
         ValuesMakeResultBin::wire_encode(f27, e)?;
         ValuesMakeResultNums::wire_encode(f28, e)?;
         match f29 { None => e.tag(0), Some(x) => { e.tag(1); ValuesMakeResultNothing::wire_encode(x, e)?; } }
@@ -323,16 +323,16 @@ pub enum ValuesTakeArg25 {
 
 #[allow(dead_code)]
 impl ValuesTakeArg25 {
-    fn wire_encode(&self, e: &mut hd_run_wasmtime::native::wire::Encoder) -> hd_run_wasmtime::native::HostResult<()> {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Leaf { value: f0 } => {
                 e.tag(0);
-                e.signed(i64::from(*f0));
+                e.signed(i64::from(f0));
             }
             Self::Node { kids: f0, parent: f1 } => {
                 e.tag(1);
                 { e.count(f0.len()); for x in f0 { ValuesTakeArg25::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesTakeArg25::wire_encode(x, e)?; } }
+                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesTakeArg25::wire_encode(*x, e)?; } }
             }
         }
         Ok(())
@@ -359,14 +359,15 @@ pub trait Values {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Values>>(provider)?;
     match method {
         0 => {
-            let value = &provider.make()?;
-            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
+            let value = provider.make()?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
             ValuesMakeResult::wire_encode(value, e)?;
-            Ok(hd_run_wasmtime::native::Answer::Ready(std::mem::take(e).into_bytes()))
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         1 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
@@ -407,16 +408,18 @@ pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[
         }
         2 => {
             let arg0 = hd_run_wasmtime::native::wire::text(args);
-            let value = &provider.text(arg0)?;
-            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-            e.string(value);
-            Ok(hd_run_wasmtime::native::Answer::Ready(std::mem::take(e).into_bytes()))
+            let value = provider.text(arg0)?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
+            e.string(&value);
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         3 => {
-            let value = &provider.bad()?;
-            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-            e.serde(value)?;
-            Ok(hd_run_wasmtime::native::Answer::Ready(std::mem::take(e).into_bytes()))
+            let value = provider.bad()?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
+            e.serde(&value)?;
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         4 => {
             let value = provider.stop()?;

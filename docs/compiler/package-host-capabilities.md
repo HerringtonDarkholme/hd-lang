@@ -28,7 +28,10 @@ passes in `HostSetup::grants` (`hd_run::Consent`, the one index `hd`'s
 A suspending method's `.start` answers at once or registers the provider's
 pending call with the instance's reactor, whose `Send` completion wakes that
 instance alone; abort or close runs its hook at most once, and a late
-completion is dropped (#2081). Handles are not yet built (#2082, #2083).
+completion is dropped (#2081). A returned handle's trait object lives in
+the instance's handle registry, which checks each call's and release's
+number, trait and generation, and the last release drops it with no
+provider call (#2082). Running the host-binding cases on Wasmtime is #2083.
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

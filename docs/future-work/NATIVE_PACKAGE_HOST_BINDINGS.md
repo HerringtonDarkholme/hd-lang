@@ -4,8 +4,9 @@ Status: accepted design, 2026-11-02; domain: runtime and host; specified; the co
 and embedder surface are built (#2077), and so are the identity preflight and
 ready calls through a registration's dispatch (#2078), and the generated
 dispatch and value codecs (#2079), and the root-manifest consent check (#2080),
-which an embedder passes in `HostSetup::grants` as `hd` does from `hd.toml`;
-pending calls and handles are not.
+which an embedder passes in `HostSetup::grants` as `hd` does from `hd.toml`,
+and pending calls (#2081) and the handle registry and release (#2082); the
+host-binding cases do not run on Wasmtime yet (#2083).
 Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
 The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
 and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);

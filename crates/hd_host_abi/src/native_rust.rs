@@ -14,9 +14,11 @@
 //! exchange-buffer encoding of the JS host's codecs, through the scalar
 //! steps of `hd_run_wasmtime::native::wire`. A record or an enum carries
 //! its codec as two methods of its own type; every other form is written
-//! inline where it occurs. Each root trait gets one `dispatch_TRAIT`, which
-//! the registry registers with its provider: it decodes a call's arguments,
-//! calls the method, and encodes its result.
+//! inline where it occurs. Each trait gets one `dispatch_TRAIT`: it decodes
+//! a call's arguments, calls the method, and encodes its result, taking
+//! the value, so a handle it holds moves into the instance's registry with
+//! its trait's index and dispatch. The registry registers a root trait's
+//! dispatch with its provider; a handle trait's travels with each handle.
 //!
 //! Cost: one pass over the contract's values. Records and enums are
 //! hash-consed bottom-up (a child's Rust type and codec are rendered before
@@ -46,7 +48,8 @@ const V: &str = "\u{1}";
 /// A contract type's Rust type and codec.
 struct Ty {
     rust: String,
-    /// Statements writing the `&T` at [`V`] to the encoder `e`.
+    /// Statements writing the `T` at [`V`], which they take, to the
+    /// encoder `e`.
     enc: String,
     /// An expression reading a `T` from the decoder `d`.
     dec: String,
@@ -101,8 +104,8 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
         }
         traits.push(g.fresh(&camel(last)));
     }
-    for (i, name) in contract.interfaces.iter().zip(&traits) {
-        g.handles.insert(i.module.clone(), name.clone());
+    for (n, (i, name)) in contract.interfaces.iter().zip(&traits).enumerate() {
+        g.handles.insert(i.module.clone(), (name.clone(), n));
     }
     let mut methods = String::new();
     let mut dispatches = String::new();
@@ -176,8 +179,8 @@ struct Gen {
     used: HashSet<String>,
     /// Base name -> the last numeric suffix tried for it.
     suffix: HashMap<String, usize>,
-    /// Import module -> trait name, for `Value::Handle`.
-    handles: HashMap<String, String>,
+    /// Import module -> trait name and contract index, for `Value::Handle`.
+    handles: HashMap<String, (String, usize)>,
     /// Recursive binder id -> its type name, while its body is rendered.
     recs: HashMap<u32, String>,
     /// Named types holding a handle, which derive nothing.
@@ -204,8 +207,8 @@ impl Gen {
         }
     }
 
-    /// The provider trait of `i` into `out`, and for a root trait its
-    /// dispatch into `dispatches`.
+    /// The provider trait of `i` into `out`, and its dispatch into
+    /// `dispatches`.
     fn interface(&mut self, out: &mut String, dispatches: &mut String, i: &Interface, name: &str) {
         let _ = write!(out, "\n/// `{}`", i.identity);
         if i.handle {
@@ -213,9 +216,11 @@ impl Gen {
         }
         let _ = write!(out, ".\npub trait {name} {{\n");
         let mut arms = String::new();
-        // Whether any method reads its arguments: the dispatch of a trait
-        // whose methods take none leaves `args` unread.
+        // Whether any method reads its arguments or encodes a result: the
+        // dispatch of a trait whose methods do neither leaves `args` or
+        // `handles` unread.
         let mut reads = false;
+        let mut encodes = false;
         for (index, m) in i.methods.iter().enumerate() {
             let base = format!("{name}{}", camel(&m.member));
             let params: Vec<Ty> = m
@@ -239,19 +244,29 @@ impl Gen {
             } else {
                 let _ = writeln!(out, ") -> {NATIVE}::HostResult<{}>;", result.rust);
             }
-            if !i.handle {
-                reads |= !params.is_empty();
-                arms.push_str(&Self::arm(index, m, &member, &params, &result));
-            }
+            reads |= !params.is_empty();
+            encodes |= m.suspends || !matches!(m.result, Value::Void | Value::Never);
+            arms.push_str(&Self::arm(index, m, &member, &params, &result));
         }
         out.push_str("}\n");
-        if !i.handle {
-            let args = if reads { "args" } else { "_args" };
-            let _ = write!(
-                dispatches,
-                "\n/// Calls the method at index `method` of the registered `{name}` with its\n/// encoded arguments and returns its encoded result, or a suspending\n/// method's pending call.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8]) -> {NATIVE}::HostResult<{NATIVE}::Answer> {{\n    let provider = {WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
-            );
-        }
+        let args = if reads { "args" } else { "_args" };
+        let handles = if encodes { "handles" } else { "_handles" };
+        let whose = if i.handle {
+            "a returned"
+        } else {
+            "the registered"
+        };
+        // A trait with no reachable method still checks its trait object,
+        // and calls nothing on it.
+        let bind = if i.methods.is_empty() {
+            ""
+        } else {
+            "let provider = "
+        };
+        let _ = write!(
+            dispatches,
+            "\n/// Calls the method at index `method` of {whose} `{name}` with its\n/// encoded arguments and returns its encoded result, or a suspending\n/// method's pending call.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8], {handles}: &mut {NATIVE}::Handles) -> {NATIVE}::HostResult<{NATIVE}::Answer> {{\n    {bind}{WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
+        );
     }
 
     /// The dispatch arm of method `index`: its arguments decoded in order
@@ -283,15 +298,17 @@ impl Gen {
             }
             let _ = write!(call, "{NATIVE}::CallContext::new())");
             let encode = match m.result {
-                Value::Void => "|(): &()| Ok(Vec::new())".to_owned(),
-                Value::Never => "|value: &std::convert::Infallible| match *value {}".to_owned(),
+                Value::Void => format!("|(): (), _: &mut {NATIVE}::Handles| Ok(Vec::new())"),
+                Value::Never => format!(
+                    "|value: std::convert::Infallible, _: &mut {NATIVE}::Handles| match value {{}}"
+                ),
                 _ => format!(
-                    "|value: &{}| {{\n                let e = &mut {WIRE}::Encoder::default();\n                {}\n                Ok(std::mem::take(e).into_bytes())\n            }}",
+                    "|value: {}, handles: &mut {NATIVE}::Handles| {{\n                let mut enc = {WIRE}::Encoder::new(handles);\n                let e = &mut enc;\n                {}\n                Ok(enc.into_bytes())\n            }}",
                     result.rust,
                     result.enc("value")
                 ),
             };
-            let _ = writeln!(arm, "            {WIRE}::answer({call}, {encode})");
+            let _ = writeln!(arm, "            {WIRE}::answer({call}, {encode}, handles)");
             arm.push_str("        }\n");
             return arm;
         }
@@ -312,7 +329,7 @@ impl Gen {
             _ => {
                 let _ = writeln!(
                     arm,
-                    "            let value = &{call}?;\n            let e = &mut {WIRE}::Encoder::default();\n            {}\n            Ok({NATIVE}::Answer::Ready(std::mem::take(e).into_bytes()))",
+                    "            let value = {call}?;\n            let mut enc = {WIRE}::Encoder::new(handles);\n            let e = &mut enc;\n            {}\n            Ok({NATIVE}::Answer::Ready(enc.into_bytes()))",
                     result.enc("value")
                 );
             }
@@ -328,12 +345,12 @@ impl Gen {
         let int = |rust: String, signed: bool| {
             let (enc, dec) = if signed {
                 (
-                    format!("e.signed(i64::from(*{V}));"),
+                    format!("e.signed(i64::from({V}));"),
                     format!("d.signed::<{rust}>()?"),
                 )
             } else {
                 (
-                    format!("e.unsigned(u64::from(*{V}));"),
+                    format!("e.unsigned(u64::from({V}));"),
                     format!("d.unsigned::<{rust}>()?"),
                 )
             };
@@ -341,33 +358,34 @@ impl Gen {
         };
         match v {
             Value::Void => Ty::new("()", format!("let _ = {V};"), "()"),
-            Value::Bool => Ty::new("bool", format!("e.bool(*{V});"), "d.bool()?"),
-            Value::Char => Ty::new("char", format!("e.char(*{V});"), "d.char()?"),
+            Value::Bool => Ty::new("bool", format!("e.bool({V});"), "d.bool()?"),
+            Value::Char => Ty::new("char", format!("e.char({V});"), "d.char()?"),
             Value::Int { bits, signed } => int(
                 format!("{}{bits}", if *signed { 'i' } else { 'u' }),
                 *signed,
             ),
-            Value::F32 => Ty::new("f32", format!("e.f32(*{V});"), "d.f32()?"),
-            Value::F64 => Ty::new("f64", format!("e.f64(*{V});"), "d.f64()?"),
-            Value::String => Ty::new("String", format!("e.string({V});"), "d.string()?"),
-            Value::Bytes => Ty::new("Vec<u8>", format!("e.bytes({V});"), "d.bytes()?"),
+            Value::F32 => Ty::new("f32", format!("e.f32({V});"), "d.f32()?"),
+            Value::F64 => Ty::new("f64", format!("e.f64({V});"), "d.f64()?"),
+            Value::String => Ty::new("String", format!("e.string(&{V});"), "d.string()?"),
+            Value::Bytes => Ty::new("Vec<u8>", format!("e.bytes(&{V});"), "d.bytes()?"),
             Value::Json => Ty::new(
                 format!("{NATIVE}::Serde"),
-                format!("e.serde({V})?;"),
+                format!("e.serde(&{V})?;"),
                 "d.serde()?",
             ),
             // ruled out: `Contract::validate` keeps `never` to a method's
             // whole result, which `arm` writes without a codec.
             Value::Never => Ty::new(
                 "std::convert::Infallible",
-                format!("match *{V} {{}}"),
+                format!("match {V} {{}}"),
                 "d.absent()?",
             ),
             Value::Handle(module) => {
                 self.plain = false;
+                let (name, index) = &self.handles[module.as_str()];
                 Ty::new(
-                    format!("Box<dyn {}>", self.handles[module.as_str()]),
-                    format!("e.handle({V})?;"),
+                    format!("Box<dyn {name}>"),
+                    format!("e.handle(Box::new({V}), {index}, dispatch_{name})?;"),
                     "d.handle()?",
                 )
             }
@@ -453,11 +471,12 @@ impl Gen {
             }
             Value::Ref(id) => {
                 let name = self.recs[id].clone();
-                let enc = format!("{name}::wire_encode({V}, e)?;");
                 if in_list {
+                    let enc = format!("{name}::wire_encode({V}, e)?;");
                     let dec = format!("{name}::wire_decode(d)?");
                     Ty::new(name, enc, dec)
                 } else {
+                    let enc = format!("{name}::wire_encode(*{V}, e)?;");
                     let dec = format!("Box::new({name}::wire_decode(d)?)");
                     Ty::new(format!("Box<{name}>"), enc, dec)
                 }
@@ -564,7 +583,7 @@ impl Gen {
                     }
                 }
                 let enc = if vs.is_empty() {
-                    "        let _ = e;\n        match *self {}\n".to_owned()
+                    "        let _ = e;\n        match self {}\n".to_owned()
                 } else {
                     format!("        match self {{\n{encs}        }}\n        Ok(())\n")
                 };
@@ -598,7 +617,7 @@ impl Gen {
         let plain = self.plain;
         self.plain = outer && plain;
         let codec = format!(
-            "    fn wire_encode(&self, e: &mut {WIRE}::Encoder) -> {NATIVE}::HostResult<()> {{\n{enc}    }}\n\n    fn wire_decode(d: &mut {WIRE}::Decoder<'_>) -> {NATIVE}::HostResult<Self> {{\n{dec}    }}\n"
+            "    fn wire_encode(self, e: &mut {WIRE}::Encoder<'_>) -> {NATIVE}::HostResult<()> {{\n{enc}    }}\n\n    fn wire_decode(d: &mut {WIRE}::Decoder<'_>) -> {NATIVE}::HostResult<Self> {{\n{dec}    }}\n"
         );
         (format!("{key}{dec}"), text, codec, plain)
     }
@@ -639,8 +658,8 @@ impl Gen {
             "\npub {} {name}{body}",
             if is_enum { "enum" } else { "struct" }
         );
-        // A type only a handle trait's method crosses has no dispatch to
-        // call its codec until #2082.
+        // A type only results cross is never decoded, and one only
+        // arguments cross is never encoded.
         let _ = write!(
             self.types,
             "\n#[allow(dead_code)]\nimpl {name} {{\n{codec}}}\n"

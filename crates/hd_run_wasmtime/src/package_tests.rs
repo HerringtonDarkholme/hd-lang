@@ -24,7 +24,8 @@ use wasm_encoder::{
 
 use super::{EngineConfig, WasmtimeEngine};
 use crate::native::{
-    Answer, Bindings, Completion, HostError, HostResult, NativeCall, pending, wire,
+    Answer, Bindings, Completion, Dispatch, Handles, HostError, HostResult, NativeCall, pending,
+    wire,
 };
 use crate::{HostIo, Shared};
 
@@ -210,7 +211,12 @@ struct Recorder {
     failure: Option<&'static str>,
 }
 
-fn dispatch(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer> {
+fn dispatch(
+    provider: &mut dyn Any,
+    method: usize,
+    args: &[u8],
+    _: &mut Handles,
+) -> HostResult<Answer> {
     let recorder = provider
         .downcast_mut::<Recorder>()
         .expect("the registered recorder");
@@ -504,32 +510,6 @@ fn a_companion_of_other_method_schemas_is_refused() {
 }
 
 #[test]
-fn returned_handles_are_refused_before_the_guest_starts() {
-    let mut handles = server(sdk());
-    handles.interfaces[0].methods[0].result = Value::Handle("hd:pkg:conn".into());
-    handles.interfaces.push(Interface {
-        identity: identity("example.org/sdk", "1.2.3", "server.Conn"),
-        module: "hd:pkg:conn".into(),
-        selectors: vec![],
-        handle: true,
-        methods: vec![],
-    });
-    let wasm = module(
-        &handles,
-        &[
-            ("hd:pkg:server", "read", 0, 1),
-            ("hd:pkg:conn", "$release", 1, 0),
-        ],
-        &[],
-        true,
-    );
-    assert_eq!(
-        refusal(&wasm, bindings(&handles, &[SERVER], Recorder::default())),
-        "package host trait \"example.org/sdk@1.2.3/server.Conn\" crosses as a native handle, which wasmtime does not hold yet"
-    );
-}
-
-#[test]
 fn an_import_of_another_signature_is_refused_before_the_guest_starts() {
     let contract = server(sdk());
     let wasm = module(&contract, &[("hd:pkg:server", "read", 0, 0)], &[], true);
@@ -614,28 +594,6 @@ fn a_provider_returning_from_a_never_method_is_a_host_contract_panic() {
     );
 }
 
-#[test]
-fn a_handle_method_is_never_linked_to_a_root_provider() {
-    // A contract of a handle interface alone has no root to register, so
-    // its method stays an import no host provides.
-    let contract = Contract {
-        interfaces: vec![Interface {
-            identity: identity("example.org/sdk", "1.2.3", "server.Conn"),
-            module: "hd:pkg:conn".into(),
-            selectors: vec![],
-            handle: true,
-            methods: vec![method("peek", vec![], Value::Void, false)],
-        }],
-    };
-    let wasm = module(&contract, &[("hd:pkg:conn", "peek", 0, 0)], &[], true);
-    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-    let module = engine.load(&wasm, &MemoryStore::default()).unwrap();
-    let Err(StartError::Engine(message)) = engine.instantiate(&module, &setup()) else {
-        panic!("an unprovided handle method must not start")
-    };
-    assert!(message.contains("hd:pkg:conn"), "{message}");
-}
-
 /// A value a completion carries: its `Arc` shows when it is dropped.
 struct Held {
     _value: Arc<()>,
@@ -692,31 +650,39 @@ impl Waiter {
 
 /// The codec `wire::answer` takes, which may fail.
 #[allow(clippy::unnecessary_wraps)]
-fn encode_held(value: &Held) -> HostResult<Vec<u8>> {
-    let mut e = wire::Encoder::default();
+#[allow(clippy::needless_pass_by_value)]
+fn encode_held(value: Held, handles: &mut Handles) -> HostResult<Vec<u8>> {
+    let mut e = wire::Encoder::new(handles);
     e.signed(value.n);
     Ok(e.into_bytes())
 }
 
 fn encoded(value: i64) -> Vec<u8> {
-    encode_held(&held(Arc::default(), value)).unwrap()
+    encode_held(held(Arc::default(), value), &mut Handles::default()).unwrap()
 }
 
-fn dispatch_waiter(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer> {
+fn dispatch_waiter(
+    provider: &mut dyn Any,
+    method: usize,
+    args: &[u8],
+    handles: &mut Handles,
+) -> HostResult<Answer> {
     let waiter = provider.downcast_mut::<Waiter>().expect("the waiter");
     waiter.calls.borrow_mut().push((method, args.to_vec()));
     match method {
         0 if waiter.pending_read => {
             let (call, _) = waiter.call();
-            wire::answer(call, encode_held)
+            wire::answer(call, encode_held, handles)
         }
-        2 if matches!(waiter.mode, Mode::Ready) => {
-            wire::answer(NativeCall::Ready(Ok(held(Arc::default(), 5))), encode_held)
-        }
+        2 if matches!(waiter.mode, Mode::Ready) => wire::answer(
+            NativeCall::Ready(Ok(held(Arc::default(), 5))),
+            encode_held,
+            handles,
+        ),
         2 => {
             let (call, completion) = waiter.call();
             let _ = waiter.completions.send(completion);
-            wire::answer(call, encode_held)
+            wire::answer(call, encode_held, handles)
         }
         _ => Ok(Answer::Ready(Vec::new())),
     }
@@ -1023,4 +989,440 @@ fn a_suspending_import_of_another_signature_is_refused_before_the_guest_starts()
             )
         );
     }
+}
+
+/// What the native objects behind returned handles saw: their drops and
+/// method calls.
+#[derive(Default)]
+struct Seen {
+    drops: std::cell::Cell<usize>,
+    calls: std::cell::Cell<usize>,
+    /// The argument of the last `seek`.
+    sought: std::cell::Cell<i64>,
+}
+
+impl Seen {
+    fn call(&self) {
+        self.calls.set(self.calls.get() + 1);
+    }
+}
+
+/// One native object; two handles may share it through an `Rc`.
+struct Object(Rc<Seen>);
+
+impl Drop for Object {
+    fn drop(&mut self) {
+        self.0.drops.set(self.0.drops.get() + 1);
+    }
+}
+
+/// The trait object of a `Conn` handle, as a companion boxes it.
+type Conn = Rc<Object>;
+/// The trait object of a `File` handle.
+struct File(Rc<Seen>);
+
+const CONN_TRAIT: u32 = 1;
+const FILE_TRAIT: u32 = 2;
+
+fn handle_trait(trait_path: &str, module: &str, methods: Vec<Method>) -> Interface {
+    Interface {
+        identity: identity("example.org/sdk", "1.2.3", trait_path),
+        module: module.into(),
+        selectors: vec![],
+        handle: true,
+        methods,
+    }
+}
+
+/// `server` returning handles: `open() -> (Conn, Conn)` of one object,
+/// `probe()`, `file() -> File` and the suspending `later() -> Conn`; `Conn`
+/// has `peek() -> Int`, `dup() -> Conn`, the suspending `wait() -> Int`
+/// and `seek(Int)`, `File` has `size() -> Int`.
+fn handled() -> Contract {
+    let conn = || Value::Handle("hd:pkg:conn".into());
+    Contract {
+        interfaces: vec![
+            root(
+                sdk(),
+                "hd:pkg:server",
+                vec![
+                    method("open", vec![], Value::Tuple(vec![conn(), conn()]), false),
+                    method("probe", vec![], Value::Void, false),
+                    method("file", vec![], Value::Handle("hd:pkg:file".into()), false),
+                    method("later", vec![], conn(), true),
+                ],
+            ),
+            handle_trait(
+                "server.Conn",
+                "hd:pkg:conn",
+                vec![
+                    method("peek", vec![], int(), false),
+                    method("dup", vec![], conn(), false),
+                    method("wait", vec![], int(), true),
+                    method("seek", vec![int()], Value::Void, false),
+                ],
+            ),
+            handle_trait(
+                "server.File",
+                "hd:pkg:file",
+                vec![method("size", vec![], int(), false)],
+            ),
+        ],
+    }
+}
+
+/// The imports a handle body calls, at indices 0 to 13.
+const HANDLE_IMPORTS: &[(&str, &str, usize, usize)] = &[
+    ("hd:pkg:server", "open", 0, 1),
+    ("hd:pkg:server", "probe", 0, 0),
+    ("hd:pkg:server", "file", 0, 1),
+    ("hd:pkg:conn", "$release", 1, 0),
+    ("hd:pkg:conn", "peek", 1, 1),
+    ("hd:pkg:conn", "dup", 1, 1),
+    ("hd:pkg:file", "$release", 1, 0),
+    ("hd:pkg:file", "size", 1, 1),
+    ("hd:pkg:server", "later.start", 0, 2),
+    ("hd:pkg:server", "later.finish", 1, 1),
+    ("hd:rt", "block", 0, 1),
+    ("hd:pkg:conn", "wait.start", 1, 2),
+    ("hd:pkg:conn", "wait.finish", 1, 1),
+    ("hd:pkg:conn", "seek", 2, 0),
+];
+
+/// The root provider: each `probe` logs the object's drops so far.
+struct Opener {
+    seen: Rc<Seen>,
+    probes: Rc<RefCell<Vec<usize>>>,
+}
+
+#[allow(clippy::unnecessary_wraps)]
+fn encode_int(value: i64, handles: &mut Handles) -> HostResult<Vec<u8>> {
+    let mut e = wire::Encoder::new(handles);
+    e.signed(value);
+    Ok(e.into_bytes())
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn encode_conn(value: Conn, handles: &mut Handles) -> HostResult<Vec<u8>> {
+    let mut e = wire::Encoder::new(handles);
+    e.handle(Box::new(value), CONN_TRAIT, dispatch_conn)?;
+    Ok(e.into_bytes())
+}
+
+fn dispatch_opener(
+    provider: &mut dyn Any,
+    method: usize,
+    _: &[u8],
+    handles: &mut Handles,
+) -> HostResult<Answer> {
+    let opener = wire::provider::<Opener>(provider)?;
+    let mut e = wire::Encoder::new(handles);
+    match method {
+        0 => {
+            let object: Conn = Rc::new(Object(Rc::clone(&opener.seen)));
+            e.handle(Box::new(Rc::clone(&object)), CONN_TRAIT, dispatch_conn)?;
+            e.handle(Box::new(object), CONN_TRAIT, dispatch_conn)?;
+        }
+        1 => opener.probes.borrow_mut().push(opener.seen.drops.get()),
+        2 => e.handle(
+            Box::new(File(Rc::clone(&opener.seen))),
+            FILE_TRAIT,
+            dispatch_file,
+        )?,
+        _ => {
+            // Completed before it is returned: its `.finish` issues the
+            // handle.
+            drop(e);
+            let (call, completion) = pending(|| {});
+            completion.complete(Ok(Rc::new(Object(Rc::clone(&opener.seen)))));
+            return wire::answer(NativeCall::Pending(call), encode_conn, handles);
+        }
+    }
+    Ok(Answer::Ready(e.into_bytes()))
+}
+
+fn dispatch_conn(
+    provider: &mut dyn Any,
+    method: usize,
+    args: &[u8],
+    handles: &mut Handles,
+) -> HostResult<Answer> {
+    let conn = wire::provider::<Conn>(provider)?;
+    conn.0.call();
+    match method {
+        0 => Ok(Answer::Ready(encode_int(7, handles)?)),
+        1 => Ok(Answer::Ready(encode_conn(Rc::clone(conn), handles)?)),
+        2 => wire::answer(NativeCall::Ready(Ok(9)), encode_int, handles),
+        _ => {
+            conn.0.sought.set(wire::Decoder::new(args).signed()?);
+            Ok(Answer::Ready(Vec::new()))
+        }
+    }
+}
+
+fn dispatch_file(
+    provider: &mut dyn Any,
+    _: usize,
+    _: &[u8],
+    handles: &mut Handles,
+) -> HostResult<Answer> {
+    wire::provider::<File>(provider)?.0.call();
+    Ok(Answer::Ready(encode_int(3, handles)?))
+}
+
+/// A run of `body` against an `Opener`.
+struct Opened {
+    outcome: Outcome,
+    error: String,
+    seen: Rc<Seen>,
+    probes: Rc<RefCell<Vec<usize>>>,
+}
+
+fn opened(engine: &WasmtimeEngine, body: &[I<'_>]) -> Opened {
+    let contract = handled();
+    let module = engine
+        .load(
+            &module(&contract, HANDLE_IMPORTS, body, false),
+            &MemoryStore::default(),
+        )
+        .unwrap();
+    let seen = Rc::<Seen>::default();
+    let probes = Rc::<RefCell<Vec<usize>>>::default();
+    let opener = Opener {
+        seen: Rc::clone(&seen),
+        probes: Rc::clone(&probes),
+    };
+    let mut bindings = Bindings::new(contract_bytes(&contract));
+    let entry: Dispatch = dispatch_opener;
+    bindings.register_dispatch(SERVER, "hd:pkg:server", Box::new(opener), entry);
+    let err = Shared::default();
+    let io = HostIo {
+        out: Box::new(Shared::default()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let mut instance = engine
+        .instantiate_with_bindings(&module, &setup(), io, bindings)
+        .unwrap();
+    let outcome = instance.init();
+    Opened {
+        outcome,
+        error: String::from_utf8(err.take()).unwrap(),
+        seen,
+        probes,
+    }
+}
+
+#[test]
+fn two_handles_to_one_object_drop_it_at_the_second_release_in_either_order() {
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    for (first, second) in [(1, 2), (2, 1)] {
+        let run = opened(
+            &engine,
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(first),
+                I::Call(3),
+                I::Call(1),
+                I::I32Const(second),
+                I::Call(3),
+                I::Call(1),
+            ],
+        );
+        assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error);
+        assert_eq!(
+            *run.probes.borrow(),
+            [0, 1],
+            "the object drops at the second release, {first} then {second}"
+        );
+        assert_eq!(run.seen.calls.get(), 0, "a release calls no method");
+    }
+}
+
+#[test]
+fn a_forged_released_foreign_or_other_trait_handle_calls_no_method() {
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let call = "package host: call of an invalid handle";
+    let release = "package host: release of an invalid handle";
+    let cases: [(&str, &[I<'_>], &str); 8] = [
+        ("never issued", &[I::I32Const(7), I::Call(4), I::Drop], call),
+        ("negative", &[I::I32Const(-1), I::Call(4), I::Drop], call),
+        (
+            "never issued, suspending",
+            &[I::I32Const(1), I::Call(11), I::Drop, I::Drop],
+            call,
+        ),
+        (
+            "released",
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(1),
+                I::Call(3),
+                I::I32Const(1),
+                I::Call(4),
+                I::Drop,
+            ],
+            call,
+        ),
+        (
+            "released, reused slot",
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(2),
+                I::Call(3),
+                I::Call(2),
+                I::Drop,
+                I::I32Const(2),
+                I::Call(7),
+                I::Drop,
+            ],
+            call,
+        ),
+        (
+            "another trait",
+            &[I::Call(2), I::Drop, I::I32Const(1), I::Call(4), I::Drop],
+            call,
+        ),
+        (
+            "release of another trait",
+            &[I::Call(2), I::Drop, I::I32Const(1), I::Call(3)],
+            release,
+        ),
+        (
+            "released twice",
+            &[
+                I::Call(0),
+                I::Drop,
+                I::I32Const(1),
+                I::Call(3),
+                I::I32Const(1),
+                I::Call(3),
+            ],
+            release,
+        ),
+    ];
+    for (case, body, message) in cases {
+        let run = opened(&engine, body);
+        assert_eq!(run.outcome, Outcome::Exit(3), "{case}: {}", run.error);
+        assert!(
+            run.error
+                .starts_with(&format!("panic: host-contract: {message}")),
+            "{case}: {}",
+            run.error
+        );
+        assert_eq!(run.seen.calls.get(), 0, "{case}: no method runs");
+    }
+    // Another instance's handle: this one issued none, though the other,
+    // still open, holds that number.
+    let owner = opened(&engine, &[I::Call(0), I::Drop]);
+    assert_eq!(owner.outcome, Outcome::Exit(0), "{}", owner.error);
+    let foreign = opened(&engine, &[I::I32Const(1), I::Call(4), I::Drop]);
+    assert_eq!(foreign.outcome, Outcome::Exit(3));
+    assert!(
+        foreign
+            .error
+            .starts_with(&format!("panic: host-contract: {call}"))
+    );
+    assert_eq!(owner.seen.calls.get() + foreign.seen.calls.get(), 0);
+}
+
+#[test]
+fn methods_on_a_returned_handle_dispatch_through_its_own_trait() {
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let run = opened(
+        &engine,
+        &[
+            // `open` issues 1 and 2; `dup` on 1 issues 3 while 1 is out
+            // of its slot for the call.
+            I::Call(0),
+            I::Drop,
+            I::I32Const(1),
+            I::Call(4),
+            I::Drop,
+            I::I32Const(1),
+            I::Call(5),
+            I::Drop,
+            I::I32Const(3),
+            I::Call(4),
+            I::Drop,
+            // `file` issues 4; `size` calls the `File` trait's dispatch.
+            I::Call(2),
+            I::Drop,
+            I::I32Const(4),
+            I::Call(7),
+            I::Drop,
+            // A handle's suspending method answers at once.
+            I::I32Const(3),
+            I::Call(11),
+            I::Drop,
+            I::Drop,
+            // `seek(-3)`: its argument, zigzag 5, follows the handle.
+            I::I32Const(0),
+            I::I32Const(5),
+            I::I32Store8(wasm_encoder::MemArg {
+                offset: 0,
+                align: 0,
+                memory_index: 0,
+            }),
+            I::I32Const(2),
+            I::I32Const(1),
+            I::Call(13),
+            // `later.finish` issues 5 from the delivered value.
+            I::Call(8),
+            I::LocalSet(1),
+            I::Drop,
+            I::Call(10),
+            I::Drop,
+            I::LocalGet(1),
+            I::Call(9),
+            I::Drop,
+            I::I32Const(5),
+            I::Call(4),
+            I::Drop,
+            // Every handle released: both objects drop.
+            I::I32Const(5),
+            I::Call(3),
+            I::I32Const(4),
+            I::Call(6),
+            I::I32Const(1),
+            I::Call(3),
+            I::I32Const(2),
+            I::Call(3),
+            I::I32Const(3),
+            I::Call(3),
+            I::Call(1),
+        ],
+    );
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error);
+    assert_eq!(run.seen.calls.get(), 7);
+    assert_eq!(run.seen.sought.get(), -3);
+    assert_eq!(*run.probes.borrow(), [2]);
+}
+
+#[test]
+fn a_companion_of_other_handle_traits_is_refused_before_the_guest_starts() {
+    let wasm = module(&handled(), HANDLE_IMPORTS, &[], true);
+    let refused = |companion: &Contract| {
+        let mut bindings = Bindings::new(contract_bytes(companion));
+        let entry: Dispatch = dispatch_opener;
+        let opener = Opener {
+            seen: Rc::default(),
+            probes: Rc::default(),
+        };
+        bindings.register_dispatch(SERVER, "hd:pkg:server", Box::new(opener), entry);
+        refusal(&wasm, bindings)
+    };
+    let expected = "native provider for package host trait \"example.org/sdk@1.2.3/server.Conn\" was generated from a different contract";
+    // Other methods: the companion's `Conn` dispatch numbers them otherwise.
+    let mut methods = handled();
+    methods.interfaces[1].methods.pop();
+    assert_eq!(refused(&methods), expected);
+    // The same traits in another order: a companion names a handle trait
+    // by its index, which would mean another trait here.
+    let mut order = handled();
+    order.interfaces.swap(1, 2);
+    assert_eq!(refused(&order), expected);
 }

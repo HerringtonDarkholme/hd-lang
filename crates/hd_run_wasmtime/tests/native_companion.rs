@@ -36,6 +36,11 @@ mod values {
     include!("native/values.host.rs");
 }
 
+#[allow(dead_code, clippy::all, clippy::pedantic)]
+mod handles {
+    include!("native/handles.host.rs");
+}
+
 fn int(bits: u8, signed: bool) -> Value {
     Value::Int { bits, signed }
 }
@@ -332,6 +337,40 @@ fn values_contract() -> Contract {
     }
 }
 
+/// A root trait returning handles of a handle trait whose own method
+/// returns another: `pair() -> (File, File)`, `bad() -> (File, Json)`,
+/// and `File`'s `size() -> u64` and `dup() -> File`.
+fn handles_contract() -> Contract {
+    let file = || Value::Handle("hd:pkg:file".into());
+    Contract {
+        interfaces: vec![
+            interface(
+                "files.Files",
+                "hd:pkg:files",
+                false,
+                vec![
+                    method("pair", vec![], Value::Tuple(vec![file(), file()]), false),
+                    method(
+                        "bad",
+                        vec![],
+                        Value::Tuple(vec![file(), Value::Json]),
+                        false,
+                    ),
+                ],
+            ),
+            interface(
+                "files.File",
+                "hd:pkg:file",
+                true,
+                vec![
+                    method("size", vec![], int(64, false), false),
+                    method("dup", vec![], file(), false),
+                ],
+            ),
+        ],
+    }
+}
+
 fn snapshot(name: &str, contract: &Contract) {
     let text = hd_host_abi::native_rust::generate(contract).unwrap();
     assert_eq!(
@@ -366,6 +405,11 @@ fn the_companion_of_every_value_form_is_its_snapshot() {
 #[test]
 fn the_companion_of_every_codec_is_its_snapshot() {
     snapshot("values.host.rs", &values_contract());
+}
+
+#[test]
+fn the_companion_of_returned_handles_is_its_snapshot() {
+    snapshot("handles.host.rs", &handles_contract());
 }
 
 #[test]
@@ -540,12 +584,16 @@ fn every_root_trait_of_a_companion_gets_a_setter() {
     // A suspending `()` method's ready answer is empty; a suspending
     // `never` method can only stay pending.
     let mut window: Box<dyn std::any::Any> = Box::new(Box::new(Window) as Box<dyn forms::Surface3>);
-    let Ok(native::Answer::Ready(empty)) = forms::dispatch_Surface3(window.as_mut(), 1, &[]) else {
+    let Ok(native::Answer::Ready(empty)) =
+        forms::dispatch_Surface3(window.as_mut(), 1, &[], &mut native::Handles::default())
+    else {
         panic!("`flush` answers at once")
     };
     assert!(empty.is_empty());
     let mut screen: Box<dyn std::any::Any> = Box::new(Box::new(Screen) as Box<dyn forms::Surface>);
-    let Ok(native::Answer::Pending(_)) = forms::dispatch_Surface(screen.as_mut(), 2, &[]) else {
+    let Ok(native::Answer::Pending(_)) =
+        forms::dispatch_Surface(screen.as_mut(), 2, &[], &mut native::Handles::default())
+    else {
         panic!("`halt` stays pending")
     };
     let Err(missing) = forms::Bindings::builder().surface(Screen).build() else {
@@ -613,11 +661,14 @@ fn an_aborted_call_runs_its_hook_once_and_ignores_a_late_completion() {
 /// A run whose app manifest consents to both companions' root traits
 /// (`cli.host.package.native-two-keys`).
 fn setup() -> HostSetup {
-    let table: Vec<(String, GrantValue)> =
-        ["dep.ui_tui.surface.Surface", "dep.ui_tui.values.Values"]
-            .into_iter()
-            .map(|path| (path.to_owned(), GrantValue::All))
-            .collect();
+    let table: Vec<(String, GrantValue)> = [
+        "dep.ui_tui.surface.Surface",
+        "dep.ui_tui.values.Values",
+        "dep.ui_tui.files.Files",
+    ]
+    .into_iter()
+    .map(|path| (path.to_owned(), GrantValue::All))
+    .collect();
     HostSetup {
         providers: vec![],
         grants: Grants {
@@ -903,7 +954,7 @@ fn dispatch_values(
     method: usize,
     args: &[u8],
 ) -> HostResult<Vec<u8>> {
-    match values::dispatch_Values(provider, method, args)? {
+    match values::dispatch_Values(provider, method, args, &mut native::Handles::default())? {
         native::Answer::Ready(bytes) => Ok(bytes),
         native::Answer::Pending(_) => panic!("`Values` has no suspending method"),
     }
@@ -943,7 +994,8 @@ fn every_value_form_round_trips_through_a_native_provider() {
 #[test]
 fn a_single_string_argument_is_its_bare_utf8() {
     let (mut provider, _) = codecs(made(true));
-    let mut expected = native::wire::Encoder::default();
+    let mut handles = native::Handles::default();
+    let mut expected = native::wire::Encoder::new(&mut handles);
     expected.string("HÉ");
     assert_eq!(
         dispatch_values(provider.as_mut(), 2, "hé".as_bytes()).unwrap(),
@@ -1074,4 +1126,145 @@ fn a_provider_value_failing_its_codec_is_a_host_contract_panic_naming_the_method
         ),
         "{error}"
     );
+}
+
+/// The native object behind returned `File` handles: its drops and the
+/// method calls on it.
+#[derive(Default)]
+struct Disk {
+    drops: Cell<usize>,
+    calls: Cell<usize>,
+}
+
+/// One native object two handles may share.
+struct Object(Rc<Disk>);
+
+impl Drop for Object {
+    fn drop(&mut self) {
+        self.0.drops.set(self.0.drops.get() + 1);
+    }
+}
+
+struct Files(Rc<Disk>);
+
+struct OpenFile(Rc<Object>);
+
+impl handles::Files for Files {
+    fn pair(&mut self) -> HostResult<(Box<dyn handles::File>, Box<dyn handles::File>)> {
+        let object = Rc::new(Object(Rc::clone(&self.0)));
+        Ok((
+            Box::new(OpenFile(Rc::clone(&object))),
+            Box::new(OpenFile(object)),
+        ))
+    }
+
+    fn bad(&mut self) -> HostResult<(Box<dyn handles::File>, Serde)> {
+        let object = Rc::new(Object(Rc::clone(&self.0)));
+        Ok((
+            Box::new(OpenFile(object)),
+            Serde::Map(vec![(Serde::Bool(true), Serde::Unit)]),
+        ))
+    }
+}
+
+impl handles::File for OpenFile {
+    fn size(&mut self) -> HostResult<u64> {
+        let disk = &self.0.0;
+        disk.calls.set(disk.calls.get() + 1);
+        Ok(42)
+    }
+
+    fn dup(&mut self) -> HostResult<Box<dyn handles::File>> {
+        let disk = &self.0.0;
+        disk.calls.set(disk.calls.get() + 1);
+        Ok(Box::new(OpenFile(Rc::clone(&self.0))))
+    }
+}
+
+/// Runs `body` over `pair`, `$release`, `size`, `dup` and `bad`, at
+/// indices 2 to 6, and reports the outcome, standard error, and the
+/// object's drops and calls while the instance is still open and after
+/// it is dropped.
+fn run_handles(body: &[wasm_encoder::Instruction<'static>]) -> (Outcome, String, [usize; 3]) {
+    use wasm_encoder::ValType::I32;
+    let mut p = support::Program::new();
+    assert_eq!(p.import("hd:pkg:files", "pair", &[], &[I32]), 2);
+    assert_eq!(p.import("hd:pkg:file", "$release", &[I32], &[]), 3);
+    assert_eq!(p.import("hd:pkg:file", "size", &[I32], &[I32]), 4);
+    assert_eq!(p.import("hd:pkg:file", "dup", &[I32], &[I32]), 5);
+    assert_eq!(p.import("hd:pkg:files", "bad", &[], &[I32]), 6);
+    p.instructions(body);
+    let (mut wasm, _) = p.finish(0);
+    let mut payload = support::Enc(Vec::new())
+        .bytes(hd_host_abi::schema::SECTION.as_bytes())
+        .0;
+    payload.extend_from_slice(handles::CONTRACT);
+    wasm.push(0);
+    wasm.extend_from_slice(&support::Enc(Vec::new()).bytes(&payload).0);
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let module = engine.load(&wasm, &MemoryStore::default()).unwrap();
+    let disk = Rc::<Disk>::default();
+    let bindings = handles::Bindings::builder()
+        .files(Files(Rc::clone(&disk)))
+        .build()
+        .unwrap();
+    let err = Captured::default();
+    let io = HostIo {
+        out: Box::new(std::io::sink()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let mut instance = engine
+        .instantiate_with_bindings(&module, &setup(), io, bindings)
+        .unwrap();
+    let outcome = instance.init();
+    let open = disk.drops.get();
+    drop(instance);
+    let text = String::from_utf8(err.0.lock().unwrap().clone()).unwrap();
+    (outcome, text, [open, disk.drops.get(), disk.calls.get()])
+}
+
+#[test]
+fn a_generated_companion_keeps_returned_handles_until_their_last_release() {
+    use wasm_encoder::Instruction as I;
+    // `pair` issues 1 and 2 for one object, `dup` on 2 issues 3 through
+    // the `File` dispatch; the object drops at the last release, with no
+    // method call.
+    let calls = [
+        I::Call(2),
+        I::Drop,
+        I::I32Const(1),
+        I::Call(4),
+        I::Drop,
+        I::I32Const(2),
+        I::Call(5),
+        I::Drop,
+        I::I32Const(2),
+        I::Call(3),
+        I::I32Const(1),
+        I::Call(3),
+    ];
+    let mut all = calls.to_vec();
+    all.extend([I::I32Const(3), I::Call(3)]);
+    let (outcome, error, seen) = run_handles(&all);
+    assert_eq!(outcome, Outcome::Exit(0), "{error}");
+    assert_eq!(seen, [1, 1, 2], "dropped at the last release");
+    // A handle still held when the instance closes drops with it.
+    let (outcome, error, seen) = run_handles(&calls);
+    assert_eq!(outcome, Outcome::Exit(0), "{error}");
+    assert_eq!(seen, [0, 1, 2], "held until the instance closes");
+}
+
+#[test]
+fn a_handle_in_a_result_that_fails_its_codec_is_released_at_once() {
+    use wasm_encoder::Instruction as I;
+    let (outcome, error, seen) = run_handles(&[I::Call(6), I::Drop]);
+    assert_eq!(outcome, Outcome::Exit(3));
+    assert!(
+        error.starts_with(
+            "panic: host-contract: example.org/ui-tui@0.3.0/files.Files.bad: package host: invalid private object key"
+        ),
+        "{error}"
+    );
+    assert_eq!(seen, [1, 1, 0], "released before the guest saw it");
 }

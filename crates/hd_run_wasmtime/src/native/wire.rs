@@ -26,7 +26,9 @@ use std::fmt::Write as _;
 
 use hd_base::HashSet;
 
-use super::{Answer, HostError, HostResult, NativeCall, Serde, Suspension};
+use super::{
+    Answer, Dispatch, Encode, Handles, HostError, HostResult, NativeCall, Serde, Suspension,
+};
 use crate::codec::{Dec, Enc};
 
 /// The JS host's failure text for `message`.
@@ -57,10 +59,11 @@ pub fn unknown_method(method: usize) -> HostError {
 /// (`cli.host.package.native-completion-forms`).
 pub fn answer<T: 'static>(
     call: NativeCall<T>,
-    encode: fn(&T) -> HostResult<Vec<u8>>,
+    encode: Encode<T>,
+    handles: &mut Handles,
 ) -> HostResult<Answer> {
     match call {
-        NativeCall::Ready(value) => Ok(Answer::Ready(encode(&value?)?)),
+        NativeCall::Ready(value) => Ok(Answer::Ready(encode(value?, handles)?)),
         NativeCall::Pending(call) => Ok(Answer::Pending(Suspension::new(call, encode))),
     }
 }
@@ -188,13 +191,37 @@ impl<'a> Decoder<'a> {
     }
 }
 
-/// A call's result bytes.
-#[derive(Default)]
-pub struct Encoder {
+/// A call's result bytes, and the handles they issued. An encoder dropped
+/// before [`Encoder::into_bytes`], by a failure part way through a value,
+/// releases the handles it issued, as the JS host's codec does: a guest
+/// never sees their numbers.
+pub struct Encoder<'a> {
     e: Enc,
+    handles: &'a mut Handles,
+    /// (number, interface) of each handle issued so far.
+    issued: Vec<(u32, u32)>,
 }
 
-impl Encoder {
+impl Drop for Encoder<'_> {
+    fn drop(&mut self) {
+        for (number, interface) in self.issued.drain(..) {
+            // ruled out: each was issued by this encoder and no guest code
+            // ran since, so each is live.
+            let _ = self.handles.release(number, interface);
+        }
+    }
+}
+
+impl<'a> Encoder<'a> {
+    /// An encoder issuing returned handles in `handles`, its instance's.
+    pub fn new(handles: &'a mut Handles) -> Self {
+        Self {
+            e: Enc::default(),
+            handles,
+            issued: Vec::new(),
+        }
+    }
+
     pub fn bool(&mut self, value: bool) {
         self.e.leb(u64::from(value));
     }
@@ -236,10 +263,20 @@ impl Encoder {
         self.e.leb(tag as u64);
     }
 
-    /// A returned host handle (gap: #2082 keeps it in the instance's
-    /// registry; preflight refuses a contract with a handle trait).
-    pub fn handle<T: ?Sized>(&mut self, _value: &T) -> HostResult<()> {
-        Err(fail("wasmtime does not hold native handles yet"))
+    /// A returned host handle: `value`, the trait object of the handle
+    /// trait at contract interface `interface` whose methods `dispatch`
+    /// calls, moves into the instance's registry and its number is
+    /// written (`module.host.package.native-handles`).
+    pub fn handle(
+        &mut self,
+        value: Box<dyn Any>,
+        interface: u32,
+        dispatch: Dispatch,
+    ) -> HostResult<()> {
+        let number = self.handles.insert(interface, dispatch, value)?;
+        self.issued.push((number, interface));
+        self.e.leb(u64::from(number));
+        Ok(())
     }
 
     /// A private-field value, written as its token stream.
@@ -249,9 +286,11 @@ impl Encoder {
         Ok(())
     }
 
+    /// The encoded value; the handles it issued stay live.
     #[must_use]
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.e.into_bytes()
+    pub fn into_bytes(mut self) -> Vec<u8> {
+        self.issued.clear();
+        std::mem::take(&mut self.e).into_bytes()
     }
 }
 
@@ -675,7 +714,7 @@ fn number(tag: &str, text: &str) -> HostResult<Serde> {
 #[cfg(test)]
 mod tests {
     use super::{Decoder, Encoder, Serde, answer, text};
-    use crate::native::{Answer, HostError, HostResult, NativeCall, pending};
+    use crate::native::{Answer, Handles, HostError, HostResult, NativeCall, pending};
 
     fn message<T: std::fmt::Debug>(result: Result<T, HostError>) -> String {
         result.unwrap_err().0
@@ -684,7 +723,8 @@ mod tests {
     /// `text`'s token stream as the guest would pass it: a length-prefixed
     /// string.
     fn tokens(text: &str) -> Vec<u8> {
-        let mut e = Encoder::default();
+        let mut h = Handles::default();
+        let mut e = Encoder::new(&mut h);
         e.string(text);
         e.into_bytes()
     }
@@ -694,7 +734,8 @@ mod tests {
     }
 
     fn written(value: &Serde) -> Result<String, HostError> {
-        let mut e = Encoder::default();
+        let mut h = Handles::default();
+        let mut e = Encoder::new(&mut h);
         e.serde(value)?;
         let bytes = e.into_bytes();
         Ok(Decoder::new(&bytes).string().unwrap())
@@ -818,7 +859,8 @@ mod tests {
 
     #[test]
     fn each_scalar_is_checked_as_the_js_host_checks_it() {
-        let mut e = Encoder::default();
+        let mut h = Handles::default();
+        let mut e = Encoder::new(&mut h);
         e.signed(300);
         e.unsigned(300);
         e.unsigned(0xd800);
@@ -865,11 +907,8 @@ mod tests {
             message(d.handle::<u8>()),
             "package host: a handle cannot be passed as a data argument"
         );
-        assert_eq!(
-            message(Encoder::default().handle(&0_u8)),
-            "package host: wasmtime does not hold native handles yet"
-        );
-        let mut e = Encoder::default();
+        let mut h = Handles::default();
+        let mut e = Encoder::new(&mut h);
         e.bool(true);
         e.char('é');
         e.f32(-0.0);
@@ -887,21 +926,61 @@ mod tests {
 
     #[test]
     fn a_suspending_method_answers_ready_or_pending() {
-        let encode: fn(&u8) -> HostResult<Vec<u8>> = |value| Ok(vec![*value]);
-        let Ok(Answer::Ready(bytes)) = answer(NativeCall::Ready(Ok(4)), encode) else {
+        let encode: fn(u8, &mut Handles) -> HostResult<Vec<u8>> = |value, _| Ok(vec![value]);
+        let h = &mut Handles::default();
+        let Ok(Answer::Ready(bytes)) = answer(NativeCall::Ready(Ok(4)), encode, h) else {
             panic!("a ready value is encoded at once")
         };
         assert_eq!(bytes, [4]);
-        let failed = answer(NativeCall::Ready(Err(HostError("no".into()))), encode);
+        let failed = answer(NativeCall::Ready(Err(HostError("no".into()))), encode, h);
         assert_eq!(failed.err(), Some(HostError("no".into())));
         let aborted = std::rc::Rc::new(std::cell::Cell::new(0));
         let hook = std::rc::Rc::clone(&aborted);
         let (call, _completion) = pending::<u8>(move || hook.set(hook.get() + 1));
-        let Ok(Answer::Pending(suspension)) = answer(NativeCall::Pending(call), encode) else {
+        let Ok(Answer::Pending(suspension)) = answer(NativeCall::Pending(call), encode, h) else {
             panic!("a pending call stays pending")
         };
         assert_eq!(aborted.get(), 0);
         drop(suspension);
         assert_eq!(aborted.get(), 1, "dropped undelivered, it is aborted");
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn none(_: &mut dyn std::any::Any, _: usize, _: &[u8], _: &mut Handles) -> HostResult<Answer> {
+        Ok(Answer::Ready(Vec::new()))
+    }
+
+    /// Drops count their value's drops.
+    struct Counted(std::rc::Rc<std::cell::Cell<u32>>);
+
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+
+    #[test]
+    fn a_handle_moves_into_the_registry_and_a_failed_encode_releases_it() {
+        let drops = std::rc::Rc::new(std::cell::Cell::new(0));
+        let mut h = Handles::default();
+        let mut e = Encoder::new(&mut h);
+        e.handle(Box::new(Counted(drops.clone())), 2, none).unwrap();
+        let bytes = e.into_bytes();
+        let number = Decoder::new(&bytes).unsigned::<u32>().unwrap();
+        assert_eq!(
+            (h.len(), drops.get()),
+            (1, 0),
+            "a written handle stays live"
+        );
+        // A value that fails after a handle: the guest never sees its
+        // number, and the trait object drops with no provider call.
+        let mut e = Encoder::new(&mut h);
+        e.handle(Box::new(Counted(drops.clone())), 2, none).unwrap();
+        let failed: HostResult<()> = e.serde(&Serde::Map(vec![(Serde::Bool(true), Serde::Unit)]));
+        assert!(failed.is_err());
+        drop(e);
+        assert_eq!((h.len(), drops.get()), (1, 1));
+        h.release(number, 2).unwrap();
+        assert_eq!((h.len(), drops.get()), (0, 2));
     }
 }

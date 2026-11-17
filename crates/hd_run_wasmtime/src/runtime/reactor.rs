@@ -367,12 +367,14 @@ impl Reactor {
     }
 
     /// The `.finish` of the native call `h` of `method`: its encoded
-    /// value, once it completed. `None` for any other handle, which the
-    /// caller reports as a broken contract.
+    /// value, once it completed, with any handle it holds issued in
+    /// `handles`. `None` for any other handle, which the caller reports as
+    /// a broken contract.
     pub(crate) fn finish_native(
         &mut self,
         h: i32,
         method: (usize, usize),
+        handles: &mut crate::native::Handles,
     ) -> Option<crate::native::HostResult<Vec<u8>>> {
         let op = self.ops.get(&h)?;
         if !op.completed || !matches!(op.work, Work::Native { method: m, .. } if m == method) {
@@ -381,7 +383,7 @@ impl Reactor {
         let Work::Native { mut call, .. } = self.ops.remove(&h)?.work else {
             unreachable!("ruled out: matched as `Native` above")
         };
-        call.finish()
+        call.finish(handles)
     }
 
     /// A read of the next line of standard input.
@@ -832,8 +834,7 @@ mod tests {
     ) -> (crate::native::Suspension, crate::native::Completion<i64>) {
         let hook = std::rc::Rc::clone(aborts);
         let (call, completion) = crate::native::pending(move || hook.set(hook.get() + 1));
-        let encode: fn(&i64) -> crate::native::HostResult<Vec<u8>> =
-            |value| Ok(value.to_le_bytes().to_vec());
+        let encode: crate::native::Encode<i64> = |value, _| Ok(value.to_le_bytes().to_vec());
         (crate::native::Suspension::new(call, encode), completion)
     }
 
@@ -854,18 +855,30 @@ mod tests {
         assert!(old.due().is_empty() && !old.waiting());
         assert!(new.inbox.queue.lock().unwrap().is_empty(), "no wake");
         assert!(new.due().is_empty() && new.waiting());
-        assert_eq!(new.finish_native(h, (0, 2)), None, "not completed");
+        assert_eq!(
+            new.finish_native(h, (0, 2), &mut crate::native::Handles::default()),
+            None,
+            "not completed"
+        );
         // cost: one thread, the completion's sender.
         std::thread::spawn(move || completion.complete(Ok(9)))
             .join()
             .unwrap();
         assert_eq!(next_due(&mut new), [h]);
-        assert_eq!(new.finish_native(h, (0, 1)), None, "another method's");
         assert_eq!(
-            new.finish_native(h, (0, 2)),
+            new.finish_native(h, (0, 1), &mut crate::native::Handles::default()),
+            None,
+            "another method's"
+        );
+        assert_eq!(
+            new.finish_native(h, (0, 2), &mut crate::native::Handles::default()),
             Some(Ok(9_i64.to_le_bytes().to_vec()))
         );
-        assert_eq!(new.finish_native(h, (0, 2)), None, "delivered once");
+        assert_eq!(
+            new.finish_native(h, (0, 2), &mut crate::native::Handles::default()),
+            None,
+            "delivered once"
+        );
         drop(new);
         assert_eq!(aborts.get(), 1, "a delivered call has no abort");
     }
@@ -879,14 +892,14 @@ mod tests {
         let h = r.native(call, (0, 0)).unwrap();
         assert_eq!(r.due(), [h]);
         assert_eq!(
-            r.finish_native(h, (0, 0)),
+            r.finish_native(h, (0, 0), &mut crate::native::Handles::default()),
             Some(Ok(3_i64.to_le_bytes().to_vec()))
         );
         // A call its provider aborted before returning it never completes,
         // so it is not registered.
         let (mut pending, _completion) = crate::native::pending::<i64>(|| {});
         pending.abort();
-        let encode: fn(&i64) -> crate::native::HostResult<Vec<u8>> = |_| Ok(Vec::new());
+        let encode: crate::native::Encode<i64> = |_, _| Ok(Vec::new());
         let aborted = crate::native::Suspension::new(pending, encode);
         assert_eq!(r.native(aborted, (0, 0)), None);
         assert!(!r.waiting());
