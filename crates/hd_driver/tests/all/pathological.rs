@@ -1552,7 +1552,8 @@ fn closure_capture_width_emitted_operators() -> Result<(), wasmparser::BinaryRea
 
 #[test]
 fn wide_match_dispatch_emitted_operators() -> Result<(), wasmparser::BinaryReaderError> {
-    check_operators(enum_match, 500, 2000, 2000)
+    // The last exhaustive variant is the default, outside the indexed entries.
+    check_operators(enum_match, 500, 2000, 1999)
 }
 
 #[test]
