@@ -318,6 +318,7 @@ host-context-console	cli.host.package.context-console,cli.host.package.context-c
 host-context-http	cli.host.package.context-http,cli.host.package.context-http-coverage,cli.host.package.context-http-helpers,cli.host.package.context-http-readonly
 host-declaration-duplicate	cli.host.declaration.map-unique
 host-declaration-fake	cli.host.declaration.map,cli.host.declaration.map-key,cli.host.declaration.mapped,cli.host.declaration.marker-mapped,cli.host.declaration.mapping-no-consent
+test-host-map-executable	cli.host.declaration.mapped,cli.test.builds-executables
 host-declaration-invalid-path	cli.host.declaration.map-key
 host-declaration-missing-list	cli.host.declaration.marker-mapped,cli.host.declaration.map-locations
 host-declaration-missing-marker	cli.host.declaration.mapped,cli.host.declaration.map-locations

@@ -1114,11 +1114,14 @@ fn prepare(
         Executor::Pool(o.jobs)
     };
     let pipeline = crate::Pipeline::of(o.engine, o.release);
-    let packages = hd_driver::Packages {
+    let mut packages = hd_driver::Packages {
         target: pipeline.target,
         level: pipeline.level,
         ..program.packages()
     };
+    // `[host]` resolves against the root's complete source tree, with the
+    // untested executables a test program leaves out.
+    packages.host_declaration_sources[0] = &every;
     let package = &program.package;
     let mut every_hash = None;
     let mut records: Vec<RecordInputs> = Vec::new();

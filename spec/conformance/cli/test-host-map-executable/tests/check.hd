@@ -1,0 +1,4 @@
+use std.testing.assert_equal
+
+it("runs beside an executable that declares a host trait"):
+    assert_equal(1 + 1, 2, reason="arithmetic")

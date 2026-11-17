@@ -1,0 +1,9 @@
+[package]
+name = "runner"
+
+[host]
+"main.Server" = "provider.ts"
+
+[capabilities]
+Console = true
+"pkg.main.Server" = true
