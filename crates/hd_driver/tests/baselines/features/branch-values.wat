@@ -3,38 +3,38 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $pick_with_exit (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
-    ;; 19 |     match k:
+    ;; 21 |     match k:
     block
       block
         block
           block
             block
               block
-    ;; 20 |         0 => a
+    ;; 22 |         0 => a
                 local.get $k
                 i64.const 0
                 i64.eq
                 br_if 0
-    ;; 21 |         1 => b
+    ;; 23 |         1 => b
                 local.get $k
                 i64.const 1
                 i64.eq
                 br_if 1
-    ;; 22 |         2 => return "returned"
+    ;; 24 |         2 => return "returned"
                 local.get $k
                 i64.const 2
                 i64.eq
                 i32.eqz
                 br_if 3
                 br 2
-    ;; 19 |     match k:
+    ;; 21 |     match k:
                 unreachable
               end
-    ;; 20 |         0 => a
+    ;; 22 |         0 => a
               local.get $a.0
               i32.const 0
               local.set $a.0
-    ;; 19 |     match k:
+    ;; 21 |     match k:
               local.get $b.0
               if
                 local.get $b.0
@@ -45,11 +45,11 @@
               local.set $b.1
               br 3
             end
-    ;; 21 |         1 => b
+    ;; 23 |         1 => b
             local.get $b.0
             i32.const 0
             local.set $b.0
-    ;; 19 |     match k:
+    ;; 21 |     match k:
             local.get $a.0
             if
               local.get $a.0
@@ -57,29 +57,29 @@
             end
             i32.const 0
             local.set $a.0
-    ;; 21 |         1 => b
+    ;; 23 |         1 => b
             local.get $b.1
-    ;; 19 |     match k:
+    ;; 21 |     match k:
             local.set $a.1
             local.set $b.1
             br 2
           end
-    ;; 22 |         2 => return "returned"
+    ;; 24 |         2 => return "returned"
           i32.const 65 ;; &"returned"
           i32.const 8
           local.set $a.1
           local.set $b.1
           br 2
-    ;; 19 |     match k:
+    ;; 21 |     match k:
           br 1
         end
-    ;; 23 |         _ => panic("branch")
+    ;; 25 |         _ => panic("branch")
         i32.const 73 ;; &"branch"
         i32.const 6
         i32.const 0
         call_indirect $table0 (param i32 i32)
         unreachable
-    ;; 19 |     match k:
+    ;; 21 |     match k:
       end
     end
     local.get $a.0
@@ -96,35 +96,35 @@
     local.get $a.1
   )
   (func $pick_match (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
-    ;; 14 |     match k:
+    ;; 16 |     match k:
     block
       block
-    ;; 15 |         0 => a
+    ;; 17 |         0 => a
         local.get $k
         i64.const 0
         i64.eq
         i32.eqz
         br_if 1
         br 0
-    ;; 14 |     match k:
+    ;; 16 |     match k:
         unreachable
       end
-    ;; 15 |         0 => a
+    ;; 17 |         0 => a
       local.get $a.0
-    ;; 14 |     match k:
+    ;; 16 |     match k:
       local.get $b.0
       if
         local.get $b.0
         call $rt:release_ref
       end
-    ;; 15 |         0 => a
+    ;; 17 |         0 => a
       local.get $a.1
-    ;; 14 |     match k:
+    ;; 16 |     match k:
       return
     end
-    ;; 16 |         _ => b
+    ;; 18 |         _ => b
     local.get $b.0
-    ;; 14 |     match k:
+    ;; 16 |     match k:
     local.get $a.0
     if
       local.get $a.0
@@ -135,7 +135,7 @@
     local.get $b.1
   )
   (func $pick (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
-    ;; 7 |     if c: a else: b
+    ;; 9 |     if c: a else: b
     local.get $c
     if (result i32)
       local.get $a.0
@@ -157,7 +157,7 @@
     local.get $a.1
   )
   (func $pick_len (param $c i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
-    ;; 10 |     s := if c: a else: b
+    ;; 12 |     s := if c: a else: b
     local.get $c
     if (result i32)
       local.get $a.0

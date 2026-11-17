@@ -1,8 +1,10 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: `if` and `match` as values (#1364).
-# expected: no count operation; `pick_len` borrows both parameters.
-# A by-value parameter that is only read borrows (#1365).
+# expected: `pick_len` borrows both parameters and counts nothing. A
+# by-value parameter that is only read borrows (#1365). `pick`,
+# `pick_match` and `pick_with_exit` return a parameter, so they own both:
+# each path releases only the parameters it does not return.
 fn pick(c: bool, a: string, b: string) -> string:
     if c: a else: b
 
