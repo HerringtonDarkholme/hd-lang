@@ -1,0 +1,382 @@
+# test: a keyed reader names a record's members in text order through next_field; the derived walk reads them in any order, skips the keys the reader skips, reads each unnamed member as absent, and reports a member named twice with the reader's duplicate error
+# Spec std/serde Reading, Derived Implementations: std-serde.read.keyed, std-serde.read.next-field, std-serde.read.absent-field, std-serde.read.duplicate-field, std-serde.read.next-field.args, std-serde.derive.deserialize.keyed-order, std-serde.derive.deserialize.keyed-duplicate, std-serde.derive.deserialize.keyed-default.
+# expect-stdout: any order: Order(1, 1, Option.Some(7), 3) guesses 0 4 3 1
+# expect-stdout: unknown and absent: Order(2, 1, Option.None, 5) guesses 0 1 4
+# expect-stdout: missing: missing count
+# expect-stdout: duplicate: unique key
+# expect-stdout: variant: Rect(4, 3)
+# expect-stdout: newtype: Wrap(9)
+# expect-stdout: one id per type: true true
+# expect-stdout: wide: Option.Some(65) Option.Some(64) Option.None
+# expect-stdout: wide duplicate: unique key
+# expect-stdout: keyed without next_field: keyed record
+# expect-stdout: keyed without absent_field: i64
+use std.serde.{Deserialize, Deserializer, ValueKind, skip}
+use std.structure.{Facts, VariantInfo, Member}
+
+# A keyed reader over one flat record of integer values, or a newtype
+# payload when `keys` is empty. It records each `next_field`'s `guess`
+# and directory id.
+struct Pairs:
+    pub keys: List[string]
+    pub values: List[i64]
+    pub at: usize
+    pub current: usize
+    pub absent: string
+    pub pick: usize
+    pub guesses: List[string]
+    pub ids: List[usize]
+
+fn pairs(keys: List[string], values: List[i64], pick: usize) -> Pairs:
+    Pairs {
+        keys: keys,
+        values: values,
+        at: 0,
+        current: 0,
+        absent: "",
+        pick: pick,
+        guesses: [],
+        ids: [],
+    }
+
+impl Deserializer for Pairs:
+    type Error = string
+
+    fn peek(&mut self) -> Result[ValueKind, string]:
+        if self.absent != "":
+            return .Ok(ValueKind.Null)
+        .Ok(ValueKind.Int)
+
+    fn is_null(&mut self) -> Result[bool, string]:
+        if self.absent != "":
+            self.absent = ""
+            return .Ok(true)
+        .Ok(false)
+
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
+        .Err(expected)
+
+    fn int(&mut self, expected: string) -> Result[i64, string]:
+        if self.absent != "":
+            return .Err("missing ${self.absent}")
+        .Ok(self.values[self.current])
+
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
+        .Err(expected)
+
+    fn float(&mut self, expected: string) -> Result[f64, string]:
+        .Err(expected)
+
+    fn text(&mut self, expected: string) -> Result[string, string]:
+        .Err(expected)
+
+    fn begin_list(&mut self) -> Result[void, string]:
+        .Err("list")
+
+    fn next_item(&mut self) -> Result[bool, string]:
+        .Err("item")
+
+    fn begin_map(&mut self) -> Result[void, string]:
+        .Err("map")
+
+    fn next_key(&mut self) -> Result[string?, string]:
+        .Err("key")
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(self.pick)
+
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        self.current = 0
+        .Ok(())
+
+    fn member(&mut self, m: &Member) -> Result[void, string]:
+        .Err("a keyed reader is never asked for a member")
+
+    fn end_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> string:
+        expected
+
+    fn is_absent(&mut self) -> bool:
+        self.absent != ""
+
+    fn keyed(&self) -> bool:
+        true
+
+    # A key that names no member is skipped with its value.
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, string]:
+        self.guesses.push("$guess")
+        self.ids.push(id)
+        while self.at < self.keys.len():
+            key := self.keys[self.at]
+            self.current = self.at
+            self.at += 1
+            let k: usize = 0
+            while k < members.len():
+                if members[k].name == key:
+                    return .Ok(.Some(k))
+                k += 1
+        .Ok(.None)
+
+    fn absent_field(&mut self, m: &Member, facts: Facts) -> void:
+        self.absent = m.name
+
+# A keyed reader that keeps the default `next_field`.
+struct NoFields:
+    pub reads: usize
+
+impl Deserializer for NoFields:
+    type Error = string
+
+    fn peek(&mut self) -> Result[ValueKind, string]:
+        .Ok(ValueKind.Int)
+
+    fn is_null(&mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
+        .Err(expected)
+
+    fn int(&mut self, expected: string) -> Result[i64, string]:
+        .Err(expected)
+
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
+        .Err(expected)
+
+    fn float(&mut self, expected: string) -> Result[f64, string]:
+        .Err(expected)
+
+    fn text(&mut self, expected: string) -> Result[string, string]:
+        .Err(expected)
+
+    fn begin_list(&mut self) -> Result[void, string]:
+        .Err("list")
+
+    fn next_item(&mut self) -> Result[bool, string]:
+        .Err("item")
+
+    fn begin_map(&mut self) -> Result[void, string]:
+        .Err("map")
+
+    fn next_key(&mut self) -> Result[string?, string]:
+        .Err("key")
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(0)
+
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        .Err("newtype")
+
+    fn member(&mut self, m: &Member) -> Result[void, string]:
+        .Err("member")
+
+    fn end_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> string:
+        expected
+
+    fn keyed(&self) -> bool:
+        true
+
+# A keyed reader that names no key and keeps the default `absent_field`.
+struct NoAbsent:
+    pub reads: usize
+
+impl Deserializer for NoAbsent:
+    type Error = string
+
+    fn peek(&mut self) -> Result[ValueKind, string]:
+        .Ok(ValueKind.Int)
+
+    fn is_null(&mut self) -> Result[bool, string]:
+        .Ok(false)
+
+    fn bool(&mut self, expected: string) -> Result[bool, string]:
+        .Err(expected)
+
+    fn int(&mut self, expected: string) -> Result[i64, string]:
+        .Err(expected)
+
+    fn uint(&mut self, expected: string) -> Result[u64, string]:
+        .Err(expected)
+
+    fn float(&mut self, expected: string) -> Result[f64, string]:
+        .Err(expected)
+
+    fn text(&mut self, expected: string) -> Result[string, string]:
+        .Err(expected)
+
+    fn begin_list(&mut self) -> Result[void, string]:
+        .Err("list")
+
+    fn next_item(&mut self) -> Result[bool, string]:
+        .Err("item")
+
+    fn begin_map(&mut self) -> Result[void, string]:
+        .Err("map")
+
+    fn next_key(&mut self) -> Result[string?, string]:
+        .Err("key")
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
+        .Ok(0)
+
+    fn begin_newtype_variant(&mut self) -> Result[void, string]:
+        .Err("newtype")
+
+    fn member(&mut self, m: &Member) -> Result[void, string]:
+        .Err("member")
+
+    fn end_variant(&mut self) -> Result[void, string]:
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> string:
+        expected
+
+    fn keyed(&self) -> bool:
+        true
+
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, string]:
+        .Ok(.None)
+
+@derive(Deserialize)
+struct Order:
+    id: i64
+    qty: i64 = 1
+    @skip()
+    cache: i64 = 0
+    note: i64?
+    count: i64
+
+@derive(Deserialize)
+enum Shape:
+    Rect(w: i64, h: i64)
+    Wrap(i64)
+
+@derive(Deserialize)
+struct Wide:
+    f0: i64?
+    f1: i64?
+    f2: i64?
+    f3: i64?
+    f4: i64?
+    f5: i64?
+    f6: i64?
+    f7: i64?
+    f8: i64?
+    f9: i64?
+    f10: i64?
+    f11: i64?
+    f12: i64?
+    f13: i64?
+    f14: i64?
+    f15: i64?
+    f16: i64?
+    f17: i64?
+    f18: i64?
+    f19: i64?
+    f20: i64?
+    f21: i64?
+    f22: i64?
+    f23: i64?
+    f24: i64?
+    f25: i64?
+    f26: i64?
+    f27: i64?
+    f28: i64?
+    f29: i64?
+    f30: i64?
+    f31: i64?
+    f32: i64?
+    f33: i64?
+    f34: i64?
+    f35: i64?
+    f36: i64?
+    f37: i64?
+    f38: i64?
+    f39: i64?
+    f40: i64?
+    f41: i64?
+    f42: i64?
+    f43: i64?
+    f44: i64?
+    f45: i64?
+    f46: i64?
+    f47: i64?
+    f48: i64?
+    f49: i64?
+    f50: i64?
+    f51: i64?
+    f52: i64?
+    f53: i64?
+    f54: i64?
+    f55: i64?
+    f56: i64?
+    f57: i64?
+    f58: i64?
+    f59: i64?
+    f60: i64?
+    f61: i64?
+    f62: i64?
+    f63: i64?
+    f64: i64?
+    f65: i64?
+
+fn show(o: Order) -> string:
+    "Order(${o.id}, ${o.qty}, ${debug(o.note)}, ${o.count})"
+
+fn read_order(keys: List[string], values: List[i64]) -> string:
+    let mut input = pairs(keys, values, 0)
+    match Order::deserialize(&mut input):
+        .Ok(o) => "${show(o)} guesses ${input.guesses.join(" ")}"
+        .Err(error) => error
+
+pub fn main() -> void $ Console:
+    println("any order: ${read_order(["count", "note", "id"], [3, 7, 1])}")
+    println("unknown and absent: ${read_order(["id", "extra", "count"], [2, 0, 5])}")
+    println("missing: ${read_order(["id"], [1])}")
+    println("duplicate: ${read_order(["id", "count", "id"], [1, 2, 3])}")
+    let mut rect = pairs(["h", "w"], [3, 4], 0)
+    match Shape::deserialize(&mut rect):
+        .Ok(.Rect(w, h)) => println("variant: Rect($w, $h)")
+        _ => println("variant: wrong")
+    let mut wrap = pairs([], [9], 1)
+    match Shape::deserialize(&mut wrap):
+        .Ok(.Wrap(n)) => println("newtype: Wrap($n)")
+        _ => println("newtype: wrong")
+    let mut first = pairs(["id", "count"], [1, 2], 0)
+    _ := Order::deserialize(&mut first)
+    let mut second = pairs(["count", "id"], [1, 2], 0)
+    _ := Order::deserialize(&mut second)
+    same := first.ids[0] == second.ids[0] && first.ids[1] == first.ids[0]
+    println("one id per type: $same ${first.ids[0] != rect.ids[0]}")
+    let mut wide = pairs(["f65", "f64"], [65, 64], 0)
+    match Wide::deserialize(&mut wide):
+        .Ok(w) => println("wide: ${debug(w.f65)} ${debug(w.f64)} ${debug(w.f63)}")
+        .Err(error) => println("wide: $error")
+    let mut twice = pairs(["f65", "f0", "f65"], [1, 2, 3], 0)
+    match Wide::deserialize(&mut twice):
+        .Ok(_) => println("wide duplicate: none")
+        .Err(error) => println("wide duplicate: $error")
+    let mut no_fields = NoFields { reads: 0 }
+    match Order::deserialize(&mut no_fields):
+        .Ok(_) => println("keyed without next_field: read")
+        .Err(error) => println("keyed without next_field: $error")
+    let mut no_absent = NoAbsent { reads: 0 }
+    match Order::deserialize(&mut no_absent):
+        .Ok(_) => println("keyed without absent_field: read")
+        .Err(error) => println("keyed without absent_field: $error")

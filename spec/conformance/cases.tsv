@@ -4133,6 +4133,7 @@ std/serde/data-model/deserializer-skip.hd	runtime	accept	std/serde.md#r-std-serd
 std/serde/standard-implementations/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
 std/serde/standard-implementations/serde-result-json.hd	runtime	accept	std/serde.md#r-std-serde.std.result
 std/serde/derived-implementations/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.data-and-enum-forms
+std/serde/derived-implementations/serde-derive-read-keyed.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.keyed-order
 std/serde/derived-implementations/serde-derive-empty-record.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.template
 std/serde/data-model/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args.local-ref
 std/serde/data-model/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors

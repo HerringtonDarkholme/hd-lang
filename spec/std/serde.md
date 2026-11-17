@@ -77,6 +77,10 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.tuple-variant] Tuple variant | `begin_variant(facts, choices)`, `begin_tuple_variant(len)`, then `next_item()` before each direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_tuple_variant` positions a payload of exactly `len` items |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
 | r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
+| r[std-serde.read.keyed] `keyed` | `keyed()` | `true` for a reader that names a record's members itself through `next_field`; the trait's default body gives `false` |
+| r[std-serde.read.next-field] `next_field` | `next_field(members, id, facts, guess)` | the index in `members` of the member that the record's next key names, or `.None` after its last key; a key that names no unskipped member is skipped with its value; the trait's default body is `invalid("keyed record")` |
+| r[std-serde.read.absent-field] `absent_field` | `absent_field(m, facts)` | nothing; after it, `is_absent` and `is_null` are true and any other read is the format's missing-member error |
+| r[std-serde.read.duplicate-field] `duplicate_field` | `duplicate_field()` | the format's error for a key that names a member an earlier key of the same record named; the trait's default body gives `invalid("unique key")` |
 | r[std-serde.read.skip] `skip` | `skip()` | nothing: it reads one value of any kind and drops it; the trait's default body reads the value through `peek` and the calls of its kind |
 
 1. r[std-serde.read.one-value] A `deserialize` call reads exactly one value.
@@ -84,6 +88,7 @@ A `Deserializer` reads the same tree, one call per value:
 3. r[std-serde.read.member.local-ref] A `member(m: &Member)` call positions the next value of that member, which the format may report as absent.
 4. r[std-serde.read.choice-metadata] `choices` holds the `VariantInfo` of every variant offered to `begin_variant`, in declaration order. `begin_data` receives a list containing the struct's one variant.
 5. r[std-serde.read.tuple-variant-default] `Deserializer`'s default `begin_tuple_variant` rejects the value through `invalid("tuple variant")`, so a format must opt in to tuple variants.
+6. r[std-serde.read.next-field.args] `next_field`'s `id` is the record's member directory id, [`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id), so every record of one type passes the same `id`. `guess` is the index of the member after the one the previous key named, or 0 before the first key.
 
 ```text
 use std.serde.Deserializer
@@ -115,9 +120,12 @@ writer or reader with a value's members. For the `Session` of
 2. r[std-serde.derive.serialize.data-and-enum-forms] Derived `serialize` writes every included walked member in declaration order. A struct uses `begin_data`, `member(m)` before each value, and `end_data`. A unit, named, or mixed positional-and-named enum variant uses `begin_variant`, `member(m)` before each value, and `end_variant`. A pure positional variant uses this derivation's included positional-member count. Zero uses the unit record form, one uses `begin_newtype_variant`, and more uses `begin_tuple_variant` with that count. Every enum form ends with `end_variant`.
 3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
 4. r[std-serde.derive.deserialize.data-and-enum-forms] Derived `deserialize` offers a struct's one variant to `begin_data`, reads every unskipped built member in declaration order through `member(m)`, and calls `end_data`. For an enum it offers every variant to `begin_variant`, selects the same included-member form as serialization, reads every unskipped built member in declaration order, and calls `end_variant`. Enum record forms call `member(m)` before each value, a newtype form reads its direct value, and a tuple form calls `next_item()` before each direct value.
-5. r[std-serde.derive.deserialize.unskipped-default] After `member(m)`, derived deserialization asks `is_absent()` for an unskipped defaulted member, using its declared default instead of `deserialize` when absent.
-6. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
-7. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
+5. r[std-serde.derive.deserialize.keyed-order] When the reader's `keyed()` is `true`, a struct or an enum record form reads its unskipped built members in the order `next_field` names them, in place of declaration order and `member(m)`. After the last key it calls `absent_field(m, facts)` for each unskipped built member no key named, in declaration order, and then reads that member.
+6. r[std-serde.derive.deserialize.keyed-duplicate] When `next_field` names a member that an earlier key of the same record named, derived `deserialize` returns `duplicate_field()`'s error and reads nothing more.
+7. r[std-serde.derive.deserialize.keyed-default] For a keyed reader, `is_absent()` is asked after a member is named or offered through `absent_field`, in place of after `member(m)`; an absent defaulted member then takes its declared default.
+8. r[std-serde.derive.deserialize.unskipped-default] After `member(m)`, derived deserialization asks `is_absent()` for an unskipped defaulted member, using its declared default instead of `deserialize` when absent.
+9. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
+10. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
 
 ```text
 use std.serde.{Serialize, Deserialize}
