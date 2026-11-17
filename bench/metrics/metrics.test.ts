@@ -10,6 +10,7 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -71,7 +72,14 @@ import {
   percentile,
   spread,
 } from "./lib/stats.ts";
-import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
+import {
+  makeTempDir,
+  removeTempDir,
+  settle,
+  SETTLE_MS,
+  settleWaitMs,
+  treeBytes,
+} from "./lib/tmp.ts";
 import { parseStrace } from "./lib/trace.ts";
 import { cacheShape } from "./scripts/cache-contention.ts";
 import { latencyBound } from "./scripts/concurrency.ts";
@@ -580,6 +588,19 @@ describe("pillar 2 helpers", () => {
   it("takes a native hd as its own toolchain, even in a checkout with node_modules", () => {
     const toolchain = toolchainOf([process.execPath]);
     assert.deepEqual(toolchain, { kind: "files", paths: [realpathSync(process.execPath)] });
+  });
+
+  it("waits until a generated tree is older than hd's settle window", async () => {
+    assert.equal(settleWaitMs(1_000, 1_000 + SETTLE_MS + 500), 0);
+    assert.equal(settleWaitMs(1_000, 1_000), SETTLE_MS + 100);
+    const dir = makeTempDir("settle");
+    writeFileSync(join(dir, "a.hd"), "");
+    const waited = await settle(dir);
+    assert.ok(waited > SETTLE_MS - 500, `waited ${waited} ms`);
+    const stats = statSync(join(dir, "a.hd"));
+    assert.ok(Date.now() - Math.max(stats.mtimeMs, stats.ctimeMs) >= SETTLE_MS);
+    assert.equal(await settle(dir), 0);
+    removeTempDir(dir);
   });
 
   it("judges a worktree's artifacts alone and records the toolchain apart", () => {

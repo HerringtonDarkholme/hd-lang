@@ -10,6 +10,7 @@ import { editBody, editFile, materialize } from "../lib/gen.ts";
 import { freshCache, runHd, runProblem, timedSeries } from "../lib/hd.ts";
 import { failed, judge, type Metric } from "../lib/metric.ts";
 import { p50, p95 } from "../lib/stats.ts";
+import { settle } from "../lib/tmp.ts";
 
 const NAME = "edit-latency";
 const EDITS = 20;
@@ -23,6 +24,8 @@ export const editLatency: Metric = {
   async run(context) {
     const { dir, pkg } = materialize("10k", NAME);
     const env = freshCache();
+    // Unsettled files get no stamp, so every check would read them all.
+    await settle(dir);
     context.log(`${NAME}: ${pkg.lines} lines, ${pkg.modules.length} modules; warm-up check`);
     const warm = await runHd(context.hd, ["check"], { cwd: dir, env, timeoutMs: WARM_TIMEOUT_MS });
     const warmProblem = runProblem(warm, WARM_TIMEOUT_MS, "the warm-up check");

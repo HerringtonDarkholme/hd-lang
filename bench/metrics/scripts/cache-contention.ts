@@ -26,7 +26,7 @@ import { entryProblem, prepareDependent } from "../lib/deps.ts";
 import { freshCache, runHd, runProblem } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judgeBool, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
-import { listTree, makeTempDir } from "../lib/tmp.ts";
+import { listTree, makeTempDir, settle } from "../lib/tmp.ts";
 import { copyPackage, materialize } from "../lib/gen.ts";
 
 const NAME = "cache-contention";
@@ -141,6 +141,8 @@ async function compileLines(context: MetricContext): Promise<TargetResult[]> {
   }
   const env = freshCache();
   const dirs = Array.from({ length: value }, () => copyPackage(source, NAME));
+  // Unsettled files get no stamp, so every check would read them all.
+  await settle(...dirs);
   context.log(`${NAME}: ${value} concurrent checks with one compilation cache`);
   const problem =
     (await checkAll(context, dirs, env, "concurrent check")) ??

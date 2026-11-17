@@ -16,7 +16,7 @@ import { canMeasure, runHd, runProblem } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
-import { makeTempDir } from "../lib/tmp.ts";
+import { makeTempDir, settle } from "../lib/tmp.ts";
 
 const NAME = "startup";
 const RUNS = 5;
@@ -83,9 +83,19 @@ export const startup: Metric = {
       context.log(`${NAME}: no /usr/bin/time; CPU and RSS are n/a`);
     }
     const version = await versionCommand(context, cwd);
+    // Agents check both a file they just wrote, which hd reads again until
+    // it is SETTLE old, and a settled one, whose stamp hd trusts.
+    const fresh = await measure(
+      context,
+      "hd check empty.hd, just written",
+      ["check", "empty.hd"],
+      cwd,
+    );
+    await settle(cwd);
     return [
       ...(await measure(context, version.label, version.args, cwd)),
-      ...(await measure(context, "hd check empty.hd", ["check", "empty.hd"], cwd)),
+      ...fresh,
+      ...(await measure(context, "hd check empty.hd, settled", ["check", "empty.hd"], cwd)),
     ];
   },
 };

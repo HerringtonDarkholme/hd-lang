@@ -151,3 +151,39 @@ export function treeBytes(root: string): { readonly bytes: number; readonly file
   walk(root);
   return { bytes, files: seen.size };
 }
+
+/**
+ * How long hd waits before it trusts a file's stamp: a file whose mtime or
+ * ctime is newer than this when a run lists it is read again on every run
+ * (`SETTLE` in crates/hd_cli/src/disk.rs, git's racy-clean rule). The margin
+ * covers the coarse clock.
+ */
+export const SETTLE_MS = 2_000;
+const SETTLE_MARGIN_MS = 100;
+
+/** The wait until a file last changed at `newestMs` is settled at `nowMs`. */
+export function settleWaitMs(newestMs: number, nowMs: number): number {
+  return Math.max(0, newestMs + SETTLE_MS + SETTLE_MARGIN_MS - nowMs);
+}
+
+/**
+ * Waits until every file under `roots` is settled, so a warm run sees
+ * stamped files, as an agent's checks do once a checkout or a generator is
+ * a few seconds old. A ctime cannot be set back, so backdating with
+ * `utimes` would not do. One walk of the trees and one wait; returns the
+ * ms waited.
+ */
+export async function settle(...roots: readonly string[]): Promise<number> {
+  let newest = 0;
+  for (const root of roots) {
+    for (const path of listTree(root)) {
+      const stats = lstatSync(join(root, path));
+      newest = Math.max(newest, stats.mtimeMs, stats.ctimeMs);
+    }
+  }
+  const wait = settleWaitMs(newest, Date.now());
+  if (wait > 0) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+  return wait;
+}

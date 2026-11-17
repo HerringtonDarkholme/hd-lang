@@ -17,7 +17,7 @@ import { findCompileCache } from "../lib/capability.ts";
 import { editBody, editFile, materialize } from "../lib/gen.ts";
 import { freshCache, runHd, runProblem, runProcess } from "../lib/hd.ts";
 import { failed, judge, notApplicable, type Metric } from "../lib/metric.ts";
-import { makeTempDir } from "../lib/tmp.ts";
+import { makeTempDir, settle } from "../lib/tmp.ts";
 import { fileTracer, parseStrace } from "../lib/trace.ts";
 
 const NAME = "io-per-check";
@@ -56,6 +56,8 @@ export const ioPerCheck: Metric = {
     }
     const { dir, pkg } = materialize("10k", NAME);
     const env = freshCache();
+    // Unsettled files get no stamp, so every check would read them all.
+    await settle(dir);
     const warm = await runHd(context.hd, ["check"], { cwd: dir, env, timeoutMs: TIMEOUT_MS });
     const warmProblem = runProblem(warm, TIMEOUT_MS, "the warm-up check");
     if (warmProblem) {
