@@ -2744,6 +2744,16 @@ impl Env<'_> {
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
     pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+        // A body with no type arguments gets no `hd_mono::instantiate`,
+        // so its bound calls at a closed receiver are chosen here, as
+        // collection selects them: at an opaque result's hidden type, or
+        // at the template's `Self` in a derived instance. Instances were
+        // chosen when built; an open receiver stays `Bound`.
+        let pool = &self.run.pool;
+        hd_tir::inline::rechoose(body, &|t, s, a| {
+            let s = hd_mono::reveal(pool, self, s)?;
+            InlineEnv::select_choice(self, t, s, a)
+        });
         let structure = hd_opt::structure_specialize::specialize_calls(self, body, hash);
         let facts = hd_opt::fact_specialize::specialize_calls(self, body, structure);
         // Generated structure accessors and declaration facts can both

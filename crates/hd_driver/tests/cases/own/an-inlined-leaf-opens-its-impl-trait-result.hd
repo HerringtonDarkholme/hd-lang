@@ -4,8 +4,9 @@
 # while the copy of its body has the hidden one, `Square`. Once the copy
 # goes in, the caller opens its own opaque results too, and the copy's
 # `Break` carries the type the call's block has. The bound's `area` call
-# at the opened receiver is chosen again as `Square`'s impl, as an
-# instance's are (#2103), so the summary names no unknown write.
+# at the opaque receiver is chosen as `Square`'s impl before the inliner
+# runs, as collection selects it, so its copy goes in too and the summary
+# names no unknown write.
 trait Shape:
     fn area(self) -> i32
 
