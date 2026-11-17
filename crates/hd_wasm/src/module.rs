@@ -1125,6 +1125,11 @@ pub struct Module {
     pub open_world: bool,
     /// Reachable package capabilities and their generated adapter schemas.
     pub package_contract: hd_host_abi::schema::Contract,
+    /// Interface lookup during construction; finish sorts the contract only
+    /// after all recording is complete.
+    pub(crate) package_interface_at: hd_base::HashMap<String, usize>,
+    #[cfg(test)]
+    pub(crate) package_interface_probes: usize,
     /// Defined functions by symbol. A helper is defined when
     /// [`Module::finish`] finds a body naming it.
     symbols: Symbols,
@@ -1303,6 +1308,9 @@ impl Module {
             init_insts: Vec::default(),
             open_world: Default::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
+            package_interface_at: hd_base::HashMap::default(),
+            #[cfg(test)]
+            package_interface_probes: 0,
             symbols: Symbols::default(),
             funcs: Vec::default(),
             inst_order: Vec::default(),

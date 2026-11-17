@@ -2822,21 +2822,24 @@ pub fn package_module(identity: &hd_host_abi::schema::Identity, handle: bool) ->
 /// called methods and their signatures decide the rest, so a second record
 /// of one module is the same interface.
 pub fn record_package_interface(m: &mut Module, interface: hd_host_abi::schema::Interface) {
-    if let Some(previous) = m
-        .package_contract
-        .interfaces
-        .iter()
-        .find(|i| i.module == interface.module)
+    #[cfg(test)]
     {
-        // ruled out: rt::profile_vtable records a provider's interface
-        // once per key, and `handle_vtable` a handle's once per trait,
-        // each from the trait's own declaration.
-        debug_assert!(
-            previous == &interface,
-            "two package host interfaces for one module"
-        );
-    } else {
-        m.package_contract.interfaces.push(interface);
+        m.package_interface_probes += 1;
+    }
+    match m.package_interface_at.entry(interface.module.clone()) {
+        hd_base::hash::hash_map::Entry::Occupied(entry) => {
+            // ruled out: rt::profile_vtable records a provider's interface
+            // once per key, and `handle_vtable` a handle's once per trait,
+            // each from the trait's own declaration.
+            debug_assert!(
+                m.package_contract.interfaces[*entry.get()] == interface,
+                "two package host interfaces for one module"
+            );
+        }
+        hd_base::hash::hash_map::Entry::Vacant(entry) => {
+            entry.insert(m.package_contract.interfaces.len());
+            m.package_contract.interfaces.push(interface);
+        }
     }
 }
 
@@ -3404,5 +3407,63 @@ console.log('owned and discarded boundary decoders passed');
             String::from_utf8_lossy(&output.stdout).trim(),
             "owned and discarded boundary decoders passed"
         );
+    }
+}
+
+#[cfg(test)]
+mod package_interface_tests {
+    use super::*;
+    use hd_host_abi::schema::{Identity, Interface};
+
+    fn interface(i: usize, handle: bool) -> Interface {
+        let identity = Identity {
+            package: "interfaces".into(),
+            version: "1.0.0".into(),
+            trait_path: format!("Trait{i}"),
+        };
+        Interface {
+            module: package_module(&identity, handle),
+            identity,
+            selectors: vec![],
+            handle,
+            methods: vec![],
+        }
+    }
+
+    #[test]
+    fn package_interface_recording_is_linear_and_preserves_order() {
+        for width in [1_000, 10_000] {
+            let mut m = Module::default();
+            // Provider and returned-handle roles of the same trait must
+            // remain distinct. Repeat records in reverse order as well.
+            for i in (0..width).rev() {
+                for handle in [false, true] {
+                    record_package_interface(&mut m, interface(i, handle));
+                }
+            }
+            for i in 0..width {
+                for handle in [true, false] {
+                    record_package_interface(&mut m, interface(i, handle));
+                }
+            }
+            assert_eq!(m.package_interface_probes, 4 * width);
+            assert_eq!(m.package_interface_at.len(), 2 * width);
+            assert_eq!(m.package_contract.interfaces.len(), 2 * width);
+            for (at, got) in m.package_contract.interfaces.iter().enumerate() {
+                assert_eq!(*got, interface(width - at / 2 - 1, at % 2 == 1));
+                assert_eq!(m.package_interface_at[&got.module], at);
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "two package host interfaces for one module")]
+    fn package_interface_duplicate_must_have_the_same_schema() {
+        let mut m = Module::default();
+        let mut value = interface(0, false);
+        record_package_interface(&mut m, value.clone());
+        value.selectors.push("different".into());
+        record_package_interface(&mut m, value);
     }
 }
