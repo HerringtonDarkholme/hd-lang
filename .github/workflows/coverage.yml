@@ -1,0 +1,70 @@
+name: Coverage
+
+# Core coverage on its own workflow, every 3 hours on main and by hand
+# (moved out of Test on 2026-11-16). Two core-coverage drops that day (#2065,
+# hd_types; #2071, hd_tir) surfaced only at Test's twice-daily run, one 7.7 h
+# after the commit that caused it. Test's own schedule stays twice a day: it
+# also starts the Windows and macOS host jobs. Coverage stays off push runs:
+# three instrumented conformance runs are too slow for every push.
+on:
+  schedule:
+    - cron: "53 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One run at a time; a newer one waits instead of cancelling the running one.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  coverage:
+    name: Core coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      # The full history, so a drop lists the uncovered lines changed since the
+      # baseline's commit.
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      # Its own key and folder: instrumented builds share no artifacts with
+      # the plain ones, and cargo-llvm-cov builds in target/llvm-cov-target.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          key: coverage
+          workspaces: ". -> target/llvm-cov-target"
+
+      - name: Install coverage tools
+        run: rustup component add llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.6.14
+
+      - name: Measure and check
+        run: node scripts/coverage.ts --check
+
+      - name: Store the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-coverage
+          path: |
+            bench/coverage/report.json
+            bench/coverage/summary.md
+            bench/coverage/uncovered/
+            target/coverage/lcov.info
+          if-no-files-found: ignore
