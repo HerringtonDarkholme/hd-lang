@@ -1275,6 +1275,26 @@ fn same_named_path_dependencies_are_two_packages() {
     let (stdout, stderr) = fails(&world.hd(&dir, &["check"]));
     let all = stdout + &stderr;
     assert!(all.contains("`money` declares no `nothing`"), "{all}");
+    // A type mismatch shows each type's key as `hd.toml` spells it, a
+    // hyphen and all, while source names it with an underscore.
+    std::fs::write(
+        dir.join("hd.toml"),
+        "[package]\nname = \"app\"\n\n[capabilities]\nConsole = true\n\n\
+         [dependencies]\neuro = { path = \"../a\" }\nmy-yen = { path = \"../b\" }\n",
+    )
+    .expect("write");
+    std::fs::write(
+        dir.join("src/main.hd"),
+        "use dep.euro\nuse dep.my_yen.{Coin as Yen}\n\n\
+         pub fn main() -> void $ Console:\n    let y: Yen = euro.make(1)\n    println(y.cents)\n",
+    )
+    .expect("write");
+    let (stdout, stderr) = fails(&world.hd(&dir, &["check"]));
+    let all = stdout + &stderr;
+    assert!(
+        all.contains("expected money.Coin (my-yen), found money.Coin (euro)"),
+        "{all}"
+    );
 }
 
 /// A package that two dependers reach through the same directory is one

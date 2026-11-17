@@ -446,7 +446,8 @@ pub struct PackageIn<'a> {
     pub identity: &'a str,
     pub sources: &'a dyn SourceSet,
     pub scope: Scope,
-    /// Each dependency, by the name source writes after `dep.`, and the
+    /// Each dependency, by its key as `hd.toml` spells it (source writes
+    /// it after `dep.` with each `-` as `_`, `package_ident`), and the
     /// index of its package in the discovery list.
     pub requires: Vec<(String, u16)>,
     /// The entry modules its `[[executable]]` tables name, by their path
@@ -631,7 +632,8 @@ pub struct ModuleTable {
     /// Per package: its module root, which its module paths start with,
     /// unique in the table (`module_roots`).
     pub roots: Vec<String>,
-    /// Per package: each dependency name and its package index.
+    /// Per package: each dependency key, as `PackageIn::requires`, and its
+    /// package index.
     pub requires: Vec<Vec<(String, u16)>>,
     /// Per package: its dev dependencies, in the same form; only the root
     /// has any.
@@ -1399,14 +1401,20 @@ impl ModuleTable {
             floor: module.floor.clone(),
             deps: self.requires[package]
                 .iter()
-                .map(|(name, p)| (name.clone(), ident(*p)))
+                .map(|(key, p)| (package_ident(key), ident(*p)))
                 .collect(),
             dev: self
                 .dev_requires
                 .get(package)
                 .into_iter()
                 .flatten()
-                .map(|(name, p)| (name.clone(), ident(*p), self.reaches(*p, module.package)))
+                .map(|(key, p)| {
+                    (
+                        package_ident(key),
+                        ident(*p),
+                        self.reaches(*p, module.package),
+                    )
+                })
                 .collect(),
             access,
         }

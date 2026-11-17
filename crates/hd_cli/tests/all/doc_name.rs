@@ -38,7 +38,7 @@ fn a_dependency_name_finds_only_its_pub_items() {
         &[
             (
                 "hd.toml",
-                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\n",
+                "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n[dependencies]\nmoney = { path = \"money\" }\ncash-box = { path = \"cash\" }\n",
             ),
             (
                 "src/main.hd",
@@ -47,6 +47,11 @@ fn a_dependency_name_finds_only_its_pub_items() {
             (
                 "money/hd.toml",
                 "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
+            ),
+            ("cash/hd.toml", "[package]\nname = \"cash\"\n"),
+            (
+                "cash/src/lib.hd",
+                "## Counts coins.\npub fn coins() -> i32: 2\n",
             ),
             (
                 "money/src/lib.hd",
@@ -63,6 +68,13 @@ fn a_dependency_name_finds_only_its_pub_items() {
     );
     assert_eq!(out.status.code(), Some(0));
     assert!(!root.join("site").exists());
+    // A hyphenated key is named as source writes it, with an underscore.
+    let out = hd(&root, &cache, &["doc", "dep.cash_box.coins"]);
+    assert!(
+        text(&out.stdout).starts_with("## `coins`\n"),
+        "{}",
+        text(&out.stderr)
+    );
     let out = hd(&root, &cache, &["doc", "dep.money.pkg"]);
     assert!(
         text(&out.stdout).starts_with("# Module `pkg`\n"),
@@ -85,6 +97,12 @@ fn a_dependency_name_finds_only_its_pub_items() {
     let out = hd(&root, &cache, &["doc", "dep.money.helper"]);
     assert!(
         text(&out.stderr).contains("candidates: dep.money.pkg, dep.money.cents"),
+        "{}",
+        text(&out.stderr)
+    );
+    let out = hd(&root, &cache, &["doc", "dep.nope.cents"]);
+    assert!(
+        text(&out.stderr).contains("dep.cash_box"),
         "{}",
         text(&out.stderr)
     );

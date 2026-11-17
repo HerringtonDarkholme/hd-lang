@@ -305,7 +305,8 @@ fn walk_below(
     Ok(())
 }
 
-/// A package's requirements: each dependency name and its package index,
+/// A package's requirements: each dependency key, as `hd.toml` spells it,
+/// and its package index,
 /// 0 for the root and `i + 1` for `Program::deps[i]`.
 pub type Requires = Vec<(String, u16)>;
 

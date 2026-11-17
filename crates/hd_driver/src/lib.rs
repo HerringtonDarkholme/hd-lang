@@ -2088,9 +2088,9 @@ pub struct Packages<'a> {
     /// stays out of the toolchain key, so builds that differ only in this file
     /// share what they check of the rest of std. Its own entries key on its text.
     pub std_leaf: Option<&'a str>,
-    /// The root's requirements: each dependency name, as source writes it
-    /// after `dep.`, and its package index: 0 is the root, `i + 1` is
-    /// `deps[i]`.
+    /// The root's requirements: each dependency key, as `hd.toml` spells
+    /// it (source writes it after `dep.` with each `-` as `_`), and its
+    /// package index: 0 is the root, `i + 1` is `deps[i]`.
     pub requires: Vec<(String, u16)>,
     pub deps: Vec<Dependency<'a>>,
     /// The root's executable entry modules, by their path below its source

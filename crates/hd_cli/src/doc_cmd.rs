@@ -211,7 +211,10 @@ fn dependency_roots(program: &disk::Program) -> Vec<(String, String)> {
         .iter()
         .filter_map(|(key, i)| {
             let dep = program.deps.get(usize::from(*i).checked_sub(1)?)?;
-            Some((key.clone(), hd_project::package_ident(&dep.name)))
+            Some((
+                hd_project::package_ident(key),
+                hd_project::package_ident(&dep.name),
+            ))
         })
         .collect()
 }
@@ -292,13 +295,13 @@ fn print_name(
             let Some(dep) = program
                 .requires
                 .iter()
-                .find(|(k, _)| k == key)
+                .find(|(k, _)| hd_project::package_ident(k) == key)
                 .and_then(|(_, i)| program.deps.get(usize::from(*i).checked_sub(1)?))
             else {
                 let keys: Vec<String> = program
                     .requires
                     .iter()
-                    .map(|(k, _)| format!("dep.{k}"))
+                    .map(|(k, _)| format!("dep.{}", hd_project::package_ident(k)))
                     .collect();
                 return Err(missing(name, &keys, rep));
             };

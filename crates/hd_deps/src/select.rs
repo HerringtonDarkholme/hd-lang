@@ -71,7 +71,8 @@ pub struct Package {
     /// and compatibility line, as `github.com/acme/json@2`, or a local
     /// package's canonical directory.
     pub identity: String,
-    /// Each requirement's source name and the index of its package.
+    /// Each requirement's key, as `hd.toml` spells it (source writes it
+    /// with each `-` as `_`), and the index of its package.
     pub requires: Vec<(String, usize)>,
     /// The dev requirements of a member, in the same form; empty for any
     /// other package (`module.select.dev-dependencies`).
@@ -99,7 +100,8 @@ enum Target {
 
 #[derive(Clone, Debug)]
 struct Edge {
-    name: String,
+    /// The requirement's key, as `hd.toml` spells it.
+    key: String,
     dev: bool,
     target: Target,
     at: Place,
@@ -184,7 +186,7 @@ fn local_edges(dir: &Path, m: &Manifest, member: bool, toolchain: &str) -> Vec<E
         };
         if let Some(target) = target {
             out.push(Edge {
-                name: r.name(),
+                key: r.key.clone(),
                 dev: is_dev,
                 target,
                 at: Place {
@@ -546,7 +548,7 @@ fn select_graph(
                 };
                 match target {
                     Ok(target) => edges.push(Edge {
-                        name: r.name(),
+                        key: r.key.clone(),
                         dev: false,
                         target,
                         at: at.clone(),
@@ -627,7 +629,7 @@ fn select_graph(
         for e in &nodes[i].edges {
             if !e.dev
                 && executable_entry
-                    .is_some_and(|(member, entry)| e.at.dir.as_path() == member && e.name == entry)
+                    .is_some_and(|(member, entry)| e.at.dir.as_path() == member && e.key == entry)
             {
                 // Do not mark its target checked: a real dependency edge to
                 // the same package must still require a library.
@@ -668,7 +670,7 @@ fn select_graph(
             node.edges
                 .iter()
                 .filter(|e| e.dev == dev)
-                .filter_map(|e| Some((e.name.clone(), target_of(&e.target)?)))
+                .filter_map(|e| Some((e.key.clone(), target_of(&e.target)?)))
                 .collect()
         };
         sel.packages.push(Package {

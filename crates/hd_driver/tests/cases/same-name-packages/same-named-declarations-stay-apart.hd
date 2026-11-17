@@ -4,9 +4,11 @@
 # manifests share the name `money` are two packages, so one's `Coin` is
 # not the other's. The mismatch names neither by an internal `$` root:
 # each type shows its dependency key, inside a generic type too, while a
-# function path shows none.
+# function path shows none. A key is shown as the manifest spells it,
+# `my-wallet`, though source writes `dep.my_wallet`.
 use dep.euro
 use dep.yen.{Coin as Yen}
+use dep.my_wallet.{Coin as Wallet}
 
 pub fn main() -> void $ Console:
     let y: Yen = euro.make(1)
@@ -14,6 +16,8 @@ pub fn main() -> void $ Console:
     let f: fn(i32) -> Yen = euro.make
     println(y.cents + f(3).cents)
     println(ys.len())
+    let w: Wallet = euro.make(4)
+    println(w.cents)
 # @dependency: euro=money
 # @file: src/lib.hd
 pub struct Coin:
@@ -28,3 +32,7 @@ pub struct Coin:
 
 pub fn make(n: i32) -> Coin:
     Coin { cents: n * 1000 }
+# @dependency: my-wallet=money
+# @file: src/lib.hd
+pub struct Coin:
+    pub cents: i32
