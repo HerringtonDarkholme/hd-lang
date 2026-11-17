@@ -2014,6 +2014,9 @@ impl Ck<'_, '_> {
                 self.err(Code::MissingDerivedBound, n, &msg);
                 return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
             }
+            if let Some(v) = self.fn_operand_hint(tr, trait_name, at, ct, n)? {
+                return Ok(v);
+            }
             let mut msg = format!(
                 "{} does not implement `{trait_name}` for this operand",
                 self.show(at)
@@ -2037,24 +2040,22 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
-        // A function-typed left operand selects implementations by its
-        // own type: row subsumption does not apply
-        // (`expr.op.left-dispatch.exact-function`), so a winner for a
-        // wider row does not fit. The message suggests the
-        // implementation's function type
-        // (`expr.op.left-dispatch.exact-function.message`).
+        // The head match still ignores a function row's keys (#2072), so
+        // a goal on a function operand can hold by an implementation for
+        // a wider row, which does not fit
+        // (`expr.op.left-dispatch.exact-function`).
         let pool = self.pool();
         let operand = self.infer.resolve(pool, self.resolved(at));
         if matches!(pool.get(operand), TyData::Fn { .. })
             && let Some(winner) = self.op_impl_winner(tr, at, Some(ct))?
             && self.infer.resolve(pool, winner) != operand
         {
-            // The suggestion names the implementation's function type
-            // with its row: the rows are the whole difference.
-            let winner = show_ty_rows_in(&self.cx.names, pool, self.infer.resolve(pool, winner));
+            if let Some(v) = self.fn_operand_hint(tr, trait_name, at, ct, n)? {
+                return Ok(v);
+            }
             let msg = format!(
-                "{} does not implement `{trait_name}` for this operand; a function operand selects by its own type, so bind it with the implementation's type, as in `let handler: {winner} = ...`",
-                self.show(at),
+                "{} does not implement `{trait_name}` for this operand",
+                self.show(at)
             );
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
@@ -2312,6 +2313,94 @@ impl Ck<'_, '_> {
             self_ty: t,
             args: pool.list(&args),
         }
+    }
+
+    /// A function-typed left operand selects implementations by its own
+    /// type: row subsumption does not apply
+    /// (`expr.op.left-dispatch.exact-function`). When the operator's goal
+    /// fails for such an operand, the error suggests a binding typed with
+    /// the function type, of another row, that an implementation takes
+    /// (`expr.op.left-dispatch.exact-function.message`); `None` when the
+    /// operand is not a function or no row fits.
+    ///
+    /// The near implementation is found by its own lookup, as rustc's
+    /// `find_similar_impl_candidates` does: the trait's rows in the
+    /// operand's head-index bucket (`HeadKey::Fn`), and for each distinct
+    /// closed head row other than the operand's, the goal solved again
+    /// with the operand's row replaced by it; the first that holds is
+    /// named. A head row that names the impl's parameters is skipped: it
+    /// has no one type to suggest. Cost, on the error path only: one
+    /// bucket probe, then one solve per distinct row in the bucket.
+    fn fn_operand_hint(
+        &mut self,
+        tr: DefId,
+        trait_name: &str,
+        at: Ty,
+        ct: Ty,
+        n: NodeRef<'_>,
+    ) -> StageResult<Option<Ref>> {
+        let pool = self.pool();
+        let operand = self.infer.resolve(pool, self.resolved(at));
+        let TyData::Fn {
+            params,
+            result,
+            row: own,
+            suspends,
+            inputs,
+            deps,
+        } = pool.get(operand)
+        else {
+            return Ok(None);
+        };
+        let mut reads = hd_types::lookup::UniverseReads::default();
+        let rows: Vec<hd_types::RowId> = hd_types::solver::Impls::Owned(self.cx.impls)
+            .candidates(pool, tr, operand, &[], true, &mut reads)
+            .into_iter()
+            .filter_map(
+                |(r, table)| match pool.get(table.head_self[r.row as usize]) {
+                    TyData::Fn { row, .. } => Some(row),
+                    // The bucket's `Param` rows: a bare-parameter impl target
+                    // is rejected before tables are built (tried
+                    // `impl[T < Marked] Shr[Layer] for T`), so none is here.
+                    _ => None,
+                },
+            )
+            .collect();
+        let mut tried: hd_base::HashSet<hd_types::RowId> = hd_base::HashSet::default();
+        tried.insert(own);
+        for row in rows {
+            if !tried.insert(row) || pool.has_param(pool.intern_ty(&TyData::Row(row))) {
+                continue;
+            }
+            let near = pool.intern_ty(&TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+                deps,
+            });
+            let tref = self.op_tref(tr, near, Some(ct));
+            if !matches!(self.solve(tref)?, Answer::Holds { .. }) {
+                continue;
+            }
+            // The suggestion names the function type with its row: the
+            // rows are the whole difference.
+            let near = show_ty_rows_in(&self.cx.names, pool, near);
+            let msg = format!(
+                "{} does not implement `{trait_name}` for this operand; a function operand selects by its own type, so bind it with the implementation's type, as in `let handler: {near} = ...`",
+                self.show(at),
+            );
+            self.err(Code::TypeMismatch, n, &msg);
+            return Ok(Some(self.b.emit(
+                Tag::Poison,
+                NONE,
+                NONE,
+                Ty::POISON,
+                n.index(),
+            )));
+        }
+        Ok(None)
     }
 
     /// The winning implementation's instantiated self type for an

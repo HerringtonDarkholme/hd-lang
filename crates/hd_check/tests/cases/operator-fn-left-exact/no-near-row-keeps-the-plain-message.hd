@@ -1,0 +1,61 @@
+# @dump: diagnostics
+# A function operand whose operator goal fails gets the plain message
+# when no implementation takes its function type with another closed
+# row (`expr.op.left-dispatch.exact-function.message`): no
+# implementation at all (`no_impl`); implementations whose rows are the
+# operand's own or take another right operand (`other_rhs`); a head row
+# naming the impl's parameter, which has no one type to suggest
+# (`param_row`).
+use std.ops.{BitOr, Shl, Shr}
+
+trait Db
+
+trait Gen[X]:
+    fn make(self) -> X
+
+struct Layer:
+    depth: i32
+
+struct Other:
+    depth: i32
+
+struct Third:
+    depth: i32
+
+struct Fourth:
+    depth: i32
+
+impl Shr[Other] for fn(i32) -> i32:
+    type Out = i32
+    fn shr(self, rhs: Other) -> i32:
+        rhs.depth
+
+impl Shr[Fourth] for fn(i32) -> i32 $ Db:
+    type Out = i32
+    fn shr(self, rhs: Fourth) -> i32:
+        rhs.depth
+
+impl Shr[Third] for fn(i32) -> i32 $ Db:
+    type Out = i32
+    fn shr(self, rhs: Third) -> i32:
+        rhs.depth
+
+impl[X] BitOr[Layer] for fn(i32) -> i32 $ Gen[X]:
+    type Out = i32
+    fn bit_or(self, rhs: Layer) -> i32:
+        rhs.depth
+
+fn get(n: i32) -> i32:
+    n
+
+fn no_impl(layer: Layer) -> i32:
+    get << layer
+
+fn other_rhs(layer: Layer) -> i32:
+    get >> layer
+
+fn param_row(layer: Layer) -> i32:
+    get | layer
+
+pub fn main() -> void:
+    pass
