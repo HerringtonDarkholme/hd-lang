@@ -38,9 +38,10 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
-      - name: Build release compiler
+      - name: Build the shipped compiler
         run: |
-          cargo build --release -p hd_cli
+          # The `dist` profile is the shipped binary (Cargo.toml): stripped, ThinLTO.
+          cargo build --profile dist -p hd_cli
           # The `scale` metric's node-kind coverage dumps trees with it.
           cargo build --release -p hd_syntax --example parse_check
 
@@ -49,7 +50,7 @@ jobs:
         continue-on-error: true
         env:
           HD_METRICS_RUNNER: ubuntu-latest
-        run: pnpm run metrics -- --suite --json metrics.json
+        run: pnpm run metrics -- --hd target/dist/hd --suite --json metrics.json
 
       - name: Store daily results
         if: ${{ !cancelled() && steps.metrics.outcome != 'skipped' }}

@@ -40,6 +40,16 @@ opt-level = 1
 lto = "off"
 debug = "line-tables-only"
 
+# The shipped `hd` binary: `cargo build --profile dist -p hd_cli`, written
+# to target/dist/hd (the metrics workflow measures it). Stripped, ThinLTO,
+# one codegen unit, as cargo-dist's `dist` profile. `release` stays
+# untuned, because `cargo test --release` builds every test binary with it.
+[profile.dist]
+inherits = "release"
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
 # The playground's compiler wasm (scripts/build-web-compiler.ts, which
 # also compresses the linker's relocations). Only that build selects it
 # (crates/hd_web/DESIGN.md §4). `opt-level = "s"`, not "z": "z" cut the

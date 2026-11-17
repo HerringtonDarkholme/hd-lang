@@ -34,7 +34,9 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 
 - `--hd COMMAND` is the `hd` under test. The default is
   `target/release/hd`, the Rust compiler; build it first with
-  `cargo build --release -p hd_cli`. A word of the
+  `cargo build --release -p hd_cli`. The daily run measures the shipped
+  binary, `--hd target/dist/hd` from `cargo build --profile dist -p hd_cli`
+  (stripped, ThinLTO). A word of the
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
 - `--json FILE` writes `{ hd, commit, finished, results, machine }` alongside
