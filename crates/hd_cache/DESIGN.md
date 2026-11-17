@@ -429,8 +429,40 @@ obj/
   exclusive lock, releases it if granted, and restores its shared lock.
   This uses neither directory locking nor lock conversion: Windows stacks
   overlapping locks on one handle. The gate keeps another join or probe
-  out of that temporary membership gap. A successful probe runs alone,
-  and claims nothing: no run can wait for it, and a claim costs a file.
+  out of that temporary membership gap. A successful probe runs alone
+  and claims nothing, since a claim costs a file: it notes the miss in
+  memory, and its first such probe takes the `solo` regular file's lock
+  exclusively, inside the gate (#2056). A run whose probe finds another
+  member waits for `solo` before its first claim; it holds no claim, so
+  the wait closes no cycle. The lone run probes again at its next miss
+  and at the put of a noted miss. Finding the other run, it claims each
+  noted miss not yet published, a put one as computed so that it is
+  published at once, and lets `solo` go. The joiner then waits on those
+  claims as on any other, so no entry a lone run computes is computed
+  twice, and a joiner waits at most one entry's computation per lone
+  run. A lone run whose noted misses are all published or abandoned
+  lets `solo` go at once, and takes it again at its next lone miss: a
+  parent that publishes its build before it starts a child never makes
+  the child wait. Cost alone: one `solo` lock per batch of lone misses,
+  one probe per miss and per put of a miss, no claim file; the claims
+  are made once, and only when another run joins.
+- **No wait outlasts its deadline (#2056).** A lone run blocked on the
+  run that joined it, as `hd test` is on the test child it starts, never
+  misses again, so it never claims or lets `solo` go; a claim holder
+  blocked on its waiter never publishes. So every cross-process wait of
+  the claim protocol, for `solo` and for a claim, polls its lock with
+  SQLite's busy-handler sleeps (1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50,
+  then 100 ms; `sqliteDefaultBusyCallback`) for at most 1 s. A holder
+  that keeps its lock that long shows no progress: the waiter goes on,
+  computes the entry itself (a bounded duplicate, never a hang), and
+  appends a line to `pack-v3/stalls`, which starts over past 64 KiB.
+  A store that stalled waits for no run again, so a run waits out at most
+  one deadline. Price: waiting longer than computing the entry only pays
+  when the holder is about to finish, so the deadline is the largest
+  entry's time with headroom for a loaded machine. A whole cold
+  `hd check` of a std-using program takes 65 ms, of the race programs
+  0.3 s, and one entry is a part of that. 1 s is 19 polls; a free lock is
+  seen within 100 ms of release.
   Beside other runs, a miss of
   `parse`, `iface`, `check`, `check-test` or `graph` locks
   `claims/<kind><key>`.
@@ -440,10 +472,10 @@ obj/
     with everything put before it, in order (an interface before its read
     list), and the claim goes. A claim is held only while its entry is
     computed.
-  - If another run holds it, this run waits for the lock, blocked with no
-    CPU, reads the index again and hits. If the holder died (the system
+  - If another run holds it, this run polls the lock within its deadline,
+    reads the index again and hits. If the holder died (the system
     releases its lock) or published nothing, it computes under the claim
-    it now holds.
+    it now holds; past the deadline it computes without one.
   - A computation that produces no cacheable entry calls
     `CacheStore::abandon` before another query. A `parse` entry certifies a
     clean parse, so a rejected source releases its claim without writing
@@ -470,7 +502,7 @@ obj/
     appends one byte before its flush check. After contention, each put
     may publish its current batch until the command ends.
   - A store that finds other runs beside it after running alone publishes
-    what it put while alone at its next put.
+    what it put while alone at its next put or miss.
   - Runs of different programs wait only for keys both miss, such as
     std's: keys are content hashes.
   - `depfiles` is not claimed, except the std skims. A run writes its
@@ -520,7 +552,9 @@ obj/
   So a holder waits for no claim, except a package graph holder for its
   coherence rows, whose holder waits for nothing. Every wait follows a
   dependency edge, and no wait forms a cycle; no order of process IDs is
-  needed. A store never waits for a claim it holds itself, and a store's
+  needed. A cycle through something outside the cache, such as a parent
+  that waits for the child process it started, is what the wait deadline
+  ends (#2056). A store never waits for a claim it holds itself, and a store's
   threads never wait for each other. The driver runs each scheduler task
   inside `hd_cache::task`, and a claim records the thread's task depth.
   A task the pool runs inside another's join, while that suspended task
@@ -1062,8 +1096,9 @@ least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
   no lock. Over the cap, or unknown, it asks for a collection.
   It also asks when the ledger knows no size for some legacy shard. Known
   legacy shards that writes put over budget are cleaned one per command,
-  a count rather than a time; unknown ones are left to the collection. No
-  cache work has a wall-clock deadline.
+  a count rather than a time; unknown ones are left to the collection.
+  The only wall-clock deadline is a wait for another run's claim or
+  `solo` lock (#2056).
 - **Collection, once per interval.** `<obj>/gc` holds a lock and the start
   time and cap of the last collection. A request is dropped when that
   collection started less than an hour ago under a cap no smaller, or

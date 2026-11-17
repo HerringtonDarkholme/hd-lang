@@ -56,6 +56,19 @@ mod cost {
         pub lock_waits: u64,
         /// Misses that waited for another run's claim.
         pub claim_waits: u64,
+        /// Run-membership probes: one per claimable miss while alone.
+        pub run_probes: u64,
+        /// Times a lone run took the `solo` lock: once per run.
+        pub solo_locks: u64,
+        /// Joining runs that waited for a lone run to claim its misses.
+        pub solo_waits: u64,
+        /// A lone run's misses claimed when it found other runs.
+        pub lone_claims: u64,
+        /// Polls of a bounded cross-process wait, after its first try.
+        pub wait_polls: u64,
+        /// Waits that reached their deadline with no progress from the
+        /// holder: the waiter computed the entry itself and logged it.
+        pub stalls: u64,
         /// Contested misses a task computed instead of waiting, because a
         /// task suspended below it on the thread holds a claim.
         pub claim_nested: u64,
@@ -100,6 +113,24 @@ const SETTLE_SHARDS: usize = 1;
 /// cache GC runs at most once per `gc.auto.frequency`. A smaller cap than
 /// the last collection's collects again sooner.
 pub const GC_INTERVAL: Duration = Duration::from_hours(1);
+
+/// The sleeps between polls of a cross-process wait in the claim protocol,
+/// in milliseconds: the busy handler of `SQLite` (`sqliteDefaultBusyCallback`,
+/// `src/main.c`), whose last step repeats. A free lock is seen within 1 ms
+/// of a short wait and within 100 ms of a long one.
+const WAIT_STEPS_MS: [u64; 12] = [1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50, 100];
+
+/// How long a run waits for another run that shows no progress before it
+/// computes the entry itself (#2056): a bounded duplicate, never a hang.
+/// The holder may be blocked on this very run, as `hd test` is on the test
+/// child it starts. Priced against an entry: waiting longer than computing
+/// the entry costs only pays when the holder is about to finish, so the
+/// deadline is the largest entry's time with headroom for a loaded CI
+/// machine. A whole cold `hd check` of a std-using program takes 65 ms, and
+/// of the race programs 0.3 s; one entry is part of that. 1 s is 19 polls
+/// of [`WAIT_STEPS_MS`] (328 ms over the first 12, then 100 ms steps), and
+/// a run waits it out at most once: after a stall it waits for no run.
+pub(crate) const WAIT_DEADLINE: Duration = Duration::from_secs(1);
 
 /// The last collection's start, in Unix seconds, and its cap, under
 /// `<root>/gc`, whose lock one collector holds.
@@ -1043,6 +1074,9 @@ mod packed {
     pub(super) const NAMESPACE: &str = "pack-v3";
     /// Index shards, each with its own lock, by a key's top four bits.
     const SHARDS: u8 = 16;
+    /// The `stalls` log's size at which it starts over: about 600 lines,
+    /// one per stalled run.
+    const STALL_LOG_CAP: u64 = 64 << 10;
     const PAGE_MAGIC: &[u8; 8] = b"HDPAGE02";
     const HEAD_MAGIC: &[u8; 8] = b"HDHEAD01";
     const TABLE_MAGIC: &[u8; 8] = b"HDPKTB01";
@@ -1134,6 +1168,17 @@ mod packed {
         runs: Mutex<Option<RunLocks>>,
         /// Another store ran beside this one once: it claims every miss.
         crowded: AtomicBool,
+        /// The misses this store computes alone, unclaimed, until their
+        /// publication (#2056). When it finds another run, it claims them
+        /// before it lets that run on.
+        lone: Mutex<BTreeMap<Key, LoneMiss>>,
+        /// How long a wait for another run lasts with no progress
+        /// ([`super::WAIT_DEADLINE`]; a test shortens it).
+        pub(super) deadline: std::time::Duration,
+        /// A wait of this store reached its deadline: the run it waited
+        /// for is blocked, possibly on this one, so it waits for no run
+        /// again and computes what it would have waited for.
+        stalled: AtomicBool,
         /// The store became crowded since its caller last published.
         flush: AtomicBool,
         /// The threads whose contested miss asked their caller to publish
@@ -1156,9 +1201,14 @@ mod packed {
     /// Explicit unlocks avoid Windows' stacking (rather than converting)
     /// overlapping locks on one handle. The gate prevents two probes from
     /// simultaneously dropping their membership and both seeing no peer.
+    /// `solo` is held exclusively by a run that probed alone, from its
+    /// first such probe until it has claimed the misses it computes
+    /// alone (#2056): a run that finds another waits for it first.
     struct RunLocks {
         run: LockFile,
         gate: LockFile,
+        solo: LockFile,
+        solo_held: bool,
     }
 
     impl RunLocks {
@@ -1174,22 +1224,38 @@ mod packed {
             };
             let gate = open("run-lock")?;
             let run = open("run")?;
+            let solo = open("solo")?;
             gate.lock()?;
             let joined = run.lock_shared();
             gate.unlock()?;
             joined?;
-            Ok(Self { run, gate })
+            Ok(Self {
+                run,
+                gate,
+                solo,
+                solo_held: false,
+            })
         }
 
-        fn alone(&self) -> io::Result<bool> {
+        /// Whether no other run is a member. Alone, the run takes `solo`
+        /// inside the gate, so a run joining after this probe finds it
+        /// held: a joiner waits on `solo` only after the gate shows it a
+        /// member, and no member holds `solo` while another run is alone.
+        fn alone(&mut self) -> io::Result<bool> {
+            count!(run_probes, 1);
             self.gate.lock()?;
             let probed = (|| {
                 self.run.unlock()?;
-                let alone = self.run.try_lock().is_ok();
+                let mut alone = self.run.try_lock().is_ok();
                 if alone {
                     self.run.unlock()?;
                 }
                 self.run.lock_shared()?;
+                if alone && !self.solo_held {
+                    alone = self.solo.try_lock().is_ok();
+                    self.solo_held = alone;
+                    count!(solo_locks, u64::from(alone));
+                }
                 Ok(alone)
             })();
             self.gate.unlock()?;
@@ -1204,6 +1270,14 @@ mod packed {
         thread: std::thread::ThreadId,
         /// The thread's [`crate::task`] depth at the miss: a claim of a
         /// smaller depth belongs to a task suspended below this one.
+        depth: u32,
+        done: bool,
+    }
+
+    /// A miss a lone run computes without a claim: what its claim takes
+    /// when the run finds another.
+    struct LoneMiss {
+        thread: std::thread::ThreadId,
         depth: u32,
         done: bool,
     }
@@ -2455,6 +2529,9 @@ mod packed {
                 claiming: false,
                 runs: Mutex::new(None),
                 crowded: AtomicBool::new(false),
+                lone: Mutex::new(BTreeMap::new()),
+                deadline: super::WAIT_DEADLINE,
+                stalled: AtomicBool::new(false),
                 flush: AtomicBool::new(false),
                 flush_before_wait: Mutex::new(Vec::new()),
                 waits: Mutex::new(None),
@@ -3028,38 +3105,201 @@ mod packed {
             runs
         }
 
-        /// No claim files are needed while alone. Membership probes hold
-        /// the gate for a constant number of lock calls, with no directory
-        /// walk or entry I/O. Once crowded there are no further probes.
-        fn crowded(&self) -> bool {
+        /// No claim files are needed while alone: a lone `miss` is noted
+        /// in memory instead. Membership probes hold the gate for a
+        /// constant number of lock calls, with no directory walk or entry
+        /// I/O. Once crowded there are no further probes. On finding other
+        /// runs, a store that was alone claims its noted misses and then
+        /// lets go of `solo`; one that was not waits for `solo`, so no
+        /// run computes what a lone run is computing (#2056). The note and
+        /// the claims are made under the membership lock, so no miss
+        /// noted alone escapes them.
+        fn crowded(&self, miss: Option<Key>) -> bool {
             if self.crowded.load(Ordering::Relaxed) {
                 return true;
             }
-            let runs = self.join();
-            let Some(runs) = runs.as_ref() else {
+            let mut runs = self.join();
+            let Some(locks) = runs.as_mut() else {
                 return false;
             };
-            let alone = runs.alone().unwrap_or(false);
-            if !alone {
-                self.crowded.store(true, Ordering::Relaxed);
-                self.flush.store(true, Ordering::Relaxed);
+            if locks.alone().unwrap_or(false) {
+                if let Some(k) = miss {
+                    self.lone().insert(
+                        k,
+                        LoneMiss {
+                            thread: std::thread::current().id(),
+                            depth: crate::task_depth(),
+                            done: false,
+                        },
+                    );
+                }
+                return false;
             }
-            !alone
+            if locks.solo_held {
+                self.claim_lone();
+                let _ = locks.solo.unlock();
+                locks.solo_held = false;
+                drop(runs);
+            } else {
+                drop(runs);
+                self.wait_for_lone_runs();
+            }
+            self.crowded.store(true, Ordering::Relaxed);
+            self.flush.store(true, Ordering::Relaxed);
+            true
+        }
+
+        fn lone(&self) -> MutexGuard<'_, BTreeMap<Key, LoneMiss>> {
+            self.lone
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        }
+
+        /// Claims the misses this store computed alone and has not
+        /// published, each as computed or not, as its own miss would have.
+        /// Cost: one claim file per such miss, once per run, and only when
+        /// another run joins.
+        fn claim_lone(&self) {
+            let lone = std::mem::take(&mut *self.lone());
+            // The notification baseline goes before owning any claim.
+            drop(self.waits());
+            for (k, m) in lone {
+                if let Some(file) = self.open_claim(k)
+                    && file.try_lock().is_ok()
+                {
+                    count!(lone_claims, 1);
+                    self.claims().insert(
+                        k,
+                        Claim {
+                            _lock: file,
+                            thread: m.thread,
+                            depth: m.depth,
+                            done: m.done,
+                        },
+                    );
+                }
+            }
+        }
+
+        /// Waits until no run holds `solo`: a lone run claims what it
+        /// computes before it lets go. This store holds no claim yet, so
+        /// the wait closes no cycle. The lone run may never let go while
+        /// this one runs (a parent blocked on this child): past the
+        /// deadline this store goes on, and computes what the lone run
+        /// computes too. An unopenable file does not wait.
+        fn wait_for_lone_runs(&self) {
+            let Ok(solo) = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(self.root.join("solo"))
+                .map(LockFile)
+            else {
+                return;
+            };
+            if solo.try_lock_shared().is_err() {
+                count!(solo_waits, 1);
+                #[cfg(test)]
+                self.pause("solo-wait");
+                self.wait_for(
+                    || "a lone run's unclaimed entries".to_owned(),
+                    || solo.try_lock_shared().is_ok(),
+                );
+            }
+        }
+
+        /// Polls `take` until it succeeds or [`Store::deadline`] passes,
+        /// sleeping [`super::WAIT_STEPS_MS`] between polls (#2056). Every
+        /// cross-process wait of the claim protocol goes through here: a
+        /// holder that shows no progress (keeps its lock) for the deadline
+        /// may be blocked on this run, so this run stops waiting, logs the
+        /// stall in `stalls` and computes the entry itself, a bounded
+        /// duplicate. Cost: polls are a fixed count for a deadline, 19 for
+        /// the default; a stall is logged once per run, since a stalled
+        /// store waits for no run again.
+        fn wait_for(&self, what: impl FnOnce() -> String, mut take: impl FnMut() -> bool) -> bool {
+            let last = super::WAIT_STEPS_MS[super::WAIT_STEPS_MS.len() - 1];
+            let steps = super::WAIT_STEPS_MS
+                .into_iter()
+                .chain(std::iter::repeat(last));
+            let mut waited = std::time::Duration::ZERO;
+            for ms in steps {
+                if take() {
+                    return true;
+                }
+                if waited >= self.deadline {
+                    break;
+                }
+                let step =
+                    std::time::Duration::from_millis(ms).min(self.deadline.saturating_sub(waited));
+                std::thread::sleep(step);
+                waited += step;
+                count!(wait_polls, 1);
+            }
+            count!(stalls, 1);
+            self.stalled.store(true, Ordering::Relaxed);
+            self.log_stall(&what(), waited);
+            false
+        }
+
+        /// Appends one line for a stall to `stalls`, which starts over
+        /// past [`STALL_LOG_CAP`] bytes: a log of recent stalls, bounded.
+        fn log_stall(&self, what: &str, waited: std::time::Duration) {
+            let path = self.root.join("stalls");
+            let line = format!(
+                "{} pid {} waited {} ms for {what} with no progress and went on without it\n",
+                now(),
+                std::process::id(),
+                waited.as_millis()
+            );
+            let full = std::fs::metadata(&path).is_ok_and(|m| m.len() > STALL_LOG_CAP);
+            if let Ok(mut file) = OpenOptions::new()
+                .create(true)
+                .append(!full)
+                .write(full)
+                .truncate(full)
+                .open(&path)
+            {
+                let _ = file.write_all(line.as_bytes());
+            }
+        }
+
+        /// `claims/<kind><key>`, opened, made with its directory at the
+        /// first claim; `None` when the cache is unwritable.
+        fn open_claim(&self, k: Key) -> Option<LockFile> {
+            let dir = self.root.join("claims");
+            let path = dir.join(format!("{:04x}{:032x}", k.0, k.1));
+            let open = || {
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(&path)
+            };
+            let file = match open() {
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    std::fs::create_dir_all(&dir).and_then(|()| open())
+                }
+                opened => opened,
+            };
+            file.map(LockFile::from).ok()
         }
 
         /// Reads `key`; a miss of a [`CLAIMED`] kind, beside another run,
         /// claims it (#1932). The store locks `claims/<kind><key>`: if the
         /// lock is free, the miss stands, and the store computes the entry,
         /// publishes it as soon as it puts it, and lets go. If another run
-        /// holds it, this one waits for the lock, blocked with no CPU,
+        /// holds it, this one polls the lock ([`Store::wait_for`]),
         /// reads the index again and hits. When the holder died (the
         /// system releases its lock) or published nothing, it still misses
-        /// and computes under the claim it now holds. A run holding a claim
-        /// waits only for keys the claimed entry depends on, which are in
-        /// memory before its key is formed, so waits follow the entries'
-        /// dependency DAG and form no cycle (DESIGN.md §5.4, "Each entry
-        /// computed once"). Cost: one claim file opened and locked per miss
-        /// beside other runs; nothing alone.
+        /// and computes under the claim it now holds; when the holder keeps
+        /// it past the deadline, it computes without one. A run holding a
+        /// claim waits only for keys the claimed entry depends on, which
+        /// are in memory before its key is formed, so waits follow the
+        /// entries' dependency DAG and form no cycle (DESIGN.md §5.4, "Each
+        /// entry computed once"); a holder blocked outside the cache, on a
+        /// child process, is what the deadline ends. Cost: one claim file
+        /// opened and locked per miss beside other runs; nothing alone.
         pub(super) fn get_or_claim(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>> {
             self.get_or_claim_any(kind, key, CLAIMED.contains(&kind))
         }
@@ -3078,39 +3318,25 @@ mod packed {
             if let Some(bytes) = self.get(kind, key) {
                 return Some(bytes);
             }
-            if !self.claiming || !claimed || !self.crowded() {
+            let k = (kind as u16, key.0);
+            if !self.claiming || !claimed || !self.crowded(Some(k)) {
                 return None;
             }
-            let k = (kind as u16, key.0);
             // A key this store already holds: it is computing it.
             if self.claims().contains_key(&k) {
                 return None;
             }
-            let dir = self.root.join("claims");
-            let path = dir.join(format!("{:04x}{:032x}", k.0, k.1));
-            let open = || {
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open(&path)
-            };
-            // The directory is made at the first claim only.
-            let file = match open() {
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    std::fs::create_dir_all(&dir).and_then(|()| open())
-                }
-                opened => opened,
-            };
             // An unwritable cache computes without a claim.
-            let Ok(file) = file.map(LockFile::from) else {
-                return None;
-            };
+            let file = self.open_claim(k)?;
             // Establish the notification baseline before owning any claim:
             // a waiter can announce itself as soon as this lock is taken.
             drop(self.waits());
             if file.try_lock().is_err() {
+                // A store that waited out a stall waits for no run again:
+                // the run it waited for may still be blocked on it.
+                if self.stalled.load(Ordering::Relaxed) {
+                    return None;
+                }
                 // A task that runs inside another's join on this thread
                 // computes the entry itself (#2018): waiting would hold the
                 // suspended task's claim, which another run may wait for.
@@ -3136,9 +3362,14 @@ mod packed {
                 #[cfg(test)]
                 self.pause("claim-before-wait");
                 count!(claim_waits, 1);
-                // A lock that fails leaves a claim others can still take:
-                // they compute too.
-                let _ = file.lock();
+                // A holder that keeps its claim past the deadline may be
+                // blocked on this run: compute the entry beside it.
+                if !self.wait_for(
+                    || format!("claim {:04x}{:032x}", k.0, k.1),
+                    || file.try_lock().is_ok(),
+                ) {
+                    return None;
+                }
                 if let Some(state) = self.state().as_mut() {
                     state.views.clear();
                     state.pages.clear();
@@ -3211,9 +3442,19 @@ mod packed {
         /// Cancel only this unfinished key, with one indexed lookup. A
         /// completed deferred put still owes its publication to waiters.
         pub(super) fn abandon(&self, kind: EntryKind, key: &Hash128) {
+            let k = (kind as u16, key.0);
+            let emptied = {
+                let mut lone = self.lone();
+                lone.get(&k).is_some_and(|m| !m.done) && {
+                    lone.remove(&k);
+                    lone.is_empty()
+                }
+            };
+            if emptied {
+                self.let_solo_go();
+            }
             let mut claims = self.claims();
-            if let std::collections::btree_map::Entry::Occupied(claim) =
-                claims.entry((kind as u16, key.0))
+            if let std::collections::btree_map::Entry::Occupied(claim) = claims.entry(k)
                 && !claim.get().done
             {
                 claim.remove();
@@ -3233,6 +3474,13 @@ mod packed {
         /// ([`Store::flush_requested`]). A run that no one waits for pays
         /// nothing more than its batch.
         pub(super) fn put_wanted(&self, kind: EntryKind, key: &Hash128) -> bool {
+            // A miss computed alone probes again at its put, so a run that
+            // joined meanwhile waits for one entry's computation at most.
+            let k = (kind as u16, key.0);
+            let lone = self.lone().get_mut(&k).map(|m| m.done = true).is_some();
+            if lone {
+                self.crowded(None);
+            }
             let any = {
                 let mut claims = self.claims();
                 if let Some(claim) = claims.get_mut(&(kind as u16, key.0)) {
@@ -3305,9 +3553,38 @@ mod packed {
         /// Lets go of the claims on `keys`, once their entries are
         /// published.
         pub(super) fn release(&self, keys: impl Iterator<Item = Key>) {
-            let mut claims = self.claims();
-            for key in keys {
-                claims.remove(&key);
+            let emptied = {
+                let mut claims = self.claims();
+                let mut lone = self.lone();
+                let noted = !lone.is_empty();
+                for key in keys {
+                    claims.remove(&key);
+                    lone.remove(&key);
+                }
+                noted && lone.is_empty()
+            };
+            if emptied {
+                self.let_solo_go();
+            }
+        }
+
+        /// A lone run with no unpublished miss lets go of `solo`, so a run
+        /// that joins now waits for nothing; its next lone miss takes
+        /// `solo` again (#2056). A parent that published its build before
+        /// it starts a child therefore never makes the child wait. Cost:
+        /// one lock call, at the publication or abandon that empties the
+        /// notes.
+        fn let_solo_go(&self) {
+            let mut runs = self
+                .runs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(locks) = runs.as_mut()
+                && locks.solo_held
+                && self.lone().is_empty()
+            {
+                let _ = locks.solo.unlock();
+                locks.solo_held = false;
             }
         }
 
@@ -5901,14 +6178,180 @@ mod packed {
         /// A run alone claims nothing (#1932): no claim file, no wait.
         #[test]
         fn a_lone_run_claims_nothing() {
-            let root = scratch("claim-lone");
-            let store = DiskStore::new(root.clone()).with_claims();
-            cost::take();
-            for key in 0..8 {
-                assert!(store.get(EntryKind::Check, &Hash128(key)).is_none());
+            // A lone run's misses at n and 10n: one membership probe per
+            // miss, one `solo` lock for the run, no claim file (#2056).
+            for n in [8, 80] {
+                let root = scratch(&format!("claim-lone-{n}"));
+                let store = DiskStore::new(root.clone()).with_claims();
+                cost::take();
+                for key in 0..n {
+                    assert!(store.get(EntryKind::Check, &Hash128(key)).is_none());
+                }
+                let counts = cost::take();
+                assert_eq!(counts.run_probes, u64::try_from(n).unwrap());
+                assert_eq!(counts.solo_locks, 1);
+                assert_eq!(counts.claim_waits + counts.lone_claims, 0);
+                assert!(!root.join(NAMESPACE).join("claims").exists());
             }
-            assert_eq!(cost::take().claim_waits, 0);
-            assert!(!root.join(NAMESPACE).join("claims").exists());
+        }
+
+        /// A run that joins while a lone run computes a miss waits for the
+        /// lone run to claim it, then for the claim, and reads the entry
+        /// (#2056): store A misses key 7 alone; B joins and misses 7, and
+        /// waits on `solo`; A's next miss finds B, claims 7 and lets B on;
+        /// A puts 7, which B reads.
+        #[test]
+        fn a_run_joining_a_lone_runs_computation_waits_for_its_entry() {
+            let root = scratch("claim-lone-join");
+            let a = DiskStore::new(root.clone()).with_claims();
+            assert!(a.get(EntryKind::Check, &Hash128(7)).is_none());
+            let mut b = DiskStore::new(root.clone()).with_claims();
+            let (waiting, waits) = std::sync::mpsc::channel();
+            b.packed.on_pause = Some(Arc::new(move |at| {
+                let _ = waiting.send(at);
+            }));
+            drop(b.packed.join());
+            // cost: one test thread, one miss.
+            let joiner = std::thread::spawn(move || {
+                cost::take();
+                let got = b.get(EntryKind::Check, &Hash128(7));
+                (got, cost::take())
+            });
+            assert_eq!(waits.recv().unwrap(), "solo-wait");
+            cost::take();
+            assert!(a.get(EntryKind::Check, &Hash128(8)).is_none());
+            assert_eq!(cost::take().lone_claims, 1);
+            // B polls `solo`, finds it free and meets A's claim of 7.
+            assert_eq!(waits.recv().unwrap(), "claim-before-wait");
+            a.put(EntryKind::Check, &Hash128(7), b"computed");
+            let (got, counts) = joiner.join().unwrap();
+            assert_eq!(got.as_deref(), Some(&b"computed"[..]));
+            assert_eq!(
+                (counts.solo_waits, counts.claim_waits, counts.stalls),
+                (1, 1, 0)
+            );
+        }
+
+        /// A lone run's miss put before another run joins is claimed as
+        /// computed, and the probe at its put asks for publication; an
+        /// abandoned lone miss is forgotten, so nothing claims it.
+        #[test]
+        fn a_lone_runs_put_probes_and_its_abandoned_miss_is_not_claimed() {
+            let root = scratch("claim-lone-put");
+            let a = DiskStore::new(root.clone()).with_claims();
+            assert!(a.get(EntryKind::Check, &Hash128(1)).is_none());
+            assert!(a.get(EntryKind::Check, &Hash128(2)).is_none());
+            a.abandon(EntryKind::Check, &Hash128(2));
+            cost::take();
+            assert!(!a.wanted(EntryKind::Check, &Hash128(1)));
+            assert_eq!(cost::take().run_probes, 1);
+            let b = DiskStore::new(root.clone()).with_claims();
+            drop(b.packed.join());
+            assert!(a.get(EntryKind::Check, &Hash128(3)).is_none());
+            assert!(a.packed.held(EntryKind::Check, &Hash128(1)));
+            assert!(!a.packed.held(EntryKind::Check, &Hash128(2)));
+            assert!(a.wanted(EntryKind::Check, &Hash128(1)));
+        }
+
+        /// The hang of #2056's first fix: a lone run that misses 7 and then
+        /// blocks on its child, as `hd test` does on a test child, never
+        /// misses again, so it never claims 7 or lets `solo` go. The child
+        /// joins, misses 7, waits the default deadline (19 polls), logs
+        /// the stall and computes 7 itself; the parent then goes on.
+        #[test]
+        fn a_lone_run_blocked_on_its_joiner_lets_it_compute_after_the_deadline() {
+            let root = scratch("claim-lone-blocked");
+            let parent = DiskStore::new(root.clone()).with_claims();
+            assert!(parent.get(EntryKind::Check, &Hash128(7)).is_none());
+            let child_root = root.clone();
+            // The parent blocks on its child, with no miss in between.
+            // cost: one test thread, one miss.
+            let (got, counts) = std::thread::spawn(move || {
+                let child = DiskStore::new(child_root).with_claims();
+                cost::take();
+                let got = child.get(EntryKind::Check, &Hash128(7));
+                child.put(EntryKind::Check, &Hash128(7), b"child");
+                (got, cost::take())
+            })
+            .join()
+            .unwrap();
+            assert!(got.is_none(), "the child computes 7 itself");
+            assert_eq!(
+                (counts.solo_waits, counts.wait_polls, counts.stalls),
+                (1, 19, 1)
+            );
+            let log = std::fs::read_to_string(root.join(NAMESPACE).join("stalls")).unwrap();
+            assert_eq!(log.lines().count(), 1, "{log}");
+            assert!(
+                log.contains("waited 1000 ms for a lone run's unclaimed entries"),
+                "{log}"
+            );
+            // The parent's own put of 7 goes on beside the child's.
+            parent.put(EntryKind::Check, &Hash128(7), b"parent");
+            assert!(parent.get(EntryKind::Check, &Hash128(7)).is_some());
+        }
+
+        /// A claim holder blocked on the run that waits for it: the waiter
+        /// computes after its deadline, and its later contested miss does
+        /// not wait at all. A full `stalls` log starts over.
+        #[test]
+        fn a_claim_holder_blocked_on_its_waiter_lets_it_compute_after_the_deadline() {
+            let root = scratch("claim-blocked");
+            let holder = DiskStore::new(root.clone()).with_claims();
+            let peer = DiskStore::new(root.clone()).with_claims();
+            drop(peer.packed.join());
+            for key in [7, 8] {
+                assert!(holder.get(EntryKind::Check, &Hash128(key)).is_none());
+                assert!(holder.packed.held(EntryKind::Check, &Hash128(key)));
+            }
+            let log = root.join(NAMESPACE).join("stalls");
+            std::fs::write(
+                &log,
+                vec![b'x'; usize::try_from(STALL_LOG_CAP).unwrap() + 1],
+            )
+            .unwrap();
+            let child_root = root.clone();
+            // cost: one test thread, two misses.
+            let counts = std::thread::spawn(move || {
+                let mut child = DiskStore::new(child_root).with_claims();
+                child.packed.deadline = std::time::Duration::from_millis(20);
+                cost::take();
+                assert!(child.get(EntryKind::Check, &Hash128(7)).is_none());
+                assert!(!child.packed.held(EntryKind::Check, &Hash128(7)));
+                assert!(child.get(EntryKind::Check, &Hash128(8)).is_none());
+                cost::take()
+            })
+            .join()
+            .unwrap();
+            // 1 + 2 + 5 + 10 + 2 ms: five polls, one wait for two misses.
+            assert_eq!(
+                (counts.claim_waits, counts.wait_polls, counts.stalls),
+                (1, 5, 1)
+            );
+            let log = std::fs::read_to_string(&log).unwrap();
+            assert_eq!(log.lines().count(), 1, "the full log started over");
+            assert!(log.contains("waited 20 ms for claim "), "{log}");
+        }
+
+        /// A lone run lets `solo` go once nothing it missed is unpublished,
+        /// by a publication or an abandon, so a run that joins then waits
+        /// for nothing.
+        #[test]
+        fn a_lone_run_with_nothing_unpublished_lets_a_joiner_on_at_once() {
+            for publish in [true, false] {
+                let root = scratch("claim-lone-done");
+                let a = DiskStore::new(root.clone()).with_claims();
+                assert!(a.get(EntryKind::Check, &Hash128(1)).is_none());
+                if publish {
+                    a.put(EntryKind::Check, &Hash128(1), b"one");
+                } else {
+                    a.abandon(EntryKind::Check, &Hash128(1));
+                }
+                let b = DiskStore::new(root.clone()).with_claims();
+                cost::take();
+                assert_eq!(b.get(EntryKind::Check, &Hash128(1)).is_some(), publish);
+                assert_eq!(cost::take().solo_waits, 0, "publish: {publish}");
+            }
         }
 
         /// Repeated sole-run probes must neither stack locks nor lose
@@ -5919,16 +6362,16 @@ mod packed {
             let root = scratch("run-membership");
             let a = Store::new(&root);
             for _ in 0..32 {
-                assert!(!a.crowded());
+                assert!(!a.crowded(None));
             }
             assert!(a.root.join("run").is_file());
             let b = Store::new(&root);
             drop(b.join());
-            assert!(a.crowded());
-            assert!(b.crowded());
+            assert!(a.crowded(None));
+            assert!(b.crowded(None));
             drop(b);
-            let runs = a.join();
-            assert!(runs.as_ref().unwrap().alone().unwrap());
+            let mut runs = a.join();
+            assert!(runs.as_mut().unwrap().alone().unwrap());
             assert_eq!(cost::take().claim_waits, 0);
         }
 
