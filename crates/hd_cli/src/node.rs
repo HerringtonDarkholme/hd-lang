@@ -4,6 +4,7 @@
 //! its types at build time (`build.rs`), so the binary is relocatable and
 //! no run pays Node's type stripping.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::{BufRead, BufReader, Write as _};
 use std::path::{Path, PathBuf};
@@ -13,6 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use hd_cache::CacheStore;
+use hd_host_abi::schema::{Identity, Interface};
 use hd_run::{Engine, Grants, HostSetup, Instance, Limit, LoadError, Outcome, StartError};
 
 use crate::report::quote;
@@ -36,6 +38,64 @@ pub struct HostProvider {
     pub path: PathBuf,
 }
 
+/// The selected host packages indexed once for provider selection: each
+/// package by its ABI identity (package and version, hashed once per
+/// package rather than once per required trait), and each package's
+/// `[host]` entries by trait path. The first package or entry of a key
+/// wins, as a front-to-back search would find it. Cost: O((P + E) log)
+/// to build for P packages and E entries, O(log) per lookup.
+struct Providers<'a> {
+    packages: BTreeMap<(String, String), &'a hd_driver::HostPackage>,
+    entries: BTreeMap<(u16, &'a str), &'a hd_project::HostProvider>,
+}
+
+impl<'a> Providers<'a> {
+    fn new(packages: &'a [hd_driver::HostPackage]) -> Self {
+        let mut index = Providers {
+            packages: BTreeMap::new(),
+            entries: BTreeMap::new(),
+        };
+        for package in packages {
+            // `None` only for a selected version without `@`, which no
+            // trait identity can name, as before.
+            if let Some(id) = package.trait_identity("") {
+                index
+                    .packages
+                    .entry((id.package, id.version))
+                    .or_insert(package);
+            }
+            let entries = package
+                .declarations
+                .as_ref()
+                .and_then(|d| d.providers.as_deref())
+                .unwrap_or_default();
+            for entry in entries {
+                index
+                    .entries
+                    .entry((package.package, entry.trait_path.as_str()))
+                    .or_insert(entry);
+            }
+        }
+        index
+    }
+
+    /// The package whose ABI identity `identity` names.
+    fn package(&self, identity: &Identity) -> Option<&'a hd_driver::HostPackage> {
+        self.packages
+            .get(&(identity.package.clone(), identity.version.clone()))
+            .copied()
+    }
+
+    /// `package`'s `[host]` entry for `trait_path`.
+    fn entry(
+        &self,
+        package: &hd_driver::HostPackage,
+        trait_path: &str,
+    ) -> Option<&'a hd_project::HostProvider> {
+        self.entries.get(&(package.package, trait_path)).copied()
+    }
+}
+
 /// Resolve only reachable package providers. A CLI flag cannot supply the
 /// missing manifest consent, and no provider module is imported here.
 pub(crate) fn manifest_providers(
@@ -46,6 +106,7 @@ pub(crate) fn manifest_providers(
     let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)? else {
         return Ok(Vec::new());
     };
+    let providers = Providers::new(program.map_or(&[][..], |p| &p.host_packages[..]));
     let mut selected = Vec::new();
     for interface in artifacts.contract.interfaces.iter().filter(|i| !i.handle) {
         let name = interface.identity.to_string();
@@ -54,21 +115,17 @@ pub(crate) fn manifest_providers(
             .consent
             .package(interface)
             .map_err(|why| why.message(interface))?;
-        let package = program
-            .and_then(|p| p.host_packages.iter().find(|package| package.trait_identity(&interface.identity.trait_path).as_ref() == Some(&interface.identity)))
-            .ok_or_else(|| format!("no selected package manifest provides {name}; run this program in its app package"))?;
+        let identity = &interface.identity;
+        let package = providers.package(identity).ok_or_else(|| {
+            format!(
+                "no selected package manifest provides {name}; run this program in its app package"
+            )
+        })?;
         let root = program
             .and_then(|p| p.package_directory(package.package))
             .ok_or_else(|| format!("no package directory provides {name}"))?;
-        let entry = package
-            .declarations
-            .as_ref()
-            .and_then(|d| d.providers.as_ref())
-            .and_then(|entries| {
-                entries
-                    .iter()
-                    .find(|entry| entry.trait_path == interface.identity.trait_path)
-            })
+        let entry = providers
+            .entry(package, &identity.trait_path)
             .ok_or_else(|| format!("{} has no `[host]` entry for {name}", package.manifest))?;
         let file = entry.path.as_ref().ok_or_else(|| {
             format!(
@@ -132,17 +189,21 @@ impl Engine for NodeEngine {
         }
         let artifacts =
             hd_driver::host_artifacts(wasm).map_err(|e| LoadError::Engine(e.to_owned()))?;
-        let roots: Vec<_> = artifacts
+        // The root interfaces by namespace, once (`Contract::validate` keeps
+        // namespaces unique): each provider is one lookup, not a scan.
+        let roots: BTreeMap<&str, &Interface> = artifacts
             .as_ref()
             .into_iter()
             .flat_map(|a| &a.contract.interfaces)
             .filter(|i| !i.handle)
+            .map(|i| (i.module.as_str(), i))
             .collect();
         let mut registered = std::collections::BTreeSet::new();
         for provider in &self.host_providers {
-            let Some(interface) = roots.iter().find(|i| {
-                i.module == provider.module && i.selectors.contains(&provider.grant_path)
-            }) else {
+            let Some(interface) = roots
+                .get(provider.module.as_str())
+                .filter(|i| i.selectors.contains(&provider.grant_path))
+            else {
                 return Err(LoadError::Engine(
                     "selected provider names no required package capability".into(),
                 ));
@@ -154,7 +215,7 @@ impl Engine for NodeEngine {
                 )));
             }
         }
-        for interface in roots {
+        for interface in roots.into_values() {
             if !registered.contains(&interface.module) {
                 return Err(LoadError::Engine(format!(
                     "missing package host provider for {}; grant the trait in the app's `[capabilities]` table",
