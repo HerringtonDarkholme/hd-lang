@@ -1075,22 +1075,7 @@ export function createPackageRuntime(
               rejected = false,
               kept: Dynamic = undefined,
               failure: Dynamic = undefined;
-            Promise.resolve(value).then(
-              (value) => {
-                if (live) {
-                  kept = value;
-                  ready = true;
-                }
-              },
-              (value) => {
-                if (live) {
-                  failure = value;
-                  rejected = true;
-                  ready = true;
-                }
-              },
-            );
-            return io.pending({
+            const pending = io.pending({
               at: performance.now(),
               promise: true,
               done: () => {
@@ -1107,6 +1092,24 @@ export function createPackageRuntime(
                 operation.abort();
               },
             });
+            Promise.resolve(value).then(
+              (value) => {
+                if (live) {
+                  kept = value;
+                  ready = true;
+                  io.wake?.();
+                }
+              },
+              (value) => {
+                if (live) {
+                  failure = value;
+                  rejected = true;
+                  ready = true;
+                  io.wake?.();
+                }
+              },
+            );
+            return pending;
           };
           out[`${method.name}.finish`] = (id: number) => write(io.finished(id, key));
         }

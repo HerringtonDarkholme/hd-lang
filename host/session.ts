@@ -175,17 +175,30 @@ class ReplSession {
         return handles.length;
       },
       woke: (value: number) => this.recorder.wake(this.handlesAt(value)),
-      wait: (ms: number) =>
+      wait: (ms: number, signal?: AbortSignal) =>
         new Promise<void>((resolve) => {
           if (this.stopped) {
             resolve();
             return;
           }
-          const timer = setTimeout(resolve, ms);
-          this.wakeWait = () => {
-            clearTimeout(timer);
+          let finished = false;
+          const done = () => {
+            if (finished) {
+              return;
+            }
+            finished = true;
+            if (timer !== null) {
+              clearTimeout(timer);
+            }
+            signal?.removeEventListener("abort", done);
             resolve();
           };
+          const timer = Number.isFinite(ms) ? setTimeout(done, ms) : null;
+          signal?.addEventListener("abort", done, { once: true });
+          this.wakeWait = done;
+          if (signal?.aborted) {
+            done();
+          }
         }).finally(() => {
           this.wakeWait = null;
         }),

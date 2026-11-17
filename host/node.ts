@@ -1021,6 +1021,26 @@ export const nodeLayer = {
     const child = syncClient("./process.ts", "close");
     const files = syncClient("./fs.ts", "close");
     const input = syncClient("./input.ts");
+    // A bare Promise does not keep Node alive. Reference one idle message
+    // port while the guest waits, without a polling timer or worker spin.
+    let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
+    let idleWaits = 0;
+    const releaseWait = () => {
+      idleWaits--;
+      if (idleWaits === 0) {
+        keeper?.port1.unref();
+      }
+    };
+    const keepAlive = () => {
+      if (keeper === null) {
+        keeper = new MessageChannel();
+        keeper.port1.on("message", () => undefined);
+        keeper.port2.unref();
+      }
+      idleWaits++;
+      keeper.port1.ref();
+      return releaseWait;
+    };
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
@@ -1051,6 +1071,7 @@ export const nodeLayer = {
         "hd:TestRunner": testRunner.provider,
       },
       tempDir: testRunner.tempDir,
+      keepAlive,
       // The sockets still open, by kind (cli.test.leak).
       leaks: () => {
         if (!net.started()) {
@@ -1068,6 +1089,9 @@ export const nodeLayer = {
       // Removes a directory the host made for itself, and closes its
       // sockets.
       close: () => {
+        keeper?.port1.close();
+        keeper?.port2.close();
+        keeper = null;
         net.stop();
         http.stop();
         child.stop();
