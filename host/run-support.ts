@@ -8,7 +8,7 @@ export interface EntryCancel {
   boundMs: number;
   request(): void;
   requests(): number;
-  wait(ms: number): Promise<void>;
+  wait(ms: number, signal?: AbortSignal): Promise<void>;
 }
 
 interface WorkerLike {
@@ -18,6 +18,30 @@ interface WorkerLike {
 
 export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
 export const CANCEL_STATUS = 130;
+
+// Infinite waits have no timer. A Promise completion cancels a finite
+// deadline rather than leaving one timer behind for each completed call.
+export function completionDelay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    let finished = false;
+    const done = () => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      signal.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = Number.isFinite(ms) ? setTimeout(done, ms) : null;
+    signal.addEventListener("abort", done, { once: true });
+    if (signal.aborted) {
+      done();
+    }
+  });
+}
 
 export function entryCancel(
   boundMs: number,
@@ -32,17 +56,29 @@ export function entryCancel(
       wake?.();
     },
     requests: () => requests,
-    wait: (ms) =>
+    wait: (ms, signal) =>
       new Promise((resolve) => {
+        let finished = false;
         const done = () => {
-          clearTimeout(timer);
+          if (finished) {
+            return;
+          }
+          finished = true;
+          if (timer !== null) {
+            clearTimeout(timer);
+          }
+          signal?.removeEventListener("abort", done);
           wake = null;
           onWait?.(false);
           resolve();
         };
-        const timer = setTimeout(done, ms);
+        const timer = Number.isFinite(ms) ? setTimeout(done, ms) : null;
+        signal?.addEventListener("abort", done, { once: true });
         wake = done;
         onWait?.(true);
+        if (signal?.aborted) {
+          done();
+        }
       }),
   };
 }

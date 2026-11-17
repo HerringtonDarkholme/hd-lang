@@ -74,23 +74,37 @@ const now = () => performance.timeOrigin + performance.now();
 // `cell[0]` counts the requests the main thread passed on, and `cell[1]`
 // is 1 while the host waits, when a request ends the wait at once.
 function sharedCancel(boundMs: number, cell: Int32Array<SharedArrayBuffer>): CancelControl {
+  let active: object | null = null;
   return {
     boundMs,
     requests: () => Atomics.load(cell, 0),
-    wait: async (ms: number) => {
+    wait: async (ms: number, signal?: AbortSignal) => {
       const seen = Atomics.load(cell, 0);
+      const token = {};
+      active = token;
       Atomics.store(cell, 1, 1);
-      // A pending `waitAsync` does not keep the worker's event loop alive,
-      // so a timer of the same length does.
-      let timer;
-      await Promise.race([
-        Atomics.waitAsync(cell, 0, seen, ms).value,
-        new Promise((resolve) => {
-          timer = setTimeout(resolve, ms);
-        }),
-      ]);
-      clearTimeout(timer);
-      Atomics.store(cell, 1, 0);
+      const clear = () => {
+        if (active === token) {
+          active = null;
+          Atomics.store(cell, 1, 0);
+        }
+      };
+      const abort = () => {
+        clear();
+        // Remove this native waiter as soon as another completion wins.
+        Atomics.notify(cell, 0);
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      try {
+        if (!signal?.aborted) {
+          // The Node host's idle port keeps the worker alive. waitAsync
+          // needs only its real deadline; no parallel timer is necessary.
+          await Atomics.waitAsync(cell, 0, seen, ms).value;
+        }
+      } finally {
+        signal?.removeEventListener("abort", abort);
+        clear();
+      }
     },
   };
 }

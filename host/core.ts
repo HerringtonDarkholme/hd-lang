@@ -54,7 +54,13 @@ export {
   PROGRAM_TIME_LIMIT,
   reportIn,
 } from "./run-support.ts";
-import { CANCEL_STATUS, factHead, PROGRAM_TIME_LIMIT, reportIn } from "./run-support.ts";
+import {
+  CANCEL_STATUS,
+  completionDelay,
+  factHead,
+  PROGRAM_TIME_LIMIT,
+  reportIn,
+} from "./run-support.ts";
 import type { End } from "./journal.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
@@ -419,6 +425,7 @@ function rtImports({
   st,
   complete,
   nextDeadline,
+  waitForCompletion,
   deadlock,
   until,
   overran,
@@ -430,20 +437,21 @@ function rtImports({
       throw new HostContract("a synchronous host wait is pending in a synchronous step driver");
     }
     const deadline = nextDeadline();
-    if (deadline === null) {
+    if (deadline === null && !st.promiseWaits.size) {
       deadlock();
     }
     flush();
-    return Math.max(0, until(deadline) - performance.now());
+    return Math.max(0, until(deadline ?? Infinity) - performance.now());
   };
   // Keep the guest call synchronous while its stack is suspended: the JS
   // event loop can publish Promise/timer completions, with one live wait.
-  const resumed = async (ms: number): Promise<number> => {
+  const resumed = async (ms: number, observed: object): Promise<number> => {
     for (;;) {
-      await new Promise<void>((resolve) => setTimeout(resolve, ms));
+      await waitForCompletion(ms, undefined, observed);
       if (overran()) {
         throw new TimeLimit();
       }
+      observed = st.completionToken;
       const completion = complete();
       if (completion) {
         return completion;
@@ -453,6 +461,7 @@ function rtImports({
   };
   const block = (): number | Promise<number> => {
     for (;;) {
+      const observed = st.completionToken;
       const completion = complete();
       if (completion) {
         return completion;
@@ -465,7 +474,7 @@ function rtImports({
         if (!stack) {
           throw new HostContract("a pending package host Promise requires WebAssembly JSPI");
         }
-        return resumed(ms);
+        return resumed(ms, observed);
       }
       sleep(ms);
       if (overran()) {
@@ -593,6 +602,7 @@ function abortOperation(st: DynamicRecord, handle: number): void {
   st.ops.delete(handle);
   st.promiseWaits.delete(handle);
   operation?.abort?.();
+  st.wakeCompletion?.();
 }
 export function clearOperations(st: DynamicRecord): void {
   for (const handle of st.ops.keys()) {
@@ -1042,6 +1052,8 @@ function buildCoreImports(options: Dynamic): Dynamic {
     finished,
     complete,
     nextDeadline,
+    wakeCompletion,
+    waitForCompletion,
     deadlock,
     until,
     overran,
@@ -1072,6 +1084,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
       st,
       complete,
       nextDeadline,
+      waitForCompletion,
       deadlock,
       until,
       overran,
@@ -1085,6 +1098,7 @@ function buildCoreImports(options: Dynamic): Dynamic {
     put,
     pending,
     finished,
+    wake: wakeCompletion,
     prepare: pendingOperation,
     prepared: (value: Dynamic) => (value instanceof Later ? value : null),
   };
@@ -1117,6 +1131,43 @@ function buildCoreImports(options: Dynamic): Dynamic {
 export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = null): Host {
   const { args, program, grant, seed, st, module, reportsCycles } = coreState(env, layer);
   const stack = env.synchronous ? null : blockingStack(module);
+  const completionWaiters = new Set<() => void>();
+  st.completionToken = {};
+  const wakeCompletion = (): void => {
+    st.completionToken = {};
+    for (const wake of completionWaiters) {
+      wake();
+    }
+  };
+  st.wakeCompletion = wakeCompletion;
+  // Install the notification before yielding to Promise handlers. Each
+  // live idle wait owns one subscription and cancels its losing timer.
+  const waitForCompletion = async (
+    ms: number,
+    interrupted?: (ms: number, signal: AbortSignal) => Promise<unknown>,
+    observed = st.completionToken,
+  ): Promise<void> => {
+    const abort = new AbortController();
+    let wake!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+    completionWaiters.add(wake);
+    let release: (() => void) | undefined;
+    try {
+      // Cancellation/replay hooks may yield after the readiness check.
+      // Recheck the generation after registering so that wake is not lost.
+      if (observed !== st.completionToken) {
+        return;
+      }
+      release = platform?.keepAlive?.();
+      await Promise.race([settled, (interrupted ?? completionDelay)(ms, abort.signal)]);
+    } finally {
+      completionWaiters.delete(wake);
+      abort.abort();
+      release?.();
+    }
+  };
   const previousCountPairs = new WeakMap<WebAssembly.Instance, Map<string, bigint>>();
   // The instance's mutable state, shared with the provider functions
   // below: the exchange memory, trap reporting, the test timeout, case
@@ -1201,6 +1252,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       abort,
       finish,
       completed: false,
+      promise,
       value: undefined,
     });
     if (promise) {
@@ -1211,7 +1263,7 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
   const nextDeadline = (): number | null => {
     let value: number | null = null;
     for (const options of st.ops.values()) {
-      if (!options.completed && (value === null || options.at < value)) {
+      if (!options.completed && !options.promise && (value === null || options.at < value)) {
         value = options.at;
       }
     }
@@ -1317,6 +1369,8 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     finish,
     complete,
     nextDeadline,
+    wakeCompletion,
+    waitForCompletion,
     deadlock,
     until,
     overran,
@@ -1392,8 +1446,14 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
     let limited = false;
     let cancelled = false;
     let frames: [number, number][] = [];
-    const wait = (ms: number): Promise<Dynamic> =>
-      driver?.wait(ms) ?? cancel?.wait(ms) ?? new Promise((resolve) => setTimeout(resolve, ms));
+    let interrupted: ((ms: number, signal: AbortSignal) => Promise<unknown>) | undefined;
+    if (driver?.wait) {
+      interrupted = (ms, signal) => driver.wait(ms, signal);
+    } else if (cancel) {
+      interrupted = (ms, signal) => cancel.wait(ms, signal);
+    }
+    const wait = (ms: number, observed: object): Promise<void> =>
+      waitForCompletion(ms, interrupted, observed);
     // The requests acted on, the cleanup deadline once the entry is
     // cancelled, and whether it was abandoned.
     let handled = 0;
@@ -1423,16 +1483,16 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       }
       return false;
     };
-    const waitForDeadline = async (): Promise<boolean> => {
+    const waitForDeadline = async (observed: object): Promise<boolean> => {
       let deadline = nextDeadline();
       if (cleanupBy !== null && !abandoned && (deadline === null || cleanupBy < deadline)) {
         deadline = cleanupBy;
       }
-      if (deadline === null) {
+      if (deadline === null && !st.promiseWaits.size) {
         deadlock();
       }
       flush();
-      await wait(Math.max(0, until(deadline!) - performance.now()));
+      await wait(Math.max(0, until(deadline ?? Infinity) - performance.now()), observed);
       if (overran()) {
         throw new TimeLimit();
       }
@@ -1450,20 +1510,21 @@ export function createCoreHost(sink: Sink, env: CoreEnv = {}, layer: Dynamic = n
       trapped = true;
       return true;
     };
-    const resumeAfterIdle = async (): Promise<boolean> => {
+    const resumeAfterIdle = async (observed: object): Promise<boolean> => {
       if (cancel && (await pollCancellation())) {
         return true;
       }
-      return !(await waitForDeadline());
+      return !(await waitForDeadline(observed));
     };
     const drive = async (): Promise<void> => {
       while (status === -1) {
+        const observed = st.completionToken;
         let count;
         if (driver?.replaying()) {
           count = driver.served();
         } else {
           count = complete();
-          const resume = count === 0 ? await resumeAfterIdle() : null;
+          const resume = count === 0 ? await resumeAfterIdle(observed) : null;
           if (resume === false) {
             break;
           }

@@ -6,6 +6,9 @@ import { createCoreHost, pendingOperation, isAsciiUrl, writtenHost } from "./cor
 import { identityName } from "./core-package.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
+const jspi = WebAssembly as typeof WebAssembly & {
+  promising(call: Dynamic): () => Promise<number>;
+};
 
 const runtime = (): Dynamic => createPackageRuntime({});
 const encode = (codec: Dynamic, value: Dynamic): Uint8Array => {
@@ -173,7 +176,13 @@ test("private Serde values retain numeric kind, deep containers and literal obje
 // Its methods are driven directly so readiness and delivery can be separated.
 function operationHost(
   wait: Dynamic,
-  { suspends = true, grants = {}, extraEnv = {}, generatedIdentity }: Dynamic = {},
+  {
+    suspends = true,
+    grants = {},
+    extraEnv = {},
+    generatedIdentity,
+    blocking = false,
+  }: Dynamic = {},
 ): Dynamic {
   const identity = { package: "tests/sdk", version: "1.0.0", trait_path: "Source" };
   const moduleName = "hd:pkg:readiness-test";
@@ -190,7 +199,35 @@ function operationHost(
   const contract = new Uint8Array([1, 0, 0, 0, ...error.done()]);
   const custom = new Uint8Array([...new Enc().str("hd.capabilities").done(), ...contract]);
   const memory = new Enc().leb(1).leb(0).leb(1).done();
-  const exported = new Enc().leb(1).str("hd.x").leb(2).leb(0).done();
+  const exported = new Enc()
+    .leb(blocking ? 2 : 1)
+    .str("hd.x")
+    .leb(2)
+    .leb(0);
+  if (blocking) {
+    exported.str("block").leb(0).leb(1);
+  }
+  const functions = blocking
+    ? new Enc()
+        .leb(1)
+        .bytes(new Enc().leb(1).leb(0x60).leb(0).leb(1).leb(0x7f).done())
+        .leb(2)
+        .bytes(new Enc().leb(1).str("hd:rt").str("block").leb(0).leb(0).done())
+        .leb(3)
+        .bytes(new Enc().leb(1).leb(0).done())
+        .done()
+    : new Uint8Array();
+  const code = blocking
+    ? new Enc()
+        .leb(10)
+        .bytes(
+          new Enc()
+            .leb(1)
+            .bytes(new Uint8Array([0, 16, 0, 11]))
+            .done(),
+        )
+        .done()
+    : new Uint8Array();
   const bytes = new Uint8Array([
     0,
     97,
@@ -200,7 +237,10 @@ function operationHost(
     0,
     0,
     0,
-    ...new Enc().leb(0).bytes(custom).leb(5).bytes(memory).leb(7).bytes(exported).done(),
+    ...new Enc().leb(0).bytes(custom).done(),
+    ...functions,
+    ...new Enc().leb(5).bytes(memory).leb(7).bytes(exported.done()).done(),
+    ...code,
   ]);
   const module = new WebAssembly.Module(bytes);
   let descriptor;
@@ -238,6 +278,7 @@ function operationHost(
   host.prime(instance);
   return {
     host,
+    instance,
     contract,
     descriptor,
     module,
@@ -319,6 +360,100 @@ test("generated identity claims cannot substitute for the checked interface", ()
     /generated method shapes do not match/,
   );
   assert.equal(calls, 0);
+});
+
+test("settled package Promises wake JSPI without timer ticks", async (context) => {
+  context.mock.method(globalThis, "setTimeout", () => {
+    throw new Error("a Promise completion is not a timer");
+  });
+  context.mock.method(globalThis, "setImmediate", () => {
+    throw new Error("a Promise completion must not spin");
+  });
+  const operation = operationHost(async () => "resolved", { blocking: true });
+  const block = jspi.promising(operation.instance.exports.block);
+  try {
+    for (let i = 0; i < 1_000; i++) {
+      const [, id] = operation.target["wait.start"]();
+      assert.equal(await block(), 1);
+      assert.equal(operation.finish(id), "resolved");
+    }
+  } finally {
+    operation.host.close();
+  }
+});
+
+for (const rejects of [false, true]) {
+  test(`a slow package Promise wakes only on settlement (rejects ${rejects})`, async (context) => {
+    context.mock.method(globalThis, "setTimeout", () => {
+      throw new Error("a slow Promise has no polling timer");
+    });
+    context.mock.method(globalThis, "setImmediate", () => {
+      throw new Error("a slow Promise must not spin");
+    });
+    let settle: (value: string) => void = () => {
+      throw new Error("provider not started");
+    };
+    const operation = operationHost(
+      () =>
+        new Promise<string>((resolve, reject) => {
+          settle = rejects ? reject : resolve;
+        }),
+      { blocking: true },
+    );
+    try {
+      const [, id] = operation.target["wait.start"]();
+      const options = operation.host.core.st.ops.get(id);
+      const poll = options.poll;
+      let probes = 0;
+      options.poll = () => {
+        probes++;
+        return poll();
+      };
+      const blocked = jspi.promising(operation.instance.exports.block)();
+      const result = rejects ? assert.rejects(blocked, /provider .* rejected: failed/) : blocked;
+      for (let i = 0; i < 1_000; i++) {
+        await Promise.resolve();
+      }
+      assert.equal(probes, 1, "unrelated microtasks never re-probe a pending Promise");
+      settle(rejects ? "failed" : "resolved");
+      if (rejects) {
+        await result;
+      } else {
+        assert.equal(await result, 1);
+        assert.equal(operation.finish(id), "resolved");
+      }
+      assert.equal(probes, 2, "one probe before sleeping and one on delivery");
+    } finally {
+      operation.host.close();
+    }
+  });
+}
+
+test("a Promise wake cancels its competing real timer", async (context) => {
+  const schedule = globalThis.setTimeout;
+  const cancel = globalThis.clearTimeout;
+  let timers = 0,
+    cleared = 0;
+  context.mock.method(globalThis, "setTimeout", (...args: Parameters<typeof setTimeout>) => {
+    timers++;
+    assert.ok(Number(args[1]) > 10_000, "only the real Clock deadline is scheduled");
+    return schedule(...args);
+  });
+  context.mock.method(globalThis, "clearTimeout", (...args: Parameters<typeof clearTimeout>) => {
+    cleared++;
+    return cancel(...args);
+  });
+  const operation = operationHost(async () => "resolved", { blocking: true });
+  try {
+    const [, id] = operation.target["wait.start"]();
+    operation.host.imports["hd:Clock"]["sleep.start"](60_000n);
+    assert.equal(await jspi.promising(operation.instance.exports.block)(), 1);
+    assert.equal(operation.finish(id), "resolved");
+    assert.equal(timers, 1);
+    assert.equal(cleared, 1, "a settled call leaves no live deadline timer");
+  } finally {
+    operation.host.close();
+  }
 });
 
 test("only Promise-backed package waits require a JSPI stack", async () => {

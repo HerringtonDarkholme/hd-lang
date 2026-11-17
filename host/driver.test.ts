@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createCoreHost, pendingOperation, HostContract } from "./core.ts";
+import { createCoreHost, entryCancel, pendingOperation, HostContract } from "./core.ts";
 import { Enc, Ok } from "./wire.ts";
 import { readFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
@@ -535,6 +535,95 @@ test("a malformed root status fails the driver", () => {
   }
 });
 
+for (const mode of ["default", "cancel", "driver"]) {
+  for (const immediate of [false, true]) {
+    test(`Promise settlement wakes an async driver and releases its wait (${mode}, immediate ${immediate})`, async (context) => {
+      context.mock.method(globalThis, "setTimeout", () => {
+        throw new Error("a pending Promise has no polling timer");
+      });
+      context.mock.method(globalThis, "setImmediate", () => {
+        throw new Error("a pending Promise must not spin");
+      });
+      const waiting: boolean[] = [];
+      const cancel = entryCancel(100, (active) => waiting.push(active));
+      let start: Dynamic;
+      const host = createCoreHost(
+        { out() {}, err() {} },
+        {
+          providers: (io) => {
+            start = io.pending;
+            return {};
+          },
+        },
+      );
+      let began = false,
+        ready = false,
+        probes = 0,
+        wakes = 0;
+      const guest = instance({
+        poll() {
+          if (!began) {
+            began = true;
+            start({
+              at: performance.now(),
+              promise: true,
+              poll: () => {
+                probes++;
+                return ready;
+              },
+              done: () => null,
+            });
+            if (immediate) {
+              queueMicrotask(() => {
+                ready = true;
+                host.core.st.wakeCompletion();
+              });
+            }
+            return -1;
+          }
+          assert.equal(ready, true);
+          return 0;
+        },
+        wake(count: number) {
+          wakes += count;
+        },
+      });
+      const driver = {
+        poll() {},
+        replaying: () => false,
+        woke() {},
+        wait: (ms: number, signal: AbortSignal) => cancel.wait(ms, signal),
+        stopping: () => null,
+      };
+      try {
+        const options: Dynamic = {};
+        if (mode === "cancel") {
+          options.cancel = cancel;
+        } else if (mode === "driver") {
+          options.driver = driver;
+        }
+        const result = host.run(guest, "hd.init", "hd.poll", options);
+        if (!immediate) {
+          for (let i = 0; i < 1_000; i++) {
+            await Promise.resolve();
+          }
+          assert.equal(probes, 1);
+          ready = true;
+          host.core.st.wakeCompletion();
+        }
+        assert.equal((await result).status, 0);
+        assert.equal(probes, 2);
+        assert.equal(wakes, 1);
+        assert.deepEqual(
+          waiting,
+          mode === "default" || (mode === "cancel" && immediate) ? [] : [true, false],
+        );
+      } finally {
+        host.close();
+      }
+    });
+  }
+}
 test("a failed completion remains owned until close and cannot be retried", () => {
   const error = new Error("provider completion failed");
   let aborted = 0;
