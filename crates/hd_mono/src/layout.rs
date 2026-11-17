@@ -347,7 +347,7 @@ pub fn canon(
                 .map(|(a, t)| (path_hash(a), canon(pool, path_hash, memo, t)))
                 .collect();
             bs.sort_stable();
-            h.u32(u32::try_from(bs.len()).expect("bindings"));
+            h.len(bs.len());
             for (a, t) in bs {
                 h.hash(a);
                 h.hash(t);
@@ -446,7 +446,7 @@ fn canon_row(
         .map(|k| canon(pool, path_hash, memo, k))
         .collect();
     keys.sort_stable();
-    h.u32(u32::try_from(keys.len()).expect("keys"));
+    h.len(keys.len());
     for k in keys {
         h.hash(k);
     }
@@ -457,7 +457,7 @@ fn canon_row(
         .map(|p| (path_hash(p.owner), p.index))
         .collect();
     params.sort_stable();
-    h.u32(u32::try_from(params.len()).expect("params"));
+    h.len(params.len());
     for (o, i) in params {
         h.hash(o);
         h.u16(i);
@@ -472,7 +472,7 @@ fn canon_list(
     h: &mut StableHasher,
 ) {
     let items = pool.list_items(l);
-    h.u32(u32::try_from(items.len()).expect("list"));
+    h.len(items.len());
     for &t in items {
         h.hash(canon(pool, path_hash, memo, t));
     }
@@ -523,7 +523,7 @@ pub fn instance_key(
     let mut h = StableHasher::new("inst");
     h.hash(path_hash(item));
     sub.hash_into(&mut h);
-    h.u32(u32::try_from(args.len()).expect("args"));
+    h.len(args.len());
     for a in args {
         match a {
             KeyArg::Canon(t) => {
@@ -552,7 +552,7 @@ pub(crate) fn known_digest(known: &[(u32, Hash128)]) -> Hash128 {
         return Hash128(0);
     }
     let mut h = StableHasher::new("known");
-    h.u32(u32::try_from(known.len()).expect("known"));
+    h.len(known.len());
     for &(p, k) in known {
         h.u32(p);
         h.hash(k);

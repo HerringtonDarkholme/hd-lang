@@ -37,6 +37,14 @@ impl StableHasher {
     pub fn u64(&mut self, v: u64) {
         self.bytes(&v.to_le_bytes());
     }
+    /// A length prefix: the low 32 bits of `n`, the same bytes [`Self::u32`]
+    /// writes for any length below 2^32. A prefix only separates the parts
+    /// hashed after it, so a longer length still hashes (with its high
+    /// bits dropped) instead of stopping the run.
+    pub fn len(&mut self, n: usize) {
+        let [a, b, c, d, ..] = n.to_le_bytes();
+        self.bytes(&[a, b, c, d]);
+    }
     pub fn hash(&mut self, v: Hash128) {
         self.bytes(&v.0.to_le_bytes());
     }
@@ -86,6 +94,14 @@ impl<T: StableHash> StableHash for [T] {
 #[cfg(test)]
 mod tests {
     use super::{StableHash, StableHasher};
+
+    #[test]
+    fn a_length_prefix_hashes_as_its_u32() {
+        let (mut a, mut b) = (StableHasher::new("t"), StableHasher::new("t"));
+        a.len(70_000);
+        b.u32(70_000);
+        assert_eq!(a.finish(), b.finish());
+    }
 
     #[test]
     fn length_prefix_separates_fields() {

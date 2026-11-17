@@ -63,7 +63,7 @@ pub fn digest(known: &[(u32, Hash128)], defaults: &[(u32, Value)]) -> Hash128 {
     let mut h = StableHasher::new("instance-defaults");
     h.hash(crate::layout::known_digest(known));
     h.u32(1); // Transformation version: also separates emitted-code cache entries.
-    h.u32(u32::try_from(defaults.len()).expect("defaults"));
+    h.len(defaults.len());
     for &(p, value) in defaults {
         h.u32(p);
         value.hash_into(&mut h);
@@ -561,9 +561,7 @@ impl Arms {
 
 /// `n`, a length or position in a body's columns, as a TIR word.
 fn index(n: usize) -> u32 {
-    // ruled out: TIR addresses instructions, records and constants with
-    // `u32` words, so no column of a body grows past `u32::MAX`.
-    u32::try_from(n).expect("a TIR column fits u32 words")
+    hd_tir::ir::u32_of(n)
 }
 
 /// The item's parameter locals, excluding parameters of nested functions.

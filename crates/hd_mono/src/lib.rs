@@ -1292,7 +1292,7 @@ fn reach_hash(
             }
             None => h.u8(0),
         }
-        h.u32(u32::try_from(parts.len()).expect("parts"));
+        h.len(parts.len());
         for p in &parts {
             h.hash(reach[p]);
         }
@@ -1328,9 +1328,9 @@ fn declarations_hash(
             h.u8(1);
         } else if let Some(vs) = env.enum_declared(d) {
             h.u8(2);
-            h.u32(u32::try_from(vs.len()).expect("variants"));
+            h.len(vs.len());
             for v in &vs {
-                h.u32(u32::try_from(v.len()).expect("fields"));
+                h.len(v.len());
             }
         } else {
             h.u8(3);
@@ -1338,7 +1338,7 @@ fn declarations_hash(
         let mut names = Vec::new();
         let mut seen = HashSet::default();
         let tys = declared_types(env, d);
-        h.u32(u32::try_from(tys.len()).expect("types"));
+        h.len(tys.len());
         for t in tys {
             h.hash(canon(pool, &ph, canons, t));
             items_in(pool, t, &mut names, &mut seen);
@@ -1401,11 +1401,11 @@ fn declarations_hash(
         outside.sort_stable();
         outside.dedup();
         let mut h = StableHasher::new("declarations");
-        h.u32(u32::try_from(owns.len()).expect("items"));
+        h.len(owns.len());
         for o in owns {
             h.hash(o);
         }
-        h.u32(u32::try_from(outside.len()).expect("items"));
+        h.len(outside.len());
         for o in outside {
             h.hash(o);
         }
@@ -1824,7 +1824,7 @@ impl Cx<'_> {
                 }
                 let default = *body.record(body.data[i][0]).first()?;
                 let value = defaults::constant(self.env.body(DefId::from_raw(default))?)?;
-                Some((u32::try_from(p).expect("params"), value))
+                Some((hd_tir::ir::u32_of(p), value))
             })
             .collect();
         if values.is_empty() {
@@ -2993,7 +2993,7 @@ impl Cx<'_> {
                 subst(pool, env, def, cargs, params[p])
                     == subst(pool, env, item, iargs, value_ty(body, w))
             })
-            .map(|(p, k, _)| (u32::try_from(p).expect("params"), k))
+            .map(|(p, k, _)| (hd_tir::ir::u32_of(p), k))
             .collect();
         if known.is_empty()
             || (self
@@ -3319,7 +3319,7 @@ impl Cx<'_> {
                 .get(i)
                 .filter(|n| supplied.is_none() && **n != NodeIdx::NONE)
                 .map(|&n| (item, n));
-            let ix = u32::try_from(i).expect("insts");
+            let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
                 Tag::CallHost => {
