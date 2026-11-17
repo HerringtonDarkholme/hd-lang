@@ -1,0 +1,22 @@
+# @dump: own stdout
+# @build: release checked
+# expected: a copied parameter stays borrowed while an unrelated global owner is replaced.
+use std.annotation.cold
+use std.testing.assert_equal
+
+let saved = "old"
+
+@cold
+fn keep(value: string) -> void:
+    saved = value
+
+@cold
+# subject
+fn replace_after_copy(value: string) -> usize:
+    keep(value)
+    saved = "new"
+    value.len()
+
+pub fn main() -> void:
+    assert_equal(replace_after_copy("input"), 5)
+    assert_equal(saved, "new")

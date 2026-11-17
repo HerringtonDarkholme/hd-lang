@@ -1,0 +1,184 @@
+# @dump: own counts stdout
+# @build: checked | release checked
+# expected: a weakened local reference aliases the original writable place.
+use std.annotation.{cold, inline}
+use std.collections.UniqList
+use std.testing.assert_equal
+
+struct Counter:
+    value: usize
+
+struct Packet:
+    payload: UniqList[usize]
+    text: string
+
+impl !Copy for Packet
+
+@cold
+fn packet_size(value: Packet) -> usize:
+    value.payload.len() + value.text.len()
+
+@cold
+fn indirect_packet(callback: fn(Packet) -> usize, value: Packet) -> usize:
+    callback(value)
+
+@inline(.Always)
+fn read(value: &Counter) -> usize:
+    value.value
+
+@cold
+fn increment(value: &mut Counter) -> void:
+    value.value += 1
+
+@cold
+# subject
+fn aliases(seed: usize) -> usize:
+    let mut counter = Counter { value: seed }
+    mutable := &mut counter
+    let immutable: &Counter = mutable
+    before := read(immutable)
+    increment(mutable)
+    before + read(&counter)
+
+@cold
+fn element_aliases(seed: usize) -> usize:
+    let mut values = [Counter { value: seed }]
+    before := read(&values[0])
+    increment(&mut values[0])
+    before + read(&values[0])
+
+@cold
+fn direct_element(seed: usize) -> usize:
+    let mut values = [seed]
+    before := values[0]
+    values[0] = before + 1
+    values[0]
+
+@cold
+fn bump_scalar(value: &mut usize) -> void:
+    *value += 1
+
+@cold
+fn scalar_element(seed: usize) -> usize:
+    let mut values = [seed]
+    let index = 0
+    bump_scalar(&mut values[index])
+    values[index]
+
+@cold
+fn inspect_scalar(value: &usize) -> usize:
+    *value
+
+@cold
+fn read_element(values: &List[usize], index: usize) -> usize:
+    inspect_scalar(&values[index])
+
+@cold
+fn grow(seed: usize) -> usize:
+    let mut values = [seed]
+    values.push(seed + 1)
+    values.len()
+
+@cold
+fn inspect_double(value: &(&Counter)) -> usize:
+    (*(*value)).value
+
+@cold
+fn double_reference(seed: usize) -> usize:
+    counter := Counter { value: seed }
+    reference := &counter
+    inspect_double(&reference)
+
+@cold
+fn list_size(values: &List[usize]) -> usize:
+    values.len()
+
+@cold
+fn mixed_effects(values: List[usize], target: *mut Counter) -> usize:
+    size := list_size(&values)
+    target.value += 1
+    size
+
+@cold
+fn evaluate(callback: fn() -> usize) -> usize:
+    callback()
+
+@cold
+fn string_identity(value: string) -> string:
+    value
+
+@cold
+fn nested_capture(first: &Counter, second: &Counter, text: string) -> usize:
+    _ := string_identity(text)
+    evaluate(fn() -> usize:
+        let current = first
+        before := evaluate(fn() -> usize: current.value)
+        current = second
+        before + evaluate(fn() -> usize: current.value)
+    )
+
+@cold
+fn select_captured(left: string, right: string, flag: bool) -> usize:
+    selected := if flag: left else: right
+    selected.len() + evaluate(fn() -> usize: left.len())
+
+@cold
+fn make_counter(seed: usize) -> *mut Counter:
+    box(Counter { value: seed })
+
+@cold
+fn counter_value(value: &Counter) -> usize:
+    value.value
+
+@cold
+fn temporary_counter(seed: usize) -> usize:
+    counter_value(make_counter(seed))
+
+@cold
+fn change_counted(owner: *mut Counter) -> void:
+    owner.value += 1
+
+@cold
+fn reason_direct(owner: *mut Counter) -> usize:
+    before := owner.value
+    change_counted(owner)
+    before
+
+@cold
+fn reason_indirect(owner: *mut Counter, callback: fn() -> void) -> usize:
+    before := owner.value
+    callback()
+    before
+
+@cold
+fn reason_intrinsic(owner: *mut Counter) -> usize:
+    before := owner.value
+    let mut values = [0]
+    values.push(1)
+    before + values.len()
+
+pub fn main() -> void:
+    assert_equal(select_captured("left", "right", true), 8)
+    assert_equal(select_captured("left", "right", false), 9)
+    assert_equal(temporary_counter(7), 7)
+    owner := box(Counter { value: 7 })
+    assert_equal(reason_direct(owner), 7)
+    assert_equal(reason_indirect(owner, fn() -> void: change_counted(owner)), 8)
+    assert_equal(reason_intrinsic(owner), 11)
+    assert_equal(aliases(7), 15)
+    assert_equal(element_aliases(7), 15)
+    assert_equal(direct_element(7), 8)
+    assert_equal(scalar_element(7), 8)
+    assert_equal(read_element(&[7], 0), 7)
+    assert_equal(grow(7), 2)
+    assert_equal(
+        indirect_packet(packet_size, Packet { payload: UniqList::new(), text: "owned" }),
+        5,
+    )
+    assert_equal(double_reference(7), 7)
+    target := box(Counter { value: 0 })
+    assert_equal(mixed_effects([7, 8], target), 2)
+    assert_equal(target.value, 1)
+    first := Counter { value: 7 }
+    second := Counter { value: 9 }
+    assert_equal(nested_capture(&first, &second, "kept"), 16)

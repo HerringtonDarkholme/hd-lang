@@ -2860,8 +2860,11 @@ fn promotion_census_work_is_linear_in_call_sites() {
             entry: "main".into(),
         };
         let build = |source: String| {
-            let (out, work) = hd_tir::own::promote::count_census(|| compile(&source, &goal));
+            let ((out, work), outer) = hd_tir::own::promote::count_census(|| {
+                hd_tir::own::promote::count_census(|| compile(&source, &goal))
+            });
             assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(outer, work, "nested censuses propagate the same work");
             work
         };
         // The census reads each instruction once and each argument is one

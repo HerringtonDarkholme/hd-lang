@@ -1,0 +1,24 @@
+# @dump: own stdout
+# @build: release checked
+# expected: an exhaustive single-arm pattern keeps uniqueness valid in each loop iteration.
+use std.annotation.cold
+use std.testing.assert_equal
+
+enum Choice:
+    Left
+    Right
+
+@cold
+# subject
+fn fill(choice: Choice, n: usize) -> usize:
+    let mut values = [0]
+    let i = 0
+    while i < n:
+        match choice:
+            _ => values[0] += 1
+        i += 1
+    values[0]
+
+pub fn main() -> void:
+    assert_equal(fill(.Left, 3), 3)
+    assert_equal(fill(.Right, 4), 4)
