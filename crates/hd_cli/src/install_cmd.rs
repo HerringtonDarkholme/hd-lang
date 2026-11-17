@@ -373,14 +373,10 @@ fn grants(table: &[(String, Grant)], directory: &Path) -> Value {
             Grant::All => json!(true),
             Grant::Deny => json!(false),
             Grant::Scopes(entries) => {
-                let entries = resolved
-                    .limits
-                    .iter()
-                    .find_map(|(k, l)| match l {
-                        hd_run::Limit::Entries(paths) if k == key => Some(paths),
-                        _ => None,
-                    })
-                    .unwrap_or(entries);
+                let entries = match resolved.limit(key) {
+                    Some(hd_run::Limit::Entries(paths)) => paths,
+                    _ => entries,
+                };
                 json!(entries)
             }
         };

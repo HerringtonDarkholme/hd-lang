@@ -201,10 +201,7 @@ mod tests {
         assert_eq!(decoded.leb().unwrap(), 13);
         assert_eq!(decoded.str().unwrap(), "resolver");
 
-        let deny = Grants {
-            limits: vec![("Http".into(), hd_run::Limit::Deny)],
-            ..Grants::default()
-        };
+        let deny = Grants::with_limits(vec![("Http".into(), hd_run::Limit::Deny)]);
         let Start::Ready(denied) = start(
             wire(None, vec![], Some(WireDuration { millis: 0 })).done(),
             &deny,

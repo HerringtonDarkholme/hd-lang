@@ -177,10 +177,7 @@ fn setup_with(table: &[(&str, GrantValue)], flags: &[(&str, GrantValue)]) -> Hos
     };
     HostSetup {
         providers: vec![],
-        grants: Grants {
-            consent: Consent::new(&values(table), &values(flags)),
-            ..Grants::default()
-        },
+        grants: Grants::with_consent(Consent::new(&values(table), &values(flags))),
         limits: Limits::default(),
         args: vec![],
         program: "native".into(),

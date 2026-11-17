@@ -19,13 +19,10 @@ fn grants(entries: &[PathBuf]) -> Grants {
         .iter()
         .map(|e| hd_run::resolve_path(e).to_string_lossy().into_owned())
         .collect();
-    Grants {
-        limits: vec![
-            ("FsRead".into(), Limit::Entries(list.clone())),
-            ("FsWrite".into(), Limit::Entries(list)),
-        ],
-        ..Grants::default()
-    }
+    Grants::with_limits(vec![
+        ("FsRead".into(), Limit::Entries(list.clone())),
+        ("FsWrite".into(), Limit::Entries(list)),
+    ])
 }
 
 /// A call as the host makes it, with `sandbox` kept across calls.

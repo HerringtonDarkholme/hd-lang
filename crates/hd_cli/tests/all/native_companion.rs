@@ -226,10 +226,10 @@ fn the_companion_of_a_wasmtime_build_answers_its_guest() {
     // registration alone grants nothing.
     let setup = HostSetup {
         providers: vec![],
-        grants: Grants {
-            consent: Consent::new(&[("pkg.main.Server".to_owned(), GrantValue::All)], &[]),
-            ..Grants::default()
-        },
+        grants: Grants::with_consent(Consent::new(
+            &[("pkg.main.Server".to_owned(), GrantValue::All)],
+            &[],
+        )),
         limits: Limits::default(),
         args: vec![],
         program: "probe".into(),

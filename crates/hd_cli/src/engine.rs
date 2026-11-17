@@ -793,10 +793,7 @@ mod tests {
     #[test]
     fn native_named_children_retain_modules_and_grants_without_node_configuration() {
         use super::TestPrograms;
-        let grants = hd_run::Grants {
-            limits: vec![("Env".into(), hd_run::Limit::Deny)],
-            ..hd_run::Grants::default()
-        };
+        let grants = hd_run::Grants::with_limits(vec![("Env".into(), hd_run::Limit::Deny)]);
         let list = vec![("tool".to_owned(), vec![0, 97, 115, 109], grants.clone())];
         let programs = TestPrograms::new(
             EngineKind::Wasmtime,
@@ -810,7 +807,7 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].0, "tool");
         assert_eq!(list[0].1, [0, 97, 115, 109]);
-        assert_eq!(list[0].2.limits, grants.limits);
+        assert_eq!(list[0].2, grants);
     }
 
     #[cfg(not(feature = "wasmtime"))]

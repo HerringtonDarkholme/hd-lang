@@ -678,10 +678,7 @@ fn setup() -> HostSetup {
     .collect();
     HostSetup {
         providers: vec![],
-        grants: Grants {
-            consent: Consent::new(&table, &[]),
-            ..Grants::default()
-        },
+        grants: Grants::with_consent(Consent::new(&table, &[])),
         limits: Limits::default(),
         args: vec![],
         program: String::new(),

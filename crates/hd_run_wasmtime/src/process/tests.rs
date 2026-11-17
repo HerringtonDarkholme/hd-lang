@@ -85,10 +85,7 @@ fn process(bytes: &[u8], grants: &Grants) -> Vec<u8> {
 #[test]
 fn process_grant_precedes_spawn_and_missing_program_is_not_found() {
     let args = call("hd-no-such-program-for-process-test", &[]);
-    let grants = Grants {
-        limits: vec![("Process".into(), Limit::Entries(vec![]))],
-        ..Grants::default()
-    };
+    let grants = Grants::with_limits(vec![("Process".into(), Limit::Entries(vec![]))]);
     assert_eq!(process(&args, &grants), [1, 2]);
     let mut missing = Enc::default();
     missing
@@ -112,10 +109,7 @@ fn process_invalid_names_and_arguments_are_typed_errors() {
         let mut error = Enc::default();
         error.leb(1).leb(3).str(expected);
         assert_eq!(process(&args, &Grants::default()), error.done().to_vec());
-        let denied = Grants {
-            limits: vec![("Process".into(), Limit::Deny)],
-            ..Grants::default()
-        };
+        let denied = Grants::with_limits(vec![("Process".into(), Limit::Deny)]);
         assert_eq!(process(&args, &denied), [1, 2]);
     }
     assert_eq!(process(&call("", &[]), &Grants::default()), [1, 0, 0]);

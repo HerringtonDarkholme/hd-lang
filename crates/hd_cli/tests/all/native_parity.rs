@@ -246,10 +246,7 @@ fn wasmtime(built: &Built, providers: Vec<Provider>) -> Run {
     };
     let setup = HostSetup {
         providers: vec![],
-        grants: Grants {
-            consent: consent(&built.root),
-            ..Grants::default()
-        },
+        grants: Grants::with_consent(consent(&built.root)),
         limits: Limits::default(),
         args: vec![],
         program: built.stem.into(),

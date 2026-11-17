@@ -515,12 +515,8 @@ mod tests {
                 hd_run::resolve_path(path).to_string_lossy().into_owned(),
             ])
         };
-        let mut grants = Grants {
-            limits: vec![
-                ("FsRead".into(), entries(&source)),
-                ("FsWrite".into(), entries(&target)),
-            ],
-            ..Grants::default()
+        let grants = |read: Limit, write: Limit| {
+            Grants::with_limits([("FsRead".into(), read), ("FsWrite".into(), write)])
         };
         let invoke = |grants: &Grants| {
             let mut args = Enc::default();
@@ -530,18 +526,17 @@ mod tests {
                 .done()
                 .to_vec()
         };
-        assert_eq!(invoke(&grants), [0]);
+        let both = grants(entries(&source), entries(&target));
+        assert_eq!(invoke(&both), [0]);
         assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
-        grants.limits[0].1 = Limit::Deny;
-        assert_eq!(invoke(&grants), error("source", 2).done());
-        grants.limits[0].1 = entries(&source);
-        grants.limits[1].1 = Limit::Deny;
-        assert_eq!(invoke(&grants), error("target", 2).done());
+        let no_read = grants(Limit::Deny, entries(&target));
+        assert_eq!(invoke(&no_read), error("source", 2).done());
+        let no_write = grants(entries(&source), Limit::Deny);
+        assert_eq!(invoke(&no_write), error("target", 2).done());
         assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
         fs::remove_file(&target).unwrap();
         fs::hard_link(&source, &target).unwrap();
-        grants.limits[1].1 = entries(&target);
-        assert_eq!(invoke(&grants), [0]);
+        assert_eq!(invoke(&grants(entries(&source), entries(&target))), [0]);
         assert_eq!(fs::read(&source).unwrap(), [0, 255, 10]);
         assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
     }
@@ -558,23 +553,20 @@ mod tests {
         let source = dir.0.join("source");
         let target = dir.0.join("target");
         let outside = dir.0.join("outside");
-        let grants = Grants {
-            limits: vec![
-                (
-                    "FsRead".into(),
-                    Limit::Entries(vec![
-                        hd_run::resolve_path(&source).to_string_lossy().into_owned(),
-                    ]),
-                ),
-                (
-                    "FsWrite".into(),
-                    Limit::Entries(vec![
-                        hd_run::resolve_path(&target).to_string_lossy().into_owned(),
-                    ]),
-                ),
-            ],
-            ..Grants::default()
-        };
+        let grants = Grants::with_limits(vec![
+            (
+                "FsRead".into(),
+                Limit::Entries(vec![
+                    hd_run::resolve_path(&source).to_string_lossy().into_owned(),
+                ]),
+            ),
+            (
+                "FsWrite".into(),
+                Limit::Entries(vec![
+                    hd_run::resolve_path(&target).to_string_lossy().into_owned(),
+                ]),
+            ),
+        ]);
         let sandbox = Sandbox::default();
         let job = || {
             Box::new(Job {
@@ -674,17 +666,14 @@ mod tests {
             invoke("FsRead", "read_text", "absent", &Grants::default()).done(),
             error("absent", 0).done()
         );
-        let grants = Grants {
-            limits: vec![(
-                "FsRead".into(),
-                Limit::Entries(vec![
-                    hd_run::resolve_path(&dir.0.join("item"))
-                        .to_string_lossy()
-                        .into_owned(),
-                ]),
-            )],
-            ..Grants::default()
-        };
+        let grants = Grants::with_limits(vec![(
+            "FsRead".into(),
+            Limit::Entries(vec![
+                hd_run::resolve_path(&dir.0.join("item"))
+                    .to_string_lossy()
+                    .into_owned(),
+            ]),
+        )]);
         assert_eq!(
             invoke("FsRead", "read_text", "item", &grants).done(),
             Enc::default().leb(0).str("x").done()
@@ -718,10 +707,7 @@ mod tests {
     }
     #[test]
     fn grants_precede_validation_and_cover_both_rename_paths() {
-        let denied = Grants {
-            limits: vec![("FsWrite".into(), Limit::Deny)],
-            ..Grants::default()
-        };
+        let denied = Grants::with_limits(vec![("FsWrite".into(), Limit::Deny)]);
         // Every argument decodes before the grant is checked: a missing
         // payload breaks the ABI even outside the grant.
         let mut args = Enc::default();
@@ -747,18 +733,15 @@ mod tests {
             .into_owned();
         let refused = format!("{allowed}-outside");
         fs::write(&allowed, "keep").unwrap();
-        let grants = Grants {
-            limits: vec![(
-                "FsWrite".into(),
-                Limit::Entries(vec![
-                    hd_run::canonicalize(&allowed)
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned(),
-                ]),
-            )],
-            ..Grants::default()
-        };
+        let grants = Grants::with_limits(vec![(
+            "FsWrite".into(),
+            Limit::Entries(vec![
+                hd_run::canonicalize(&allowed)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+            ]),
+        )]);
         for (from, to, rejected) in [
             (&allowed, &refused, &refused),
             (&refused, &allowed, &refused),

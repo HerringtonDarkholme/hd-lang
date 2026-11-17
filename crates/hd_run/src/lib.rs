@@ -213,10 +213,7 @@ mod tests {
 
     #[test]
     fn ungranted_capability_is_refused() {
-        let g = Grants {
-            limits: vec![("FsRead".into(), Limit::Deny)],
-            ..Grants::default()
-        };
+        let g = Grants::with_limits(vec![("FsRead".into(), Limit::Deny)]);
         assert!(check_grants(&["Console"], &g).is_ok());
         assert!(check_grants(&["Console", "FsRead"], &g).is_err());
     }

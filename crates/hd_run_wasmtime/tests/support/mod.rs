@@ -681,10 +681,7 @@ pub fn parity_masked(
         .collect::<Vec<_>>();
     let setup = HostSetup {
         providers: vec![],
-        grants: Grants {
-            limits: limits.clone(),
-            ..Grants::default()
-        },
+        grants: Grants::with_limits(limits.clone()),
         limits: Limits::default(),
         args: vec![],
         program: String::new(),

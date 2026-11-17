@@ -713,10 +713,7 @@ mod tests {
 
     #[test]
     fn invalid_urls_and_denials_precede_header_validation() {
-        let deny = Grants {
-            limits: vec![("Http".into(), Limit::Deny)],
-            ..Grants::default()
-        };
+        let deny = Grants::with_limits(vec![("Http".into(), Limit::Deny)]);
         let r = request(
             "bad method",
             "http://127.0.0.1:1/",
@@ -738,10 +735,7 @@ mod tests {
     /// `std-http.url.valid`, `.non-ascii`, `.grant`, `.no-normalize`.
     #[test]
     fn a_non_ascii_host_is_invalid_and_a_grant_matches_the_lowercase_host() {
-        let deny = Grants {
-            limits: vec![("Http".into(), Limit::Deny)],
-            ..Grants::default()
-        };
+        let deny = Grants::with_limits(vec![("Http".into(), Limit::Deny)]);
         let denied = |url: &str| {
             let r = request("GET", url, &vec![], &[], 10);
             send(r.done(), &deny).done().to_vec()
@@ -758,10 +752,10 @@ mod tests {
         let url = "http://xn--bcher-kva.example/";
         assert_eq!(denied(url), encoded(0, "xn--bcher-kva.example"));
         assert_eq!(denied("HTTP://LocalHost:1/"), encoded(0, "localhost"));
-        let only = Grants {
-            limits: vec![("Http".into(), Limit::Entries(vec!["Example.COM".into()]))],
-            ..Grants::default()
-        };
+        let only = Grants::with_limits(vec![(
+            "Http".into(),
+            Limit::Entries(vec!["Example.COM".into()]),
+        )]);
         let r = request("GET", "http://EXAMPLE.com:1/", &vec![], &[], 10);
         assert!(matches!(
             super::super::client::start(r.done(), &only).unwrap(),
@@ -896,10 +890,10 @@ mod tests {
             )
             .unwrap();
         });
-        let grant = Grants {
-            limits: vec![("Http".into(), Limit::Entries(vec![address.to_string()]))],
-            ..Grants::default()
-        };
+        let grant = Grants::with_limits(vec![(
+            "Http".into(),
+            Limit::Entries(vec![address.to_string()]),
+        )]);
         let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10);
         let encoded = send(r.done(), &grant);
         let mut expected = Enc::default();

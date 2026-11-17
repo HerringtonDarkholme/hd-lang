@@ -669,7 +669,7 @@ fn run_config(
 /// no limit (`cli.cap.order.default`).
 fn grants_json(g: &Grants) -> String {
     let mut out = String::from("{");
-    for (i, (key, limit)) in g.limits.iter().enumerate() {
+    for (i, (key, limit)) in g.limits().enumerate() {
         if i > 0 {
             out.push(',');
         }
@@ -1028,13 +1028,10 @@ mod tests {
             kind: "it_prop".into(),
             temp_dir: PathBuf::from("/tmp/hd-test-1-0/4"),
             seed: Some(9),
-            grants: Grants {
-                limits: vec![
-                    ("Console".into(), Limit::Deny),
-                    ("FsWrite".into(), Limit::Entries(vec!["/tmp/a\"b".into()])),
-                ],
-                ..Grants::default()
-            },
+            grants: Grants::with_limits(vec![
+                ("Console".into(), Limit::Deny),
+                ("FsWrite".into(), Limit::Entries(vec!["/tmp/a\"b".into()])),
+            ]),
             snapshot: Snapshot {
                 root: PathBuf::from("/pkg"),
                 folder: "__snapshots__/tests.report".into(),

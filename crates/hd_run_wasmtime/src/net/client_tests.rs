@@ -35,10 +35,7 @@ fn read(net: &mut Net, handle: i64, max: i64) -> Started {
 #[test]
 fn refusals_complete_at_once_and_unknown_handles_precede_destination_checks() {
     let mut net = Net::new();
-    let grants = Grants {
-        limits: vec![("Net".into(), Limit::Deny)],
-        ..Grants::default()
-    };
+    let grants = Grants::with_limits(vec![("Net".into(), Limit::Deny)]);
     let mut expected = Enc::default();
     expected.leb(1).leb(0).str("127.0.0.1:9");
     let refused = net
@@ -466,10 +463,7 @@ fn closed_udp_send_is_disposed_before_denied_or_invalid_destination() {
             .done(),
         &[0]
     );
-    let denied = Grants {
-        limits: vec![("Net".into(), Limit::Deny)],
-        ..Grants::default()
-    };
+    let denied = Grants::with_limits(vec![("Net".into(), Limit::Deny)]);
     for host in ["127.0.0.1", "invalid/host"] {
         let mut args = host_args(host);
         args.bytes(b"x");

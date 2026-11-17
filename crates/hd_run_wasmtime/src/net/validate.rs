@@ -96,17 +96,14 @@ mod tests {
         for invalid in ["", "-a", "a-", "a..b", "a/b", "[::1]", "a\0b", "é.example"] {
             assert!(!valid_host(invalid), "{invalid}");
         }
-        let grants = Grants {
-            limits: vec![(
-                "Net".into(),
-                Limit::Entries(vec![
-                    "127.0.0.1:80".into(),
-                    "[::1]:9".into(),
-                    "*.example:8".into(),
-                ]),
-            )],
-            ..Grants::default()
-        };
+        let grants = Grants::with_limits(vec![(
+            "Net".into(),
+            Limit::Entries(vec![
+                "127.0.0.1:80".into(),
+                "[::1]:9".into(),
+                "*.example:8".into(),
+            ]),
+        )]);
         assert!(covers_lookup(&grants, "127.0.0.1"));
         assert!(covers_lookup(&grants, "::1"));
         assert!(covers_lookup(&grants, "one.example"));

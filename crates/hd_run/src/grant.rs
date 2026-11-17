@@ -33,9 +33,13 @@ pub enum Limit {
 
 /// A program's grant: the limit of each trait that has one
 /// (`cli.cap.order.default`: every other trait has no limit).
+///
+/// Cost: the limits are indexed by key once per run, when the grant is
+/// resolved; every host operation's check is one O(log L) probe for L
+/// limited traits, not a scan.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Grants {
-    pub limits: Vec<(String, Limit)>,
+    limits: BTreeMap<String, Limit>,
     /// The root manifest's consent to load package host providers, and
     /// every total deny: the one check of [`Consent`].
     pub consent: Consent,
@@ -312,7 +316,7 @@ impl Grants {
                 })
                 .collect()
         };
-        let mut limits = Vec::new();
+        let mut limits = BTreeMap::new();
         for (key, (in_table, in_flags)) in keys {
             let limit = if in_table
                 .iter()
@@ -341,7 +345,7 @@ impl Grants {
                 }
             };
             if let Some(l) = limit {
-                limits.push((key.to_owned(), l));
+                limits.insert(key.to_owned(), l);
             }
         }
         Grants {
@@ -373,20 +377,47 @@ impl Grants {
                 .iter()
                 .map(|d| resolve_path(d).to_string_lossy().into_owned())
                 .collect();
-            match g.limits.iter_mut().find(|(k, _)| k == key) {
-                Some((_, Limit::Entries(list))) => list.extend(resolved),
-                Some((_, Limit::Deny)) => {}
-                None if !named(key) => g.limits.push((key.to_owned(), Limit::Entries(resolved))),
+            match g.limits.get_mut(key) {
+                Some(Limit::Entries(list)) => list.extend(resolved),
+                Some(Limit::Deny) => {}
+                None if !named(key) => {
+                    g.limits.insert(key.to_owned(), Limit::Entries(resolved));
+                }
                 None => {}
             }
         }
         g
     }
 
-    /// The limit of a trait, or `None` for no limit.
+    /// A grant of these limits, with no package consent; a key given
+    /// twice keeps its last limit. Hosts resolve their grant with
+    /// [`Grants::resolve`]; this builds one directly.
+    #[must_use]
+    pub fn with_limits(limits: impl IntoIterator<Item = (String, Limit)>) -> Grants {
+        Grants {
+            limits: limits.into_iter().collect(),
+            consent: Consent::default(),
+        }
+    }
+
+    /// A grant with no limit and this package consent.
+    #[must_use]
+    pub fn with_consent(consent: Consent) -> Grants {
+        Grants {
+            limits: BTreeMap::new(),
+            consent,
+        }
+    }
+
+    /// Each limited trait and its limit, in key order.
+    pub fn limits(&self) -> impl Iterator<Item = (&str, &Limit)> {
+        self.limits.iter().map(|(k, l)| (k.as_str(), l))
+    }
+
+    /// The limit of a trait, or `None` for no limit: one O(log L) probe.
     #[must_use]
     pub fn limit(&self, key: &str) -> Option<&Limit> {
-        self.limits.iter().find(|(k, _)| k == key).map(|(_, l)| l)
+        self.limits.get(key)
     }
 
     /// Whether a trait is not totally denied.
@@ -526,7 +557,7 @@ mod tests {
         ];
         let flags = [kv("Env", scopes(&["HOME"])), kv("Env", scopes(&["PATH"]))];
         let g = Grants::resolve(&table, &base, &flags, &base);
-        let keys: Vec<&str> = g.limits.iter().map(|(k, _)| k.as_str()).collect();
+        let keys: Vec<&str> = g.limits().map(|(k, _)| k).collect();
         assert_eq!(keys, ["Env", "Http", "Net"]);
         assert_eq!(
             g.limit("Http"),
@@ -764,5 +795,33 @@ mod tests {
         assert!(!g.covers_path("FsWrite", Path::new("out.csv"), &pkg));
         let open = Grants::for_test(&[kv("FsWrite", GrantValue::All)], &pkg, &[], &pkg, &tmp);
         assert!(open.covers_path("FsWrite", Path::new("out.csv"), &pkg));
+        // A scoped trait gains the test directories; a denied one stays
+        // denied.
+        let table = [
+            kv("FsRead", scopes(&["data"])),
+            kv("FsWrite", GrantValue::Deny),
+        ];
+        let scoped = Grants::for_test(&table, &pkg, &[], &pkg, &tmp);
+        assert!(scoped.covers_path("FsRead", Path::new("data/a.csv"), &pkg));
+        assert!(scoped.covers_path("FsRead", &tmp.join("in.csv"), &pkg));
+        assert!(scoped.covers_path("FsRead", Path::new("fixtures/a.csv"), &pkg));
+        assert!(!scoped.covers_path("FsWrite", &tmp.join("out.csv"), &pkg));
+    }
+
+    #[test]
+    fn a_built_grant_is_keyed_once_and_keeps_a_keys_last_limit() {
+        let g = Grants::with_limits([
+            ("Net".into(), Limit::Deny),
+            ("Env".into(), Limit::Entries(vec!["HOME".into()])),
+            ("Net".into(), Limit::Entries(vec!["a.example".into()])),
+        ]);
+        let keys: Vec<&str> = g.limits().map(|(k, _)| k).collect();
+        assert_eq!(keys, ["Env", "Net"]);
+        assert!(g.allows("Net") && g.covers_host("Net", "a.example", None));
+        assert_eq!(g.limit("Console"), None);
+        let consent = Consent::new(&[kv("pkg.Server", GrantValue::All)], &[]);
+        let consented = Grants::with_consent(consent.clone());
+        assert_eq!(consented.consent, consent);
+        assert_eq!(consented.limits().count(), 0);
     }
 }
