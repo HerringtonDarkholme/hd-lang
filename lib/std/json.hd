@@ -1434,6 +1434,7 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 ## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
 pub fn encode[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(false)
+    writer.trusted = T::regular()
     _ := value.serialize(&mut writer)
     # A regular walk is written whole (r-std-serde.regular); the
     # constant answer drops the tree path from the instance.
@@ -1450,6 +1451,7 @@ pub fn encode[T < Serialize](value: T) -> string:
 ## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
 pub fn encode_pretty[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(true)
+    writer.trusted = T::regular()
     _ := value.serialize(&mut writer)
     # A regular walk is written whole (r-std-serde.regular); the
     # constant answer drops the tree path from the instance.
@@ -1801,6 +1803,9 @@ enum Irregular:
 # end matching its begin. Any other walk sets `regular` to false and stops,
 # and `encode` builds the tree instead: the tree's rules for a missing,
 # stale, or repeated key, or for a second value, are the definition.
+# A `trusted` writer serves a type whose `regular()` holds: its walk is
+# regular (r-std-serde.regular), so every key is new in its object and the
+# writer keeps no keys at all; each key costs its own bytes only.
 #
 # The open containers are a stack of `depth` frames in four lists: each
 # frame's kind, its variant name, its number of values so far, and where
@@ -1827,6 +1832,7 @@ struct TextWriter:
     pub keyed: bool
     pub written: bool
     pub regular: bool
+    pub trusted: bool
     pub spaced: bool
     pub indent: usize
 
@@ -1848,6 +1854,7 @@ impl TextWriter:
             keyed: false,
             written: false,
             regular: true,
+            trusted: false,
             spaced: spaced,
             indent: 0,
         }
@@ -1888,7 +1895,7 @@ impl TextWriter:
             return self.give_up()
         key := self.pending
         self.keyed = false
-        if !self.add_key(last, key):
+        if !self.trusted && !self.add_key(last, key):
             return self.give_up()
         if self.spaced:
             self.spaced_key(kind, count, self.names[last], key)
