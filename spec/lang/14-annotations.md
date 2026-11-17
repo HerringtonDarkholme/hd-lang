@@ -895,6 +895,7 @@ pub struct MembersRecord[S < ?Copy]:
 impl[S < ?Copy] MembersRecord[S]:
     pub fn at(&self, position: usize) -> Key[S]?: pass
     pub fn find(&self, matches: fn(Member) -> bool) -> Key[S]?: pass
+    pub fn id(&self) -> usize: pass
 
 pub type Key[S < ?Copy] = *KeyRecord[S]
 
@@ -937,11 +938,12 @@ pub trait Source[S < ?Copy] < ?Copy:
 7. r[annot.structure.members.at-option] `members.at(position: usize)` returns `.Some(key)` for the member at that position.
 8. r[annot.structure.members.find-option] `members.find(matches)` returns `.Some(key)` for the first member that `matches` accepts.
 9. r[annot.structure.members.lookup-none] Either lookup returns `.None` when no member fits.
-10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information. The keys and the member directory of one variant live as long as the program.
-11. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
-12. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
-13. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
-14. r[annot.structure.opaque] `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` are opaque outside `std.structure`: they have private fields that the declarations above omit. A literal of one, or a copy-update of one, in another module is an error. Error: `private-member`.
+10. r[annot.structure.members.id] `members.id()` returns a `usize` that identifies the member directory `members` refers to. Two different directories in one program instance have different ids, and every call on one directory returns the same id.
+11. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information. The keys and the member directory of one variant live as long as the program.
+12. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
+13. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+14. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+15. r[annot.structure.opaque] `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` are opaque outside `std.structure`: they have private fields that the declarations above omit. A literal of one, or a copy-update of one, in another module is an error. Error: `private-member`.
 
 ```text
 use std.inspect.Inspectable

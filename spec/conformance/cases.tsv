@@ -3042,6 +3042,7 @@ lang/annotations/typed-derivation/templates/tuple-template.hd	type	accept	lang/1
 lang/annotations/typed-derivation/templates/tuple-template-overlap.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.template.tuple.overlap
 lang/annotations/typed-derivation/opting-in/derive-trait-without-template.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.derive.other
 lang/annotations/typed-derivation/the-stdstructure-module/structure-module-names.hd	type	accept	lang/14-annotations.md#r-annot.structure.decl
+lang/annotations/typed-derivation/the-stdstructure-module/members-id-one-per-directory.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.members.id
 lang/annotations/typed-derivation/the-structure-trait/structure-describe-private-members.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.private
 lang/annotations/typed-derivation/the-structure-trait/structure-calls-are-pure.hd	type	accept	lang/14-annotations.md#r-annot.structure.pure
 lang/annotations/typed-derivation/the-structure-trait/describer-method-with-requirement.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.structure.pure.impl

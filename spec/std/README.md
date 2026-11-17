@@ -110,6 +110,7 @@ raises with a category other than `explicit-panic`.
 | `task_idle_hook` | `std.rt.wait.idle_hook(hook: fn() -> void)` installs the function a driver runs when every task waits on the host; the driver's loop is compiler-supplied |
 | `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`: a call through a function value's code and environment, whose layout only the compiler knows ([`fn.trait.decl`](../lang/07-functions.md#r-fn.trait.decl), [`fn.trait.mut.decl`](../lang/07-functions.md#r-fn.trait.mut.decl)) |
 | `ref_identity` | the identity of a reference's place, which `deep_equal` keys its visited pairs by; the checker reads it from the reference |
+| `mem_ref_address` | the address of the place a shared reference refers to, which `MembersRecord.id` returns for a member directory's static record ([`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id)) |
 | `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()` in `std.debug`: the call site of the enclosing `@track_caller` function, which only the compiler knows ([`fn.caller.location`](../lang/07-functions.md#r-fn.caller.location)) |
 | `descriptor_glue_mask` | the checked report's mask of a block descriptor's glue bits, which the compiler lays out |
 

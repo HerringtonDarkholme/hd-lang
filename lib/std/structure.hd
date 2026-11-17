@@ -169,6 +169,12 @@ impl[HdS < ?Copy] VariantRecord[HdS]:
     pub fn holds(&self, s: &HdS) -> bool:
         (self.hd_holds)(s)
 
+# The compiler builds each directory's record once, in static data, so
+# its address is its id, as a `TypeId` is its descriptor's address.
+@intrinsic("mem_ref_address")
+fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
 ## A found member's key: a reference to its `KeyRecord`.
 ## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
 pub type Key[HdS < ?Copy] = *KeyRecord[HdS]
@@ -193,6 +199,11 @@ pub struct MembersRecord[HdS < ?Copy]:
     hd_keys: List[Key[HdS]]
 
 impl[HdS < ?Copy] MembersRecord[HdS]:
+    ## The directory's id: one `usize` per member directory in the program, the same at every use of it, which a reader keys its per-type tables by.
+    ## See [annot.structure.members.id](../../spec/lang/14-annotations.md#r-annot.structure.members.id).
+    pub fn id(&self) -> usize:
+        address_of(self)
+
     ## The key of the member at `position`, or `.None`.
     ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub fn at(&self, position: usize) -> Key[HdS]?:
