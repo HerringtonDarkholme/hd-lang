@@ -5,8 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hd_base::DefId;
-use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_owned};
-use hd_types::Ty;
+use hd_tir::ir::{
+    CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_instance, verify_owned,
+};
+use hd_types::{InternPool, ParamRef, Ty, TyData};
 
 mod context {
     use hd_tir::ir;
@@ -163,6 +165,8 @@ fn text_corpus_round_trips_and_verifies() {
                 // 23 holds after the ownership passes.
                 let errors = if invariant == 23 {
                     verify_owned(&body, &OwnershipFacts)
+                } else if invariant == 24 {
+                    instance_errors(&body)
                 } else {
                     verify_in(&body, &CorpusFacts)
                 };
@@ -193,6 +197,24 @@ fn text_corpus_round_trips_and_verifies() {
         CHECKED_INVARIANTS.iter().copied().collect(),
         "the corpus needs one rejection per checked verifier invariant"
     );
+}
+
+/// Type `T`, item 1's first type parameter, in a fresh pool: the type
+/// the invariant-24 cases name.
+const PARAM_T: u32 = 19;
+
+/// Invariant 24 on an instance body, in a pool whose first type past the
+/// builtins is item 1's `T` ([`PARAM_T`]).
+fn instance_errors(body: &hd_tir::ir::Body) -> Vec<hd_tir::ir::VerifyError> {
+    let pool = InternPool::new();
+    let t = pool.intern_ty(&TyData::Param(ParamRef {
+        owner: DefId::from_raw(1),
+        index: 0,
+    }));
+    assert_eq!(t, Ty(PARAM_T), "the corpus names `T` by its pool row");
+    let mut errors = verify(body);
+    errors.extend(verify_instance(body, &pool, None, &|t| format!("t{}", t.0)));
+    errors
 }
 
 /// Tags no valid body holds: a reserved slot (invariant 14), tier 2's

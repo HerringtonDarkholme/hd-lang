@@ -14,11 +14,13 @@ use hd_base::{
 };
 use hd_types::{Ty, TyList};
 
+mod instance;
 mod owned;
 mod root;
 mod slots;
 mod topo;
 mod view;
+pub use instance::{LocalGenerics, verify_instance};
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
@@ -904,11 +906,39 @@ pub struct SuspRow {
 }
 const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 
+/// Which side of collection a body is on (`docs/future-work/INSTANCE_TIR.md`,
+/// "Phase mark"): the checker's generic form, or one instance's form, whose
+/// types are concrete and whose trait calls are chosen ([`verify_instance`],
+/// invariant 24). A non-generic item's checked body becomes its one
+/// instance's by setting the mark, with no copy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum Phase {
+    /// The checker's output: may name its item's type parameters.
+    #[default]
+    Checked,
+    /// One instance's body, built by the driver at its type arguments.
+    Instance,
+}
+
+impl Phase {
+    /// The phase of wire byte `v`.
+    #[must_use]
+    pub fn from_u8(v: u8) -> Option<Self> {
+        [Phase::Checked, Phase::Instance]
+            .get(usize::from(v))
+            .copied()
+    }
+}
+
 /// One body: the columns of §4.13.11 "Encoding".
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Body {
     pub item: DefId,
     pub kind: BodyKind,
+    /// Generic or instance ([`Phase`]): hashed, so an instance body's TIR
+    /// hash differs from its checked body's.
+    pub phase: Phase,
     pub tags: Vec<Tag>,
     pub data: Vec<[u32; 2]>,
     pub ty: Vec<Ty>,
@@ -1041,6 +1071,7 @@ impl Body {
         Self {
             item,
             kind,
+            phase: Phase::Checked,
             tags: vec![],
             data: vec![],
             ty: vec![],
@@ -2351,9 +2382,10 @@ impl VerifyError {
 /// §4.13.11, "Implementation differs"). The raw corpus supplies independent
 /// facts for 8, 11, 13 and 17; the checker constructs those relationships.
 /// 3's `Hole` and `Poison` half needs the module's errors ([`poison_sites`]),
-/// and 23 holds after ownership ([`verify_owned`]) where 22 holds before.
+/// and 23 holds after ownership ([`verify_owned`]) where 22 holds before;
+/// 24 holds on an instance body ([`verify_instance`]).
 pub const CHECKED_INVARIANTS: &[u8] = &[
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23,
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24,
 ];
 
 /// Verifies a checked body, including record rules that need no external facts.
@@ -2411,6 +2443,30 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
     for c in &mut b.consts {
         c.0 = ty(c.0);
     }
+    let mut words = Vec::new();
+    record_type_words(b, &mut |at, word| words.push((at, word)));
+    for (at, word) in words {
+        b.extra[at] = match word {
+            TypeWord::Ty => ty(Ty(b.extra[at])).0,
+            TypeWord::List => list(TyList(b.extra[at])).0,
+        };
+    }
+}
+
+/// What a type word in a record holds ([`record_type_words`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TypeWord {
+    Ty,
+    List,
+}
+
+/// Calls `f` with each `extra` position that holds a type or a type list,
+/// each once: the records [`map_body_types`] maps (callees, `ItemRef`,
+/// `DefaultCall`, instantiated closures, `ProviderGet`, `With` and
+/// `ContextNew`, `RowAdapt` evidence, provider keys and global place
+/// roots). One pass over the instructions, plus a sort of the provider
+/// keys and place roots that instructions may share.
+pub fn record_type_words(b: &Body, f: &mut dyn FnMut(usize, TypeWord)) {
     for i in 0..b.tags.len() {
         let [a, w] = b.data[i];
         match b.tags[i] {
@@ -2419,47 +2475,26 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
                 // kind, value]` (`Callee::words`).
                 let at = a as usize + 1;
                 match b.extra.get(at).copied() {
-                    Some(0) => {
-                        b.extra[at + 2] = list(TyList(b.extra[at + 2])).0;
-                    }
+                    Some(0) => f(at + 2, TypeWord::List),
                     Some(1) => {
-                        b.extra[at + 3] = ty(Ty(b.extra[at + 3])).0;
-                        b.extra[at + 4] = list(TyList(b.extra[at + 4])).0;
+                        f(at + 3, TypeWord::Ty);
+                        f(at + 4, TypeWord::List);
                     }
                     _ => {}
                 }
             }
-            Tag::Coerce if b.row_adaptation(i).is_some() => {
-                let at = w as usize + 2;
-                b.extra[at] = list(TyList(b.extra[at])).0;
-            }
-            Tag::ProviderGet => {
-                let at = a as usize + 1;
-                b.extra[at] = ty(Ty(b.extra[at])).0;
-            }
+            Tag::Coerce if b.row_adaptation(i).is_some() => f(w as usize + 2, TypeWord::List),
+            Tag::ProviderGet => f(a as usize + 1, TypeWord::Ty),
             Tag::With | Tag::ContextNew => {
                 let len = b.extra[a as usize] as usize;
                 for k in 0..len / 2 {
-                    let at = a as usize + 1 + 2 * k;
-                    b.extra[at] = ty(Ty(b.extra[at])).0;
+                    f(a as usize + 1 + 2 * k, TypeWord::Ty);
                 }
             }
-            Tag::ItemRef => {
-                let at = w as usize + 1;
-                b.extra[at] = list(TyList(b.extra[at])).0;
-            }
-            Tag::CallDyn => {
-                let at = w as usize + 2;
-                b.extra[at] = list(TyList(b.extra[at])).0;
-            }
-            Tag::DefaultCall => {
-                let at = a as usize + 2;
-                b.extra[at] = list(TyList(b.extra[at])).0;
-            }
-            Tag::Closure if b.is_instantiation(i) => {
-                let at = w as usize + 4;
-                b.extra[at] = list(TyList(b.extra[at])).0;
-            }
+            Tag::ItemRef => f(w as usize + 1, TypeWord::List),
+            Tag::CallDyn => f(w as usize + 2, TypeWord::List),
+            Tag::DefaultCall => f(a as usize + 2, TypeWord::List),
+            Tag::Closure if b.is_instantiation(i) => f(w as usize + 4, TypeWord::List),
             _ => {}
         }
     }
@@ -2472,12 +2507,12 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
     keys.sort_stable();
     keys.dedup();
     for at in keys {
-        b.extra[at] = ty(Ty(b.extra[at])).0;
+        f(at, TypeWord::Ty);
     }
     // A global root's type; instructions may share a place record, which
-    // is mapped once.
+    // is visited once.
     for at in global_place_types(b) {
-        b.extra[at] = ty(Ty(b.extra[at])).0;
+        f(at, TypeWord::Ty);
     }
 }
 
@@ -3064,7 +3099,11 @@ fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
 #[must_use]
 pub fn print(b: &Body) -> String {
     let mut o = String::new();
-    let _ = writeln!(o, "body {} {:?}", b.item.raw(), b.kind);
+    let phase = match b.phase {
+        Phase::Checked => "",
+        Phase::Instance => " Instance",
+    };
+    let _ = writeln!(o, "body {} {:?}{phase}", b.item.raw(), b.kind);
     let words = |v: &[u32]| {
         v.iter()
             .map(|w| {
@@ -3224,10 +3263,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
             let item = DefId::from_raw(
                 word(f.get(1).ok_or_else(|| e("missing item".into()))?).map_err(e)?,
             );
-            body = Some(Body::new(
-                item,
-                kind_of(f.get(2).copied().unwrap_or("")).map_err(e)?,
-            ));
+            let mut b = Body::new(item, kind_of(f.get(2).copied().unwrap_or("")).map_err(e)?);
+            b.phase = match f.get(3).copied() {
+                None => Phase::Checked,
+                Some("Instance") => Phase::Instance,
+                Some(other) => return Err(e(format!("unknown phase `{other}`"))),
+            };
+            body = Some(b);
             continue;
         }
         let b = body

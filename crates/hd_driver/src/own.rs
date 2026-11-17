@@ -2759,6 +2759,58 @@ impl Env<'_> {
         out
     }
 
+    /// Marks `body`, about to be owned as instance `(body.item, args)`, an
+    /// instance body (`hd_tir::ir::Phase::Instance`) and verifies it holds
+    /// no generic form (`hd_tir::ir::verify_instance`, invariant 24): a
+    /// generic item's at its type arguments, a non-generic item's own
+    /// body with no copy. A generic item's own body, which serves its
+    /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2102), stays checked.
+    /// Cost: one pass over the body; the item's generics once.
+    fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
+        let owner = ProgramEnv::generics_owner(self, body.item);
+        if args == TyList::EMPTY && !ProgramEnv::generic_rows(self, owner).is_empty() {
+            return Ok(());
+        }
+        body.phase = hd_tir::ir::Phase::Instance;
+        // A generic local function's own parameters follow its owner's
+        // (`hd_check/src/local.rs`); they stay until #2104.
+        let own = self.sig(owner).map_or_else(
+            || {
+                self.p
+                    .items
+                    .get(owner)
+                    .map_or(0, |item| item.generics.len())
+            },
+            |sig| sig.generics.len(),
+        );
+        let local = hd_tir::ir::LocalGenerics {
+            owner,
+            first: u16::try_from(own).unwrap_or(u16::MAX),
+        };
+        let pool = &self.run.pool;
+        let errs = hd_tir::ir::verify_instance(body, pool, Some(local), &|t| {
+            hd_mono::shown_type(pool, self, t)
+        });
+        let Some(e) = errs.first() else {
+            return Ok(());
+        };
+        Err(NotImplemented::bug(
+            Stage::Collect,
+            format!(
+                "instance `{}` at [{}] fails invariant 24 at %{}: {} ({} findings)",
+                self.run.names().path(body.item),
+                pool.list_items(args)
+                    .iter()
+                    .map(|&t| hd_mono::shown_type(pool, self, t))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                e.inst,
+                e.what,
+                errs.len()
+            ),
+        ))
+    }
+
     /// Inlined body `body` of instance `(body.item, args)`, with hash
     /// `hash` (`hd_opt::inline::inline_calls`), after the ownership
     /// passes, and its hash, which changes with them; in release, its
@@ -2770,6 +2822,7 @@ impl Env<'_> {
         args: TyList,
     ) -> StageResult<(Body, Hash128)> {
         let node = (body.item, args);
+        self.mark_instance(&mut body, args)?;
         if self.return_loan_layout(body.item, args).is_some() {
             hd_tir::own::return_loan::prepare(&mut body);
         }
@@ -3600,6 +3653,14 @@ pub(super) mod owned_cache_tests {
         let Some(n) = VERIFIED.get() else {
             return;
         };
+        // The phase rides in the stored wire form: a std body is owned as
+        // its one instance (`Env::mark_instance`).
+        assert_eq!(
+            body.phase,
+            hd_tir::ir::Phase::Instance,
+            "stored `{}`",
+            run.names().path(body.item)
+        );
         let errs = run.with_env(p, |env| hd_tir::ir::verify_owned(body, env));
         if let Some(e) = errs.first() {
             panic!(

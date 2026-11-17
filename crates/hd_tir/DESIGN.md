@@ -1108,10 +1108,21 @@ The verifier checks each of these:
     place or a suspension point. Every `Read` has a decided mode, the exit
     set names locals of the body, sorted, and nothing tier 2 reserves
     occurs.
+24. **An instance body holds no generic form**: a body marked
+    `Phase::Instance` names no type parameter and no unnormalized
+    projection in its instruction, local and constant columns or in a
+    record's type words, and has no generic local function's sub-body
+    (`docs/future-work/INSTANCE_TIR.md`, "Verifier"). The driver marks
+    and checks each body it owns for an instance before the ownership
+    passes (`verify_instance`). Until #2104 a generic local function's own
+    parameters are allowed in a body that has one; until #2103 a trait
+    call left chosen through a bound is not checked.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
 same with 23 in place of 22, for a body after the ownership passes.
+`verify_instance` checks 24 on every instance body the driver owns, in
+every compiler: one pass over the columns, O(1) per type by its flags.
 The checker finishes each body with `verify_checked` in debug compilers,
 allocation/count audit builds, or explicit verification (`HD_VERIFY=1` in
 the CLI and CI, `Packages::verify_tir` for embedders). Ordinary compilers
@@ -1317,7 +1328,7 @@ with its per-item interface hash), for code keys.
 | --- | --- |
 | hashed length | `u32`: the byte length of the hashed prefix |
 | tables | the body's own entry-local string, path and type tables; every `Symbol`, `DefId` and `Ty` in that body is a row in them |
-| item, kind | the item's path row, the body kind |
+| item, kind, phase | the item's path row, the body kind, and `Phase` (checked or instance), hashed so an instance body's hash differs from its item's checked body's |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
 | owned section | an owned body's pass columns, `susp` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |

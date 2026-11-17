@@ -20,7 +20,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Storage, SuspRow, Tag, place};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Phase, Storage, SuspRow, Tag, place};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -478,6 +478,9 @@ fn encode(
     t.write(&mut w);
     w.u32(item);
     w.u8(b.kind as u8);
+    // In the hashed prefix: an instance body and its item's checked body
+    // are different bodies (`Phase`).
+    w.u8(b.phase as u8);
     u32s(&mut w, b.tags.iter().map(|x| *x as u32));
     u32s(
         &mut w,
@@ -722,6 +725,7 @@ pub fn read_body(
     let item = t.def(r.u32())?;
     let kind = *KINDS.get(r.u8() as usize)?;
     let mut b = Body::new(item, kind);
+    b.phase = Phase::from_u8(r.u8())?;
     b.tags = col(&mut r)
         .into_iter()
         .map(|x| Tag::ALL.get(x as usize).copied())
@@ -900,6 +904,34 @@ mod tests {
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
+    }
+
+    /// The phase rides in the hashed prefix: an instance body decodes as
+    /// one, and hashes apart from the same columns marked checked.
+    #[test]
+    fn an_instance_body_keeps_its_phase_and_hashes_apart() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let mut b = TirBuilder::new(paths.item("app", "main", "f"), BodyKind::Fn);
+        let n = NodeIdx::from_raw(0);
+        let blk = b.open_block();
+        let one = b.const_value(Ty::I32, 1);
+        b.emit(Tag::Return, one.0, crate::ir::NONE, Ty::NEVER, n);
+        let root = b.close_block(blk, None, Ty::NEVER, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        let checked = write_body(&body, &pool, &paths, &syms).expect("wire");
+        body.phase = crate::ir::Phase::Instance;
+        let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
+        assert_ne!(tir_hash(&bytes), tir_hash(&checked));
+        let back = read_body(&bytes, &pool, &paths, &syms).expect("read");
+        assert_eq!(back.phase, crate::ir::Phase::Instance);
+        assert_eq!(
+            read_body(&checked, &pool, &paths, &syms).map(|b| b.phase),
+            Some(crate::ir::Phase::Checked)
+        );
     }
 
     /// An owned body's pass columns ride in the owned section, the

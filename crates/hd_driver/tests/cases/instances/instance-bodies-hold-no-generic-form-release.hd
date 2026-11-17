@@ -1,0 +1,44 @@
+# @dump: stdout
+# @build: release
+# Instance TIR step 1 (#2101): the driver marks each body it owns for an
+# instance `Instance` and verifies it holds no type parameter and no
+# unnormalized projection (`hd_tir::ir::verify_instance`, invariant 24).
+# Each form below reaches the check: a non-generic body, a trait's default
+# method (`Self`), a generic impl's method (the impl's `T`), a projection
+# in a generic signature, a parameter default, and a generic local
+# function, whose own parameters stay until #2104.
+# expected: every instance passes, and the program prints its four lines.
+trait Shape:
+    type Unit
+    fn area(self) -> i64
+    fn twice(self) -> i64: self.area() * 2
+
+struct Square:
+    side: i64
+
+impl Shape for Square:
+    type Unit = string
+    fn area(self) -> i64: self.side * self.side
+
+struct Wrap[T]:
+    item: T
+
+impl[T] Wrap[T]:
+    fn get(self) -> T: self.item
+
+fn unit_of[S < Shape](s: S, u: S::Unit) -> S::Unit: u
+
+fn pair_of[T](x: T, label: string = "pair") -> (T, string):
+    fn dup[U](u: U) -> (U, U): (u, u)
+    let (a, _) = dup(x)
+    (a, label)
+
+pub fn main() -> void $ Console:
+    let sq = Square { side: 3 }
+    println("${sq.twice()}")
+    println(unit_of(sq, "m2"))
+    let w = Wrap { item: "boxed" }
+    println(w.get())
+    let (s, l) = pair_of("s")
+    let (n, _) = pair_of(4, label = "n")
+    println("${s} ${l} ${n}")
