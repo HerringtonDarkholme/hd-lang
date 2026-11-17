@@ -57,8 +57,10 @@ and [Tasks](../../spec/cli/command-line.md#tasks).
 
 An implementation may offer more than one engine to run programs on.
 `hd FILE`, `hd run`, `hd build` and `hd test` take `--engine NAME`, and
-`HD_ENGINE` gives the name when the flag is absent. Which engines exist,
-and which is the default, depends on your `hd`. A program behaves the same
+`HD_ENGINE` gives the name when the flag is absent. The released binary
+defaults to Wasmtime in process; developer and test builds default to Node.
+A package that needs its own host trait selects Node before startup.
+Explicit `--engine node` works in the released binary too. A program behaves the same
 on each; only speed and memory use differ. One difference is security:
 the `wasmtime` engine opens files relative to each granted directory, so
 a grant holds even if another process swaps a link inside it while the

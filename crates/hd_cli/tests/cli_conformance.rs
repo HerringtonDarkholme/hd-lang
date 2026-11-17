@@ -1156,12 +1156,24 @@ fn case_names() -> Vec<String> {
         .collect()
 }
 
+/// The compiler binary and this harness use the same Cargo profile/features.
+fn default_engine() -> &'static str {
+    if cfg!(all(feature = "dist", not(debug_assertions))) {
+        "wasmtime"
+    } else {
+        "node"
+    }
+}
+
 fn run_all(names: &[String], mode: EngineMode) -> Vec<Verdict> {
     let start = Instant::now();
     let stats = RuntimeStats::default();
     let node_stats = RuntimeStats::default();
     let comparison = ComparisonStats::default();
-    let fallback = std::env::var("HD_ENGINE").unwrap_or_default();
+    let fallback = std::env::var("HD_ENGINE")
+        .ok()
+        .filter(|engine| !engine.is_empty())
+        .unwrap_or_else(|| default_engine().to_owned());
     let root = work_root();
     std::fs::create_dir_all(&root).expect("work directory");
     let count = jobs().min(names.len().max(1));
@@ -1261,7 +1273,7 @@ fn cli_conformance_passes_except_known_failures() {
         None => std::env::var("HD_ENGINE")
             .ok()
             .filter(|engine| !engine.is_empty())
-            .unwrap_or_else(|| "node".to_owned()),
+            .unwrap_or_else(|| default_engine().to_owned()),
     };
     let paths: Vec<String> = names.iter().map(|name| format!("cli/{name}")).collect();
     let unsupported_optional_engines: BTreeSet<&str> = paths

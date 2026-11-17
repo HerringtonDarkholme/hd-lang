@@ -1,14 +1,16 @@
 //! Which engine runs a program: V8 through Node (`node::NodeEngine`, the
-//! default) or wasmtime in-process (`hd_run_wasmtime`), chosen by
+//! developer default) or wasmtime in-process (`hd_run_wasmtime`), chosen by
 //! `--engine NAME` or else `HD_ENGINE`. wasmtime runs the default
 //! profile's `Console`, `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`,
 //! `FsWrite`, `Process`, `Random`, `Sys`, `Http`, `Net` and their handle traits; a
-//! program that imports another host trait is refused with a message that
-//! names it (`docs/compiler/engines-and-test-runner.md` §18). Tests use shared
+//! package host trait selects Node before startup unless `--engine` names
+//! Wasmtime, which needs an embedding native provider. Tests use shared
 //! prepared programs and typed named children on Wasmtime, while Node
 //! keeps its existing subprocess protocol.
 //!
 //! The wasmtime engine is the `wasmtime` cargo feature, off by default.
+//! The `dist` feature enables it for the optimized shipped compiler; developer
+//! and test builds with debug assertions keep Node as their default.
 //! `wasmtime.rs` has it; a build without the feature compiles
 //! `no_wasmtime.rs` in its place, and naming the engine is an error.
 
@@ -226,11 +228,20 @@ fn duration_flag(args: &[OsString], i: usize, flag: &str) -> Option<Result<(u64,
     )
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EngineKind {
-    #[default]
     Node,
     Wasmtime,
+}
+
+impl Default for EngineKind {
+    fn default() -> Self {
+        if cfg!(all(feature = "dist", not(debug_assertions))) {
+            Self::Wasmtime
+        } else {
+            Self::Node
+        }
+    }
 }
 
 impl EngineKind {
@@ -297,7 +308,7 @@ impl Choice {
         Self { kind, named: true }
     }
 
-    /// The engine of a command with no `--engine` flag: `HD_ENGINE`, else Node.
+    /// The engine of a command with no `--engine` flag: `HD_ENGINE`, else this build's default.
     pub(crate) fn from_env() -> Result<Self, String> {
         from_env().map(|kind| Self { kind, named: false })
     }
@@ -331,11 +342,11 @@ impl Choice {
     }
 }
 
-/// The engine of a run with no `--engine` flag: `HD_ENGINE`, else Node.
+/// The engine of a run with no `--engine` flag: `HD_ENGINE`, else this build's default.
 pub(crate) fn from_env() -> Result<EngineKind, String> {
     match std::env::var("HD_ENGINE") {
         Ok(name) if !name.is_empty() => parse(&name).map_err(|e| format!("HD_ENGINE: {e}")),
-        _ => Ok(EngineKind::Node),
+        _ => Ok(EngineKind::default()),
     }
 }
 
@@ -838,6 +849,19 @@ mod tests {
     use hd_run::Limits;
     use std::ffi::OsString;
 
+    #[cfg(all(feature = "dist", not(debug_assertions)))]
+    #[test]
+    fn shipped_build_defaults_to_wasmtime() {
+        assert_eq!(EngineKind::default(), EngineKind::Wasmtime);
+        assert!(super::wasmtime::UNAVAILABLE.is_none());
+    }
+
+    #[cfg(not(all(feature = "dist", not(debug_assertions))))]
+    #[test]
+    fn developer_and_test_builds_default_to_node() {
+        assert_eq!(EngineKind::default(), EngineKind::Node);
+    }
+
     #[cfg(feature = "wasmtime")]
     #[test]
     fn native_named_children_retain_modules_and_grants_without_node_configuration() {
@@ -904,7 +928,11 @@ mod tests {
             .unwrap_err();
         assert!(error.contains("\"sdk@1.2.0/Server\""), "{error}");
         assert!(error.contains("embeds `hd_run_wasmtime`"), "{error}");
-        assert_eq!(Choice::default(), env(EngineKind::Node));
+        assert_eq!(Choice::default(), env(EngineKind::default()));
+        assert_eq!(
+            Choice::default().for_module(Some(&rooted)),
+            Ok(EngineKind::Node)
+        );
     }
 
     #[cfg(not(feature = "wasmtime"))]

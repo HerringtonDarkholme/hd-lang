@@ -245,7 +245,19 @@ fn affected_works_on_wasmtime_and_the_engine_reruns() {
         ran(&root, &["--engine", "wasmtime", "--affected"]),
         ["bills", "invoices", "prices"]
     );
-    assert_eq!(summary(&root, &["--affected"]), ALL_PASS);
+    // Name the other engine: the shipped default is now Wasmtime too.
+    assert_eq!(
+        summary(&root, &["--engine", "node", "--affected"]),
+        ALL_PASS
+    );
+    assert_eq!(
+        summary(&root, &["--engine", "node", "--affected"]),
+        ALL_SKIPPED
+    );
+    assert_eq!(
+        summary(&root, &["--engine", "wasmtime", "--affected"]),
+        ALL_PASS
+    );
 }
 
 /// `cli.test.fingerprint` for uses only test code makes (#238): a
