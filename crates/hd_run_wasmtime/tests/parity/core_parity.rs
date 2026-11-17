@@ -1456,8 +1456,34 @@ fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
                 .unwrap()
                 .success()
         );
+        let source = format!(
+            "{template}\npub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:\n    exercise!({:?})\n",
+            path(&fifo),
+        );
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", &source);
+        let store = hd_cache::MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let built = hd_driver::build(
+            &host,
+            "pending-fifo",
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(built.diags.is_empty(), "{}", built.render());
+        let wasm = built.wasm.unwrap();
         let (release, released) = mpsc::channel();
         let fifo_path = fifo.clone();
+        // The peer's wait starts once the program is built, so a slow
+        // build under load is not taken for a host that never ran the
+        // sibling.
         let peer = std::thread::spawn(move || {
             // Release even a regressed host so it cannot leave this test
             // binary stuck in a blocking OS read. The boolean proves order.
@@ -1484,29 +1510,6 @@ fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
             }
             sibling_ran
         });
-        let source = format!(
-            "{template}\npub fn main!() -> Result[void, FsError] $ FsRead + Clock + Console:\n    exercise!({:?})\n",
-            path(&fifo),
-        );
-        let mut sources = MemorySources::default();
-        sources.insert("main.hd", &source);
-        let store = hd_cache::MemoryStore::default();
-        let host = Host {
-            render_tir: &[],
-            sources: &sources,
-            store: &store,
-            clock: &NoClock,
-            executor: Executor::Serial(SerialOrder::Priority),
-        };
-        let built = hd_driver::build(
-            &host,
-            "pending-fifo",
-            &Goal::Program {
-                entry: "main".into(),
-            },
-        );
-        assert!(built.diags.is_empty(), "{}", built.render());
-        let wasm = built.wasm.unwrap();
         let output = ReleaseOnTick {
             bytes: Arc::default(),
             release: Arc::new(Mutex::new(Some(release))),
