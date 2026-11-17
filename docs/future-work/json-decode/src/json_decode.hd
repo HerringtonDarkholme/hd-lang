@@ -1,0 +1,42 @@
+# Proposal (docs/future-work/JSON_DECODE.md): the reader side of a format
+# with the key loop. Only the four methods marked "new" change; the rest
+# is today's `std.serde.Deserializer`, abridged to what the examples use.
+use std.serde.ValueKind
+use std.structure.{Facts, Member}
+
+## The format side of reading. Proposal: a keyed reader names a record's
+## members in text order (serde's `MapAccess`).
+pub trait Deserializer:
+    type Error
+    fn peek(&mut self) -> Result[ValueKind, Self::Error]
+    fn is_null(&mut self) -> Result[bool, Self::Error]
+    fn int(&mut self, expected: string) -> Result[i64, Self::Error]
+    fn text(&mut self, expected: string) -> Result[string, Self::Error]
+    fn begin_map(&mut self) -> Result[void, Self::Error]
+    fn next_key(&mut self) -> Result[string?, Self::Error]
+    fn invalid(&mut self, expected: string) -> Self::Error
+    ## New: whether this reader names a record's members itself, in text
+    ## order, through `next_field`. The default keeps today's pull by name.
+    fn keyed(&self) -> bool:
+        false
+    ## New: the next member of the open record, as its index in `members`,
+    ## or `.None` after the last key. A key that names no member is skipped
+    ## with its value; `guess` is the index tried first.
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, Self::Error]:
+        .Err(self.invalid("keyed record"))
+    ## New: the next value is member `m`'s absent value: `is_null` reads
+    ## it as null, and any other read is a missing-field error.
+    fn absent_field(&mut self, m: &Member, facts: Facts) -> void:
+        pass
+    ## New: reads and drops the next value, whatever its kind (serde's
+    ## `IgnoredAny`), so a hand-written key loop can skip an unknown key.
+    fn skip(&mut self) -> Result[void, Self::Error]
+
+## A type that reads itself from any format.
+pub trait Deserialize:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
