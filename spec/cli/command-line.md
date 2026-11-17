@@ -2290,8 +2290,8 @@ hd run --engine node
 ```
 
 1. r[cli.host.package.entry] A package-declared host trait named by `main` belongs to that program's selected runtime profile.
-2. r[cli.host.package.javascript] Package host providers run only on JavaScript hosts.
-3. r[cli.host.package.native-refusal] Wasmtime refuses a required package host trait before guest initialization, naming the trait and its need for a JavaScript host.
+2. r[cli.host.package.provider-hosts] Package host providers run on JavaScript hosts, and on Wasmtime as [native providers](#native-package-providers) that an embedder registers.
+3. r[cli.host.package.native-unregistered] Wasmtime refuses a required package host trait with no registered native provider before guest initialization, naming the package, version and trait.
 4. r[cli.host.package.no-fallback] A host unable to supply a package capability must not substitute another engine or provider.
 5. r[cli.host.package.manifest-consent] Loading a required package provider needs an explicit `true` entry for its source trait path in the app's `[capabilities]` table.
 6. r[cli.host.package.no-flag-consent] A `--cap` flag cannot replace missing manifest consent for a package provider.
@@ -2345,6 +2345,43 @@ hd run --engine node
 > **Why.** The paired declaration makes host interfaces discoverable without scanning source and keeps the provider's responsibility explicit in both places.
 
 See also: [Package Host Traits](../lang/10-modules.md#package-host-traits).
+
+#### Native Package Providers
+
+A native package provider is Rust code that an application embedding Wasmtime registers for a package host trait:
+
+```sh
+hd build --engine wasmtime
+```
+
+1. r[cli.host.package.native-companion] `hd build --engine wasmtime` of a module requiring package host bindings also writes generated `NAME.host.rs` beside `NAME.wasm`.
+2. r[cli.host.package.native-generated] The Rust companion holds one provider trait per required host interface, its value codecs, and a provider registry, generated from the module's checked package host contract.
+3. r[cli.host.package.native-deterministic] Building the same module twice writes byte-identical Rust companion text.
+4. r[cli.host.package.native-wasm-identity] Writing the Rust companion leaves `NAME.wasm` byte-identical to the module a JavaScript-engine build writes.
+5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
+6. r[cli.host.package.native-no-discovery] An implementation never discovers or loads a dynamic library for a package host trait.
+7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-unregistered`](#r-cli.host.package.native-unregistered).
+8. r[cli.host.package.native-two-keys] A native provider runs only when the app's root manifest consents to its trait and the embedder registered it.
+9. r[cli.host.package.native-reachable] Native startup requires a registered provider only for each root interface in the module's contract, not for every consented trait.
+10. r[cli.host.package.native-preflight] Native startup checks the contract, the registrations, consent, nominal identity, method schemas, suspension and codecs before it links the package imports or initializes the guest.
+11. r[cli.host.package.native-mismatch] A registered provider whose identity or schemas differ from the module's contract causes a startup refusal naming the trait.
+12. r[cli.host.package.native-completion-forms] A suspending native provider method returns a ready value or a pending call.
+13. r[cli.host.package.native-thread] A native provider stays on its instance's thread; only a pending call's completion sender may cross threads.
+14. r[cli.host.package.native-abort] Aborting a pending native call, or closing its instance, invokes the call's abort hook at most once and releases its captured values.
+15. r[cli.host.package.native-late-completion] A completion delivered after its call's abort or its instance's close is ignored and wakes no instance.
+16. r[cli.host.package.native-handle-release] Releasing the last hd reference to a returned native handle drops its Rust value without calling a provider method.
+17. r[cli.host.package.native-handle-check] A handle argument that its instance never issued, already released, or issued for another handle trait calls no provider method. Boundary failure: `host-contract`.
+18. r[cli.host.package.native-call-failure] A native codec failure or provider failure during a call is a host-contract failure. Boundary failure: `host-contract`.
+
+> **Why.** A native provider is linked into the trusted embedder and keeps the
+> process's authority. Registration selects native code and grants the guest
+> nothing; root consent still decides what the guest may use.
+
+> **Why.** Checking registrations against the module's reachable contract,
+> not every dependency's declarations, lets a native entry skip a renderer it
+> never reaches.
+
+See also: [Package Host Traits](../lang/10-modules.md#package-host-traits), [Engines](#engines).
 
 ## Synchronous Host Driver
 

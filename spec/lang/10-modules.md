@@ -2599,13 +2599,17 @@ pub trait Surface:
 9. r[module.host.package.js-integers] A structural 64-bit integer crosses as `BigInt`, and a narrower structural integer crosses as `Number`.
 10. r[module.host.package.js-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation, with Serde integers represented as `BigInt`.
 11. r[module.host.package.js-private-floats] A Serde float crosses as `Number` while retaining its numeric kind and finite IEEE 754 bits, including negative zero.
-12. r[module.host.package.not-generic] A host capability trait, whether `@host` or a runtime profile's, declares no type parameters, and neither does a program trait whose values a host method returns as host handles. The error is reported at the trait's type parameter list. Error: `boundary-not-safe`.
-13. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
-14. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
+12. r[module.host.package.native-values] Native package providers receive and return owned Rust values, by the [native value table](#native-value-table), rather than serialized text.
+13. r[module.host.package.native-enums] An enum crosses as a Rust enum with the same variant names and payload field names.
+14. r[module.host.package.native-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation as a typed Serde tree that keeps integer width and finite float bits, including negative zero.
+15. r[module.host.package.native-handles] A returned host handle crosses as a generated handle trait object held in its instance's registry.
+16. r[module.host.package.native-parity] A native provider and a JavaScript provider of the same trait observe the same hd values.
+17. r[module.host.package.not-generic] A host capability trait, whether `@host` or a runtime profile's, declares no type parameters, and neither does a program trait whose values a host method returns as host handles. The error is reported at the trait's type parameter list. Error: `boundary-not-safe`.
+18. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
+19. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.
-
 
 ```text
 @host()  # error: decorator-target-kind
@@ -2614,6 +2618,21 @@ pub trait Surface:
 ```
 
 See also: [Package Host Declarations](../cli/command-line.md#package-host-declarations), [Runtime Profiles](#runtime-profiles), [Host Boundary](#host-boundary).
+
+#### Native Value Table
+
+A native package provider sees each hd boundary value as an owned Rust value:
+
+| hd boundary value | Native Rust value |
+| --- | --- |
+| `void`, `bool`, `char` | `()`, `bool`, `char` |
+| Structural integer or float | The Rust scalar of the same width |
+| `string`, bytes | `String`, `Vec<u8>` |
+| List, tuple, public record | `Vec<T>`, tuple, named struct |
+| Enum | Rust enum with the same variant and payload field names |
+| Optional, result | `Option<T>`, `Result<T, E>` |
+| Private-field type | Typed Serde tree |
+| Returned host handle | Generated handle trait object |
 
 ### Closable Handles
 

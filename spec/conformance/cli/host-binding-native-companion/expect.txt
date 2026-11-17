@@ -1,0 +1,5 @@
+# A Wasmtime build of a module requiring a package host trait writes the Rust companion beside both other outputs.
+run: hd build --engine wasmtime
+file: build/debug/host_probe.wasm
+file: build/debug/host_probe.host.mjs
+file: build/debug/host_probe.host.rs

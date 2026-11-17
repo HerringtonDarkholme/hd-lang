@@ -1,0 +1,14 @@
+# The hd command registers no native provider: Wasmtime refuses a consented package host trait before the guest starts.
+run: hd build --engine node
+file: build/debug/host_probe.wasm
+run: hd run --engine wasmtime --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd build/debug/host_probe.wasm --engine wasmtime --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]
+run: hd run --engine node
+stdout: guest started
+stdout: 7

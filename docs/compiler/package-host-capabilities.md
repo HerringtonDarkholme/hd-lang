@@ -11,10 +11,11 @@ provider. The provider default-exports plain methods; generated app glue
 handles the Wasm ABI. The decided surface is the
 [owner-confirmed #51 review](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6388965405).
 
-General exported-function embedding, native provider registration and
-dylib loading are deferred with no design; Wasmtime bindings for package
-host traits are the accepted, unbuilt
-[Native Package Host Bindings](../future-work/NATIVE_PACKAGE_HOST_BINDINGS.md).
+General exported-function embedding and dylib loading are deferred with no
+design. Native provider registration on Wasmtime is the accepted
+[Native Package Host Bindings](../future-work/NATIVE_PACKAGE_HOST_BINDINGS.md),
+specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
+and not yet built.
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.
@@ -336,9 +337,10 @@ Resource cleanup remains an explicit operation, such as `dispose!`; release does
 
 ## Wasmtime Refusal And Deferred Native Loading
 
-The native host refuses required package capabilities before entering the guest.
-There is no engine fallback.
-Dylib loading, native provider registration and general exported functions remain deferred.
+The native host refuses a required package capability with no registered native provider before entering the guest.
+The `hd` command registers none, so it refuses every package capability on Wasmtime; there is no engine fallback.
+[Native Package Providers](../../spec/cli/command-line.md#native-package-providers) specifies embedder registration, built by #2077 to #2083.
+Dylib loading and general exported functions remain deferred.
 
 ## A GUI-Shaped Current-Compiler Control
 

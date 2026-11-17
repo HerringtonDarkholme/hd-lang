@@ -1,8 +1,10 @@
 # Native Package Host Bindings
 
-Status: accepted design, 2026-11-02; domain: runtime and host; not built.
+Status: accepted design, 2026-11-02; domain: runtime and host; specified, not built.
 Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
-Nothing here is in the specification until a spec pass applies it.
+The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
+and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);
+the build is #2077 to #2083, in that order.
 This reviews [Package Host Capabilities](../compiler/package-host-capabilities.md),
 [`module.host.package.*`](../../spec/lang/10-modules.md#package-host-traits), and
 [`cli.host.package.*`](../../spec/cli/command-line.md#package-host-bindings).
@@ -263,10 +265,10 @@ application state.
 
 ## Appendix D: Today In Hd
 
-[`cli.host.package.javascript`](../../spec/cli/command-line.md#r-cli.host.package.javascript)
-allows package providers only on JavaScript hosts.
-[`cli.host.package.native-refusal`](../../spec/cli/command-line.md#r-cli.host.package.native-refusal)
-requires Wasmtime to refuse before guest initialization.
+[`cli.host.package.provider-hosts`](../../spec/cli/command-line.md#r-cli.host.package.provider-hosts)
+allows package providers on JavaScript hosts and as registered native providers.
+[`cli.host.package.native-unregistered`](../../spec/cli/command-line.md#r-cli.host.package.native-unregistered)
+requires Wasmtime to refuse an unregistered trait before guest initialization.
 
 `hd_run_wasmtime::WasmtimeEngine::load` performs that refusal whenever it sees
 `hd.capabilities`. The linker, store host state, import dispatcher, and reactor
