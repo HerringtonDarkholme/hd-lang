@@ -36,6 +36,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 ### Memory model and performance
 
 - Parallelism and locality: folded into the execution-boundaries record, PR #1139 (`EXECUTION_BOUNDARIES.md` Appendix D), owner 2026-11-13.
+- [Instance TIR](INSTANCE_TIR.md): proposal, not accepted: `hd_mono` builds one instance TIR per instance, once, as the unit of ownership, emission and the code cache; the emitter's substitution and the 4,096-leaf fallback go (#1780).
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29, stages 1 to 9 built (the checker's region solver is [crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver)); kept for the parts accepted but not built: view types for `&mut` parameters (#1357) and phantom markers.
 
 No native backend is planned (#188 closed), and no direct TLS streams are planned.
