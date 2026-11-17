@@ -125,7 +125,7 @@ here.
 | `long-session` | RSS across 1,000 REPL inputs or incremental rechecks | flat (no growth beyond a fixed bound) |
 | `startup` | `hd --version` and checking an empty file: wall time, CPU, RSS | ≤ 20 ms, ≤ 10 MB |
 | `concurrency` | N = 1, 4, 16, 64 concurrent `hd check` processes; p95 latency vs N = 1, total CPU vs N | ≤ 1.5x at N = cores; total CPU sublinear in N with a shared cache |
-| `disk` | artifacts per worktree | ≤ 10 MB of artifacts |
+| `disk` | artifacts per worktree; the toolchain's size, installed once per machine, is recorded apart | ≤ 10 MB of artifacts |
 | `suite-cpu` | total CPU of the conformance suite | ≤ 60 s |
 | `parallel-speedup` | checking a 50k-line package on 1 core vs all cores (one process) | ≥ 0.6 × cores speedup up to 8 cores |
 | `cache-contention` | N processes writing the same cache entries at once | no corruption; each entry computed once |

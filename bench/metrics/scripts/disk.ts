@@ -1,4 +1,6 @@
-// disk: what one worktree costs on disk, build artifacts plus toolchain.
+// disk: what one worktree costs on disk: its build artifacts. The `hd`
+// toolchain is installed once per machine, not per worktree, so its size is
+// a second line with no target (owner, 2026-11-13, #1770).
 //
 // Artifacts: a fresh copy of the small package, with the executable
 // src/main.hd, gets `hd check`, `hd test` and `hd build` with an empty
@@ -13,13 +15,13 @@
 // found on PATH, and any argument that is an existing file.
 // Sizes add up file sizes; a hard-linked file counts once, and symbolic
 // links are not followed.
-// Target (Pillar 2): ≤ 10 MB. No n/a case.
+// Target (Pillar 2): ≤ 10 MB of artifacts. No n/a case.
 
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join } from "node:path";
 
 import { freshCache, runHd, runProblem } from "../lib/hd.ts";
-import { failed, formatValue, judge, type Metric } from "../lib/metric.ts";
+import { failed, formatValue, judge, type Metric, type TargetResult } from "../lib/metric.ts";
 import { listTree, treeBytes } from "../lib/tmp.ts";
 import { addExecutable, materialize } from "../lib/gen.ts";
 
@@ -77,43 +79,77 @@ export function toolchainOf(argv: readonly string[]): Toolchain {
   return { kind: "files", paths: [...paths] };
 }
 
+/** What one worktree adds on disk, apart from the toolchain shared per machine. */
+export interface DiskSizes {
+  readonly artifacts: number;
+  readonly artifactFiles: number;
+  readonly toolchain: Toolchain;
+  readonly toolchainBytes: number;
+  readonly cacheBytes: number;
+}
+
+const ARTIFACTS = "artifacts per worktree";
+
+/**
+ * The two lines: the artifacts, judged against the per-worktree target, and
+ * the toolchain's size, recorded with no target.
+ */
+export function diskLines(sizes: DiskSizes): TargetResult[] {
+  const { toolchain } = sizes;
+  const where =
+    toolchain.kind === "node_modules"
+      ? `node_modules is the toolchain (${toolchain.path})`
+      : `toolchain files: ${toolchain.paths.join(", ") || "none found"}`;
+  const note = [
+    `${sizes.artifactFiles} files`,
+    `HD_CACHE ${formatValue(sizes.cacheBytes, "MB")}, shared per user, not counted`,
+  ].join("; ");
+  return [
+    judge(NAME, ARTIFACTS, sizes.artifacts, LIMIT, "MB", "at-most", note),
+    {
+      metric: NAME,
+      name:
+        toolchain.kind === "node_modules"
+          ? "toolchain (node_modules), once per machine"
+          : "toolchain, once per machine",
+      value: formatValue(sizes.toolchainBytes, "MB"),
+      target: "recorded, no target",
+      status: "pass",
+      note: where,
+    },
+  ];
+}
+
 export const disk: Metric = {
   name: NAME,
   pillar: 2,
-  summary: "build artifacts of the small package plus the toolchain, per worktree",
+  summary: "build artifacts of the small package per worktree; the toolchain's size apart",
   async run(context) {
     const { dir } = materialize("small", NAME);
     addExecutable(dir);
     const source = new Set(listTree(dir));
     const env = freshCache();
     const toolchain = toolchainOf(context.hd.argv);
-    const label =
-      toolchain.kind === "node_modules"
-        ? "artifacts plus toolchain (node_modules) per worktree"
-        : "artifacts plus toolchain per worktree";
     for (const command of ["check", "test", "build"]) {
       const result = await runHd(context.hd, [command], { cwd: dir, env, timeoutMs: TIMEOUT_MS });
       const problem = runProblem(result, TIMEOUT_MS, `hd ${command}`);
       if (problem) {
-        return [failed(NAME, label, "≤ 10.0 MB", problem)];
+        return [failed(NAME, ARTIFACTS, `≤ ${formatValue(LIMIT, "MB")}`, problem)];
       }
     }
     const added = listTree(dir).filter((path) => !source.has(path));
     const artifacts = added.reduce((sum, path) => sum + lstatSync(join(dir, path)).size, 0);
-    const tools =
+    const toolchainBytes =
       toolchain.kind === "node_modules"
         ? treeBytes(toolchain.path).bytes
         : toolchain.paths.reduce((sum, path) => sum + treeBytes(path).bytes, 0);
-    const cache = treeBytes(env.HD_CACHE!).bytes;
-    const where =
-      toolchain.kind === "node_modules"
-        ? `node_modules is the toolchain (${toolchain.path})`
-        : `toolchain files: ${toolchain.paths.join(", ") || "none found"}`;
-    const note = [
-      `artifacts ${formatValue(artifacts, "bytes")} in ${added.length} files`,
-      `toolchain ${formatValue(tools, "MB")}; ${where}`,
-      `HD_CACHE ${formatValue(cache, "MB")}, shared per user, not counted`,
-    ].join("; ");
-    return [judge(NAME, label, artifacts + tools, LIMIT, "MB", "at-most", note)];
+    const cacheBytes = treeBytes(env.HD_CACHE!).bytes;
+    return diskLines({
+      artifacts,
+      artifactFiles: added.length,
+      toolchain,
+      toolchainBytes,
+      cacheBytes,
+    });
   },
 };

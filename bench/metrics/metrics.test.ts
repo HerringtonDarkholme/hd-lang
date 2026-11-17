@@ -75,7 +75,7 @@ import { makeTempDir, removeTempDir, treeBytes } from "./lib/tmp.ts";
 import { parseStrace } from "./lib/trace.ts";
 import { cacheShape } from "./scripts/cache-contention.ts";
 import { latencyBound } from "./scripts/concurrency.ts";
-import { toolchainOf } from "./scripts/disk.ts";
+import { diskLines, toolchainOf } from "./scripts/disk.ts";
 import { CASES, generate } from "./lib/pathological.ts";
 import { SHAPES, scope } from "./lib/scale.ts";
 import {
@@ -580,6 +580,23 @@ describe("pillar 2 helpers", () => {
   it("takes a native hd as its own toolchain, even in a checkout with node_modules", () => {
     const toolchain = toolchainOf([process.execPath]);
     assert.deepEqual(toolchain, { kind: "files", paths: [realpathSync(process.execPath)] });
+  });
+
+  it("judges a worktree's artifacts alone and records the toolchain apart", () => {
+    const mb = 1024 * 1024;
+    const toolchain = { kind: "files", paths: ["/bin/hd"] } as const;
+    const sizes = { artifactFiles: 3, toolchain, toolchainBytes: 20 * mb, cacheBytes: mb };
+    const [artifacts, tools] = diskLines({ ...sizes, artifacts: mb });
+    assert.equal(artifacts!.status, "pass");
+    assert.equal(artifacts!.name, "artifacts per worktree");
+    assert.equal(tools!.value, "20.0 MB");
+    assert.equal(tools!.target, "recorded, no target");
+    assert.match(tools!.note!, /\/bin\/hd/);
+    assert.equal(diskLines({ ...sizes, artifacts: 11 * mb })[0]!.status, "fail");
+    const modules = { kind: "node_modules", path: "/x/node_modules" } as const;
+    const [, node] = diskLines({ ...sizes, toolchain: modules, artifacts: mb });
+    assert.match(node!.name, /node_modules/);
+    assert.match(node!.note!, /node_modules is the toolchain/);
   });
 });
 
