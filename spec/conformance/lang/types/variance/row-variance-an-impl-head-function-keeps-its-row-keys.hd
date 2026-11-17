@@ -1,0 +1,16 @@
+# test: an implementation for a function type with one row key does not satisfy a goal whose key has another argument
+trait Takes[A]:
+    fn take(self) -> i32
+
+trait Gen[X]:
+    fn make(self) -> X
+
+impl Takes[(fn() -> i32 $ Gen[i32])?] for i32:
+    fn take(self) -> i32:
+        self
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn go(n: i32, f: (fn() -> i32 $ Gen[string])?) -> i32:
+    need(n, f) # diagnostic: unsatisfied-trait-bound

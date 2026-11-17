@@ -2,7 +2,8 @@
 # A trait goal whose argument holds a function type with an undecided
 # requirement-row key (`(fn() -> i32 $ Gen[?U])?`, #2066) waits on the
 # key's variable, and the later annotation decides it through the row:
-# `go` holds.
+# `go` holds. Decided to a key no impl has (`go_other`), the goal fails,
+# as does a concrete row the impl does not name (`go_concrete`).
 trait Takes[A]:
     fn take(self) -> i32
 
@@ -23,6 +24,15 @@ fn go(n: i32) -> i32:
     let r = need(n, f)
     let fixed: (fn() -> i32 $ Gen[i32])? = f
     r
+
+fn go_other(n: i32) -> i32:
+    let f = none_f()
+    let r = need(n, f)
+    let fixed: (fn() -> i32 $ Gen[string])? = f
+    r
+
+fn go_concrete(n: i32, f: (fn() -> i32 $ Gen[string])?) -> i32:
+    need(n, f)
 
 pub fn main() -> void:
     pass

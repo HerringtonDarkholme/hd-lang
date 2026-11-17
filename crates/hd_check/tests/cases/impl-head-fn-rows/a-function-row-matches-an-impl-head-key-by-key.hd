@@ -1,0 +1,71 @@
+# @dump: diagnostics
+# An impl head's function type matches a goal's only when their rows
+# are one key set (`types.variance.function`, `req.row.set.order`): a key
+# with another argument (`key_arg`), a missing key (`missing_key`) and
+# an extra key (`extra_key`) fail, the exact row holds (`exact`). A head
+# key naming the impl's parameter is bound by the goal's key
+# (`generic_key`, `generic_key_other`); a head row parameter takes the
+# goal's whole row (`row_param`). A function reference and a closure
+# argument are goals of their own function type (`by_ref`,
+# `by_closure`).
+trait Takes[A]:
+    fn take(self) -> i32
+
+trait Gen[X]:
+    fn make(self) -> X
+
+trait Db
+
+impl Takes[(fn() -> i32 $ Gen[i32])?] for i32:
+    fn take(self) -> i32: self
+
+impl[X] Takes[(fn() -> X $ Gen[X])?] for u8:
+    fn take(self) -> i32: 0
+
+impl[$ R] Takes[fn() -> string $ R] for u16:
+    fn take(self) -> i32: 0
+
+impl Takes[fn() -> i32 $ Db] for i64:
+    fn take(self) -> i32: 0
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn key_arg(n: i32, f: (fn() -> i32 $ Gen[string])?) -> i32:
+    need(n, f)
+
+fn missing_key(n: i32, f: (fn() -> i32)?) -> i32:
+    need(n, f)
+
+fn extra_key(n: i32, f: (fn() -> i32 $ Gen[i32] + Db)?) -> i32:
+    need(n, f)
+
+fn exact(n: i32, f: (fn() -> i32 $ Gen[i32])?) -> i32:
+    need(n, f)
+
+fn generic_key(n: u8, f: (fn() -> i32 $ Gen[i32])?) -> i32:
+    need(n, f)
+
+fn generic_key_other(n: u8, f: (fn() -> i32 $ Gen[string])?) -> i32:
+    need(n, f)
+
+fn row_param(n: u16, f: fn() -> string $ Db + Gen[i32]) -> i32:
+    need(n, f)
+
+fn plain() -> i32:
+    1
+
+fn with_db() -> i32 $ Db:
+    2
+
+fn by_ref(n: i64) -> i32:
+    need(n, plain)
+
+fn by_ref_exact(n: i64) -> i32:
+    need(n, with_db)
+
+fn by_closure(n: i64) -> i32:
+    need(n, fn() -> i32: 3)
+
+pub fn main() -> void:
+    pass

@@ -10,7 +10,7 @@ use hd_intern::PathKind;
 use hd_resolve::{ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
-use hd_types::solver::{Answer, Evidence, TraitRef};
+use hd_types::solver::{Answer, TraitRef};
 use hd_types::{ParamRef, Prim, Ty, TyData, VarKind, holds};
 
 use crate::body::{Ck, ExpectPosition, OpenSub};
@@ -2040,26 +2040,6 @@ impl Ck<'_, '_> {
             self.err(Code::TypeMismatch, n, &msg);
             return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
         }
-        // The head match still ignores a function row's keys (#2072), so
-        // a goal on a function operand can hold by an implementation for
-        // a wider row, which does not fit
-        // (`expr.op.left-dispatch.exact-function`).
-        let pool = self.pool();
-        let operand = self.infer.resolve(pool, self.resolved(at));
-        if matches!(pool.get(operand), TyData::Fn { .. })
-            && let Some(winner) = self.op_impl_winner(tr, at, Some(ct))?
-            && self.infer.resolve(pool, winner) != operand
-        {
-            if let Some(v) = self.fn_operand_hint(tr, trait_name, at, ct, n)? {
-                return Ok(v);
-            }
-            let msg = format!(
-                "{} does not implement `{trait_name}` for this operand",
-                self.show(at)
-            );
-            self.err(Code::TypeMismatch, n, &msg);
-            return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()));
-        }
         // Resolve a contextual None on the left from the right operand
         // before choosing the tag-only path, just as Eq's ordinary call
         // resolves it while coercing that argument.
@@ -2071,6 +2051,7 @@ impl Ck<'_, '_> {
         } else {
             (c, ct)
         };
+        let pool = self.pool();
         let operand = self.infer.resolve(pool, self.resolved(at));
         // Option's standard Eq implementation only tests the tag when
         // either operand is None. Keep the ordinary trait/bound check
@@ -2293,8 +2274,7 @@ impl Ck<'_, '_> {
 
     /// An operator goal's trait reference: fresh variables for the
     /// trait's arguments, with a known right operand fixing the first.
-    /// `op_failure` and `op_impl_winner` solve the same goal, so the
-    /// same implementation wins.
+    /// `op_failure` and `fn_operand_hint` build their goals with it.
     fn op_tref(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> TraitRef {
         let pool = self.pool();
         let t = self.resolved(at);
@@ -2401,41 +2381,6 @@ impl Ck<'_, '_> {
             )));
         }
         Ok(None)
-    }
-
-    /// The winning implementation's instantiated self type for an
-    /// operator goal, when the winner is a written implementation.
-    /// `None` when the goal fails, stalls, or holds by another
-    /// evidence, so callers keep their own failure path.
-    fn op_impl_winner(&mut self, tr: DefId, at: Ty, ct: Option<Ty>) -> StageResult<Option<Ty>> {
-        let pool = self.pool();
-        let tref = self.op_tref(tr, at, ct);
-        let Answer::Holds {
-            evidence:
-                Evidence::Impl {
-                    row,
-                    args: impl_args,
-                },
-            ..
-        } = self.solve(tref)?
-        else {
-            return Ok(None);
-        };
-        let def = self
-            .cx
-            .impl_table(row.module)
-            .map_or(DefId::NONE, |t| t.def[row.row as usize]);
-        if def == DefId::NONE {
-            return Ok(None);
-        }
-        let Some(item) = self.cx.lookup.item(def) else {
-            return Ok(None);
-        };
-        let ItemData::Impl { self_ty, .. } = &item.data else {
-            return Ok(None);
-        };
-        let ia = pool.list_items(impl_args);
-        Ok(Some(crate::call::subst_owner(pool, def, ia, *self_ty)))
     }
 
     /// The type argument and bound that a derived implementation's

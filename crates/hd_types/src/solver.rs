@@ -2092,47 +2092,17 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
                 match_ty(pool, owner, t1, t2, binds)
             };
-            // A head's row parameter takes the goal's whole row, as the
-            // `TyData::Row` that `Types::subst_row` reads
-            // (`trait.target.row-argument`).
-            let row = pool.intern_ty(&TyData::Row(w2));
-            let rows = pool
-                .row_data(w1)
-                .params
-                .into_iter()
-                .filter(|p| p.owner == owner)
-                .fold(M::Yes, |acc, p| {
-                    let param = pool.intern_ty(&TyData::Param(ParamRef {
-                        owner,
-                        index: p.index,
-                    }));
-                    both(acc, match_ty(pool, owner, param, row, binds))
-                });
-            both(both(inputs, match_ty(pool, owner, r1, r2, binds)), rows)
+            both(
+                both(inputs, match_ty(pool, owner, r1, r2, binds)),
+                match_row(pool, owner, w1, w2, binds),
+            )
         }
         // A data type's row argument keeps the row parameter as a
         // `RowParamRef`. Match that bare parameter to the goal's whole row,
         // as a function-head row parameter above does
         // (`req.row.param.data-substitute`). Row extensions in an impl head
         // are rejected before solver tables are built.
-        (TyData::Row(w1), TyData::Row(w2)) => {
-            let d = pool.row_data(w1);
-            match (d.keys.as_slice(), d.params.as_slice()) {
-                ([], [p]) if p.owner == owner => {
-                    let param = pool.intern_ty(&TyData::Param(ParamRef {
-                        owner,
-                        index: p.index,
-                    }));
-                    let row = pool.intern_ty(&TyData::Row(w2));
-                    match_ty(pool, owner, param, row, binds)
-                }
-                _ if w1 == w2 => M::Yes,
-                // A row holding a variable may equal the head's once the
-                // variable is decided, as a context's (`req.context.row`).
-                _ if pool.has_infer(t) => M::Maybe,
-                _ => M::No,
-            }
-        }
+        (TyData::Row(w1), TyData::Row(w2)) => match_row(pool, owner, w1, w2, binds),
         (
             TyData::TraitValue {
                 def: d1, args: a1, ..
@@ -2147,6 +2117,71 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         (TyData::Context(_), TyData::Context(_)) if pool.has_infer(t) => M::Maybe,
         _ => M::No,
     }
+}
+
+/// A head's row `w1` against a goal's row `w2`. A head row that is its
+/// own row parameters takes the goal's whole row, as the `TyData::Row`
+/// that `Types::subst_row` reads (`trait.target.row-argument`,
+/// `req.row.param.data-substitute`); row extensions in an impl head are
+/// rejected before solver tables are built. Otherwise the rows are one
+/// key set (`req.row.set.order`): each head key matches the goal's key of the
+/// same trait, and a goal row holding a variable may match once it is
+/// decided (`req.context.row`). Cost: none for two closed rows, which
+/// interning makes equal only when they are one id; otherwise one hash
+/// probe per key of each row.
+fn match_row(
+    pool: Types<'_>,
+    owner: DefId,
+    w1: crate::RowId,
+    w2: crate::RowId,
+    binds: &mut Vec<Option<Ty>>,
+) -> M {
+    if w1 == w2 {
+        return M::Yes;
+    }
+    let (d1, d2) = (pool.row_data(w1), pool.row_data(w2));
+    if !d1.params.is_empty() && d1.params.iter().all(|p| p.owner == owner) {
+        let row = pool.intern_ty(&TyData::Row(w2));
+        return d1.params.iter().fold(M::Yes, |acc, p| {
+            let param = pool.intern_ty(&TyData::Param(ParamRef {
+                owner,
+                index: p.index,
+            }));
+            both(acc, match_ty(pool, owner, param, row, binds))
+        });
+    }
+    let open = pool.has_infer(pool.intern_ty(&TyData::Row(w2)));
+    // Rows are interned as sorted key sets, so two closed rows are one
+    // set only when they are one row: no pairing is needed.
+    if !open && !pool.has_param(pool.intern_ty(&TyData::Row(w1))) {
+        return M::No;
+    }
+    let miss = if open { M::Maybe } else { M::No };
+    if d1.keys.len() != d2.keys.len() || d1.params != d2.params {
+        return miss;
+    }
+    // The goal's keys by trait, `None` for a trait named twice.
+    let mut by: HashMap<DefId, Option<Ty>> = HashMap::default();
+    for &k in &d2.keys {
+        if let TyData::TraitValue { def, .. } = pool.get(k) {
+            by.entry(def).and_modify(|e| *e = None).or_insert(Some(k));
+        }
+    }
+    let mut r = M::Yes;
+    for &k1 in &d1.keys {
+        let m = match pool.get(k1) {
+            TyData::TraitValue { def, .. } => match by.get(&def) {
+                Some(Some(k2)) => match_ty(pool, owner, k1, *k2, binds),
+                _ => miss,
+            },
+            _ => miss,
+        };
+        r = both(r, m);
+        if r == M::No {
+            return r;
+        }
+    }
+    r
 }
 
 fn match_list(

@@ -333,6 +333,7 @@ lang/types/variance/row-variance-a-tuple-element-keeps-its-row.hd	type	reject:ty
 lang/types/variance/row-variance-map-values-keep-their-row.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
 lang/types/variance/row-variance-a-nested-list-keeps-its-row.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
 lang/types/variance/row-variance-a-returned-function-keeps-its-row.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
+lang/types/variance/row-variance-an-impl-head-function-keeps-its-row-keys.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.variance.function
 lang/requirements/requirement-polymorphism/requirement-polymorphism-a-row-solved-from-a-list-is-missing-in-the-caller.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.set.call
 lang/requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-solves-the-rest-and-the-caller-lacks-it.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#r-req.row.set.call
 lang/requirements/requirement-polymorphism/requirement-polymorphism-a-row-pattern-with-a-key-the-argument-lacks-is-a-mismatch.hd	type	reject:type-mismatch	lang/11-requirements-and-suspension.md#r-req.row.subsume.missing
