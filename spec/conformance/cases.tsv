@@ -4129,6 +4129,7 @@ std/serde/map-keys/serde-positional-skip-without-default.hd	type	reject:omitted-
 std/serde/derived-implementations/serde-derive-keeps-declared-parameter-bounds.hd	runtime	accept	std/serde.md#derived-implementations
 std/serde/data-model/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 std/serde/data-model/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
+std/serde/data-model/deserializer-skip.hd	runtime	accept	std/serde.md#r-std-serde.read.skip
 std/serde/standard-implementations/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
 std/serde/standard-implementations/serde-result-json.hd	runtime	accept	std/serde.md#r-std-serde.std.result
 std/serde/derived-implementations/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.data-and-enum-forms

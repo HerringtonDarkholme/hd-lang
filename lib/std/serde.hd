@@ -388,6 +388,41 @@ pub trait Deserializer:
     # all, as a missing key (r-std-serde.read.absent). It reads nothing.
     fn is_absent(&mut self) -> bool:
         false
+    # Reads the next value, of any kind, and drops it (r-std-serde.read.skip):
+    # serde's `IgnoredAny`, so a hand-written key loop can pass a key it does
+    # not know. The default reads the value through `peek` and the calls of
+    # its kind. A list of the open containers stands in for recursion, so
+    # each level of nesting costs one entry, not a native frame.
+    fn skip(&mut self) -> Result[void, Self::Error]:
+        # `maps[d]` is whether open container `d` is a map.
+        let mut maps: List[bool] = []
+        while true:
+            match self.peek()?:
+                .Null => _ := self.is_null()?
+                .Bool => _ := self.bool("value")?
+                .Int => _ := self.int("value")?
+                .Uint => _ := self.uint("value")?
+                .Float => _ := self.float("value")?
+                .Text => _ := self.text("value")?
+                .List =>
+                    self.begin_list()?
+                    maps.push(false)
+                .Map =>
+                    self.begin_map()?
+                    maps.push(true)
+            # Close each container after its last item, up to the first
+            # that has another, whose item the next round reads.
+            let more = false
+            while !more:
+                if maps.is_empty():
+                    return .Ok(())
+                more = if maps[maps.len() - 1]:
+                    self.next_map_key()?.is_some()
+                else:
+                    self.next_item()?
+                if !more:
+                    _ := maps.pop()
+        .Ok(())
 
 # ---------------------------------------------------------------------------
 # The templates (spec/std/serde.md#derived-implementations).
