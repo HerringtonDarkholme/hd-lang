@@ -15,11 +15,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub mod pool;
 
 /// The threads a batched parallel iterator inside a task may use (§6.2):
-/// the pool's when this thread is one of its workers, else 1.
+/// the pool's when this thread is one of its workers, else 1. Nested graphs
+/// run on their caller and keep their batched maps serial too.
 #[must_use]
 pub fn task_threads() -> usize {
     #[cfg(feature = "threads")]
-    if rayon::current_thread_index().is_some() {
+    if !pool::on_caller() && rayon::current_thread_index().is_some() {
         return rayon::current_num_threads();
     }
     1
