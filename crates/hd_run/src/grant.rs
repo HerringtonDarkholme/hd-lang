@@ -110,13 +110,29 @@ fn resolve_following(path: &Path, links: u32) -> PathBuf {
         path
     };
     let parts: Vec<Component> = path.components().collect();
-    let (mut out, start) = (0..=parts.len())
-        .rev()
-        .find_map(|k| {
-            let prefix: PathBuf = parts[..k].iter().collect();
-            canonicalize(&prefix).ok().map(|real| (real, k))
-        })
-        .unwrap_or_default();
+    let prefix = |k: usize| -> PathBuf { parts[..k].iter().collect() };
+    // The longest prefix the OS resolves. A prefix resolves only when every
+    // shorter one does, since the OS walks each name's directory before
+    // the name, so after the whole path fails a binary search finds it.
+    // Invariant: prefix `end` does not resolve; prefix `start` resolves
+    // to `found`, or `start` is 0 and is checked last.
+    // cost: O(log n) canonicalize calls, each O(n), for n components.
+    let (mut out, start) = if let Ok(real) = real(path) {
+        (real, parts.len())
+    } else {
+        let (mut start, mut end, mut found) = (0, parts.len(), None);
+        while end - start > 1 {
+            let mid = start + (end - start) / 2;
+            match real(&prefix(mid)) {
+                Ok(real) => (start, found) = (mid, Some(real)),
+                Err(_) => end = mid,
+            }
+        }
+        match found {
+            Some(real) => (real, start),
+            None => real(&prefix(0)).map(|real| (real, 0)).unwrap_or_default(),
+        }
+    };
     // How many names at the end of `out` do not exist.
     let mut missing = 0usize;
     for c in &parts[start..] {
@@ -141,11 +157,23 @@ fn resolve_following(path: &Path, links: u32) -> PathBuf {
     out
 }
 
+/// `path` resolved by the OS; the tests count the calls.
+fn real(path: &Path) -> std::io::Result<PathBuf> {
+    #[cfg(test)]
+    REAL_CALLS.with(|calls| calls.set(calls.get() + 1));
+    canonicalize(path)
+}
+
+#[cfg(test)]
+thread_local! {
+    static REAL_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// `path`, whose parent is resolved, resolved by the OS, or through the
 /// symbolic link it names when the link's target does not exist; `None`
 /// when no such file or link exists.
 fn step(path: &Path, links: u32) -> Option<PathBuf> {
-    if let Ok(real) = canonicalize(path) {
+    if let Ok(real) = real(path) {
         return Some(real);
     }
     let target = std::fs::read_link(path)
@@ -403,6 +431,29 @@ mod tests {
         assert!(g.covers_path("FsWrite", Path::new("out/new/a.txt"), &dir));
         assert!(!g.covers_path("FsWrite", Path::new("out/../top.txt"), &dir));
         assert!(!g.covers_path("FsWrite", Path::new("out-other/a.txt"), &dir));
+    }
+
+    /// A path whose last components do not exist finds its longest
+    /// existing prefix in O(log n) OS calls, not one per missing component
+    /// (as `resolvePath` in `host/node-files.ts`): 6 calls at 9 missing
+    /// names and 9 at 81, where one call per name took 11 and 83.
+    #[test]
+    fn resolve_path_of_a_missing_tail_asks_the_os_a_logarithmic_number_of_times() {
+        let dir = hd_base::path::canonicalize(std::env::temp_dir()).expect("temp dir");
+        let counts: Vec<usize> = [8, 80]
+            .iter()
+            .map(|&missing| {
+                let path =
+                    (0..missing).fold(dir.join("hd-no-such"), |p, i| p.join(format!("m{i}")));
+                super::REAL_CALLS.with(|calls| calls.set(0));
+                assert_eq!(super::resolve_path(&path), path);
+                super::REAL_CALLS.with(std::cell::Cell::get)
+            })
+            .collect();
+        assert!(
+            counts[1] - counts[0] <= 4,
+            "OS calls at 9 and 81 missing names: {counts:?}"
+        );
     }
 
     #[test]
