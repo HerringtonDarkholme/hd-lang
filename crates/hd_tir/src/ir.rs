@@ -998,8 +998,8 @@ pub struct Body {
     /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
     /// and 23).
     pub regions: Vec<(u32, u32)>,
-    /// Nested unary forwarding identities: (scope/coercion, source Read).
-    /// Sorted ownership-pass output. Single-hop identities need no row;
+    /// Unary RC forwarding identities: (wrapper/construction, source Read).
+    /// Sorted ownership-pass output. Single-hop scopes/coercions need no row;
     /// read modes remain authoritative for whether the identity is borrowed.
     pub forwarded_reads: Vec<(u32, u32)>,
     /// Per instruction of a body the ownership passes made, the checker's
@@ -1292,19 +1292,26 @@ impl Body {
                 .is_some_and(|reads| reads.into_iter().all(|r| self.is_borrow(r)))
     }
 
-    /// The one `borrow` read a coercion or wrapper keeps, when it has one.
+    /// The one `borrow` read whose RC identity this forwarding value keeps.
     #[must_use]
     pub fn borrowed_alias(&self, v: u32) -> Option<u32> {
         if Ref(v).as_inst().is_none() || v as usize >= self.len() {
             return None;
         }
         let x = if self.same_value_coercion(v as usize) {
-            self.data[v as usize][0]
+            Some(self.data[v as usize][0])
         } else {
-            self.wrapper_value(v as usize)?
+            self.wrapper_value(v as usize)
         };
-        if self.is_borrow(x) {
-            return Some(x);
+        if let Some(x) = x {
+            if self.is_borrow(x) {
+                return Some(x);
+            }
+        } else if !matches!(
+            self.tags[v as usize],
+            Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce
+        ) {
+            return None;
         }
         let at = self
             .forwarded_reads
@@ -1316,7 +1323,11 @@ impl Body {
 
     /// Canonical Read sources of unary forwarding instructions. SSA operands
     /// precede their users, so each edge is visited once, without recursion.
-    pub(crate) fn forwarding_reads(&self, mut visit: impl FnMut()) -> Vec<u32> {
+    pub(crate) fn forwarding_reads(
+        &self,
+        constructors: &[u32],
+        mut visit: impl FnMut(),
+    ) -> Vec<u32> {
         let mut roots = vec![NONE; self.len()];
         for i in 0..self.len() {
             visit();
@@ -1324,11 +1335,17 @@ impl Body {
                 roots[i] = u32_of(i);
                 continue;
             }
-            let value = if self.same_value_coercion(i) {
-                Some(self.data[i][0])
-            } else {
-                self.wrapper_value(i)
-            };
+            let value = constructors
+                .get(i)
+                .copied()
+                .filter(|&v| v != NONE)
+                .or_else(|| {
+                    if self.same_value_coercion(i) {
+                        Some(self.data[i][0])
+                    } else {
+                        self.wrapper_value(i)
+                    }
+                });
             if let Some(source) = value
                 .and_then(|v| Ref(v).as_inst())
                 .map(|v| v.0 as usize)
@@ -1340,8 +1357,8 @@ impl Body {
         roots
     }
 
-    pub(crate) fn index_forwarded_reads(&mut self) {
-        let roots = self.forwarding_reads(|| {});
+    pub(crate) fn index_forwarded_reads(&mut self, constructors: &[u32]) {
+        let roots = self.forwarding_reads(constructors, || {});
         self.forwarded_reads.clear();
         for (i, &root) in roots.iter().enumerate() {
             if root == NONE || root as usize == i {
@@ -1352,7 +1369,7 @@ impl Body {
             } else {
                 self.wrapper_value(i)
             };
-            if direct != Some(root) {
+            if constructors.get(i).is_some_and(|&v| v != NONE) || direct != Some(root) {
                 self.forwarded_reads.push((u32_of(i), root));
             }
         }

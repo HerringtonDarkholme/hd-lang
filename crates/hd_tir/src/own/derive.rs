@@ -114,6 +114,8 @@ struct Value {
     /// a copy, which the move pass moves at its last use.
     moves: bool,
     borrows: bool,
+    /// The alias changes aggregate layout while preserving RC identity.
+    rewrapped: bool,
 }
 
 /// The facts of one local.
@@ -138,6 +140,8 @@ struct Local {
     dropped: bool,
     /// The body owns none of it, once solved.
     unowned: bool,
+    /// Its binding's projections do not describe the held read's layout.
+    rewrapped: bool,
 }
 
 /// One candidate's source: the read, the binding it stores into, the bit
@@ -246,6 +250,7 @@ impl Tables {
             in_suite: false,
             moves: false,
             borrows: false,
+            rewrapped: false,
         };
         let local = Local {
             stores: 0,
@@ -261,6 +266,7 @@ impl Tables {
             fresh: true,
             dropped: false,
             unowned: false,
+            rewrapped: false,
         };
         let effect = Effect {
             reach: false,
@@ -333,6 +339,13 @@ impl Tables {
                     if f.holds != NONE {
                         if levels > 0 {
                             levels -= 1;
+                            if f.rewrapped {
+                                // RC identity is not field layout identity.
+                                // Protect the complete source, conservatively,
+                                // instead of interpreting wrapper projections
+                                // as projections of the source's type.
+                                below = 0;
+                            }
                             word = b.data[f.holds as usize][0];
                             continue;
                         }
@@ -422,7 +435,14 @@ impl Tables {
             return v.stored;
         }
         let c = self.v[v.alias as usize];
-        if v.uses == 1 && c.uses == 1 && c.alias == NONE && !v.dropped && !c.dropped {
+        // A lending constructor (implicit Some) ends its operand copy
+        // separately. Borrowing forwards that end to the aggregate binding.
+        if v.uses == 1
+            && c.uses == 1
+            && c.alias == NONE
+            && (!v.dropped || v.rewrapped)
+            && !c.dropped
+        {
             c.stored
         } else {
             NONE
@@ -529,7 +549,7 @@ impl Tables {
 }
 
 /// The facts of each value and local: uses, drops, stores.
-fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     let n = b.len();
     wrappers(b, t);
     let recursive = super::RecursiveBindings::new(b);
@@ -541,7 +561,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         local.reached = true;
         local.escapes = true;
     }
-    for i in 0..n {
+    for (i, &constructor) in constructors.iter().enumerate() {
         let [a, w] = b.data[i];
         let tag = b.tags[i];
         let local = b.local_in_place(a).map(hd_base::LocalId::idx);
@@ -599,6 +619,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             t.v[v].uses += 1;
             t.v[v].user = u32_of(i);
             let keeps = match op.role {
+                Role::Consume | Role::Lend if constructor == op.value && t.v[v].alias == NONE => {
+                    t.v[v].alias = u32_of(i);
+                    t.v[v].rewrapped = true;
+                    false
+                }
                 Role::Consume if b.same_value_coercion(i) && t.v[v].alias == NONE => {
                     t.v[v].alias = u32_of(i);
                     false
@@ -725,6 +750,7 @@ fn collapse_aliases(values: &mut [Value], mut visit: impl FnMut()) {
             let f = values[c as usize];
             if f.uses == 1 && !f.dropped && f.stored == NONE && f.alias != NONE {
                 values[v].alias = f.alias;
+                values[v].rewrapped |= f.rewrapped;
             }
         }
     }
@@ -870,8 +896,8 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             continue;
         }
         let bound = (store != NONE).then(|| t.binding(b, store)).flatten();
-        let plain = alias != NONE || (f.dropped && f.stored == NONE);
-        if !plain && (f.dropped || bound.is_none() || f.uses != 1) {
+        let plain = alias != NONE || (store == NONE && f.dropped && f.stored == NONE);
+        if !plain && (f.dropped && !f.rewrapped || bound.is_none() || f.uses != 1) {
             continue;
         }
         let bit = u32_of(t.bits.len());
@@ -890,6 +916,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         if let (false, Some(l)) = (plain, bound) {
             t.l[l as usize].bit = bit;
             t.l[l as usize].holds = u32_of(r);
+            t.l[l as usize].rewrapped = f.rewrapped;
         }
     }
     for bit in 0..t.bits.len() {
@@ -1669,15 +1696,80 @@ fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+/// Swift RC identity: an inline Copy aggregate without Drop or reference
+/// carriers has one nontrivial operand. Classify each concrete shape once;
+/// constructor records supply their operands in total input-sized work.
+pub(crate) fn constructor_sources(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
+    constructor_sources_with(b, cx, |_| {})
+}
+
+fn constructor_sources_with(b: &Body, cx: &dyn OwnCx, mut visit: impl FnMut(usize)) -> Vec<u32> {
+    let mut sources = vec![NONE; b.len()];
+    let mut shapes = hd_base::HashMap::default();
+    let mut fields = Vec::new();
+    for (i, source) in sources.iter_mut().enumerate() {
+        visit(1);
+        let some = b.tags[i] == Tag::Coerce
+            && b.record(b.data[i][1]).first() == Some(&(crate::ir::Coercion::WrapSome as u32));
+        let variant = match b.tags[i] {
+            Tag::NewStruct | Tag::NewTuple => None,
+            Tag::NewVariant => Some(b.data[i][0]),
+            Tag::Coerce if some => Some(1),
+            _ => continue,
+        };
+        let shape = *shapes.entry((b.ty[i], variant)).or_insert_with(|| {
+            if cx.copies(b.ty[i]) != Tri::Yes
+                || cx.holds_drop(b.ty[i]) != Tri::No
+                || cx.holds_ref(b.ty[i])
+                || !cx.parts(b.ty[i], variant, &mut fields)
+            {
+                return None;
+            }
+            let mut nontrivial = None;
+            for (field, &ty) in fields.iter().enumerate() {
+                visit(1);
+                if cx.counted(ty) {
+                    if nontrivial.is_some() {
+                        return None;
+                    }
+                    nontrivial = Some(field);
+                }
+            }
+            nontrivial.map(|field| (field, fields.len()))
+        });
+        let Some((field, width)) = shape else {
+            continue;
+        };
+        if some {
+            if field == 0 && width == 1 {
+                *source = b.data[i][0];
+            }
+            continue;
+        }
+        let values = b.record(b.data[i][1]);
+        let rest = b.tags[i] == Tag::NewTuple && b.data[i][0] != NONE;
+        if values.len() + usize::from(rest) != width {
+            continue;
+        }
+        *source = values
+            .get(field)
+            .copied()
+            .or_else(|| rest.then_some(b.data[i][0]))
+            .unwrap_or(NONE);
+    }
+    sources
+}
+
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters and bindings the body owns none of.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
-    b.index_forwarded_reads();
+    let constructors = constructor_sources(b, cx);
+    b.index_forwarded_reads(&constructors);
     t.reset(b.len(), b.local_ty.len());
     {
         let b = &*b;
         suites(b, t);
-        scan(b, cx, t);
+        scan(b, cx, t, &constructors);
         let flagged = b
             .sub_flags
             .first()
@@ -2092,9 +2184,9 @@ mod lending_tests {
             assert_eq!(t.wrapper, expected);
             assert_eq!(visits, b.len() + b.label_inst.len());
             let mut source_visits = 0;
-            let roots = b.forwarding_reads(|| source_visits += 1);
+            let roots = b.forwarding_reads(&[], || source_visits += 1);
             assert_eq!(source_visits, b.len());
-            b.index_forwarded_reads();
+            b.index_forwarded_reads(&[]);
             for &scope in &expected {
                 let root = roots[scope as usize];
                 assert_eq!(b.tags[root as usize], Tag::Read);
@@ -2583,5 +2675,194 @@ mod lending_tests {
             assert!(visits <= 3 * body.len(), "{width}x{depth}: {visits} visits");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod aggregate_identity_tests {
+    use super::*;
+    use crate::ir::{TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::Ty;
+    use std::cell::Cell;
+
+    const BASE: u32 = 2_000_000;
+    const TAIL: Ty = Ty(BASE + 1000);
+    const NEWTYPE: Ty = Ty(BASE + 1001);
+    struct Facts {
+        queries: Cell<usize>,
+        reject: u8,
+    }
+    impl OwnCx for Facts {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn counted(&self, ty: Ty) -> bool {
+            ty == Ty::STRING || ty.0 >= BASE
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+        fn holds_ref(&self, _: Ty) -> bool {
+            self.reject == 2
+        }
+        fn holds_drop(&self, _: Ty) -> Tri {
+            if self.reject == 1 { Tri::Yes } else { Tri::No }
+        }
+        fn copies(&self, _: Ty) -> Tri {
+            if self.reject == 3 { Tri::No } else { Tri::Yes }
+        }
+        fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            true
+        }
+        fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+            self.queries.set(self.queries.get() + 1);
+            out.clear();
+            if self.reject == 5 {
+                return false;
+            }
+            if ty == TAIL {
+                out.extend([Ty::I32, Ty::STRING]);
+                return true;
+            }
+            if ty == NEWTYPE || variant == Some(1) {
+                out.push(Ty::STRING);
+                return true;
+            }
+            let source = if ty.0 == BASE {
+                Ty::STRING
+            } else {
+                Ty(ty.0 - 1)
+            };
+            out.extend([
+                source,
+                if self.reject == 4 {
+                    Ty::STRING
+                } else {
+                    Ty::I32
+                },
+            ]);
+            true
+        }
+    }
+
+    fn generated(width: usize, depth: usize, second_string: bool) -> (Body, Vec<(u32, u32)>) {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::from_raw(0);
+        let block = b.open_block();
+        let param = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, syn);
+        let zero = b.const_value(Ty::I32, 0);
+        let mut roots = vec![];
+        for _ in 0..width {
+            let source = b.get(param, Ty::STRING, syn);
+            let mut value = source;
+            for d in 0..depth {
+                let field = if second_string { source } else { zero };
+                let fields = b.refs_record(&[value, field]);
+                value = b.emit(Tag::NewStruct, NONE, fields, Ty(BASE + u32_of(d)), syn);
+                roots.push((value.0, source.0));
+            }
+        }
+        let block = b.close_block(block, None, Ty::VOID, syn);
+        let mut b = b.finish(block, &[]).expect("typed constructor graph");
+        for &(_, root) in &roots {
+            b.data[root as usize][1] = ReadMode::Borrow as u32;
+        }
+        (b, roots)
+    }
+
+    #[test]
+    fn aggregate_identity_work_is_linear_in_width_and_depth() {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let (mut b, roots) = generated(width, depth, false);
+                let cx = Facts {
+                    queries: Cell::new(0),
+                    reject: 0,
+                };
+                let mut work = 0;
+                let sources = constructor_sources_with(&b, &cx, |n| work += n);
+                assert_eq!(work, b.len() + 2 * depth);
+                assert_eq!(
+                    cx.queries.get(),
+                    depth,
+                    "one layout query per concrete shape"
+                );
+                let mut edges = 0;
+                b.forwarding_reads(&sources, || edges += 1);
+                assert_eq!(edges, b.len());
+                b.index_forwarded_reads(&sources);
+                assert_eq!(b.forwarded_reads.len(), roots.len());
+                for (value, source) in roots {
+                    assert_eq!(b.borrowed_alias(value), Some(source));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn aggregate_identity_covers_struct_tuple_rest_variant_newtype_and_optional_lift() {
+        for form in 0..6 {
+            let (mut b, roots) = generated(1, 1, false);
+            let (value, read) = roots[0];
+            let i = value as usize;
+            let scalar = b.record(b.data[i][1])[1];
+            match form {
+                0 => {}
+                1 => {
+                    b.tags[i] = Tag::NewTuple;
+                }
+                2 => {
+                    b.tags[i] = Tag::NewVariant;
+                    b.data[i][0] = 7;
+                }
+                3 => {
+                    b.tags[i] = Tag::NewTuple;
+                    b.ty[i] = TAIL;
+                    b.data[i] = [read, u32_of(b.extra.len())];
+                    b.extra.extend([1, scalar]);
+                }
+                4 => {
+                    b.ty[i] = NEWTYPE;
+                    b.data[i][1] = u32_of(b.extra.len());
+                    b.extra.extend([1, read]);
+                }
+                _ => {
+                    b.tags[i] = Tag::Coerce;
+                    b.data[i] = [read, u32_of(b.extra.len())];
+                    b.extra
+                        .extend([2, crate::ir::Coercion::WrapSome as u32, NONE]);
+                }
+            }
+            let cx = Facts {
+                queries: Cell::new(0),
+                reject: 0,
+            };
+            let sources = constructor_sources(&b, &cx);
+            assert_eq!(sources[i], read, "form {form}");
+            b.index_forwarded_reads(&sources);
+            assert_eq!(b.borrowed_alias(value), Some(read), "form {form}");
+        }
+    }
+
+    #[test]
+    fn aggregate_identity_requires_copy_layout_and_one_nontrivial_operand() {
+        for reject in 1..=5 {
+            let (b, _) = generated(2, 1, reject == 4);
+            let cx = Facts {
+                queries: Cell::new(0),
+                reject,
+            };
+            assert!(constructor_sources(&b, &cx).iter().all(|&v| v == NONE));
+        }
     }
 }

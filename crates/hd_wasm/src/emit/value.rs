@@ -480,7 +480,11 @@ impl Em<'_, '_, '_> {
         // A struct literal names a struct, whose values are in locals.
         let tys = self.struct_fields(t);
         // Construction consumes its parts (§23.25).
-        let srcs = self.count_refs(&fields, &tys)?;
+        let srcs = if self.b.is_borrowed_coercion(i) {
+            fields.iter().copied().map(Src::Ref).collect()
+        } else {
+            self.count_refs(&fields, &tys)?
+        };
         for (s, ft) in srcs.iter().zip(&tys) {
             for k in 0..self.vals(*ft)?.len() {
                 self.src(s, k)?;
@@ -850,7 +854,7 @@ impl Em<'_, '_, '_> {
         debug_assert!((v as usize) < variants.len());
         let tys = &variants[v as usize];
         // Construction consumes its parts (§23.25).
-        let fields = if moved || self.short_origins.contains(&i) {
+        let fields = if moved || self.short_origins.contains(&i) || self.b.is_borrowed_coercion(i) {
             fs.to_vec()
         } else {
             self.count_parts(fs, tys)?

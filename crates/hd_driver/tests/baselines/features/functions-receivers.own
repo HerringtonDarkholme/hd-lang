@@ -2,7 +2,7 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Methods And Receivers, Reference Receivers (spec/lang/07-functions.md, #1364).
-# expected: `temp_receiver` frees the temporary once; `element_receiver`
+# expected: `temp_receiver` borrows its input with no count; `element_receiver`
 # changes the element in place (one uniqueness check, no element
 # count); `element_read` takes no count; `place_receiver` takes no
 # count; `mut_self` copies `v` once (it is read after). `counted` reads
@@ -91,9 +91,9 @@ fn temp_receiver(s: string) -> usize:
 >     uses $1: %6 -> %7 consume last
 >   local $3 self: string [read] value
 >     uses $3: %8 -> %9 lend last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Release %17 Exit local $0 #2 : ()
     make(s).label_len()
->   %1 = Read move [$0] : string
+>   %1 = Read borrow [$0] : string
 >   %2 = NewStruct [%1 0:i64] : Vec2
 >   %3 = Break L2 %2 : never
 >   %4 = Block - : Vec2
@@ -109,10 +109,8 @@ fn temp_receiver(s: string) -> usize:
 >   %14 = Break L1 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
->   %17 = Drop [$1] : ()
->   %18 = Block %16 : usize
->   exit sub 0 drops [$0]
->   summary kept [$0]
+>   %17 = Block %16 : usize
+>   summary kept [] borrows [$0]
 
 fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
     xs[i].shift(1)

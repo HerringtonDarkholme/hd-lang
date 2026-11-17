@@ -329,6 +329,11 @@ impl Em<'_, '_, '_> {
                 }
                 // A coercion of a borrow keeps its value, with no count;
                 // so does a wrapper block a borrow breaks out of.
+                Tag::NewStruct | Tag::NewTuple | Tag::NewVariant
+                    if self.b.is_borrowed_coercion(x) =>
+                {
+                    self.loans.insert(x);
+                }
                 Tag::Coerce if self.b.is_borrowed_coercion(x) => {
                     self.loans.insert(x);
                 }
