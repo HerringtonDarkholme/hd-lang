@@ -1,0 +1,72 @@
+# @dump: diagnostics
+# A variable inside a function type's requirement-row key is decided by the
+# other row's key of the same trait (#2066): through an expected type, a
+# later annotation, a list element, a function reference, a bound method
+# value, a closure literal and a generic row parameter. A key decided
+# otherwise still mismatches (`wrong`).
+trait Gen[X]:
+    fn get(self) -> X
+
+fn none_f[U]() -> (fn() -> i32 $ Gen[U])?:
+    .None
+
+fn none_r[$R]() -> (fn() -> i32 $ R)?:
+    .None
+
+fn pick[U](f: fn() -> i32 $ Gen[U]) -> U?:
+    .None
+
+fn listed[U]() -> List[fn() -> i32 $ Gen[U]]:
+    []
+
+fn get_it() -> i32 $ Gen[i32]:
+    0
+
+struct S:
+    n: i32
+
+impl S:
+    fn m(self) -> i32 $ Gen[i32]:
+        0
+
+fn direct() -> i32:
+    let fixed: (fn() -> i32 $ Gen[i32])? = none_f()
+    0
+
+fn later() -> i32:
+    let f = none_f()
+    let fixed: (fn() -> i32 $ Gen[i32])? = f
+    0
+
+fn in_list() -> i32:
+    let l: List[fn() -> i32 $ Gen[bool]] = listed()
+    0
+
+fn by_ref() -> i32:
+    let u: i32? = pick(get_it)
+    0
+
+fn by_ref_infer() -> i32:
+    let u = pick(get_it)
+    let v: i32? = u
+    0
+
+fn by_method(s: S) -> i32:
+    let u: i32? = pick(s::m)
+    0
+
+fn by_closure() -> i32:
+    let u: i32? = pick(fn() -> i32: get_it())
+    0
+
+fn by_row() -> i32:
+    let fixed: (fn() -> i32 $ Gen[i32])? = none_r()
+    0
+
+fn wrong() -> i32:
+    let fixed: (fn() -> i32 $ Gen[i32])? = none_f()
+    let again: (fn() -> i32 $ Gen[bool])? = fixed
+    0
+
+fn main() -> void:
+    pass

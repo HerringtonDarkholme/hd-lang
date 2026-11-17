@@ -775,6 +775,7 @@ lang/expressions/comprehensions/collections.hd	type	accept	lang/05-expressions.m
 lang/types/generics/inference-from-several-arguments/generic-inference-two-integer-literals-join.hd	type	accept	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
 lang/types/generics/inference-from-several-arguments/generic-inference-an-optional-and-a-string-literal-join.hd	type	accept	lang/04-type-system.md#r-types.option.wrap
 lang/types/generics/inference-from-several-arguments/generic-inference-a-single-inferred-argument-solves-its-parameter.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
+lang/types/generics/inference-from-several-arguments/generic-inference-solves-a-variable-in-a-function-row-key-from-the-expected-type.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 lang/annotations/typed-derivation/walkers-describers-and-sources/walker-member-on-a-concrete-walker-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
 lang/annotations/typed-derivation/walkers-describers-and-sources/walker-member-through-a-generic-structure-parameter-is-callable.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-member-hook-call
 lang/expressions/unary-and-binary-operators/identity-operands-reference-operands-of-one-type-compare.hd	type	accept	lang/05-expressions.md#unary-and-binary-operators

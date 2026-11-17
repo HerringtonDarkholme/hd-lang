@@ -1,0 +1,12 @@
+# test: a type parameter inside a function type's requirement-row key is solved from the expected type
+# Spec 04 Type System: types.generic.infer.
+
+trait Gen[X]:
+    fn get(self) -> X
+
+fn none_f[U]() -> (fn() -> i32 $ Gen[U])?:
+    .None
+
+fn go_direct() -> i32:
+    let fixed: (fn() -> i32 $ Gen[i32])? = none_f()
+    0

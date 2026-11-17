@@ -712,7 +712,7 @@ impl InferTable {
                     suspends: s1,
                     inputs: i1,
                     deps: d1,
-                    ..
+                    row: w1,
                 },
                 TyData::Fn {
                     params: p2,
@@ -720,7 +720,7 @@ impl InferTable {
                     suspends: s2,
                     inputs: i2,
                     deps: d2,
-                    ..
+                    row: w2,
                 },
             ) if s1 == s2 && d1 == d2 => {
                 if i1 == i2 {
@@ -736,7 +736,18 @@ impl InferTable {
                         found: b,
                     });
                 }
-                self.unify(pool, r1, r2)
+                self.unify(pool, r1, r2)?;
+                // A row that is one variable, a generic row parameter's,
+                // takes the other row, as a data type's row argument does;
+                // otherwise a variable in a row key is decided by the other
+                // row's key of the same trait, as in a context row. Whether
+                // the rows fit is the caller's question, as a top-level
+                // function row may widen (`req.row.subsume`), so keys with
+                // no variable are left to it.
+                if self.row_variable(pool, w1) || self.row_variable(pool, w2) {
+                    return self.unify_data_rows(pool, w1, w2, a, b);
+                }
+                self.unify_row_keys(pool, w1, w2, true)
             }
             (TyData::Context(r1), TyData::Context(r2)) => {
                 self.unify_context_rows(pool, r1, r2, a, b)
@@ -751,6 +762,14 @@ impl InferTable {
                 found: b,
             }),
         }
+    }
+
+    /// Whether `r` is one variable: a row of one variable key and no row
+    /// parameter, as a generic row parameter's argument is.
+    fn row_variable(&self, pool: Types<'_>, r: crate::RowId) -> bool {
+        let d = pool.row_data(self.resolve_row(pool, r));
+        matches!((d.keys.as_slice(), d.params.as_slice()),
+            ([key], []) if matches!(pool.get(*key), TyData::Infer(_)))
     }
 
     fn unify_data_rows(
@@ -810,6 +829,35 @@ impl InferTable {
         if d1.keys.len() != d2.keys.len() || d1.params != d2.params {
             return Err(mismatch);
         }
+        self.unify_row_keys(pool, r1, r2, false)?;
+        if self.resolve_row(pool, r1) == self.resolve_row(pool, r2) {
+            Ok(())
+        } else {
+            Err(mismatch)
+        }
+    }
+
+    /// Unifies each key of row `r1` with the key of the same trait in
+    /// `r2` when the trait occurs once in each row; with `open_only`,
+    /// only pairs where a key holds a variable. Cost: one hash probe per
+    /// key of each row to index them by trait, then one probe and at most
+    /// one unify per key of the first; no work for two rows without keys.
+    fn unify_row_keys(
+        &mut self,
+        pool: Types<'_>,
+        r1: crate::RowId,
+        r2: crate::RowId,
+        open_only: bool,
+    ) -> Result<(), UnifyError> {
+        let (r1, r2) = (self.resolve_row(pool, r1), self.resolve_row(pool, r2));
+        if r1 == r2 {
+            return Ok(());
+        }
+        let d1 = pool.row_data(r1);
+        let d2 = pool.row_data(r2);
+        if d1.keys.is_empty() || d2.keys.is_empty() {
+            return Ok(());
+        }
         // Each row's keys by trait, `None` for a trait named twice: one
         // probe per key, so the pairing is linear in the keys.
         let by_trait = |keys: &[Ty]| {
@@ -827,15 +875,13 @@ impl InferTable {
             let TyData::TraitValue { def, .. } = pool.get(k1) else {
                 continue;
             };
-            if let (Some(Some(_)), Some(Some(k2))) = (by1.get(&def), by2.get(&def)) {
+            if let (Some(Some(_)), Some(Some(k2))) = (by1.get(&def), by2.get(&def))
+                && (!open_only || pool.has_infer(k1) || pool.has_infer(*k2))
+            {
                 self.unify(pool, k1, *k2)?;
             }
         }
-        if self.resolve_row(pool, r1) == self.resolve_row(pool, r2) {
-            Ok(())
-        } else {
-            Err(mismatch)
-        }
+        Ok(())
     }
 
     fn unify_lists(

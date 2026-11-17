@@ -1,0 +1,28 @@
+# @dump: diagnostics
+# A trait goal whose argument holds a function type with an undecided
+# requirement-row key (`(fn() -> i32 $ Gen[?U])?`, #2066) waits on the
+# key's variable, and the later annotation decides it through the row:
+# `go` holds.
+trait Takes[A]:
+    fn take(self) -> i32
+
+trait Gen[X]:
+    fn get(self) -> X
+
+impl Takes[(fn() -> i32 $ Gen[i32])?] for i32:
+    fn take(self) -> i32: self
+
+fn need[A, T < Takes[A]](t: T, a: A) -> i32:
+    t.take()
+
+fn none_f[U]() -> (fn() -> i32 $ Gen[U])?:
+    .None
+
+fn go(n: i32) -> i32:
+    let f = none_f()
+    let r = need(n, f)
+    let fixed: (fn() -> i32 $ Gen[i32])? = f
+    r
+
+pub fn main() -> void:
+    pass

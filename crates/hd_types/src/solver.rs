@@ -2127,6 +2127,9 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                     match_ty(pool, owner, param, row, binds)
                 }
                 _ if w1 == w2 => M::Yes,
+                // A row holding a variable may equal the head's once the
+                // variable is decided, as a context's (`req.context.row`).
+                _ if pool.has_infer(t) => M::Maybe,
                 _ => M::No,
             }
         }
