@@ -248,8 +248,6 @@ fn take(n: usize) -> usize:
 
 fn nested(n: usize) -> usize:
     let value: Shape? = if n < 3: .Some(make(n)) else: .None
-> app/main/nested
->   release app.main.Shape? (last use)
     match value:
         .None => 0
         .Some(.Text(text)) => text.len()

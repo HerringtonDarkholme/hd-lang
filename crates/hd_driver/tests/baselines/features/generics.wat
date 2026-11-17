@@ -3,13 +3,12 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
@@ -97,59 +96,49 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t3
     i32.const 16 ;; &"heap-exhausted"
     local.set $xs
-    local.set $t4
     block
       block
         block
-          local.get $t4
+          local.get $t3
           i32.eqz
           br_if 1
-          local.get $t4
+          local.get $t3
           local.get $t2
-          local.set $t5
+          local.set $t4
           local.set $xs
           br 0
           unreachable
         end
-        local.get $xs
-        if
-          local.get $xs
-          call $retain
-        end
         br 1
       end
     end
-    local.get $t3
-    local.get $t2
-    call $rt:release
     local.get $xs
     if
       local.get $xs
       call $rt:release_ref'2
     end
     local.get $t1
-    local.get $t5
+    local.get $t4
     i32.add
     local.set $t1
     i32.const 80 ;; &empty-buffer
     local.tee $t2
-    local.tee $t5
+    local.tee $t4
     i32.load $heap offset=4
     local.tee $xs
-    local.get $t5
+    local.get $t4
     i32.load $heap
     i32.eq
     if
-      local.get $t5
+      local.get $t4
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.tee $t5
+      local.tee $t4
       local.set $t2
     end
-    local.get $t5
+    local.get $t4
     local.get $xs
     i32.const 8
     i32.mul
@@ -160,7 +149,7 @@
     local.get $t3
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t5
+    local.get $t4
     local.get $xs
     i32.const 1
     i32.add

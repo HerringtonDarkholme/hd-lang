@@ -23,7 +23,7 @@
 //! passes or after them alike.
 
 use super::splice;
-use crate::ir::{Body, NONE, Proj, Ref, Role, Root, Tag, Topology, inside, u32_of};
+use crate::ir::{Body, NONE, Proj, Ref, Role, Root, Tag, Topology, for_blocks, inside, u32_of};
 use hd_base::SliceSort as _;
 
 /// What one local of a body is ([`classify`]).
@@ -667,19 +667,30 @@ const MANY: u32 = NONE - 1;
 /// buffer holds. Stored into a binding local, such a read borrows where a
 /// call lends the local (`borrow`, rule 3); read where the call takes it,
 /// it would copy.
-fn local_read(b: &Body, v: usize) -> bool {
+fn local_read(b: &Body, v: usize, places: &mut hd_base::HashMap<u32, bool>) -> bool {
+    local_read_with(b, v, places, || {})
+}
+
+fn local_read_with(
+    b: &Body,
+    v: usize,
+    places: &mut hd_base::HashMap<u32, bool>,
+    mut visit: impl FnMut(),
+) -> bool {
     if b.tags[v] != Tag::Read {
         return true;
     }
-    let p = b.view(b.data[v][0]);
-    matches!(p.root, Root::Local(_))
-        && p.steps(b)
-            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+    *places.entry(b.data[v][0]).or_insert_with(|| {
+        let p = b.view(b.data[v][0]);
+        matches!(p.root, Root::Local(_))
+            && p.steps(b)
+                .inspect(|_| visit())
+                .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+    })
 }
 
-/// Whether a statement between a forwarded local's store and its read
-/// leaves every fact about the value as it was: it calls, stores, suspends
-/// and runs no block, so the value's uses see what the local's read saw.
+/// A plain statement has no call, store, suspension or child block, so the
+/// forwarded value's uses see what the local's read saw.
 fn plain(tag: Tag) -> bool {
     matches!(
         tag,
@@ -692,6 +703,103 @@ fn plain(tag: Tag) -> bool {
             | Tag::Is
             | Tag::CopyStruct
     )
+}
+
+/// Lexical dominance in structured control flow: a store dominates a use
+/// inside its block when its statement precedes the use's containing child.
+/// Ignore separately listed child blocks; their owner visits each once.
+fn lexical_intervals(b: &Body, topo: &Topology, mut visit: impl FnMut()) -> (Vec<u32>, Vec<u32>) {
+    let mut start = vec![NONE; b.len()];
+    let mut end = vec![NONE; b.len()];
+    let mut stack = Vec::new();
+    let mut clock = 0;
+    for &root in &b.sub_root {
+        stack.push((root, false));
+        while let Some((value, finish)) = stack.pop() {
+            visit();
+            let i = value as usize;
+            if finish {
+                end[i] = clock;
+                continue;
+            }
+            if start[i] != NONE {
+                continue;
+            }
+            start[i] = clock;
+            clock += 1;
+            stack.push((value, true));
+            if b.tags[i] == Tag::Block {
+                for &member in b.record(b.data[i][0]).iter().rev() {
+                    if b.tags[member as usize] != Tag::Block
+                        || topo.owner[member as usize] == NONE && !topo.is_root[member as usize]
+                    {
+                        stack.push((member, false));
+                    }
+                }
+            } else {
+                for_blocks(b, i, |child| {
+                    if topo.owner[child as usize] == value && !topo.is_root[child as usize] {
+                        stack.push((child, false));
+                    }
+                });
+            }
+        }
+    }
+    (start, end)
+}
+
+/// One barrier census makes each store/read interval a constant-time query.
+fn forwarding_barriers(b: &Body, mut visit: impl FnMut()) -> Vec<u32> {
+    let mut barrier = vec![NONE; b.len()];
+    for i in 0..b.len() {
+        visit();
+        if b.tags[i] != Tag::Block {
+            continue;
+        }
+        let mut last = NONE;
+        for (pos, &member) in b.record(b.data[i][0]).iter().enumerate() {
+            visit();
+            let m = member as usize;
+            barrier[m] = last;
+            if !plain(b.tags[m]) {
+                last = u32_of(pos);
+            }
+        }
+    }
+    barrier
+}
+
+/// Local definitions can follow their reads in block layout. Resolve the
+/// forwarding graph once, including forward edges, without native recursion.
+fn canonical_values(to: &mut [u32], mut visit: impl FnMut()) {
+    let mut state = vec![0u8; to.len()];
+    let mut path = Vec::new();
+    for start in 0..to.len() {
+        visit();
+        if state[start] != 0 {
+            continue;
+        }
+        let mut at = start;
+        while state[at] == 0 && to[at] != NONE {
+            visit();
+            state[at] = 1;
+            path.push(at);
+            at = to[at] as usize;
+        }
+        let root = if state[at] == 1 || state[at] == 3 {
+            NONE
+        } else if to[at] == NONE {
+            state[at] = 2;
+            u32_of(at)
+        } else {
+            to[at]
+        };
+        while let Some(at) = path.pop() {
+            visit();
+            to[at] = root;
+            state[at] = if root == NONE { 3 } else { 2 };
+        }
+    }
 }
 
 /// Value locals that only rename another (`b := a`): each read of `b` reads
@@ -845,7 +953,9 @@ fn uses_follow(b: &Body, topo: &Topology, l: u32, s: usize) -> bool {
 /// it is its value's one read, the store's value is an instruction's
 /// value of the local's type, and only [`plain`] statements are between
 /// them, the read's consumers take the stored `%v` itself, and the store
-/// and the read go. So `%v` has the uses the local's read had: consumed
+/// and the read go. A single-definition Copy value without Drop may also
+/// forward to its sole read in a dominated child block. So `%v` has the
+/// uses the local's read had: consumed
 /// in its own block where the read moved, lent where it lent. Other
 /// stores of the local stay, as do reads of them. A counted local stored
 /// with a value made from its own read (`s += "x"`) is not forwarded: the
@@ -937,11 +1047,12 @@ pub(crate) fn forward(
     t.names.retain(|&(l, _)| state[l as usize] != MANY);
     // Whether store `s` of local `l` stores an instruction's value of the
     // local's type that may be forwarded.
-    let forwardable = |b: &Body, s: usize, l: u32| {
+    let mut read_places = hd_base::HashMap::default();
+    let mut forwardable = |b: &Body, s: usize, l: u32| {
         let v = b.data[s][1];
         Ref(v).as_inst().is_some_and(|v| {
             (v.0 as usize) < b.len() && b.ty[v.0 as usize] == b.local_ty[l as usize]
-        }) && local_read(b, v as usize)
+        }) && local_read(b, v as usize, &mut read_places)
     };
     if !t
         .names
@@ -956,12 +1067,101 @@ pub(crate) fn forward(
     t.to.clear();
     t.to.resize(b.len(), NONE);
     t.pairs.clear();
+    // Index the last barrier before each member once, rather than scanning
+    // overlapping store/read intervals.
+    let barrier = forwarding_barriers(b, || {});
+    let cross_blocks = t.names.chunk_by(|x, y| x.0 == y.0).any(|group| {
+        group.len() == 2 && topo.blk[group[0].1 as usize] != topo.blk[group[1].1 as usize]
+    });
+    let mut projections = hd_base::HashMap::default();
+    let (mut projected, mut readers) = if cross_blocks {
+        (vec![false; b.len()], vec![true; b.len()])
+    } else {
+        (Vec::new(), Vec::new())
+    };
+    if cross_blocks {
+        let mut ops = Vec::new();
+        for i in 0..b.len() {
+            super::operands(b, i, &mut ops);
+            for op in &ops {
+                if op.role == Role::Dropped {
+                    continue;
+                }
+                let value = op.value as usize;
+                let field = b.tags[i] == Tag::Read && {
+                    let p = b.view(b.data[i][0]);
+                    p.root == Root::Value(op.value)
+                        && !p.whole()
+                        && *projections
+                            .entry(b.data[i][0])
+                            .or_insert_with(|| p.in_place(b))
+                };
+                projected[value] |= field;
+                readers[value] &= field
+                    || matches!(b.tags[i], Tag::Match | Tag::SwitchTag | Tag::Is)
+                        && b.data[i][0] == op.value;
+            }
+        }
+    }
+    // Only tag/field readers use the aggregate producer directly. Other
+    // consumers keep their binding's existing ownership and join facts.
+    // Build dominance intervals only when a projection reader can use them.
+    let intervals = cross_blocks
+        .then(|| {
+            t.names.chunk_by(|x, y| x.0 == y.0).any(|group| {
+                let [(_, a), (_, z)] = group else {
+                    return false;
+                };
+                let (a, z) = (*a as usize, *z as usize);
+                let r = match (b.tags[a], b.tags[z]) {
+                    (Tag::Store, Tag::Read) => z,
+                    (Tag::Read, Tag::Store) => a,
+                    _ => return false,
+                };
+                topo.blk[a] != topo.blk[z] && projected[r] && readers[r]
+            })
+        })
+        .filter(|&needed| needed)
+        .map(|_| lexical_intervals(b, topo, || {}));
+    let mut shapes = hd_base::HashMap::default();
     for group in t.names.chunk_by(|x, y| x.0 == y.0) {
         let (l, blk) = (group[0].0, topo.blk[group[0].1 as usize]);
         if blk == NONE || group.iter().any(|&(_, i)| topo.blk[i as usize] != blk) {
+            if let [(_, a), (_, z)] = group
+                && let Some((start, end)) = &intervals
+            {
+                let (a, z) = (*a as usize, *z as usize);
+                let (s, r) = if b.tags[a] == Tag::Store {
+                    (a, z)
+                } else {
+                    (z, a)
+                };
+                if !projected[r] || !readers[r] {
+                    continue;
+                }
+                let home = topo.blk[s];
+                let safe_shape = *shapes.entry(b.local_ty[l as usize]).or_insert_with(|| {
+                    cx.copies(b.local_ty[l as usize]) == super::Tri::Yes
+                        && cx.holds_drop(b.local_ty[l as usize]) == super::Tri::No
+                });
+                if b.tags[s] == Tag::Store
+                    && b.tags[r] == Tag::Read
+                    && t.classes[l as usize] == Local::Value(1)
+                    && safe_shape
+                    && home != NONE
+                    && start[s] != NONE
+                    && start[r] != NONE
+                    && start[home as usize] <= start[r]
+                    && start[r] < end[home as usize]
+                    && start[s] < start[r]
+                    && forwardable(b, s, l)
+                {
+                    t.to[r] = b.data[s][1];
+                    t.pairs.push((u32_of(s), u32_of(r)));
+                }
+            }
             continue;
         }
-        let list = b.record(b.data[blk as usize][0]);
         for (k, w) in group.windows(2).enumerate() {
             let (s, r) = (w[0].1 as usize, w[1].1 as usize);
             let read_again = group
@@ -974,8 +1174,7 @@ pub(crate) fn forward(
             {
                 continue;
             }
-            let between = &list[topo.pos[s] as usize + 1..topo.pos[r] as usize];
-            if between.iter().all(|&x| plain(b.tags[x as usize])) {
+            if barrier[r] == NONE || barrier[r] <= topo.pos[s] {
                 t.to[r] = b.data[s][1];
                 t.pairs.push((u32_of(s), u32_of(r)));
             }
@@ -984,9 +1183,8 @@ pub(crate) fn forward(
     if t.pairs.is_empty() {
         return Ok(());
     }
-    // A read whose value roots another place keeps its local: the borrow
-    // pass follows a chain of reads to a local, where a value root is
-    // memory it knows nothing of (`xs := ys; xs[i]`).
+    // A projection read observes the same immutable value after forwarding.
+    // Stores, addresses and buffer/reference accesses keep their storage.
     for i in 0..b.len() {
         let p = match b.tags[i] {
             Tag::Read | Tag::Store | Tag::Ref => b.view(b.data[i][0]),
@@ -995,7 +1193,15 @@ pub(crate) fn forward(
         if let Root::Value(r) | Root::Ptr(r) = p.root
             && let Some(w) = t.to.get_mut(r as usize)
         {
-            *w = NONE;
+            let reads_value = b.tags[i] == Tag::Read
+                && matches!(p.root, Root::Value(_))
+                && !p.whole()
+                && *projections
+                    .entry(b.data[i][0])
+                    .or_insert_with(|| p.in_place(b));
+            if !reads_value {
+                *w = NONE;
+            }
         }
     }
     // A read some instruction names other than as a value, a provider or
@@ -1015,6 +1221,9 @@ pub(crate) fn forward(
             }
         });
     }
+    // Canonicalize each edge once before choosing deletions. An ambiguous
+    // cycle keeps its original stores and reads rather than losing an owner.
+    canonical_values(&mut t.to, || {});
     t.dead.clear();
     for &(s, r) in &t.pairs {
         if t.to[r as usize] != NONE {
@@ -1024,13 +1233,6 @@ pub(crate) fn forward(
     if t.dead.is_empty() {
         return Ok(());
     }
-    // A forwarded read's value may itself be a forwarded read's.
-    let resolve = |to: &[u32], mut v: u32| {
-        while let Some(&w) = to.get(v as usize).filter(|&&w| w != NONE) {
-            v = w;
-        }
-        v
-    };
     let mut writes = Vec::new();
     for i in 0..b.len() {
         crate::ir::slots(b, i, |at, value, slot| {
@@ -1041,7 +1243,7 @@ pub(crate) fn forward(
                     | crate::ir::Word::ProviderRef
             ) && t.to.get(value as usize).is_some_and(|&w| w != NONE)
             {
-                writes.push((i, at, resolve(&t.to, value)));
+                writes.push((i, at, t.to[value as usize]));
             }
         });
     }
@@ -1058,4 +1260,122 @@ pub(crate) fn forward(
     splice::apply(b, topo, edits)?;
     edits.clear();
     Ok(())
+}
+
+#[cfg(test)]
+mod forwarding_cost_tests {
+    use super::*;
+    use crate::ir::BodyKind;
+    use hd_base::DefId;
+
+    fn node(b: &mut Body, tag: Tag, data: [u32; 2]) -> u32 {
+        let value = u32_of(b.len());
+        b.tags.push(tag);
+        b.data.push(data);
+        value
+    }
+
+    fn block(b: &mut Body, members: &[u32]) -> u32 {
+        let record = u32_of(b.extra.len());
+        b.extra.push(u32_of(members.len()));
+        b.extra.extend_from_slice(members);
+        node(b, Tag::Block, [record, NONE])
+    }
+
+    #[test]
+    fn forwarding_indexes_are_linear_at_width_and_depth() {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let mut b = Body::new(DefId::from_raw(4), BodyKind::Fn);
+                let mut members = Vec::new();
+                let mut expected = Vec::new();
+                let mut aliases = vec![NONE];
+                for _ in 0..width {
+                    let source = node(&mut b, Tag::Prim, [0, NONE]);
+                    let read = node(&mut b, Tag::Prim, [0, NONE]);
+                    let mut value = read;
+                    let base = u32_of(aliases.len());
+                    aliases.push(NONE);
+                    for _ in 0..depth {
+                        let child = block(&mut b, &[value]);
+                        value = node(&mut b, Tag::Scope, [child, NONE]);
+                        aliases.push(u32_of(aliases.len()) - 1);
+                    }
+                    expected.push((source, read, base));
+                    members.extend([source, value]);
+                }
+                let root = block(&mut b, &members);
+                b.sub_root.push(root);
+                let topo = Topology::new(&b);
+                let mut work = 0;
+                let (start, end) = lexical_intervals(&b, &topo, || work += 1);
+                assert_eq!(work, 2 * b.len());
+                for &(source, read, _) in &expected {
+                    assert!(start[source as usize] < start[read as usize]);
+                    assert!(start[read as usize] < end[root as usize]);
+                }
+                assert!(start[expected[1].0 as usize] > start[expected[0].1 as usize]);
+                let mut work = 0;
+                let _ = forwarding_barriers(&b, || work += 1);
+                assert!(work <= 2 * b.len());
+                let mut work = 0;
+                canonical_values(&mut aliases, || work += 1);
+                assert!(work <= 3 * aliases.len());
+                for &(_, _, base) in &expected {
+                    assert!(
+                        aliases[base as usize + 1..=base as usize + depth]
+                            .iter()
+                            .all(|&value| value == base)
+                    );
+                }
+                let mut aliases = vec![NONE; aliases.len()];
+                for &(_, _, base) in &expected {
+                    for offset in 0..depth {
+                        aliases[base as usize + offset] = base + u32_of(offset) + 1;
+                    }
+                }
+                let mut work = 0;
+                canonical_values(&mut aliases, || work += 1);
+                assert!(work <= 3 * aliases.len());
+                for &(_, _, base) in &expected {
+                    assert!(
+                        aliases[base as usize..base as usize + depth]
+                            .iter()
+                            .all(|&value| value == base + u32_of(depth))
+                    );
+                }
+                let mut reads = Body::new(DefId::from_raw(4), BodyKind::Fn);
+                reads.local_ty.push(hd_types::Ty::STRING);
+                let words = crate::ir::Place {
+                    root: crate::ir::PlaceRoot::Local(hd_base::LocalId::from_raw(0)),
+                    proj: vec![Proj::Field(0); depth],
+                }
+                .words()
+                .expect("a projected local place");
+                let record = u32_of(reads.extra.len());
+                reads.extra.push(u32_of(words.len()));
+                reads.extra.extend(words);
+                let mut places = hd_base::HashMap::default();
+                let mut steps = 0;
+                for _ in 0..width {
+                    let r = node(
+                        &mut reads,
+                        Tag::Read,
+                        [record, crate::ir::ReadMode::Copy as u32],
+                    );
+                    assert!(local_read_with(&reads, r as usize, &mut places, || {
+                        steps += 1;
+                    }));
+                }
+                assert_eq!(steps, depth, "a shared place is scanned once");
+            }
+        }
+    }
+
+    #[test]
+    fn cyclic_forwarding_keeps_the_original_definitions() {
+        let mut aliases = [1, 0, 1, NONE];
+        canonical_values(&mut aliases, || {});
+        assert_eq!(aliases, [NONE; 4]);
+    }
 }
