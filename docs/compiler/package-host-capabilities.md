@@ -31,7 +31,8 @@ instance alone; abort or close runs its hook at most once, and a late
 completion is dropped (#2081). A returned handle's trait object lives in
 the instance's handle registry, which checks each call's and release's
 number, trait and generation, and the last release drops it with no
-provider call (#2082). Running the host-binding cases on Wasmtime is #2083.
+provider call (#2082). The host-binding cases run on Wasmtime with native
+providers and match Node (#2083).
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

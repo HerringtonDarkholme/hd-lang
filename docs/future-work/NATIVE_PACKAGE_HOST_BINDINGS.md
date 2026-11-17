@@ -1,13 +1,13 @@
 # Native Package Host Bindings
 
-Status: accepted design, 2026-11-02; domain: runtime and host; specified; the companion
-and embedder surface are built (#2077), and so are the identity preflight and
-ready calls through a registration's dispatch (#2078), and the generated
-dispatch and value codecs (#2079), and the root-manifest consent check (#2080),
-which an embedder passes in `HostSetup::grants` as `hd` does from `hd.toml`,
-and pending calls (#2081) and the handle registry and release (#2082); the
-host-binding cases do not run on Wasmtime yet (#2083).
-Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
+Status: accepted design, 2026-11-02; domain: runtime and host; specified and
+built (#2077 to #2083, closing #1822 on 2026-11-17): the companion and
+embedder surface, the identity preflight, the generated dispatch and value
+codecs, the root-manifest consent check (an embedder passes it in
+`HostSetup::grants` as `hd` does from `hd.toml`), pending calls, the handle
+registry and release, and the host-binding cases on Wasmtime matching Node.
+The shipped `hd` loads no native provider: it selects Node at startup for a
+module that needs a package host trait (owner, 2026-11-17; #2096).
 The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
 and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);
 the build is #2077 to #2083, in that order.

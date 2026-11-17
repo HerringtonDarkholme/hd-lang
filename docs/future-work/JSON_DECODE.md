@@ -1,7 +1,7 @@
 # JSON Decode: One Pass With A Key Loop
 
-Status: proposal, 2026-11-17; domain: std.json and std.serde reading; not
-accepted. It follows the owner's rule (a) on #1809 (2026-11-17):
+Status: accepted design (owner, 2026-11-17; see Decisions); domain:
+std.json and std.serde reading; not built. It follows the owner's rule (a) on #1809 (2026-11-17):
 `deserialize` may run before the end of the text is validated. Under
 review: [std-json.decode.direct](../../spec/std/json.md#r-std-json.decode.direct),
 [std-json.decode.parse-error](../../spec/std/json.md#r-std-json.decode.parse-error),

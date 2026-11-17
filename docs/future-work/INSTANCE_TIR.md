@@ -1,7 +1,7 @@
 # Instance TIR: One Instance Form Between hd_mono And Emission
 
-Status: proposal, 2026-11-17; domain: compiler internals; not accepted.
-Under review: [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
+Status: accepted design (owner, 2026-11-17: "Approve, build it"); domain:
+compiler internals; not built. From [#1780](https://github.com/HerringtonDarkholme/hd-lang/issues/1780),
 option B of [review-2026-11-12 §14](../audit/review-2026-11-12.md#generic-or-instance-tir),
 and [tir-v2.md "As built"](../compiler/tir-v2.md#as-built-2026-11-13).
 D01 is §14's per-function code cache ("direction 1", #1783).
