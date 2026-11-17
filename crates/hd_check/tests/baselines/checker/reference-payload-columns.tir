@@ -19,9 +19,9 @@ fn shared(slot: &Slot) -> &Conn:
 >   local $0 slot: &Slot [param read]
 >   local $1 item: &Conn [read assigned]
 >   %0 = Read [$0] : &Slot
->   %17 = Block - : never
->   %18 = Match %0 [%17 %2 %4] : &Conn
->   %19 = Block %18 : &Conn
+>   %13 = Block - : never
+>   %14 = Match %0 [%13 %2 %4] : &Conn
+>   %15 = Block %14 : &Conn
         .Occupied(_, item) => item
 >   %1 = Read [$1] : &Conn
 >   %2 = Block %1 : &Conn
@@ -29,14 +29,10 @@ fn shared(slot: &Slot) -> &Conn:
 >   %6 = Ref local [*%0 as #0 .1] : &Conn
 >   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %5 [#0 %9 %15] : never
+>   %12 = SwitchTag %5 [#0 %9 %11] : never
         .Empty => panic("empty")
 >   %3 = Call std/core/panic[] ("empty") : never
 >   %4 = Block - : never
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %5 [#1 %11 %13] : never
 
 fn mutable(slot: &mut Slot) -> &mut Conn:
     match slot:
@@ -44,9 +40,9 @@ fn mutable(slot: &mut Slot) -> &mut Conn:
 >   local $0 slot: &mut Slot [param read]
 >   local $1 item: &mut Conn [read assigned]
 >   %0 = Read [$0] : &mut Slot
->   %17 = Block - : never
->   %18 = Match %0 [%17 %2 %4] : &mut Conn
->   %19 = Block %18 : &mut Conn
+>   %13 = Block - : never
+>   %14 = Match %0 [%13 %2 %4] : &mut Conn
+>   %15 = Block %14 : &mut Conn
         .Occupied(_, item) => item
 >   %1 = Read [$1] : &mut Conn
 >   %2 = Block %1 : &mut Conn
@@ -54,14 +50,10 @@ fn mutable(slot: &mut Slot) -> &mut Conn:
 >   %6 = Ref mut local [*%0 as #0 .1] : &mut Conn
 >   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %5 [#0 %9 %15] : never
+>   %12 = SwitchTag %5 [#0 %9 %11] : never
         .Empty => panic("empty")
 >   %3 = Call std/core/panic[] ("empty") : never
 >   %4 = Block - : never
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %5 [#1 %11 %13] : never
 
 fn generic[T < ?Copy](slot: &mut (T?)) -> &mut T:
     match slot:
@@ -69,9 +61,9 @@ fn generic[T < ?Copy](slot: &mut (T?)) -> &mut T:
 >   local $0 slot: &mut (T?) [param read]
 >   local $1 item: &mut T [read assigned]
 >   %0 = Read [$0] : &mut (T?)
->   %17 = Block - : never
->   %18 = Match %0 [%17 %2 %4] : &mut T
->   %19 = Block %18 : &mut T
+>   %13 = Block - : never
+>   %14 = Match %0 [%13 %2 %4] : &mut T
+>   %15 = Block %14 : &mut T
         .Some(item) => item
 >   %1 = Read [$1] : &mut T
 >   %2 = Block %1 : &mut T
@@ -79,14 +71,10 @@ fn generic[T < ?Copy](slot: &mut (T?)) -> &mut T:
 >   %6 = Ref mut local [*%0 as #1 .0] : &mut T
 >   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %5 [#1 %9 %15] : never
+>   %12 = SwitchTag %5 [#1 %9 %11] : never
         .None => panic("empty")
 >   %3 = Call std/core/panic[] ("empty") : never
 >   %4 = Block - : never
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %5 [#0 %11 %13] : never
 
 fn tuple(items: &mut (Conn, Conn)) -> &mut Conn:
     match items:

@@ -1061,6 +1061,22 @@ impl OwnCx for Env<'_> {
         hd_wasm::in_place_parts(&self.run.pool, self, ty, variant, out)
     }
 
+    fn empty_variants(&self, ty: Ty, out: &mut Vec<bool>) -> bool {
+        out.clear();
+        if self.is_open(ty)
+            || matches!(
+                self.run.pool.get(hd_wasm::strip_type(&self.run.pool, self, ty)),
+                TyData::Adt { def, .. } if self.has_drop(def)
+            )
+        {
+            return true;
+        }
+        hd_wasm::in_place_empty_variants(&self.run.pool, self, ty, out, |field| {
+            self.counted(field)
+        });
+        true
+    }
+
     fn summarizes(&self) -> bool {
         self.run.summaries.is_some()
     }

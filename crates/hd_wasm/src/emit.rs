@@ -2305,24 +2305,27 @@ impl Em<'_, '_, '_> {
             self.open(Ctl::Plain);
         }
         let mut label = Vec::with_capacity(blocks.len());
-        for (j, arm) in direct.iter().enumerate() {
-            label.push(match (arm, m) {
-                (Some(arm), Some(m)) => self.depth(Ctl::Arm(m, *arm)),
-                _ => (0u32..)
-                    .zip(&coded)
-                    .find(|(_, c)| **c == j)
-                    .map_or(0, |(k, _)| k),
+        let mut code_label = 0u32;
+        for arm in &direct {
+            label.push(if let (Some(arm), Some(m)) = (arm, m) {
+                self.depth(Ctl::Arm(m, *arm))
+            } else {
+                let next = code_label;
+                code_label += 1;
+                next
             });
         }
         // Where the last `else` is `unreachable`, no other tag reaches
         // the switch: the last case stands for the rest.
         let rest = label[blocks.len() - 1];
-        let label_of = |v: u32| {
-            cases
-                .iter()
-                .position(|(c, _)| *c == v)
-                .map_or(rest, |k| label[k])
-        };
+        // Index once: a dense table has O(cases) entries, and each
+        // entry must not search the case list again.
+        let by_tag: HashMap<u32, u32> = cases
+            .iter()
+            .zip(&label)
+            .map(|(&(tag, _), &label)| (tag, label))
+            .collect();
+        let label_of = |v: u32| by_tag.get(&v).copied().unwrap_or(rest);
         self.discr_cell(a, cell)?;
         let default = match cell.enc {
             Enc::Niche {
@@ -2385,19 +2388,11 @@ impl Em<'_, '_, '_> {
         };
         let case = cases[0].0;
         let flat = self.enum_flat(self.ty_of(a))?;
-        let exhaustive_01 = flat.cell().is_some_and(|d| d.enc == Enc::Direct)
-            && other.is_none()
-            && cases.iter().any(|(c, _)| *c == 0)
-            && cases.iter().any(|(c, _)| *c == 1);
         let (yes, no) = match flat.test(case) {
             // A cell of 0 for `case`: the cell itself says the other one.
             Test::Read(d, Is::Eq(0)) => {
                 self.discr_cell(a, d)?;
                 (arms[1], arms[0])
-            }
-            Test::Read(d, Is::Eq(1)) if exhaustive_01 => {
-                self.discr_cell(a, d)?;
-                (arms[0], arms[1])
             }
             Test::Const(_) | Test::Read(..) => {
                 self.is_variant(a, case)?;
@@ -2618,6 +2613,9 @@ impl Em<'_, '_, '_> {
             self.keep_header_read(i);
         }
         self.borrow_argument_end(i);
+        if !matches!(self.b.tags[i as usize], Tag::Drop | Tag::LoanEnd) {
+            self.borrow_temporary_end(i);
+        }
         Ok(())
     }
 
@@ -2919,29 +2917,33 @@ impl Em<'_, '_, '_> {
             }
             Tag::SwitchTag if self.switch_to_arms(i, a)? => {}
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                // Every switch the checker and `hd_structure` emit is
-                // `[case then else]`; a `SwitchInt` tests a `usize`, one
-                // `i32`, and `SwitchChar` has no emitter.
+                // Explicit cases precede one default. Scalar switches
+                // currently have one case; enum decisions can have many.
                 let r = self.rec(bw);
-                let (case, then, other) = (r[0], r[1], r[2]);
-                if self.b.tags[i as usize] == Tag::SwitchTag {
-                    self.is_variant(a, case)?;
-                } else {
-                    self.comp(a, 0)?;
-                    self.f.u32(case);
-                    self.f.op(Instruction::I32Eq);
+                let pairs = r.len() / 2;
+                for pair in r[..pairs * 2].chunks_exact(2) {
+                    let (case, then) = (pair[0], pair[1]);
+                    if self.b.tags[i as usize] == Tag::SwitchTag {
+                        self.is_variant(a, case)?;
+                    } else {
+                        self.comp(a, 0)?;
+                        self.f.u32(case);
+                        self.f.op(Instruction::I32Eq);
+                    }
+                    self.resume_branch(i, then);
+                    self.f.op(Instruction::If(BlockType::Empty));
+                    self.ctl.push(Ctl::Plain);
+                    self.block_into(then, Some(i))?;
+                    self.f.op(Instruction::Else);
                 }
-                self.resume_branch(i, then);
-                self.f.op(Instruction::If(BlockType::Empty));
-                self.ctl.push(Ctl::Plain);
-                self.block_into(then, Some(i))?;
-                self.f.op(Instruction::Else);
-                if other == NONE {
-                    self.f.op(Instruction::Unreachable);
-                } else {
+                if let Some(&other) = r.last().filter(|&&other| other != NONE) {
                     self.block_into(other, Some(i))?;
+                } else {
+                    self.f.op(Instruction::Unreachable);
                 }
-                self.close();
+                for _ in 0..pairs {
+                    self.close();
+                }
             }
             Tag::NewVariant => {
                 let payload: Vec<value::Src> =

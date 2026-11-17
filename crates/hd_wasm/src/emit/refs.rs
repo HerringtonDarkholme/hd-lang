@@ -413,6 +413,9 @@ impl Em<'_, '_, '_> {
         let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
             return Ok(false);
         };
+        if let PlaceRoot::Local(local) = p.root {
+            self.borrow_moved_slots(i, local.idx(), slots.iter().copied());
+        }
         for &k in &slots {
             self.f.get(ls[k]);
         }

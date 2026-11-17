@@ -1343,6 +1343,50 @@ fn literal_and_range_match_decisions_grow_linearly() {
     decision_rows_grow_linearly(literal_range_match, &[1000, 10_000]);
 }
 
+// #1813: exhaustive enum decisions are flat tables; finishing the last
+// variant does not rebuild the earlier cases or recurse through them.
+#[test]
+fn exhaustive_enum_switch_work_is_linear_in_width_and_depth() {
+    fn source(width: usize, depth: usize) -> String {
+        let mut s = String::from("enum Wide:\n");
+        for k in 0..width {
+            let _ = writeln!(s, "    V{k}");
+        }
+        let _ = writeln!(s, "\nfn run{width}_{depth}(value: Wide) -> usize:");
+        for level in 0..depth {
+            let indent = "    ".repeat(2 * level + 1);
+            let _ = writeln!(s, "{indent}match value:");
+            for k in 0..width - 1 {
+                let _ = writeln!(s, "{indent}    .V{k} => {k}");
+            }
+            let _ = writeln!(s, "{indent}    .V{} =>", width - 1);
+        }
+        let _ = writeln!(s, "{}0", "    ".repeat(2 * depth + 1));
+        s
+    }
+    on_test_stack(|| {
+        decision_rows(literal_match, 1); // Standard library warm-up.
+        let mut measured = Vec::new();
+        for (width, depth) in [(1000, 1), (10_000, 1), (1000, 20)] {
+            let source = source(width, depth);
+            let (out, work) =
+                hd_check::work::count_decision_rows(|| compile(&source, &Goal::Analyze));
+            assert!(
+                !out.diags.has_errors(),
+                "{width} x {depth}: {}",
+                out.render()
+            );
+            assert!(
+                work > 0 && work <= (width * depth * 10) as u64,
+                "{width} x {depth}: {work}"
+            );
+            measured.push(work);
+        }
+        assert!(measured[1] <= measured[0] * 11);
+        assert!(measured[2] <= measured[0] * 21);
+    });
+}
+
 /// Declarations far past the generic parameter limit: a trait with
 /// 65,536 type parameters (with its `Self`, past every `u16` number), a
 /// function with 70,000 lifetimes, and a struct whose field names its
@@ -1508,7 +1552,8 @@ fn closure_capture_width_emitted_operators() -> Result<(), wasmparser::BinaryRea
 
 #[test]
 fn wide_match_dispatch_emitted_operators() -> Result<(), wasmparser::BinaryReaderError> {
-    check_operators(enum_match, 500, 2000, 2000)
+    // The last exhaustive variant is the default, outside the indexed entries.
+    check_operators(enum_match, 500, 2000, 1999)
 }
 
 #[test]

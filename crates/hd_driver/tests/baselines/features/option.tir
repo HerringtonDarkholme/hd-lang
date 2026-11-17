@@ -10,9 +10,9 @@ fn unwrap(o: string?) -> usize:
 >   local $0 o: string? [param read]
 >   local $1 s: string [read assigned captured]
 >   %0 = Read [$0] : string?
->   %16 = Block - : never
->   %17 = Match %0 [%16 %3 %4] : usize
->   %18 = Block %17 : usize
+>   %12 = Block - : never
+>   %13 = Match %0 [%12 %3 %4] : usize
+>   %14 = Block %13 : usize
         .Some(s) => s.len()
 >   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
@@ -20,13 +20,9 @@ fn unwrap(o: string?) -> usize:
 >   %5 = Read [%0 as #1 .0] : string
 >   %6 = Store [$1] %5 : ()
 >   %8 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#1 %8 %14] : never
+>   %11 = SwitchTag %0 [#1 %8 %10] : never
         .None => 0
 >   %4 = Block 0:usize : usize
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %0 [#0 %10 %12] : never
 
 fn question(o: string?) -> string?:
     s := o?

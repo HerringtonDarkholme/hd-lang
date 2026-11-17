@@ -62,21 +62,21 @@ fn total(items: Erased) -> i64:
 >   local $3 x: i64 [read assigned]
 >   %0 = Read [$0] : Erased
 >   %1 = Store [$1] %0 : ()
->   %32 = Block %31 : i64
+>   %28 = Block %27 : i64
     let sum: i64 = 0
 >   %2 = Store [$2] 0:i64 : ()
     while true:
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If 1:bool [%25 %27] : ()
->   %29 = Block - : ()
->   %30 = Loop %29 - : ()
+>   %22 = Break L0 - : never
+>   %23 = Block - : ()
+>   %24 = If 1:bool [%21 %23] : ()
+>   %25 = Block - : ()
+>   %26 = Loop %25 - : ()
         match cursor.step():
 >   %3 = Ref mut local [$1] : &mut Erased
 >   %4 = Call app/main/Step.step for Erased [] via Impl (%3) : i64?
->   %23 = Block - : never
->   %24 = Match %4 [%23 %9 %11] : ()
->   %25 = Block - : ()
+>   %19 = Block - : never
+>   %20 = Match %4 [%19 %9 %11] : ()
+>   %21 = Block - : ()
             .Some(x) => sum = sum + x
 >   %5 = Read [$2] : i64
 >   %6 = Read [$3] : i64
@@ -86,16 +86,12 @@ fn total(items: Erased) -> i64:
 >   %12 = Read [%4 as #1 .0] : i64
 >   %13 = Store [$3] %12 : ()
 >   %15 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %4 [#1 %15 %21] : never
+>   %18 = SwitchTag %4 [#1 %15 %17] : never
             .None => break
 >   %10 = Break L0 - : never
 >   %11 = Block - : never
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %4 [#0 %17 %19] : never
     sum
->   %31 = Read [$2] : i64
+>   %27 = Read [$2] : i64
 
 pub fn count(n: i64) -> i64:
     total(Erased { source: box(Counter { at: 0, end: n }) })

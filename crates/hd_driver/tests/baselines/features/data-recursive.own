@@ -41,32 +41,31 @@ fn total(head: *Chain?) -> usize:
 >     uses $3: %23 -> %6 lend, %16 lend last
 >   local $4 self: string [read] value
 >     uses $4: %7 -> %9 lend last
->   %0 = Retain %44 Entry local $0 #0 : ()
+>   %0 = Retain %40 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %44 = Block %43 : usize
+>   %40 = Block %39 : usize
     let cur = head
 >   %2 = Read move [$0] : *Chain?
 >   %3 = Store [$2] %2 : ()
     while true:
->   %37 = Break L0 - : never
->   %38 = Block - : ()
->   %39 = If 1:bool [%36 %38] : ()
->   %40 = Block - : ()
->   %41 = Loop %40 - : ()
->   %42 = Drop [$2] : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If 1:bool [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$2] : ()
         match cur:
 >   %4 = Read borrow [$2] : *Chain?
->   %34 = Block - : never
->   %35 = Match %4 [%34 %19 %21] : ()
->   %36 = Block - : ()
+>   %30 = Block - : never
+>   %31 = Match %4 [%30 %19 %21] : ()
+>   %32 = Block - : ()
             .Some(c) =>
 >   %22 = Read borrow [%4 as #1 .0] : *Chain
 >   %23 = Store [$3] %22 : ()
 >   %24 = Release %23 Operation #3 : ()
 >   %26 = Block - : never
->   %32 = Block - : never
->   %33 = SwitchTag %4 [#1 %26 %32] : never
+>   %29 = SwitchTag %4 [#1 %26 %28] : never
                 n += c.name.len()
 >   %5 = Read copy [$1] : usize
 >   %6 = Read borrow [*$3 .name] : string
@@ -87,10 +86,7 @@ fn total(head: *Chain?) -> usize:
             .None => break
 >   %20 = Break L0 - : never
 >   %21 = Block - : never
->   %28 = Block - : never
->   %30 = Block - : never
->   %31 = SwitchTag %4 [#0 %28 %30] : never
     n
->   %43 = Read copy [$1] : usize
+>   %39 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

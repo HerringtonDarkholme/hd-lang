@@ -1,0 +1,63 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: one tag table per enum level, with the last variant as default;
+# the empty default consumes no count, and suspending cases resume in every arm.
+use std.time.{Clock, ms, sleep}
+
+enum Shape:
+    Text(string)
+    Pair(string, string)
+    Empty
+
+fn make(n: usize) -> Shape:
+    if n == 0: .Text("hello") else if n == 1: .Pair("hi", "there") else: .Empty
+
+fn take(n: usize) -> usize:
+    match make(n):
+        .Text(text) => text.len()
+        .Pair(a, b) => a.len() + b.len()
+        .Empty => 0
+
+fn nested(n: usize) -> usize:
+    let value: Shape? = if n < 3: .Some(make(n)) else: .None
+    match value:
+        .None => 0
+        .Some(.Text(text)) => text.len()
+        .Some(.Pair(a, b)) => a.len() + b.len()
+        .Some(.Empty) => 0
+
+fn guarded(n: usize) -> usize:
+    match make(n):
+        .Text(text) if text.len() > 1 => text.len()
+        .Text(_) => 1
+        .Pair(a, b) => a.len() + b.len()
+        .Empty => 0
+
+fn wildcard(n: usize) -> usize:
+    match make(n):
+        .Text(text) => text.len()
+        _ => 0
+
+fn returned(n: usize) -> string:
+    match make(n):
+        .Empty => ""
+        .Text(text) => text
+        .Pair(a, _) => a
+
+fn paused!(n: usize) -> usize $ Clock:
+    match make(n):
+        .Text(text) =>
+            sleep!(ms(1))
+            text.len()
+        .Pair(a, b) =>
+            sleep!(ms(1))
+            a.len() + b.len()
+        .Empty =>
+            sleep!(ms(1))
+            0
+
+pub fn main!() -> void $ Console + Clock:
+    for n in 0..4:
+        println(
+            "${take(n)} ${nested(n)} ${guarded(n)} ${wildcard(n)} ${paused!(n)} ${returned(n).len()}",
+        )

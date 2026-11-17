@@ -27,23 +27,19 @@ fn selected(choice: Choice) -> usize $ Source:
 >   local $0 choice: Choice [param read]
 >   local $1 value: usize [read assigned]
 >   %0 = Read [$0] : Choice
->   %16 = Block - : never
->   %17 = Match %0 [%16 %2 %4] : usize
->   %18 = Block %17 : usize
+>   %12 = Block - : never
+>   %13 = Match %0 [%12 %2 %4] : usize
+>   %14 = Block %13 : usize
         .First => required()
 >   %1 = Call app/main/required[] () : usize
 >   %2 = Block %1 : usize
 >   %6 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#0 %6 %14] : never
+>   %11 = SwitchTag %0 [#0 %6 %10] : never
         .Other(value) => value
 >   %3 = Read [$1] : usize
 >   %4 = Block %3 : usize
 >   %7 = Read [%0 as #1 .0] : usize
 >   %8 = Store [$1] %7 : ()
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %0 [#1 %10 %12] : never
 
 fn bounded[T < Source](source: T) -> usize:
     source.value()

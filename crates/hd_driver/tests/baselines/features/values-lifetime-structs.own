@@ -31,26 +31,22 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >     uses $1: entry -> %4 consume last
 >   local $2 w: &string [read assigned] value
 >     uses $2: %7 -> %2 consume last
->   %0 = Release %19 Exit local $0 #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     match t:
 >   %1 = Read borrow [$0] : Token[string]
->   %17 = Block - : never
->   %18 = Match %1 [%17 %3 %5] : &string
->   %19 = Block %18 : &string
+>   %13 = Block - : never
+>   %14 = Match %1 [%13 %3 %5] : &string
+>   %15 = Block %14 : &string
         Token.Word(w) => w
 >   %2 = Read copy [$2] : &string
 >   %3 = Block %2 : &string
 >   %6 = Read borrow [%1 as #0 .0] : &string
 >   %7 = Store [$2] %6 : ()
 >   %9 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %1 [#0 %9 %15] : never
+>   %12 = SwitchTag %1 [#0 %9 %11] : never
         Token.End => fallback
 >   %4 = Read copy [$1] : &string
 >   %5 = Block %4 : &string
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %1 [#1 %11 %13] : never
 >   summary kept [$1] borrows [$0]
 
 fn length(text: string) -> usize:
@@ -84,18 +80,38 @@ fn token(text: string, other: string) -> usize:
 > app/main/token
 >   local $0 text: string [param read captured] place
 >   local $1 other: string [param read captured] place
->   %0 = Release %11 Exit local $0 #2 : ()
->   %1 = Release %11 Exit local $1 #2 : ()
+>   local $2 t: Token[string] [read] value
+>     uses $2: %5 -> %7 lend last
+>   local $3 fallback: &string [read] value
+>     uses $3: %6 -> %10 consume last
+>   local $4 w: &string [read assigned] value
+>     uses $4: %13 -> %8 consume last
+>   %0 = Release %28 Exit local $0 #2 : ()
+>   %1 = Release %28 Exit local $1 #2 : ()
     word(Token.Word(&text), &other).len()
 >   %2 = Ref local frame [$0] : &string
 >   %3 = NewVariant #0 [%2] : Token[string]
 >   %4 = Ref local frame [$1] : &string
->   %5 = Call app/main/word[] (%3, %4) : &string
->   %6 = Retain %5 Operation operand 0 #0 : ()
->   %7 = LoanEnd [%4] : ()
->   %8 = LoanEnd [%3] : ()
->   %9 = Call std/text/impl string.len[] (%5) : usize
->   %10 = Drop [%5] : ()
->   %11 = Block %9 : usize
+>   %5 = Store [$2] %3 : ()
+>   %6 = Store [$3] %4 : ()
+>   %7 = Read borrow [$2] : Token[string]
+>   %8 = Read copy [$4] : &string
+>   %9 = Block %8 : &string
+>   %10 = Read move [$3] : &string
+>   %11 = Block %10 : &string
+>   %12 = Read borrow [%7 as #0 .0] : &string
+>   %13 = Store [$4] %12 : ()
+>   %15 = Block - : never
+>   %18 = SwitchTag %7 [#0 %15 %17] : never
+>   %19 = Block - : never
+>   %20 = Match %7 [%19 %9 %11] : &string
+>   %21 = Break L0 %20 : never
+>   %22 = Block - : &string
+>   %23 = Scope %22 [] : &string
+>   %24 = LoanEnd [$3] : ()
+>   %25 = LoanEnd [$2] : ()
+>   %26 = Call std/text/impl string.len[] (%23) : usize
+>   %27 = Drop [%23] : ()
+>   %28 = Block %26 : usize
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

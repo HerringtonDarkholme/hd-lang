@@ -17,12 +17,8 @@ app/main/describe
   %10 = Block - : never
   %11 = Read move [%2 as #1 .0] : string
   %12 = Store [$2] %11 : ()
-  %14 = Block - : never
+  %15 = SwitchTag %2 [#0 %10 %14] : never
   %16 = Block - : never
-  %17 = SwitchTag %2 [#1 %14 %16] : never
-  %18 = Block - : never
-  %19 = SwitchTag %2 [#0 %10 %18] : never
-  %20 = Block - : never
-  %21 = Match %2 [%20 %4 %6] : string
-  %22 = Block %21 : string
+  %17 = Match %2 [%16 %4 %6] : string
+  %18 = Block %17 : string
   exit sub 0 drops [$0]

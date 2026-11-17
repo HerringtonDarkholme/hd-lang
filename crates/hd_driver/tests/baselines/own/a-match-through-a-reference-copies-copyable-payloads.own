@@ -20,9 +20,9 @@ fn eval(expr: &Expr) -> i64:
 >   %0 = Read borrow [$0] : &Expr
 >   %10 = Drop [$3] : ()
 >   %11 = Drop [$2] : ()
->   %29 = Block - : never
->   %30 = Match %0 [%29 %2 %12] : i64
->   %31 = Block %30 : i64
+>   %25 = Block - : never
+>   %26 = Match %0 [%25 %2 %12] : i64
+>   %27 = Block %26 : i64
         .Num(value) => value
 >   %1 = Read copy [$1] : i64
 >   %2 = Block %1 : i64
@@ -30,8 +30,7 @@ fn eval(expr: &Expr) -> i64:
 >   %14 = Read copy [%13 as #0 .0] : i64
 >   %15 = Store [$1] %14 : ()
 >   %17 = Block - : never
->   %27 = Block - : never
->   %28 = SwitchTag %13 [#0 %17 %27] : never
+>   %24 = SwitchTag %13 [#0 %17 %23] : never
         .Add(left, right) => eval(left) + eval(right)
 >   %3 = Ref local [*$2] : &Expr
 >   %4 = Call app/main/eval[] (%3) : i64
@@ -45,6 +44,3 @@ fn eval(expr: &Expr) -> i64:
 >   %19 = Read copy [%13 as #1 .1] : *Expr
 >   %20 = Store [$2] %18 : ()
 >   %21 = Store [$3] %19 : ()
->   %23 = Block - : never
->   %25 = Block - : never
->   %26 = SwitchTag %13 [#1 %23 %25] : never

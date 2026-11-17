@@ -1,0 +1,56 @@
+# @dump: counts stdout wat
+# @build: dev | checked | release
+# expected: the reference expression's loan ends after its last use, before
+# the alias writes. Named and aggregate results transfer that loan to their
+# destination holder; nested inlining preserves the same lifetime.
+use std.annotation.{InlineHint, inline}
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        self.items.push("new")
+
+struct View['a]:
+    item: &'a string
+
+fn read(value: &string) -> string:
+    *value
+
+@inline(.Always)
+fn forward['a](value: &'a string) -> &'a string:
+    value
+
+# subject
+fn expression(p: *mut Slots, alias: *mut Slots) -> string:
+    seen := read(p.get_ref().expect("slot"))
+    alias.push()
+    seen
+
+fn named(p: *mut Slots, alias: *mut Slots) -> string:
+    value := p.get_ref().expect("slot")
+    seen := read(value)
+    alias.push()
+    seen
+
+fn record(p: *mut Slots, alias: *mut Slots) -> string:
+    view := View { item: p.get_ref().expect("slot") }
+    seen := read(view.item)
+    alias.push()
+    seen
+
+fn nested(p: *mut Slots, alias: *mut Slots) -> string:
+    seen := read(forward(p.get_ref().expect("slot")))
+    alias.push()
+    seen
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original"] })
+    println(expression(p, p))
+    println(named(p, p))
+    println(record(p, p))
+    println(nested(p, p))

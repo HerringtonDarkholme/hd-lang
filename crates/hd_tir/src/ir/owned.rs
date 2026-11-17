@@ -1706,7 +1706,7 @@ struct Balance<'a> {
     /// its parts cover every counted leaf.
     slots: Slots,
     pwords: usize,
-    variant_parts: Vec<hd_types::Ty>,
+    empty_variants: std::cell::OnceCell<crate::own::parts::EmptyVariants>,
     /// The exit set of the sub-body being walked, by local, and the locals
     /// the passes own: a counted type's, or one a cell may hold.
     exit: Vec<bool>,
@@ -1765,7 +1765,7 @@ impl<'a> Balance<'a> {
             lwords: b.local_ty.len().div_ceil(64),
             slots,
             pwords,
-            variant_parts: Vec::new(),
+            empty_variants: std::cell::OnceCell::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
             ops: Vec::new(),
@@ -2134,8 +2134,13 @@ impl Forward for Balance<'_> {
     }
 
     fn case(&mut self, b: &Body, x: u32, blk: u32, s: &mut BitArena, st: usize) {
-        if let Some(v) =
-            crate::own::parts::empty_variant(b, self.cx, x, blk, &mut self.variant_parts)
+        if b.tags[x as usize] != Tag::SwitchTag {
+            return;
+        }
+        if let Some(v) = self
+            .empty_variants
+            .get_or_init(|| crate::own::parts::EmptyVariants::build(b, self.cx))
+            .get(x, blk)
         {
             let k = self.num[v as usize];
             if k != NONE {

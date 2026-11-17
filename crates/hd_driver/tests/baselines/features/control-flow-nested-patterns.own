@@ -24,12 +24,12 @@ fn read_nested(s: Shape) -> usize:
 >     uses $3: %45 -> %15 lend last
 >   local $4 b: string [read assigned] value
 >     uses $4: %46 -> %20 lend last
->   %0 = Release %56 Exit local $0 #2 : ()
+>   %0 = Release %52 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
->   %54 = Block - : never
->   %55 = Match %1 [%54 %7 %14 %26] : usize
->   %56 = Block %55 : usize
+>   %50 = Block - : never
+>   %51 = Match %1 [%50 %7 %14 %26] : usize
+>   %52 = Block %51 : usize
         .Dot(User { name, age: 0 }) => name.len()
 >   %2 = Read borrow [$1] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
@@ -47,8 +47,7 @@ fn read_nested(s: Shape) -> usize:
 >   %38 = Block - : never
 >   %39 = If %30 [%34 %38] : never
 >   %40 = Block - : never
->   %52 = Block - : never
->   %53 = SwitchTag %1 [#0 %40 %52] : never
+>   %49 = SwitchTag %1 [#0 %40 %48] : never
         .Dot(User { name: n }) => n.len() + 1
 >   %8 = Read borrow [$2] : string
 >   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
@@ -78,9 +77,6 @@ fn read_nested(s: Shape) -> usize:
 >   %44 = Read borrow [%42 .name] : string
 >   %45 = Store [$3] %43 : ()
 >   %46 = Store [$4] %44 : ()
->   %48 = Block - : never
->   %50 = Block - : never
->   %51 = SwitchTag %1 [#1 %48 %50] : never
 >   summary kept [] borrows [$0]
 
 fn owner(s: Shape) -> string:
@@ -91,12 +87,12 @@ fn owner(s: Shape) -> string:
 >     uses $1: %8 -> %2 consume last
 >   local $2 name: string [read assigned] value
 >     uses $2: %13 -> %4 consume last
->   %0 = Release %23 Exit local $0 #2 : ()
+>   %0 = Release %19 Exit local $0 #2 : ()
     match s:
 >   %1 = Read borrow [$0] : Shape
->   %21 = Block - : never
->   %22 = Match %1 [%21 %3 %5] : string
->   %23 = Block %22 : string
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %3 %5] : string
+>   %19 = Block %18 : string
         .Dot(User { name }) => name
 >   %2 = Read copy [$1] : string
 >   %3 = Block %2 : string
@@ -104,15 +100,11 @@ fn owner(s: Shape) -> string:
 >   %7 = Read borrow [%6 .name] : string
 >   %8 = Store [$1] %7 : ()
 >   %10 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %1 [#0 %10 %19] : never
+>   %16 = SwitchTag %1 [#0 %10 %15] : never
         .Line(start=_, end=User { name }) => name
 >   %4 = Read copy [$2] : string
 >   %5 = Block %4 : string
 >   %11 = Read borrow [%1 as #1 .1] : User
 >   %12 = Read borrow [%11 .name] : string
 >   %13 = Store [$2] %12 : ()
->   %15 = Block - : never
->   %17 = Block - : never
->   %18 = SwitchTag %1 [#1 %15 %17] : never
 >   summary kept [] borrows [$0]

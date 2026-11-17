@@ -46,24 +46,16 @@
         block
     ;; 15 |         .Present(pair) => *pair._0 + pair._1
           local.get $value.0
-          i32.const 1
-          i32.eq
           if
             br 1
           else
     ;; 16 |         .Missing(text) => i32(text.len())
-            local.get $value.0
-            i32.eqz
-            if
-              local.get $value.1
-              local.get $value.2
-              local.set $text.1
-              drop
-              br 3
-            else
-              unreachable
-            end
+            local.get $value.1
+            local.get $value.2
+            local.set $text.1
+            drop
     ;; 15 |         .Present(pair) => *pair._0 + pair._1
+            br 2
           end
     ;; 14 |     match value:
           unreachable
@@ -300,16 +292,9 @@
         block
     ;; 10 |         .Some(item) => *item
           local.get $value
-          if
-            br 1
-          else
-    ;; 11 |         .None => -1
-            local.get $value
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 10 |         .Some(item) => *item
-          end
+          i32.eqz
+          br_if 1
+          br 0
     ;; 9 |     match value:
           unreachable
         end

@@ -105,18 +105,13 @@
       block
         block
           local.get $t4
-          if
-            local.get $t4
-            local.get $t2
-            local.set $t5
-            local.set $xs
-            br 1
-          else
-            local.get $t4
-            i32.eqz
-            br_if 2
-            unreachable
-          end
+          i32.eqz
+          br_if 1
+          local.get $t4
+          local.get $t2
+          local.set $t5
+          local.set $xs
+          br 0
           unreachable
         end
         local.get $xs

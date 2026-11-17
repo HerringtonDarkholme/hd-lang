@@ -10,14 +10,8 @@
         block
     ;; 9 |         ._0(inner) =>
           local.get $t0
-          i32.eqz
-          br_if 0
-    ;; 13 |         ._1(_) => 0
-          local.get $t0
-          i32.const 1
-          i32.eq
           br_if 1
-          unreachable
+          br 0
     ;; 8 |     match value:
           unreachable
         end
@@ -31,15 +25,11 @@
               br_if 0
     ;; 12 |                 ._1(text) => text.len()
               local.get $value.2
-              if
-                local.get $value.2
-                local.get $value.3
-                local.set $text.1
-                drop
-                br 2
-              else
-                unreachable
-              end
+              local.get $value.3
+              local.set $text.1
+              drop
+    ;; 11 |                 ._0(_) => 0
+              br 1
     ;; 10 |             match inner:
               unreachable
             end

@@ -106,7 +106,7 @@
             block
               block
                 local.get $text.0
-                br_table 0 3 4 4
+                br_table 0 3 4
               end
               br 1
             end

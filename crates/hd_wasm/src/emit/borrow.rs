@@ -499,6 +499,7 @@ pub(super) struct BorrowFacts {
     shared: std::sync::Arc<hd_base::HashSet<usize>>,
     frames: std::sync::Arc<[u32]>,
     cleanup_owners: std::sync::OnceLock<std::sync::Arc<[u32]>>,
+    lifetime: std::sync::OnceLock<super::excl::LifetimeFacts>,
 }
 
 impl BorrowFacts {
@@ -509,6 +510,7 @@ impl BorrowFacts {
             shared: std::sync::Arc::new(super::closure::shared_locals_with(b, recursive)),
             frames: frames_of(b).into(),
             cleanup_owners: std::sync::OnceLock::default(),
+            lifetime: std::sync::OnceLock::default(),
         }
     }
 }
@@ -588,6 +590,7 @@ pub(super) struct Borrows {
     /// when that value is dropped, as such a binding borrows it and has no
     /// `Drop` of its own.
     via_call: HashMap<u32, Vec<usize>>,
+    temporary_ends: super::excl::LoanEnds,
     /// Carried Ref origins to activate when an argument value completes:
     /// (consuming call, Ref instruction, mutable), keyed by argument value.
     /// Their loans start before later arguments evaluate.
@@ -1125,6 +1128,20 @@ impl Em<'_, '_, '_> {
             }
         }
 
+        if !found.is_empty() {
+            let lifetime = immutable.lifetime.get_or_init(|| {
+                super::excl::LifetimeFacts::new(self.b, &self.topo, &self.uses.consumer)
+            });
+            st.temporary_ends = super::excl::temporary_ends(
+                self.pool(),
+                self.env(),
+                (self.b, &self.topo),
+                &origin_index,
+                &sub,
+                &found,
+                (lifetime, &self.rows),
+            );
+        }
         for (i, held, bind, _) in found {
             if self.is_cell(held.local) {
                 continue;
@@ -2279,15 +2296,22 @@ impl Em<'_, '_, '_> {
             .collect();
         held.sort_stable();
         for held in held {
-            let slots = self.borrows.slots[&held].clone();
-            for (s, (h, kl)) in slots.into_iter().enumerate() {
-                let delta = self.borrow_delta(held, s);
-                self.f.get(h);
-                self.f.op(I::If(BlockType::Empty));
-                self.borrow_add(h, kl, delta, -1);
-                self.f.zero(h);
-                self.f.op(I::End);
-            }
+            self.borrow_release_held(held);
+        }
+    }
+
+    fn borrow_release_held(&mut self, held: Held) {
+        if self.borrows.abandoned {
+            return;
+        }
+        let slots = self.borrows.slots.get(&held).cloned().unwrap_or_default();
+        for (s, (h, kl)) in slots.into_iter().enumerate() {
+            let delta = self.borrow_delta(held, s);
+            self.f.get(h);
+            self.f.op(I::If(BlockType::Empty));
+            self.borrow_add(h, kl, delta, -1);
+            self.f.zero(h);
+            self.f.op(I::End);
         }
     }
 
@@ -2301,7 +2325,51 @@ impl Em<'_, '_, '_> {
     }
 
     /// At `Drop` `i` of a whole local: its holders' loans end.
+    /// Reuse the physical projection the read already lowered. Each selected
+    /// slot is one lookup; do not re-enumerate a wide type for every field.
+    pub(super) fn borrow_moved_slots(
+        &mut self,
+        i: u32,
+        local: usize,
+        slots: impl IntoIterator<Item = usize>,
+    ) {
+        let Some(ends) = self.borrows.temporary_ends.values.get(i as usize) else {
+            return;
+        };
+        let ends = std::sync::Arc::clone(ends);
+        for slot in slots {
+            let held = Held { local, slot };
+            if !self.borrows.excl.contains_key(&held) {
+                continue;
+            }
+            for &end in ends.iter() {
+                if self.b.tags[end as usize] == Tag::Store
+                    && !self.borrows.temporary_ends.handoffs.contains(&(end, held))
+                {
+                    continue;
+                }
+                self.borrows
+                    .temporary_ends
+                    .holders
+                    .entry(end)
+                    .or_default()
+                    .push(held);
+            }
+        }
+    }
+
+    pub(super) fn borrow_temporary_end(&mut self, i: u32) {
+        if let Some(mut locals) = self.borrows.temporary_ends.holders.get(&i).cloned() {
+            locals.sort_stable();
+            locals.dedup();
+            for held in locals {
+                self.borrow_release_held(held);
+            }
+        }
+    }
+
     pub(super) fn borrow_drop(&mut self, i: u32) {
+        self.borrow_temporary_end(i);
         if self.borrows.slots.is_empty() {
             return;
         }

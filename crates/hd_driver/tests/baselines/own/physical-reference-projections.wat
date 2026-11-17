@@ -17,7 +17,7 @@
     local.get $b
     i32.eq
   )
-  (func $"impl Probes.variant" (param $value i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl Probes.variant" (param $value i32) (result i32) (local $t0 i32)
     ;; 39 |         match value:
     block
       block
@@ -25,16 +25,9 @@
     ;; 40 |             .Empty => 0
           local.get $value
           i32.load $heap
-          local.tee $t0
           i32.eqz
           br_if 0
-    ;; 41 |             .Text(text) =>
-          local.get $t0
-          if
-            br 2
-          else
-            unreachable
-          end
+          br 1
     ;; 39 |         match value:
           unreachable
         end
@@ -45,9 +38,9 @@
     ;; 43 |                 borrowed.len()
       call $"impl string.len"
     ;; 39 |         match value:
-      local.set $t1
+      local.set $t0
     end
-    local.get $t1
+    local.get $t0
   )
   (func $"impl Probes.captured_copy#1" (param $env i32) (param $ctx i32) (result i32)
     ;; 53 |         fn() -> usize:

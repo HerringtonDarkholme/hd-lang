@@ -59,13 +59,7 @@
         local.get $message.0
         i32.eqz
         br_if 0
-    ;; 14 |         .Err(message) => message
-        local.get $message.0
-        if
-          br 2
-        else
-          unreachable
-        end
+        br 1
     ;; 12 |     match save(s):
         unreachable
       end

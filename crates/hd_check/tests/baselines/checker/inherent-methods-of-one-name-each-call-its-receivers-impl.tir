@@ -46,19 +46,15 @@ impl E:
 > app/main/impl E.get
 >   local $0 self: E [param read]
 >   %0 = Read [$0] : E
->   %12 = Block - : never
->   %13 = Match %0 [%12 %1 %2] : i32
->   %14 = Block %13 : i32
+>   %8 = Block - : never
+>   %9 = Match %0 [%8 %1 %2] : i32
+>   %10 = Block %9 : i32
             E.One => 1
 >   %1 = Block 1:i32 : i32
 >   %4 = Block - : never
->   %10 = Block - : never
->   %11 = SwitchTag %0 [#0 %4 %10] : never
+>   %7 = SwitchTag %0 [#0 %4 %6] : never
             E.Two => 2
 >   %2 = Block 2:i32 : i32
->   %6 = Block - : never
->   %8 = Block - : never
->   %9 = SwitchTag %0 [#1 %6 %8] : never
 
 impl N:
     fn get(self) -> i32: 7

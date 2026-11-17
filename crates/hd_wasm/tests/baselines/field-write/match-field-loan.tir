@@ -14,21 +14,17 @@ fn value(node: &Node) -> i64:
 >   local $2 left: *Node [read assigned]
 >   %0 = Read [$0] : &Node
 >   %1 = Store [$1] %0 : ()
->   %19 = Block %18 : i64
+>   %15 = Block %14 : i64
     match alias.left:
 >   %2 = Read [*$1 .left] : *Node?
->   %17 = Block - : never
->   %18 = Match %2 [%17 %3 %5] : i64
+>   %13 = Block - : never
+>   %14 = Match %2 [%13 %3 %5] : i64
         .None => 0
 >   %3 = Block 0:i64 : i64
 >   %7 = Block - : never
->   %15 = Block - : never
->   %16 = SwitchTag %2 [#0 %7 %15] : never
+>   %12 = SwitchTag %2 [#0 %7 %11] : never
         .Some(left) => left.value
 >   %4 = Read [*$2 .value] : i64
 >   %5 = Block %4 : i64
 >   %8 = Read [%2 as #1 .0] : *Node
 >   %9 = Store [$2] %8 : ()
->   %11 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %2 [#1 %11 %13] : never

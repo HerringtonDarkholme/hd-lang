@@ -59,17 +59,17 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 >     uses $1: entry -> %3 lend last
 >   local $2 v: string [read assigned] value
 >     uses $2: %14 -> %6 lend last
->   %0 = Release %27 Exit local $0 #2 : ()
->   %1 = Release %27 Exit local $1 #2 : ()
+>   %0 = Release %23 Exit local $0 #2 : ()
+>   %1 = Release %23 Exit local $1 #2 : ()
     match m.get(k):
 >   %2 = Read borrow [$0] : Map[Key, string]
 >   %3 = Read borrow [$1] : Key
 >   %4 = Intrinsic MapGet [%2 %3] : string?
 >   %5 = Retain %4 Operation operand 0 #0 : ()
->   %24 = Block - : never
->   %25 = Match %4 [%24 %11 %12] : usize
->   %26 = Drop [%4] : ()
->   %27 = Block %25 : usize
+>   %20 = Block - : never
+>   %21 = Match %4 [%20 %11 %12] : usize
+>   %22 = Drop [%4] : ()
+>   %23 = Block %21 : usize
         .Some(v) => v.len()
 >   %6 = Read borrow [$2] : string
 >   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
@@ -80,13 +80,9 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 >   %13 = Read borrow [%4 as #1 .0] : string
 >   %14 = Store [$2] %13 : ()
 >   %16 = Block - : never
->   %22 = Block - : never
->   %23 = SwitchTag %4 [#1 %16 %22] : never
+>   %19 = SwitchTag %4 [#1 %16 %18] : never
         .None => 0
 >   %12 = Block 0:usize : usize
->   %18 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %4 [#0 %18 %20] : never
 >   summary kept [] borrows [$0 $1]
 
 fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
@@ -101,8 +97,8 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
 >     uses $3: %8 -> %12 consume last
 >   local $4 value: i32 [read assigned] value
 >     uses $4: %15 -> %10 consume last
->   %0 = Release %30 Exit local $0 #2 : ()
->   %1 = Retain %30 Entry local $1 #0 : ()
+>   %0 = Release %26 Exit local $0 #2 : ()
+>   %1 = Retain %26 Entry local $1 #0 : ()
     m.get((s, 1)).unwrap_or(0)
 >   %2 = Read borrow [$0] : Map[(string, i32), i32]
 >   %3 = Read move [$1] : string
@@ -119,16 +115,12 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
 >   %14 = Read copy [%9 as #1 .0] : i32
 >   %15 = Store [$4] %14 : ()
 >   %17 = Block - : never
->   %19 = Block - : never
+>   %20 = SwitchTag %9 [#1 %17 %19] : never
 >   %21 = Block - : never
->   %22 = SwitchTag %9 [#0 %19 %21] : never
->   %23 = Block - : never
->   %24 = SwitchTag %9 [#1 %17 %23] : never
->   %25 = Block - : never
->   %26 = Match %9 [%25 %11 %13] : i32
->   %27 = Break L0 %26 : never
->   %28 = Block - : i32
->   %29 = Scope %28 [] : i32
->   %30 = Block %29 : i32
+>   %22 = Match %9 [%21 %11 %13] : i32
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : i32
+>   %25 = Scope %24 [] : i32
+>   %26 = Block %25 : i32
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

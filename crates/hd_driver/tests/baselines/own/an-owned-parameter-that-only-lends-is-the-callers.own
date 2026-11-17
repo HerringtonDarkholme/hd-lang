@@ -25,11 +25,7 @@ app/main/label
   %16 = Block - : never
   %17 = Read borrow [%1 as #0 .0] : string
   %18 = Store [$3] %17 : ()
-  %20 = Block - : never
+  %21 = SwitchTag %1 [#1 %16 %20] : never
   %22 = Block - : never
-  %23 = SwitchTag %1 [#0 %20 %22] : never
-  %24 = Block - : never
-  %25 = SwitchTag %1 [#1 %16 %24] : never
-  %26 = Block - : never
-  %27 = Match %1 [%26 %7 %10] : string
-  %28 = Block %27 : string
+  %23 = Match %1 [%22 %7 %10] : string
+  %24 = Block %23 : string

@@ -571,6 +571,226 @@ pub(super) fn carried_refs(
     })
 }
 
+/// Lifetime-ending uses of forwarded values, using ownership's existing
+/// unique-consumer index. Transparent control and aggregate construction
+/// carry the lifetime onward; a store hands it to the destination holder.
+/// Members precede their owners, so each forwarding edge is priced once.
+fn value_ends(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Vec<Arc<[u32]>> {
+    use hd_tir::ir::{NONE, u32_of};
+    let mut drops: hd_base::HashMap<u32, Vec<u32>> = hd_base::HashMap::default();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Drop
+            && let Some(p) = b.decode_place(b.data[i][0])
+            && p.proj.is_empty()
+            && let PlaceRoot::Value(v) = p.root
+            && v.as_inst().is_some()
+        {
+            drops.entry(v.0).or_default().push(u32_of(i));
+        }
+    }
+    let mut ends = vec![Arc::<[u32]>::from([]); b.len()];
+    for (v, drops) in drops {
+        ends[v as usize] = drops.into();
+    }
+    let held: hd_base::HashSet<_> = b.held_args.iter().copied().collect();
+    for v in (0..b.len()).rev() {
+        let Some(&user) = consumers.get(v).filter(|&&u| u != NONE) else {
+            continue;
+        };
+        let u = user as usize;
+        let forwarded = match b.tags[u] {
+            Tag::Block => (!topo.is_root[u]).then_some(topo.owner[u]),
+            Tag::Break => b.label_inst.get(b.data[u][0] as usize).map(|&block| {
+                let owner = topo.owner[block as usize];
+                if owner != NONE && matches!(b.tags[owner as usize], Tag::Scope | Tag::Loop) {
+                    owner
+                } else {
+                    block
+                }
+            }),
+            Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => Some(user),
+            Tag::Call | Tag::CallValue | Tag::DefaultCall if held.contains(&(user, u32_of(v))) => {
+                Some(user)
+            }
+            Tag::Store | Tag::Call | Tag::CallValue | Tag::DefaultCall => {
+                ends[v] = Arc::from([user]);
+                None
+            }
+            _ => None,
+        };
+        if let Some(next) = forwarded.filter(|&next| next != NONE) {
+            // ruled out: SSA consumers and their postorder control owners
+            // follow the definitions they forward, including break targets.
+            debug_assert!(next as usize > v);
+            ends[v] = Arc::clone(&ends[next as usize]);
+        }
+    }
+    ends
+}
+
+/// Body-only lifetime and definition facts, shared across concrete instances
+/// and sibling closures. The lazy `BorrowFacts` cell builds these once.
+pub(super) struct LifetimeFacts {
+    stored: Vec<(usize, usize)>,
+    ends: Arc<[Arc<[u32]>]>,
+}
+
+impl LifetimeFacts {
+    pub fn new(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Self {
+        crate::work::use_facts(3 * b.len() + b.local_ty.len() + b.held_args.len());
+        let mut stored = vec![(usize::MAX, 0); b.local_ty.len()];
+        for i in 0..b.len() {
+            if let Some((local, true)) = b.stored_local(i) {
+                let at = &mut stored[local.idx()];
+                at.0 = at.0.min(i);
+                at.1 = at.1.max(i);
+            }
+        }
+        Self {
+            stored,
+            ends: value_ends(b, topo, consumers).into(),
+        }
+    }
+}
+
+/// Loans moved into an inlined body's bindings follow its returned value's
+/// lifetime-ending use, as Swift OSSA's forwarding uses carry ownership.
+/// Reuse the holder-origin DAG for match arms and aggregate payloads; only
+/// bindings defined wholly inside the returned Scope are ended here.
+pub(super) fn temporary_ends(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    (b, topo): (&Body, &hd_tir::ir::Topology),
+    index: &OriginIndex,
+    sub: &dyn Fn(Ty) -> Ty,
+    found: &[(usize, Held, Bind, Option<Loan>)],
+    (facts, rows): (&LifetimeFacts, &[usize]),
+) -> LoanEnds {
+    if found.is_empty() {
+        return LoanEnds::default();
+    }
+    let mut graph = OriginGraph::default();
+    for &(_, held, _, _) in found {
+        graph.publish(held);
+    }
+    let context = OriginContext {
+        pool,
+        env,
+        body: b,
+        index,
+        sub,
+        call_argument: false,
+    };
+    let stored = &facts.stored;
+    let handoffs: hd_base::HashSet<_> = found
+        .iter()
+        .filter_map(|&(at, _, bind, _)| match bind {
+            Bind::Share(from) | Bind::Move(from) => Some((hd_tir::ir::u32_of(at), from)),
+            _ => None,
+        })
+        .collect();
+    let ends = &facts.ends;
+    let mut ranges = ScopeHolderRanges::default();
+    let mut declared: Vec<_> = found
+        .iter()
+        .map(|(_, held, _, _)| stored[held.local].0)
+        .filter(|&at| at < b.len())
+        .collect();
+    declared.sort_stable();
+    declared.dedup();
+    let mut out: hd_base::HashMap<u32, Vec<Held>> = hd_base::HashMap::default();
+    for &value in rows {
+        if b.tags[value] != Tag::Scope || ends[value].is_empty() {
+            continue;
+        }
+        let first = topo.first[value] as usize;
+        if declared
+            .get(declared.partition_point(|&at| at < first))
+            .is_none_or(|&at| at > value)
+        {
+            continue;
+        }
+        let answer = graph.answer(value, |v, graph| context.prepare(v, graph));
+        if let Some(root) = graph.collapse(answer) {
+            for held in ranges.collect(&graph.sets, root, stored, (first, value), &mut || {}) {
+                for &end in ends[value].iter() {
+                    if b.tags[end as usize] != Tag::Store || handoffs.contains(&(end, held)) {
+                        out.entry(end).or_default().push(held);
+                    }
+                }
+            }
+        }
+    }
+    for locals in out.values_mut() {
+        locals.sort_stable();
+        locals.dedup();
+    }
+    LoanEnds {
+        holders: out,
+        values: Arc::clone(ends),
+        handoffs,
+    }
+}
+
+/// The same immutable-DAG bounds used by reference projection queries:
+/// prune callers' holders before enumerating an inlined scope's own ones.
+/// Each new set node gets its bounds once, without a per-query body walk.
+#[derive(Default)]
+struct ScopeHolderRanges {
+    bounds: Vec<Option<(usize, usize)>>,
+}
+
+impl ScopeHolderRanges {
+    fn collect(
+        &mut self,
+        sets: &OriginSets,
+        root: usize,
+        stored: &[(usize, usize)],
+        (first, last): (usize, usize),
+        visit: &mut impl FnMut(),
+    ) -> Vec<Held> {
+        while self.bounds.len() < sets.nodes.len() {
+            visit();
+            let bounds = match &sets.nodes[self.bounds.len()] {
+                OriginSet::Atom(Bind::Share(held) | Bind::Move(held), _) => {
+                    let (lo, hi) = stored[held.local];
+                    (lo <= hi).then_some((lo, hi))
+                }
+                OriginSet::Atom(..) => None,
+                OriginSet::Union(children) => match children.map(|c| self.bounds[c]) {
+                    [None, other] | [other, None] => other,
+                    [Some((a, b)), Some((c, d))] => Some((a.max(c), b.min(d))),
+                },
+            };
+            self.bounds.push(bounds);
+        }
+        let mut seen = hd_base::HashSet::default();
+        let mut pending = vec![root];
+        let mut out = Vec::new();
+        while let Some(node) = pending.pop() {
+            visit();
+            if !seen.insert(node)
+                || self.bounds[node].is_none_or(|(lo, hi)| lo < first || hi > last)
+            {
+                continue;
+            }
+            match &sets.nodes[node] {
+                OriginSet::Atom(Bind::Share(held) | Bind::Move(held), _) => out.push(*held),
+                OriginSet::Union(children) => pending.extend(children.iter().rev().copied()),
+                OriginSet::Atom(..) => {}
+            }
+        }
+        out
+    }
+}
+
+#[derive(Default)]
+pub(super) struct LoanEnds {
+    pub holders: hd_base::HashMap<u32, Vec<Held>>,
+    pub values: Arc<[Arc<[u32]>]>,
+    pub handoffs: hd_base::HashSet<(u32, Held)>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct OriginRow {
     first: usize,
@@ -1045,10 +1265,11 @@ impl OriginContext<'_> {
         if direct.is_some() {
             return Some(OriginPlan::Ready(direct));
         }
-        if b.tags[c] == Tag::If {
+        if matches!(b.tags[c], Tag::If | Tag::Match) {
             return Some(OriginPlan::Join(
                 b.record(b.data[c][1])
                     .iter()
+                    .skip(usize::from(b.tags[c] == Tag::Match))
                     .filter_map(|&v| self.part(v, OriginMap::Offset(0)))
                     .collect(),
             ));
@@ -1966,6 +2187,75 @@ mod origin_index_tests {
     use hd_base::{DefId, NodeIdx};
     use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirBuilder, TirSink as _};
     use hd_types::Ty;
+
+    #[test]
+    fn temporary_scope_origins_are_filtered_at_width_and_depth() {
+        for width in [1_000usize, 10_000] {
+            for depth in [1usize, 20] {
+                let mut sets = super::OriginSets::default();
+                let mut level: Vec<_> = (0..width)
+                    .map(|local| sets.atom(Bind::Share(Held { local, slot: 0 }), None))
+                    .collect();
+                while level.len() > 1 {
+                    level = level
+                        .chunks(2)
+                        .map(|pair| {
+                            pair.get(1)
+                                .map_or(pair[0], |&other| sets.pair(pair[0], other))
+                        })
+                        .collect();
+                }
+                let stored: Vec<_> = (0..width + depth).map(|at| (at, at)).collect();
+                let mut root = level[0];
+                let mut ranges = super::ScopeHolderRanges::default();
+                let mut visits = 0;
+                for local in width..width + depth {
+                    let held = Held { local, slot: 0 };
+                    let leaf = sets.atom(Bind::Move(held), None);
+                    root = sets.pair(root, leaf);
+                    assert_eq!(
+                        ranges.collect(&sets, root, &stored, (local, local), &mut || visits += 1),
+                        [held]
+                    );
+                }
+                assert_eq!(visits, 2 * width - 1 + 5 * depth);
+                let before = visits;
+                for _ in 0..100 {
+                    assert_eq!(
+                        ranges.collect(
+                            &sets,
+                            root,
+                            &stored,
+                            (width + depth - 1, width + depth - 1),
+                            &mut || visits += 1
+                        ),
+                        [Held {
+                            local: width + depth - 1,
+                            slot: 0
+                        }]
+                    );
+                }
+                assert_eq!(visits - before, 300);
+            }
+        }
+    }
+
+    #[test]
+    fn temporary_scope_origins_keep_caller_and_cross_scope_holders() {
+        let mut sets = super::OriginSets::default();
+        let outside = sets.atom(Bind::Share(Held { local: 0, slot: 0 }), None);
+        let inside = sets.atom(Bind::Move(Held { local: 1, slot: 2 }), None);
+        let unstored = sets.atom(Bind::Share(Held { local: 2, slot: 0 }), None);
+        let call = sets.atom(Bind::Call(7), None);
+        let a = sets.pair(outside, inside);
+        let b = sets.pair(unstored, call);
+        let root = sets.pair(a, b);
+        let stored = [(0, 100), (4, 4), (usize::MAX, 0)];
+        assert_eq!(
+            super::ScopeHolderRanges::default().collect(&sets, root, &stored, (3, 5), &mut || {}),
+            [Held { local: 1, slot: 2 }]
+        );
+    }
 
     fn unit(b: &mut TirBuilder) -> Ref {
         let fields = b.words_record(&[]);

@@ -30,16 +30,9 @@
         block
     ;; 9 |         .Some(r) => *r = v
           local.get $xs
-          if
-            br 1
-          else
-    ;; 10 |         .None => panic("index")
-            local.get $xs
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 9 |         .Some(r) => *r = v
-          end
+          i32.eqz
+          br_if 1
+          br 0
     ;; 8 |     match xs.get_mut(i):
           unreachable
         end

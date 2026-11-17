@@ -137,18 +137,9 @@
             block
     ;; 39 |             .Some(x) => sum = sum + x
               local.get $items.source.0
-              i32.const 1
-              i32.eq
-              if
-                br 1
-              else
-    ;; 40 |             .None => break
-                local.get $items.source.0
-                i32.eqz
-                br_if 2
-                unreachable
-    ;; 39 |             .Some(x) => sum = sum + x
-              end
+              i32.eqz
+              br_if 1
+              br 0
     ;; 38 |         match cursor.step():
               unreachable
             end
