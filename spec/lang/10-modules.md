@@ -2190,7 +2190,7 @@ A package interface must contain:
 
 1. r[module.interface.contents] A package interface must contain every item in the table.
 2. r[module.interface.hidden-item] A **hidden item** is in the interface, but only the code of an instantiated template may name it. Downstream source cannot name it.
-3. r[module.interface.generic-bodies] An interface may also carry ordinary generic bodies to enable inlining, but downstream compilation must not require them.
+3. r[module.interface.generic-bodies] An interface must carry every generic body that a downstream instantiation needs, and may carry other bodies only to enable inlining.
 4. r[module.interface.generic-compilation] How generic code is compiled across packages is not observable, as [`types.generic.unobservable`](04-type-system.md#r-types.generic.unobservable) says. An interface fixes no strategy for it.
 5. r[module.interface.fact-expressions] A package interface records each [fact](14-annotations.md#r-annot.fact.eval.lazy) of its declarations by the fact's expression and type, not by its value.
 6. r[module.interface.fact-runtime] The value of a fact is computed by the running program on its first read, never when an interface is made or a program is built.
