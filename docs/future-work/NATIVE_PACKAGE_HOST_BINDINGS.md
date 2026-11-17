@@ -137,6 +137,21 @@ selection; they do not sandbox Rust code.
 Directional private serialization still decides the value. A private record
 serialized as a string reaches Rust as a string, not as its hidden fields.
 
+A recursive type's value can be as deep as the guest makes it, so no step
+the guest controls recurses once per level:
+
+- An argument holding a recursive type's value is lent: the method takes
+  `&T`. When the call ends, on every path, the engine takes the value apart
+  through its group's explicit-stack loop, so the guest's depth never
+  reaches a provider's `Drop`. A provider that keeps part of it clones that
+  part.
+- A value the provider builds and returns has the depth the provider chose.
+  Each recursive type has `dismantle(self)`, which drops one in constant
+  native stack; dropping it in place recurses as any `Box` tree does.
+- A recursive type's `Clone`, `PartialEq` and `Debug` (`{:#?}` included) run
+  on one explicit stack and give what derived ones give. A type holding a
+  handle derives none of them, as before.
+
 ## Cost
 
 | Component | Expected change and implementation gate |

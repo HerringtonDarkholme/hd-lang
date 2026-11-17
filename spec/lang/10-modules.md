@@ -2599,7 +2599,7 @@ pub trait Surface:
 9. r[module.host.package.js-integers] A structural 64-bit integer crosses as `BigInt`, and a narrower structural integer crosses as `Number`.
 10. r[module.host.package.js-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation, with Serde integers represented as `BigInt`.
 11. r[module.host.package.js-private-floats] A Serde float crosses as `Number` while retaining its numeric kind and finite IEEE 754 bits, including negative zero.
-12. r[module.host.package.native-values] Native package providers receive and return owned Rust values, by the [native value table](#native-value-table), rather than serialized text.
+12. r[module.host.package.native-values] Native package providers receive and return owned Rust values, by the [native value table](#native-value-table), rather than serialized text. An argument holding a recursive type's value is lent as `&T`, and the host drops it after the call.
 13. r[module.host.package.native-enums] An enum crosses as a Rust enum with the same variant names and payload field names.
 14. r[module.host.package.native-private-serde] A private-field value crosses through its directional `Serialize` or `Deserialize` implementation as a typed Serde tree that keeps integer width and finite float bits, including negative zero.
 15. r[module.host.package.native-handles] A returned host handle crosses as a generated handle trait object held in its instance's registry.

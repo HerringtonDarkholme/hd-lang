@@ -5,18 +5,137 @@
 pub const CONTRACT: &[u8] = &[
     1, 0, 0, 0, 2, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 11, 102,
     105, 108, 101, 115, 46, 70, 105, 108, 101, 115, 12, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 115, 1, 22, 100, 101, 112, 46, 117, 105, 95,
-    116, 117, 105, 46, 102, 105, 108, 101, 115, 46, 70, 105, 108, 101, 115, 0, 2, 4, 112, 97, 105, 114, 4, 112, 97, 105, 114, 0, 0, 10, 2, 15,
+    116, 117, 105, 46, 102, 105, 108, 101, 115, 46, 70, 105, 108, 101, 115, 0, 3, 4, 112, 97, 105, 114, 4, 112, 97, 105, 114, 0, 0, 10, 2, 15,
     11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 15, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 3, 98, 97, 100, 3, 98, 97,
-    100, 0, 0, 10, 2, 15, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 14, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47,
-    117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 10, 102, 105, 108, 101, 115, 46, 70, 105, 108, 101, 11, 104, 100, 58, 112, 107, 103, 58, 102,
-    105, 108, 101, 0, 1, 2, 4, 115, 105, 122, 101, 4, 115, 105, 122, 101, 0, 0, 3, 64, 0, 3, 100, 117, 112, 3, 100, 117, 112, 0, 0, 15,
-    11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101,
+    100, 0, 0, 10, 2, 15, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 14, 4, 116, 114, 101, 101, 4, 116, 114, 101, 101, 0, 0, 16,
+    3, 12, 2, 4, 76, 101, 97, 102, 1, 4, 102, 105, 108, 101, 15, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 4, 78, 111, 100, 101,
+    1, 4, 107, 105, 100, 115, 8, 17, 3, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51,
+    46, 48, 10, 102, 105, 108, 101, 115, 46, 70, 105, 108, 101, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105, 108, 101, 0, 1, 2, 4, 115, 105, 122,
+    101, 4, 115, 105, 122, 101, 0, 0, 3, 64, 0, 3, 100, 117, 112, 3, 100, 117, 112, 0, 0, 15, 11, 104, 100, 58, 112, 107, 103, 58, 102, 105,
+    108, 101,
 ];
+
+pub enum FilesTreeResult {
+    Leaf {
+        file: Box<dyn File>,
+    },
+    Node {
+        kids: Vec<FilesTreeResult>,
+    },
+}
+
+#[allow(dead_code)]
+impl FilesTreeResult {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        FilesTreeResultWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        FilesTreeResultWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        FilesTreeResultWire::dismantle(vec![FilesTreeResultWire::P0(self)]);
+    }
+}
+
+/// A value of `FilesTreeResult`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum FilesTreeResultWire {
+    P0(FilesTreeResult),
+    P1(Box<dyn File>),
+    P2(Vec<FilesTreeResult>),
+}
+
+/// A step of `FilesTreeResult`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum FilesTreeResultWireOp {
+    D0,
+    D1,
+    B0v0,
+    D2,
+    L2(Vec<FilesTreeResult>, usize),
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl FilesTreeResultWire {
+    fn encode(root: FilesTreeResult, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P1(x) => { e.handle(Box::new(x), 1, dispatch_File)?; }
+                Self::P0(FilesTreeResult::Leaf { file: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P2(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P0(FilesTreeResult::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P2(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<FilesTreeResult> {
+        let mut ops = vec![FilesTreeResultWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<FilesTreeResultWireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                FilesTreeResultWireOp::D1 => vals.push(Self::P1(d.handle()?)),
+                FilesTreeResultWireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(FilesTreeResult::Leaf { file: f0 })); }
+                FilesTreeResultWireOp::D2 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P2(x)); } else { ops.push(FilesTreeResultWireOp::L2(x, n)); ops.push(FilesTreeResultWireOp::D0); } }
+                FilesTreeResultWireOp::L2(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P2(x)); } else { ops.push(FilesTreeResultWireOp::L2(x, n - 1)); ops.push(FilesTreeResultWireOp::D0); } }
+                FilesTreeResultWireOp::B0v1 => { let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(FilesTreeResult::Node { kids: f0 })); }
+                FilesTreeResultWireOp::D0 => match d.tag(2)? { 0 => { ops.push(FilesTreeResultWireOp::B0v0); ops.push(FilesTreeResultWireOp::D1); } _ => { ops.push(FilesTreeResultWireOp::B0v1); ops.push(FilesTreeResultWireOp::D2); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<FilesTreeResultWireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                FilesTreeResultWireOp::L2(x, _) => items.push(Self::P2(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P0(FilesTreeResult::Leaf { .. }) => { }
+                Self::P2(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P0(FilesTreeResult::Node { kids: f0, .. }) => { items.push(Self::P2(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
 
 /// `example.org/ui-tui@0.3.0/files.Files`.
 pub trait Files {
     fn pair(&mut self) -> hd_run_wasmtime::native::HostResult<(Box<dyn File>, Box<dyn File>)>;
     fn bad(&mut self) -> hd_run_wasmtime::native::HostResult<(Box<dyn File>, hd_run_wasmtime::native::Serde)>;
+    fn tree(&mut self) -> hd_run_wasmtime::native::HostResult<FilesTreeResult>;
 }
 
 /// `example.org/ui-tui@0.3.0/files.File`, a host handle trait.
@@ -44,6 +163,13 @@ pub fn dispatch_Files(provider: &mut dyn std::any::Any, method: usize, _args: &[
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             { let (t0, t1) = value; e.handle(Box::new(t0), 1, dispatch_File)?; e.serde(&t1)?; }
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
+        }
+        2 => {
+            let value = provider.tree().map_err(hd_run_wasmtime::native::Failure::Threw)?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
+            FilesTreeResult::wire_encode(value, e)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),

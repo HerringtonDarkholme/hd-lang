@@ -423,9 +423,41 @@ fn deep_contract() -> Contract {
                     false,
                 ),
                 method("take", vec![node], int(32, false), false),
+                // A recursive value under each outer form: each argument
+                // is lent and taken apart through its own template.
+                method(
+                    "hold",
+                    vec![
+                        Value::List(Box::new(chain_type())),
+                        Value::Option(Box::new(chain_type())),
+                        Value::Result(Box::new(int(32, true)), Box::new(chain_type())),
+                        Value::Map(Box::new(Value::String), Box::new(chain_type())),
+                        Value::Tuple(vec![chain_type(), int(32, true)]),
+                        Value::Record(vec![field("node", chain_type()), field("n", int(32, true))]),
+                        Value::Enum(vec![
+                            variant("Empty", vec![]),
+                            variant("Full", vec![field("node", chain_type())]),
+                        ]),
+                        Value::Enum(vec![variant("Only", vec![field("node", chain_type())])]),
+                    ],
+                    int(32, false),
+                    false,
+                ),
             ],
         )],
     }
+}
+
+/// `enum Chain: End, Next(next: Chain)`, its own recursive group at each
+/// use.
+fn chain_type() -> Value {
+    Value::Rec(
+        2,
+        Box::new(Value::Enum(vec![
+            variant("End", vec![]),
+            variant("Next", vec![field("next", Value::Ref(2))]),
+        ])),
+    )
 }
 
 /// A root trait returning handles of a handle trait whose own method
@@ -445,6 +477,23 @@ fn handles_contract() -> Contract {
                         "bad",
                         vec![],
                         Value::Tuple(vec![file(), Value::Json]),
+                        false,
+                    ),
+                    // A recursive group holding a handle: no clone,
+                    // compare or `Debug`, as a handle has none.
+                    method(
+                        "tree",
+                        vec![],
+                        Value::Rec(
+                            3,
+                            Box::new(Value::Enum(vec![
+                                variant("Leaf", vec![field("file", file())]),
+                                variant(
+                                    "Node",
+                                    vec![field("kids", Value::List(Box::new(Value::Ref(3))))],
+                                ),
+                            ])),
+                        ),
                         false,
                     ),
                 ],
@@ -649,7 +698,7 @@ fn every_root_trait_of_a_companion_gets_a_setter() {
             _: Result<forms::SurfaceDrawArg17Value, String>,
             _: forms::SurfaceDrawArg19,
             _: forms::SurfaceDrawArg20,
-            tree: forms::SurfaceDrawArg21,
+            tree: &forms::SurfaceDrawArg21,
             _: forms::SurfaceDrawArg22,
             _: forms::SurfaceDrawArg23,
             _: forms::SurfaceDrawArg24,
@@ -658,8 +707,8 @@ fn every_root_trait_of_a_companion_gets_a_setter() {
             let forms::SurfaceDrawArg21::Node { kids, parent } = tree else {
                 return NativeCall::Ready(Err(HostError("leaf".into())));
             };
-            assert_eq!(kids, vec![forms::SurfaceDrawArg21::Leaf]);
-            assert_eq!(parent, Some(Box::new(forms::SurfaceDrawArg21::Leaf)));
+            assert_eq!(*kids, vec![forms::SurfaceDrawArg21::Leaf]);
+            assert_eq!(*parent, Some(Box::new(forms::SurfaceDrawArg21::Leaf)));
             NativeCall::Ready(Err(HostError("node".into())))
         }
         fn r#type(&mut self) -> HostResult<std::convert::Infallible> {
@@ -851,7 +900,7 @@ impl values::Values for Codecs {
         a22: values::ValuesMakeResultPerson,
         a23: values::ValuesMakeResultEvent,
         a24: values::ValuesMakeResultOnly,
-        a25: values::ValuesTakeArg25,
+        a25: &values::ValuesTakeArg25,
         a26: Serde,
         a27: values::ValuesMakeResultBin,
         a28: values::ValuesMakeResultNums,
@@ -1269,6 +1318,17 @@ impl handles::Files for Files {
             Serde::Map(vec![(Serde::Bool(true), Serde::Unit)]),
         ))
     }
+
+    /// Only its companion's text is checked: a group holding a handle
+    /// compiles without clone, compare or `Debug`.
+    fn tree(&mut self) -> HostResult<handles::FilesTreeResult> {
+        let object = Rc::new(Object(Rc::clone(&self.0)));
+        Ok(handles::FilesTreeResult::Node {
+            kids: vec![handles::FilesTreeResult::Leaf {
+                file: Box::new(OpenFile(object)),
+            }],
+        })
+    }
 }
 
 impl handles::File for OpenFile {
@@ -1479,11 +1539,11 @@ fn chain(depth: u32, form: u32) -> Made {
     node
 }
 
-/// The `Node`s and `Twig`s of `node`, counted and dropped one at a time.
-fn levels(node: Got) -> u32 {
-    enum Item {
-        Node(Got),
-        Twig(GotTwig),
+/// The `Node`s and `Twig`s of the lent `node`, counted one at a time.
+fn levels(node: &Got) -> u32 {
+    enum Item<'a> {
+        Node(&'a Got),
+        Twig(&'a GotTwig),
     }
     let mut stack = vec![Item::Node(node)];
     let mut count = 0;
@@ -1496,16 +1556,16 @@ fn levels(node: Got) -> u32 {
                 | Got::Pair { pair: (next, _) }
                 | Got::Either { either: Ok(next) }
                 | Got::Bad { rest: next, .. },
-            ) => stack.push(Item::Node(*next)),
+            ) => stack.push(Item::Node(next)),
             Item::Node(Got::End | Got::Maybe { at: None } | Got::Either { either: Err(_) }) => {}
-            Item::Node(Got::Many { items }) => stack.extend(items.into_iter().map(Item::Node)),
+            Item::Node(Got::Many { items }) => stack.extend(items.iter().map(Item::Node)),
             Item::Node(Got::Keyed { map }) => {
-                stack.extend(map.into_iter().map(|(_, n)| Item::Node(*n)));
+                stack.extend(map.iter().map(|(_, n)| Item::Node(n)));
             }
             Item::Node(Got::Inner { inner }) => stack.push(Item::Twig(inner)),
             Item::Twig(twig) => {
-                stack.extend(twig.up.map(|n| Item::Node(*n)));
-                stack.extend(twig.kids.into_iter().map(Item::Twig));
+                stack.extend(twig.up.as_deref().map(Item::Node));
+                stack.extend(twig.kids.iter().map(Item::Twig));
             }
         }
     }
@@ -1519,9 +1579,111 @@ impl deep::Deep for Deeps {
         Ok(chain(depth, form))
     }
 
-    fn take(&mut self, node: Got) -> HostResult<u32> {
+    /// Reads the lent value; the engine takes it apart after the call.
+    fn take(&mut self, node: &Got) -> HostResult<u32> {
         Ok(levels(node))
     }
+
+    /// Reads each lent chain under its outer form.
+    fn hold(
+        &mut self,
+        list: &Vec<deep::DeepHoldArg0Item>,
+        option: &Option<deep::DeepHoldArg1>,
+        result: &Result<i32, deep::DeepHoldArg2Err>,
+        map: &Vec<(String, deep::DeepHoldArg3Value)>,
+        tuple: &(deep::DeepHoldArg40, i32),
+        record: &deep::DeepHoldArg5,
+        variant: &deep::DeepHoldArg6,
+        only: &deep::DeepHoldArg7,
+    ) -> HostResult<u32> {
+        /// The links of a lent `Chain`, its `End` included.
+        macro_rules! links {
+            ($t:path, $x:expr) => {{
+                use $t as T;
+                let mut n = 1;
+                let mut at: &T = $x;
+                while let T::Next { next } = at {
+                    n += 1;
+                    at = next;
+                }
+                n
+            }};
+        }
+        let mut n = 0;
+        for x in list {
+            n += links!(deep::DeepHoldArg0Item, x);
+        }
+        if let Some(x) = option {
+            n += links!(deep::DeepHoldArg1, x);
+        }
+        if let Err(x) = result {
+            n += links!(deep::DeepHoldArg2Err, x);
+        }
+        for (_, x) in map {
+            n += links!(deep::DeepHoldArg3Value, x);
+        }
+        n += links!(deep::DeepHoldArg40, &tuple.0);
+        n += links!(deep::DeepHoldArg5Node, &record.node);
+        if let deep::DeepHoldArg6::Full { node } = variant {
+            n += links!(deep::DeepHoldArg6FullNode, node);
+        }
+        let deep::DeepHoldArg7::Only { node } = only;
+        n += links!(deep::DeepHoldArg7OnlyNode, node);
+        Ok(n)
+    }
+}
+
+/// A `Chain` `depth` links deep, then its `End`.
+fn chain_bytes(e: &mut native::wire::Encoder<'_>, depth: u32) {
+    for _ in 0..depth {
+        e.tag(1);
+    }
+    e.tag(0);
+}
+
+/// `hold`'s arguments: a `depth`-deep chain under each outer form, and a
+/// second, one-link chain in the list.
+fn hold_args(depth: u32) -> Vec<u8> {
+    let mut handles = native::Handles::default();
+    let mut e = native::wire::Encoder::new(&mut handles);
+    e.count(2);
+    chain_bytes(&mut e, depth);
+    chain_bytes(&mut e, 1);
+    e.tag(1);
+    chain_bytes(&mut e, depth);
+    e.tag(1);
+    chain_bytes(&mut e, depth);
+    e.count(1);
+    e.string("k");
+    chain_bytes(&mut e, depth);
+    chain_bytes(&mut e, depth);
+    e.signed(5);
+    chain_bytes(&mut e, depth);
+    e.signed(5);
+    e.tag(1);
+    chain_bytes(&mut e, depth);
+    e.tag(0);
+    chain_bytes(&mut e, depth);
+    e.into_bytes()
+}
+
+#[test]
+fn a_lent_million_deep_argument_under_each_outer_form_is_taken_apart_in_constant_native_stack() {
+    on_small_stack(|| {
+        const DEPTH: u32 = 1_000_000;
+        let args = hold_args(DEPTH);
+        let answer = call_deep(2, &args).unwrap();
+        let links = native::wire::Decoder::new(&answer)
+            .unsigned::<u32>()
+            .unwrap();
+        assert_eq!(links, 8 * (DEPTH + 1) + 2);
+        // A trailing byte fails after every argument is read; a missing
+        // last byte fails the last argument after the others are read.
+        let mut trailing = args.clone();
+        trailing.push(0);
+        assert!(call_deep(2, &trailing).is_err());
+        assert!(call_deep(2, &args[..args.len() - 1]).is_err());
+    });
 }
 
 /// `method` of a `Deeps` provider with `args`, answered at once.
@@ -1580,10 +1742,171 @@ fn a_million_deep_value_crosses_a_generated_codec_both_ways_in_constant_native_s
                 // the whole finished value below is dismantled.
                 assert!(taken_levels(&bytes[..bytes.len() - 1]).is_err());
             }
+            // A trailing byte fails the call after the whole argument is
+            // read, which the engine then takes apart.
+            let mut trailing = bytes;
+            trailing.push(0);
+            assert!(taken_levels(&trailing).is_err(), "form {form}");
         }
         // A provider value failing part way leaves its deep rest to drop.
         assert!(made_bytes(DEPTH, 9).is_err());
     });
+}
+
+/// A clone of `node`, which equals it, and a copy differing at its deepest
+/// level, which does not; each is taken apart by its group's loop.
+fn clone_and_compare(node: &Made, differ: impl FnOnce(&mut Made)) {
+    let copy = node.clone();
+    assert_eq!(copy, *node);
+    let mut other = node.clone();
+    differ(&mut other);
+    // Both sides' order of fields and variants.
+    assert_ne!(other, *node);
+    assert_ne!(*node, other);
+    copy.dismantle();
+    other.dismantle();
+}
+
+/// The deepest `Node` of a form-0 chain.
+fn deepest(mut node: &mut Made) -> &mut Made {
+    while let Made::Next { next } = node {
+        node = &mut **next;
+    }
+    node
+}
+
+#[test]
+fn a_million_deep_value_clones_and_compares_in_constant_native_stack() {
+    on_small_stack(|| {
+        const DEPTH: u32 = 1_000_000;
+        for form in 0..=8 {
+            let node = chain(DEPTH, form);
+            let copy = node.clone();
+            assert_eq!(copy, node, "form {form}");
+            copy.dismantle();
+            node.dismantle();
+        }
+        // Equal down to the last level, which differs.
+        let node = chain(DEPTH, 0);
+        clone_and_compare(&node, |node| {
+            *deepest(node) = Made::Maybe { at: None };
+        });
+        node.dismantle();
+        // Every container form's own difference.
+        let differ = [
+            (1, Made::Many { items: vec![] }),
+            (2, Made::Maybe { at: None }),
+            (
+                3,
+                Made::Pair {
+                    pair: (Box::new(Made::End), 8),
+                },
+            ),
+            (4, Made::Keyed { map: vec![] }),
+            (
+                5,
+                Made::Either {
+                    either: Err("e".into()),
+                },
+            ),
+        ];
+        for (form, top) in differ {
+            let node = chain(3, form);
+            clone_and_compare(&node, |node| *node = top);
+            node.dismantle();
+        }
+        let twig = chain(3, 8);
+        clone_and_compare(&twig, |node| {
+            if let Made::Inner { inner } = node {
+                inner.kids[0].tag = 2;
+            }
+        });
+        twig.dismantle();
+    });
+}
+
+#[test]
+fn a_recursive_groups_debug_prints_as_a_derived_one() {
+    let shown = [
+        (0, "Next { next: End }"),
+        (1, "Many { items: [End] }"),
+        (2, "Maybe { at: Some(End) }"),
+        (3, "Pair { pair: (End, 7) }"),
+        (4, "Keyed { map: [(\"k\", End)] }"),
+        (5, "Either { either: Ok(End) }"),
+        (
+            6,
+            "Inner { inner: DeepMakeResultInnerInner { up: Some(End), kids: [], tag: 1 } }",
+        ),
+        (7, "Bad { bad: Unit, rest: End }"),
+        (
+            8,
+            "Inner { inner: DeepMakeResultInnerInner { up: None, kids: [DeepMakeResultInnerInner { up: None, kids: [], tag: 0 }], tag: 1 } }",
+        ),
+    ];
+    for (form, text) in shown {
+        assert_eq!(format!("{:?}", chain(1, form)), text, "form {form}");
+    }
+    let err = Made::Either {
+        either: Err("e".into()),
+    };
+    assert_eq!(format!("{err:?}"), "Either { either: Err(\"e\") }");
+    assert_eq!(
+        format!("{:?}", Made::Maybe { at: None }),
+        "Maybe { at: None }"
+    );
+    // Pretty: each level indented, a leaf's own lines too.
+    assert_eq!(
+        format!("{:#?}", chain(1, 4)),
+        "Keyed {\n    map: [\n        (\n            \"k\",\n            End,\n        ),\n    ],\n}"
+    );
+    let bad = Made::Bad {
+        bad: Serde::Seq(vec![Serde::Unit]),
+        rest: Box::new(Made::Many { items: vec![] }),
+    };
+    assert_eq!(
+        format!("{bad:#?}"),
+        "Bad {\n    bad: Seq(\n        [\n            Unit,\n        ],\n    ),\n    rest: Many {\n        items: [],\n    },\n}"
+    );
+    assert_eq!(
+        format!("{:#?}", chain(1, 3)),
+        "Pair {\n    pair: (\n        End,\n        7,\n    ),\n}"
+    );
+    // A million levels print in constant native stack.
+    on_small_stack(|| {
+        let node = chain(1_000_000, 2);
+        let text = format!("{node:?}");
+        assert_eq!(
+            text.len(),
+            1_000_000 * "Maybe { at: Some(".len() + "End".len() + 1_000_000 * ") }".len()
+        );
+        node.dismantle();
+    });
+}
+
+#[test]
+fn a_generated_clone_and_compares_work_is_linear_in_its_values_depth() {
+    let counted = |depth: u32, form: u32| {
+        on_small_stack(move || {
+            let node = chain(depth, form);
+            let before = ALLOCATED.with(Cell::get);
+            let copy = node.clone();
+            assert_eq!(copy, node);
+            copy.dismantle();
+            let after = ALLOCATED.with(Cell::get);
+            node.dismantle();
+            (after.0 - before.0, after.1 - before.1)
+        })
+    };
+    for form in [0, 1, 4, 8] {
+        let (small, large) = (counted(100_000, form), counted(1_000_000, form));
+        for (what, s, l) in [("calls", small.0, large.0), ("bytes", small.1, large.1)] {
+            assert!(
+                l <= 11 * s,
+                "form {form}: {what} {s} at 100,000 and {l} at 1,000,000"
+            );
+        }
+    }
 }
 
 #[test]

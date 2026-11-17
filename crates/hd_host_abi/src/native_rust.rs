@@ -34,7 +34,10 @@
 //! group (the `Value::Rec` and every type its body reaches recursively) gets
 //! one explicit-stack codec, [`Machine`], so a value as deep as the guest or
 //! the provider makes it is read and written, and dismantled on a failure,
-//! in constant native stack.
+//! in constant native stack. The same group's loops clone, compare and
+//! print its types (`Clone`, `PartialEq`, `Debug`), and take apart an
+//! argument holding one of its values, which a provider only borrows
+//! (`&T`) and the dispatch dismantles when it ends.
 
 use crate::schema::{Contract, Field, Interface, Value};
 use hd_base::{HashMap, HashSet};
@@ -61,6 +64,11 @@ struct Ty {
     enc: String,
     /// An expression reading a `T` from the decoder `d`.
     dec: String,
+    /// Statements taking apart the `T` at [`V`], which they take, through
+    /// the explicit-stack loop of each recursive group's value it holds;
+    /// `None` when it holds none, so dropping it in place is bounded by the
+    /// contract's boundary depth limit.
+    drop: Option<String>,
 }
 
 impl Ty {
@@ -69,12 +77,26 @@ impl Ty {
             rust: rust.into(),
             enc: enc.into(),
             dec: dec.into(),
+            drop: None,
         }
+    }
+
+    fn dropping(mut self, drop: Option<String>) -> Self {
+        self.drop = drop;
+        self
     }
 
     /// The statements writing the value bound to `value`.
     fn enc(&self, value: &str) -> String {
         self.enc.replace(V, value)
+    }
+
+    /// The statements dismantling the value bound to `value`, or nothing
+    /// when it drops in place.
+    fn drop(&self, value: &str) -> String {
+        self.drop
+            .as_ref()
+            .map_or_else(String::new, |d| d.replace(V, value))
     }
 }
 
@@ -177,6 +199,22 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
     Ok(out)
 }
 
+/// A rendered record or enum.
+struct Body {
+    /// Its structural key, which holds the decoder, so one Rust shape of
+    /// two encodings is two types.
+    key: String,
+    text: String,
+    /// Its own `wire_encode` and `wire_decode`.
+    codec: String,
+    /// Whether it holds no handle.
+    plain: bool,
+    /// Whether it reaches a recursive reference.
+    spine: bool,
+    /// Its `wire_dismantle`, when it holds a recursive group's value.
+    dismantle: Option<String>,
+}
+
 #[derive(Default)]
 struct Gen {
     /// Generated struct and enum definitions, in first-use order.
@@ -245,8 +283,12 @@ impl Gen {
             let result = self.ty(&m.result, &format!("{base}Result"), false);
             let member = ident(&snake(&m.member));
             let _ = write!(out, "    fn {member}(&mut self");
+            // A recursive argument is lent: the engine takes it apart
+            // after the call, so a depth the guest chose never reaches a
+            // provider's drop.
             for (n, p) in params.iter().enumerate() {
-                let _ = write!(out, ", arg{n}: {}", p.rust);
+                let lent = if p.drop.is_some() { "&" } else { "" };
+                let _ = write!(out, ", arg{n}: {lent}{}", p.rust);
             }
             if m.suspends {
                 let _ = writeln!(
@@ -298,11 +340,32 @@ impl Gen {
         } else if !params.is_empty() {
             let _ = writeln!(arm, "            let d = &mut {WIRE}::Decoder::new(args);");
             for (n, p) in params.iter().enumerate() {
-                let _ = writeln!(arm, "            let arg{n} = {};", p.dec);
+                if p.drop.is_some() {
+                    // Taken apart when the arm ends, on every path.
+                    let _ = writeln!(
+                        arm,
+                        "            let arg{n} = {WIRE}::Lent::new({}, |x: {}| {{ {} }});",
+                        p.dec,
+                        p.rust,
+                        p.drop("x")
+                    );
+                } else {
+                    let _ = writeln!(arm, "            let arg{n} = {};", p.dec);
+                }
             }
             arm.push_str("            d.finish()?;\n");
         }
-        let args: Vec<String> = (0..params.len()).map(|n| format!("arg{n}")).collect();
+        let args: Vec<String> = params
+            .iter()
+            .enumerate()
+            .map(|(n, p)| {
+                if p.drop.is_some() {
+                    format!("&arg{n}")
+                } else {
+                    format!("arg{n}")
+                }
+            })
+            .collect();
         let mut call = format!("provider.{member}({}", args.join(", "));
         if m.suspends {
             // The value's codec, which the `.finish` of a pending call runs.
@@ -426,6 +489,11 @@ impl Gen {
                         t.dec
                     ),
                 )
+                .dropping(
+                    t.drop
+                        .is_some()
+                        .then(|| format!("for x in {V} {{ {} }}", t.drop("x"))),
+                )
             }
             Value::Option(t) => {
                 let t = self.ty(t, hint, false);
@@ -436,6 +504,11 @@ impl Gen {
                         t.enc("x")
                     ),
                     format!("if d.tag(2)? == 0 {{ None }} else {{ Some({}) }}", t.dec),
+                )
+                .dropping(
+                    t.drop
+                        .is_some()
+                        .then(|| format!("if let Some(x) = {V} {{ {} }}", t.drop("x"))),
                 )
             }
             Value::Result(a, b) => {
@@ -453,6 +526,18 @@ impl Gen {
                         a.dec, b.dec
                     ),
                 )
+                .dropping((a.drop.is_some() || b.drop.is_some()).then(|| {
+                    // A side holding no group value drops in place.
+                    let side = |t: &Ty| {
+                        if t.drop.is_some() {
+                            ("x", t.drop("x"))
+                        } else {
+                            ("_", String::new())
+                        }
+                    };
+                    let ((ok, a), (err, b)) = (side(&a), side(&b));
+                    format!("match {V} {{ Ok({ok}) => {{ {a} }} Err({err}) => {{ {b} }} }}")
+                }))
             }
             // `Map` has no Native Value Table row yet: its entries in map
             // order, as the JS host's `Map` iterates them.
@@ -471,6 +556,15 @@ impl Gen {
                         k.dec, v.dec
                     ),
                 )
+                .dropping((k.drop.is_some() || v.drop.is_some()).then(|| {
+                    let key = if k.drop.is_some() { "k" } else { "_" };
+                    let value = if v.drop.is_some() { "x" } else { "_" };
+                    format!(
+                        "for ({key}, {value}) in {V} {{ {} {} }}",
+                        k.drop("k"),
+                        v.drop("x")
+                    )
+                }))
             }
             Value::Tuple(ts) => {
                 let parts: Vec<Ty> = ts
@@ -483,6 +577,13 @@ impl Gen {
                 let decs: Vec<&str> = parts.iter().map(|p| p.dec.as_str()).collect();
                 let encs: Vec<String> = parts.iter().zip(&names).map(|(p, n)| p.enc(n)).collect();
                 let comma = if parts.len() == 1 { "," } else { "" };
+                let drops: String = parts.iter().zip(&names).map(|(p, n)| p.drop(n)).collect();
+                // A part holding no group value drops in place.
+                let held: Vec<&str> = parts
+                    .iter()
+                    .zip(&names)
+                    .map(|(p, n)| if p.drop.is_some() { n.as_str() } else { "_" })
+                    .collect();
                 Ty::new(
                     format!("({}{comma})", rust.join(", ")),
                     format!(
@@ -491,6 +592,12 @@ impl Gen {
                         encs.join(" ")
                     ),
                     format!("({}{comma})", decs.join(", ")),
+                )
+                .dropping(
+                    parts
+                        .iter()
+                        .any(|p| p.drop.is_some())
+                        .then(|| format!("{{ let ({}{comma}) = {V}; {drops} }}", held.join(", "))),
                 )
             }
             Value::Ref(id) => {
@@ -514,29 +621,51 @@ impl Gen {
                 let reached = self.reached;
                 self.recs.insert(*id, name.clone());
                 self.group.insert(addr(body), Ty::new(name.clone(), "", ""));
-                let (_, text, _, plain, _) = self.body(body, &name);
+                let b = self.body(body, &name);
                 // Every type of the group is read and written by the
-                // outermost type's codec, which alone has codec methods.
-                self.emit(&name, &text, None, matches!(**body, Value::Enum(_)), plain);
+                // outermost type's codec, which alone has codec methods,
+                // and is cloned and compared by its loops.
+                self.emit(
+                    &name,
+                    &b.text,
+                    None,
+                    matches!(**body, Value::Enum(_)),
+                    b.plain,
+                    "",
+                );
                 self.recs.remove(id);
-                if outermost {
+                if !outermost {
+                    return Self::named(name);
+                }
+                {
                     let wire = self.fresh(&format!("{name}Wire"));
                     let op = self.fresh(&format!("{name}WireOp"));
                     let mut spine = HashSet::default();
                     mark(v, &mut spine);
+                    let pair = self.fresh(&format!("{name}WirePair"));
+                    let show = self.fresh(&format!("{name}WireShow"));
                     let mut machine = Machine {
                         group: &self.group,
                         spine,
                         roots: HashMap::default(),
                         count: 0,
+                        plain: b.plain,
                         wire,
                         op,
+                        pair,
                         vals: String::new(),
                         ops: String::new(),
                         dec: String::new(),
                         enc: String::new(),
                         drop: String::new(),
                         drop_ops: String::new(),
+                        pairs: String::new(),
+                        eq: String::new(),
+                        show,
+                        shows: String::new(),
+                        show_arms: String::new(),
+                        named: Vec::new(),
+                        seen: HashSet::default(),
                     };
                     machine.walk(v, false);
                     let codec = machine.finish(&name);
@@ -544,25 +673,42 @@ impl Gen {
                     self.group.clear();
                     self.reached = reached;
                 }
-                Self::named(name)
+                // The group's value outside it: taken apart by its loop.
+                let drop = format!("{name}::dismantle({V});");
+                Self::named(name).dropping(Some(drop))
             }
             Value::Record(_) | Value::Enum(_) => {
-                let (key, text, codec, plain, spine) = self.body(v, hint);
-                let name = if let Some(name) = self.interned.get(&key) {
+                let b = self.body(v, hint);
+                let held = b.dismantle.is_some();
+                let name = if let Some(name) = self.interned.get(&b.key) {
                     name.clone()
                 } else {
                     let name = self.fresh(hint);
-                    self.interned.insert(key, name.clone());
+                    self.interned.insert(b.key, name.clone());
                     // A type reaching a reference is read and written by
-                    // its group's codec.
-                    let codec = (!spine).then_some(codec.as_str());
-                    self.emit(&name, &text, codec, matches!(v, Value::Enum(_)), plain);
+                    // its group's codec, and cloned, compared and printed
+                    // by its loops.
+                    let (codec, derives) = if b.spine {
+                        (None, "")
+                    } else {
+                        let codec = format!("{}{}", b.codec, b.dismantle.unwrap_or_default());
+                        (Some(codec), "Clone, Debug, PartialEq")
+                    };
+                    self.emit(
+                        &name,
+                        &b.text,
+                        codec.as_deref(),
+                        matches!(v, Value::Enum(_)),
+                        b.plain,
+                        derives,
+                    );
                     name
                 };
                 if self.opaque.contains(&name) {
                     self.plain = false;
                 }
-                Self::named(name)
+                let drop = held.then(|| format!("{name}::wire_dismantle({V});"));
+                Self::named(name).dropping(drop)
             }
         }
     }
@@ -574,16 +720,21 @@ impl Gen {
         Ty::new(name, enc, dec)
     }
 
-    /// The structural key, item body and codec methods of a record or an
-    /// enum, whether it holds no handle, and whether it reaches a
-    /// recursive reference. The key holds the decoder, so one Rust shape of
-    /// two encodings is two types.
-    fn body(&mut self, v: &Value, hint: &str) -> (String, String, String, bool, bool) {
+    /// A record or an enum, rendered.
+    fn body(&mut self, v: &Value, hint: &str) -> Body {
         let outer = std::mem::replace(&mut self.plain, true);
         let outer_reached = std::mem::replace(&mut self.reached, false);
+        // The fields holding a group's value outside it, taken apart in
+        // the type's own `wire_dismantle`, and how many variants hold one.
+        let mut drops = String::new();
+        let mut held = 0;
         let (key, text, enc, dec) = match v {
             Value::Record(fs) => {
                 let fields = self.fields(fs, hint);
+                if fields.iter().any(|(_, t)| t.drop.is_some()) {
+                    let (pattern, held) = Self::held(&fields);
+                    let _ = write!(drops, "        let Self {{ {pattern} }} = self;\n{held}");
+                }
                 let mut lines = String::new();
                 for (name, t) in &fields {
                     let _ = writeln!(lines, "    pub {name}: {},", t.rust);
@@ -622,6 +773,15 @@ impl Gen {
                     } else {
                         let fields =
                             self.fields(&var.fields, &format!("{hint}{}", camel(&var.name)));
+                        if fields.iter().any(|(_, t)| t.drop.is_some()) {
+                            held += 1;
+                            let (pattern, lines) = Self::held(&fields);
+                            let _ = write!(
+                                drops,
+                                "            Self::{name} {{ {pattern} }} => {{\n{}            }}\n",
+                                lines.replace("        ", "                ")
+                            );
+                        }
                         let _ = writeln!(body, "    {name} {{");
                         for (field, t) in &fields {
                             let _ = writeln!(body, "        {field}: {},", t.rust);
@@ -675,7 +835,40 @@ impl Gen {
         let codec = format!(
             "    fn wire_encode(self, e: &mut {WIRE}::Encoder<'_>) -> {NATIVE}::HostResult<()> {{\n{enc}    }}\n\n    fn wire_decode(d: &mut {WIRE}::Decoder<'_>) -> {NATIVE}::HostResult<Self> {{\n{dec}    }}\n"
         );
-        (format!("{key}{dec}"), text, codec, plain, spine)
+        let dismantle = (!drops.is_empty()).then(|| {
+            let body = match v {
+                // The variants holding no group value drop in place.
+                Value::Enum(vs) if held < vs.len() => {
+                    format!("        match self {{\n{drops}            _ => {{}}\n        }}\n")
+                }
+                Value::Enum(_) => format!("        match self {{\n{drops}        }}\n"),
+                _ => drops,
+            };
+            format!("\n    fn wire_dismantle(self) {{\n{body}    }}\n")
+        });
+        Body {
+            key: format!("{key}{dec}"),
+            text,
+            codec,
+            plain,
+            spine,
+            dismantle,
+        }
+    }
+
+    /// A pattern binding each field holding a group's value to `f0`,
+    /// `f1`..., and the statements dismantling them.
+    fn held(fields: &[(String, Ty)]) -> (String, String) {
+        let mut pattern = Vec::with_capacity(fields.len() + 1);
+        let mut held = String::new();
+        for (n, (name, t)) in fields.iter().enumerate() {
+            if t.drop.is_some() {
+                pattern.push(format!("{name}: f{n}"));
+                let _ = writeln!(held, "        {}", t.drop(&format!("f{n}")));
+            }
+        }
+        pattern.push("..".to_owned());
+        (pattern.join(", "), held)
     }
 
     /// Each field's Rust name and type, in contract order.
@@ -702,10 +895,22 @@ impl Gen {
         (pattern.join(", "), encs, decs.join(", "))
     }
 
-    fn emit(&mut self, name: &str, body: &str, codec: Option<&str>, is_enum: bool, plain: bool) {
+    /// `derives` is empty for a type of a recursive group, whose loops
+    /// clone and compare it.
+    fn emit(
+        &mut self,
+        name: &str,
+        body: &str,
+        codec: Option<&str>,
+        is_enum: bool,
+        plain: bool,
+        derives: &str,
+    ) {
         // A handle is a trait object: no derives cross it.
         if plain {
-            self.types.push_str("\n#[derive(Clone, Debug, PartialEq)]");
+            if !derives.is_empty() {
+                let _ = write!(self.types, "\n#[derive({derives})]");
+            }
         } else {
             self.opaque.insert(name.to_owned());
         }
@@ -772,17 +977,31 @@ fn mark(v: &Value, spine: &mut HashSet<usize>) -> bool {
 /// reference is a leaf, read and written by its inline codec, whose depth
 /// the contract's boundary depth limit bounds.
 ///
-/// Cost: generation is linear in the group's nodes. A generated codec does
-/// O(1) work per position of the value plus its leaves' codecs, and its
-/// stacks hold the open positions and their pending siblings.
+/// In a group without handles, the same positions clone, compare and print
+/// its values. A clone reads a borrowed position (`Ck`) and pushes its
+/// children's clone ops and the decoder's own build op, so it builds
+/// bottom-up exactly as decoding does; a list's or map's clone op holds its
+/// items so far and the iterator over the rest (`Kk`, `Jk`). A compare pops
+/// a pair of positions, checks their own tag or length, and pushes their
+/// children's pairs; a `Debug` pops a position and writes its text around
+/// its children through `wire::Show`, as a derived `Debug` would.
+///
+/// Cost: generation is linear in the group's nodes. A generated codec,
+/// clone, compare or `Debug` does O(1) work per position of the value plus
+/// its leaves' own, and its stacks hold the open positions and their
+/// pending siblings.
 struct Machine<'a> {
     group: &'a HashMap<usize, Ty>,
     spine: HashSet<usize>,
     /// Binder id -> the position of its body.
     roots: HashMap<u32, usize>,
     count: usize,
+    /// Whether the group holds no handle, so it is cloned and compared.
+    plain: bool,
     wire: String,
     op: String,
+    /// The enum of a compare's pairs of positions.
+    pair: String,
     /// Value enum variants.
     vals: String,
     /// Op enum variants.
@@ -793,11 +1012,56 @@ struct Machine<'a> {
     drop: String,
     /// Dismantle arms of ops holding a partial list or map.
     drop_ops: String,
+    /// Pair enum variants and compare arms.
+    pairs: String,
+    eq: String,
+    /// The enum of a `Debug`'s positions, its variants and its arms.
+    show: String,
+    shows: String,
+    show_arms: String,
+    /// Each named type of the group and its first position, which clone
+    /// and compare start from.
+    named: Vec<(String, usize)>,
+    seen: HashSet<String>,
 }
 
 impl Machine<'_> {
     fn rust(&self, v: &Value) -> &str {
         &self.group[&addr(v)].rust
+    }
+
+    /// A clone arm (`Ck` reads a borrowed position and pushes its children,
+    /// `Kk`/`Jk` hold a list's or map's items so far and the rest to
+    /// read) and the ops it adds, in a group that is cloned.
+    fn clone_arm(&mut self, ops: &str, arm: &str) {
+        if self.plain {
+            self.ops.push_str(ops);
+            let _ = writeln!(self.dec, "                {arm}");
+        }
+    }
+
+    /// A compare arm over a pair of positions, in a group that is compared.
+    fn eq_arm(&mut self, arm: &str) {
+        if self.plain {
+            let _ = writeln!(self.eq, "                {arm}");
+        }
+    }
+
+    /// A `Debug` arm printing one position at `depth`, in a group that is
+    /// printed.
+    fn show_arm(&mut self, arm: &str) {
+        if self.plain {
+            let _ = writeln!(self.show_arms, "            {arm}");
+        }
+    }
+
+    /// `Show::open` of a composite at `depth` with `children`.
+    fn open(open: &str, close: &str, children: &str) -> String {
+        format!(
+            "{WIRE}::Show::open(stack, f, depth, {}, {}, {children}),",
+            quoted(open),
+            quoted(close)
+        )
     }
 
     /// `Some(Self::Pc(x)) = vals.pop()` as a `let ... else`.
@@ -837,7 +1101,20 @@ impl Machine<'_> {
         let rust = self.rust(v).to_owned();
         let _ = writeln!(self.vals, "    P{k}({rust}),");
         let _ = writeln!(self.ops, "    D{k},");
+        if self.plain {
+            let _ = writeln!(self.ops, "    C{k}(&'a {rust}),");
+            let _ = writeln!(self.pairs, "    P{k}(&'a {rust}, &'a {rust}),");
+            let _ = writeln!(self.shows, "    P{k}(&'a {rust}),");
+        }
         if !self.spine.contains(&addr(v)) {
+            self.clone_arm(
+                "",
+                &format!("{{OP}}::C{k}(x) => vals.push(Self::P{k}(x.clone())),"),
+            );
+            self.eq_arm(&format!(
+                "Self::P{k}(a, b) => if a != b {{ return false; }},"
+            ));
+            self.show_arm(&format!("Self::P{k}(x) => {WIRE}::show_leaf(f, x, depth),"));
             let t = &self.group[&addr(v)];
             let _ = writeln!(
                 self.dec,
@@ -872,9 +1149,18 @@ impl Machine<'_> {
                     self.drop,
                     "                Self::P{k}(x) => items.push(Self::P{t}(*x)),"
                 );
+                self.clone_arm(
+                    "",
+                    &format!("{{OP}}::C{k}(x) => {{ ops.push({{OP}}::W{k}); ops.push({{OP}}::C{t}(&**x)); }}"),
+                );
+                self.eq_arm(&format!(
+                    "Self::P{k}(a, b) => stack.push(Self::P{t}(&**a, &**b)),"
+                ));
+                self.show_arm(&format!("Self::P{k}(x) => {{ stack.push({WIRE}::Show::At(Self::P{t}(&**x), depth)); Ok(()) }}"));
                 k
             }
             Value::Record(fs) => {
+                self.name(&rust, k);
                 let cs = self.children(fs.iter().map(|f| &f.value));
                 let names: Vec<String> = fs.iter().map(|f| ident(&snake(&f.name))).collect();
                 let values: Vec<&Value> = fs.iter().map(|f| &f.value).collect();
@@ -889,6 +1175,7 @@ impl Machine<'_> {
                 k
             }
             Value::Enum(vs) => {
+                self.name(&rust, k);
                 let mut arms = Vec::with_capacity(vs.len());
                 for (n, var) in vs.iter().enumerate() {
                     let name = ident(&var.name);
@@ -897,6 +1184,17 @@ impl Machine<'_> {
                             self.enc,
                             "                Self::P{k}({rust}::{name}) => e.tag({n}),"
                         );
+                        self.clone_arm(
+                            "",
+                            &format!("{{OP}}::C{k}({rust}::{name}) => vals.push(Self::P{k}({rust}::{name})),"),
+                        );
+                        self.eq_arm(&format!(
+                            "Self::P{k}({rust}::{name}, {rust}::{name}) => {{}}"
+                        ));
+                        self.show_arm(&format!(
+                            "Self::P{k}({rust}::{name}) => f.write_str({}),",
+                            quoted(&var.name)
+                        ));
                         arms.push(format!("vals.push(Self::P{k}({rust}::{name}));"));
                         continue;
                     }
@@ -933,6 +1231,8 @@ impl Machine<'_> {
                     [] => unreachable!("a spine enum has a variant"),
                 };
                 let _ = writeln!(self.dec, "                {{OP}}::D{k} => {read},");
+                // Two different variants.
+                self.eq_arm(&format!("Self::P{k}(..) => return false,"));
                 k
             }
             Value::List(t) => {
@@ -960,6 +1260,29 @@ impl Machine<'_> {
                     self.drop_ops,
                     "                {{OP}}::L{k}(x, _) => items.push(Self::P{k}(x)),"
                 );
+                let next = format!(
+                    "if let Some(y) = it.next() {{ ops.push({{OP}}::K{k}(x, it)); ops.push({{OP}}::C{c}(y)); }} else {{ vals.push(Self::P{k}(x)); }}"
+                );
+                self.clone_arm(
+                    &format!("    K{k}(Vec<{item}>, std::slice::Iter<'a, {item}>),\n"),
+                    &format!("{{OP}}::C{k}(x) => {{ let mut it = x.iter(); let x = Vec::with_capacity(x.len()); {next} }}"),
+                );
+                self.clone_arm(
+                    "",
+                    &format!(
+                        "{{OP}}::K{k}(mut x, mut it) => {{ {} x.push(y); {next} }}",
+                        Self::pop(c, "y")
+                    ),
+                );
+                self.eq_arm(&format!("Self::P{k}(a, b) => {{ if a.len() != b.len() {{ return false; }} stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P{c}(a, b))); }}"));
+                self.show_arm(&format!(
+                    "Self::P{k}(x) => {}",
+                    Self::open(
+                        "[",
+                        "]",
+                        &format!("x.iter().map(|y| (\"\", Self::P{c}(y)))")
+                    )
+                ));
                 k
             }
             Value::Map(a, b) => {
@@ -989,6 +1312,42 @@ impl Machine<'_> {
                     self.drop_ops,
                     "                {{OP}}::M{k}(x, _) => items.push(Self::P{k}(x)),"
                 );
+                let next = format!(
+                    "if let Some((a, b)) = it.next() {{ ops.push({{OP}}::J{k}(x, it)); ops.push({{OP}}::C{cb}(b)); ops.push({{OP}}::C{ca}(a)); }} else {{ vals.push(Self::P{k}(x)); }}"
+                );
+                self.clone_arm(
+                    &format!("    J{k}(Vec<{pair}>, std::slice::Iter<'a, {pair}>),\n"),
+                    &format!("{{OP}}::C{k}(x) => {{ let mut it = x.iter(); let x = Vec::with_capacity(x.len()); {next} }}"),
+                );
+                self.clone_arm(
+                    "",
+                    &format!(
+                        "{{OP}}::J{k}(mut x, mut it) => {{ {} {} x.push((a, b)); {next} }}",
+                        Self::pop(cb, "b"),
+                        Self::pop(ca, "a")
+                    ),
+                );
+                self.eq_arm(&format!("Self::P{k}(a, b) => {{ if a.len() != b.len() {{ return false; }} for ((a0, a1), (b0, b1)) in a.iter().zip(b).rev() {{ stack.push(Self::P{cb}(a1, b1)); stack.push(Self::P{ca}(a0, b0)); }} }}"));
+                if self.plain {
+                    let (ra, rb) = (self.rust(a).to_owned(), self.rust(b).to_owned());
+                    let _ = writeln!(self.shows, "    M{k}(&'a {ra}, &'a {rb}),");
+                }
+                self.show_arm(&format!(
+                    "Self::P{k}(x) => {}",
+                    Self::open(
+                        "[",
+                        "]",
+                        &format!("x.iter().map(|(a, b)| (\"\", Self::M{k}(a, b)))")
+                    )
+                ));
+                self.show_arm(&format!(
+                    "Self::M{k}(a, b) => {}",
+                    Self::open(
+                        "(",
+                        ")",
+                        &format!("[(\"\", Self::P{ca}(a)), (\"\", Self::P{cb}(b))]")
+                    )
+                ));
                 k
             }
             Value::Option(t) => {
@@ -1011,6 +1370,24 @@ impl Machine<'_> {
                     self.drop,
                     "                Self::P{k}(Some(x)) => items.push(Self::P{c}(x)),"
                 );
+                self.clone_arm(
+                    "",
+                    &format!("{{OP}}::C{k}(None) => vals.push(Self::P{k}(None)),"),
+                );
+                self.clone_arm(
+                    "",
+                    &format!("{{OP}}::C{k}(Some(x)) => {{ ops.push({{OP}}::S{k}); ops.push({{OP}}::C{c}(x)); }}"),
+                );
+                self.eq_arm(&format!("Self::P{k}(None, None) => {{}}"));
+                self.show_arm(&format!("Self::P{k}(None) => f.write_str(\"None\"),"));
+                self.show_arm(&format!(
+                    "Self::P{k}(Some(x)) => {}",
+                    Self::open("Some(", ")", &format!("[(\"\", Self::P{c}(x))]"))
+                ));
+                self.eq_arm(&format!(
+                    "Self::P{k}(Some(a), Some(b)) => stack.push(Self::P{c}(a, b)),"
+                ));
+                self.eq_arm(&format!("Self::P{k}(..) => return false,"));
                 k
             }
             Value::Result(a, b) => {
@@ -1038,6 +1415,29 @@ impl Machine<'_> {
                     self.drop,
                     "                Self::P{k}(Ok(x)) => items.push(Self::P{ca}(x)),\n                Self::P{k}(Err(x)) => items.push(Self::P{cb}(x)),"
                 );
+                self.clone_arm(
+                    "",
+                    &format!("{{OP}}::C{k}(Ok(x)) => {{ ops.push({{OP}}::O{k}); ops.push({{OP}}::C{ca}(x)); }}"),
+                );
+                self.clone_arm(
+                    "",
+                    &format!("{{OP}}::C{k}(Err(x)) => {{ ops.push({{OP}}::R{k}); ops.push({{OP}}::C{cb}(x)); }}"),
+                );
+                self.eq_arm(&format!(
+                    "Self::P{k}(Ok(a), Ok(b)) => stack.push(Self::P{ca}(a, b)),"
+                ));
+                self.show_arm(&format!(
+                    "Self::P{k}(Ok(x)) => {}",
+                    Self::open("Ok(", ")", &format!("[(\"\", Self::P{ca}(x))]"))
+                ));
+                self.show_arm(&format!(
+                    "Self::P{k}(Err(x)) => {}",
+                    Self::open("Err(", ")", &format!("[(\"\", Self::P{cb}(x))]"))
+                ));
+                self.eq_arm(&format!(
+                    "Self::P{k}(Err(a), Err(b)) => stack.push(Self::P{cb}(a, b)),"
+                ));
+                self.eq_arm(&format!("Self::P{k}(..) => return false,"));
                 k
             }
             // ruled out: `mark` puts only these forms on the spine.
@@ -1122,11 +1522,78 @@ impl Machine<'_> {
             "                Self::P{k}({open} {} {close}) => {{{pushes} }}",
             bound.join(", ")
         );
+        // A clone reads the fields in order, as the decoder does; a compare
+        // pairs them up.
+        let reads = cs
+            .iter()
+            .enumerate()
+            .rev()
+            .fold(String::new(), |mut out, (n, c)| {
+                let _ = write!(out, " ops.push({{OP}}::C{c}(f{n}));");
+                out
+            });
+        self.clone_arm(
+            "",
+            &format!("{{OP}}::C{k}({shape}) => {{ ops.push({{OP}}::{op});{reads} }}"),
+        );
+        let side = |x: &str| {
+            let all: Vec<String> = (0..cs.len())
+                .map(|n| field(n, &format!("{x}{n}")))
+                .collect();
+            format!("{open} {} {close}", all.join(", "))
+        };
+        let pairs = cs
+            .iter()
+            .enumerate()
+            .rev()
+            .fold(String::new(), |mut out, (n, c)| {
+                let _ = write!(out, " stack.push(Self::P{c}(a{n}, b{n}));");
+                out
+            });
+        let (a, b) = (side("a"), side("b"));
+        self.eq_arm(&format!("Self::P{k}({a}, {b}) => {{{pairs} }}"));
+        // `Debug` names a struct by its type and a variant by itself, as
+        // a derived one does.
+        let shown = open
+            .rsplit("::")
+            .next()
+            .unwrap_or(open)
+            .trim_start_matches("r#");
+        let children: Vec<String> = cs
+            .iter()
+            .enumerate()
+            .map(|(n, c)| {
+                let label = names.get(n).map_or(String::new(), |name| {
+                    format!("{}: ", name.trim_start_matches("r#"))
+                });
+                format!("({}, Self::P{c}(f{n}))", quoted(&label))
+            })
+            .collect();
+        let close = if names.is_empty() { ")" } else { "}" };
+        self.show_arm(&format!(
+            "Self::P{k}({shape}) => {}",
+            Self::open(shown, close, &format!("[{}]", children.join(", ")))
+        ));
     }
 
-    /// The group's enums, their loops, and the root's codec methods.
+    /// Records `rust`, a named type of the group at position `k`, the first
+    /// time it occurs.
+    fn name(&mut self, rust: &str, k: usize) {
+        if self.seen.insert(rust.to_owned()) {
+            self.named.push((rust.to_owned(), k));
+        }
+    }
+
+    /// The group's enums, their loops, the root's codec methods, and, in
+    /// a group without handles, each named type's `Clone` and `PartialEq`.
     fn finish(self, root: &str) -> String {
         let (wire, op) = (&self.wire, &self.op);
+        // A clone op borrows the value it reads.
+        let (lt, lu) = if self.plain {
+            ("<'a>", "<'_>")
+        } else {
+            ("", "")
+        };
         let fill = |s: &str| s.replace("{OP}", op);
         let drop_ops = if self.drop_ops.is_empty() {
             "        let _ = (ops, items);\n".to_owned()
@@ -1147,6 +1614,12 @@ impl {root} {{
     fn wire_decode(d: &mut {WIRE}::Decoder<'_>) -> {NATIVE}::HostResult<Self> {{
         {wire}::decode(d)
     }}
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {{
+        {wire}::dismantle(vec![{wire}::P0(self)]);
+    }}
 }}
 
 /// A value of `{root}`'s recursive group at one position of its codec.
@@ -1154,9 +1627,9 @@ impl {root} {{
 enum {wire} {{
 {vals}}}
 
-/// A step of `{root}`'s decoder.
+/// A step of `{root}`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum {op} {{
+enum {op}{lt} {{
 {ops}}}
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
@@ -1188,7 +1661,7 @@ impl {wire} {{
         Ok(root)
     }}
 
-    fn decode_all(d: &mut {WIRE}::Decoder<'_>, ops: &mut Vec<{op}>, vals: &mut Vec<Self>) -> {NATIVE}::HostResult<()> {{
+    fn decode_all(d: &mut {WIRE}::Decoder<'_>, ops: &mut Vec<{op}{lu}>, vals: &mut Vec<Self>) -> {NATIVE}::HostResult<()> {{
         while let Some(op) = ops.pop() {{
             match op {{
 {dec}            }}
@@ -1197,7 +1670,7 @@ impl {wire} {{
     }}
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<{op}>, items: &mut Vec<Self>) {{
+    fn dismantle_ops(ops: Vec<{op}{lu}>, items: &mut Vec<Self>) {{
 {drop_ops}    }}
 
     /// Drops values of the group one position at a time, so a deep value
@@ -1216,7 +1689,99 @@ impl {wire} {{
             enc = self.enc,
             dec = fill(&self.dec),
             drop = self.drop,
-        )
+        ) + &self.copies(root)
+    }
+
+    /// The clone and compare loops of a group without handles, and each
+    /// named type's `Clone` and `PartialEq` starting them at its position:
+    /// a derived one would recurse once per nesting level.
+    fn copies(&self, root: &str) -> String {
+        if !self.plain {
+            return String::new();
+        }
+        let (wire, op, pair, show) = (&self.wire, &self.op, &self.pair, &self.show);
+        let mut out = format!(
+            "
+#[allow(dead_code)]
+impl {wire} {{
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: {op}<'_>) -> Self {{
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut {WIRE}::Decoder::new(&[]), &mut ops, &mut vals) else {{ unreachable!(\"ruled out: a clone reads no bytes\") }};
+        let Some(value) = vals.pop() else {{ unreachable!(\"ruled out: a finished clone leaves its root\") }};
+        value
+    }}
+}}
+
+/// Two values of `{root}`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum {pair}<'a> {{
+{pairs}}}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl {pair}<'_> {{
+    fn all(mut stack: Vec<Self>) -> bool {{
+        while let Some(pair) = stack.pop() {{
+            match pair {{
+{eq}            }}
+        }}
+        true
+    }}
+}}
+",
+            pairs = self.pairs,
+            eq = self.eq,
+        );
+        let _ = write!(
+            out,
+            "
+/// A value of `{root}`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum {show}<'a> {{
+{shows}}}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl {show}<'_> {{
+    fn show(self, depth: usize, stack: &mut Vec<{WIRE}::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{
+        match self {{
+{arms}        }}
+    }}
+}}
+",
+            shows = self.shows,
+            arms = self.show_arms,
+        );
+        for (name, k) in &self.named {
+            let _ = write!(
+                out,
+                "
+#[allow(irrefutable_let_patterns)]
+impl Clone for {name} {{
+    fn clone(&self) -> Self {{
+        let {wire}::P{k}(value) = {wire}::clone_of({op}::C{k}(self)) else {{ unreachable!(\"ruled out: a clone builds the position it reads\") }};
+        value
+    }}
+}}
+
+impl PartialEq for {name} {{
+    fn eq(&self, other: &Self) -> bool {{
+        {pair}::all(vec![{pair}::P{k}(self, other)])
+    }}
+}}
+
+impl std::fmt::Debug for {name} {{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{
+        {WIRE}::Show::run(f, {show}::P{k}(self), {show}::show)
+    }}
+}}
+"
+            );
+        }
+        out
     }
 }
 

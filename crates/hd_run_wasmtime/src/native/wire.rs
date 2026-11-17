@@ -79,6 +79,183 @@ pub fn text(args: &[u8]) -> String {
     String::from_utf8_lossy(args).into_owned()
 }
 
+/// One step of a recursive group's `Debug`, which prints a value one
+/// position `P` at a time, as a derived `Debug` prints it (`{:#?}`
+/// included), so a value of any depth prints in constant native stack.
+pub enum Show<P> {
+    /// A position, at its indent depth.
+    At(P, usize),
+    /// What precedes a composite's child: its separator and label.
+    Before {
+        first: bool,
+        label: &'static str,
+        depth: usize,
+    },
+    /// A composite's closing text, pretty and compact, at its own depth.
+    Close {
+        pretty: &'static str,
+        compact: &'static str,
+        depth: usize,
+    },
+}
+
+impl<P> Show<P> {
+    /// Prints `root`; `at` prints one position, pushing its children.
+    pub fn run(
+        f: &mut std::fmt::Formatter<'_>,
+        root: P,
+        mut at: impl FnMut(P, usize, &mut Vec<Self>, &mut std::fmt::Formatter<'_>) -> std::fmt::Result,
+    ) -> std::fmt::Result {
+        let mut stack = vec![Self::At(root, 0)];
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::At(p, depth) => at(p, depth, &mut stack, f)?,
+                Self::Before {
+                    first,
+                    label,
+                    depth,
+                } => {
+                    if f.alternate() {
+                        f.write_str(if first { "\n" } else { ",\n" })?;
+                        indent(f, depth)?;
+                    } else if !first {
+                        f.write_str(", ")?;
+                    }
+                    f.write_str(label)?;
+                }
+                Self::Close {
+                    pretty,
+                    compact,
+                    depth,
+                } => {
+                    if f.alternate() {
+                        f.write_str(",\n")?;
+                        indent(f, depth)?;
+                        f.write_str(pretty)?;
+                    } else {
+                        f.write_str(compact)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Opens a composite at `depth` (`Name {`, `(`, `[`, `Some(`) and
+    /// pushes its labelled children and its `close`; one without children
+    /// is `open` and `close` alone, as `[]` is.
+    pub fn open<I>(
+        stack: &mut Vec<Self>,
+        f: &mut std::fmt::Formatter<'_>,
+        depth: usize,
+        open: &'static str,
+        close: &'static str,
+        children: I,
+    ) -> std::fmt::Result
+    where
+        I: IntoIterator<Item = (&'static str, P)>,
+        I::IntoIter: DoubleEndedIterator + ExactSizeIterator,
+    {
+        let children = children.into_iter();
+        f.write_str(open)?;
+        if children.len() == 0 {
+            return f.write_str(close);
+        }
+        let braced = open.ends_with('{');
+        if braced && !f.alternate() {
+            f.write_str(" ")?;
+        }
+        // A one-element tuple keeps its comma: `(x,)`.
+        let compact = match (braced, open == "(" && children.len() == 1) {
+            (true, _) => " }",
+            (false, true) => ",)",
+            (false, false) => close,
+        };
+        stack.push(Self::Close {
+            pretty: close,
+            compact,
+            depth,
+        });
+        for (n, (label, p)) in children.enumerate().rev() {
+            stack.push(Self::At(p, depth + 1));
+            stack.push(Self::Before {
+                first: n == 0,
+                label,
+                depth: depth + 1,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// A leaf of a recursive group's `Debug` at `depth`: its own `Debug`, each
+/// line of a pretty one indented to `depth`.
+pub fn show_leaf(
+    f: &mut std::fmt::Formatter<'_>,
+    x: &dyn std::fmt::Debug,
+    depth: usize,
+) -> std::fmt::Result {
+    if !f.alternate() {
+        return write!(f, "{x:?}");
+    }
+    let text = format!("{x:#?}");
+    for (n, line) in text.split('\n').enumerate() {
+        if n != 0 {
+            f.write_str("\n")?;
+            indent(f, depth)?;
+        }
+        f.write_str(line)?;
+    }
+    Ok(())
+}
+
+fn indent(f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
+    for _ in 0..depth {
+        f.write_str("    ")?;
+    }
+    Ok(())
+}
+
+/// A decoded argument holding a recursive value, which the provider
+/// borrows: when the dispatch ends, on every path (a later argument
+/// failing, the provider's error or panic, success), its `dismantle`
+/// takes it apart one level at a time through its group's codec, so a
+/// value as deep as the guest makes it never drops recursively
+/// (AGENTS.md "Performant").
+pub struct Lent<T> {
+    /// `None` only inside `drop`.
+    value: Option<T>,
+    dismantle: fn(T),
+}
+
+impl<T> Lent<T> {
+    pub fn new(value: T, dismantle: fn(T)) -> Self {
+        Self {
+            value: Some(value),
+            dismantle,
+        }
+    }
+}
+
+impl<T> std::ops::Deref for Lent<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        match &self.value {
+            Some(value) => value,
+            None => unreachable!("ruled out: only `drop` takes the value"),
+        }
+    }
+}
+
+impl<T> Drop for Lent<T> {
+    fn drop(&mut self) {
+        if let Some(value) = self.value.take() {
+            (self.dismantle)(value);
+        }
+    }
+}
+
 /// A call's argument bytes, decoded in contract order.
 pub struct Decoder<'a> {
     d: Dec<'a>,

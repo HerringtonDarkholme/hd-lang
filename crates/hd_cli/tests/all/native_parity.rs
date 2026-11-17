@@ -367,22 +367,22 @@ fn total(e: &counted::SurfaceEvalArg0) -> i32 {
     }
 }
 
-fn result_of(e: counted::SurfaceTwiceArg0) -> counted::SurfaceTwiceResult {
+fn result_of(e: &counted::SurfaceTwiceArg0) -> counted::SurfaceTwiceResult {
     match e {
-        counted::SurfaceTwiceArg0::Num { n } => counted::SurfaceTwiceResult::Num { n },
+        counted::SurfaceTwiceArg0::Num { n } => counted::SurfaceTwiceResult::Num { n: *n },
         counted::SurfaceTwiceArg0::Add { a, b } => counted::SurfaceTwiceResult::Add {
-            a: Box::new(result_of(*a)),
-            b: Box::new(result_of(*b)),
+            a: Box::new(result_of(a)),
+            b: Box::new(result_of(b)),
         },
     }
 }
 
 impl counted::Surface for Counted {
-    fn eval(&mut self, e: counted::SurfaceEvalArg0) -> HostResult<i32> {
-        Ok(total(&e))
+    fn eval(&mut self, e: &counted::SurfaceEvalArg0) -> HostResult<i32> {
+        Ok(total(e))
     }
 
-    fn twice(&mut self, e: counted::SurfaceTwiceArg0) -> HostResult<counted::SurfaceTwiceResult> {
+    fn twice(&mut self, e: &counted::SurfaceTwiceArg0) -> HostResult<counted::SurfaceTwiceResult> {
         let one = result_of(e);
         Ok(counted::SurfaceTwiceResult::Add {
             a: Box::new(one.clone()),
@@ -403,7 +403,7 @@ fn a_counted_reference_crosses_as_its_tree_both_ways() {
 struct NeverCalled;
 
 impl counted_cycle::Surface for NeverCalled {
-    fn size(&mut self, _: counted_cycle::SurfaceSizeArg0) -> HostResult<i32> {
+    fn size(&mut self, _: &counted_cycle::SurfaceSizeArg0) -> HostResult<i32> {
         panic!("the guest's encoder meets the cycle before the call")
     }
 }
@@ -682,11 +682,11 @@ fn a_timed_out_call_is_aborted_once_and_a_later_one_delivers() {
 
 struct Recursive;
 
-fn tree_of(t: recursive::SurfaceRenderArg0) -> recursive::SurfaceRenderResult {
+fn tree_of(t: &recursive::SurfaceRenderArg0) -> recursive::SurfaceRenderResult {
     match t {
         recursive::SurfaceRenderArg0::Leaf => recursive::SurfaceRenderResult::Leaf,
         recursive::SurfaceRenderArg0::Node { kids } => recursive::SurfaceRenderResult::Node {
-            kids: kids.into_iter().map(tree_of).collect(),
+            kids: kids.iter().map(tree_of).collect(),
         },
     }
 }
@@ -694,7 +694,7 @@ fn tree_of(t: recursive::SurfaceRenderArg0) -> recursive::SurfaceRenderResult {
 impl recursive::Surface for Recursive {
     fn render(
         &mut self,
-        t: recursive::SurfaceRenderArg0,
+        t: &recursive::SurfaceRenderArg0,
     ) -> HostResult<recursive::SurfaceRenderResult> {
         use recursive::SurfaceRenderResult as T;
         let mut tree = tree_of(t);

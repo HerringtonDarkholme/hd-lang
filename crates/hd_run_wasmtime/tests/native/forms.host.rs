@@ -97,7 +97,6 @@ impl SurfaceDrawArg20 {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub enum SurfaceDrawArg21 {
     Leaf,
     Node {
@@ -115,6 +114,12 @@ impl SurfaceDrawArg21 {
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
         SurfaceDrawArg21Wire::decode(d)
     }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        SurfaceDrawArg21Wire::dismantle(vec![SurfaceDrawArg21Wire::P0(self)]);
+    }
 }
 
 /// A value of `SurfaceDrawArg21`'s recursive group at one position of its codec.
@@ -126,14 +131,19 @@ enum SurfaceDrawArg21Wire {
     P3(Box<SurfaceDrawArg21>),
 }
 
-/// A step of `SurfaceDrawArg21`'s decoder.
+/// A step of `SurfaceDrawArg21`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceDrawArg21WireOp {
+enum SurfaceDrawArg21WireOp<'a> {
     D0,
+    C0(&'a SurfaceDrawArg21),
     D1,
+    C1(&'a Vec<SurfaceDrawArg21>),
     L1(Vec<SurfaceDrawArg21>, usize),
+    K1(Vec<SurfaceDrawArg21>, std::slice::Iter<'a, SurfaceDrawArg21>),
     D2,
+    C2(&'a Option<Box<SurfaceDrawArg21>>),
     D3,
+    C3(&'a Box<SurfaceDrawArg21>),
     W3,
     S2,
     B0v1,
@@ -173,16 +183,23 @@ impl SurfaceDrawArg21Wire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceDrawArg21WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceDrawArg21WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
+                SurfaceDrawArg21WireOp::C0(SurfaceDrawArg21::Leaf) => vals.push(Self::P0(SurfaceDrawArg21::Leaf)),
                 SurfaceDrawArg21WireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceDrawArg21WireOp::L1(x, n)); ops.push(SurfaceDrawArg21WireOp::D0); } }
                 SurfaceDrawArg21WireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceDrawArg21WireOp::L1(x, n - 1)); ops.push(SurfaceDrawArg21WireOp::D0); } }
+                SurfaceDrawArg21WireOp::C1(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(SurfaceDrawArg21WireOp::K1(x, it)); ops.push(SurfaceDrawArg21WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
+                SurfaceDrawArg21WireOp::K1(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(SurfaceDrawArg21WireOp::K1(x, it)); ops.push(SurfaceDrawArg21WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
                 SurfaceDrawArg21WireOp::D3 => { ops.push(SurfaceDrawArg21WireOp::W3); ops.push(SurfaceDrawArg21WireOp::D0); }
                 SurfaceDrawArg21WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                SurfaceDrawArg21WireOp::C3(x) => { ops.push(SurfaceDrawArg21WireOp::W3); ops.push(SurfaceDrawArg21WireOp::C0(&**x)); }
                 SurfaceDrawArg21WireOp::D2 => if d.tag(2)? == 0 { vals.push(Self::P2(None)); } else { ops.push(SurfaceDrawArg21WireOp::S2); ops.push(SurfaceDrawArg21WireOp::D3); }
                 SurfaceDrawArg21WireOp::S2 => { let Some(Self::P3(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Some(x))); }
+                SurfaceDrawArg21WireOp::C2(None) => vals.push(Self::P2(None)),
+                SurfaceDrawArg21WireOp::C2(Some(x)) => { ops.push(SurfaceDrawArg21WireOp::S2); ops.push(SurfaceDrawArg21WireOp::C3(x)); }
                 SurfaceDrawArg21WireOp::B0v1 => { let Some(Self::P2(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceDrawArg21::Node { kids: f0, parent: f1 })); }
+                SurfaceDrawArg21WireOp::C0(SurfaceDrawArg21::Node { kids: f0, parent: f1 }) => { ops.push(SurfaceDrawArg21WireOp::B0v1); ops.push(SurfaceDrawArg21WireOp::C2(f1)); ops.push(SurfaceDrawArg21WireOp::C1(f0)); }
                 SurfaceDrawArg21WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceDrawArg21::Leaf)); } _ => { ops.push(SurfaceDrawArg21WireOp::B0v1); ops.push(SurfaceDrawArg21WireOp::D2); ops.push(SurfaceDrawArg21WireOp::D1); } },
             }
         }
@@ -190,7 +207,7 @@ impl SurfaceDrawArg21Wire {
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceDrawArg21WireOp>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<SurfaceDrawArg21WireOp<'_>>, items: &mut Vec<Self>) {
         for op in ops {
             match op {
                 SurfaceDrawArg21WireOp::L1(x, _) => items.push(Self::P1(x)),
@@ -211,6 +228,92 @@ impl SurfaceDrawArg21Wire {
                 _ => {}
             }
         }
+    }
+}
+
+#[allow(dead_code)]
+impl SurfaceDrawArg21Wire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: SurfaceDrawArg21WireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `SurfaceDrawArg21`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum SurfaceDrawArg21WirePair<'a> {
+    P0(&'a SurfaceDrawArg21, &'a SurfaceDrawArg21),
+    P1(&'a Vec<SurfaceDrawArg21>, &'a Vec<SurfaceDrawArg21>),
+    P2(&'a Option<Box<SurfaceDrawArg21>>, &'a Option<Box<SurfaceDrawArg21>>),
+    P3(&'a Box<SurfaceDrawArg21>, &'a Box<SurfaceDrawArg21>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceDrawArg21WirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(SurfaceDrawArg21::Leaf, SurfaceDrawArg21::Leaf) => {}
+                Self::P1(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P0(a, b))); }
+                Self::P3(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P2(None, None) => {}
+                Self::P2(Some(a), Some(b)) => stack.push(Self::P3(a, b)),
+                Self::P2(..) => return false,
+                Self::P0(SurfaceDrawArg21::Node { kids: a0, parent: a1 }, SurfaceDrawArg21::Node { kids: b0, parent: b1 }) => { stack.push(Self::P2(a1, b1)); stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `SurfaceDrawArg21`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum SurfaceDrawArg21WireShow<'a> {
+    P0(&'a SurfaceDrawArg21),
+    P1(&'a Vec<SurfaceDrawArg21>),
+    P2(&'a Option<Box<SurfaceDrawArg21>>),
+    P3(&'a Box<SurfaceDrawArg21>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceDrawArg21WireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(SurfaceDrawArg21::Leaf) => f.write_str("Leaf"),
+            Self::P1(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P0(y)))),
+            Self::P3(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P2(None) => f.write_str("None"),
+            Self::P2(Some(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Some(", ")", [("", Self::P3(x))]),
+            Self::P0(SurfaceDrawArg21::Node { kids: f0, parent: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Node {", "}", [("kids: ", Self::P1(f0)), ("parent: ", Self::P2(f1))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for SurfaceDrawArg21 {
+    fn clone(&self) -> Self {
+        let SurfaceDrawArg21Wire::P0(value) = SurfaceDrawArg21Wire::clone_of(SurfaceDrawArg21WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for SurfaceDrawArg21 {
+    fn eq(&self, other: &Self) -> bool {
+        SurfaceDrawArg21WirePair::all(vec![SurfaceDrawArg21WirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for SurfaceDrawArg21 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, SurfaceDrawArg21WireShow::P0(self), SurfaceDrawArg21WireShow::show)
     }
 }
 
@@ -292,7 +395,7 @@ pub trait String2 {
 
 /// `example.org/ui-tui@0.3.0/screen.Surface`.
 pub trait Surface {
-    fn draw(&mut self, arg0: (), arg1: bool, arg2: char, arg3: i8, arg4: i16, arg5: i32, arg6: i64, arg7: u8, arg8: u64, arg9: f32, arg10: f64, arg11: String, arg12: Vec<u8>, arg13: Vec<String>, arg14: Option<hd_run_wasmtime::native::Serde>, arg15: (bool,), arg16: ((), u32), arg17: Vec<(String, SurfaceDrawArg17Value)>, arg18: Result<SurfaceDrawArg17Value, String>, arg19: SurfaceDrawArg19, arg20: SurfaceDrawArg20, arg21: SurfaceDrawArg21, arg22: SurfaceDrawArg22, arg23: SurfaceDrawArg23, arg24: SurfaceDrawArg24, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Box<dyn Events>>;
+    fn draw(&mut self, arg0: (), arg1: bool, arg2: char, arg3: i8, arg4: i16, arg5: i32, arg6: i64, arg7: u8, arg8: u64, arg9: f32, arg10: f64, arg11: String, arg12: Vec<u8>, arg13: Vec<String>, arg14: Option<hd_run_wasmtime::native::Serde>, arg15: (bool,), arg16: ((), u32), arg17: Vec<(String, SurfaceDrawArg17Value)>, arg18: Result<SurfaceDrawArg17Value, String>, arg19: SurfaceDrawArg19, arg20: SurfaceDrawArg20, arg21: &SurfaceDrawArg21, arg22: SurfaceDrawArg22, arg23: SurfaceDrawArg23, arg24: SurfaceDrawArg24, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Box<dyn Events>>;
     fn r#type(&mut self) -> hd_run_wasmtime::native::HostResult<std::convert::Infallible>;
     fn halt(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<std::convert::Infallible>;
 }
@@ -360,12 +463,12 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             let arg18 = if d.tag(2)? == 0 { Ok(SurfaceDrawArg17Value::wire_decode(d)?) } else { Err(d.string()?) };
             let arg19 = SurfaceDrawArg19::wire_decode(d)?;
             let arg20 = SurfaceDrawArg20::wire_decode(d)?;
-            let arg21 = SurfaceDrawArg21::wire_decode(d)?;
+            let arg21 = hd_run_wasmtime::native::wire::Lent::new(SurfaceDrawArg21::wire_decode(d)?, |x: SurfaceDrawArg21| { SurfaceDrawArg21::dismantle(x); });
             let arg22 = SurfaceDrawArg22::wire_decode(d)?;
             let arg23 = SurfaceDrawArg23::wire_decode(d)?;
             let arg24 = SurfaceDrawArg24::wire_decode(d)?;
             d.finish()?;
-            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, arg24, hd_run_wasmtime::native::CallContext::new()), |value: Box<dyn Events>, handles: &mut hd_run_wasmtime::native::Handles| {
+            hd_run_wasmtime::native::wire::answer(provider.draw(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, &arg21, arg22, arg23, arg24, hd_run_wasmtime::native::CallContext::new()), |value: Box<dyn Events>, handles: &mut hd_run_wasmtime::native::Handles| {
                 let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
                 let e = &mut enc;
                 e.handle(Box::new(value), 4, dispatch_Events)?;

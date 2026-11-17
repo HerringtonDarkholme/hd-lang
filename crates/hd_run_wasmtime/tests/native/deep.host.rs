@@ -5,7 +5,7 @@
 pub const CONTRACT: &[u8] = &[
     1, 0, 0, 0, 1, 18, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 117, 105, 45, 116, 117, 105, 5, 48, 46, 51, 46, 48, 4, 68,
     101, 101, 112, 11, 104, 100, 58, 112, 107, 103, 58, 100, 101, 101, 112, 1, 15, 100, 101, 112, 46, 117, 105, 95, 116, 117, 105, 46, 68, 101, 101, 112,
-    0, 2, 4, 109, 97, 107, 101, 4, 109, 97, 107, 101, 0, 2, 3, 32, 0, 3, 32, 0, 16, 0, 12, 9, 3, 69, 110, 100, 0, 4, 78, 101,
+    0, 3, 4, 109, 97, 107, 101, 4, 109, 97, 107, 101, 0, 2, 3, 32, 0, 3, 32, 0, 16, 0, 12, 9, 3, 69, 110, 100, 0, 4, 78, 101,
     120, 116, 1, 4, 110, 101, 120, 116, 17, 0, 4, 77, 97, 110, 121, 1, 5, 105, 116, 101, 109, 115, 8, 17, 0, 5, 77, 97, 121, 98, 101, 1,
     2, 97, 116, 9, 17, 0, 4, 80, 97, 105, 114, 1, 4, 112, 97, 105, 114, 10, 2, 17, 0, 3, 32, 1, 5, 75, 101, 121, 101, 100, 1, 3,
     109, 97, 112, 18, 6, 17, 0, 6, 69, 105, 116, 104, 101, 114, 1, 6, 101, 105, 116, 104, 101, 114, 13, 17, 0, 6, 5, 73, 110, 110, 101, 114,
@@ -15,17 +15,23 @@ pub const CONTRACT: &[u8] = &[
     17, 0, 5, 77, 97, 121, 98, 101, 1, 2, 97, 116, 9, 17, 0, 4, 80, 97, 105, 114, 1, 4, 112, 97, 105, 114, 10, 2, 17, 0, 3, 32,
     1, 5, 75, 101, 121, 101, 100, 1, 3, 109, 97, 112, 18, 6, 17, 0, 6, 69, 105, 116, 104, 101, 114, 1, 6, 101, 105, 116, 104, 101, 114, 13,
     17, 0, 6, 5, 73, 110, 110, 101, 114, 1, 5, 105, 110, 110, 101, 114, 16, 1, 11, 3, 2, 117, 112, 9, 17, 0, 4, 107, 105, 100, 115, 8,
-    17, 1, 3, 116, 97, 103, 3, 32, 1, 3, 66, 97, 100, 2, 3, 98, 97, 100, 14, 4, 114, 101, 115, 116, 17, 0, 3, 32, 0,
+    17, 1, 3, 116, 97, 103, 3, 32, 1, 3, 66, 97, 100, 2, 3, 98, 97, 100, 14, 4, 114, 101, 115, 116, 17, 0, 3, 32, 0, 4, 104, 111,
+    108, 100, 4, 104, 111, 108, 100, 0, 8, 8, 16, 2, 12, 2, 3, 69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17, 2,
+    9, 16, 2, 12, 2, 3, 69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17, 2, 13, 3, 32, 1, 16, 2, 12, 2, 3,
+    69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17, 2, 18, 6, 16, 2, 12, 2, 3, 69, 110, 100, 0, 4, 78, 101, 120,
+    116, 1, 4, 110, 101, 120, 116, 17, 2, 10, 2, 16, 2, 12, 2, 3, 69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17,
+    2, 3, 32, 1, 11, 2, 4, 110, 111, 100, 101, 16, 2, 12, 2, 3, 69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17,
+    2, 1, 110, 3, 32, 1, 12, 2, 5, 69, 109, 112, 116, 121, 0, 4, 70, 117, 108, 108, 1, 4, 110, 111, 100, 101, 16, 2, 12, 2, 3, 69,
+    110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17, 2, 12, 1, 4, 79, 110, 108, 121, 1, 4, 110, 111, 100, 101, 16, 2, 12,
+    2, 3, 69, 110, 100, 0, 4, 78, 101, 120, 116, 1, 4, 110, 101, 120, 116, 17, 2, 3, 32, 0,
 ];
 
-#[derive(Clone, Debug, PartialEq)]
 pub struct DeepMakeResultInnerInner {
     pub up: Option<Box<DeepMakeResult>>,
     pub kids: Vec<DeepMakeResultInnerInner>,
     pub tag: i32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub enum DeepMakeResult {
     End,
     Next {
@@ -64,6 +70,12 @@ impl DeepMakeResult {
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
         DeepMakeResultWire::decode(d)
     }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepMakeResultWire::dismantle(vec![DeepMakeResultWire::P0(self)]);
+    }
 }
 
 /// A value of `DeepMakeResult`'s recursive group at one position of its codec.
@@ -92,52 +104,76 @@ enum DeepMakeResultWire {
     P20(Box<DeepMakeResult>),
 }
 
-/// A step of `DeepMakeResult`'s decoder.
+/// A step of `DeepMakeResult`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum DeepMakeResultWireOp {
+enum DeepMakeResultWireOp<'a> {
     D0,
+    C0(&'a DeepMakeResult),
     D1,
+    C1(&'a Box<DeepMakeResult>),
     W1,
     B0v1,
     D2,
+    C2(&'a Vec<DeepMakeResult>),
     L2(Vec<DeepMakeResult>, usize),
+    K2(Vec<DeepMakeResult>, std::slice::Iter<'a, DeepMakeResult>),
     B0v2,
     D3,
+    C3(&'a Option<Box<DeepMakeResult>>),
     D4,
+    C4(&'a Box<DeepMakeResult>),
     W4,
     S3,
     B0v3,
     D5,
+    C5(&'a (Box<DeepMakeResult>, i32)),
     D6,
+    C6(&'a Box<DeepMakeResult>),
     W6,
     D7,
+    C7(&'a i32),
     B5,
     B0v4,
     D8,
+    C8(&'a Vec<(String, Box<DeepMakeResult>)>),
     D9,
+    C9(&'a String),
     D10,
+    C10(&'a Box<DeepMakeResult>),
     W10,
     M8(Vec<(String, Box<DeepMakeResult>)>, usize),
+    J8(Vec<(String, Box<DeepMakeResult>)>, std::slice::Iter<'a, (String, Box<DeepMakeResult>)>),
     B0v5,
     D11,
+    C11(&'a Result<Box<DeepMakeResult>, String>),
     D12,
+    C12(&'a Box<DeepMakeResult>),
     W12,
     D13,
+    C13(&'a String),
     O11,
     R11,
     B0v6,
     D14,
+    C14(&'a DeepMakeResultInnerInner),
     D15,
+    C15(&'a Option<Box<DeepMakeResult>>),
     D16,
+    C16(&'a Box<DeepMakeResult>),
     W16,
     S15,
     D17,
+    C17(&'a Vec<DeepMakeResultInnerInner>),
     L17(Vec<DeepMakeResultInnerInner>, usize),
+    K17(Vec<DeepMakeResultInnerInner>, std::slice::Iter<'a, DeepMakeResultInnerInner>),
     D18,
+    C18(&'a i32),
     B14,
     B0v7,
     D19,
+    C19(&'a hd_run_wasmtime::native::Serde),
     D20,
+    C20(&'a Box<DeepMakeResult>),
     W20,
     B0v8,
 }
@@ -200,53 +236,88 @@ impl DeepMakeResultWire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepMakeResultWireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepMakeResultWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
+                DeepMakeResultWireOp::C0(DeepMakeResult::End) => vals.push(Self::P0(DeepMakeResult::End)),
                 DeepMakeResultWireOp::D1 => { ops.push(DeepMakeResultWireOp::W1); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepMakeResultWireOp::C1(x) => { ops.push(DeepMakeResultWireOp::W1); ops.push(DeepMakeResultWireOp::C0(&**x)); }
                 DeepMakeResultWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Next { next: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Next { next: f0 }) => { ops.push(DeepMakeResultWireOp::B0v1); ops.push(DeepMakeResultWireOp::C1(f0)); }
                 DeepMakeResultWireOp::D2 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P2(x)); } else { ops.push(DeepMakeResultWireOp::L2(x, n)); ops.push(DeepMakeResultWireOp::D0); } }
                 DeepMakeResultWireOp::L2(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P2(x)); } else { ops.push(DeepMakeResultWireOp::L2(x, n - 1)); ops.push(DeepMakeResultWireOp::D0); } }
+                DeepMakeResultWireOp::C2(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(DeepMakeResultWireOp::K2(x, it)); ops.push(DeepMakeResultWireOp::C0(y)); } else { vals.push(Self::P2(x)); } }
+                DeepMakeResultWireOp::K2(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(DeepMakeResultWireOp::K2(x, it)); ops.push(DeepMakeResultWireOp::C0(y)); } else { vals.push(Self::P2(x)); } }
                 DeepMakeResultWireOp::B0v2 => { let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Many { items: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Many { items: f0 }) => { ops.push(DeepMakeResultWireOp::B0v2); ops.push(DeepMakeResultWireOp::C2(f0)); }
                 DeepMakeResultWireOp::D4 => { ops.push(DeepMakeResultWireOp::W4); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W4 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P4(Box::new(x))); }
+                DeepMakeResultWireOp::C4(x) => { ops.push(DeepMakeResultWireOp::W4); ops.push(DeepMakeResultWireOp::C0(&**x)); }
                 DeepMakeResultWireOp::D3 => if d.tag(2)? == 0 { vals.push(Self::P3(None)); } else { ops.push(DeepMakeResultWireOp::S3); ops.push(DeepMakeResultWireOp::D4); }
                 DeepMakeResultWireOp::S3 => { let Some(Self::P4(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Some(x))); }
+                DeepMakeResultWireOp::C3(None) => vals.push(Self::P3(None)),
+                DeepMakeResultWireOp::C3(Some(x)) => { ops.push(DeepMakeResultWireOp::S3); ops.push(DeepMakeResultWireOp::C4(x)); }
                 DeepMakeResultWireOp::B0v3 => { let Some(Self::P3(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Maybe { at: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Maybe { at: f0 }) => { ops.push(DeepMakeResultWireOp::B0v3); ops.push(DeepMakeResultWireOp::C3(f0)); }
                 DeepMakeResultWireOp::D6 => { ops.push(DeepMakeResultWireOp::W6); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W6 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P6(Box::new(x))); }
+                DeepMakeResultWireOp::C6(x) => { ops.push(DeepMakeResultWireOp::W6); ops.push(DeepMakeResultWireOp::C0(&**x)); }
+                DeepMakeResultWireOp::C7(x) => vals.push(Self::P7(x.clone())),
                 DeepMakeResultWireOp::D7 => vals.push(Self::P7(d.signed::<i32>()?)),
                 DeepMakeResultWireOp::B5 => { let Some(Self::P7(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P6(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P5(( f0, f1 ))); }
                 DeepMakeResultWireOp::D5 => { ops.push(DeepMakeResultWireOp::B5); ops.push(DeepMakeResultWireOp::D7); ops.push(DeepMakeResultWireOp::D6); }
+                DeepMakeResultWireOp::C5(( f0, f1 )) => { ops.push(DeepMakeResultWireOp::B5); ops.push(DeepMakeResultWireOp::C7(f1)); ops.push(DeepMakeResultWireOp::C6(f0)); }
                 DeepMakeResultWireOp::B0v4 => { let Some(Self::P5(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Pair { pair: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Pair { pair: f0 }) => { ops.push(DeepMakeResultWireOp::B0v4); ops.push(DeepMakeResultWireOp::C5(f0)); }
+                DeepMakeResultWireOp::C9(x) => vals.push(Self::P9(x.clone())),
                 DeepMakeResultWireOp::D9 => vals.push(Self::P9(d.string()?)),
                 DeepMakeResultWireOp::D10 => { ops.push(DeepMakeResultWireOp::W10); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W10 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P10(Box::new(x))); }
+                DeepMakeResultWireOp::C10(x) => { ops.push(DeepMakeResultWireOp::W10); ops.push(DeepMakeResultWireOp::C0(&**x)); }
                 DeepMakeResultWireOp::D8 => { let n = d.map_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P8(x)); } else { ops.push(DeepMakeResultWireOp::M8(x, n)); ops.push(DeepMakeResultWireOp::D10); ops.push(DeepMakeResultWireOp::D9); } }
                 DeepMakeResultWireOp::M8(mut x, n) => { let Some(Self::P10(b)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P9(a)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push((a, b)); if n == 1 { vals.push(Self::P8(x)); } else { ops.push(DeepMakeResultWireOp::M8(x, n - 1)); ops.push(DeepMakeResultWireOp::D10); ops.push(DeepMakeResultWireOp::D9); } }
+                DeepMakeResultWireOp::C8(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some((a, b)) = it.next() { ops.push(DeepMakeResultWireOp::J8(x, it)); ops.push(DeepMakeResultWireOp::C10(b)); ops.push(DeepMakeResultWireOp::C9(a)); } else { vals.push(Self::P8(x)); } }
+                DeepMakeResultWireOp::J8(mut x, mut it) => { let Some(Self::P10(b)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P9(a)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push((a, b)); if let Some((a, b)) = it.next() { ops.push(DeepMakeResultWireOp::J8(x, it)); ops.push(DeepMakeResultWireOp::C10(b)); ops.push(DeepMakeResultWireOp::C9(a)); } else { vals.push(Self::P8(x)); } }
                 DeepMakeResultWireOp::B0v5 => { let Some(Self::P8(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Keyed { map: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Keyed { map: f0 }) => { ops.push(DeepMakeResultWireOp::B0v5); ops.push(DeepMakeResultWireOp::C8(f0)); }
                 DeepMakeResultWireOp::D12 => { ops.push(DeepMakeResultWireOp::W12); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W12 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P12(Box::new(x))); }
+                DeepMakeResultWireOp::C12(x) => { ops.push(DeepMakeResultWireOp::W12); ops.push(DeepMakeResultWireOp::C0(&**x)); }
+                DeepMakeResultWireOp::C13(x) => vals.push(Self::P13(x.clone())),
                 DeepMakeResultWireOp::D13 => vals.push(Self::P13(d.string()?)),
                 DeepMakeResultWireOp::D11 => if d.tag(2)? == 0 { ops.push(DeepMakeResultWireOp::O11); ops.push(DeepMakeResultWireOp::D12); } else { ops.push(DeepMakeResultWireOp::R11); ops.push(DeepMakeResultWireOp::D13); }
                 DeepMakeResultWireOp::O11 => { let Some(Self::P12(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P11(Ok(x))); }
                 DeepMakeResultWireOp::R11 => { let Some(Self::P13(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P11(Err(x))); }
+                DeepMakeResultWireOp::C11(Ok(x)) => { ops.push(DeepMakeResultWireOp::O11); ops.push(DeepMakeResultWireOp::C12(x)); }
+                DeepMakeResultWireOp::C11(Err(x)) => { ops.push(DeepMakeResultWireOp::R11); ops.push(DeepMakeResultWireOp::C13(x)); }
                 DeepMakeResultWireOp::B0v6 => { let Some(Self::P11(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Either { either: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Either { either: f0 }) => { ops.push(DeepMakeResultWireOp::B0v6); ops.push(DeepMakeResultWireOp::C11(f0)); }
                 DeepMakeResultWireOp::D16 => { ops.push(DeepMakeResultWireOp::W16); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W16 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P16(Box::new(x))); }
+                DeepMakeResultWireOp::C16(x) => { ops.push(DeepMakeResultWireOp::W16); ops.push(DeepMakeResultWireOp::C0(&**x)); }
                 DeepMakeResultWireOp::D15 => if d.tag(2)? == 0 { vals.push(Self::P15(None)); } else { ops.push(DeepMakeResultWireOp::S15); ops.push(DeepMakeResultWireOp::D16); }
                 DeepMakeResultWireOp::S15 => { let Some(Self::P16(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P15(Some(x))); }
+                DeepMakeResultWireOp::C15(None) => vals.push(Self::P15(None)),
+                DeepMakeResultWireOp::C15(Some(x)) => { ops.push(DeepMakeResultWireOp::S15); ops.push(DeepMakeResultWireOp::C16(x)); }
                 DeepMakeResultWireOp::D17 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P17(x)); } else { ops.push(DeepMakeResultWireOp::L17(x, n)); ops.push(DeepMakeResultWireOp::D14); } }
                 DeepMakeResultWireOp::L17(mut x, n) => { let Some(Self::P14(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P17(x)); } else { ops.push(DeepMakeResultWireOp::L17(x, n - 1)); ops.push(DeepMakeResultWireOp::D14); } }
+                DeepMakeResultWireOp::C17(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(DeepMakeResultWireOp::K17(x, it)); ops.push(DeepMakeResultWireOp::C14(y)); } else { vals.push(Self::P17(x)); } }
+                DeepMakeResultWireOp::K17(mut x, mut it) => { let Some(Self::P14(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(DeepMakeResultWireOp::K17(x, it)); ops.push(DeepMakeResultWireOp::C14(y)); } else { vals.push(Self::P17(x)); } }
+                DeepMakeResultWireOp::C18(x) => vals.push(Self::P18(x.clone())),
                 DeepMakeResultWireOp::D18 => vals.push(Self::P18(d.signed::<i32>()?)),
                 DeepMakeResultWireOp::B14 => { let Some(Self::P18(f2)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P17(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P15(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P14(DeepMakeResultInnerInner { up: f0, kids: f1, tag: f2 })); }
                 DeepMakeResultWireOp::D14 => { ops.push(DeepMakeResultWireOp::B14); ops.push(DeepMakeResultWireOp::D18); ops.push(DeepMakeResultWireOp::D17); ops.push(DeepMakeResultWireOp::D15); }
+                DeepMakeResultWireOp::C14(DeepMakeResultInnerInner { up: f0, kids: f1, tag: f2 }) => { ops.push(DeepMakeResultWireOp::B14); ops.push(DeepMakeResultWireOp::C18(f2)); ops.push(DeepMakeResultWireOp::C17(f1)); ops.push(DeepMakeResultWireOp::C15(f0)); }
                 DeepMakeResultWireOp::B0v7 => { let Some(Self::P14(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Inner { inner: f0 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Inner { inner: f0 }) => { ops.push(DeepMakeResultWireOp::B0v7); ops.push(DeepMakeResultWireOp::C14(f0)); }
+                DeepMakeResultWireOp::C19(x) => vals.push(Self::P19(x.clone())),
                 DeepMakeResultWireOp::D19 => vals.push(Self::P19(d.serde()?)),
                 DeepMakeResultWireOp::D20 => { ops.push(DeepMakeResultWireOp::W20); ops.push(DeepMakeResultWireOp::D0); }
                 DeepMakeResultWireOp::W20 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P20(Box::new(x))); }
+                DeepMakeResultWireOp::C20(x) => { ops.push(DeepMakeResultWireOp::W20); ops.push(DeepMakeResultWireOp::C0(&**x)); }
                 DeepMakeResultWireOp::B0v8 => { let Some(Self::P20(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P19(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepMakeResult::Bad { bad: f0, rest: f1 })); }
+                DeepMakeResultWireOp::C0(DeepMakeResult::Bad { bad: f0, rest: f1 }) => { ops.push(DeepMakeResultWireOp::B0v8); ops.push(DeepMakeResultWireOp::C20(f1)); ops.push(DeepMakeResultWireOp::C19(f0)); }
                 DeepMakeResultWireOp::D0 => match d.tag(9)? { 0 => { vals.push(Self::P0(DeepMakeResult::End)); } 1 => { ops.push(DeepMakeResultWireOp::B0v1); ops.push(DeepMakeResultWireOp::D1); } 2 => { ops.push(DeepMakeResultWireOp::B0v2); ops.push(DeepMakeResultWireOp::D2); } 3 => { ops.push(DeepMakeResultWireOp::B0v3); ops.push(DeepMakeResultWireOp::D3); } 4 => { ops.push(DeepMakeResultWireOp::B0v4); ops.push(DeepMakeResultWireOp::D5); } 5 => { ops.push(DeepMakeResultWireOp::B0v5); ops.push(DeepMakeResultWireOp::D8); } 6 => { ops.push(DeepMakeResultWireOp::B0v6); ops.push(DeepMakeResultWireOp::D11); } 7 => { ops.push(DeepMakeResultWireOp::B0v7); ops.push(DeepMakeResultWireOp::D14); } _ => { ops.push(DeepMakeResultWireOp::B0v8); ops.push(DeepMakeResultWireOp::D20); ops.push(DeepMakeResultWireOp::D19); } },
             }
         }
@@ -254,7 +325,7 @@ impl DeepMakeResultWire {
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<DeepMakeResultWireOp>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<DeepMakeResultWireOp<'_>>, items: &mut Vec<Self>) {
         for op in ops {
             match op {
                 DeepMakeResultWireOp::L2(x, _) => items.push(Self::P2(x)),
@@ -300,14 +371,208 @@ impl DeepMakeResultWire {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+impl DeepMakeResultWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepMakeResultWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepMakeResult`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepMakeResultWirePair<'a> {
+    P0(&'a DeepMakeResult, &'a DeepMakeResult),
+    P1(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P2(&'a Vec<DeepMakeResult>, &'a Vec<DeepMakeResult>),
+    P3(&'a Option<Box<DeepMakeResult>>, &'a Option<Box<DeepMakeResult>>),
+    P4(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P5(&'a (Box<DeepMakeResult>, i32), &'a (Box<DeepMakeResult>, i32)),
+    P6(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P7(&'a i32, &'a i32),
+    P8(&'a Vec<(String, Box<DeepMakeResult>)>, &'a Vec<(String, Box<DeepMakeResult>)>),
+    P9(&'a String, &'a String),
+    P10(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P11(&'a Result<Box<DeepMakeResult>, String>, &'a Result<Box<DeepMakeResult>, String>),
+    P12(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P13(&'a String, &'a String),
+    P14(&'a DeepMakeResultInnerInner, &'a DeepMakeResultInnerInner),
+    P15(&'a Option<Box<DeepMakeResult>>, &'a Option<Box<DeepMakeResult>>),
+    P16(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+    P17(&'a Vec<DeepMakeResultInnerInner>, &'a Vec<DeepMakeResultInnerInner>),
+    P18(&'a i32, &'a i32),
+    P19(&'a hd_run_wasmtime::native::Serde, &'a hd_run_wasmtime::native::Serde),
+    P20(&'a Box<DeepMakeResult>, &'a Box<DeepMakeResult>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepMakeResultWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepMakeResult::End, DeepMakeResult::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepMakeResult::Next { next: a0 }, DeepMakeResult::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P2(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P0(a, b))); }
+                Self::P0(DeepMakeResult::Many { items: a0 }, DeepMakeResult::Many { items: b0 }) => { stack.push(Self::P2(a0, b0)); }
+                Self::P4(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P3(None, None) => {}
+                Self::P3(Some(a), Some(b)) => stack.push(Self::P4(a, b)),
+                Self::P3(..) => return false,
+                Self::P0(DeepMakeResult::Maybe { at: a0 }, DeepMakeResult::Maybe { at: b0 }) => { stack.push(Self::P3(a0, b0)); }
+                Self::P6(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P7(a, b) => if a != b { return false; },
+                Self::P5(( a0, a1 ), ( b0, b1 )) => { stack.push(Self::P7(a1, b1)); stack.push(Self::P6(a0, b0)); }
+                Self::P0(DeepMakeResult::Pair { pair: a0 }, DeepMakeResult::Pair { pair: b0 }) => { stack.push(Self::P5(a0, b0)); }
+                Self::P9(a, b) => if a != b { return false; },
+                Self::P10(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P8(a, b) => { if a.len() != b.len() { return false; } for ((a0, a1), (b0, b1)) in a.iter().zip(b).rev() { stack.push(Self::P10(a1, b1)); stack.push(Self::P9(a0, b0)); } }
+                Self::P0(DeepMakeResult::Keyed { map: a0 }, DeepMakeResult::Keyed { map: b0 }) => { stack.push(Self::P8(a0, b0)); }
+                Self::P12(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P13(a, b) => if a != b { return false; },
+                Self::P11(Ok(a), Ok(b)) => stack.push(Self::P12(a, b)),
+                Self::P11(Err(a), Err(b)) => stack.push(Self::P13(a, b)),
+                Self::P11(..) => return false,
+                Self::P0(DeepMakeResult::Either { either: a0 }, DeepMakeResult::Either { either: b0 }) => { stack.push(Self::P11(a0, b0)); }
+                Self::P16(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P15(None, None) => {}
+                Self::P15(Some(a), Some(b)) => stack.push(Self::P16(a, b)),
+                Self::P15(..) => return false,
+                Self::P17(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P14(a, b))); }
+                Self::P18(a, b) => if a != b { return false; },
+                Self::P14(DeepMakeResultInnerInner { up: a0, kids: a1, tag: a2 }, DeepMakeResultInnerInner { up: b0, kids: b1, tag: b2 }) => { stack.push(Self::P18(a2, b2)); stack.push(Self::P17(a1, b1)); stack.push(Self::P15(a0, b0)); }
+                Self::P0(DeepMakeResult::Inner { inner: a0 }, DeepMakeResult::Inner { inner: b0 }) => { stack.push(Self::P14(a0, b0)); }
+                Self::P19(a, b) => if a != b { return false; },
+                Self::P20(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepMakeResult::Bad { bad: a0, rest: a1 }, DeepMakeResult::Bad { bad: b0, rest: b1 }) => { stack.push(Self::P20(a1, b1)); stack.push(Self::P19(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepMakeResult`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepMakeResultWireShow<'a> {
+    P0(&'a DeepMakeResult),
+    P1(&'a Box<DeepMakeResult>),
+    P2(&'a Vec<DeepMakeResult>),
+    P3(&'a Option<Box<DeepMakeResult>>),
+    P4(&'a Box<DeepMakeResult>),
+    P5(&'a (Box<DeepMakeResult>, i32)),
+    P6(&'a Box<DeepMakeResult>),
+    P7(&'a i32),
+    P8(&'a Vec<(String, Box<DeepMakeResult>)>),
+    P9(&'a String),
+    P10(&'a Box<DeepMakeResult>),
+    M8(&'a String, &'a Box<DeepMakeResult>),
+    P11(&'a Result<Box<DeepMakeResult>, String>),
+    P12(&'a Box<DeepMakeResult>),
+    P13(&'a String),
+    P14(&'a DeepMakeResultInnerInner),
+    P15(&'a Option<Box<DeepMakeResult>>),
+    P16(&'a Box<DeepMakeResult>),
+    P17(&'a Vec<DeepMakeResultInnerInner>),
+    P18(&'a i32),
+    P19(&'a hd_run_wasmtime::native::Serde),
+    P20(&'a Box<DeepMakeResult>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepMakeResultWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepMakeResult::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepMakeResult::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+            Self::P2(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P0(y)))),
+            Self::P0(DeepMakeResult::Many { items: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Many {", "}", [("items: ", Self::P2(f0))]),
+            Self::P4(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P3(None) => f.write_str("None"),
+            Self::P3(Some(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Some(", ")", [("", Self::P4(x))]),
+            Self::P0(DeepMakeResult::Maybe { at: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Maybe {", "}", [("at: ", Self::P3(f0))]),
+            Self::P6(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P7(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P5(( f0, f1 )) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "(", ")", [("", Self::P6(f0)), ("", Self::P7(f1))]),
+            Self::P0(DeepMakeResult::Pair { pair: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Pair {", "}", [("pair: ", Self::P5(f0))]),
+            Self::P9(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P10(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P8(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|(a, b)| ("", Self::M8(a, b)))),
+            Self::M8(a, b) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "(", ")", [("", Self::P9(a)), ("", Self::P10(b))]),
+            Self::P0(DeepMakeResult::Keyed { map: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Keyed {", "}", [("map: ", Self::P8(f0))]),
+            Self::P12(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P13(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P11(Ok(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Ok(", ")", [("", Self::P12(x))]),
+            Self::P11(Err(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Err(", ")", [("", Self::P13(x))]),
+            Self::P0(DeepMakeResult::Either { either: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Either {", "}", [("either: ", Self::P11(f0))]),
+            Self::P16(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P15(None) => f.write_str("None"),
+            Self::P15(Some(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Some(", ")", [("", Self::P16(x))]),
+            Self::P17(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P14(y)))),
+            Self::P18(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P14(DeepMakeResultInnerInner { up: f0, kids: f1, tag: f2 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "DeepMakeResultInnerInner {", "}", [("up: ", Self::P15(f0)), ("kids: ", Self::P17(f1)), ("tag: ", Self::P18(f2))]),
+            Self::P0(DeepMakeResult::Inner { inner: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Inner {", "}", [("inner: ", Self::P14(f0))]),
+            Self::P19(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P20(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepMakeResult::Bad { bad: f0, rest: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Bad {", "}", [("bad: ", Self::P19(f0)), ("rest: ", Self::P20(f1))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepMakeResult {
+    fn clone(&self) -> Self {
+        let DeepMakeResultWire::P0(value) = DeepMakeResultWire::clone_of(DeepMakeResultWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepMakeResult {
+    fn eq(&self, other: &Self) -> bool {
+        DeepMakeResultWirePair::all(vec![DeepMakeResultWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepMakeResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepMakeResultWireShow::P0(self), DeepMakeResultWireShow::show)
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepMakeResultInnerInner {
+    fn clone(&self) -> Self {
+        let DeepMakeResultWire::P14(value) = DeepMakeResultWire::clone_of(DeepMakeResultWireOp::C14(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepMakeResultInnerInner {
+    fn eq(&self, other: &Self) -> bool {
+        DeepMakeResultWirePair::all(vec![DeepMakeResultWirePair::P14(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepMakeResultInnerInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepMakeResultWireShow::P14(self), DeepMakeResultWireShow::show)
+    }
+}
+
 pub struct DeepTakeArg0InnerInner {
     pub up: Option<Box<DeepTakeArg0>>,
     pub kids: Vec<DeepTakeArg0InnerInner>,
     pub tag: i32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
 pub enum DeepTakeArg0 {
     End,
     Next {
@@ -346,6 +611,12 @@ impl DeepTakeArg0 {
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
         DeepTakeArg0Wire::decode(d)
     }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepTakeArg0Wire::dismantle(vec![DeepTakeArg0Wire::P0(self)]);
+    }
 }
 
 /// A value of `DeepTakeArg0`'s recursive group at one position of its codec.
@@ -374,52 +645,76 @@ enum DeepTakeArg0Wire {
     P20(Box<DeepTakeArg0>),
 }
 
-/// A step of `DeepTakeArg0`'s decoder.
+/// A step of `DeepTakeArg0`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum DeepTakeArg0WireOp {
+enum DeepTakeArg0WireOp<'a> {
     D0,
+    C0(&'a DeepTakeArg0),
     D1,
+    C1(&'a Box<DeepTakeArg0>),
     W1,
     B0v1,
     D2,
+    C2(&'a Vec<DeepTakeArg0>),
     L2(Vec<DeepTakeArg0>, usize),
+    K2(Vec<DeepTakeArg0>, std::slice::Iter<'a, DeepTakeArg0>),
     B0v2,
     D3,
+    C3(&'a Option<Box<DeepTakeArg0>>),
     D4,
+    C4(&'a Box<DeepTakeArg0>),
     W4,
     S3,
     B0v3,
     D5,
+    C5(&'a (Box<DeepTakeArg0>, i32)),
     D6,
+    C6(&'a Box<DeepTakeArg0>),
     W6,
     D7,
+    C7(&'a i32),
     B5,
     B0v4,
     D8,
+    C8(&'a Vec<(String, Box<DeepTakeArg0>)>),
     D9,
+    C9(&'a String),
     D10,
+    C10(&'a Box<DeepTakeArg0>),
     W10,
     M8(Vec<(String, Box<DeepTakeArg0>)>, usize),
+    J8(Vec<(String, Box<DeepTakeArg0>)>, std::slice::Iter<'a, (String, Box<DeepTakeArg0>)>),
     B0v5,
     D11,
+    C11(&'a Result<Box<DeepTakeArg0>, String>),
     D12,
+    C12(&'a Box<DeepTakeArg0>),
     W12,
     D13,
+    C13(&'a String),
     O11,
     R11,
     B0v6,
     D14,
+    C14(&'a DeepTakeArg0InnerInner),
     D15,
+    C15(&'a Option<Box<DeepTakeArg0>>),
     D16,
+    C16(&'a Box<DeepTakeArg0>),
     W16,
     S15,
     D17,
+    C17(&'a Vec<DeepTakeArg0InnerInner>),
     L17(Vec<DeepTakeArg0InnerInner>, usize),
+    K17(Vec<DeepTakeArg0InnerInner>, std::slice::Iter<'a, DeepTakeArg0InnerInner>),
     D18,
+    C18(&'a i32),
     B14,
     B0v7,
     D19,
+    C19(&'a hd_run_wasmtime::native::Serde),
     D20,
+    C20(&'a Box<DeepTakeArg0>),
     W20,
     B0v8,
 }
@@ -482,53 +777,88 @@ impl DeepTakeArg0Wire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepTakeArg0WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepTakeArg0WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::End) => vals.push(Self::P0(DeepTakeArg0::End)),
                 DeepTakeArg0WireOp::D1 => { ops.push(DeepTakeArg0WireOp::W1); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepTakeArg0WireOp::C1(x) => { ops.push(DeepTakeArg0WireOp::W1); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
                 DeepTakeArg0WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Next { next: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Next { next: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v1); ops.push(DeepTakeArg0WireOp::C1(f0)); }
                 DeepTakeArg0WireOp::D2 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P2(x)); } else { ops.push(DeepTakeArg0WireOp::L2(x, n)); ops.push(DeepTakeArg0WireOp::D0); } }
                 DeepTakeArg0WireOp::L2(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P2(x)); } else { ops.push(DeepTakeArg0WireOp::L2(x, n - 1)); ops.push(DeepTakeArg0WireOp::D0); } }
+                DeepTakeArg0WireOp::C2(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(DeepTakeArg0WireOp::K2(x, it)); ops.push(DeepTakeArg0WireOp::C0(y)); } else { vals.push(Self::P2(x)); } }
+                DeepTakeArg0WireOp::K2(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(DeepTakeArg0WireOp::K2(x, it)); ops.push(DeepTakeArg0WireOp::C0(y)); } else { vals.push(Self::P2(x)); } }
                 DeepTakeArg0WireOp::B0v2 => { let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Many { items: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Many { items: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v2); ops.push(DeepTakeArg0WireOp::C2(f0)); }
                 DeepTakeArg0WireOp::D4 => { ops.push(DeepTakeArg0WireOp::W4); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W4 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P4(Box::new(x))); }
+                DeepTakeArg0WireOp::C4(x) => { ops.push(DeepTakeArg0WireOp::W4); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
                 DeepTakeArg0WireOp::D3 => if d.tag(2)? == 0 { vals.push(Self::P3(None)); } else { ops.push(DeepTakeArg0WireOp::S3); ops.push(DeepTakeArg0WireOp::D4); }
                 DeepTakeArg0WireOp::S3 => { let Some(Self::P4(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Some(x))); }
+                DeepTakeArg0WireOp::C3(None) => vals.push(Self::P3(None)),
+                DeepTakeArg0WireOp::C3(Some(x)) => { ops.push(DeepTakeArg0WireOp::S3); ops.push(DeepTakeArg0WireOp::C4(x)); }
                 DeepTakeArg0WireOp::B0v3 => { let Some(Self::P3(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Maybe { at: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Maybe { at: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v3); ops.push(DeepTakeArg0WireOp::C3(f0)); }
                 DeepTakeArg0WireOp::D6 => { ops.push(DeepTakeArg0WireOp::W6); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W6 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P6(Box::new(x))); }
+                DeepTakeArg0WireOp::C6(x) => { ops.push(DeepTakeArg0WireOp::W6); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
+                DeepTakeArg0WireOp::C7(x) => vals.push(Self::P7(x.clone())),
                 DeepTakeArg0WireOp::D7 => vals.push(Self::P7(d.signed::<i32>()?)),
                 DeepTakeArg0WireOp::B5 => { let Some(Self::P7(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P6(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P5(( f0, f1 ))); }
                 DeepTakeArg0WireOp::D5 => { ops.push(DeepTakeArg0WireOp::B5); ops.push(DeepTakeArg0WireOp::D7); ops.push(DeepTakeArg0WireOp::D6); }
+                DeepTakeArg0WireOp::C5(( f0, f1 )) => { ops.push(DeepTakeArg0WireOp::B5); ops.push(DeepTakeArg0WireOp::C7(f1)); ops.push(DeepTakeArg0WireOp::C6(f0)); }
                 DeepTakeArg0WireOp::B0v4 => { let Some(Self::P5(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Pair { pair: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Pair { pair: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v4); ops.push(DeepTakeArg0WireOp::C5(f0)); }
+                DeepTakeArg0WireOp::C9(x) => vals.push(Self::P9(x.clone())),
                 DeepTakeArg0WireOp::D9 => vals.push(Self::P9(d.string()?)),
                 DeepTakeArg0WireOp::D10 => { ops.push(DeepTakeArg0WireOp::W10); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W10 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P10(Box::new(x))); }
+                DeepTakeArg0WireOp::C10(x) => { ops.push(DeepTakeArg0WireOp::W10); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
                 DeepTakeArg0WireOp::D8 => { let n = d.map_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P8(x)); } else { ops.push(DeepTakeArg0WireOp::M8(x, n)); ops.push(DeepTakeArg0WireOp::D10); ops.push(DeepTakeArg0WireOp::D9); } }
                 DeepTakeArg0WireOp::M8(mut x, n) => { let Some(Self::P10(b)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P9(a)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push((a, b)); if n == 1 { vals.push(Self::P8(x)); } else { ops.push(DeepTakeArg0WireOp::M8(x, n - 1)); ops.push(DeepTakeArg0WireOp::D10); ops.push(DeepTakeArg0WireOp::D9); } }
+                DeepTakeArg0WireOp::C8(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some((a, b)) = it.next() { ops.push(DeepTakeArg0WireOp::J8(x, it)); ops.push(DeepTakeArg0WireOp::C10(b)); ops.push(DeepTakeArg0WireOp::C9(a)); } else { vals.push(Self::P8(x)); } }
+                DeepTakeArg0WireOp::J8(mut x, mut it) => { let Some(Self::P10(b)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P9(a)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push((a, b)); if let Some((a, b)) = it.next() { ops.push(DeepTakeArg0WireOp::J8(x, it)); ops.push(DeepTakeArg0WireOp::C10(b)); ops.push(DeepTakeArg0WireOp::C9(a)); } else { vals.push(Self::P8(x)); } }
                 DeepTakeArg0WireOp::B0v5 => { let Some(Self::P8(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Keyed { map: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Keyed { map: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v5); ops.push(DeepTakeArg0WireOp::C8(f0)); }
                 DeepTakeArg0WireOp::D12 => { ops.push(DeepTakeArg0WireOp::W12); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W12 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P12(Box::new(x))); }
+                DeepTakeArg0WireOp::C12(x) => { ops.push(DeepTakeArg0WireOp::W12); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
+                DeepTakeArg0WireOp::C13(x) => vals.push(Self::P13(x.clone())),
                 DeepTakeArg0WireOp::D13 => vals.push(Self::P13(d.string()?)),
                 DeepTakeArg0WireOp::D11 => if d.tag(2)? == 0 { ops.push(DeepTakeArg0WireOp::O11); ops.push(DeepTakeArg0WireOp::D12); } else { ops.push(DeepTakeArg0WireOp::R11); ops.push(DeepTakeArg0WireOp::D13); }
                 DeepTakeArg0WireOp::O11 => { let Some(Self::P12(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P11(Ok(x))); }
                 DeepTakeArg0WireOp::R11 => { let Some(Self::P13(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P11(Err(x))); }
+                DeepTakeArg0WireOp::C11(Ok(x)) => { ops.push(DeepTakeArg0WireOp::O11); ops.push(DeepTakeArg0WireOp::C12(x)); }
+                DeepTakeArg0WireOp::C11(Err(x)) => { ops.push(DeepTakeArg0WireOp::R11); ops.push(DeepTakeArg0WireOp::C13(x)); }
                 DeepTakeArg0WireOp::B0v6 => { let Some(Self::P11(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Either { either: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Either { either: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v6); ops.push(DeepTakeArg0WireOp::C11(f0)); }
                 DeepTakeArg0WireOp::D16 => { ops.push(DeepTakeArg0WireOp::W16); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W16 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P16(Box::new(x))); }
+                DeepTakeArg0WireOp::C16(x) => { ops.push(DeepTakeArg0WireOp::W16); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
                 DeepTakeArg0WireOp::D15 => if d.tag(2)? == 0 { vals.push(Self::P15(None)); } else { ops.push(DeepTakeArg0WireOp::S15); ops.push(DeepTakeArg0WireOp::D16); }
                 DeepTakeArg0WireOp::S15 => { let Some(Self::P16(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P15(Some(x))); }
+                DeepTakeArg0WireOp::C15(None) => vals.push(Self::P15(None)),
+                DeepTakeArg0WireOp::C15(Some(x)) => { ops.push(DeepTakeArg0WireOp::S15); ops.push(DeepTakeArg0WireOp::C16(x)); }
                 DeepTakeArg0WireOp::D17 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P17(x)); } else { ops.push(DeepTakeArg0WireOp::L17(x, n)); ops.push(DeepTakeArg0WireOp::D14); } }
                 DeepTakeArg0WireOp::L17(mut x, n) => { let Some(Self::P14(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P17(x)); } else { ops.push(DeepTakeArg0WireOp::L17(x, n - 1)); ops.push(DeepTakeArg0WireOp::D14); } }
+                DeepTakeArg0WireOp::C17(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(DeepTakeArg0WireOp::K17(x, it)); ops.push(DeepTakeArg0WireOp::C14(y)); } else { vals.push(Self::P17(x)); } }
+                DeepTakeArg0WireOp::K17(mut x, mut it) => { let Some(Self::P14(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(DeepTakeArg0WireOp::K17(x, it)); ops.push(DeepTakeArg0WireOp::C14(y)); } else { vals.push(Self::P17(x)); } }
+                DeepTakeArg0WireOp::C18(x) => vals.push(Self::P18(x.clone())),
                 DeepTakeArg0WireOp::D18 => vals.push(Self::P18(d.signed::<i32>()?)),
                 DeepTakeArg0WireOp::B14 => { let Some(Self::P18(f2)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P17(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P15(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P14(DeepTakeArg0InnerInner { up: f0, kids: f1, tag: f2 })); }
                 DeepTakeArg0WireOp::D14 => { ops.push(DeepTakeArg0WireOp::B14); ops.push(DeepTakeArg0WireOp::D18); ops.push(DeepTakeArg0WireOp::D17); ops.push(DeepTakeArg0WireOp::D15); }
+                DeepTakeArg0WireOp::C14(DeepTakeArg0InnerInner { up: f0, kids: f1, tag: f2 }) => { ops.push(DeepTakeArg0WireOp::B14); ops.push(DeepTakeArg0WireOp::C18(f2)); ops.push(DeepTakeArg0WireOp::C17(f1)); ops.push(DeepTakeArg0WireOp::C15(f0)); }
                 DeepTakeArg0WireOp::B0v7 => { let Some(Self::P14(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Inner { inner: f0 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Inner { inner: f0 }) => { ops.push(DeepTakeArg0WireOp::B0v7); ops.push(DeepTakeArg0WireOp::C14(f0)); }
+                DeepTakeArg0WireOp::C19(x) => vals.push(Self::P19(x.clone())),
                 DeepTakeArg0WireOp::D19 => vals.push(Self::P19(d.serde()?)),
                 DeepTakeArg0WireOp::D20 => { ops.push(DeepTakeArg0WireOp::W20); ops.push(DeepTakeArg0WireOp::D0); }
                 DeepTakeArg0WireOp::W20 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P20(Box::new(x))); }
+                DeepTakeArg0WireOp::C20(x) => { ops.push(DeepTakeArg0WireOp::W20); ops.push(DeepTakeArg0WireOp::C0(&**x)); }
                 DeepTakeArg0WireOp::B0v8 => { let Some(Self::P20(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P19(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepTakeArg0::Bad { bad: f0, rest: f1 })); }
+                DeepTakeArg0WireOp::C0(DeepTakeArg0::Bad { bad: f0, rest: f1 }) => { ops.push(DeepTakeArg0WireOp::B0v8); ops.push(DeepTakeArg0WireOp::C20(f1)); ops.push(DeepTakeArg0WireOp::C19(f0)); }
                 DeepTakeArg0WireOp::D0 => match d.tag(9)? { 0 => { vals.push(Self::P0(DeepTakeArg0::End)); } 1 => { ops.push(DeepTakeArg0WireOp::B0v1); ops.push(DeepTakeArg0WireOp::D1); } 2 => { ops.push(DeepTakeArg0WireOp::B0v2); ops.push(DeepTakeArg0WireOp::D2); } 3 => { ops.push(DeepTakeArg0WireOp::B0v3); ops.push(DeepTakeArg0WireOp::D3); } 4 => { ops.push(DeepTakeArg0WireOp::B0v4); ops.push(DeepTakeArg0WireOp::D5); } 5 => { ops.push(DeepTakeArg0WireOp::B0v5); ops.push(DeepTakeArg0WireOp::D8); } 6 => { ops.push(DeepTakeArg0WireOp::B0v6); ops.push(DeepTakeArg0WireOp::D11); } 7 => { ops.push(DeepTakeArg0WireOp::B0v7); ops.push(DeepTakeArg0WireOp::D14); } _ => { ops.push(DeepTakeArg0WireOp::B0v8); ops.push(DeepTakeArg0WireOp::D20); ops.push(DeepTakeArg0WireOp::D19); } },
             }
         }
@@ -536,7 +866,7 @@ impl DeepTakeArg0Wire {
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<DeepTakeArg0WireOp>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<DeepTakeArg0WireOp<'_>>, items: &mut Vec<Self>) {
         for op in ops {
             match op {
                 DeepTakeArg0WireOp::L2(x, _) => items.push(Self::P2(x)),
@@ -582,10 +912,1759 @@ impl DeepTakeArg0Wire {
     }
 }
 
+#[allow(dead_code)]
+impl DeepTakeArg0Wire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepTakeArg0WireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepTakeArg0`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepTakeArg0WirePair<'a> {
+    P0(&'a DeepTakeArg0, &'a DeepTakeArg0),
+    P1(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P2(&'a Vec<DeepTakeArg0>, &'a Vec<DeepTakeArg0>),
+    P3(&'a Option<Box<DeepTakeArg0>>, &'a Option<Box<DeepTakeArg0>>),
+    P4(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P5(&'a (Box<DeepTakeArg0>, i32), &'a (Box<DeepTakeArg0>, i32)),
+    P6(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P7(&'a i32, &'a i32),
+    P8(&'a Vec<(String, Box<DeepTakeArg0>)>, &'a Vec<(String, Box<DeepTakeArg0>)>),
+    P9(&'a String, &'a String),
+    P10(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P11(&'a Result<Box<DeepTakeArg0>, String>, &'a Result<Box<DeepTakeArg0>, String>),
+    P12(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P13(&'a String, &'a String),
+    P14(&'a DeepTakeArg0InnerInner, &'a DeepTakeArg0InnerInner),
+    P15(&'a Option<Box<DeepTakeArg0>>, &'a Option<Box<DeepTakeArg0>>),
+    P16(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+    P17(&'a Vec<DeepTakeArg0InnerInner>, &'a Vec<DeepTakeArg0InnerInner>),
+    P18(&'a i32, &'a i32),
+    P19(&'a hd_run_wasmtime::native::Serde, &'a hd_run_wasmtime::native::Serde),
+    P20(&'a Box<DeepTakeArg0>, &'a Box<DeepTakeArg0>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepTakeArg0WirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepTakeArg0::End, DeepTakeArg0::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepTakeArg0::Next { next: a0 }, DeepTakeArg0::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P2(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P0(a, b))); }
+                Self::P0(DeepTakeArg0::Many { items: a0 }, DeepTakeArg0::Many { items: b0 }) => { stack.push(Self::P2(a0, b0)); }
+                Self::P4(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P3(None, None) => {}
+                Self::P3(Some(a), Some(b)) => stack.push(Self::P4(a, b)),
+                Self::P3(..) => return false,
+                Self::P0(DeepTakeArg0::Maybe { at: a0 }, DeepTakeArg0::Maybe { at: b0 }) => { stack.push(Self::P3(a0, b0)); }
+                Self::P6(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P7(a, b) => if a != b { return false; },
+                Self::P5(( a0, a1 ), ( b0, b1 )) => { stack.push(Self::P7(a1, b1)); stack.push(Self::P6(a0, b0)); }
+                Self::P0(DeepTakeArg0::Pair { pair: a0 }, DeepTakeArg0::Pair { pair: b0 }) => { stack.push(Self::P5(a0, b0)); }
+                Self::P9(a, b) => if a != b { return false; },
+                Self::P10(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P8(a, b) => { if a.len() != b.len() { return false; } for ((a0, a1), (b0, b1)) in a.iter().zip(b).rev() { stack.push(Self::P10(a1, b1)); stack.push(Self::P9(a0, b0)); } }
+                Self::P0(DeepTakeArg0::Keyed { map: a0 }, DeepTakeArg0::Keyed { map: b0 }) => { stack.push(Self::P8(a0, b0)); }
+                Self::P12(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P13(a, b) => if a != b { return false; },
+                Self::P11(Ok(a), Ok(b)) => stack.push(Self::P12(a, b)),
+                Self::P11(Err(a), Err(b)) => stack.push(Self::P13(a, b)),
+                Self::P11(..) => return false,
+                Self::P0(DeepTakeArg0::Either { either: a0 }, DeepTakeArg0::Either { either: b0 }) => { stack.push(Self::P11(a0, b0)); }
+                Self::P16(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P15(None, None) => {}
+                Self::P15(Some(a), Some(b)) => stack.push(Self::P16(a, b)),
+                Self::P15(..) => return false,
+                Self::P17(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P14(a, b))); }
+                Self::P18(a, b) => if a != b { return false; },
+                Self::P14(DeepTakeArg0InnerInner { up: a0, kids: a1, tag: a2 }, DeepTakeArg0InnerInner { up: b0, kids: b1, tag: b2 }) => { stack.push(Self::P18(a2, b2)); stack.push(Self::P17(a1, b1)); stack.push(Self::P15(a0, b0)); }
+                Self::P0(DeepTakeArg0::Inner { inner: a0 }, DeepTakeArg0::Inner { inner: b0 }) => { stack.push(Self::P14(a0, b0)); }
+                Self::P19(a, b) => if a != b { return false; },
+                Self::P20(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepTakeArg0::Bad { bad: a0, rest: a1 }, DeepTakeArg0::Bad { bad: b0, rest: b1 }) => { stack.push(Self::P20(a1, b1)); stack.push(Self::P19(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepTakeArg0`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepTakeArg0WireShow<'a> {
+    P0(&'a DeepTakeArg0),
+    P1(&'a Box<DeepTakeArg0>),
+    P2(&'a Vec<DeepTakeArg0>),
+    P3(&'a Option<Box<DeepTakeArg0>>),
+    P4(&'a Box<DeepTakeArg0>),
+    P5(&'a (Box<DeepTakeArg0>, i32)),
+    P6(&'a Box<DeepTakeArg0>),
+    P7(&'a i32),
+    P8(&'a Vec<(String, Box<DeepTakeArg0>)>),
+    P9(&'a String),
+    P10(&'a Box<DeepTakeArg0>),
+    M8(&'a String, &'a Box<DeepTakeArg0>),
+    P11(&'a Result<Box<DeepTakeArg0>, String>),
+    P12(&'a Box<DeepTakeArg0>),
+    P13(&'a String),
+    P14(&'a DeepTakeArg0InnerInner),
+    P15(&'a Option<Box<DeepTakeArg0>>),
+    P16(&'a Box<DeepTakeArg0>),
+    P17(&'a Vec<DeepTakeArg0InnerInner>),
+    P18(&'a i32),
+    P19(&'a hd_run_wasmtime::native::Serde),
+    P20(&'a Box<DeepTakeArg0>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepTakeArg0WireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepTakeArg0::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepTakeArg0::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+            Self::P2(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P0(y)))),
+            Self::P0(DeepTakeArg0::Many { items: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Many {", "}", [("items: ", Self::P2(f0))]),
+            Self::P4(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P3(None) => f.write_str("None"),
+            Self::P3(Some(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Some(", ")", [("", Self::P4(x))]),
+            Self::P0(DeepTakeArg0::Maybe { at: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Maybe {", "}", [("at: ", Self::P3(f0))]),
+            Self::P6(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P7(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P5(( f0, f1 )) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "(", ")", [("", Self::P6(f0)), ("", Self::P7(f1))]),
+            Self::P0(DeepTakeArg0::Pair { pair: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Pair {", "}", [("pair: ", Self::P5(f0))]),
+            Self::P9(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P10(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P8(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|(a, b)| ("", Self::M8(a, b)))),
+            Self::M8(a, b) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "(", ")", [("", Self::P9(a)), ("", Self::P10(b))]),
+            Self::P0(DeepTakeArg0::Keyed { map: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Keyed {", "}", [("map: ", Self::P8(f0))]),
+            Self::P12(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P13(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P11(Ok(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Ok(", ")", [("", Self::P12(x))]),
+            Self::P11(Err(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Err(", ")", [("", Self::P13(x))]),
+            Self::P0(DeepTakeArg0::Either { either: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Either {", "}", [("either: ", Self::P11(f0))]),
+            Self::P16(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P15(None) => f.write_str("None"),
+            Self::P15(Some(x)) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Some(", ")", [("", Self::P16(x))]),
+            Self::P17(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P14(y)))),
+            Self::P18(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P14(DeepTakeArg0InnerInner { up: f0, kids: f1, tag: f2 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "DeepTakeArg0InnerInner {", "}", [("up: ", Self::P15(f0)), ("kids: ", Self::P17(f1)), ("tag: ", Self::P18(f2))]),
+            Self::P0(DeepTakeArg0::Inner { inner: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Inner {", "}", [("inner: ", Self::P14(f0))]),
+            Self::P19(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
+            Self::P20(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepTakeArg0::Bad { bad: f0, rest: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Bad {", "}", [("bad: ", Self::P19(f0)), ("rest: ", Self::P20(f1))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepTakeArg0 {
+    fn clone(&self) -> Self {
+        let DeepTakeArg0Wire::P0(value) = DeepTakeArg0Wire::clone_of(DeepTakeArg0WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepTakeArg0 {
+    fn eq(&self, other: &Self) -> bool {
+        DeepTakeArg0WirePair::all(vec![DeepTakeArg0WirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepTakeArg0 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepTakeArg0WireShow::P0(self), DeepTakeArg0WireShow::show)
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepTakeArg0InnerInner {
+    fn clone(&self) -> Self {
+        let DeepTakeArg0Wire::P14(value) = DeepTakeArg0Wire::clone_of(DeepTakeArg0WireOp::C14(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepTakeArg0InnerInner {
+    fn eq(&self, other: &Self) -> bool {
+        DeepTakeArg0WirePair::all(vec![DeepTakeArg0WirePair::P14(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepTakeArg0InnerInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepTakeArg0WireShow::P14(self), DeepTakeArg0WireShow::show)
+    }
+}
+
+pub enum DeepHoldArg0Item {
+    End,
+    Next {
+        next: Box<DeepHoldArg0Item>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg0Item {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg0ItemWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg0ItemWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg0ItemWire::dismantle(vec![DeepHoldArg0ItemWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg0Item`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg0ItemWire {
+    P0(DeepHoldArg0Item),
+    P1(Box<DeepHoldArg0Item>),
+}
+
+/// A step of `DeepHoldArg0Item`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg0ItemWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg0Item),
+    D1,
+    C1(&'a Box<DeepHoldArg0Item>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg0ItemWire {
+    fn encode(root: DeepHoldArg0Item, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg0Item::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg0Item::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg0Item> {
+        let mut ops = vec![DeepHoldArg0ItemWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg0ItemWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg0ItemWireOp::C0(DeepHoldArg0Item::End) => vals.push(Self::P0(DeepHoldArg0Item::End)),
+                DeepHoldArg0ItemWireOp::D1 => { ops.push(DeepHoldArg0ItemWireOp::W1); ops.push(DeepHoldArg0ItemWireOp::D0); }
+                DeepHoldArg0ItemWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg0ItemWireOp::C1(x) => { ops.push(DeepHoldArg0ItemWireOp::W1); ops.push(DeepHoldArg0ItemWireOp::C0(&**x)); }
+                DeepHoldArg0ItemWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg0Item::Next { next: f0 })); }
+                DeepHoldArg0ItemWireOp::C0(DeepHoldArg0Item::Next { next: f0 }) => { ops.push(DeepHoldArg0ItemWireOp::B0v1); ops.push(DeepHoldArg0ItemWireOp::C1(f0)); }
+                DeepHoldArg0ItemWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg0Item::End)); } _ => { ops.push(DeepHoldArg0ItemWireOp::B0v1); ops.push(DeepHoldArg0ItemWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg0ItemWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg0Item::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg0ItemWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg0ItemWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg0Item`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg0ItemWirePair<'a> {
+    P0(&'a DeepHoldArg0Item, &'a DeepHoldArg0Item),
+    P1(&'a Box<DeepHoldArg0Item>, &'a Box<DeepHoldArg0Item>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg0ItemWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg0Item::End, DeepHoldArg0Item::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg0Item::Next { next: a0 }, DeepHoldArg0Item::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg0Item`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg0ItemWireShow<'a> {
+    P0(&'a DeepHoldArg0Item),
+    P1(&'a Box<DeepHoldArg0Item>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg0ItemWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg0Item::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg0Item::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg0Item {
+    fn clone(&self) -> Self {
+        let DeepHoldArg0ItemWire::P0(value) = DeepHoldArg0ItemWire::clone_of(DeepHoldArg0ItemWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg0Item {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg0ItemWirePair::all(vec![DeepHoldArg0ItemWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg0Item {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg0ItemWireShow::P0(self), DeepHoldArg0ItemWireShow::show)
+    }
+}
+
+pub enum DeepHoldArg1 {
+    End,
+    Next {
+        next: Box<DeepHoldArg1>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg1 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg1Wire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg1Wire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg1Wire::dismantle(vec![DeepHoldArg1Wire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg1`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg1Wire {
+    P0(DeepHoldArg1),
+    P1(Box<DeepHoldArg1>),
+}
+
+/// A step of `DeepHoldArg1`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg1WireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg1),
+    D1,
+    C1(&'a Box<DeepHoldArg1>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg1Wire {
+    fn encode(root: DeepHoldArg1, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg1::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg1::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg1> {
+        let mut ops = vec![DeepHoldArg1WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg1WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg1WireOp::C0(DeepHoldArg1::End) => vals.push(Self::P0(DeepHoldArg1::End)),
+                DeepHoldArg1WireOp::D1 => { ops.push(DeepHoldArg1WireOp::W1); ops.push(DeepHoldArg1WireOp::D0); }
+                DeepHoldArg1WireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg1WireOp::C1(x) => { ops.push(DeepHoldArg1WireOp::W1); ops.push(DeepHoldArg1WireOp::C0(&**x)); }
+                DeepHoldArg1WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg1::Next { next: f0 })); }
+                DeepHoldArg1WireOp::C0(DeepHoldArg1::Next { next: f0 }) => { ops.push(DeepHoldArg1WireOp::B0v1); ops.push(DeepHoldArg1WireOp::C1(f0)); }
+                DeepHoldArg1WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg1::End)); } _ => { ops.push(DeepHoldArg1WireOp::B0v1); ops.push(DeepHoldArg1WireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg1WireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg1::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg1Wire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg1WireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg1`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg1WirePair<'a> {
+    P0(&'a DeepHoldArg1, &'a DeepHoldArg1),
+    P1(&'a Box<DeepHoldArg1>, &'a Box<DeepHoldArg1>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg1WirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg1::End, DeepHoldArg1::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg1::Next { next: a0 }, DeepHoldArg1::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg1`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg1WireShow<'a> {
+    P0(&'a DeepHoldArg1),
+    P1(&'a Box<DeepHoldArg1>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg1WireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg1::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg1::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg1 {
+    fn clone(&self) -> Self {
+        let DeepHoldArg1Wire::P0(value) = DeepHoldArg1Wire::clone_of(DeepHoldArg1WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg1 {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg1WirePair::all(vec![DeepHoldArg1WirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg1 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg1WireShow::P0(self), DeepHoldArg1WireShow::show)
+    }
+}
+
+pub enum DeepHoldArg2Err {
+    End,
+    Next {
+        next: Box<DeepHoldArg2Err>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg2Err {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg2ErrWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg2ErrWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg2ErrWire::dismantle(vec![DeepHoldArg2ErrWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg2Err`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg2ErrWire {
+    P0(DeepHoldArg2Err),
+    P1(Box<DeepHoldArg2Err>),
+}
+
+/// A step of `DeepHoldArg2Err`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg2ErrWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg2Err),
+    D1,
+    C1(&'a Box<DeepHoldArg2Err>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg2ErrWire {
+    fn encode(root: DeepHoldArg2Err, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg2Err::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg2Err::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg2Err> {
+        let mut ops = vec![DeepHoldArg2ErrWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg2ErrWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg2ErrWireOp::C0(DeepHoldArg2Err::End) => vals.push(Self::P0(DeepHoldArg2Err::End)),
+                DeepHoldArg2ErrWireOp::D1 => { ops.push(DeepHoldArg2ErrWireOp::W1); ops.push(DeepHoldArg2ErrWireOp::D0); }
+                DeepHoldArg2ErrWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg2ErrWireOp::C1(x) => { ops.push(DeepHoldArg2ErrWireOp::W1); ops.push(DeepHoldArg2ErrWireOp::C0(&**x)); }
+                DeepHoldArg2ErrWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg2Err::Next { next: f0 })); }
+                DeepHoldArg2ErrWireOp::C0(DeepHoldArg2Err::Next { next: f0 }) => { ops.push(DeepHoldArg2ErrWireOp::B0v1); ops.push(DeepHoldArg2ErrWireOp::C1(f0)); }
+                DeepHoldArg2ErrWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg2Err::End)); } _ => { ops.push(DeepHoldArg2ErrWireOp::B0v1); ops.push(DeepHoldArg2ErrWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg2ErrWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg2Err::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg2ErrWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg2ErrWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg2Err`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg2ErrWirePair<'a> {
+    P0(&'a DeepHoldArg2Err, &'a DeepHoldArg2Err),
+    P1(&'a Box<DeepHoldArg2Err>, &'a Box<DeepHoldArg2Err>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg2ErrWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg2Err::End, DeepHoldArg2Err::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg2Err::Next { next: a0 }, DeepHoldArg2Err::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg2Err`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg2ErrWireShow<'a> {
+    P0(&'a DeepHoldArg2Err),
+    P1(&'a Box<DeepHoldArg2Err>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg2ErrWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg2Err::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg2Err::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg2Err {
+    fn clone(&self) -> Self {
+        let DeepHoldArg2ErrWire::P0(value) = DeepHoldArg2ErrWire::clone_of(DeepHoldArg2ErrWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg2Err {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg2ErrWirePair::all(vec![DeepHoldArg2ErrWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg2Err {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg2ErrWireShow::P0(self), DeepHoldArg2ErrWireShow::show)
+    }
+}
+
+pub enum DeepHoldArg3Value {
+    End,
+    Next {
+        next: Box<DeepHoldArg3Value>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg3Value {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg3ValueWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg3ValueWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg3ValueWire::dismantle(vec![DeepHoldArg3ValueWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg3Value`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg3ValueWire {
+    P0(DeepHoldArg3Value),
+    P1(Box<DeepHoldArg3Value>),
+}
+
+/// A step of `DeepHoldArg3Value`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg3ValueWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg3Value),
+    D1,
+    C1(&'a Box<DeepHoldArg3Value>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg3ValueWire {
+    fn encode(root: DeepHoldArg3Value, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg3Value::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg3Value::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg3Value> {
+        let mut ops = vec![DeepHoldArg3ValueWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg3ValueWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg3ValueWireOp::C0(DeepHoldArg3Value::End) => vals.push(Self::P0(DeepHoldArg3Value::End)),
+                DeepHoldArg3ValueWireOp::D1 => { ops.push(DeepHoldArg3ValueWireOp::W1); ops.push(DeepHoldArg3ValueWireOp::D0); }
+                DeepHoldArg3ValueWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg3ValueWireOp::C1(x) => { ops.push(DeepHoldArg3ValueWireOp::W1); ops.push(DeepHoldArg3ValueWireOp::C0(&**x)); }
+                DeepHoldArg3ValueWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg3Value::Next { next: f0 })); }
+                DeepHoldArg3ValueWireOp::C0(DeepHoldArg3Value::Next { next: f0 }) => { ops.push(DeepHoldArg3ValueWireOp::B0v1); ops.push(DeepHoldArg3ValueWireOp::C1(f0)); }
+                DeepHoldArg3ValueWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg3Value::End)); } _ => { ops.push(DeepHoldArg3ValueWireOp::B0v1); ops.push(DeepHoldArg3ValueWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg3ValueWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg3Value::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg3ValueWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg3ValueWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg3Value`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg3ValueWirePair<'a> {
+    P0(&'a DeepHoldArg3Value, &'a DeepHoldArg3Value),
+    P1(&'a Box<DeepHoldArg3Value>, &'a Box<DeepHoldArg3Value>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg3ValueWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg3Value::End, DeepHoldArg3Value::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg3Value::Next { next: a0 }, DeepHoldArg3Value::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg3Value`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg3ValueWireShow<'a> {
+    P0(&'a DeepHoldArg3Value),
+    P1(&'a Box<DeepHoldArg3Value>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg3ValueWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg3Value::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg3Value::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg3Value {
+    fn clone(&self) -> Self {
+        let DeepHoldArg3ValueWire::P0(value) = DeepHoldArg3ValueWire::clone_of(DeepHoldArg3ValueWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg3Value {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg3ValueWirePair::all(vec![DeepHoldArg3ValueWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg3Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg3ValueWireShow::P0(self), DeepHoldArg3ValueWireShow::show)
+    }
+}
+
+pub enum DeepHoldArg40 {
+    End,
+    Next {
+        next: Box<DeepHoldArg40>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg40 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg40Wire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg40Wire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg40Wire::dismantle(vec![DeepHoldArg40Wire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg40`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg40Wire {
+    P0(DeepHoldArg40),
+    P1(Box<DeepHoldArg40>),
+}
+
+/// A step of `DeepHoldArg40`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg40WireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg40),
+    D1,
+    C1(&'a Box<DeepHoldArg40>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg40Wire {
+    fn encode(root: DeepHoldArg40, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg40::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg40::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg40> {
+        let mut ops = vec![DeepHoldArg40WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg40WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg40WireOp::C0(DeepHoldArg40::End) => vals.push(Self::P0(DeepHoldArg40::End)),
+                DeepHoldArg40WireOp::D1 => { ops.push(DeepHoldArg40WireOp::W1); ops.push(DeepHoldArg40WireOp::D0); }
+                DeepHoldArg40WireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg40WireOp::C1(x) => { ops.push(DeepHoldArg40WireOp::W1); ops.push(DeepHoldArg40WireOp::C0(&**x)); }
+                DeepHoldArg40WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg40::Next { next: f0 })); }
+                DeepHoldArg40WireOp::C0(DeepHoldArg40::Next { next: f0 }) => { ops.push(DeepHoldArg40WireOp::B0v1); ops.push(DeepHoldArg40WireOp::C1(f0)); }
+                DeepHoldArg40WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg40::End)); } _ => { ops.push(DeepHoldArg40WireOp::B0v1); ops.push(DeepHoldArg40WireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg40WireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg40::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg40Wire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg40WireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg40`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg40WirePair<'a> {
+    P0(&'a DeepHoldArg40, &'a DeepHoldArg40),
+    P1(&'a Box<DeepHoldArg40>, &'a Box<DeepHoldArg40>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg40WirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg40::End, DeepHoldArg40::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg40::Next { next: a0 }, DeepHoldArg40::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg40`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg40WireShow<'a> {
+    P0(&'a DeepHoldArg40),
+    P1(&'a Box<DeepHoldArg40>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg40WireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg40::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg40::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg40 {
+    fn clone(&self) -> Self {
+        let DeepHoldArg40Wire::P0(value) = DeepHoldArg40Wire::clone_of(DeepHoldArg40WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg40 {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg40WirePair::all(vec![DeepHoldArg40WirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg40 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg40WireShow::P0(self), DeepHoldArg40WireShow::show)
+    }
+}
+
+pub enum DeepHoldArg5Node {
+    End,
+    Next {
+        next: Box<DeepHoldArg5Node>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg5Node {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg5NodeWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg5NodeWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg5NodeWire::dismantle(vec![DeepHoldArg5NodeWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg5Node`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg5NodeWire {
+    P0(DeepHoldArg5Node),
+    P1(Box<DeepHoldArg5Node>),
+}
+
+/// A step of `DeepHoldArg5Node`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg5NodeWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg5Node),
+    D1,
+    C1(&'a Box<DeepHoldArg5Node>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg5NodeWire {
+    fn encode(root: DeepHoldArg5Node, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg5Node::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg5Node::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg5Node> {
+        let mut ops = vec![DeepHoldArg5NodeWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg5NodeWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg5NodeWireOp::C0(DeepHoldArg5Node::End) => vals.push(Self::P0(DeepHoldArg5Node::End)),
+                DeepHoldArg5NodeWireOp::D1 => { ops.push(DeepHoldArg5NodeWireOp::W1); ops.push(DeepHoldArg5NodeWireOp::D0); }
+                DeepHoldArg5NodeWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg5NodeWireOp::C1(x) => { ops.push(DeepHoldArg5NodeWireOp::W1); ops.push(DeepHoldArg5NodeWireOp::C0(&**x)); }
+                DeepHoldArg5NodeWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg5Node::Next { next: f0 })); }
+                DeepHoldArg5NodeWireOp::C0(DeepHoldArg5Node::Next { next: f0 }) => { ops.push(DeepHoldArg5NodeWireOp::B0v1); ops.push(DeepHoldArg5NodeWireOp::C1(f0)); }
+                DeepHoldArg5NodeWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg5Node::End)); } _ => { ops.push(DeepHoldArg5NodeWireOp::B0v1); ops.push(DeepHoldArg5NodeWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg5NodeWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg5Node::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg5NodeWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg5NodeWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg5Node`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg5NodeWirePair<'a> {
+    P0(&'a DeepHoldArg5Node, &'a DeepHoldArg5Node),
+    P1(&'a Box<DeepHoldArg5Node>, &'a Box<DeepHoldArg5Node>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg5NodeWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg5Node::End, DeepHoldArg5Node::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg5Node::Next { next: a0 }, DeepHoldArg5Node::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg5Node`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg5NodeWireShow<'a> {
+    P0(&'a DeepHoldArg5Node),
+    P1(&'a Box<DeepHoldArg5Node>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg5NodeWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg5Node::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg5Node::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg5Node {
+    fn clone(&self) -> Self {
+        let DeepHoldArg5NodeWire::P0(value) = DeepHoldArg5NodeWire::clone_of(DeepHoldArg5NodeWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg5Node {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg5NodeWirePair::all(vec![DeepHoldArg5NodeWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg5Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg5NodeWireShow::P0(self), DeepHoldArg5NodeWireShow::show)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeepHoldArg5 {
+    pub node: DeepHoldArg5Node,
+    pub n: i32,
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg5 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let Self { node: f0, n: f1 } = self;
+        DeepHoldArg5Node::wire_encode(f0, e)?;
+        e.signed(i64::from(f1));
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(Self { node: DeepHoldArg5Node::wire_decode(d)?, n: d.signed::<i32>()? })
+    }
+
+    fn wire_dismantle(self) {
+        let Self { node: f0, .. } = self;
+        DeepHoldArg5Node::dismantle(f0);
+    }
+}
+
+pub enum DeepHoldArg6FullNode {
+    End,
+    Next {
+        next: Box<DeepHoldArg6FullNode>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg6FullNode {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg6FullNodeWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg6FullNodeWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg6FullNodeWire::dismantle(vec![DeepHoldArg6FullNodeWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg6FullNode`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg6FullNodeWire {
+    P0(DeepHoldArg6FullNode),
+    P1(Box<DeepHoldArg6FullNode>),
+}
+
+/// A step of `DeepHoldArg6FullNode`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg6FullNodeWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg6FullNode),
+    D1,
+    C1(&'a Box<DeepHoldArg6FullNode>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg6FullNodeWire {
+    fn encode(root: DeepHoldArg6FullNode, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg6FullNode::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg6FullNode::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg6FullNode> {
+        let mut ops = vec![DeepHoldArg6FullNodeWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg6FullNodeWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg6FullNodeWireOp::C0(DeepHoldArg6FullNode::End) => vals.push(Self::P0(DeepHoldArg6FullNode::End)),
+                DeepHoldArg6FullNodeWireOp::D1 => { ops.push(DeepHoldArg6FullNodeWireOp::W1); ops.push(DeepHoldArg6FullNodeWireOp::D0); }
+                DeepHoldArg6FullNodeWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg6FullNodeWireOp::C1(x) => { ops.push(DeepHoldArg6FullNodeWireOp::W1); ops.push(DeepHoldArg6FullNodeWireOp::C0(&**x)); }
+                DeepHoldArg6FullNodeWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg6FullNode::Next { next: f0 })); }
+                DeepHoldArg6FullNodeWireOp::C0(DeepHoldArg6FullNode::Next { next: f0 }) => { ops.push(DeepHoldArg6FullNodeWireOp::B0v1); ops.push(DeepHoldArg6FullNodeWireOp::C1(f0)); }
+                DeepHoldArg6FullNodeWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg6FullNode::End)); } _ => { ops.push(DeepHoldArg6FullNodeWireOp::B0v1); ops.push(DeepHoldArg6FullNodeWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg6FullNodeWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg6FullNode::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg6FullNodeWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg6FullNodeWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg6FullNode`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg6FullNodeWirePair<'a> {
+    P0(&'a DeepHoldArg6FullNode, &'a DeepHoldArg6FullNode),
+    P1(&'a Box<DeepHoldArg6FullNode>, &'a Box<DeepHoldArg6FullNode>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg6FullNodeWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg6FullNode::End, DeepHoldArg6FullNode::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg6FullNode::Next { next: a0 }, DeepHoldArg6FullNode::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg6FullNode`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg6FullNodeWireShow<'a> {
+    P0(&'a DeepHoldArg6FullNode),
+    P1(&'a Box<DeepHoldArg6FullNode>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg6FullNodeWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg6FullNode::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg6FullNode::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg6FullNode {
+    fn clone(&self) -> Self {
+        let DeepHoldArg6FullNodeWire::P0(value) = DeepHoldArg6FullNodeWire::clone_of(DeepHoldArg6FullNodeWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg6FullNode {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg6FullNodeWirePair::all(vec![DeepHoldArg6FullNodeWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg6FullNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg6FullNodeWireShow::P0(self), DeepHoldArg6FullNodeWireShow::show)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DeepHoldArg6 {
+    Empty,
+    Full {
+        node: DeepHoldArg6FullNode,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg6 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        match self {
+            Self::Empty => e.tag(0),
+            Self::Full { node: f0 } => {
+                e.tag(1);
+                DeepHoldArg6FullNode::wire_encode(f0, e)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        Ok(match d.tag(2)? {
+            0 => Self::Empty,
+            _ => Self::Full { node: DeepHoldArg6FullNode::wire_decode(d)? },
+        })
+    }
+
+    fn wire_dismantle(self) {
+        match self {
+            Self::Full { node: f0, .. } => {
+                DeepHoldArg6FullNode::dismantle(f0);
+            }
+            _ => {}
+        }
+    }
+}
+
+pub enum DeepHoldArg7OnlyNode {
+    End,
+    Next {
+        next: Box<DeepHoldArg7OnlyNode>,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg7OnlyNode {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        DeepHoldArg7OnlyNodeWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        DeepHoldArg7OnlyNodeWire::decode(d)
+    }
+
+    /// Drops this value one level at a time, in constant native stack,
+    /// where dropping it in place would recurse once per nesting level.
+    pub fn dismantle(self) {
+        DeepHoldArg7OnlyNodeWire::dismantle(vec![DeepHoldArg7OnlyNodeWire::P0(self)]);
+    }
+}
+
+/// A value of `DeepHoldArg7OnlyNode`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg7OnlyNodeWire {
+    P0(DeepHoldArg7OnlyNode),
+    P1(Box<DeepHoldArg7OnlyNode>),
+}
+
+/// A step of `DeepHoldArg7OnlyNode`'s decoder, or of a clone of one of its group's values.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum DeepHoldArg7OnlyNodeWireOp<'a> {
+    D0,
+    C0(&'a DeepHoldArg7OnlyNode),
+    D1,
+    C1(&'a Box<DeepHoldArg7OnlyNode>),
+    W1,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg7OnlyNodeWire {
+    fn encode(root: DeepHoldArg7OnlyNode, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(DeepHoldArg7OnlyNode::End) => e.tag(0),
+                Self::P1(x) => stack.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg7OnlyNode::Next { next: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<DeepHoldArg7OnlyNode> {
+        let mut ops = vec![DeepHoldArg7OnlyNodeWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<DeepHoldArg7OnlyNodeWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                DeepHoldArg7OnlyNodeWireOp::C0(DeepHoldArg7OnlyNode::End) => vals.push(Self::P0(DeepHoldArg7OnlyNode::End)),
+                DeepHoldArg7OnlyNodeWireOp::D1 => { ops.push(DeepHoldArg7OnlyNodeWireOp::W1); ops.push(DeepHoldArg7OnlyNodeWireOp::D0); }
+                DeepHoldArg7OnlyNodeWireOp::W1 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P1(Box::new(x))); }
+                DeepHoldArg7OnlyNodeWireOp::C1(x) => { ops.push(DeepHoldArg7OnlyNodeWireOp::W1); ops.push(DeepHoldArg7OnlyNodeWireOp::C0(&**x)); }
+                DeepHoldArg7OnlyNodeWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(DeepHoldArg7OnlyNode::Next { next: f0 })); }
+                DeepHoldArg7OnlyNodeWireOp::C0(DeepHoldArg7OnlyNode::Next { next: f0 }) => { ops.push(DeepHoldArg7OnlyNodeWireOp::B0v1); ops.push(DeepHoldArg7OnlyNodeWireOp::C1(f0)); }
+                DeepHoldArg7OnlyNodeWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(DeepHoldArg7OnlyNode::End)); } _ => { ops.push(DeepHoldArg7OnlyNodeWireOp::B0v1); ops.push(DeepHoldArg7OnlyNodeWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<DeepHoldArg7OnlyNodeWireOp<'_>>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.push(Self::P0(*x)),
+                Self::P0(DeepHoldArg7OnlyNode::Next { next: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg7OnlyNodeWire {
+    /// The value `op` reads, built bottom-up through the decoder's own
+    /// build ops: a clone reads no bytes.
+    fn clone_of(op: DeepHoldArg7OnlyNodeWireOp<'_>) -> Self {
+        let mut ops = vec![op];
+        let mut vals = Vec::new();
+        let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
+        let Some(value) = vals.pop() else { unreachable!("ruled out: a finished clone leaves its root") };
+        value
+    }
+}
+
+/// Two values of `DeepHoldArg7OnlyNode`'s recursive group at one position, compared one
+/// position at a time.
+#[allow(dead_code)]
+enum DeepHoldArg7OnlyNodeWirePair<'a> {
+    P0(&'a DeepHoldArg7OnlyNode, &'a DeepHoldArg7OnlyNode),
+    P1(&'a Box<DeepHoldArg7OnlyNode>, &'a Box<DeepHoldArg7OnlyNode>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg7OnlyNodeWirePair<'_> {
+    fn all(mut stack: Vec<Self>) -> bool {
+        while let Some(pair) = stack.pop() {
+            match pair {
+                Self::P0(DeepHoldArg7OnlyNode::End, DeepHoldArg7OnlyNode::End) => {}
+                Self::P1(a, b) => stack.push(Self::P0(&**a, &**b)),
+                Self::P0(DeepHoldArg7OnlyNode::Next { next: a0 }, DeepHoldArg7OnlyNode::Next { next: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(..) => return false,
+            }
+        }
+        true
+    }
+}
+
+/// A value of `DeepHoldArg7OnlyNode`'s recursive group at one position of its `Debug`,
+/// or a map entry's pair of positions.
+#[allow(dead_code)]
+enum DeepHoldArg7OnlyNodeWireShow<'a> {
+    P0(&'a DeepHoldArg7OnlyNode),
+    P1(&'a Box<DeepHoldArg7OnlyNode>),
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl DeepHoldArg7OnlyNodeWireShow<'_> {
+    fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::P0(DeepHoldArg7OnlyNode::End) => f.write_str("End"),
+            Self::P1(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
+            Self::P0(DeepHoldArg7OnlyNode::Next { next: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Next {", "}", [("next: ", Self::P1(f0))]),
+        }
+    }
+}
+
+#[allow(irrefutable_let_patterns)]
+impl Clone for DeepHoldArg7OnlyNode {
+    fn clone(&self) -> Self {
+        let DeepHoldArg7OnlyNodeWire::P0(value) = DeepHoldArg7OnlyNodeWire::clone_of(DeepHoldArg7OnlyNodeWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        value
+    }
+}
+
+impl PartialEq for DeepHoldArg7OnlyNode {
+    fn eq(&self, other: &Self) -> bool {
+        DeepHoldArg7OnlyNodeWirePair::all(vec![DeepHoldArg7OnlyNodeWirePair::P0(self, other)])
+    }
+}
+
+impl std::fmt::Debug for DeepHoldArg7OnlyNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        hd_run_wasmtime::native::wire::Show::run(f, DeepHoldArg7OnlyNodeWireShow::P0(self), DeepHoldArg7OnlyNodeWireShow::show)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DeepHoldArg7 {
+    Only {
+        node: DeepHoldArg7OnlyNode,
+    },
+}
+
+#[allow(dead_code)]
+impl DeepHoldArg7 {
+    fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        match self {
+            Self::Only { node: f0 } => {
+                e.tag(0);
+                DeepHoldArg7OnlyNode::wire_encode(f0, e)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        d.tag(1)?;
+        Ok(Self::Only { node: DeepHoldArg7OnlyNode::wire_decode(d)? })
+    }
+
+    fn wire_dismantle(self) {
+        match self {
+            Self::Only { node: f0, .. } => {
+                DeepHoldArg7OnlyNode::dismantle(f0);
+            }
+        }
+    }
+}
+
 /// `example.org/ui-tui@0.3.0/Deep`.
 pub trait Deep {
     fn make(&mut self, arg0: u32, arg1: u32) -> hd_run_wasmtime::native::HostResult<DeepMakeResult>;
-    fn take(&mut self, arg0: DeepTakeArg0) -> hd_run_wasmtime::native::HostResult<u32>;
+    fn take(&mut self, arg0: &DeepTakeArg0) -> hd_run_wasmtime::native::HostResult<u32>;
+    fn hold(&mut self, arg0: &Vec<DeepHoldArg0Item>, arg1: &Option<DeepHoldArg1>, arg2: &Result<i32, DeepHoldArg2Err>, arg3: &Vec<(String, DeepHoldArg3Value)>, arg4: &(DeepHoldArg40, i32), arg5: &DeepHoldArg5, arg6: &DeepHoldArg6, arg7: &DeepHoldArg7) -> hd_run_wasmtime::native::HostResult<u32>;
 }
 
 /// Calls the method at index `method` of the registered `Deep` with its
@@ -608,9 +2687,26 @@ pub fn dispatch_Deep(provider: &mut dyn std::any::Any, method: usize, args: &[u8
         }
         1 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = DeepTakeArg0::wire_decode(d)?;
+            let arg0 = hd_run_wasmtime::native::wire::Lent::new(DeepTakeArg0::wire_decode(d)?, |x: DeepTakeArg0| { DeepTakeArg0::dismantle(x); });
             d.finish()?;
-            let value = provider.take(arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
+            let value = provider.take(&arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
+            let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
+            let e = &mut enc;
+            e.unsigned(u64::from(value));
+            Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
+        }
+        2 => {
+            let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
+            let arg0 = hd_run_wasmtime::native::wire::Lent::new({ let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(DeepHoldArg0Item::wire_decode(d)?); } x }, |x: Vec<DeepHoldArg0Item>| { for x in x { DeepHoldArg0Item::dismantle(x); } });
+            let arg1 = hd_run_wasmtime::native::wire::Lent::new(if d.tag(2)? == 0 { None } else { Some(DeepHoldArg1::wire_decode(d)?) }, |x: Option<DeepHoldArg1>| { if let Some(x) = x { DeepHoldArg1::dismantle(x); } });
+            let arg2 = hd_run_wasmtime::native::wire::Lent::new(if d.tag(2)? == 0 { Ok(d.signed::<i32>()?) } else { Err(DeepHoldArg2Err::wire_decode(d)?) }, |x: Result<i32, DeepHoldArg2Err>| { match x { Ok(_) => {  } Err(x) => { DeepHoldArg2Err::dismantle(x); } } });
+            let arg3 = hd_run_wasmtime::native::wire::Lent::new({ let n = d.map_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { let k = d.string()?; x.push((k, DeepHoldArg3Value::wire_decode(d)?)); } x }, |x: Vec<(String, DeepHoldArg3Value)>| { for (_, x) in x {  DeepHoldArg3Value::dismantle(x); } });
+            let arg4 = hd_run_wasmtime::native::wire::Lent::new((DeepHoldArg40::wire_decode(d)?, d.signed::<i32>()?), |x: (DeepHoldArg40, i32)| { { let (t0, _) = x; DeepHoldArg40::dismantle(t0); } });
+            let arg5 = hd_run_wasmtime::native::wire::Lent::new(DeepHoldArg5::wire_decode(d)?, |x: DeepHoldArg5| { DeepHoldArg5::wire_dismantle(x); });
+            let arg6 = hd_run_wasmtime::native::wire::Lent::new(DeepHoldArg6::wire_decode(d)?, |x: DeepHoldArg6| { DeepHoldArg6::wire_dismantle(x); });
+            let arg7 = hd_run_wasmtime::native::wire::Lent::new(DeepHoldArg7::wire_decode(d)?, |x: DeepHoldArg7| { DeepHoldArg7::wire_dismantle(x); });
+            d.finish()?;
+            let value = provider.hold(&arg0, &arg1, &arg2, &arg3, &arg4, &arg5, &arg6, &arg7).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.unsigned(u64::from(value));
