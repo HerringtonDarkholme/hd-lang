@@ -1,0 +1,102 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: scalar field writes borrow the constructor's count owner in release.
+# Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
+use std.annotation.cold
+
+struct Record:
+    text: string
+    n: i64
+
+struct Outer:
+    inner: Record
+
+struct Buffer:
+    items: List[i64]
+
+fn identity(value: &mut Record) -> &mut Record:
+    value
+
+fn direct(text: string) -> i64:
+    let mut value = Record { text, n: 1 }
+    value.n = 3
+    value.n
+
+fn aliased(text: string) -> i64:
+    let mut value = Record { text, n: 1 }
+    view := identity(&mut value)
+    alias := view
+    alias.n += 3
+    alias.n
+
+fn nested(text: string) -> i64:
+    let mut value = Outer { inner: Record { text, n: 1 } }
+    view := &mut value
+    view.inner.n = 5
+    view.inner.n
+
+fn snapshot(text: string) -> i64:
+    let mut value = Record { text, n: 1 }
+    saved := value
+    view := &mut value
+    view.n = 2
+    saved.n * 10 + value.n
+
+type Wide = (Record, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)
+
+@cold
+fn wide_snapshot(before: Wide) -> i64:
+    let mut after = before
+    view := &mut after
+    view._0.n += 1
+    before._0.n * 10 + after._0.n
+
+@cold
+fn copied_parameter(before: Record) -> i64:
+    let mut after = before
+    view := &mut after
+    view.n += 1
+    before.n * 10 + after.n
+
+fn counted_field(text: string) -> usize:
+    let mut value = Record { text, n: 1 }
+    view := &mut value
+    view.text = "fresh"
+    value.text.len()
+
+@cold
+fn replace(value: &mut Record) -> void:
+    value.text = "replaced"
+
+fn mutable_call(text: string) -> usize:
+    let mut value = Record { text, n: 1 }
+    replace(&mut value)
+    value.text.len()
+
+fn heap(text: string) -> i64:
+    let mut value = box(Record { text, n: 1 })
+    view := &mut value
+    view.n = 7
+    value.n
+
+fn indexed(items: List[i64]) -> i64:
+    let mut value = Buffer { items }
+    view := &mut value
+    view.items[0] = 9
+    items[0] * 10 + value.items[0]
+
+pub fn main() -> void $ Console:
+    text := "b" + "eta"
+    println(direct(text))
+    println(aliased(text))
+    println(nested(text))
+    println(snapshot(text))
+    source := Record { text, n: 3 }
+    println(copied_parameter(source))
+    println(source.n)
+    println(wide_snapshot((source, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
+    println(counted_field(text))
+    println(mutable_call(text))
+    println(heap(text))
+    println(indexed([1]))
+    println(text)
