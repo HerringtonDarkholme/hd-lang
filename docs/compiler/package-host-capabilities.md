@@ -355,7 +355,8 @@ Resource cleanup remains an explicit operation, such as `dispose!`; release does
 ## Wasmtime Refusal And Deferred Native Loading
 
 The native host refuses a required package capability with no registered native provider before entering the guest.
-The `hd` command registers none, so it refuses every package capability on Wasmtime; there is no engine fallback.
+The `hd` command registers none, so `hd --engine wasmtime` refuses every package capability, naming the trait and saying that a native provider needs a Rust program embedding `hd_run_wasmtime`.
+Without `--engine`, `hd run` and `hd FILE.wasm` choose Node for such a module, whatever `HD_ENGINE` says: `engine::Choice::for_module` reads the contract that `execute` decodes once for the run, after the capability refusal and before the module loads, so there is still no engine fallback mid-run ([`cli.host.package.native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node)).
 [Native Package Providers](../../spec/cli/command-line.md#native-package-providers) specifies embedder registration, built by #2077 to #2083.
 Dylib loading and general exported functions remain deferred.
 

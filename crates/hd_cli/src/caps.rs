@@ -8,6 +8,7 @@ use std::ffi::OsString;
 use std::path::Path;
 
 use hd_diag::Code;
+use hd_host_abi::schema::Contract;
 use hd_project::{Grant, SourceSet as _, grant_problem};
 use hd_run::{GrantValue, Grants};
 
@@ -206,8 +207,13 @@ pub(crate) fn required(program: &crate::disk::Program, out: &hd_driver::Output) 
 /// position that names the trait and the setting that denied it, the
 /// `hd.toml` key or the `--cap` flag (`cli.cap.total.message`). A deny
 /// always wins (`cli.cap.order.deny`).
-pub(crate) fn refusal(wasm: &[u8], table: &[(String, Grant)], flags: &[CapFlag]) -> Option<Diag> {
-    denied(wasm, table, "hd.toml", flags, "the program")
+pub(crate) fn refusal(
+    wasm: &[u8],
+    contract: Option<&Contract>,
+    table: &[(String, Grant)],
+    flags: &[CapFlag],
+) -> Option<Diag> {
+    denied(wasm, contract, table, "hd.toml", flags, "the program")
 }
 
 /// The same refusal of an integration test program or a doc test under the
@@ -218,8 +224,13 @@ pub(crate) fn test_refusal(
     flags: &[CapFlag],
     file: &str,
 ) -> Option<Diag> {
+    let contract = match crate::host_contract(wasm) {
+        Ok(c) => c,
+        Err(e) => return Some(Diag::error(None, &e)),
+    };
     denied(
         wasm,
+        contract.as_ref(),
         table,
         "`[capabilities]` or `[dev-capabilities]` of hd.toml",
         flags,
@@ -229,6 +240,7 @@ pub(crate) fn test_refusal(
 
 fn denied(
     wasm: &[u8],
+    contract: Option<&Contract>,
     table: &[(String, Grant)],
     table_name: &str,
     flags: &[CapFlag],
@@ -238,10 +250,6 @@ fn denied(
         Ok(i) => i,
         Err(e) => return Some(Diag::error(None, &format!("the built module: {e}"))),
     };
-    let artifacts = match hd_driver::host_artifacts(wasm) {
-        Ok(a) => a,
-        Err(e) => return Some(Diag::error(None, &format!("the built host contract: {e}"))),
-    };
     // The one consent index every host asks (`hd_run::Consent`), so this
     // refusal and the engine's preflight agree on the same manifest.
     let (table_values, flag_values) = values(table, flags);
@@ -250,9 +258,8 @@ fn denied(
         .into_iter()
         .find(|need| consent.denies(need))
         .or_else(|| {
-            artifacts.iter().find_map(|a| {
-                a.contract
-                    .interfaces
+            contract.into_iter().find_map(|c| {
+                c.interfaces
                     .iter()
                     .filter(|i| !i.handle)
                     .find_map(|i| match consent.package(i) {

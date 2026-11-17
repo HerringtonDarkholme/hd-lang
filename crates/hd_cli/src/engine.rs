@@ -282,6 +282,55 @@ pub(crate) fn engine_flag(
     Some(parse(&name).map(|k| (k, used)))
 }
 
+/// The engine a command's words chose, and whether an `--engine` flag
+/// named it. Only a named engine is kept for a module that needs a
+/// package host trait (`cli.host.package.native-cli-node`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Choice {
+    pub(crate) kind: EngineKind,
+    pub(crate) named: bool,
+}
+
+impl Choice {
+    /// `--engine NAME`'s engine.
+    pub(crate) const fn named(kind: EngineKind) -> Self {
+        Self { kind, named: true }
+    }
+
+    /// The engine of a command with no `--engine` flag: `HD_ENGINE`, else Node.
+    pub(crate) fn from_env() -> Result<Self, String> {
+        from_env().map(|kind| Self { kind, named: false })
+    }
+
+    /// The engine that runs a module whose package host contract is
+    /// `contract`, decided once before the module loads
+    /// (`cli.host.package.native-cli-startup`). `hd` registers no native
+    /// provider, so a module with a root host interface runs on Node unless
+    /// `--engine` named Wasmtime, which is refused, naming the trait
+    /// (`native-cli`, `native-cli-explicit`). Cost: one pass over the
+    /// contract's interfaces, which the caller decoded once for the run.
+    pub(crate) fn for_module(
+        self,
+        contract: Option<&hd_host_abi::schema::Contract>,
+    ) -> Result<EngineKind, String> {
+        if self.kind == EngineKind::Node {
+            return Ok(EngineKind::Node);
+        }
+        let Some(root) = contract.and_then(|c| c.interfaces.iter().find(|i| !i.handle)) else {
+            return Ok(self.kind);
+        };
+        if !self.named {
+            return Ok(EngineKind::Node);
+        }
+        Err(format!(
+            "no native provider registered for package host trait {:?}: `hd` registers none, \
+             so `--engine wasmtime` cannot run this program; a native provider needs a Rust \
+             program that embeds `hd_run_wasmtime`, and without `--engine`, `hd` runs it on Node",
+            root.identity.to_string()
+        ))
+    }
+}
+
 /// The engine of a run with no `--engine` flag: `HD_ENGINE`, else Node.
 pub(crate) fn from_env() -> Result<EngineKind, String> {
     match std::env::var("HD_ENGINE") {
@@ -808,6 +857,54 @@ mod tests {
         assert_eq!(list[0].0, "tool");
         assert_eq!(list[0].1, [0, 97, 115, 109]);
         assert_eq!(list[0].2, grants);
+    }
+
+    /// `cli.host.package.native-cli-node`, `-explicit`: every engine source
+    /// against a module with no contract, a handle-only contract and a
+    /// root interface.
+    #[test]
+    fn a_package_host_trait_selects_node_unless_wasmtime_is_named() {
+        use super::Choice;
+        use hd_host_abi::schema::{Contract, Identity, Interface};
+        let interface = |trait_path: &str, handle: bool| Interface {
+            identity: Identity {
+                package: "sdk".into(),
+                version: "1.2.0".into(),
+                trait_path: trait_path.into(),
+            },
+            module: format!("pkg:{trait_path}"),
+            selectors: Vec::new(),
+            handle,
+            methods: Vec::new(),
+        };
+        let handles = Contract {
+            interfaces: vec![interface("Conn", true)],
+        };
+        let rooted = Contract {
+            interfaces: vec![interface("Conn", true), interface("Server", false)],
+        };
+        let env = |kind| Choice { kind, named: false };
+        let named = Choice::named;
+        for choice in [env(EngineKind::Wasmtime), named(EngineKind::Wasmtime)] {
+            assert_eq!(choice.for_module(None), Ok(EngineKind::Wasmtime));
+            assert_eq!(choice.for_module(Some(&handles)), Ok(EngineKind::Wasmtime));
+        }
+        for choice in [env(EngineKind::Node), named(EngineKind::Node)] {
+            assert_eq!(choice.for_module(None), Ok(EngineKind::Node));
+            assert_eq!(choice.for_module(Some(&rooted)), Ok(EngineKind::Node));
+        }
+        // Unnamed: Node, decided from the contract alone.
+        assert_eq!(
+            env(EngineKind::Wasmtime).for_module(Some(&rooted)),
+            Ok(EngineKind::Node)
+        );
+        // Named: refused, naming the root trait and how to provide it.
+        let error = named(EngineKind::Wasmtime)
+            .for_module(Some(&rooted))
+            .unwrap_err();
+        assert!(error.contains("\"sdk@1.2.0/Server\""), "{error}");
+        assert!(error.contains("embeds `hd_run_wasmtime`"), "{error}");
+        assert_eq!(Choice::default(), env(EngineKind::Node));
     }
 
     #[cfg(not(feature = "wasmtime"))]

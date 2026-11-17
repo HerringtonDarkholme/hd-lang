@@ -131,26 +131,31 @@ fn unavailable_wasmtime(steps: &[Step], wasmtime_available: bool) -> bool {
             .any(|step| explicit_engine(&step.words) == Some("wasmtime"))
 }
 
+/// A step's words, its route, and the `HD_ENGINE` it runs with. A forced
+/// mode makes its engine the command's default through `HD_ENGINE`, as a
+/// build defaulting to that engine would, so a step without `--engine`
+/// keeps `hd`'s own choice for a module that needs a package host trait
+/// (`cli.host.package.native-cli-node`). A session names its engine.
 fn select_engine(
     words: &[String],
     mode: EngineMode,
     fallback: &str,
-) -> (Vec<String>, RuntimeRoute) {
+) -> (Vec<String>, RuntimeRoute, Option<&'static str>) {
     let mut selected = words.to_vec();
     let Some((command, test)) = runtime_command(words) else {
-        return (selected, RuntimeRoute::None);
+        return (selected, RuntimeRoute::None, None);
     };
     let explicit = explicit_engine(words);
+    let mut env = None;
     let engine = if let Some(engine) = explicit {
         engine
     } else if let Some(engine) = mode.forced_engine() {
-        // Keep `run` as the command; standalone files allow leading options.
-        let at = if matches!(words[command].as_str(), "run" | "test" | "--repl") {
-            command + 1
+        if words[command] == "--repl" {
+            let at = command + 1;
+            selected.splice(at..at, ["--engine".to_owned(), engine.to_owned()]);
         } else {
-            0
-        };
-        selected.splice(at..at, ["--engine".to_owned(), engine.to_owned()]);
+            env = Some(engine);
+        }
         engine
     } else if words[command] == "--repl" {
         // A session names its engine in every mode, so a mode that leaves
@@ -176,7 +181,7 @@ fn select_engine(
         (_, false) => RuntimeRoute::OtherProgram,
         (_, true) => RuntimeRoute::OtherTest,
     };
-    (selected, route)
+    (selected, route, env)
 }
 
 #[derive(Default)]
@@ -791,11 +796,19 @@ fn offline_git(command: &mut Command, remotes: &Path) {
 /// at the test's setup; `None` under `wasmtime-only` without such a Node.
 static NODE_PATH: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
 
-fn run_hd(dir: &Path, cache: &Path, remotes: &Path, words: &[String]) -> std::io::Result<Ran> {
+fn run_hd(
+    dir: &Path,
+    cache: &Path,
+    remotes: &Path,
+    (words, engine): (&[String], Option<&str>),
+) -> std::io::Result<Ran> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
     offline_git(&mut command, remotes);
     if let Some(Some(path)) = NODE_PATH.get() {
         command.env("PATH", path);
+    }
+    if let Some(engine) = engine {
+        command.env("HD_ENGINE", engine);
     }
     let mut child = command
         .args(words)
@@ -1087,10 +1100,10 @@ fn run_case(
     let mut verdict = Verdict::Pass;
     for (index, step) in steps.iter().enumerate() {
         let label = format!("hd {}", step.words.join(" "));
-        let (words, route) = select_engine(&step.words, mode, fallback);
+        let (words, route, engine) = select_engine(&step.words, mode, fallback);
         stats.record(name, route);
         let start = Instant::now();
-        let ran = run_hd(&dir, &cache, &remotes, &words);
+        let ran = run_hd(&dir, &cache, &remotes, (&words, engine));
         stats.record_time(route, start.elapsed());
         if timings {
             eprintln!(
@@ -1374,38 +1387,41 @@ fn engine_selection_covers_files_packages_tasks_and_preserves_argument_boundary(
         words(&["run", "named-executable", "--", "arg"]),
         words(&["run", "task-name", "-p", "member"]),
     ] {
-        let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
+        let (selected, route, env) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
         assert_eq!(route, RuntimeRoute::Wasmtime);
-        let index = selected.iter().position(|w| w == "--engine").unwrap();
-        assert_eq!(selected[index + 1], "wasmtime");
-        let mut restored = selected;
-        restored.drain(index..index + 2);
-        assert_eq!(restored, before);
+        assert_eq!(env, Some("wasmtime"));
+        assert_eq!(selected, before);
     }
     for before in [
         words(&["run", "--engine", "node"]),
         words(&["main.hd", "--engine=node", "--", "--engine=wasmtime"]),
     ] {
-        let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "wasmtime");
+        let (selected, route, env) = select_engine(&before, EngineMode::WasmtimeOnly, "wasmtime");
         assert_eq!(selected, before);
         assert_eq!(route, RuntimeRoute::NodeProgram);
+        assert_eq!(env, None);
     }
     for before in [
         words(&["test", "main.hd"]),
         words(&["test", "-p", "member"]),
     ] {
-        let (selected, route) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
+        let (selected, route, env) = select_engine(&before, EngineMode::WasmtimeOnly, "node");
         assert_eq!(route, RuntimeRoute::WasmtimeTest);
-        let index = selected.iter().position(|word| word == "--engine").unwrap();
-        assert_eq!(selected[index + 1], "wasmtime");
-        let mut restored = selected;
-        restored.drain(index..index + 2);
-        assert_eq!(restored, before);
+        assert_eq!(env, Some("wasmtime"));
+        assert_eq!(selected, before);
     }
+    // A session names its engine.
+    let (selected, _, env) = select_engine(
+        &words(&["--repl", "a.in"]),
+        EngineMode::WasmtimeOnly,
+        "node",
+    );
+    assert_eq!(selected, words(&["--repl", "--engine", "wasmtime", "a.in"]));
+    assert_eq!(env, None);
     let explicit_test = words(&["test", "main.hd", "--engine=node"]);
     assert_eq!(
         select_engine(&explicit_test, EngineMode::WasmtimeOnly, "wasmtime"),
-        (explicit_test, RuntimeRoute::NodeTest)
+        (explicit_test, RuntimeRoute::NodeTest, None)
     );
 }
 
@@ -1420,7 +1436,7 @@ fn engine_selection_leaves_nonruntime_commands_and_default_mode_unchanged() {
         vec!["run", "--engine=custom"],
     ] {
         let words = words.into_iter().map(str::to_owned).collect::<Vec<_>>();
-        let (selected, _) = select_engine(&words, EngineMode::WasmtimeOnly, "node");
+        let (selected, _, _) = select_engine(&words, EngineMode::WasmtimeOnly, "node");
         assert_eq!(selected, words);
     }
     let words = vec![
@@ -1428,7 +1444,8 @@ fn engine_selection_leaves_nonruntime_commands_and_default_mode_unchanged() {
         "--".to_owned(),
         "--engine=node".to_owned(),
     ];
-    let (selected, route) = select_engine(&words, EngineMode::Default, "node");
+    let (selected, route, env) = select_engine(&words, EngineMode::Default, "node");
+    assert_eq!(env, None);
     assert_eq!(selected, words);
     assert_eq!(route, RuntimeRoute::NodeProgram);
     assert_eq!(
@@ -1502,8 +1519,8 @@ fn engine_comparison_uses_raw_bytes_and_counts_exclusions_and_missing_pairs() {
         "--".to_owned(),
         "--engine=custom".to_owned(),
     ];
-    let (selected, route) = select_engine(&words, EngineMode::NodeBaseline, "wasmtime");
-    assert_eq!(&selected[..3], ["run", "--engine", "node"]);
-    assert_eq!(&selected[3..], &words[1..]);
+    let (selected, route, env) = select_engine(&words, EngineMode::NodeBaseline, "wasmtime");
+    assert_eq!(selected, words);
+    assert_eq!(env, Some("node"));
     assert_eq!(route, RuntimeRoute::NodeProgram);
 }

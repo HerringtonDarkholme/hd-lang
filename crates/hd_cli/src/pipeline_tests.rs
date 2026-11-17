@@ -133,7 +133,10 @@ fn hd_build_refuses_wasmtime_without_the_feature() {
 #[test]
 fn hd_build_accepts_wasmtime_with_the_feature() {
     let w = crate::words("build", &args(&["--engine", "wasmtime"])).expect("accepted");
-    assert_eq!(w.engine, crate::engine::EngineKind::Wasmtime);
+    assert_eq!(
+        w.engine,
+        crate::engine::Choice::named(crate::engine::EngineKind::Wasmtime)
+    );
 }
 
 /// `hd test`: its test programs, and the executables and tasks an

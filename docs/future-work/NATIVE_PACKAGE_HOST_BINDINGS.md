@@ -7,7 +7,8 @@ codecs, the root-manifest consent check (an embedder passes it in
 `HostSetup::grants` as `hd` does from `hd.toml`), pending calls, the handle
 registry and release, and the host-binding cases on Wasmtime matching Node.
 The shipped `hd` loads no native provider: it selects Node at startup for a
-module that needs a package host trait (owner, 2026-11-17; #2096).
+module that needs a package host trait (owner, 2026-11-17; #2096), applied as
+[`cli.host.package.native-cli-node`](../../spec/cli/command-line.md#r-cli.host.package.native-cli-node).
 The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
 and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);
 the build is #2077 to #2083, in that order.

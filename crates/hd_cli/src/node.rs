@@ -99,16 +99,16 @@ impl<'a> Providers<'a> {
 /// Resolve only reachable package providers. A CLI flag cannot supply the
 /// missing manifest consent, and no provider module is imported here.
 pub(crate) fn manifest_providers(
-    wasm: &[u8],
+    contract: Option<&hd_host_abi::schema::Contract>,
     program: Option<&crate::disk::Program>,
     grants: &Grants,
 ) -> Result<Vec<HostProvider>, String> {
-    let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)? else {
+    let Some(contract) = contract else {
         return Ok(Vec::new());
     };
     let providers = Providers::new(program.map_or(&[][..], |p| &p.host_packages[..]));
     let mut selected = Vec::new();
-    for interface in artifacts.contract.interfaces.iter().filter(|i| !i.handle) {
+    for interface in contract.interfaces.iter().filter(|i| !i.handle) {
         let name = interface.identity.to_string();
         // The consent index every host asks (`hd_run::Consent`).
         let grant = grants
@@ -358,6 +358,12 @@ impl NodeInstance {
                 Outcome::Exit(crate::engine::CANCEL_STATUS)
             }
             Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
+            // Nothing ran: name the engine that is missing, which `hd` may
+            // have chosen for a package host trait
+            // (`cli.host.package.native-cli-no-node`).
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Outcome::Internal(format!(
+                "the Node engine cannot start: no `node` program is on PATH ({e}); install Node.js {NODE_ENGINE} or later"
+            )),
             Err(e) => Outcome::Internal(format!("node: {e}")),
         }
     }
@@ -1171,7 +1177,7 @@ mod tests {
                 Some(&program),
                 &[],
                 (
-                    crate::engine::EngineKind::Node,
+                    crate::engine::Choice::named(crate::engine::EngineKind::Node),
                     level,
                     crate::engine::ProgramLimits {
                         wall_ms: Some(2000),

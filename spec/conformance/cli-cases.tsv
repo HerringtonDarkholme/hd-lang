@@ -297,7 +297,8 @@ host-binding-event-handle	cli.host.package.generated,cli.host.package.completion
 host-binding-missing	cli.cap.table.required-package,cli.cap.table.required-flags,cli.cap.table.required-entry-message,cli.host.package.missing,cli.host.package.consent-preflight,cli.host.package.no-fallback
 host-binding-missing-file	cli.host.package.provider-containment
 host-binding-node	cli.host.package.entry,cli.host.package.provider-hosts,cli.host.package.manifest-consent,cli.host.package.no-flag-consent,cli.host.package.generated,cli.host.package.companion,cli.host.package.completion-forms
-host-binding-wasmtime-refused	cli.host.package.native-unregistered,cli.host.package.native-cli,cli.host.package.no-fallback,cli.host.package.provider-hosts,cli.cap.order.deny
+host-binding-wasmtime-refused	cli.host.package.native-unregistered,cli.host.package.native-cli,cli.host.package.native-cli-explicit,cli.host.package.no-fallback,cli.host.package.provider-hosts,cli.cap.order.deny
+host-binding-default-node	cli.host.package.native-cli-node,cli.host.package.native-cli-startup,cli.host.package.no-fallback,cli.engine.select,cli.cap.order.deny
 host-binding-native-companion	cli.host.package.native-companion,cli.host.package.companion
 host-binding-outside-package	cli.host.package.provider-containment,cli.host.declaration.provider-relative
 host-binding-private-values	cli.host.package.value-conversion,cli.host.package.plain-provider,cli.host.package.generated-wrapper,cli.host.package.prebuilt-manifest

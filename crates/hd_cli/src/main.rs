@@ -841,6 +841,14 @@ fn build_traced<'a>(
     Ok((compiled, text))
 }
 
+/// The package host contract of a built module, when it declares one
+/// with interfaces: one walk over the module's section headers.
+pub(crate) fn host_contract(wasm: &[u8]) -> Result<Option<hd_host_abi::schema::Contract>, String> {
+    hd_host_abi::schema::from_wasm(wasm)
+        .map(|c| c.filter(|c| !c.interfaces.is_empty()))
+        .map_err(|e| format!("the built host contract: {e}"))
+}
+
 /// Runs compiled Wasm and ends with the program's status
 /// (`cli.exit.program`), unless a need is totally denied
 /// (`cli.cap.total.refuse`). `program` is what its `Args.program` returns;
@@ -853,14 +861,53 @@ fn execute(
     flags: &[caps::CapFlag],
     provider_program: Option<&disk::Program>,
     args: &[OsString],
-    (engine, level, limits): (engine::EngineKind, OptLevel, engine::ProgramLimits),
+    run: (engine::Choice, OptLevel, engine::ProgramLimits),
+    rep: &mut Reporter,
+) -> ExitCode {
+    match host_contract(&built.wasm) {
+        Ok(contract) => execute_with(
+            contract.as_ref(),
+            built,
+            program,
+            (table, table_dir, flags),
+            provider_program,
+            args,
+            run,
+            rep,
+        ),
+        Err(e) => rep.fail(&e),
+    }
+}
+
+/// [`execute`] of a module whose package host `contract` the caller
+/// already decoded. The capability refusal, the engine choice
+/// (`cli.host.package.native-cli-startup`) and Node's providers all read
+/// this one decoding.
+fn execute_with(
+    contract: Option<&hd_host_abi::schema::Contract>,
+    built: &Compiled<'_>,
+    program: &str,
+    (table, table_dir, flags): (
+        &[(String, hd_project::Grant)],
+        Option<&Path>,
+        &[caps::CapFlag],
+    ),
+    provider_program: Option<&disk::Program>,
+    args: &[OsString],
+    (choice, level, limits): (engine::Choice, OptLevel, engine::ProgramLimits),
     rep: &mut Reporter,
 ) -> ExitCode {
     let wasm = &built.wasm;
-    if let Some(d) = caps::refusal(wasm, table, flags) {
+    if let Some(d) = caps::refusal(wasm, contract, table, flags) {
         rep.diag(&d);
         return rep.finish(HD_FAILURE);
     }
+    // After the capability refusal (`cli.cap.order.deny`), before the
+    // module loads: the run never changes engine afterwards.
+    let engine = match choice.for_module(contract) {
+        Ok(engine) => engine,
+        Err(e) => return rep.fail(&e),
+    };
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
         providers: Vec::new(),
@@ -879,7 +926,7 @@ fn execute(
         program: program.to_owned(),
     };
     let providers = if engine == engine::EngineKind::Node {
-        match node::manifest_providers(wasm, provider_program, &host.grants) {
+        match node::manifest_providers(contract, provider_program, &host.grants) {
             Ok(providers) => providers,
             Err(error) => return rep.fail(&error),
         }
@@ -923,7 +970,7 @@ struct FileWords {
     /// The program's arguments (`cli.args.pass`).
     program_args: Vec<OsString>,
     /// `--engine NAME`, else `HD_ENGINE`, else Node.
-    engine: engine::EngineKind,
+    engine: engine::Choice,
     release: bool,
     limits: engine::ProgramLimits,
 }
@@ -934,7 +981,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         caps: Vec::new(),
         file: None,
         program_args: Vec::new(),
-        engine: engine::EngineKind::default(),
+        engine: engine::Choice::default(),
         release: false,
         limits: engine::ProgramLimits::default(),
     };
@@ -959,7 +1006,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         }
         if let Some(e) = engine::engine_flag(args, i) {
             let (kind, used) = e?;
-            w.engine = kind;
+            w.engine = engine::Choice::named(kind);
             engine_flag = true;
             i += used;
             continue;
@@ -1000,7 +1047,7 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
     // The flag wins over `HD_ENGINE`: read the variable only when no
     // flag is given (`cli.engine.select`).
     if !engine_flag {
-        w.engine = engine::from_env()?;
+        w.engine = engine::Choice::from_env()?;
     }
     Ok(w)
 }
@@ -1020,7 +1067,7 @@ fn run_file_command(args: &[OsString]) -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine.kind, w.release);
     match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(built) => execute(
             &built,
@@ -1046,7 +1093,7 @@ fn run_stdin_command() -> ExitCode {
     if let Err(e) = std::io::Read::read_to_string(&mut std::io::stdin(), &mut text) {
         return fail(&format!("standard input: {e}"));
     }
-    let engine = match engine::from_env() {
+    let engine = match engine::Choice::from_env() {
         Ok(engine) => engine,
         Err(error) => return fail(&error),
     };
@@ -1055,7 +1102,7 @@ fn run_stdin_command() -> ExitCode {
         Ok(p) => p,
         Err(e) => return rep.fail(&e),
     };
-    let pipeline = Pipeline::of(engine, false);
+    let pipeline = Pipeline::of(engine.kind, false);
     match compile_traced(&program, (BuildProfile::Checked, pipeline), &mut rep) {
         Ok(built) => execute(
             &built,
@@ -1109,14 +1156,12 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
             "`{shown}` has no entry export `{missing}`: {rebuild}"
         ));
     }
-    let artifacts = match hd_driver::host_artifacts(&wasm) {
-        Ok(a) => a,
+    let contract = match hd_host_abi::schema::from_wasm(&wasm) {
+        Ok(c) => c.filter(|c| !c.interfaces.is_empty()),
         Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
     };
     // One index of the contract's imports, probed once per import.
-    let described = artifacts
-        .as_ref()
-        .map(|a| hd_host_abi::schema::Imports::new(&a.contract));
+    let described = contract.as_ref().map(hd_host_abi::schema::Imports::new);
     let ordinary: Vec<_> = imports
         .into_iter()
         .filter(|(m, n)| !described.as_ref().is_some_and(|d| d.describes(m, n)))
@@ -1128,7 +1173,7 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
     }
     // Package providers need the root manifest's explicit consent even for a
     // prebuilt artifact. Discovery follows the artifact, never the caller cwd.
-    let provider_program = if artifacts.is_some() {
+    let provider_program = if contract.is_some() {
         let absolute = match std::path::absolute(file) {
             Ok(path) => path,
             Err(e) => return rep.fail(&format!("{shown}: {e}")),
@@ -1155,14 +1200,17 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         frames: None,
         stored: None,
     };
-    execute(
+    execute_with(
+        contract.as_ref(),
         &built,
         &file.to_string_lossy(),
-        table,
-        provider_program
-            .as_ref()
-            .and_then(|p| p.package_dir.as_deref()),
-        &w.caps,
+        (
+            table,
+            provider_program
+                .as_ref()
+                .and_then(|p| p.package_dir.as_deref()),
+            &w.caps,
+        ),
         provider_program.as_ref(),
         &w.program_args,
         (w.engine, level_of(w.release), w.limits),
@@ -1183,7 +1231,7 @@ struct Words {
     packages: Vec<String>,
     /// `--engine NAME`, else `HD_ENGINE`, else Node: the engine `hd run`
     /// runs on, and the one whose target `hd run` and `hd build` tune for.
-    engine: engine::EngineKind,
+    engine: engine::Choice,
     limits: engine::ProgramLimits,
 }
 
@@ -1195,7 +1243,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         positional: Vec::new(),
         program_args: Vec::new(),
         packages: Vec::new(),
-        engine: engine::EngineKind::default(),
+        engine: engine::Choice::default(),
         limits: engine::ProgramLimits::default(),
     };
     let mut engine_flag = false;
@@ -1219,7 +1267,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         }
         if let Some(e) = engine::engine_flag(args, i) {
             let (kind, used) = e?;
-            w.engine = kind;
+            w.engine = engine::Choice::named(kind);
             engine_flag = true;
             i += used;
             continue;
@@ -1268,7 +1316,7 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
     // The flag wins over `HD_ENGINE`: read the variable only when no
     // flag is given (`cli.engine.select`).
     if !engine_flag {
-        w.engine = engine::from_env()?;
+        w.engine = engine::Choice::from_env()?;
     }
     Ok(w)
 }
@@ -1384,7 +1432,7 @@ fn run_in(cwd: &Path, args: &[OsString]) -> ExitCode {
         Err(e) => return rep.fail(&e),
     };
     program.only_program(&chosen.file);
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine.kind, w.release);
     let built = match compile_traced(&program, (profile_of(w.release), pipeline), &mut rep) {
         Ok(built) => built,
         Err(code) => return code,
@@ -1549,7 +1597,7 @@ fn build_command(args: &[OsString]) -> ExitCode {
         Err(e) => return fail(&e),
     };
     let mut rep = Reporter::stdout(w.json);
-    let pipeline = Pipeline::of(w.engine, w.release);
+    let pipeline = Pipeline::of(w.engine.kind, w.release);
     let built = match w.positional.as_slice() {
         [] if !w.packages.is_empty() => {
             match std::env::current_dir()

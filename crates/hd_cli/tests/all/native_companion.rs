@@ -106,6 +106,54 @@ fn a_module_without_package_host_traits_gets_no_companion() {
     }
 }
 
+/// `cli.host.package.native-cli-no-node`: with `HD_ENGINE=wasmtime` and no
+/// `node` on PATH, `hd run` and `hd FILE.wasm` of a module needing a package
+/// host trait choose Node and fail before the guest starts, naming Node. A
+/// plain module still runs on Wasmtime, which needs no Node.
+#[test]
+fn a_package_host_trait_without_node_names_the_node_engine() {
+    let root = package("native-cli-no-node", MANIFEST, MAIN);
+    build(&root, &[]);
+    let empty = root.join("empty-path");
+    std::fs::create_dir_all(&empty).expect("empty PATH directory");
+    let hd = |root: &Path, args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_hd"))
+            .env(
+                "HD_CACHE",
+                crate::shared_objects(root.with_extension("cache")),
+            )
+            .env("PATH", &empty)
+            .env("HD_ENGINE", "wasmtime")
+            .env_remove("HD_JOBS")
+            .current_dir(root)
+            .args(args)
+            .output()
+            .expect("run hd")
+    };
+    for args in [&["run"][..], &["build/debug/probe.wasm"]] {
+        let out = hd(&root, args);
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(101), "{args:?}: {err}");
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "", "{args:?}");
+        assert!(
+            err.contains("the Node engine cannot start"),
+            "{args:?}: {err}"
+        );
+    }
+    let plain = package(
+        "native-cli-no-node-plain",
+        "[package]\nname = \"probe\"\n\n[capabilities]\nConsole = true\n",
+        PLAIN,
+    );
+    let out = hd(&plain, &["run"]);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "plain\n",
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
 /// The companion of `MAIN` for a fixed identity: a local trait's identity
 /// hashes its package directory, so the one a scratch build writes is this
 /// text with that identity. `HD_BLESS=1` rewrites it.

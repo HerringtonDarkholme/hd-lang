@@ -1,4 +1,4 @@
-# The hd command registers no native provider: Wasmtime refuses a consented package host trait before the guest starts.
+# The hd command registers no native provider: --engine wasmtime refuses a consented package host trait before the guest starts.
 run: hd build --engine node
 file: build/debug/host_probe.wasm
 run: hd run --engine wasmtime --format json

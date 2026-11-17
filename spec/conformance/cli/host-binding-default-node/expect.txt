@@ -1,0 +1,14 @@
+# Without --engine, hd runs a module that needs a package host trait on Node, whichever engine HD_ENGINE or the default names.
+run: hd run
+stdout: guest started
+stdout: 7
+run: hd build
+file: build/debug/host_probe.wasm
+run: hd build/debug/host_probe.wasm
+stdout: guest started
+stdout: 7
+# The choice follows the capability refusal: a denied trait still stops the run first.
+run: hd run --cap pkg.main.Server=false --format json
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"denied-capability","severity":"error","message":null,"file":null,"line":null,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}]

@@ -715,7 +715,7 @@ pub(crate) fn run(args: &[OsString]) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
-    let engine = match engine::from_env() {
+    let engine = match engine::Choice::from_env() {
         Ok(e) => e,
         Err(e) => return fail(&e),
     };
