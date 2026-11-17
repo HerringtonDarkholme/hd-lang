@@ -64,6 +64,8 @@ mod cost {
         pub solo_waits: u64,
         /// A lone run's misses claimed when it found other runs.
         pub lone_claims: u64,
+        /// Lone notes visited in the one-time transition to claims.
+        pub lone_transfers: u64,
         /// Polls of a bounded cross-process wait, after its first try.
         pub wait_polls: u64,
         /// Waits that reached their deadline with no progress from the
@@ -3157,18 +3159,30 @@ mod packed {
 
         /// Claims the misses this store computed alone and has not
         /// published, each as computed or not, as its own miss would have.
-        /// Cost: one claim file per such miss, once per run, and only when
-        /// another run joins.
+        /// The caller holds the run-membership lock, so no new lone note
+        /// can enter: each step removes one original note. Cost: one file
+        /// open and bounded B-tree work per note, once when another run joins.
         fn claim_lone(&self) {
-            let lone = std::mem::take(&mut *self.lone());
             // The notification baseline goes before owning any claim.
             drop(self.waits());
-            for (k, m) in lone {
-                if let Some(file) = self.open_claim(k)
-                    && file.try_lock().is_ok()
-                {
+            loop {
+                // Release the lone lock before I/O or taking claims.
+                let key = self.lone().first_key_value().map(|(&key, _)| key);
+                let Some(k) = key else { break };
+                count!(lone_transfers, 1);
+                let file = self.open_claim(k).filter(|file| file.try_lock().is_ok());
+                #[cfg(test)]
+                self.pause("claim-lone-transfer");
+                // Match release's lock order, claims -> lone. Keep the
+                // source record visible until its destination is locked;
+                // put/abandon/publication must observe one side of the move.
+                let mut claims = self.claims();
+                let Some(m) = self.lone().remove(&k) else {
+                    continue;
+                };
+                if let Some(file) = file {
                     count!(lone_claims, 1);
-                    self.claims().insert(
+                    claims.insert(
                         k,
                         Claim {
                             _lock: file,
@@ -3450,6 +3464,8 @@ mod packed {
                     lone.is_empty()
                 }
             };
+            #[cfg(test)]
+            self.pause("claim-lone-abandon");
             if emptied {
                 self.let_solo_go();
             }
@@ -3478,6 +3494,8 @@ mod packed {
             // joined meanwhile waits for one entry's computation at most.
             let k = (kind as u16, key.0);
             let lone = self.lone().get_mut(&k).map(|m| m.done = true).is_some();
+            #[cfg(test)]
+            self.pause("claim-lone-put");
             if lone {
                 self.crowded(None);
             }
@@ -3563,6 +3581,8 @@ mod packed {
                 }
                 noted && lone.is_empty()
             };
+            #[cfg(test)]
+            self.pause("claim-lone-release");
             if emptied {
                 self.let_solo_go();
             }
@@ -6251,6 +6271,121 @@ mod packed {
             assert!(a.packed.held(EntryKind::Check, &Hash128(1)));
             assert!(!a.packed.held(EntryKind::Check, &Hash128(2)));
             assert!(a.wanted(EntryKind::Check, &Hash128(1)));
+        }
+
+        #[test]
+        fn lone_handoff_visits_each_original_note_once() {
+            for n in [8_u128, 80] {
+                let root = scratch(&format!("claim-handoff-work-{n}"));
+                let a = DiskStore::new(root.clone()).with_claims();
+                for key in 0..n {
+                    assert!(a.get(EntryKind::Check, &Hash128(key)).is_none());
+                }
+                let b = DiskStore::new(root).with_claims();
+                drop(b.packed.join());
+                cost::take();
+                assert!(a.packed.crowded(None));
+                let work = cost::take();
+                assert_eq!(u128::from(work.lone_transfers), n);
+                assert_eq!(u128::from(work.lone_claims), n);
+                assert_eq!(a.packed.claims().len() as u128, n);
+                assert!(a.packed.lone().is_empty());
+            }
+        }
+
+        #[derive(Clone, Copy, Debug)]
+        enum LoneFinish {
+            Put,
+            Abandon,
+            Publish,
+        }
+
+        // The transition is paused after opening the claim file. A terminal
+        // operation must not lose this key between the lone and claim maps.
+        fn finish_during_lone_handoff(
+            action: LoneFinish,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            let root = scratch(&format!("claim-handoff-{action:?}"));
+            let (phases, phase) = std::sync::mpsc::channel();
+            let (resume, resumed) = std::sync::mpsc::channel();
+            let resumed = Mutex::new(resumed);
+            let transitions = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let counted = Arc::clone(&transitions);
+            let mut a = DiskStore::new(root.clone()).with_claims();
+            a.packed.on_pause = Some(Arc::new(move |at| {
+                if at == "claim-lone-transfer" {
+                    counted.fetch_add(1, Ordering::Relaxed);
+                    assert!(phases.send(at).is_ok());
+                    assert!(
+                        resumed
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .recv_timeout(Duration::from_secs(5))
+                            .is_ok()
+                    );
+                } else if matches!(
+                    at,
+                    "claim-lone-put" | "claim-lone-abandon" | "claim-lone-release"
+                ) {
+                    assert!(phases.send(at).is_ok());
+                }
+            }));
+            let key = Hash128(7);
+            // Kind 3 is Depfiles, matching the reported std-skim claim.
+            assert!(a.get_claimed(EntryKind::Depfiles, &key).is_none());
+            let b = DiskStore::new(root.clone()).with_claims();
+            drop(b.packed.join());
+            std::thread::scope(|scope| -> Result<(), Box<dyn std::error::Error>> {
+                // cost: one transfer worker for the single noted miss.
+                let transfer = scope.spawn(|| {
+                    assert!(a.get(EntryKind::Check, &Hash128(9)).is_none());
+                });
+                assert_eq!(
+                    phase.recv_timeout(Duration::from_secs(5))?,
+                    "claim-lone-transfer"
+                );
+                // cost: one terminal-state worker for that same miss.
+                let terminal = scope.spawn(|| match action {
+                    LoneFinish::Put => {
+                        a.wanted(EntryKind::Depfiles, &key);
+                    }
+                    LoneFinish::Abandon => a.abandon(EntryKind::Depfiles, &key),
+                    LoneFinish::Publish => a.put(EntryKind::Depfiles, &key, b"computed"),
+                });
+                let expected = match action {
+                    LoneFinish::Put => "claim-lone-put",
+                    LoneFinish::Abandon => "claim-lone-abandon",
+                    LoneFinish::Publish => "claim-lone-release",
+                };
+                assert_eq!(phase.recv_timeout(Duration::from_secs(5))?, expected);
+                resume.send(())?;
+                assert!(terminal.join().is_ok());
+                assert!(transfer.join().is_ok());
+                Ok(())
+            })?;
+            assert_eq!(transitions.load(Ordering::Relaxed), 1);
+            // This is the exact invariant that the CLI failures hit. The
+            // original handoff leaves an uncomputed off-path claim here.
+            assert!(a.packed.before_waiting());
+            if !matches!(action, LoneFinish::Put) {
+                assert!(!a.packed.held(EntryKind::Depfiles, &key));
+            }
+            Ok(())
+        }
+
+        #[test]
+        fn completion_during_lone_handoff_is_not_lost() -> Result<(), Box<dyn std::error::Error>> {
+            finish_during_lone_handoff(LoneFinish::Put)
+        }
+
+        #[test]
+        fn abandonment_during_lone_handoff_is_not_lost() -> Result<(), Box<dyn std::error::Error>> {
+            finish_during_lone_handoff(LoneFinish::Abandon)
+        }
+
+        #[test]
+        fn publication_during_lone_handoff_is_not_lost() -> Result<(), Box<dyn std::error::Error>> {
+            finish_during_lone_handoff(LoneFinish::Publish)
         }
 
         /// The hang of #2056's first fix: a lone run that misses 7 and then
