@@ -1183,6 +1183,13 @@ impl Ck<'_, '_> {
     }
 
     /// The type a type node names.
+    /// Whether `n` is a reference type written `&'static T` (`ref.static.form`).
+    pub(crate) fn static_ref_type(&self, n: NodeRef<'_>) -> bool {
+        n.kind() == SyntaxKind::RefType
+            && n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
+                .is_some_and(|t| self.cx.src.text(t) == "'static")
+    }
+
     pub(crate) fn ty_node(&mut self, n: NodeRef<'_>) -> StageResult<Ty> {
         let t = self.ty_node_as(n, NameRole::Type)?;
         // A written type reports its local references itself
@@ -1527,6 +1534,7 @@ impl Ck<'_, '_> {
                 if self.written_lifetimes.is_none()
                     && n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
                         .is_some()
+                    && !(self.static_annotation == Some(n.index()) && self.static_ref_type(n))
                 {
                     self.err(
                         Code::ReferencesNotYetChecked,
@@ -1546,6 +1554,13 @@ impl Ck<'_, '_> {
                 let counted = n
                     .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Star)
                     .is_some();
+                if mutable && self.static_ref_type(n) {
+                    self.err(
+                        Code::StaticReferenceMut,
+                        n,
+                        "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes",
+                    );
+                }
                 pool.intern_ty(&TyData::Ref {
                     inner,
                     mutable,

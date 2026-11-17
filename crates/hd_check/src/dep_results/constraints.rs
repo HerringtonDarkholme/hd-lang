@@ -10,8 +10,8 @@ use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC_MSG, STORE_FN_MSG, Set, Var,
-    Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent,
+    Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC, STATIC_MSG, STORE_FN_MSG, Set,
+    Var, Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent,
     returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
@@ -322,14 +322,32 @@ impl Gen<'_, '_> {
             PlaceRoot::Value(v) if first == Some(Proj::Deref) => {
                 match self.s.ty(v.0).and_then(|t| local_ref(self.s.pool, t)) {
                     Some((false, _)) => Some(Err(v.0)),
-                    _ if b.tags.get(v.0 as usize) == Some(&Tag::Read) => self.lies(v.0, read(v.0)),
+                    // Reached through the counted reference read there: no
+                    // static source (`ref.static.place`).
+                    _ if b.tags.get(v.0 as usize) == Some(&Tag::Read) => {
+                        match self.lies(v.0, read(v.0)) {
+                            Some(Ok(Origin::Static(d))) => Some(Ok(Origin::Global(d))),
+                            at => at,
+                        }
+                    }
                     _ => Some(Ok(Origin::Hidden(v.0))),
                 }
             }
             PlaceRoot::Value(_) => Some(Ok(Origin::Hidden(i))),
+            PlaceRoot::Global(d, _) if self.static_place(d, &p.proj) => {
+                Some(Ok(Origin::Static(d.raw())))
+            }
             PlaceRoot::Global(d, _) => Some(Ok(Origin::Global(d.raw()))),
             _ => None,
         }
+    }
+
+    /// `ref.static.place`: a place in top-level binding `d` is a static
+    /// source when `d` is bound without `mut` and the place is reached
+    /// through no reference. One lookup by the binding's name.
+    fn static_place(&self, d: hd_base::DefId, proj: &[Proj]) -> bool {
+        !proj.contains(&Proj::Deref)
+            && !(self.s.cx.init.borrow()).global_mutable(&self.s.cx.names, d)
     }
 
     /// The place `word`: what it lies in ([`Gen::lies`]), and its slots
@@ -591,7 +609,13 @@ impl Gen<'_, '_> {
                     todo.push((x.0, r));
                 }
                 _ => {
-                    let at = self.place(w(v), word, 0, (false, false)).0;
+                    // A counted reference lent from a top-level binding is
+                    // no static source, wherever it is read from
+                    // (`ref.static.source.error`).
+                    let at = match self.place(w(v), word, 0, (false, false)).0 {
+                        Some(Ok(Origin::Static(d))) => Some(Ok(Origin::Global(d))),
+                        at => at,
+                    };
                     self.lies_in(at, r);
                 }
             }
@@ -766,7 +790,12 @@ impl Gen<'_, '_> {
             }
         }
         // The argument edges into such a variable are checked at the call.
+        // A parameter slot written `&'static T` is checked at its argument
+        // into `'static` (`ref.static.source.error`), and its variable
+        // takes the argument as any other.
+        let pinned = |v: &Var| fixed.contains(v) || *v == Var::Life(STATIC);
         let into = |v: Var| match cat {
+            _ if v == Var::Life(STATIC) => Category::Static,
             Category::Flow if fixed.contains(&v) => Category::Bound,
             _ => cat,
         };
@@ -784,10 +813,10 @@ impl Gen<'_, '_> {
             };
             let mut vs: Vec<Var> = slots.iter().map(|x| x.0).collect();
             let keeps = ls.holds(at) && slots.iter().any(|x| x.1.is_some());
-            let checks = vs.iter().any(|v| fixed.contains(v));
+            let checks = vs.iter().any(pinned);
             if b.tags[a as usize] != Tag::Ref && !ls.holds(at) && (flows || checks) {
                 vs.extend(any.then_some(Var::Life(ANY)));
-                vs.retain(|v| flows || fixed.contains(v));
+                vs.retain(|v| flows || pinned(v));
                 vs.dedup();
                 let h = self.t.fresh(1).start;
                 self.lend(a, h);
@@ -839,20 +868,34 @@ impl Gen<'_, '_> {
                 self.each_into(&v.0, &[r]);
             }
             for (k, &id) in vs.iter().enumerate().take(v.0.len()) {
-                if !flows && !fixed.contains(&id) {
+                if !flows && !pinned(&id) {
                     continue;
                 }
                 let (r, cat) = (var(&mut self.t, id), into(id));
                 // An argument with no slot of its own has one origin set.
                 let behind = k + 1..lay.slots.get(k).map_or(k + 1, |s| s.end);
+                let to = if cat == Category::Static {
+                    self.stat
+                } else {
+                    r
+                };
+                if cat == Category::Static {
+                    self.flow(v.0[k], r);
+                }
+                let at_arg = matches!(cat, Category::Bound | Category::Static);
                 if under_mut(pool, &lay, k) {
                     self.c.equal(v.0[k], r, self.at);
-                } else if cat != Category::Bound {
+                } else if !at_arg {
                     self.flow_vars(&[v.0[k]], &[r], cat);
                 }
-                if cat == Category::Bound {
+                if at_arg {
                     // Checked at the argument, as the call passes it.
                     let node = self.node(a);
+                    if cat == Category::Static {
+                        // The reference itself; its referent is the source's.
+                        self.checked(v.0[k], to, cat, node);
+                        continue;
+                    }
                     for j in std::iter::once(k).chain(behind) {
                         self.checked(v.0[j], r, cat, node);
                     }
@@ -1227,6 +1270,69 @@ impl Gen<'_, '_> {
         }
     }
 
+    /// Whether the place `word` is a field written `&'static T`: one field
+    /// map lookup per projection of the place.
+    fn static_field_place(&self, word: u32) -> bool {
+        let (b, pool, ls, cx) = (self.s.b, self.s.pool, self.s.ls, self.s.cx);
+        let Some(p) = b.decode_place(word) else {
+            return false;
+        };
+        let Some((&Proj::Field(j), init)) = p.proj.split_last() else {
+            return false;
+        };
+        let mut t = match p.root {
+            PlaceRoot::Local(l) => b.local_ty[l.idx()],
+            PlaceRoot::Global(_, t) => t,
+            PlaceRoot::Value(v) => match self.s.ty(v.0) {
+                Some(t) => t,
+                None => return false,
+            },
+            _ => return false,
+        };
+        let mut variant = None;
+        for q in init {
+            t = match *q {
+                Proj::Field(k) => match ls.field_slots(cx, t, variant.take(), k) {
+                    Some((ft, _)) => ft,
+                    None => return false,
+                },
+                Proj::Deref => referent(pool, t),
+                Proj::Variant(k) => {
+                    variant = Some(k);
+                    t
+                }
+                // A list's element or a map's value.
+                Proj::Elem(_) => match pool.get(t) {
+                    TyData::Adt { def, args } if def == cx.names.known.list => {
+                        match pool.list_items(args).first() {
+                            Some(&e) => e,
+                            None => return false,
+                        }
+                    }
+                    TyData::Adt { def, args } if def == cx.names.known.map => {
+                        match pool.list_items(args).get(1) {
+                            Some(&e) => e,
+                            None => return false,
+                        }
+                    }
+                    _ => return false,
+                },
+            };
+        }
+        ls.field_static(cx, t, variant, j)
+    }
+
+    /// Value `v`'s top slot ⊑ `'static`, checked at `v`
+    /// (`ref.static.source.error`).
+    fn statics(&mut self, v: u32) {
+        let Some(view) = self.val(v) else { return };
+        let node = self.node(v);
+        if let Some(&top) = self.split(&view).0.first() {
+            let stat = self.stat;
+            self.checked(top, stat, Category::Static, node);
+        }
+    }
+
     /// The local reference a trait value reference is made from, through
     /// its block and the coercion to the trait value: the `&dyn` takes it
     /// as a coercion would (`trait.dyn.ref.convert`).
@@ -1266,6 +1372,9 @@ impl Gen<'_, '_> {
         }
         match b.tags[iu] {
             Tag::Store => {
+                if self.static_field_place(a) {
+                    self.statics(d);
+                }
                 if let Some(v) = self.val(d) {
                     self.store(a, &v, false);
                     self.caller_store(a, &v, false);
@@ -1371,7 +1480,9 @@ impl Gen<'_, '_> {
                 // A trait value through a counted reference has the origins
                 // of the place that reference was read from.
                 (at, None) => {
-                    if super::is_dyn(pool, me.1) && !matches!(at, Some(Ok(Origin::Global(_)))) {
+                    if super::is_dyn(pool, me.1)
+                        && !matches!(at, Some(Ok(Origin::Global(_) | Origin::Static(_))))
+                    {
                         me.0.iter().for_each(|&r| self.lies_in(at, r));
                     }
                 }
@@ -1434,6 +1545,9 @@ impl Gen<'_, '_> {
                 );
                 for v in parts {
                     let j = rec.iter().position(|&x| x == v);
+                    if j.is_some_and(|j| self.s.ls.field_static(self.s.cx, me.1, variant, w(j))) {
+                        self.statics(v);
+                    }
                     let field =
                         j.and_then(|j| self.s.ls.field_slots(self.s.cx, me.1, variant, w(j)));
                     let to = match field {
@@ -1510,6 +1624,14 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         g.at = i;
         g.step(i);
         g.escapes(i);
+    }
+    // `ref.static.value`: each value a `&'static T` binding takes, one
+    // checked edge from its top slot into `'static`.
+    for &v in s.statics {
+        if let Some(i) = v.as_inst() {
+            g.at = i.0;
+            g.statics(i.0);
+        }
     }
     g.call_loans();
     if let Some((_, slots)) = r.own {
@@ -1675,9 +1797,15 @@ impl Gen<'_, '_> {
             });
             lts.iter().all(|&l| self.s.allows(o, l))
         };
+        // `ref.static.source.error`: a static source, or a parameter slot
+        // written `&'static T` (`ref.static.value`).
+        let statik = |o: Origin| {
+            matches!(o, Origin::Static(_))
+                || r.own.is_some_and(|(own, _)| own.allows(ls, o, STATIC))
+        };
         let allowed = |e: &Edge, l: Loan| {
             let o = self.loans[l as usize];
-            let global = matches!(o, Origin::Global(_));
+            let global = matches!(o, Origin::Global(_)) || statik(o);
             match e.cat {
                 // A site loan only marks what a shared `Ref` reaches.
                 _ if matches!(o, Origin::Site(_)) => true,
@@ -1686,7 +1814,9 @@ impl Gen<'_, '_> {
                     e.cat != Category::Result || !results[&e.to].1.contains(&(PATH + k))
                 }
                 Category::Flow => true,
+                Category::Static => statik(o),
                 Category::Result => match (results[&e.to], r.own) {
+                    ((None, ids), _) if ids.contains(&STATIC) => statik(o),
                     ((None, ids), Some((own, _))) => ids.iter().any(|&id| own.allows(ls, o, id)),
                     ((Some(sub), ids), _) => (r.closures.iter().find(|c| c.0 == *sub))
                         .is_some_and(|(_, dep)| closure_allows(ls, b, *sub, dep, o, ids)),
@@ -1772,12 +1902,14 @@ impl Gen<'_, '_> {
                 Category::Result if returns.insert(e.inst) => {
                     let at = site(b, &has, e.inst, o);
                     match results[&e.to] {
+                        (None, ids) if ids.contains(&STATIC) => v.statics.push((at, o)),
                         (None, ids) => v.results.push((at, o, *ids.first().unwrap_or(&NO_SOURCE))),
                         (Some(_), _) => v.closures.push((at, o)),
                     }
                 }
                 Category::Result => {}
                 Category::CallerPlace => v.stores.extend(at),
+                Category::Static => v.statics.extend(at.map(|at| (at, o))),
                 cat => v
                     .capture
                     .extend(at.map(|at| (at, o, message(cat, b.tags[e.inst as usize])))),

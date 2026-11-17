@@ -93,6 +93,9 @@ pub(crate) enum Category {
     Held,
     /// An argument of a `'static` type parameter.
     StaticParam,
+    /// A value where a static reference is expected, into `'static`
+    /// (`ref.static.source.error`).
+    Static,
     /// A captured function value passed for a type parameter with no
     /// position for captures, which may take only the parameters'.
     Forward,

@@ -1,0 +1,38 @@
+# @dump: diagnostics
+# A counted reference, even one a top-level binding holds, is no static
+# source, and neither is a place reached through one; a field of a
+# top-level binding reached through no reference is (`ref.static.place`).
+struct Point:
+    x: i32
+
+let shared: *Point = box(Point { x: 0 })
+let origin = Point { x: 1 }
+
+fn take(p: &'static Point) -> i32:
+    p.x
+
+fn field(x: &'static i32) -> i32:
+    *x
+
+fn passed() -> i32:
+    take(shared)
+
+fn through() -> i32:
+    field(&shared.x)
+
+fn direct() -> i32:
+    take(&origin) + field(&origin.x)
+
+fn bound() -> i32:
+    let p: &'static Point = shared
+    p.x
+
+fn picked(c: bool) -> &'static Point:
+    if c:
+        &origin
+    else:
+        shared
+
+fn via_local() -> i32:
+    s := shared
+    take(s)

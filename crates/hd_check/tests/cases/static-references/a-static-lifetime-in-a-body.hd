@@ -1,0 +1,31 @@
+# @dump: diagnostics
+# In a body, `'static` is checked on a `let` annotation's own reference
+# (`ref.static.value`); written deeper in a body type it is not checked yet
+# (`ref.lifetime.not-yet.body`), and `&'static mut T` is no type
+# (`ref.static.no-mut`).
+struct Point:
+    x: i32
+
+impl Point:
+    fn get(&self) -> i32:
+        self.x
+
+let origin = Point { x: 1 }
+let mut moving = Point { x: 3 }
+
+fn kept() -> i32:
+    let p: &'static Point = &origin
+    p.get()
+
+fn local() -> i32:
+    q := Point { x: 2 }
+    let p: &'static Point = &q
+    p.x
+
+fn nested() -> usize:
+    let ps: List[&'static Point] = [&origin]
+    ps.len()
+
+fn writable() -> i32:
+    let p: &'static mut Point = &mut moving
+    p.x

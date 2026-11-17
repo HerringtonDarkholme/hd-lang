@@ -509,6 +509,14 @@ pub(crate) struct Ck<'a, 'c> {
     /// writes, in [`hd_types::Types::ref_slots`] order, 0 where none, `k`
     /// the `k`-th lifetime in scope (`fn.type.lifetime.call.written.closure`).
     pub closure_lifetimes: HashMap<hd_base::NodeIdx, Vec<u16>>,
+    /// Each value a binding annotated `&'static T` is bound to: one
+    /// checked edge into `'static` each (`ref.static.source.error`).
+    pub static_values: Vec<Ref>,
+    /// The annotation of the `let` being lowered when it is written
+    /// `&'static T`: the one body type whose `'static` is checked, by
+    /// [`Self::static_values`]. Elsewhere in a body it is not yet
+    /// (`ref.lifetime.not-yet.body`).
+    pub static_annotation: Option<hd_base::NodeIdx>,
     /// The lifetimes in scope while a closure parameter annotation that
     /// may write them is lowered (`fn.type.lifetime.call.written.closure`):
     /// elsewhere a body's written lifetime is not checked yet
@@ -842,6 +850,8 @@ pub(crate) fn new_ck<'a, 'c>(
         local_capture_argument: None,
         closure_writes: HashMap::default(),
         closure_lifetimes: HashMap::default(),
+        static_values: Vec::new(),
+        static_annotation: None,
         written_lifetimes: None,
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),

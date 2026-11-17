@@ -348,6 +348,23 @@ impl ImplMethods {
 }
 
 impl ModuleInit {
+    /// Whether top-level binding `def` is bound with `let mut`, of this
+    /// module's init or an earlier REPL input: one lookup by its name,
+    /// which is the last segment of its path. A binding of another module
+    /// is in neither, and only its own module may write it.
+    pub(crate) fn global_mutable(&self, names: &hd_resolve::Names<'_>, def: DefId) -> bool {
+        let Some(sym) = names.syms.find(names.display_name(def)) else {
+            return false;
+        };
+        self.globals
+            .get(&sym)
+            .is_some_and(|g| g.def == def && g.mutable)
+            || self
+                .earlier
+                .get(&sym)
+                .is_some_and(|g| g.def == def && g.mutable)
+    }
+
     /// `f` of the index of the module's impl methods: the one built
     /// already, or one built now (a forked body's index stays with its
     /// fork).
