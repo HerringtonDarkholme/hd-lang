@@ -217,11 +217,13 @@ fn indent(f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
 }
 
 /// A decoded argument holding a recursive value, which the provider
-/// borrows: when the dispatch ends, on every path (a later argument
+/// borrows, or the finished parts of one still being decoded: when the
+/// dispatch or the decode ends, on every path (a later part or argument
 /// failing, the provider's error or panic, success), its `dismantle`
 /// takes it apart one level at a time through its group's codec, so a
 /// value as deep as the guest makes it never drops recursively
-/// (AGENTS.md "Performant").
+/// (AGENTS.md "Performant"). A finished decode takes its value back with
+/// [`Lent::into_inner`].
 pub struct Lent<T> {
     /// `None` only inside `drop`.
     value: Option<T>,
@@ -233,6 +235,25 @@ impl<T> Lent<T> {
         Self {
             value: Some(value),
             dismantle,
+        }
+    }
+}
+
+impl<T> Lent<T> {
+    /// The value, which its decode finished: nothing is taken apart.
+    pub fn into_inner(mut self) -> T {
+        match self.value.take() {
+            Some(value) => value,
+            None => unreachable!("ruled out: only `drop` takes the value"),
+        }
+    }
+}
+
+impl<T> std::ops::DerefMut for Lent<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        match &mut self.value {
+            Some(value) => value,
+            None => unreachable!("ruled out: only `drop` takes the value"),
         }
     }
 }

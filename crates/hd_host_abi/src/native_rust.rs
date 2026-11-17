@@ -478,22 +478,25 @@ impl Gen {
             }
             Value::List(t) => {
                 let t = self.ty(t, &format!("{hint}Item"), true);
+                let rust = format!("Vec<{}>", t.rust);
+                let drop = t
+                    .drop
+                    .is_some()
+                    .then(|| format!("for x in {V} {{ {} }}", t.drop("x")));
+                let items = guarded(&rust, drop.as_deref(), "Vec::with_capacity(d.capacity(n))");
                 Ty::new(
-                    format!("Vec<{}>", t.rust),
+                    &rust,
                     format!(
                         "{{ e.count({V}.len()); for x in {V} {{ {} }} }}",
                         t.enc("x")
                     ),
                     format!(
-                        "{{ let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n {{ x.push({}); }} x }}",
-                        t.dec
+                        "{{ let n = d.list_len()?; let mut x = {items}; for _ in 0..n {{ x.push({}); }} {} }}",
+                        t.dec,
+                        finished(drop.as_deref(), "x"),
                     ),
                 )
-                .dropping(
-                    t.drop
-                        .is_some()
-                        .then(|| format!("for x in {V} {{ {} }}", t.drop("x"))),
-                )
+                .dropping(drop)
             }
             Value::Option(t) => {
                 let t = self.ty(t, hint, false);
@@ -544,19 +547,8 @@ impl Gen {
             Value::Map(k, v) => {
                 let k = self.ty(k, &format!("{hint}Key"), false);
                 let v = self.ty(v, &format!("{hint}Value"), false);
-                Ty::new(
-                    format!("Vec<({}, {})>", k.rust, v.rust),
-                    format!(
-                        "{{ e.count({V}.len()); for (k, x) in {V} {{ {} {} }} }}",
-                        k.enc("k"),
-                        v.enc("x")
-                    ),
-                    format!(
-                        "{{ let n = d.map_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n {{ let k = {}; x.push((k, {})); }} x }}",
-                        k.dec, v.dec
-                    ),
-                )
-                .dropping((k.drop.is_some() || v.drop.is_some()).then(|| {
+                let rust = format!("Vec<({}, {})>", k.rust, v.rust);
+                let drop = (k.drop.is_some() || v.drop.is_some()).then(|| {
                     let key = if k.drop.is_some() { "k" } else { "_" };
                     let value = if v.drop.is_some() { "x" } else { "_" };
                     format!(
@@ -564,7 +556,32 @@ impl Gen {
                         k.drop("k"),
                         v.drop("x")
                     )
-                }))
+                });
+                let entries = guarded(&rust, drop.as_deref(), "Vec::with_capacity(d.capacity(n))");
+                // A key holding a group's value is guarded while its
+                // value is read.
+                let key = guarded(&k.rust, k.drop.as_deref(), &k.dec);
+                Ty::new(
+                    &rust,
+                    format!(
+                        "{{ e.count({V}.len()); for (k, x) in {V} {{ {} {} }} }}",
+                        k.enc("k"),
+                        v.enc("x")
+                    ),
+                    if drop.is_none() {
+                        format!(
+                            "{{ let n = d.map_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n {{ let k = {}; x.push((k, {})); }} x }}",
+                            k.dec, v.dec
+                        )
+                    } else {
+                        format!(
+                            "{{ let n = d.map_len()?; let mut x = {entries}; for _ in 0..n {{ let k = {key}; let v = {}; x.push(({}, v)); }} x.into_inner() }}",
+                            v.dec,
+                            finished(k.drop.as_deref(), "k"),
+                        )
+                    },
+                )
+                .dropping(drop)
             }
             Value::Tuple(ts) => {
                 let parts: Vec<Ty> = ts
@@ -574,7 +591,7 @@ impl Gen {
                     .collect();
                 let names: Vec<String> = (0..parts.len()).map(|n| format!("t{n}")).collect();
                 let rust: Vec<&str> = parts.iter().map(|p| p.rust.as_str()).collect();
-                let decs: Vec<&str> = parts.iter().map(|p| p.dec.as_str()).collect();
+                let decs = Self::guarded_decs(&parts, &names);
                 let encs: Vec<String> = parts.iter().zip(&names).map(|(p, n)| p.enc(n)).collect();
                 let comma = if parts.len() == 1 { "," } else { "" };
                 let drops: String = parts.iter().zip(&names).map(|(p, n)| p.drop(n)).collect();
@@ -591,7 +608,11 @@ impl Gen {
                         names.join(", "),
                         encs.join(" ")
                     ),
-                    format!("({}{comma})", decs.join(", ")),
+                    if decs.0.is_empty() {
+                        format!("({}{comma})", decs.1.join(", "))
+                    } else {
+                        format!("{{ {}({}{comma}) }}", decs.0, decs.1.join(", "))
+                    },
                 )
                 .dropping(
                     parts
@@ -739,7 +760,7 @@ impl Gen {
                 for (name, t) in &fields {
                     let _ = writeln!(lines, "    pub {name}: {},", t.rust);
                 }
-                let (pattern, encs, decs) = Self::codec_fields(&fields);
+                let (pattern, encs, prelude, decs) = Self::codec_fields(&fields);
                 // A record without fields reads and writes no bytes.
                 let (enc, dec) = if fields.is_empty() {
                     (
@@ -749,7 +770,7 @@ impl Gen {
                 } else {
                     (
                         format!("        let Self {{ {pattern} }} = self;\n{encs}        Ok(())\n"),
-                        format!("        Ok(Self {{ {decs} }})\n"),
+                        format!("        {prelude}Ok(Self {{ {decs} }})\n"),
                     )
                 };
                 (
@@ -787,13 +808,17 @@ impl Gen {
                             let _ = writeln!(body, "        {field}: {},", t.rust);
                         }
                         body.push_str("    },\n");
-                        let (pattern, fenc, fdec) = Self::codec_fields(&fields);
+                        let (pattern, fenc, prelude, fdec) = Self::codec_fields(&fields);
                         let _ = write!(
                             encs,
                             "            Self::{name} {{ {pattern} }} => {{\n                e.tag({n});\n{}            }}\n",
                             fenc.replace("        ", "                ")
                         );
-                        ctors.push(format!("Self::{name} {{ {fdec} }}"));
+                        ctors.push(if prelude.is_empty() {
+                            format!("Self::{name} {{ {fdec} }}")
+                        } else {
+                            format!("{{ {prelude}Self::{name} {{ {fdec} }} }}")
+                        });
                     }
                 }
                 let enc = if vs.is_empty() {
@@ -883,16 +908,47 @@ impl Gen {
 
     /// A pattern binding each field to `f0`, `f1`..., the statements
     /// encoding them, and the field initializers decoding them in order.
-    fn codec_fields(fields: &[(String, Ty)]) -> (String, String, String) {
+    fn codec_fields(fields: &[(String, Ty)]) -> (String, String, String, String) {
         let mut pattern = Vec::with_capacity(fields.len());
         let mut encs = String::new();
-        let mut decs = Vec::with_capacity(fields.len());
         for (n, (name, t)) in fields.iter().enumerate() {
             pattern.push(format!("{name}: f{n}"));
             let _ = writeln!(encs, "        {}", t.enc(&format!("f{n}")));
-            decs.push(format!("{name}: {}", t.dec));
         }
-        (pattern.join(", "), encs, decs.join(", "))
+        let parts: Vec<Ty> = fields.iter().map(|(_, t)| t.clone()).collect();
+        let names: Vec<String> = (0..fields.len()).map(|n| format!("f{n}")).collect();
+        let (prelude, values) = Self::guarded_decs(&parts, &names);
+        let decs: Vec<String> = fields
+            .iter()
+            .zip(values)
+            .map(|((name, _), value)| format!("{name}: {value}"))
+            .collect();
+        (pattern.join(", "), encs, prelude, decs.join(", "))
+    }
+
+    /// The statements binding the parts of a tuple, record or variant in
+    /// order, each part holding a group's value guarded by [`guarded`],
+    /// and each part's value expression: a later part failing then takes
+    /// the earlier deep ones apart instead of dropping them. Every part is
+    /// read before any guard is released, since a literal evaluates its
+    /// parts in order. When only the last part holds one (or none does),
+    /// nothing can fail after it, and the parts are read in place.
+    fn guarded_decs(parts: &[Ty], names: &[String]) -> (String, Vec<String>) {
+        let last = parts.len().saturating_sub(1);
+        if !parts[..last].iter().any(|p| p.drop.is_some()) {
+            return (String::new(), parts.iter().map(|p| p.dec.clone()).collect());
+        }
+        let mut prelude = String::new();
+        let mut values = Vec::with_capacity(parts.len());
+        for (p, name) in parts.iter().zip(names) {
+            let _ = write!(
+                prelude,
+                "let {name} = {}; ",
+                guarded(&p.rust, p.drop.as_deref(), &p.dec)
+            );
+            values.push(finished(p.drop.as_deref(), name));
+        }
+        (prelude, values)
     }
 
     /// `derives` is empty for a type of a recursive group, whose loops
@@ -1782,6 +1838,27 @@ impl std::fmt::Debug for {name} {{
             );
         }
         out
+    }
+}
+
+/// `dec`, a `rust` value being read, guarded by `wire::Lent` when `drop`
+/// takes it apart, so a later part failing never drops it recursively.
+fn guarded(rust: &str, drop: Option<&str>, dec: &str) -> String {
+    match drop {
+        Some(drop) => format!(
+            "{WIRE}::Lent::new({dec}, |x: {rust}| {{ {} }})",
+            drop.replace(V, "x")
+        ),
+        None => dec.to_owned(),
+    }
+}
+
+/// The value `x` bound by [`guarded`], its decode finished.
+fn finished(drop: Option<&str>, x: &str) -> String {
+    if drop.is_some() {
+        format!("{x}.into_inner()")
+    } else {
+        x.to_owned()
     }
 }
 

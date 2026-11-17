@@ -431,12 +431,15 @@ fn deep_contract() -> Contract {
                         Value::List(Box::new(chain_type())),
                         Value::Option(Box::new(chain_type())),
                         Value::Result(Box::new(int(32, true)), Box::new(chain_type())),
-                        Value::Map(Box::new(Value::String), Box::new(chain_type())),
+                        Value::Map(Box::new(chain_type()), Box::new(chain_type())),
                         Value::Tuple(vec![chain_type(), int(32, true)]),
                         Value::Record(vec![field("node", chain_type()), field("n", int(32, true))]),
                         Value::Enum(vec![
                             variant("Empty", vec![]),
-                            variant("Full", vec![field("node", chain_type())]),
+                            variant(
+                                "Full",
+                                vec![field("node", chain_type()), field("n", int(32, true))],
+                            ),
                         ]),
                         Value::Enum(vec![variant("Only", vec![field("node", chain_type())])]),
                     ],
@@ -1590,7 +1593,7 @@ impl deep::Deep for Deeps {
         list: &Vec<deep::DeepHoldArg0Item>,
         option: &Option<deep::DeepHoldArg1>,
         result: &Result<i32, deep::DeepHoldArg2Err>,
-        map: &Vec<(String, deep::DeepHoldArg3Value)>,
+        map: &Vec<(deep::DeepHoldArg3Key, deep::DeepHoldArg3Value)>,
         tuple: &(deep::DeepHoldArg40, i32),
         record: &deep::DeepHoldArg5,
         variant: &deep::DeepHoldArg6,
@@ -1619,12 +1622,12 @@ impl deep::Deep for Deeps {
         if let Err(x) = result {
             n += links!(deep::DeepHoldArg2Err, x);
         }
-        for (_, x) in map {
-            n += links!(deep::DeepHoldArg3Value, x);
+        for (k, x) in map {
+            n += links!(deep::DeepHoldArg3Key, k) + links!(deep::DeepHoldArg3Value, x);
         }
         n += links!(deep::DeepHoldArg40, &tuple.0);
         n += links!(deep::DeepHoldArg5Node, &record.node);
-        if let deep::DeepHoldArg6::Full { node } = variant {
+        if let deep::DeepHoldArg6::Full { node, .. } = variant {
             n += links!(deep::DeepHoldArg6FullNode, node);
         }
         let deep::DeepHoldArg7::Only { node } = only;
@@ -1654,7 +1657,7 @@ fn hold_args(depth: u32) -> Vec<u8> {
     e.tag(1);
     chain_bytes(&mut e, depth);
     e.count(1);
-    e.string("k");
+    chain_bytes(&mut e, depth);
     chain_bytes(&mut e, depth);
     chain_bytes(&mut e, depth);
     e.signed(5);
@@ -1662,9 +1665,70 @@ fn hold_args(depth: u32) -> Vec<u8> {
     e.signed(5);
     e.tag(1);
     chain_bytes(&mut e, depth);
+    e.signed(5);
     e.tag(0);
     chain_bytes(&mut e, depth);
     e.into_bytes()
+}
+
+/// `hold`'s arguments, shallow, up to the one at `cut` (0 list, 3 map
+/// value, 7 map key, 4 tuple, 5 record, 6 variant), whose `depth`-deep
+/// chain is its last byte: the part after it, in the same argument, is
+/// missing.
+fn hold_cut(depth: u32, cut: u32) -> Vec<u8> {
+    let mut handles = native::Handles::default();
+    let mut e = native::wire::Encoder::new(&mut handles);
+    let at = |form: u32| if form == cut { depth } else { 0 };
+    e.count(2);
+    chain_bytes(&mut e, at(0));
+    if cut == 0 {
+        return e.into_bytes();
+    }
+    chain_bytes(&mut e, 0);
+    e.tag(0);
+    e.tag(0);
+    e.signed(1);
+    e.count(2);
+    chain_bytes(&mut e, at(7));
+    if cut == 7 {
+        return e.into_bytes();
+    }
+    chain_bytes(&mut e, at(3));
+    if cut == 3 {
+        return e.into_bytes();
+    }
+    chain_bytes(&mut e, 0);
+    chain_bytes(&mut e, 0);
+    chain_bytes(&mut e, at(4));
+    if cut == 4 {
+        return e.into_bytes();
+    }
+    e.signed(5);
+    chain_bytes(&mut e, at(5));
+    if cut == 5 {
+        return e.into_bytes();
+    }
+    e.signed(5);
+    e.tag(1);
+    chain_bytes(&mut e, depth);
+    e.into_bytes()
+}
+
+#[test]
+fn an_argument_failing_after_its_million_deep_part_takes_that_part_apart_in_constant_native_stack()
+{
+    on_small_stack(|| {
+        // Shallow, each cut argument fails where its next part is missing.
+        for cut in [0, 3, 7, 4, 5, 6] {
+            assert!(call_deep(2, &hold_cut(1, cut)).is_err(), "cut {cut}");
+        }
+        for cut in [0, 3, 7, 4, 5, 6] {
+            assert!(
+                call_deep(2, &hold_cut(1_000_000, cut)).is_err(),
+                "cut {cut}"
+            );
+        }
+    });
 }
 
 #[test]
@@ -1676,7 +1740,7 @@ fn a_lent_million_deep_argument_under_each_outer_form_is_taken_apart_in_constant
         let links = native::wire::Decoder::new(&answer)
             .unsigned::<u32>()
             .unwrap();
-        assert_eq!(links, 8 * (DEPTH + 1) + 2);
+        assert_eq!(links, 9 * (DEPTH + 1) + 2);
         // A trailing byte fails after every argument is read; a missing
         // last byte fails the last argument after the others are read.
         let mut trailing = args.clone();
@@ -1904,6 +1968,28 @@ fn a_generated_clone_and_compares_work_is_linear_in_its_values_depth() {
             assert!(
                 l <= 11 * s,
                 "form {form}: {what} {s} at 100,000 and {l} at 1,000,000"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_failed_arguments_take_apart_is_linear_in_its_depth() {
+    let counted = |depth: u32, cut: u32| {
+        on_small_stack(move || {
+            let args = hold_cut(depth, cut);
+            let before = ALLOCATED.with(Cell::get);
+            assert!(call_deep(2, &args).is_err());
+            let after = ALLOCATED.with(Cell::get);
+            (after.0 - before.0, after.1 - before.1)
+        })
+    };
+    for cut in [0, 7, 4, 6] {
+        let (small, large) = (counted(100_000, cut), counted(1_000_000, cut));
+        for (what, s, l) in [("calls", small.0, large.0), ("bytes", small.1, large.1)] {
+            assert!(
+                l <= 11 * s,
+                "cut {cut}: {what} {s} at 100,000 and {l} at 1,000,000"
             );
         }
     }
