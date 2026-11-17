@@ -51,6 +51,12 @@ export function createApplication({
   const source = sources[0];
   const leases = new Map();
   const incoming = [];
+  const acceptNotifications = new Set();
+  const notifyAccept = () => {
+    for (const notify of acceptNotifications) {
+      notify();
+    }
+  };
   let host,
     driver,
     driving = false,
@@ -95,7 +101,18 @@ export function createApplication({
         () => {
           if (held && leases.has(held.id.sequence)) {
             incoming.unshift(held);
+            notifyAccept();
           }
+        },
+        null,
+        (notify) => {
+          acceptNotifications.add(notify);
+          if (incoming.length || stopping) {
+            notify();
+          }
+          return () => {
+            acceptNotifications.delete(notify);
+          };
         },
       );
     },
@@ -256,6 +273,7 @@ export function createApplication({
       const lease = dispatcher.open(incomingRequest(request));
       leases.set(lease.id.sequence, lease);
       incoming.push(lease);
+      notifyAccept();
       const abort = () =>
         lease.cancel(
           signal?.reason === "Deadline" || signal?.reason === "Stopping"
@@ -275,6 +293,7 @@ export function createApplication({
     },
     stop() {
       stopping = true;
+      notifyAccept();
       try {
         drive();
       } catch (error) {

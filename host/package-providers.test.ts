@@ -414,7 +414,7 @@ for (const rejects of [false, true]) {
       for (let i = 0; i < 1_000; i++) {
         await Promise.resolve();
       }
-      assert.equal(probes, 1, "unrelated microtasks never re-probe a pending Promise");
+      assert.equal(probes, 0, "an unnotified Promise is never probed");
       settle(rejects ? "failed" : "resolved");
       if (rejects) {
         await result;
@@ -422,7 +422,7 @@ for (const rejects of [false, true]) {
         assert.equal(await result, 1);
         assert.equal(operation.finish(id), "resolved");
       }
-      assert.equal(probes, 2, "one probe before sleeping and one on delivery");
+      assert.equal(probes, 1, "one probe on notified delivery");
     } finally {
       operation.host.close();
     }
@@ -502,6 +502,98 @@ test("only Promise-backed package waits require a JSPI stack", async () => {
   }
 });
 
+test("notified package calls do linear probe work and ignore unrelated readiness", () => {
+  for (const width of [1_000, 10_000]) {
+    const notifications: (() => void)[] = [];
+    let probes = 0,
+      unsubscribed = 0;
+    const operation = operationHost((context: Dynamic) =>
+      context.pending(
+        () => {
+          probes++;
+          return true;
+        },
+        () => "ready",
+        null,
+        null,
+        (notify: () => void) => {
+          notifications.push(notify);
+          return () => {
+            unsubscribed++;
+          };
+        },
+      ),
+    );
+    try {
+      const ids = Array.from({ length: width }, () => operation.target["wait.start"]()[1]);
+      // A scan of pending operations would fail even without probing them.
+      operation.host.core.st.ops[Symbol.iterator] = () => {
+        throw new Error("pending map scanned");
+      };
+      operation.host.core.st.ops.values = () => {
+        throw new Error("pending values scanned");
+      };
+      for (let i = width - 1; i >= 0; i--) {
+        notifications[i]();
+        notifications[i]();
+        assert.equal(operation.host.imports["hd:rt"].block(), 1);
+        const memory = operation.instance.exports["hd.x"] as WebAssembly.Memory;
+        assert.equal(new DataView(memory.buffer).getInt32(0, true), ids[i]);
+        assert.equal(operation.finish(ids[i]), "ready");
+        notifications[i](); // An already delivered callback cannot revive it.
+      }
+      assert.equal(probes, width);
+      assert.equal(unsubscribed, width);
+      assert.equal(operation.host.core.st.ops.size, 0);
+    } finally {
+      operation.host.close();
+    }
+  }
+});
+
+for (const end of ["abort", "close", "deliver"]) {
+  test(`a readiness subscription is released once on ${end}`, () => {
+    let notify!: () => void;
+    let released = 0,
+      aborted = 0;
+    const operation = operationHost((context: Dynamic) =>
+      context.pending(
+        () => true,
+        () => "result",
+        () => {
+          aborted++;
+        },
+        null,
+        (ready: () => void) => {
+          notify = ready;
+          ready(); // Notification during registration must not get lost.
+          return () => {
+            released++;
+          };
+        },
+      ),
+    );
+    try {
+      const [, id] = operation.target["wait.start"]();
+      if (end === "deliver") {
+        assert.equal(operation.host.imports["hd:rt"].block(), 1);
+        assert.equal(operation.finish(id), "result");
+      } else if (end === "abort") {
+        operation.host.imports["hd:rt"].abort(id);
+      } else {
+        operation.host.close();
+      }
+      notify();
+      assert.equal(released, 1);
+      assert.equal(aborted, end === "deliver" ? 0 : 1);
+      assert.equal(operation.host.core.st.ops.size, 0);
+    } finally {
+      operation.host.close();
+    }
+    assert.equal(released, 1);
+  });
+}
+
 test("pollable package operations retain results until checked delivery", () => {
   let ready = false,
     computed = 0,
@@ -540,6 +632,130 @@ test("pollable package operations retain results until checked delivery", () => 
     operation.host.close();
   }
   assert.equal(aborted, 0);
+});
+
+test("failed subscription registration cancels the call without retaining an operation", () => {
+  for (const subscribe of [
+    () => {
+      throw new Error("subscription failed");
+    },
+    () => 42,
+  ]) {
+    let aborted = 0;
+    const operation = operationHost((context: Dynamic) =>
+      context.pending(
+        () => true,
+        () => "result",
+        () => {
+          aborted++;
+        },
+        null,
+        subscribe,
+      ),
+    );
+    try {
+      assert.throws(
+        () => operation.target["wait.start"](),
+        /provider callback threw|subscription must return/,
+      );
+      assert.equal(aborted, 1);
+      assert.equal(operation.host.core.st.ops.size, 0);
+    } finally {
+      operation.host.close();
+    }
+  }
+});
+
+test("a callback cannot requeue another operation already owned by its completion batch", (context) => {
+  context.mock.method(performance, "now", () => 100);
+  const notifications: (() => void)[] = [];
+  let computed = 0;
+  const operation = operationHost((providerContext: Dynamic) =>
+    providerContext.pending(
+      () => true,
+      () => {
+        computed++;
+        notifications[1]();
+        return "result";
+      },
+      null,
+      null,
+      (notify: () => void) => {
+        notifications.push(notify);
+      },
+    ),
+  );
+  try {
+    const ids = [operation.target["wait.start"]()[1], operation.target["wait.start"]()[1]];
+    for (const notify of notifications) {
+      notify();
+    }
+    assert.equal(operation.host.imports["hd:rt"].block(), 2);
+    for (const id of ids) {
+      assert.equal(operation.finish(id), "result");
+    }
+    const [, clock] = operation.host.imports["hd:Clock"]["sleep.start"](0n);
+    assert.equal(operation.host.imports["hd:rt"].block(), 1);
+    const memory = operation.instance.exports["hd.x"] as WebAssembly.Memory;
+    assert.equal(new DataView(memory.buffer).getInt32(0, true), clock);
+    operation.host.imports["hd:Clock"]["sleep.finish"](clock);
+    assert.equal(computed, 2);
+  } finally {
+    operation.host.close();
+  }
+});
+
+test("a failing unsubscribe still cancels the undelivered resource once", () => {
+  let aborted = 0;
+  const operation = operationHost((context: Dynamic) =>
+    context.pending(
+      () => false,
+      () => "result",
+      () => {
+        aborted++;
+      },
+      null,
+      () => () => {
+        throw new Error("unsubscribe failed");
+      },
+    ),
+  );
+  try {
+    const [, id] = operation.target["wait.start"]();
+    assert.throws(
+      () => operation.host.imports["hd:rt"].abort(id),
+      /provider callback threw.*unsubscribe failed/,
+    );
+    assert.equal(aborted, 1);
+    assert.equal(operation.host.core.st.ops.size, 0);
+  } finally {
+    operation.host.close();
+  }
+  assert.equal(aborted, 1);
+});
+
+test("instance close cancels all calls even when an unsubscribe fails", () => {
+  let aborted = 0;
+  const operation = operationHost((context: Dynamic) =>
+    context.pending(
+      () => false,
+      () => "result",
+      () => {
+        aborted++;
+      },
+      null,
+      () => () => {
+        throw new Error("unsubscribe failed");
+      },
+    ),
+  );
+  operation.target["wait.start"]();
+  operation.target["wait.start"]();
+  assert.throws(() => operation.host.close(), /unsubscribe failed/);
+  assert.equal(aborted, 2);
+  assert.equal(operation.host.core.st.ops.size, 0);
+  operation.host.close();
+  assert.equal(aborted, 2);
 });
 
 test("aborting a ready package operation cancels its undelivered resource once", () => {

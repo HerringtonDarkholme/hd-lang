@@ -1,7 +1,7 @@
 // A child's I/O belongs to this worker, so a synchronous hd:rt.block can
 // keep polling sibling tasks. As with Net, control calls only start, probe,
 // commit or cancel an operation; completion never posts unsolicited replies.
-import { serve } from "./worker-control.ts";
+import { serve, notifyResult } from "./worker-control.ts";
 import type { Flag } from "./worker-control.ts";
 import { spawn } from "node:child_process";
 import { constants } from "node:os";
@@ -57,6 +57,7 @@ interface WindowsStatus {
 interface ProcessWorkerData {
   port: MessagePort;
   flag: Flag;
+  reactor?: Flag;
 }
 
 const systemError = (error: unknown): SystemError =>
@@ -375,7 +376,10 @@ const run = (request: ProcessControlRequest): unknown | Promise<{ ok: null }> =>
   switch (request.op) {
     case "wait_start": {
       const operation = nextOperation++;
-      operations.set(operation, begin(request));
+      operations.set(
+        operation,
+        notifyResult(begin(request), workerData as ProcessWorkerData, `wait:${operation}`),
+      );
       return { ok: operation };
     }
     case "wait_poll": {

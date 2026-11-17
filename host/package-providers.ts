@@ -968,11 +968,13 @@ export function createPackageRuntime(
             const context = {
               signal,
               instanceSignal: lifetime.signal,
+              // oxlint-disable-next-line max-params -- matches the approved public pending API.
               pending(
                 poll: () => boolean,
                 done: () => Dynamic,
                 abort: (() => void) | null = null,
                 finish: (() => void) | null = null,
+                subscribe: ((ready: () => void) => void | (() => void)) | null = null,
               ): Dynamic {
                 if (method.wait !== "may") {
                   fail(`non-suspending method ${label} cannot create a pending operation`);
@@ -982,14 +984,15 @@ export function createPackageRuntime(
                 }
                 if (
                   (abort !== null && typeof abort !== "function") ||
-                  (finish !== null && typeof finish !== "function")
+                  (finish !== null && typeof finish !== "function") ||
+                  (subscribe !== null && typeof subscribe !== "function")
                 ) {
-                  fail("pending cancellation and delivery hooks must be functions");
+                  fail("pending cancellation, delivery and readiness hooks must be functions");
                 }
                 if (!io.prepare) {
                   fail("the host cannot create pending operations");
                 }
-                return io.prepare(poll, done, abort, finish);
+                return io.prepare(poll, done, abort, finish, subscribe);
               },
             };
             Object.defineProperty(context, "interfaceIdentity", {
@@ -1065,6 +1068,15 @@ export function createPackageRuntime(
                   call(prepared.abort);
                 },
                 finish: prepared.finish ? () => call(prepared.finish) : null,
+                subscribe: prepared.subscribe
+                  ? (ready: () => void) => {
+                      const unsubscribe = call(() => prepared.subscribe(ready));
+                      if (unsubscribe !== undefined && typeof unsubscribe !== "function") {
+                        fail("pending subscription must return a function or undefined");
+                      }
+                      return unsubscribe ? () => call(unsubscribe) : undefined;
+                    }
+                  : null,
               });
             }
             if (!value || typeof value.then !== "function") {
@@ -1075,9 +1087,16 @@ export function createPackageRuntime(
               rejected = false,
               kept: Dynamic = undefined,
               failure: Dynamic = undefined;
+            let notify: (() => void) | undefined;
             const pending = io.pending({
               at: performance.now(),
               promise: true,
+              subscribe: (ready: () => void) => {
+                notify = ready;
+                return () => {
+                  notify = undefined;
+                };
+              },
               done: () => {
                 if (rejected) {
                   fail(`provider ${label} rejected: ${String(failure)}`);
@@ -1097,7 +1116,11 @@ export function createPackageRuntime(
                 if (live) {
                   kept = value;
                   ready = true;
-                  io.wake?.();
+                  if (notify) {
+                    notify();
+                  } else {
+                    io.wake?.();
+                  }
                 }
               },
               (value) => {
@@ -1105,7 +1128,11 @@ export function createPackageRuntime(
                   failure = value;
                   rejected = true;
                   ready = true;
-                  io.wake?.();
+                  if (notify) {
+                    notify();
+                  } else {
+                    io.wake?.();
+                  }
                 }
               },
             );

@@ -1,6 +1,6 @@
 // Guest stdin belongs to an I/O worker, including under synchronous rt.block.
 // Like Net, reads reserve bytes until guest finish; abort restores reservations.
-import { postReply } from "./worker-control.ts";
+import { postReply, notifyResult } from "./worker-control.ts";
 import { createReadStream, fstatSync } from "node:fs";
 import { Socket } from "node:net";
 import { isatty, ReadStream } from "node:tty";
@@ -18,6 +18,7 @@ interface InputState {
 }
 
 const operations = new Map<number, InputState>();
+const waiting = new Set<InputState>();
 let nextOperation = 1;
 let source: Dynamic = null;
 let initialized = false;
@@ -49,10 +50,11 @@ const complete = (state: InputState, newline: boolean): void => {
     state.result = { ok: bytes.toString("utf8").replaceAll("\r\n", "\n") };
   }
 };
+const canServe = (): boolean => available.length > 0 || ended || failure !== null;
 const serve = (): void => {
-  for (const state of operations.values()) {
-    if (state.result !== null) {
-      continue;
+  for (const state of waiting) {
+    if (!canServe()) {
+      break;
     }
     let newline = false;
     while (available.length) {
@@ -69,9 +71,12 @@ const serve = (): void => {
     } else if (newline || ended) {
       complete(state, newline);
     }
+    if (state.result !== null) {
+      waiting.delete(state);
+    }
   }
   // Do not read ahead without a pending call; retain already buffered bytes.
-  if ([...operations.values()].some((state) => state.result === null)) {
+  if (waiting.size) {
     source?.resume();
   } else {
     source?.pause();
@@ -123,7 +128,13 @@ const run = (request: Dynamic): Dynamic => {
     case "wait_start": {
       open(request.fd);
       const operation = nextOperation++;
-      operations.set(operation, { kind: request.kind, parts: [], result: null });
+      const state = notifyResult<InputState>(
+        { kind: request.kind, parts: [], result: null },
+        workerData as Dynamic,
+        `wait:${operation}`,
+      );
+      operations.set(operation, state);
+      waiting.add(state);
       serve();
       return { ok: operation };
     }
@@ -146,6 +157,7 @@ const run = (request: Dynamic): Dynamic => {
       const state = operations.get(request.operation);
       if (state) {
         operations.delete(request.operation);
+        waiting.delete(state);
         available = available.concat(state.parts);
         available.sort((left, right) => left.offset - right.offset);
         serve();

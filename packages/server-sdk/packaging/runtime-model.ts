@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 // The SDK snapshot contains this exact platform-neutral graph and its ABI model.
 export const runtimeSources = Object.freeze({
+  "operation-queue.js": "host/operation-queue.ts",
   "core.js": "host/core.ts",
   "core-package.js": "host/core-package.ts",
   "session.js": "host/session.ts",

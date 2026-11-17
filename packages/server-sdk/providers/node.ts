@@ -255,10 +255,12 @@ export default {
           ? undefined
           : Buffer.from(value.body);
       let ready = false,
-        failed = false;
+        failed = false,
+        notify = null;
       response.end(body, (error) => {
         failed = Boolean(error);
         ready = true;
+        notify?.();
       });
       return context.pending(
         () => ready || response.destroyed,
@@ -270,6 +272,18 @@ export default {
           return ok(undefined);
         },
         () => response.destroy(),
+        null,
+        (readyCallback) => {
+          notify = readyCallback;
+          response.on("close", readyCallback);
+          if (ready || response.destroyed) {
+            readyCallback();
+          }
+          return () => {
+            notify = null;
+            response.off("close", readyCallback);
+          };
+        },
       );
     } catch (error) {
       if (!response.headersSent) {

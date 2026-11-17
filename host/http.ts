@@ -23,7 +23,7 @@
 //   hop, and its four phase timeouts bound each hop's connect, TLS
 //   handshake, response headers and body (std-http.settings.*). A setting
 //   this host does not honour is `UnsupportedSetting` before any work.
-import { serve } from "./worker-control.ts";
+import { serve, notifyResult } from "./worker-control.ts";
 import type { Flag } from "./worker-control.ts";
 import http from "node:http";
 import https from "node:https";
@@ -94,6 +94,7 @@ interface HttpState {
 interface HttpWorkerData {
   port: MessagePort;
   flag: Flag;
+  reactor?: Flag;
 }
 
 interface ErrorLike {
@@ -470,7 +471,10 @@ const run = (request: HttpControlRequest): unknown => {
       const operation = nextOperation++;
       const controller = new AbortController();
       const state: HttpState = { controller, result: null };
-      operations.set(operation, state);
+      operations.set(
+        operation,
+        notifyResult(state, workerData as HttpWorkerData, `wait:${operation}`),
+      );
       const complete = (result: HttpResult): void => {
         if (operations.get(operation) === state) {
           state.result = result;

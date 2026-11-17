@@ -3,7 +3,7 @@
 // a FIFO open cannot be interrupted by terminating a Node worker, and
 // blocked libuv pool jobs would also starve unrelated special-file calls.
 // Only these uncommon calls start a child; regular files stay inline.
-import { serve } from "./worker-control.ts";
+import { serve, notifyResult } from "./worker-control.ts";
 import type { Flag } from "./worker-control.ts";
 import { fork } from "node:child_process";
 import { parentPort, Worker, workerData } from "node:worker_threads";
@@ -28,6 +28,7 @@ type FileControlRequest =
 interface ControlWorkerData {
   port: MessagePort;
   flag: Flag;
+  reactor?: Flag;
 }
 
 interface JobWorkerData {
@@ -99,7 +100,7 @@ if (data && "port" in data) {
     switch (request.op) {
       case "wait_start": {
         const operation = nextOperation++;
-        operations.set(operation, begin(request));
+        operations.set(operation, notifyResult(begin(request), data, `wait:${operation}`));
         return { ok: operation };
       }
       case "wait_poll": {

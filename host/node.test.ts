@@ -18,7 +18,7 @@ import { cgroupCpuCount, createHost, syncClient } from "./node.ts";
 import { fixture, netHost, netWorker, tcpHost } from "./node-test-support.ts";
 import { browserSend } from "./web.ts";
 import { failed as failedOutput } from "./output-worker.ts";
-import { postReply } from "./worker-control.ts";
+import { postReply, postReady } from "./worker-control.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 
@@ -77,6 +77,58 @@ test("worker control waits for a message after an empty notification", (testCont
   const client = controlClient(testContext);
   const deadline = performance.now() + 5000;
   assert.equal(client.call({ op: "empty" }, () => deadline - performance.now()).value, "empty");
+});
+
+test("worker readiness survives a control reply and unsubscribes without polling", (testContext) => {
+  const root = fixture(testContext, {
+    "ready.ts": `
+      import { workerData } from 'node:worker_threads';
+      import { serve, postReady } from ${JSON.stringify(new URL("./worker-control.ts", import.meta.url).href)};
+      serve(workerData.port, workerData.flag, (request) => {
+        if (request.op === 'start') { postReady(workerData, 'wait:1'); return {ok:1}; }
+        postReady(workerData, 'wait:1'); return {ok:null};
+      });
+    `,
+  });
+  const reactor = new Int32Array(new SharedArrayBuffer(4));
+  const client = syncClient(pathToFileURL(join(root, "ready.ts")), null, reactor);
+  testContext.after(() => client.stop());
+  const deadline = performance.now() + 5000;
+  const left = () => deadline - performance.now();
+  assert.deepEqual(client.call({ op: "start" }, left), { ok: 1 });
+  let notified = 0;
+  const unsubscribe = client.subscribe("wait:1", () => {
+    notified++;
+  });
+  assert.equal(notified, 1, "a notification preceding subscription is retained");
+  assert.equal(Atomics.load(reactor, 0), 1);
+  unsubscribe();
+  client.call({ op: "late" }, left);
+  client.drainReady();
+  assert.equal(notified, 1, "late readiness cannot revive an unsubscribed operation");
+  assert.equal(Atomics.load(reactor, 0), 2);
+});
+
+test("worker readiness is published before waking the reactor", () => {
+  const flag = new Int32Array(new SharedArrayBuffer(4));
+  const reactor = new Int32Array(new SharedArrayBuffer(4));
+  let message;
+  postReady(
+    {
+      port: {
+        postMessage: (value) => {
+          assert.equal(Atomics.load(reactor, 0), 0);
+          message = value;
+        },
+      },
+      flag,
+      reactor,
+    },
+    "wait:7",
+  );
+  assert.deepEqual(message, { ready: "wait:7" });
+  assert.equal(Atomics.load(flag, 0), 1);
+  assert.equal(Atomics.load(reactor, 0), 1);
 });
 
 test("worker control ignores an old call ID before the current reply", (testContext) => {

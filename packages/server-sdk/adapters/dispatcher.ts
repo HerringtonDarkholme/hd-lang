@@ -80,6 +80,7 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
       finished: false,
       abandoned: false,
       cancelled: null,
+      cancelNotifications: new Set(),
       response: null,
     };
     jobs.set(job.id.sequence, job);
@@ -120,6 +121,7 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
           value: undefined,
           error: null,
           cleanup: null,
+          notify: null,
         };
         job.operations.add(operation);
         const settle = (value, error = null) => {
@@ -129,6 +131,7 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
           operation.value = value;
           operation.error = error;
           operation.ready = true;
+          operation.notify?.();
           turn();
         };
         enqueue(job, () => {
@@ -160,6 +163,15 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
           () => {
             dispose(job, operation);
           },
+          (notify) => {
+            operation.notify = notify;
+            if (operation.ready) {
+              notify();
+            }
+            return () => {
+              operation.notify = null;
+            };
+          },
         );
       },
       cancelled(context) {
@@ -167,6 +179,17 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
         return context.pending(
           () => job.cancelled !== null,
           () => ({ tag: job.cancelled, fields: {} }),
+          null,
+          null,
+          (notify) => {
+            job.cancelNotifications.add(notify);
+            if (job.cancelled !== null) {
+              notify();
+            }
+            return () => {
+              job.cancelNotifications.delete(notify);
+            };
+          },
         );
       },
       cancel(reason) {
@@ -174,6 +197,9 @@ export function createLeaseDispatcher({ drive, failed = () => {} }) {
           return;
         }
         job.cancelled = reason;
+        for (const notify of job.cancelNotifications) {
+          notify();
+        }
         turn();
         signal(job);
       },
