@@ -53,8 +53,7 @@
     },
     {
       "reason": "conservative: copy read",
-      "sites": 1,
-      "explanation": "#2074: TextReader.new in bench/study/json.hd keeps a conservative string copy while Parser state is mutated and the returned owning reader is constructed; count donation across that mutable binding is not proven. The retain is balanced by its release."
+      "sites": 0
     },
     {
       "reason": "conservative: entry",
@@ -70,8 +69,7 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 470,
-      "explanation": "#2074 measured 470 static source-call sites over all 34 optimized-release benchmark modules: app 0, std 85, runtime 385. Relative to main, json adds 7 generated rt:release sites and structure_walk adds 1; their cleanup shapes select one additional release helper specialization each. Aggregate/binding loans replace temporary aggregate ownership with source-operand ownership, changing which release walks are emitted. No app/std source-call sites increase. This records generated cleanup-code sites, not measured dynamic executions."
+      "sites": 463
     },
     {
       "reason": "conservative: unique",
