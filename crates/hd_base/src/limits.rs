@@ -30,6 +30,15 @@ pub const TYPE_DEPTH: u32 = 1_000;
 /// Owner decision 2026-11-14.
 pub const REFERENCES: u32 = 1_024;
 
+/// Bytes one value of a type may take (`types.limit.value-size`):
+/// wasm32's `isize::MAX`, the bound rustc's `TargetDataLayout::
+/// obj_size_bound` sets on a 32-bit target. A type whose values would be
+/// larger is `type-too-large` (`types.limit.value-size.error`), reported
+/// where the backend first lays it out, as rustc's
+/// `LayoutError::SizeOverflow` is. It is the target's address space, not
+/// a chosen cap. Orchestrator decision 2026-11-17 (#2111).
+pub const VALUE_SIZE: u32 = 0x7fff_ffff;
+
 /// Associated-type bindings one normalization follows, one after another
 /// (`trait.assoc.projection.depth`): normalizing `T::Out` through `impl
 /// Walk for A: type Out = U::Out` takes one, and a chain that needs more

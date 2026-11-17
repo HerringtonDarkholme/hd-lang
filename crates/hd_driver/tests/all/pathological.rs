@@ -3169,6 +3169,54 @@ fn layout_probes_grow_linearly_in_alias_depth() {
     });
 }
 
+/// A list of a tuple doubled through `n` aliases over `i32`, so its
+/// type takes 2^(n + 2) bytes, past `types.limit.value-size` from 29 on.
+/// The source grows linearly in `n`.
+fn list_of_doubled_i32(n: usize) -> String {
+    let mut s = String::from("type D0 = i32\n");
+    for i in 1..=n {
+        let _ = writeln!(s, "type D{i} = (D{p}, D{p})", p = i - 1);
+    }
+    let _ = write!(
+        s,
+        "\npub fn main() -> void $ Console:\n    let xs: List[D{n}] = []\n    println(xs.len())\n"
+    );
+    s
+}
+
+// Wasm: #2111, a type is checked against the value-size limit through its
+// shape, its size, alignment and niche without its leaves, made once per
+// distinct type from its parts' shapes: the layout copied each part's
+// leaves first, so depth 130 laid out 2^28 leaves of its 28th level (6.9
+// GB) before its 29th overflowed a `u32` sum. Depth 13 builds; depth 130
+// is `type-too-large` after at most as many layouts per level.
+#[test]
+fn a_type_past_the_value_size_limit_stops_without_its_leaves() {
+    on_test_stack(|| {
+        let goal = Goal::Program {
+            entry: "main".into(),
+        };
+        let build = |n: usize| {
+            hd_wasm::work::count_layout_parts(|| compile(&list_of_doubled_i32(n), &goal))
+        };
+        // The first build lays out std's types too; depth 1 is then the
+        // program's other layouts, which the depth adds to.
+        build(1);
+        let (_, base) = build(1);
+        let (small, a) = build(13);
+        assert!(!small.diags.has_errors(), "{}", small.render());
+        let (large, b) = build(130);
+        let codes: Vec<&str> = large.diags.code.iter().map(|c| c.as_str()).collect();
+        assert_eq!(codes, ["type-too-large"], "{}", large.render());
+        let (a, b) = (a.saturating_sub(base), b.saturating_sub(base));
+        eprintln!("layout parts past depth 1: depth 13 {a}, depth 130 {b}");
+        assert!(
+            a > 0 && b <= 10 * a,
+            "layout parts past depth 1 at depth 13 and 130: {a} and {b}"
+        );
+    });
+}
+
 /// One struct implementing `n` traits, each declaring its own method,
 /// and each method called once: #2029's shape.
 fn struct_of_many_traits(n: usize) -> String {

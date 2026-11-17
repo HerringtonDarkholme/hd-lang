@@ -315,7 +315,8 @@ fn every_boundary_type() -> LTy {
     let string = crate::layout::Mem::string();
     let int = crate::layout::Mem::one(Val::I64, 8, false);
     let opt = LTy::Enum(Box::new(LEnum {
-        layout: Box::new(crate::layout::flat_of(&[vec![], vec![string], vec![int]])),
+        // ruled out: past the value-size limit; a few scalars fit.
+        layout: Box::new(crate::layout::flat_of(&[vec![], vec![string], vec![int]]).expect("fits")),
         variants: vec![
             vec![],
             vec![LTy::Str],
@@ -1417,7 +1418,8 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         Helper::MapSlotNext,
         Helper::MapStep {
             entry,
-            item: Box::new(crate::layout::flat_of(&[vec![], vec![tuple]])),
+            // ruled out: past the value-size limit; a few scalars fit.
+            item: Box::new(crate::layout::flat_of(&[vec![], vec![tuple]]).expect("fits")),
         },
         Helper::DynSlot {
             target: Hash128(8),

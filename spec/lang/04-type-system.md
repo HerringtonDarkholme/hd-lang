@@ -1818,8 +1818,10 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 14. r[types.limit.type-size.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
 15. r[types.limit.references] An implementation may limit how many references one type holds, since each is a reference position of its own ([`ref.dep.position`](13-values-and-references.md#r-ref.dep.position)). The count takes each `&` and `&mut` outside function types, each function type, each opaque type that borrows, and each suspension, and counts a part again at each use: `(R, R)` holds twice what `R` holds. A struct or enum instance counts its type arguments, not its fields. The limit is implementation-defined: `hd` allows 1,024.
 16. r[types.limit.references.error] A type over that limit, whether written or inferred, is an error. Error: `type-too-large`.
-17. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
-18. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.
+17. r[types.limit.value-size] An implementation may limit how many bytes one value of a type takes, since a value lies in one block of the target's memory. The limit is implementation-defined: `hd` allows 2,147,483,647 bytes, the largest block a 32-bit address space holds.
+18. r[types.limit.value-size.error] A type over that limit is an error when building the program lays it out: a value of it in a local, a parameter, a field, a payload, a list's or a map's element, or a closure's captures. A type the built program never lays out is not an error, and checking alone does not lay out types. Error: `type-too-large`.
+19. r[types.generic.const.runtime] A const generic argument contributes to compile-time identity and specialization keys but does not add a runtime parameter by itself.
+20. r[types.generic.const.interfaces] Package interfaces preserve const parameter declarations, evaluated const arguments, and generic bodies needed by downstream compilation.
 
 ```hd
 fn first[T](items: List[T]) -> T?:
@@ -1841,6 +1843,12 @@ fn nest[T](value: T, depth: i32) -> i32:
 
 > **Note.** A chain that grows through a call with no fixed callee, such
 > as a call through a bound, still meets the instantiation limit.
+
+> **Why.** A value's size depends on the target's layout, which the type
+> checker does not compute: a tuple doubled through 29 aliases over `i32`
+> takes 2^31 bytes. So the error comes where the build lays the type out,
+> as Rust's "values of the type are too big for the target architecture"
+> does. The limit is the target's address space, not a chosen cap.
 
 See also: [Implementation Model](#implementation-model-non-normative), which
 describes the reference strategy.

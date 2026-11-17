@@ -95,6 +95,11 @@ pub struct NotImplemented {
     /// not a construct this build lacks. The stage's caller turns it into
     /// its own diagnostic, such as the checker's `item-too-complex`.
     pub out_of_fuel: bool,
+    /// A value of a type would not fit the target's address space
+    /// ([`NotImplemented::too_large`]): not a construct this build lacks.
+    /// The driver reports it as `type-too-large`
+    /// (`types.limit.value-size.error`).
+    pub too_large: bool,
 }
 
 impl NotImplemented {
@@ -106,6 +111,17 @@ impl NotImplemented {
             span: None,
             bug: false,
             out_of_fuel: false,
+            too_large: false,
+        }
+    }
+
+    /// A layout of `stage` found a type whose values would be larger
+    /// than the target can address; `what` is the error's message.
+    #[must_use]
+    pub fn too_large(stage: Stage, what: impl Into<String>) -> Self {
+        Self {
+            too_large: true,
+            ..Self::new(stage, what)
         }
     }
 
@@ -143,6 +159,8 @@ impl fmt::Display for NotImplemented {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.bug {
             write!(f, "stage {} hit a bug: {}", self.stage.name(), self.what)
+        } else if self.too_large {
+            write!(f, "stage {}: {}", self.stage.name(), self.what)
         } else if self.out_of_fuel {
             write!(
                 f,

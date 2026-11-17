@@ -20,7 +20,8 @@
 //! §23.20); a reference to a trait value is that trait value, whose data
 //! is already one address, as Rust's `&dyn Tr` is a fat pointer.
 
-use hd_base::{SliceSort as _, StageResult};
+use hd_base::limits::VALUE_SIZE;
+use hd_base::{NotImplemented, SliceSort as _, Stage, StageResult};
 use hd_mono::layout::{StdKind, strip_newtype};
 use hd_mono::{ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
@@ -209,7 +210,7 @@ impl Mem {
 
     /// A string: its bytes' address, never null, and its length.
     pub(crate) fn string() -> Mem {
-        record(&[Mem::nonnull(), Mem::address()]).0
+        pair(Mem::nonnull(), Mem::address())
     }
 
     pub fn vals(&self) -> Vec<Val> {
@@ -625,6 +626,7 @@ type VariantTypes = std::rc::Rc<Vec<Vec<Ty>>>;
 
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
+    static SHAPES: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
@@ -643,6 +645,7 @@ thread_local! {
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+        shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -657,6 +660,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     impl Drop for Reset {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
+            SHAPES.set(self.shapes.take());
             WALKS.set(self.walks.take());
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
@@ -672,6 +676,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
 
     let _reset = Reset {
         mems: MEMS.take(),
+        shapes: SHAPES.take(),
         walks: WALKS.take(),
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
@@ -684,6 +689,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         members: MEMBERS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
+    SHAPES.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
@@ -701,6 +707,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
 /// plans' store and the reference slot plans.
 struct Scope {
     mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+    shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
     walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -720,6 +727,7 @@ impl Scope {
     fn take() -> Self {
         Self {
             mems: MEMS.take(),
+            shapes: SHAPES.take(),
             walks: WALKS.take(),
             count_walks: COUNT_WALKS.take(),
             drops: DROPS.take(),
@@ -739,6 +747,7 @@ impl Scope {
     fn fresh() -> Self {
         Self {
             mems: Some(hd_base::HashMap::default()),
+            shapes: Some(hd_base::HashMap::default()),
             walks: Some(hd_base::HashMap::default()),
             count_walks: Some(hd_base::HashMap::default()),
             drops: Some(hd_base::HashMap::default()),
@@ -757,6 +766,7 @@ impl Scope {
     /// Puts the scope in place on the thread.
     fn put(self) {
         MEMS.set(self.mems);
+        SHAPES.set(self.shapes);
         WALKS.set(self.walks);
         COUNT_WALKS.set(self.count_walks);
         DROPS.set(self.drops);
@@ -836,19 +846,47 @@ fn memoized<T: Clone + 'static>(
     got
 }
 
-/// A concrete type's layout.
+/// A concrete type's layout. A type not laid out yet has its [`shape`]
+/// checked first, so a type past [`VALUE_SIZE`] is `type-too-large`
+/// before any of its parts' leaves is copied.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
-    memoized(&MEMS, pool, env, t, &|u, part| mem_one(pool, env, u, part))
+    let u = strip(pool, env, t);
+    if let Some(got) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&u).cloned())) {
+        return got;
+    }
+    shape(pool, env, u)?;
+    memoized(&MEMS, pool, env, u, &|u, part| {
+        mem_one(pool, env, u, part, true)
+    })
 }
 
-/// `t`'s layout from its parts' layouts, which `part` reads.
+/// `t`'s layout without its leaves: its size, alignment, niche and
+/// whether a value has it, as rustc's `LayoutS` keeps them per type, from
+/// its parts' shapes. The size, the alignment and the niche never read a
+/// leaf, so they are [`mem`]'s, and a type past [`VALUE_SIZE`] is found
+/// here at O(its fields) per distinct type, where [`mem`] copies every
+/// part's leaves first: a tuple doubled 29 times over `i32` laid out 2^28
+/// leaves of its last legal part before its own sum overflowed.
+fn shape(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
+    memoized(&SHAPES, pool, env, t, &|u, part| {
+        mem_one(pool, env, u, part, false).map(|m| Mem {
+            leaves: Vec::new(),
+            ..m
+        })
+    })
+}
+
+/// `t`'s layout from its parts' layouts, which `part` reads; an enum's
+/// kept for [`flat`] when `full`, as no [`shape`] is.
 fn mem_one(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     t: Ty,
     part: &dyn Fn(Ty) -> StageResult<Mem>,
+    full: bool,
 ) -> StageResult<Mem> {
     let t = strip(pool, env, t);
+    let named = || too_large(&hd_mono::shown_type(pool, env, t));
     Ok(match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::I8 => Mem::one(Val::I32, 1, true),
@@ -864,10 +902,10 @@ fn mem_one(
             Prim::String => Mem::string(),
         },
         TyData::Never => Mem::NEVER,
-        TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
+        TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part, &named)?.0,
         TyData::Union(members) => {
             let variants = union_variants(pool, members);
-            enum_flat_by(t, &variants, part)?
+            enum_flat_by(t, &variants, part, &named, full)?
         }
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
@@ -876,15 +914,15 @@ fn mem_one(
                 Kind::Boxed => Mem::nonnull(),
                 Kind::Ref { fat, .. } => ref_mem(fat),
                 Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_flat_by(t, &variants, part)?,
-                    None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
+                    Some(variants) => enum_flat_by(t, &variants, part, &named, full)?,
+                    None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
                 },
             },
         },
         // A function value's code is a table slot, which may be 0, and its
         // environment is 0 when it captures nothing: no niche.
-        TyData::Fn { .. } => record(&[Mem::address(), Mem::address()]).0,
-        TyData::TraitValue { .. } => record(&[Mem::address(), Mem::nonnull()]).0,
+        TyData::Fn { .. } => pair(Mem::address(), Mem::address()),
+        TyData::TraitValue { .. } => pair(Mem::address(), Mem::nonnull()),
         // A `$.Context` value is the address of a counted context
         // (`rt::ctx_elem`).
         TyData::Context(_) => Mem::address(),
@@ -908,7 +946,7 @@ fn mem_one(
 /// value (`fat`), that trait value.
 fn ref_mem(fat: bool) -> Mem {
     if fat {
-        record(&[Mem::address(), Mem::nonnull()]).0
+        pair(Mem::address(), Mem::nonnull())
     } else {
         Mem::nonnull()
     }
@@ -920,8 +958,13 @@ fn enum_flat_by(
     t: Ty,
     variants: &[Vec<Ty>],
     part: &dyn Fn(Ty) -> StageResult<Mem>,
+    named: &dyn Fn() -> NotImplemented,
+    full: bool,
 ) -> StageResult<Mem> {
-    let got = enum_mem_by(variants, part).map(std::rc::Rc::new);
+    let got = enum_mem_by(variants, part, named).map(std::rc::Rc::new);
+    if !full {
+        return Ok(got?.mem.clone());
+    }
     FLATS.with(|m| {
         if let Some(m) = m.borrow_mut().as_mut() {
             m.insert(t, got.clone());
@@ -1416,17 +1459,16 @@ pub fn env_mem(
     env: &dyn ProgramEnv,
     fields: &[(Ty, bool)],
 ) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
-    let ms = fields
-        .iter()
-        .map(|(t, shared)| {
-            if *shared {
-                Ok(Mem::address())
-            } else {
-                mem(pool, env, *t)
-            }
-        })
-        .collect::<StageResult<Vec<_>>>()?;
-    let (m, parts) = record(&ms);
+    let laid = |of: &dyn Fn(Ty) -> StageResult<Mem>| {
+        let ms = fields
+            .iter()
+            .map(|(t, shared)| if *shared { Ok(Mem::address()) } else { of(*t) })
+            .collect::<StageResult<Vec<_>>>()?;
+        record(&ms).map_err(|TooLarge| too_large("a closure's captures"))
+    };
+    // The sum fits before any capture's leaves are copied, as in [`mem`].
+    laid(&|t| shape(pool, env, t))?;
+    let (m, parts) = laid(&|t| mem(pool, env, t))?;
     let walks = fields
         .iter()
         .zip(&parts)
@@ -1482,16 +1524,68 @@ fn switch_walk_by(
 /// the whole layout and each capture's place in it. The environment's code
 /// reads them at these offsets. Its niche is its fields' largest, the
 /// first of equals.
-fn record(fields: &[Mem]) -> (Mem, Vec<Part>) {
-    let offsets: Vec<u32> = fields
-        .iter()
-        .scan(0u32, |end, f| {
-            let offset = end.next_multiple_of(f.align);
-            *end = offset + f.size;
-            Some(offset)
-        })
-        .collect();
-    place(fields, &offsets, 0, Bias::Start)
+fn record(fields: &[Mem]) -> Result<(Mem, Vec<Part>), TooLarge> {
+    let offsets = offsets_in(fields, 0..fields.len(), 0)?;
+    Ok(place(fields, &offsets, 0, Bias::Start))
+}
+
+/// Two 4-byte scalars one after the other: a string, a function value, a
+/// trait value, a reference to one.
+fn pair(a: Mem, b: Mem) -> Mem {
+    place(&[a, b], &[0, 4], 0, Bias::Start).0
+}
+
+/// A layout whose values would take more than [`VALUE_SIZE`] bytes
+/// (`types.limit.value-size`): found before any of its leaves is copied,
+/// so a type past the limit costs its fields' sizes, never its leaves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TooLarge;
+
+/// `bytes` as a value size, or [`TooLarge`] past [`VALUE_SIZE`].
+fn fits(bytes: u64) -> Result<u32, TooLarge> {
+    u32::try_from(bytes)
+        .ok()
+        .filter(|&b| b <= VALUE_SIZE)
+        .ok_or(TooLarge)
+}
+
+/// The `type-too-large` stop for the values of `what`
+/// (`types.limit.value-size.error`); rustc's `LayoutError::SizeOverflow`
+/// message.
+fn too_large(what: &str) -> NotImplemented {
+    NotImplemented::too_large(
+        Stage::Emit,
+        format!(
+            "values of `{what}` are too big for the target: one value may take at most {VALUE_SIZE} bytes"
+        ),
+    )
+}
+
+/// Each field's offset when `fields` are placed in `order` after `prefix`
+/// bytes, each at its alignment: the sums in `u64`, each end checked
+/// against [`VALUE_SIZE`], and the whole, rounded to the largest
+/// alignment, too. Every later `u32` sum of the layout is at most that
+/// size, so none wraps in either compiler profile.
+///
+/// Cost: one pass over the fields; the size is the sum the layout makes
+/// anyway.
+fn offsets_in(
+    fields: &[Mem],
+    order: impl IntoIterator<Item = usize>,
+    prefix: u32,
+) -> Result<Vec<u32>, TooLarge> {
+    let mut offsets = vec![0u32; fields.len()];
+    let mut end = u64::from(prefix);
+    let mut align = prefix.max(1);
+    for k in order {
+        let f = &fields[k];
+        let offset = fits(end.next_multiple_of(u64::from(f.align)))?;
+        offsets[k] = offset;
+        end = fits(u64::from(offset) + u64::from(f.size))?.into();
+        align = align.max(f.align);
+    }
+    fits(end.next_multiple_of(u64::from(align)))?;
+    Ok(offsets)
 }
 
 /// Which niche a struct keeps among its fields' equal largest ones, and
@@ -1561,25 +1655,29 @@ fn place(fields: &[Mem], offsets: &[u32], prefix: u32, bias: Bias) -> (Mem, Vec<
 /// variants fit there. Both sorts are stable.
 ///
 /// Cost: two sorts of the fields, at most.
-fn univariant(fields: &[Mem], prefix: u32) -> (Mem, Vec<Part>) {
-    let got = univariant_biased(fields, prefix, Bias::Start);
+fn univariant(fields: &[Mem], prefix: u32) -> Result<(Mem, Vec<Part>), TooLarge> {
+    let got = univariant_biased(fields, prefix, Bias::Start)?;
     let Some(n) = got.0.niche else {
-        return got;
+        return Ok(got);
     };
     let head = n.offset;
     let tail = got.0.size - head - u32::from(n.size);
     if fields.len() < 2 || head == 0 || tail == 0 {
-        return got;
+        return Ok(got);
     }
-    let alt = univariant_biased(fields, prefix, Bias::End);
-    match alt.0.niche {
+    let alt = univariant_biased(fields, prefix, Bias::End)?;
+    Ok(match alt.0.niche {
         Some(m) if m.offset > head && m.offset > tail => alt,
         Some(_) | None => got,
-    }
+    })
 }
 
 /// [`univariant`] with one bias: rustc's `univariant_biased`.
-fn univariant_biased(fields: &[Mem], prefix: u32, bias: Bias) -> (Mem, Vec<Part>) {
+fn univariant_biased(
+    fields: &[Mem],
+    prefix: u32,
+    bias: Bias,
+) -> Result<(Mem, Vec<Part>), TooLarge> {
     let available = |f: &Mem| f.niche.map_or(0, Niche::available);
     let largest = fields.iter().map(available).max().unwrap_or(0);
     let max_align = fields.iter().map(|f| f.align).max().unwrap_or(1);
@@ -1616,15 +1714,8 @@ fn univariant_biased(fields: &[Mem], prefix: u32, bias: Bias) -> (Mem, Vec<Part>
             order.sort_stable_by_key(|&k| (group(&fields[k]), available(&fields[k])));
         }
     }
-    let mut offsets = vec![0u32; fields.len()];
-    let mut size = prefix;
-    for &k in &order {
-        let f = &fields[k];
-        let offset = size.next_multiple_of(f.align);
-        offsets[k] = offset;
-        size = offset + f.size;
-    }
-    place(fields, &offsets, prefix, bias)
+    let offsets = offsets_in(fields, order, prefix)?;
+    Ok(place(fields, &offsets, prefix, bias))
 }
 
 /// The layout of an object's payload of `fields`, or of a struct's fields.
@@ -1633,7 +1724,16 @@ pub fn payload_mem(
     env: &dyn ProgramEnv,
     fields: &[Ty],
 ) -> StageResult<(Mem, Vec<Part>)> {
-    payload_mem_by(fields, &|f| mem(pool, env, f))
+    let named = || {
+        let shown: Vec<String> = fields
+            .iter()
+            .map(|&f| hd_mono::shown_type(pool, env, f))
+            .collect();
+        too_large(&format!("({})", shown.join(", ")))
+    };
+    // The sum fits before any field's leaves are copied, as in [`mem`].
+    payload_mem_by(fields, &|f| shape(pool, env, f), &named)?;
+    payload_mem_by(fields, &|f| mem(pool, env, f), &named)
 }
 
 /// A struct's or a tuple's member types, substituted, and where each
@@ -1679,15 +1779,17 @@ pub fn members(
 }
 
 /// [`payload_mem`], with each field's layout read by `part`.
+/// past [`VALUE_SIZE`], the stop `named` makes.
 fn payload_mem_by(
     fields: &[Ty],
     part: &dyn Fn(Ty) -> StageResult<Mem>,
+    named: &dyn Fn() -> NotImplemented,
 ) -> StageResult<(Mem, Vec<Part>)> {
     let ms = fields
         .iter()
         .map(|f| part(*f))
         .collect::<StageResult<Vec<_>>>()?;
-    Ok(univariant(&ms, 0))
+    univariant(&ms, 0).map_err(|TooLarge| named())
 }
 
 /// Each variant's payload fields, each field's leaves as indices among
@@ -2157,7 +2259,22 @@ pub fn enum_mem(
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
 ) -> StageResult<Flat> {
-    enum_mem_by(variants, &|f| mem(pool, env, f))
+    let named = || {
+        let shown: Vec<String> = variants
+            .iter()
+            .map(|fields| {
+                let fields: Vec<String> = fields
+                    .iter()
+                    .map(|&f| hd_mono::shown_type(pool, env, f))
+                    .collect();
+                format!("({})", fields.join(", "))
+            })
+            .collect();
+        too_large(&format!("an enum of {}", shown.join(" | ")))
+    };
+    // The size fits before any payload's leaves are copied, as in [`mem`].
+    enum_mem_by(variants, &|f| shape(pool, env, f), &named)?;
+    enum_mem_by(variants, &|f| mem(pool, env, f), &named)
 }
 
 /// The layout of enum or optional type `t`, unboxed, once per type in a
@@ -2184,12 +2301,17 @@ pub fn flat(
 }
 
 /// [`enum_mem`], with each payload field's layout read by `part`.
-fn enum_mem_by(variants: &[Vec<Ty>], part: &dyn Fn(Ty) -> StageResult<Mem>) -> StageResult<Flat> {
+/// Past [`VALUE_SIZE`], the stop `named` makes.
+fn enum_mem_by(
+    variants: &[Vec<Ty>],
+    part: &dyn Fn(Ty) -> StageResult<Mem>,
+    named: &dyn Fn() -> NotImplemented,
+) -> StageResult<Flat> {
     let ms = variants
         .iter()
         .map(|fields| fields.iter().map(|f| part(*f)).collect())
         .collect::<StageResult<Vec<Vec<Mem>>>>()?;
-    Ok(flat_of(&ms))
+    flat_of(&ms).map_err(|TooLarge| named())
 }
 
 /// The layout of an enum whose variants' payload fields are laid out as
@@ -2199,7 +2321,7 @@ fn enum_mem_by(variants: &[Vec<Ty>], part: &dyn Fn(Ty) -> StageResult<Mem>) -> S
 /// niche values; else the tagged one (layout.rs:1070).
 ///
 /// Cost: [`univariant`] twice per variant, and one pass over the leaves.
-pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
+pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Result<Flat, TooLarge> {
     // rustc's `layout_of_struct_or_enum` (layout.rs:340): with no variant
     // present the enum is `never`, and with one it is that variant's
     // struct, with no discriminant.
@@ -2209,9 +2331,9 @@ pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
         (Some(k), None) => return single(variants, Some(k)),
         (Some(_), Some(_)) => {}
     }
-    let tagged = tagged(variants);
+    let tagged = tagged(variants)?;
     let free = |f: &Flat| f.mem.niche.map_or(0, Niche::available);
-    match niche_filled(variants) {
+    Ok(match niche_filled(variants)? {
         Some(n)
             if n.mem.size < tagged.mem.size
                 || n.mem.size == tagged.mem.size && free(&n) > free(&tagged) =>
@@ -2219,7 +2341,7 @@ pub(crate) fn flat_of(variants: &[Vec<Mem>]) -> Flat {
             n
         }
         Some(_) | None => tagged,
-    }
+    })
 }
 
 /// Whether a variant of `fields` is uninhabited: a field is.
@@ -2239,8 +2361,11 @@ fn absent(fields: &[Mem]) -> bool {
 /// (rustc's `Variants::Single`): that variant's struct, every absent one
 /// empty at offset 0, and no discriminant. With none present the enum is
 /// `never`: no bytes, and no value.
-fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
-    let payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
+fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Result<Flat, TooLarge> {
+    let payloads = variants
+        .iter()
+        .map(|ms| univariant(ms, 0))
+        .collect::<Result<Vec<_>, _>>()?;
     let (mem, k) = match only {
         Some(k) => (payloads[k].0.clone(), k),
         None => (Mem::NEVER, 0),
@@ -2248,14 +2373,14 @@ fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
     // ruled out: more variants than u32 counts; an enum's variants are
     // `u32` indices in TIR.
     let k = u32::try_from(k).expect("a variant index fits u32");
-    assemble(
+    Ok(assemble(
         &payloads,
         mem.size,
         mem.align,
         mem.niche,
         Say::One(k),
         variants,
-    )
+    ))
 }
 
 /// The niche-filling layout (rustc's `layout_of_enum` step 1,
@@ -2264,9 +2389,20 @@ fn single(variants: &[Vec<Mem>], only: Option<usize>) -> Flat {
 /// upward from its valid range's end (decision 3); every other variant
 /// fits before the niche or after it within the untagged one's size.
 /// `None` when the largest has no niche with room, or a variant does not
-/// fit.
-fn niche_filled(variants: &[Vec<Mem>]) -> Option<Flat> {
-    let mut payloads: Vec<(Mem, Vec<Part>)> = variants.iter().map(|ms| univariant(ms, 0)).collect();
+/// fit. Its sums stay in `u32`: each payload is at most [`VALUE_SIZE`],
+/// so a sum of one and an offset of at most 8 bytes past another never
+/// wraps, and [`flat_of`] keeps it only when it is no larger than the
+/// tagged layout, which [`tagged`] checked against [`VALUE_SIZE`].
+fn niche_filled(variants: &[Vec<Mem>]) -> Result<Option<Flat>, TooLarge> {
+    let mut payloads = variants
+        .iter()
+        .map(|ms| univariant(ms, 0))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(niche_layout(variants, &mut payloads))
+}
+
+/// [`niche_filled`] from the payloads laid out as structs.
+fn niche_layout(variants: &[Vec<Mem>], payloads: &mut [(Mem, Vec<Part>)]) -> Option<Flat> {
     let untagged = (0..payloads.len()).max_by_key(|&i| payloads[i].0.size)?;
     let needs: Vec<usize> = (0..payloads.len())
         .filter(|&i| i != untagged && !absent(&variants[i]))
@@ -2306,7 +2442,7 @@ fn niche_filled(variants: &[Vec<Mem>]) -> Option<Flat> {
         bytes: niche.bytes,
     };
     Some(assemble(
-        &payloads,
+        payloads,
         size,
         align,
         Some(valid),
@@ -2321,7 +2457,7 @@ fn niche_filled(variants: &[Vec<Mem>]) -> Option<Flat> {
 /// payloads (layout.rs:891); each payload is [`univariant`] behind it. A
 /// tag wider than 4 bytes keeps its value in its low 4, and the rest is
 /// padding. Its niche is the tag's values no inhabited variant takes.
-fn tagged(variants: &[Vec<Mem>]) -> Flat {
+fn tagged(variants: &[Vec<Mem>]) -> Result<Flat, TooLarge> {
     // The discriminants of the inhabited variants; with none, 0 alone.
     let mut live = (0u32..)
         .zip(variants)
@@ -2337,7 +2473,7 @@ fn tagged(variants: &[Vec<Mem>]) -> Flat {
     let mut payloads = Vec::with_capacity(variants.len());
     let mut start_align = 256;
     for ms in variants {
-        let (m, parts) = univariant(ms, min);
+        let (m, parts) = univariant(ms, min)?;
         if let Some(a) = ms
             .iter()
             .zip(&parts)
@@ -2366,7 +2502,7 @@ fn tagged(variants: &[Vec<Mem>]) -> Flat {
         size = size.max(m.size);
         align = align.max(m.align);
     }
-    let size = size.next_multiple_of(align);
+    let size = fits(u64::from(size).next_multiple_of(u64::from(align)))?;
     let bytes: u8 = match ity {
         1 => 1,
         2 => 2,
@@ -2386,14 +2522,14 @@ fn tagged(variants: &[Vec<Mem>]) -> Flat {
         start: lo,
         end: hi,
     };
-    assemble(
+    Ok(assemble(
         &payloads,
         size,
         align,
         Some(niche),
         Say::Cell(tag, Enc::Direct),
         variants,
-    )
+    ))
 }
 
 /// What says the variant of an enum being assembled ([`Disc`]): the one
@@ -2920,7 +3056,8 @@ mod tests {
             vec![f64m.clone(), f64m],
             vec![i32m(), i32m(), i32m()],
             vec![],
-        ]);
+        ])
+        .expect("fits");
         assert_eq!((shape.mem.size, shape.mem.align), (24, 8));
         assert_eq!(
             shape.offsets,
@@ -2951,7 +3088,7 @@ mod tests {
         // `Pair: L(bool, i32); M(i32)`: the tag stays a byte, `L`'s bool
         // packs after it in memory, and each is its own value.
         let bool_m = Mem::one(Val::I32, 1, false);
-        let pair = flat_of(&[vec![bool_m.clone(), i32m()], vec![i32m()]]);
+        let pair = flat_of(&[vec![bool_m.clone(), i32m()], vec![i32m()]]).expect("fits");
         assert_eq!((pair.mem.size, pair.mem.align), (8, 4));
         assert_eq!(
             values(&pair),
@@ -2960,7 +3097,7 @@ mod tests {
         assert_eq!(pair.cell().map(|d| d.value), Some(0));
         assert_eq!(pair.positions, [vec![vec![1], vec![2]], vec![vec![2]]]);
         // `bool?` is two bytes and two values.
-        let opt = flat_of(&[vec![], vec![bool_m]]);
+        let opt = flat_of(&[vec![], vec![bool_m]]).expect("fits");
         assert_eq!(values(&opt), [(0, Val::I32, 1), (1, Val::I32, 1)]);
     }
 
@@ -2968,9 +3105,9 @@ mod tests {
     fn a_nested_optional_fills_the_inner_tags_niche() {
         // `i32??` (the doc's walkthrough): `i32?`'s 4-byte tag holds 0 or 1,
         // so the outer `None` is 2 in it, with no tag of its own.
-        let inner = flat_of(&[vec![], vec![i32m()]]);
+        let inner = flat_of(&[vec![], vec![i32m()]]).expect("fits");
         assert_eq!(inner.cell().map(|d| d.enc), Some(Enc::Direct));
-        let outer = flat_of(&[vec![], vec![inner.mem.clone()]]);
+        let outer = flat_of(&[vec![], vec![inner.mem.clone()]]).expect("fits");
         assert_eq!((outer.mem.size, outer.mem.align), (8, 4));
         let enc = |f: &Flat| f.cell().map(|d| d.enc);
         assert_eq!(
@@ -2988,7 +3125,7 @@ mod tests {
         assert_eq!(raw(&outer, 0), Some(2));
         assert_eq!(raw(&outer, 1), None);
         // Each level takes the next value up: `i32???`'s `None` is 3.
-        let third = flat_of(&[vec![], vec![outer.mem.clone()]]);
+        let third = flat_of(&[vec![], vec![outer.mem.clone()]]).expect("fits");
         assert_eq!(third.mem.size, 8);
         assert_eq!(raw(&third, 0), Some(3));
         let reads = |raw| third.cell().map(|d| d.enc.reads(raw));
@@ -3000,8 +3137,8 @@ mod tests {
     fn a_smaller_variant_fits_after_the_niche() {
         // `A: Maybe(i32?); Must(i32)` (the doc's walkthrough): `Must` is
         // 2 in `Maybe`'s inner tag, its `i32` at 4, sharing `Some`'s value.
-        let opt = flat_of(&[vec![], vec![i32m()]]);
-        let a = flat_of(&[vec![opt.mem.clone()], vec![i32m()]]);
+        let opt = flat_of(&[vec![], vec![i32m()]]).expect("fits");
+        let a = flat_of(&[vec![opt.mem.clone()], vec![i32m()]]).expect("fits");
         assert_eq!((a.mem.size, a.mem.align), (8, 4));
         assert_eq!(
             a.cell().map(|d| d.enc),
@@ -3034,17 +3171,17 @@ mod tests {
     fn scalar_niches_extend_upward_from_their_valid_end() {
         // Decision 3: `char?`'s `None` is 0x110000; `bool???` is one byte,
         // its `None`s 2, 3 and 4; a null address is `(*T)?`'s `None`.
-        let char_opt = flat_of(&[vec![], vec![Mem::valid(4, 0, 0x10_FFFF)]]);
+        let char_opt = flat_of(&[vec![], vec![Mem::valid(4, 0, 0x10_FFFF)]]).expect("fits");
         assert_eq!(char_opt.mem.size, 4);
         let raw = |f: &Flat, v| f.cell().and_then(|d| d.enc.raw(v));
         assert_eq!(raw(&char_opt, 0), Some(0x11_0000));
         let mut b = Mem::valid(1, 0, 1);
         for none in 2..=4 {
-            let f = flat_of(&[vec![], vec![b.clone()]]);
+            let f = flat_of(&[vec![], vec![b.clone()]]).expect("fits");
             assert_eq!((f.mem.size, raw(&f, 0)), (1, Some(none)));
             b = f.mem.clone();
         }
-        let ptr = flat_of(&[vec![], vec![Mem::nonnull()]]);
+        let ptr = flat_of(&[vec![], vec![Mem::nonnull()]]).expect("fits");
         assert_eq!(
             (ptr.mem.size, raw(&ptr, 0), ptr.mem.niche),
             (4, Some(0), None)
@@ -3055,20 +3192,20 @@ mod tests {
     fn an_absent_variant_takes_no_discriminant() {
         // `WithNever: A(i32); B(never)`: `B` is absent, so the enum is
         // `A`'s struct, with no tag (rustc's `Variants::Single`).
-        let one = flat_of(&[vec![i32m()], vec![Mem::NEVER]]);
+        let one = flat_of(&[vec![i32m()], vec![Mem::NEVER]]).expect("fits");
         assert_eq!((one.mem.size, one.disc), (4, Disc::One(0)));
         assert_eq!(one.test(0), Test::Const(true));
         assert_eq!(one.test(1), Test::Const(false));
         // `WithNever2: A(i32); B(i64, never); C`: `B` is uninhabited but
         // not absent, so it keeps its space behind the tag.
         let i64m = Mem::one(Val::I64, 8, false);
-        let two = flat_of(&[vec![i32m()], vec![i64m, Mem::NEVER], vec![]]);
+        let two = flat_of(&[vec![i32m()], vec![i64m, Mem::NEVER], vec![]]).expect("fits");
         assert_eq!(
             (two.mem.size, two.cell().map(|d| d.enc)),
             (16, Some(Enc::Direct))
         );
         // No variant present: `never`.
-        let none = flat_of(&[vec![Mem::NEVER]]);
+        let none = flat_of(&[vec![Mem::NEVER]]).expect("fits");
         assert!(none.mem.uninhabited && none.mem.size == 0);
     }
 
@@ -3083,13 +3220,71 @@ mod tests {
                 Mem::one(Val::I32, 1, false),
             ],
             0,
-        );
+        )
+        .expect("fits");
         assert_eq!((m.size, m.align), (16, 8));
         assert_eq!(
             parts.iter().map(|p| p.offset).collect::<Vec<_>>(),
             [8, 0, 12]
         );
         assert_eq!(m.vals(), [Val::I32, Val::F64, Val::I32]);
+    }
+
+    /// A field of `size` bytes at alignment `align` with no leaves: the
+    /// limit is about sizes, which no leaf changes.
+    fn sized(size: u32, align: u32) -> Mem {
+        Mem {
+            size,
+            align,
+            leaves: Vec::new(),
+            niche: None,
+            uninhabited: false,
+        }
+    }
+
+    #[test]
+    fn a_value_is_at_most_value_size_bytes() {
+        // Exactly 2^31 - 1 bytes fits.
+        let (m, _) = record(&[sized(VALUE_SIZE - 1, 1), sized(1, 1)]).expect("at the limit");
+        assert_eq!(m.size, VALUE_SIZE);
+        // One byte more ends past it.
+        assert_eq!(
+            record(&[sized(VALUE_SIZE, 1), sized(1, 1)]).err(),
+            Some(TooLarge)
+        );
+        // An aligned field after 2^31 - 3 bytes would start at 2^31.
+        assert_eq!(
+            record(&[sized(VALUE_SIZE - 2, 1), sized(0, 4)]).err(),
+            Some(TooLarge)
+        );
+        // 2^31 - 1 bytes rounded up to a 4-byte alignment is 2^31.
+        assert_eq!(
+            record(&[sized(4, 4), sized(VALUE_SIZE - 4, 1)]).err(),
+            Some(TooLarge)
+        );
+        // No sum wraps: two fields of 2^31 - 1 bytes each are past it,
+        // not 2^32 - 2 bytes wrapped to fit.
+        assert_eq!(
+            univariant(&[sized(VALUE_SIZE, 1), sized(VALUE_SIZE, 1)], 0).err(),
+            Some(TooLarge)
+        );
+    }
+
+    #[test]
+    fn an_enum_past_the_limit_after_its_padding_is_too_large() {
+        // A tag and 2^31 - 2 bytes fit; the other variant's 8-byte
+        // alignment rounds the enum up to 2^31 bytes.
+        let big = vec![sized(VALUE_SIZE - 1, 1)];
+        let aligned = vec![sized(8, 8)];
+        assert_eq!(flat_of(&[big.clone(), aligned]).err(), Some(TooLarge));
+        // Without it, 2^31 - 1 bytes in all.
+        let fits = flat_of(&[big, vec![sized(1, 1)]]).expect("at the limit");
+        assert_eq!(fits.mem.size, VALUE_SIZE);
+        // A payload past the limit before any tag.
+        assert_eq!(
+            flat_of(&[vec![sized(VALUE_SIZE, 1), sized(1, 1)], vec![]]).err(),
+            Some(TooLarge)
+        );
     }
 }
 

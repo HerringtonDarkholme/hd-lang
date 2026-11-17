@@ -244,6 +244,8 @@ pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
             span,
             &format!("the compiler hit a bug in stage {name} ({what}); please report it"),
         );
+    } else if e.too_large {
+        diags.error(Code::TypeTooLarge, span, what);
     } else {
         diags.error(
             Code::Unsupported,

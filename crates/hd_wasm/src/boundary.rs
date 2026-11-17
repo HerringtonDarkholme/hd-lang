@@ -3291,8 +3291,9 @@ mod discarded_tests {
 
     fn result_type() -> LTy {
         let string = crate::layout::Mem::string;
-        let error_layout = crate::layout::flat_of(&[vec![], vec![string()]]);
-        let outer = crate::layout::flat_of(&[vec![], vec![error_layout.mem.clone()]]);
+        let error_layout = crate::layout::flat_of(&[vec![], vec![string()]]).expect("fits");
+        let outer =
+            crate::layout::flat_of(&[vec![], vec![error_layout.mem.clone()]]).expect("fits");
         let error = LTy::Enum(Box::new(LEnum {
             layout: Box::new(error_layout),
             variants: vec![vec![], vec![LTy::Str]],
