@@ -388,6 +388,35 @@ pub trait Deserializer:
     # all, as a missing key (r-std-serde.read.absent). It reads nothing.
     fn is_absent(&mut self) -> bool:
         false
+    # Whether this reader names a record's members itself, in text order,
+    # through `next_field` (serde's `MapAccess`), instead of being asked for
+    # each member through `member` (r-std-serde.read.keyed).
+    fn keyed(&self) -> bool:
+        false
+    # A keyed reader's next member of the open record: its index in
+    # `members`, or `.None` after the last key. A key that names no
+    # unskipped member is skipped with its value. `id` is the record's
+    # member directory id (`MembersRecord.id`), the same for every record
+    # of one type, so a reader can keep one name table per type; `guess` is
+    # the index the walk expects next (r-std-serde.read.next-field).
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, Self::Error]:
+        .Err(self.invalid("keyed record"))
+    # A keyed reader's next value is the absent value of member `m`, whose
+    # key the record never had: `is_absent` and `is_null` are true, and any
+    # other read is the format's missing-member error
+    # (r-std-serde.read.absent-field).
+    fn absent_field(&mut self, m: &Member, facts: Facts) -> void:
+        pass
+    # The format's error for a record key that names a member an earlier key
+    # of the record named (r-std-serde.read.duplicate-field).
+    fn duplicate_field(&mut self) -> Self::Error:
+        self.invalid("unique key")
     # Reads the next value, of any kind, and drops it (r-std-serde.read.skip):
     # serde's `IgnoredAny`, so a hand-written key loop can pass a key it does
     # not know. The default reads the value through `peek` and the calls of
@@ -598,6 +627,11 @@ impl[T] Deserialize for T by Structure:
                             facts: facts,
                             at: attempt + 1,
                             form: VariantForm.Raw,
+                            keyed: input.keyed(),
+                            seen: 0,
+                            seen_more: [],
+                            ended: false,
+                            absent: false,
                         }
                         # The source holds `input` while the built value
                         # lives, so the end hooks go through it.
@@ -627,6 +661,11 @@ impl[T] Deserialize for T by Structure:
             facts: facts,
             at: 0,
             form: VariantForm.Record,
+            keyed: input.keyed(),
+            seen: 0,
+            seen_more: [],
+            ended: false,
+            absent: false,
         }
         built := T::build(&mut source)?
         match source.form:
@@ -643,6 +682,11 @@ impl[T < UnionType] Deserialize for T by Structure:
             facts: facts,
             at: 0,
             form: VariantForm.Record,
+            keyed: input.keyed(),
+            seen: 0,
+            seen_more: [],
+            ended: false,
+            absent: false,
         }
         built := T::build(&mut source)?
         match source.form:
@@ -661,6 +705,50 @@ struct DeserializeSource[S < ?Copy, R < Deserializer, 'a]:
     pub facts: Facts
     pub at: usize
     pub form: VariantForm
+    # Keyed reading: the reader names the members in text order, `seen`
+    # marks the members named so far (bit k for member k < 64, `seen_more`
+    # past that), and after the record's last key `ended` walks the unseen
+    # members once, each read as absent (`absent`).
+    pub keyed: bool
+    pub seen: u64
+    pub seen_more: List[bool]
+    pub ended: bool
+    pub absent: bool
+
+impl['a, S < ?Copy, R < Deserializer] DeserializeSource[S, R, 'a]:
+    fn record_form(&self) -> bool:
+        match self.form:
+            .Data => true
+            .Record => true
+            _ => false
+
+    # Positions the reader at member `m`'s value: a keyed reader already
+    # sits there, or reads it as absent; any other reader is asked.
+    fn position(&mut self, m: &Member) -> Result[void, R::Error]:
+        if self.keyed:
+            if self.absent:
+                self.absent = false
+                self.input.absent_field(m, self.facts)
+            return .Ok(())
+        self.input.member(m)
+
+    # Marks member `k` named, or reports whether it already was.
+    fn mark(&mut self, k: usize) -> bool:
+        if k < 64:
+            bit := u64(1) << u64(k)
+            was := self.seen & bit != 0
+            self.seen = self.seen | bit
+            return was
+        while self.seen_more.len() <= k - 64:
+            self.seen_more.push(false)
+        was := self.seen_more[k - 64]
+        self.seen_more[k - 64] = true
+        was
+
+    fn was_seen(&self, k: usize) -> bool:
+        if k < 64:
+            return self.seen & (u64(1) << u64(k)) != 0
+        k - 64 < self.seen_more.len() && self.seen_more[k - 64]
 
 # `skips::[Skip]()` omits a member whose known facts hold `Skip`: `build`
 # fills a named member from its declared default and a positional member
@@ -729,8 +817,35 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
             .Exhausted => pass
         .Ok(choices[index])
 
-    # Every unskipped member, in declaration order.
+    # Keyed: each member the reader names, in text order, then each unseen
+    # unskipped member as absent; a member named twice is the reader's
+    # duplicate error. Otherwise every unskipped member, in declaration
+    # order.
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
+        if self.keyed && self.record_form():
+            if !self.ended:
+                match self.input.next_field(&members.infos, members.id(), self.facts, self.at)?:
+                    .Some(k) =>
+                        if self.mark(k):
+                            return .Err(self.input.duplicate_field())
+                        self.at = k + 1
+                        return .Ok(members.at(members.infos[k].position))
+                    .None =>
+                        self.ended = true
+                        self.at = 0
+            while self.at < members.infos.len():
+                k := self.at
+                self.at += 1
+                if (
+                    !self.was_seen(k)
+                    && (
+                        members.infos[k].facts.items.is_empty()
+                        || members.infos[k].facts.find::[Skip]().is_none()
+                    )
+                ):
+                    self.absent = true
+                    return .Ok(members.at(members.infos[k].position))
+            return .Ok(.None)
         # The member is read in place, not copied out of the list.
         while self.at < members.infos.len():
             at := self.at
@@ -746,7 +861,7 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.unskipped-default).
     fn data_member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
-        self.input.member(&h.info)?
+        self.position(&h.info)?
         if h.has_default() && self.input.is_absent():
             match h.default():
                 .Some(value) => return .Ok(value)
@@ -755,8 +870,8 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
 
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         match self.form:
-            .Data => self.input.member(&h.info)?
-            .Record => self.input.member(&h.info)?
+            .Data => self.position(&h.info)?
+            .Record => self.position(&h.info)?
             .Newtype => pass
             .Tuple =>
                 if !self.input.next_item()?:
