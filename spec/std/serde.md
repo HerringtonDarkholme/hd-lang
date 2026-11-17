@@ -77,6 +77,7 @@ A `Deserializer` reads the same tree, one call per value:
 | r[std-serde.read.tuple-variant] Tuple variant | `begin_variant(facts, choices)`, `begin_tuple_variant(len)`, then `next_item()` before each direct payload value, then `end_variant()` | `begin_variant` selects the variant; `begin_tuple_variant` positions a payload of exactly `len` items |
 | r[std-serde.read.invalid] `invalid` | `invalid(expected)` | the format's error for the value just read, which does not fit `expected` |
 | r[std-serde.read.absent] `is_absent` | `is_absent()` | `true` when the member that `member(m)` just positioned has no value at all, which reads nothing; the trait's default body gives `false` |
+| r[std-serde.read.skip] `skip` | `skip()` | nothing: it reads one value of any kind and drops it; the trait's default body reads the value through `peek` and the calls of its kind |
 
 1. r[std-serde.read.one-value] A `deserialize` call reads exactly one value.
 2. r[std-serde.read.expected] Each scalar call's `expected` names the type being read, as `"u8"`. A format's error for a value of another kind may report it.
@@ -96,6 +97,9 @@ fn read_text_or_empty[R < Deserializer](input: &mut R) -> Result[string, R::Erro
 > **Note.** `peek` lets a value that holds any kind, such as a `Json`,
 > read itself. A format that is not self-describing may return an error
 > from `peek`.
+
+> **Why.** `skip` is serde's `IgnoredAny`: a hand-written key loop passes
+> a key it does not know with no type to read its value into.
 
 ## Derived Implementations
 
