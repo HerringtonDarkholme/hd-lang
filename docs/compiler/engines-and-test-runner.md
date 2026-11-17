@@ -214,10 +214,26 @@ The design record in #182 is closed; no implementation ticket is open.
    `hd test` still reports it. `--affected` selects whole modules' cases
    the same way (crates/hd_cli/DESIGN.md §7.4).
 
-The price of one program: every instantiation builds every immutable
-constant global of the program, so a case pays for constants its module
-never reads (an estimated 100 to 150 µs per case for a large package). A
-large package could split its program per folder with no other change.
+The price of one program: every case's fresh instance pays for the
+whole program, not its own module. On Node, `WebAssembly.instantiate`
+allocates per-instance arrays sized by the program's defined function
+count: measured on Node 26.13.1 (Apple arm64), about 27 µs plus 5.2 ns
+per defined function per instance (#2035). A suite of K cases defines at
+least one function per case, so it pays K × functions, quadratic in the
+suite's size: about 104 µs per case at 20,000 cases. wasmtime's
+`InstancePre` instantiate has no per-function cost. Every instance also
+builds every immutable constant global of the program, so a case pays
+for constants its module never reads. The dispatch tree above (#2049)
+bounds each function's size, not the instance's cost.
+
+The decided fix (#2035) chunks the unit-test program into programs of
+bounded function count, still a fresh instance per case. Each extra
+chunk program costs about 35 ms to build, which prices a chunk at about
+2,048 to 4,096 cases: below that, one program stays cheaper, so suites
+of that size keep one program. Splitting needs shared code compiled once
+and linked into every chunk (#1779). Without it, each chunk would
+collect and compile its own copy of std, which is what "Why one program"
+avoids, so chunking waits for #1779.
 
 ### 19.2 Listing Cases
 
