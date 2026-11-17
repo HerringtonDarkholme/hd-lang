@@ -1,0 +1,12 @@
+# The get, change and store back on a Map is reported with a fix-it that
+# changes the value in place; a read of the old value after the store is not.
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd lint --format json
+stdout-json: [{"kind":"diagnostic","code":"map-get-store-back","severity":"warning","message":"`m.get(0)` copies a value that the map still holds, so changing `xs` copies the whole value before `m[0] = xs` stores it back; change it in place with `m.get_or_insert(0, [])`","file":"src/main.hd","line":4,"column":22,"fixes":[{"message":"change the value in place with `get_or_insert`","edits":[{"file":"src/main.hd","start":112,"end":184,"text":"m.get_or_insert(0, []).push(i)"}]}]},{"kind":"diagnostic","code":"map-get-store-back","severity":"warning","message":"`m.get(1)` copies a value that the map still holds, so changing `ys` copies the whole value before `m[1] = ys` stores it back; change it in place with `m.get_or_insert(1, [])`","file":"src/main.hd","line":8,"column":28,"fixes":[{"message":"change the value in place with `get_or_insert`","edits":[{"file":"src/main.hd","start":212,"end":350,"text":"ys := m.get_or_insert(1, [])\n        ys.push(i)\n        ys.push(i + 1)"}]}]},{"kind":"summary","errors":0,"warnings":2,"status":0}]
+run: hd lint --deny map-get-store-back --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"map-get-store-back","severity":"error","message":"`m.get(0)` copies a value that the map still holds, so changing `xs` copies the whole value before `m[0] = xs` stores it back; change it in place with `m.get_or_insert(0, [])`","file":"src/main.hd","line":4,"column":22,"fixes":[{"message":"change the value in place with `get_or_insert`","edits":[{"file":"src/main.hd","start":112,"end":184,"text":"m.get_or_insert(0, []).push(i)"}]}]},{"kind":"diagnostic","code":"map-get-store-back","severity":"error","message":"`m.get(1)` copies a value that the map still holds, so changing `ys` copies the whole value before `m[1] = ys` stores it back; change it in place with `m.get_or_insert(1, [])`","file":"src/main.hd","line":8,"column":28,"fixes":[{"message":"change the value in place with `get_or_insert`","edits":[{"file":"src/main.hd","start":212,"end":350,"text":"ys := m.get_or_insert(1, [])\n        ys.push(i)\n        ys.push(i + 1)"}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+# The edit can move when a change panics, so lint --fix reports it only.
+run: hd lint --fix
+same-text: src/main.hd want/main.hd

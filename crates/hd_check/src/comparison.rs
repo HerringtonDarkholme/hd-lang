@@ -91,11 +91,14 @@ pub struct SourceFacts {
     pub unreachable: Vec<NodeIdx>,
     pub parameter_writes: Vec<ParameterWrite>,
     pub discarded: Vec<DiscardedExpression>,
+    /// The method calls that selected the built-in `Map.get`, whose result
+    /// is a copy sharing the value's storage with the map.
+    pub map_gets: Vec<NodeIdx>,
 }
 
 /// The lengths of each fact column at a trial's start.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct FactsMark([usize; 6]);
+pub(crate) struct FactsMark([usize; 7]);
 
 impl SourceFacts {
     pub(crate) const fn mark(&self) -> FactsMark {
@@ -106,6 +109,7 @@ impl SourceFacts {
             self.unreachable.len(),
             self.parameter_writes.len(),
             self.discarded.len(),
+            self.map_gets.len(),
         ])
     }
 
@@ -117,6 +121,7 @@ impl SourceFacts {
         self.unreachable.truncate(mark[3]);
         self.parameter_writes.truncate(mark[4]);
         self.discarded.truncate(mark[5]);
+        self.map_gets.truncate(mark[6]);
     }
 
     pub fn extend(&mut self, other: Self) {
@@ -126,5 +131,6 @@ impl SourceFacts {
         self.unreachable.extend(other.unreachable);
         self.parameter_writes.extend(other.parameter_writes);
         self.discarded.extend(other.discarded);
+        self.map_gets.extend(other.map_gets);
     }
 }

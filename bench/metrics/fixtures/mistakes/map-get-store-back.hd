@@ -1,0 +1,14 @@
+# mistake: a Map value copied out with `get`, changed, then stored back under its key
+# log: 2026-11-12 review R6, 6.35 s at 320,000 entries (#1798)
+# tool: lint
+# expect: map-get-store-back
+# fixed:         m.get_or_insert(0, []).push(i)
+# fixed-lines: 3
+
+fn group(n: i32) -> Map[i32, List[i32]]:
+    let mut m: Map[i32, List[i32]] = {}
+    for i in 0..n:
+        let mut xs = m.get(0).unwrap_or([]) # warning: map-get-store-back
+        xs.push(i)
+        m[0] = xs
+    m

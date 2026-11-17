@@ -11,6 +11,7 @@ mod disposable;
 mod flow;
 mod lifetime_order;
 mod lost_writes;
+mod map_store;
 mod modules;
 mod registry;
 mod warm;

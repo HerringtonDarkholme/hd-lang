@@ -3,6 +3,7 @@
 
 pub mod checked;
 mod derivation;
+pub mod map_store;
 mod modules;
 mod syntax;
 mod walk;
@@ -23,6 +24,7 @@ pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
 pub const BROKEN_DOC_LINK: &str = Code::BrokenDocLink.as_str();
 pub const DBG_IN_DEPENDENCY: &str = Code::DbgInDependency.as_str();
 pub const LOST_WRITE: &str = Code::LostWrite.as_str();
+pub const MAP_GET_STORE_BACK: &str = Code::MapGetStoreBack.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
 pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
 pub const PRIVATE_MAIN: &str = Code::PrivateMain.as_str();
@@ -112,6 +114,12 @@ pub const RULES: &[Rule] = &[
         Level::Warn,
         Events::PARAMETER_WRITE,
         lost_write,
+    ),
+    Rule::new(
+        Code::MapGetStoreBack,
+        Level::Warn,
+        Events::MAP_STORE,
+        map_get_store_back,
     ),
     Rule::new(
         Code::MixedScriptIdentifier,
@@ -372,6 +380,44 @@ fn lost_write(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
         src.span(write.statement),
         &message,
         None,
+    );
+}
+
+/// A `Map` value copied out with `get`, changed and stored back: the copy
+/// shares the value with the map, so its first change copies the value.
+/// The fix changes the value in place through `get_or_insert`.
+fn map_get_store_back(event: &Event<'_>, cx: &Cx<'_>, out: &mut DiagBuf) {
+    let Event::MapStoreBack(found) = event else {
+        return;
+    };
+    let src = cx.src;
+    let call = format!(
+        "{}.get_or_insert({}, {})",
+        found.map, found.key, found.default
+    );
+    let text = |span: Span| &src.text[span.lo as usize..span.hi as usize];
+    let replacement = match found.changes {
+        map_store::Changes::Inline(rest) => format!("{call}{}", text(rest)),
+        map_store::Changes::Rebind(rest) => format!("{} := {call}{}", found.binding, text(rest)),
+    };
+    out.push(
+        Code::MapGetStoreBack,
+        Severity::Warning,
+        src.span(found.get),
+        &format!(
+            "`{}` copies a value that the map still holds, so changing `{}` copies the whole value before `{}[{}] = {}` stores it back; change it in place with `{call}`",
+            src.node_text(found.get),
+            found.binding,
+            found.map,
+            found.key,
+            found.binding
+        ),
+        None,
+    );
+    out.add_fix(
+        "change the value in place with `get_or_insert`",
+        FixSafety::Exact,
+        &[(found.whole, &replacement)],
     );
 }
 

@@ -4,7 +4,7 @@ use hd_lint::Events;
 use hd_lint::{Level, Policy, RULES};
 use hd_project::parse_manifest;
 
-const EXPECTED: [(&str, Code, Level, Option<Events>); 16] = [
+const EXPECTED: [(&str, Code, Level, Option<Events>); 17] = [
     ("broken-doc-link", Code::BrokenDocLink, Level::Warn, None),
     (
         "dbg-in-dependency",
@@ -29,6 +29,12 @@ const EXPECTED: [(&str, Code, Level, Option<Events>); 16] = [
         Code::LostWrite,
         Level::Warn,
         Some(Events::PARAMETER_WRITE),
+    ),
+    (
+        "map-get-store-back",
+        Code::MapGetStoreBack,
+        Level::Warn,
+        Some(Events::MAP_STORE),
     ),
     (
         "mixed-script-identifier",
@@ -118,7 +124,7 @@ fn policy_free_findings() -> DiagBuf {
 }
 
 #[test]
-fn registry_is_the_exact_unique_fifteen_rule_surface() {
+fn registry_is_the_exact_unique_rule_surface() {
     assert_eq!(RULES.len(), EXPECTED.len());
     for (rule, (name, code, default, events)) in RULES.iter().zip(EXPECTED) {
         assert_eq!(rule.name(), name);

@@ -310,6 +310,14 @@ impl<'v> CheckedView<'v> {
             .map(move |pattern| PatternView { pattern, src })
     }
 
+    /// The method calls that selected the built-in `Map.get`.
+    pub fn map_gets(self) -> impl Iterator<Item = NodeRef<'v>> + 'v {
+        let tree = &self.src.parse.tree;
+        self.all(|f| &f.map_gets)
+            .iter()
+            .map(move |&node: &NodeIdx| tree.node(node))
+    }
+
     pub fn discarded(self) -> impl Iterator<Item = CallView<'v>> + 'v {
         let src = self.src;
         self.all(|f| &f.discarded)

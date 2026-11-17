@@ -31,13 +31,15 @@ impl Events {
     pub const MAIN_SITE: Self = Self(1 << 8);
     pub const FETCHED_DEBUG: Self = Self(1 << 9);
     pub const PARAMETER_WRITE: Self = Self(1 << 10);
+    pub const MAP_STORE: Self = Self(1 << 11);
     const CHECKED: Self = Self(
         Self::COMPARISON.0
             | Self::BINDING.0
             | Self::STATEMENT.0
             | Self::PATTERN.0
             | Self::DISCARD.0
-            | Self::PARAMETER_WRITE.0,
+            | Self::PARAMETER_WRITE.0
+            | Self::MAP_STORE.0,
     );
 
     #[must_use]
@@ -104,6 +106,7 @@ pub enum Event<'v> {
     Binding(BindingEvent<'v>),
     Unreachable(NodeRef<'v>),
     ParameterWrite(crate::ParameterWriteEvent<'v>),
+    MapStoreBack(crate::map_store::StoreBack<'v>),
     Pattern(PatternView<'v>),
     Discard(CallView<'v>),
     Derivations(Derivations<'v>),
@@ -125,6 +128,7 @@ impl Event<'_> {
             Self::Binding(_) => Events::BINDING,
             Self::Unreachable(_) => Events::STATEMENT,
             Self::ParameterWrite(_) => Events::PARAMETER_WRITE,
+            Self::MapStoreBack(_) => Events::MAP_STORE,
             Self::Pattern(_) => Events::PATTERN,
             Self::Discard(_) => Events::DISCARD,
             Self::Derivations(_) => Events::DERIVATIONS,
@@ -250,6 +254,18 @@ pub fn walk<'v>(
                     finish: false,
                     family: 5,
                     event: Event::ParameterWrite(write),
+                }),
+        );
+    }
+    if interests.contains(Events::MAP_STORE) {
+        pending.extend(
+            crate::map_store::store_backs(src, checked)
+                .into_iter()
+                .map(|found| Pending {
+                    at: at(found.get),
+                    finish: false,
+                    family: 7,
+                    event: Event::MapStoreBack(found),
                 }),
         );
     }

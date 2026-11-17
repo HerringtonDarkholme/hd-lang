@@ -5464,6 +5464,9 @@ impl Ck<'_, '_> {
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
                     self.length_changed(recv, n.index());
                 }
+                if op == IntrinsicOp::MapGet && self.cx.source_facts.is_some() {
+                    self.tool_facts.map_gets.push(n.index());
+                }
                 Ok(self.emit_builtin(op, &refs, ret, n))
             }
             Some(Hit::Trait {
