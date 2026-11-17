@@ -174,20 +174,13 @@
         block
     ;; 26 |         .Some(name) => *name
           local.get $t
-          if
-            local.get $t0
-            local.set $t2
-            i32.const 0
-            local.set $t0
-            br 1
-          else
-    ;; 27 |         .None => ""
-            local.get $t
-            i32.eqz
-            br_if 2
-            unreachable
-    ;; 26 |         .Some(name) => *name
-          end
+          i32.eqz
+          br_if 1
+          local.get $t0
+          local.set $t2
+          i32.const 0
+          local.set $t0
+          br 0
     ;; 25 |     match held:
           unreachable
         end

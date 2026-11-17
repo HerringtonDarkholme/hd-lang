@@ -64,16 +64,9 @@
       block
     ;; 47 |         .Good(value) => value
         local.get $answer.0
-        if
-          br 1
-        else
-    ;; 48 |         .Bad => "no answer"
-          local.get $answer.0
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 47 |         .Good(value) => value
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 46 |     match answer:
         unreachable
       end
@@ -89,8 +82,8 @@
       return
     end
     i32.const 65 ;; &"no answer"
-    local.set $answer.1
-    local.get $answer.1
+    local.set $answer.0
+    local.get $answer.0
     i32.const 9
   )
   (func $target (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)

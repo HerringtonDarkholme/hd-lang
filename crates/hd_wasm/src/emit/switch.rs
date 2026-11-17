@@ -14,7 +14,7 @@
 //! linear in the grouped switches' variants.
 
 use crate::op::Op as I;
-use hd_base::{HashMap, SliceSort as _, StageResult};
+use hd_base::{HashMap, HashSet, SliceSort as _, StageResult};
 use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag};
 
 use super::{Ctl, Em};
@@ -85,19 +85,23 @@ impl Em<'_, '_, '_> {
     pub(super) fn switch_chain(&self, i: u32, a: u32) -> Option<Chain> {
         let mut cases: Vec<(u32, u32, u32)> = Vec::new();
         let mut cur = i;
+        let mut seen = HashSet::default();
         loop {
             if self.range(cur).is_some() {
                 return None;
             }
             let r = self.rec(self.b.data[cur as usize][1]);
-            if cases.iter().any(|(c, _, _)| *c == r[0]) {
-                return None;
+            let (&other, pairs) = r.split_last()?;
+            for pair in pairs.chunks_exact(2) {
+                if !seen.insert(pair[0]) {
+                    return None;
+                }
+                cases.push((pair[0], pair[1], cur));
             }
-            cases.push((r[0], r[1], cur));
-            if r[2] == NONE {
+            if other == NONE {
                 return Some((cases, None));
             }
-            match self.sole_item(r[2]) {
+            match self.sole_item(other) {
                 Some(k)
                     if self.b.tags[k as usize] == Tag::SwitchTag
                         && self.b.data[k as usize][0] == a =>
@@ -108,7 +112,7 @@ impl Em<'_, '_, '_> {
                 Some(k) if self.b.tags[k as usize] == Tag::Unreachable => {
                     return Some((cases, None));
                 }
-                _ => return Some((cases, Some((r[2], cur)))),
+                _ => return Some((cases, Some((other, cur)))),
             }
         }
     }
@@ -172,8 +176,8 @@ impl Em<'_, '_, '_> {
             // Only an untagged variant's payload holds the cell; a tag's
             // payloads lie after it.
             let next = match d.enc {
-                Enc::Niche { untagged, .. } => match by_variant.get(&untagged) {
-                    Some(&(b, _)) => self.nested_switch(b, val, untagged, off, cell)?,
+                Enc::Niche { untagged, .. } => match by_variant.get(&untagged).copied().or(other) {
+                    Some((b, _)) => self.nested_switch(b, val, untagged, off, cell)?,
                     None => None,
                 },
                 Enc::Direct => None,

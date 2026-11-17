@@ -21,17 +21,12 @@
               br 1
             else
     ;; 14 |         .Pair(right=r, left=l) if l.len() > r.len() => l
-              local.get $t.0
-              if
-                local.get $t.1
-                local.get $t.3
-                i32.gt_u
-                br_if 3
-                br 4
-              else
-                unreachable
-              end
+              local.get $t.1
+              local.get $t.3
+              i32.gt_u
     ;; 13 |         .Named(n) if n.len() > 3 => n
+              br_if 2
+              br 3
             end
     ;; 12 |     match t:
             unreachable

@@ -31,16 +31,9 @@
       block
     ;; 14 |         .Some(user) => user.name
         local.get $user
-        if
-          br 1
-        else
-    ;; 15 |         .None => "not a user"
-          local.get $user
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 14 |         .Some(user) => user.name
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 13 |     match value.downcast_ref::[User]():
         unreachable
       end

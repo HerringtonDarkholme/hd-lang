@@ -401,6 +401,15 @@ pub trait OwnCx {
     /// concrete layout is unavailable to this query. The move pass
     /// splits a base's `Drop` into its other parts' only when this holds.
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool;
+    /// In declaration order, whether each in-place enum variant has no
+    /// counted fields or runtime Drop hook. True means the complete
+    /// answer is available (an empty vector means no splittable enum).
+    /// False leaves explicit cases to `parts`; it proves no default fact.
+    fn empty_variants(&self, ty: Ty, out: &mut Vec<bool>) -> bool {
+        let _ = ty;
+        out.clear();
+        false
+    }
     /// How the body of `item` receives its own parameter `k` of `n`:
     /// `Lent` when its caller keeps the argument alive for the call, so the
     /// body need not own it ([`OwnCx::pass`]'s `Lent`, for a function that

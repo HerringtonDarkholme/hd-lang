@@ -29,19 +29,15 @@ fn report(s: string) -> string:
 >   local $1 message: string [read assigned]
 >   %0 = Read [$0] : string
 >   %1 = Call app/main/save[] (%0) : Result[(), string]
->   %16 = Block - : never
->   %17 = Match %1 [%16 %2 %4] : string
->   %18 = Block %17 : string
+>   %12 = Block - : never
+>   %13 = Match %1 [%12 %2 %4] : string
+>   %14 = Block %13 : string
         .Ok(()) => "saved"
 >   %2 = Block "saved" : string
 >   %6 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %1 [#0 %6 %14] : never
+>   %11 = SwitchTag %1 [#0 %6 %10] : never
         .Err(message) => message
 >   %3 = Read [$1] : string
 >   %4 = Block %3 : string
 >   %7 = Read [%1 as #1 .0] : string
 >   %8 = Store [$1] %7 : ()
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %1 [#1 %10 %12] : never

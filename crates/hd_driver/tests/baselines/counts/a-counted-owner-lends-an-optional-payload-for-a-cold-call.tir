@@ -12,22 +12,18 @@ fn read(value: (&i32)?) -> i32:
 >   local $0 value: &i32? [param read]
 >   local $1 item: &i32 [read assigned]
 >   %0 = Read [$0] : &i32?
->   %15 = Block - : never
->   %16 = Match %0 [%15 %2 %3] : i32
->   %17 = Block %16 : i32
+>   %11 = Block - : never
+>   %12 = Match %0 [%11 %2 %3] : i32
+>   %13 = Block %12 : i32
         .Some(item) => *item
 >   %1 = Read [*$1] : i32
 >   %2 = Block %1 : i32
 >   %4 = Read [%0 as #1 .0] : &i32
 >   %5 = Store [$1] %4 : ()
 >   %7 = Block - : never
->   %13 = Block - : never
->   %14 = SwitchTag %0 [#1 %7 %13] : never
+>   %10 = SwitchTag %0 [#1 %7 %9] : never
         .None => -1
 >   %3 = Block 18446744073709551615:i32 : i32
->   %9 = Block - : never
->   %11 = Block - : never
->   %12 = SwitchTag %0 [#0 %9 %11] : never
 
 fn call() -> i32:
     let owner: *i32 = box(+7)

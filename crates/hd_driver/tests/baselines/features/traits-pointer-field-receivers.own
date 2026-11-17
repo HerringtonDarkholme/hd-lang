@@ -69,28 +69,28 @@ fn total(items: Erased) -> i64:
 >   local $2 sum: i64 [read assigned mutated] place
 >   local $3 x: i64 [read assigned] value
 >     uses $3: %15 -> %8 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
+>   %0 = Retain %31 Entry local $0 #0 : ()
     let mut cursor = items
 >   %1 = Read move [$0] : Erased
 >   %2 = Store [$1] %1 : ()
->   %35 = Block %34 : i64
+>   %31 = Block %30 : i64
     let sum: i64 = 0
 >   %3 = Store [$2] 0:i64 : ()
     while true:
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If 1:bool [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
->   %33 = Drop [$1] : ()
->   %32 finds [$1] full
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If 1:bool [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %29 = Drop [$1] : ()
+>   %28 finds [$1] full
         match cursor.step():
 >   %4 = Ref mut local frame [$1] : &mut Erased
 >   %5 = Call app/main/Step.step for Erased [] via Impl (%4) : i64?
 >   %6 = LoanEnd [%4] : ()
->   %25 = Block - : never
->   %26 = Match %5 [%25 %11 %13] : ()
->   %27 = Block - : ()
+>   %21 = Block - : never
+>   %22 = Match %5 [%21 %11 %13] : ()
+>   %23 = Block - : ()
 >   %4 finds [$1] full
             .Some(x) => sum = sum + x
 >   %7 = Read copy [$2] : i64
@@ -101,16 +101,12 @@ fn total(items: Erased) -> i64:
 >   %14 = Read copy [%5 as #1 .0] : i64
 >   %15 = Store [$3] %14 : ()
 >   %17 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %5 [#1 %17 %23] : never
+>   %20 = SwitchTag %5 [#1 %17 %19] : never
             .None => break
 >   %12 = Break L0 - : never
 >   %13 = Block - : never
->   %19 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %5 [#0 %19 %21] : never
     sum
->   %34 = Read copy [$2] : i64
+>   %30 = Read copy [$2] : i64
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes

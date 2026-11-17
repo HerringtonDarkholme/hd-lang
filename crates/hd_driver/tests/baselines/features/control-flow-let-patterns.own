@@ -105,7 +105,6 @@ fn present(o: string?) -> usize:
 >   %5 = Read borrow [%1 as #1 .0] : string
 >   %6 = Store [$1] %5 : ()
 >   %8 = Block - : never
->   %10 = Block - : never
 >   %11 = SwitchTag %1 [#1 %8 %10] : never
 >   %12 = Block - : never
 >   %13 = Match %1 [%12 %2 %4] : ()

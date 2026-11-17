@@ -29,14 +29,14 @@ fn stop!(key: string) -> bool:
 >     uses $1: %5 -> %6 consume last
 >   local $2 end: CleanupEnd [:= read assigned] value
 >     uses $2: %9 -> %10 lend last
->   %0 = Retain %24 Cold local $0 #0 : ()
->   %1 = Retain %24 Entry local $0 #0 : ()
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
     let mut job = fetch(key)
->   %2 = Release %24 FrameDrop child #2 : ()
+>   %2 = Release %20 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Store [$1] %4 : ()
->   %24 = Block %23 : bool
+>   %20 = Block %19 : bool
     end := job.cancel!()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = Await std/task/impl[T] Suspend[T].cancel[string] (%6) : CleanupEnd
@@ -44,18 +44,14 @@ fn stop!(key: string) -> bool:
 >   %9 = Store [$2] %7 : ()
     match end:
 >   %10 = Read copy [$2] : CleanupEnd
->   %22 = Block - : never
->   %23 = Match %10 [%22 %11 %12] : bool
+>   %18 = Block - : never
+>   %19 = Match %10 [%18 %11 %12] : bool
         .Finished => true
 >   %11 = Block 1:bool : bool
 >   %14 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %10 [#0 %14 %20] : never
+>   %17 = SwitchTag %10 [#0 %14 %16] : never
         .Abandoned => false
 >   %12 = Block 0:bool : bool
->   %16 = Block - : never
->   %18 = Block - : never
->   %19 = SwitchTag %10 [#1 %16 %18] : never
 >   exit sub 0 drops [$0]
 >   summary none
 

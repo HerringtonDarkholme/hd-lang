@@ -31,27 +31,26 @@ fn total(head: *Chain?) -> usize:
 >   local $2 cur: *Chain? [read assigned mutated]
 >   local $3 c: *Chain [read assigned]
 >   %0 = Store [$1] 0:usize : ()
->   %34 = Block %33 : usize
+>   %30 = Block %29 : usize
     let cur = head
 >   %1 = Read [$0] : *Chain?
 >   %2 = Store [$2] %1 : ()
     while true:
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If 1:bool [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If 1:bool [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
         match cur:
 >   %3 = Read [$2] : *Chain?
->   %25 = Block - : never
->   %26 = Match %3 [%25 %11 %13] : ()
->   %27 = Block - : ()
+>   %21 = Block - : never
+>   %22 = Match %3 [%21 %11 %13] : ()
+>   %23 = Block - : ()
             .Some(c) =>
 >   %14 = Read [%3 as #1 .0] : *Chain
 >   %15 = Store [$3] %14 : ()
 >   %17 = Block - : never
->   %23 = Block - : never
->   %24 = SwitchTag %3 [#1 %17 %23] : never
+>   %20 = SwitchTag %3 [#1 %17 %19] : never
                 n += c.name.len()
 >   %4 = Read [$1] : usize
 >   %5 = Ref local [*$3 .name] : &string
@@ -65,8 +64,5 @@ fn total(head: *Chain?) -> usize:
             .None => break
 >   %12 = Break L0 - : never
 >   %13 = Block - : never
->   %19 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %3 [#0 %19 %21] : never
     n
->   %33 = Read [$1] : usize
+>   %29 = Read [$1] : usize

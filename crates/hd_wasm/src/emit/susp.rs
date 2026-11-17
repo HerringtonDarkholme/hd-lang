@@ -50,7 +50,10 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
         Tag::Loop => vec![a],
         Tag::Scope | Tag::Guard => [vec![a], rec(bw)].concat(),
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-            rec(bw).into_iter().skip(1).take(2).collect()
+            let record = rec(bw);
+            let mut blocks: Vec<_> = record.iter().skip(1).step_by(2).copied().collect();
+            blocks.extend(record.last().copied());
+            blocks
         }
         Tag::And | Tag::Or | Tag::With => vec![bw],
         _ => vec![],

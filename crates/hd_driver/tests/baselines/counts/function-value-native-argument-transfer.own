@@ -93,14 +93,13 @@ fn conditional_size(value: Conditional) -> usize:
 >     uses $1: %15 -> %2 consume last
 >   local $2 value: Resource [read captured] place
 >   %0 = Read move [$0] : Conditional
->   %23 = Block - : never
->   %24 = Match %0 [%23 %1 %11] : usize
->   %25 = Block %24 : usize
+>   %19 = Block - : never
+>   %20 = Match %0 [%19 %1 %11] : usize
+>   %21 = Block %20 : usize
         .Empty => 0
 >   %1 = Block 0:usize : usize
 >   %13 = Block - : never
->   %21 = Block - : never
->   %22 = SwitchTag %0 [#0 %13 %21] : never
+>   %18 = SwitchTag %0 [#0 %13 %17] : never
         .Live(resource) => size(resource)
 >   %2 = Read move [$1] : Resource
 >   %3 = Store [$2] %2 : ()
@@ -114,9 +113,6 @@ fn conditional_size(value: Conditional) -> usize:
 >   %11 = Block %9 : usize
 >   %14 = Read move [%0 as #1 .0] : Resource
 >   %15 = Store [$1] %14 : ()
->   %17 = Block - : never
->   %19 = Block - : never
->   %20 = SwitchTag %0 [#1 %17 %19] : never
 >   %4 finds [$2] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot

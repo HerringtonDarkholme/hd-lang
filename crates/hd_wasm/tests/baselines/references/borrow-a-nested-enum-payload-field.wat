@@ -2,24 +2,16 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replace (param $value i32) (local $t0 i32)
+  (func $replace (param $value i32)
     ;; 15 |     match value:
     block
       block
     ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
         local.get $value
         i32.load $heap
-        local.tee $t0
-        if
-          br 1
-        else
-    ;; 17 |         .None => pass
-          local.get $t0
-          i32.eqz
-          br_if 2
-          unreachable
-    ;; 16 |         .Some(Payload { text }) => *text = Text { value: "changed" }
-        end
+        i32.eqz
+        br_if 1
+        br 0
     ;; 15 |     match value:
         unreachable
       end

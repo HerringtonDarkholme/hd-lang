@@ -69,17 +69,17 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >     uses $1: entry -> %3 lend last
 >   local $2 v: string [read assigned] value
 >     uses $2: %14 -> %6 lend last
->   %0 = Release %27 Exit local $0 #2 : ()
->   %1 = Release %27 Exit local $1 #2 : ()
+>   %0 = Release %23 Exit local $0 #2 : ()
+>   %1 = Release %23 Exit local $1 #2 : ()
     match m.get(k):
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Read borrow [$1] : string
 >   %4 = Intrinsic MapGet [%2 %3] : string?
 >   %5 = Retain %4 Operation operand 0 #0 : ()
->   %24 = Block - : never
->   %25 = Match %4 [%24 %11 %12] : usize
->   %26 = Drop [%4] : ()
->   %27 = Block %25 : usize
+>   %20 = Block - : never
+>   %21 = Match %4 [%20 %11 %12] : usize
+>   %22 = Drop [%4] : ()
+>   %23 = Block %21 : usize
         .Some(v) => v.len()
 >   %6 = Read borrow [$2] : string
 >   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
@@ -90,13 +90,9 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >   %13 = Read borrow [%4 as #1 .0] : string
 >   %14 = Store [$2] %13 : ()
 >   %16 = Block - : never
->   %22 = Block - : never
->   %23 = SwitchTag %4 [#1 %16 %22] : never
+>   %19 = SwitchTag %4 [#1 %16 %18] : never
         .None => 0
 >   %12 = Block 0:usize : usize
->   %18 = Block - : never
->   %20 = Block - : never
->   %21 = SwitchTag %4 [#0 %18 %20] : never
 >   summary kept [] borrows [$0 $1]
 
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
@@ -162,10 +158,10 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %24 = Break L1 %23 : never
 >   %25 = Block - : &string?
 >   %26 = Scope %25 [] : &string?
->   %42 = Block - : never
->   %43 = Match %26 [%42 %29 %30] : usize
->   %44 = LoanEnd [%26] : ()
->   %45 = Block %43 : usize
+>   %38 = Block - : never
+>   %39 = Match %26 [%38 %29 %30] : usize
+>   %40 = LoanEnd [%26] : ()
+>   %41 = Block %39 : usize
         .Some(s) => s.len()
 >   %27 = Read borrow [$2] : &string
 >   %28 = Call std/text/impl string.len[] (%27) : usize
@@ -173,13 +169,9 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %31 = Read borrow [%26 as #1 .0] : &string
 >   %32 = Store [$2] %31 : ()
 >   %34 = Block - : never
->   %40 = Block - : never
->   %41 = SwitchTag %26 [#1 %34 %40] : never
+>   %37 = SwitchTag %26 [#1 %34 %36] : never
         .None => 0
 >   %30 = Block 0:usize : usize
->   %36 = Block - : never
->   %38 = Block - : never
->   %39 = SwitchTag %26 [#0 %36 %38] : never
 >   summary kept []
 
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
@@ -198,7 +190,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >     uses $5: %4 -> %5 lend, %11 consume last
 >   local $7 index: usize [read] value
 >     uses $7: %12 -> %15 lend last
->   %0 = Retain %50 Entry local $2 #0 : ()
+>   %0 = Retain %46 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -227,11 +219,11 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %25 = Break L1 %24 : never
 >   %26 = Block - : &mut string?
 >   %27 = Scope %26 [] : &mut string?
->   %46 = Block - : never
->   %47 = Match %27 [%46 %31 %33] : ()
->   %48 = LoanEnd [%27] : ()
->   %49 = Drop [$2] : ()
->   %50 = Block - : ()
+>   %42 = Block - : never
+>   %43 = Match %27 [%42 %31 %33] : ()
+>   %44 = LoanEnd [%27] : ()
+>   %45 = Drop [$2] : ()
+>   %46 = Block - : ()
         .Some(r) => *r = s
 >   %28 = Read move [$2] : string
 >   %29 = Store [*$3] %28 : ()
@@ -241,13 +233,9 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %35 = Store [$3] %34 : ()
 >   %36 = Release %35 Operation #3 : ()
 >   %38 = Block - : never
->   %44 = Block - : never
->   %45 = SwitchTag %27 [#1 %38 %44] : never
+>   %41 = SwitchTag %27 [#1 %38 %40] : never
         .None => panic("index")
 >   %32 = Call std/core/panic[] ("index") : never
 >   %33 = Block - : never
->   %40 = Block - : never
->   %42 = Block - : never
->   %43 = SwitchTag %27 [#0 %40 %42] : never
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
