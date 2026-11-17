@@ -385,7 +385,8 @@ impl Program {
                 )
                 .collect(),
             entry_capabilities: true,
-            instruction_origins: false,
+            // `HD_WAT` names every function of the module's text.
+            instruction_origins: crate::wat::requested(),
             std_leaf: None,
             checked: false,
             verify_own: false,

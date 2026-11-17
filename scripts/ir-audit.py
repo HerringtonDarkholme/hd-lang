@@ -4,13 +4,16 @@
     scripts/ir-audit.py [DIR ...]            summary table, worst first
     scripts/ir-audit.py --list NAME [DIR]    every site of one finding
     scripts/ir-audit.py --json [DIR ...]     machine-readable counts
+    scripts/ir-audit.py --bench-test HD      a bench module, printed by HD, reads
 
 The verdict on any change is runtime and module size. A finding here is a lead:
 a static site, not a measured cost, and V8 may already remove it. Vet this script
 against measurements (scripts/ir-audit-verify.py checks it finds what it claims,
 not that what it finds matters).
 
-With no DIR it reads the stage baselines of hd_driver and hd_wasm. It
+With no DIR it reads the stage baselines of hd_driver and hd_wasm. A DIR may
+also hold modules `hd build` printed: `HD_WAT=1 hd build --release` writes
+`build/release/NAME.wat` beside the `.wasm`, every function by hd's name. It
 simulates the Wasm stack inside each basic block, so a finding is a fact about
 that block. Elided code (`;; ...`) ends a block, and a function with elided code
 skips the whole-function checks.
@@ -71,7 +74,8 @@ class Value:
 
 def signatures(text):
     sigs = {}
-    for m in re.finditer(r'\(func \$("[^"]+"|[^\s()]+)((?: \(param [^)]*\))*)((?: \(result [^)]*\))*)', text):
+    # A printed module (`HD_WAT`) writes each function's index and type first.
+    for m in re.finditer(r'\(func \$("[^"]+"|[^\s()]+)(?: \(;\d+;\))?(?: \(type \d+\))?((?: \(param [^)]*\))*)((?: \(result [^)]*\))*)', text):
         params = sum(len(re.sub(r"\$\S+", "", p).split()) - 1 for p in re.findall(r"\(param [^)]*\)", m.group(2)))
         results = sum(len(r.split()) - 1 for r in re.findall(r"\(result [^)]*\)", m.group(3)))
         sigs[m.group(1).strip('"')] = (params, results)
@@ -87,12 +91,18 @@ def functions(text):
         if raw.startswith("  (func ") and m:
             name = m.group(1).strip('"')
             params = set(re.findall(r"\(param \$(\S+) ", line))
+            # A printed module's locals have no names: local N reads as $lN,
+            # and its N unnamed parameters are $l0 to $l(N-1).
+            unnamed = sum(len(p.split()) - 1 for p in re.findall(r"\(param (?!\$)[^)]*\)", line))
+            params |= {f"l{i}" for i in range(unnamed)}
             body = []
         elif name is not None and raw.startswith("  )"):
             yield name, params, body
             name = None
-        elif name is not None:
-            body.append(line)
+        elif name is not None and not line.startswith("(local "):
+            # A printed module's branch names its label in a comment: `br_if 1 (;@1;)`.
+            line = re.sub(r"\s*\(;[^;]*;\)", "", line)
+            body.append(re.sub(r"^(local\.(?:get|set|tee)) (\d+)\b", r"\1 $l\2", line))
     if name is not None:
         yield name, params, body
 
@@ -267,7 +277,7 @@ def audit_function(name, params, body, sigs, emit):
         elif head == "global.set":
             pop()
         elif head == "call":
-            callee = c.split("$", 1)[1].strip('"')
+            callee = c.split(" ", 1)[1].lstrip("$").strip('"')
             n, r = sigs.get(callee, (None, None))
             if n is None:
                 reset()
@@ -454,15 +464,45 @@ def self_test():
     return 1 if bad else 0
 
 
+def bench_test(hd):
+    """Builds bench/study/nbody.hd with `HD_WAT=1 HD build --release` and checks
+    the audit reads it: every call names its callee, and the module has sites of
+    `repeat-bounds`, which nbody holds (13 on 2026-11-17)."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    hd = os.path.abspath(hd) if os.path.exists(hd) else hd
+    with tempfile.TemporaryDirectory() as d:
+        os.makedirs(os.path.join(d, "src"))
+        with open(os.path.join(d, "hd.toml"), "w") as f:
+            f.write('[package]\nname = "nbody"\n\n[capabilities]\nConsole = true\n')
+        shutil.copy(os.path.join(ROOT, "bench", "study", "nbody.hd"), os.path.join(d, "src", "main.hd"))
+        env = dict(os.environ, HD_WAT="1", HD_CACHE=os.path.join(d, "cache"))
+        subprocess.run([hd, "build", "--release"], cwd=d, env=env, check=True, timeout=120)
+        text = open(os.path.join(d, "build", "release", "nbody.wat")).read()
+    found = collections.Counter()
+    sigs = signatures(text)
+    for name, params, body in functions(text):
+        audit_function(name, params, body, sigs, lambda k, f, d="": found.update([k]))
+    unnamed = re.findall(r"^\s*call \d+", text, re.M)
+    ok = found["repeat-bounds"] > 0 and not unnamed
+    print(f"bench-test: nbody repeat-bounds {found['repeat-bounds']}, unnamed calls {len(unnamed)}: {'pass' if ok else 'FAIL'}")
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dirs", nargs="*")
     ap.add_argument("--list", metavar="NAME")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--bench-test", metavar="HD", help="build a bench module with HD and check the audit reads it")
     args = ap.parse_args()
     if args.self_test:
         return self_test()
+    if args.bench_test:
+        return bench_test(args.bench_test)
     dirs = args.dirs or [os.path.join(ROOT, d) for d in DEFAULT]
 
     sites = collections.defaultdict(list)

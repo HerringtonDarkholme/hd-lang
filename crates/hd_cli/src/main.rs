@@ -27,6 +27,7 @@ mod repl;
 mod report;
 mod snapshot_update;
 mod test_cmd;
+mod wat;
 mod work;
 
 use std::ffi::OsString;
@@ -623,7 +624,7 @@ fn compile_standalone(
     program: &disk::Program,
     (profile, pipeline): (BuildProfile, Pipeline),
     rep: &mut Reporter,
-) -> Result<Vec<u8>, ExitCode> {
+) -> Result<(Vec<u8>, Option<String>), ExitCode> {
     let store = hd_cache::DeferredStore::new(disk_store());
     compile_standalone_in(program, (profile, pipeline), rep, &store)
 }
@@ -634,18 +635,20 @@ fn compile_standalone_in(
     (profile, pipeline): (BuildProfile, Pipeline),
     rep: &mut Reporter,
     store: &dyn hd_cache::CacheStore,
-) -> Result<Vec<u8>, ExitCode> {
+) -> Result<(Vec<u8>, Option<String>), ExitCode> {
     // A warm build with nothing changed writes the artifact a build of the
-    // same inputs stored (#1510): one lookup, no per-module entry.
-    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1");
+    // same inputs stored (#1510): one lookup, no per-module entry. A build
+    // that writes its text (`HD_WAT`) builds, for the functions' names.
+    let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1")
+        .filter(|_| !wat::requested());
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
         if rep.diags(&program.problems) {
             return Err(rep.finish(HD_FAILURE));
         }
-        return Ok(wasm);
+        return Ok((wasm, None));
     }
     let reported = (rep.errors, rep.warnings);
-    let built = build_traced(program, (profile, pipeline), rep, store)?;
+    let (built, text) = build_traced(program, (profile, pipeline), rep, store)?;
     let mut wasm = built.wasm;
     if let Some((frames, sources)) = &built.frames {
         let section = frames.positions_section(&wasm, sources);
@@ -659,7 +662,7 @@ fn compile_standalone_in(
     {
         key.write(store, client, &wasm);
     }
-    Ok(wasm)
+    Ok((wasm, text))
 }
 
 /// The key of `program`'s stored artifact (#1510), `client_tag` naming
@@ -792,7 +795,7 @@ fn compile_traced_in<'a>(
         });
     }
     let reported = (rep.errors, rep.warnings);
-    let built = build_traced(program, settings, rep, store)?;
+    let (built, _) = build_traced(program, settings, rep, store)?;
     // Only a build that reported nothing: a hit reports nothing either.
     if let Some((key, client)) = stored
         && (rep.errors, rep.warnings) == reported
@@ -809,20 +812,33 @@ fn build_traced<'a>(
     settings: (BuildProfile, Pipeline),
     rep: &mut Reporter,
     store: &dyn hd_cache::CacheStore,
-) -> Result<Compiled<'a>, ExitCode> {
+) -> Result<(Compiled<'a>, Option<String>), ExitCode> {
     let goal = Goal::Program {
         entry: program.entry.clone(),
     };
     let out = build_goal_through(program, &goal, settings, false, rep, store)?;
     let positions = out.positions(&mut hd_driver::PositionPool::default());
-    match out.wasm {
-        Some(wasm) => Ok(Compiled {
-            wasm,
-            frames: Some((test_cmd::Frames::new(positions), &program.sources)),
-            stored: None,
-        }),
-        None => Err(rep.fail("no Wasm produced")),
-    }
+    let Some(wasm) = out.wasm else {
+        return Err(rep.fail("no Wasm produced"));
+    };
+    // `HD_WAT`'s text: the module as built, before its names are cut, with
+    // every function's name from the build's origins.
+    let text = if out.instruction_origins.is_empty() {
+        None
+    } else {
+        let names: Vec<(u32, &str)> = out
+            .instruction_origins
+            .iter()
+            .map(|f| (f.index, f.name.as_str()))
+            .collect();
+        Some(wat::text(&wasm, &names).map_err(|e| rep.fail(&format!("HD_WAT: {e}")))?)
+    };
+    let compiled = Compiled {
+        wasm,
+        frames: Some((test_cmd::Frames::new(positions), &program.sources)),
+        stored: None,
+    };
+    Ok((compiled, text))
 }
 
 /// Runs compiled Wasm and ends with the program's status
@@ -1478,7 +1494,7 @@ fn write_module(
     release: bool,
     files: bool,
     stem: &str,
-    wasm: &[u8],
+    (wasm, text): (&[u8], Option<&str>),
 ) -> Result<(), String> {
     let mut dir = root
         .join("build")
@@ -1491,6 +1507,10 @@ fn write_module(
     std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(&out, wasm))
         .map_err(|e| format!("{}: {e}", out.display()))?;
+    if let Some(text) = text {
+        let wat = dir.join(format!("{stem}.wat"));
+        std::fs::write(&wat, text).map_err(|e| format!("{}: {e}", wat.display()))?;
+    }
     let glue = dir.join(format!("{stem}.host.mjs"));
     if let Some(artifacts) = artifacts {
         std::fs::write(&glue, artifacts.javascript)
@@ -1570,8 +1590,9 @@ fn build_package(
     for exe in &executables {
         let mut program = disk::load_package(root, &exe.file).map_err(|e| rep.fail(&e))?;
         program.only_program(&exe.file);
-        let wasm = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
-        write_module(root, release, false, &exe.name, &wasm).map_err(|e| rep.fail(&e))?;
+        let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
+        write_module(root, release, false, &exe.name, (&wasm, text.as_deref()))
+            .map_err(|e| rep.fail(&e))?;
     }
     Ok(())
 }
@@ -1602,12 +1623,12 @@ fn build_file(
     let rel = disk::listed_path(&root, &rel.to_string_lossy().replace('\\', "/"));
     let mut program = disk::load_package(&root, &rel).map_err(|e| rep.fail(&e))?;
     program.only_program(&rel);
-    let wasm = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
+    let (wasm, text) = compile_standalone(&program, (profile_of(release), pipeline), rep)?;
     let stem = full
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    write_module(&root, release, true, &stem, &wasm).map_err(|e| rep.fail(&e))
+    write_module(&root, release, true, &stem, (&wasm, text.as_deref())).map_err(|e| rep.fail(&e))
 }
 
 #[cfg(all(test, unix))]
@@ -1648,8 +1669,9 @@ mod stored_artifact_tests {
         let pipeline = Pipeline::of(engine::EngineKind::default(), false);
         store.gets.store(0, Ordering::Relaxed);
         let mut rep = Reporter::stdout(false);
-        let wasm = compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
-            .expect("built");
+        let (wasm, _) =
+            compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
+                .expect("built");
         (wasm, store.gets.load(Ordering::Relaxed) == 1)
     }
 

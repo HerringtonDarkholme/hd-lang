@@ -68,6 +68,12 @@ node bench/study/run.ts --only nbody,json    # some cases
 node bench/study/run.ts --python-only        # Python only, once each
 ```
 
+With `HD_WAT=1` set, each `hd build` also writes hd's text of the module,
+every function by its hd name, beside the `.wasm`
+(`build/release/NAME.wat`); `scripts/ir-audit.py WORKDIR` then audits the
+programs whose time and size the run reports. It skips the stored
+artifact, so it rebuilds each program.
+
 Each study program's input is tuned so hd on V8 runs about 300 ms
 (<https://matklad.github.io/2026/10/05/benchmark-milliseconds.html>):
 long enough that start-up and noise are small, short enough to run

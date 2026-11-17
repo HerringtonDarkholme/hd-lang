@@ -533,7 +533,7 @@ fn do_install(options: Options, rep: &mut Reporter) -> Result<(), ExitCode> {
             }
         }
         program.only_program(&executable.file);
-        let wasm = crate::compile_standalone(
+        let (wasm, _) = crate::compile_standalone(
             &program,
             (
                 hd_driver::BuildProfile::Release,

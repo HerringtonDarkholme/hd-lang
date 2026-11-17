@@ -58,6 +58,7 @@ fn own_objects(cache: &std::path::Path) {
 }
 
 mod affected;
+mod build_wat;
 mod cache_gc;
 mod check_cmd;
 mod claims_concurrent;

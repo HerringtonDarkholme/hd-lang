@@ -41,6 +41,9 @@ hd_syntax = { path = "../hd_syntax" }
 # and SIGINT while an input runs, which stops it (`cli.repl.stop`).
 ctrlc = "=3.5.2"
 serde_json = "1"
+# `HD_WAT`: the built module's text beside it, for `scripts/ir-audit.py`.
+wasmparser = { version = "0.261.0", default-features = false, features = ["std"] }
+wasmprinter = { version = "0.261.0", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 rustyline = { version = "=18.0.1", default-features = false, optional = true }
 
