@@ -171,7 +171,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $temp_ref (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $temp_ref (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |     n := &make(s)
     global.get $locals
     global.get $locals_base
@@ -216,24 +216,15 @@
     i32.store $heap offset=4
     local.get $t1
     ;; 15 |     n.name.len()
-    local.tee $s.0
     i32.load $heap
-    local.get $s.0
+    ;; 14 |     n := &make(s)
+    local.get $t1
+    ;; 15 |     n.name.len()
     i32.load $heap offset=4
     local.set $s.0
     drop
-    ;; 14 |     n := &make(s)
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $s.1
-      if
-        local.get $s.1
-        call $rt:release_ref
-      end
-    end
     local.get $s.0
+    ;; 14 |     n := &make(s)
     local.get $t0
     i32.const 16
     i32.add

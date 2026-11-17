@@ -1309,7 +1309,7 @@ impl Body {
             }
         } else if !matches!(
             self.tags[v as usize],
-            Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce
+            Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce | Tag::Scope
         ) {
             return None;
         }
@@ -1399,6 +1399,38 @@ impl Body {
             && self.label_inst.get(self.data[x][0] as usize) == Some(&u32_of(blk))
             && self.data[x][1] != NONE)
             .then_some(self.data[x][1])
+    }
+
+    /// The value of each scope with exactly one producing exit. Instructions
+    /// after that exit need not define its result; cleanup remains intact.
+    /// Two instruction censuses visit each exit and scope once.
+    pub(crate) fn scope_forwarders(&self, mut visit: impl FnMut()) -> Vec<u32> {
+        let mut counts = vec![0u32; self.len()];
+        let mut values = vec![NONE; self.len()];
+        for (i, &tag) in self.tags.iter().enumerate() {
+            visit();
+            if tag == Tag::Break
+                && let Some(&block) = self.label_inst.get(self.data[i][0] as usize)
+                && let Some(count) = counts.get_mut(block as usize)
+            {
+                *count += 1;
+                values[block as usize] = self.data[i][1];
+            }
+        }
+        let mut sources = vec![NONE; self.len()];
+        for (i, &tag) in self.tags.iter().enumerate() {
+            visit();
+            if tag == Tag::Scope
+                && self.record(self.data[i][1]).is_empty()
+                && let Some(&count) = counts.get(self.data[i][0] as usize)
+                && count == 1
+                && self.tags.get(self.data[i][0] as usize) == Some(&Tag::Block)
+                && self.data[self.data[i][0] as usize][1] == NONE
+            {
+                sources[i] = values[self.data[i][0] as usize];
+            }
+        }
+        sources
     }
 
     /// Whole parameter reads forwarded by a conditional value. The fixed

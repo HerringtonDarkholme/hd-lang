@@ -134,7 +134,7 @@ struct Local {
     /// Every address is immutable and dies with one direct call.
     shared_lends_only: bool,
     /// Every address is a frame-local immutable view, read through or
-    /// lent to one call whose result carries no local reference.
+    /// lent to calls whose results carry no local reference.
     binding_lends_only: bool,
     escapes: bool,
     changed: bool,
@@ -366,6 +366,17 @@ impl Tables {
                     return out;
                 }
                 Root::Value(v) => {
+                    if first
+                        && let Some(&local) = self.reference_roots.get(v as usize)
+                        && local != NONE
+                    {
+                        // Loading a value through this address depends on
+                        // its backing frame owner, not on the address
+                        // loan's end. Keep heap/write checks conservative.
+                        below = 0;
+                        word = local | crate::ir::place::BARE_LOCAL;
+                        continue;
+                    }
                     self.links.push(Link {
                         key: locals + v,
                         ..link
@@ -385,6 +396,13 @@ impl Tables {
                         // the constructor's field paths in its layout.
                         below = 0;
                         word = b.data[read as usize][0];
+                        continue;
+                    }
+                    if let Some(&local) = self.reference_roots.get(v as usize)
+                        && local != NONE
+                    {
+                        below = 0;
+                        word = local | crate::ir::place::BARE_LOCAL;
                         continue;
                     }
                     if own == 0
@@ -564,7 +582,7 @@ impl Tables {
 /// The facts of each value and local: uses, drops, stores.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     let n = b.len();
-    wrappers(b, t);
+    wrappers(b, t, constructors);
     let recursive = super::RecursiveBindings::new(b);
     let mut ops = std::mem::take(&mut t.ops);
     let mut through = super::promote::ReadThroughUses::default();
@@ -703,7 +721,8 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     t.ops = ops;
     let (counts, last): (Vec<u32>, Vec<u32>) = t.v.iter().map(|f| (f.uses, f.user)).unzip();
     let calls = local_lending_calls(b, cx, &counts, &last);
-    t.reference_roots = frame_reference_roots(b, || {});
+    t.reference_roots = frame_reference_roots(b, constructors, || {});
+    let frame_lends = frame_lending_roots(b, cx, &t.reference_roots);
     for (i, &call) in calls.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
@@ -713,8 +732,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
             // references held in local aggregates and dependent results.
             let lends = call != NONE || t.v[i].read_through || b.data[i][1] & ref_word::FRAME != 0;
             t.l[l.idx()].shared_lends_only &= b.data[i][1] & ref_word::MUT == 0 && lends;
-            t.l[l.idx()].binding_lends_only &=
-                t.reference_roots[i] != NONE && (call != NONE || t.v[i].read_through);
+            t.l[l.idx()].binding_lends_only &= t.reference_roots[i] != NONE && frame_lends[l.idx()];
             if b.data[i][1] & ref_word::FRAME == 0 && !lends {
                 t.l[l.idx()].escapes = true;
             }
@@ -772,35 +790,27 @@ fn collapse_aliases(values: &mut [Value], mut visit: impl FnMut()) {
     }
 }
 
-/// Each label's wrapper `Scope` in `t.wrapper`, `NONE` for none: a
-/// [`Body::wrapper_value`] whose block its last member's `Break` is the
-/// one way out of, as an inlined call's copy is. That `Scope`'s value is
-/// the `Break`'s operand, so a read there is used where the `Scope` is.
-fn wrappers(b: &Body, t: &mut Tables) {
-    wrappers_with(b, t, || {});
+/// Each label's single-producing-exit `Scope`, `NONE` for none. The shared
+/// RC source index proves its result even when loan cleanup follows the
+/// producing `Break`. A read there is used where the `Scope` is.
+fn wrappers(b: &Body, t: &mut Tables, sources: &[u32]) {
+    wrappers_with(b, t, sources, || {});
 }
 
-fn wrappers_with(b: &Body, t: &mut Tables, mut visit: impl FnMut()) {
+fn wrappers_with(b: &Body, t: &mut Tables, sources: &[u32], mut visit: impl FnMut()) {
     let labels = b.label_inst.len();
-    fill(&mut t.wrapper, labels, 0);
+    fill(&mut t.wrapper, labels, NONE);
     fill(&mut t.scope_of, b.len(), NONE);
-    for i in 0..b.len() {
+    for (i, &source) in sources.iter().enumerate() {
         visit();
-        if b.tags[i] == Tag::Break
-            && let Some(c) = t.wrapper.get_mut(b.data[i][0] as usize)
-        {
-            *c += 1;
-        } else if b.wrapper_value(i).is_some() {
+        if b.tags[i] == Tag::Scope && source != NONE {
             t.scope_of[b.data[i][0] as usize] = u32_of(i);
         }
     }
     for l in 0..labels {
         visit();
         let blk = b.label_inst[l] as usize;
-        t.wrapper[l] = match t.scope_of.get(blk) {
-            Some(&s) if t.wrapper[l] == 1 => s,
-            _ => NONE,
-        };
+        t.wrapper[l] = t.scope_of.get(blk).copied().unwrap_or(NONE);
     }
 }
 
@@ -960,6 +970,8 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                         b.data[v as usize][0]
                     } else if let Some(read) = b.forwarded_read(v) {
                         b.data[read as usize][0]
+                    } else if t.reference_roots[v as usize] != NONE {
+                        t.reference_roots[v as usize] | crate::ir::place::BARE_LOCAL
                     } else {
                         break;
                     }
@@ -1728,19 +1740,23 @@ fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
-/// Swift RC identity: an inline Copy aggregate without Drop or reference
-/// carriers has one nontrivial operand. Classify each concrete shape once;
-/// constructor records supply their operands in total input-sized work.
-pub(crate) fn constructor_sources(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
-    constructor_sources_with(b, cx, |_| {})
+/// Swift RC identity through single-producing-exit scopes and inline Copy
+/// aggregates without Drop or reference carriers and with one nontrivial
+/// operand. Classify each concrete shape once; constructor records supply
+/// their operands in total input-sized work.
+pub(crate) fn rc_sources(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
+    rc_sources_with(b, cx, |_| {})
 }
 
-fn constructor_sources_with(b: &Body, cx: &dyn OwnCx, mut visit: impl FnMut(usize)) -> Vec<u32> {
-    let mut sources = vec![NONE; b.len()];
+fn rc_sources_with(b: &Body, cx: &dyn OwnCx, mut visit: impl FnMut(usize)) -> Vec<u32> {
+    let mut sources = b.scope_forwarders(|| visit(1));
     let mut shapes = hd_base::HashMap::default();
     let mut fields = Vec::new();
     for (i, source) in sources.iter_mut().enumerate() {
         visit(1);
+        if b.tags[i] == Tag::Scope {
+            continue;
+        }
         let some = b.tags[i] == Tag::Coerce
             && b.record(b.data[i][1]).first() == Some(&(crate::ir::Coercion::WrapSome as u32));
         let variant = match b.tags[i] {
@@ -1795,7 +1811,7 @@ fn constructor_sources_with(b: &Body, cx: &dyn OwnCx, mut visit: impl FnMut(usiz
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters and bindings the body owns none of.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
-    let constructors = constructor_sources(b, cx);
+    let constructors = rc_sources(b, cx);
     b.index_forwarded_reads(&constructors);
     t.reset(b.len(), b.local_ty.len());
     {
@@ -2001,7 +2017,6 @@ fn local_lending_calls_with(
 pub(crate) struct ReferenceUses {
     pub escaping: Vec<bool>,
     pub calls: Vec<u32>,
-    pub read_through: Vec<bool>,
 }
 
 pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
@@ -2041,31 +2056,202 @@ pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     ReferenceUses {
         escaping: out,
         calls,
-        read_through,
     }
 }
 
-/// Canonical immutable frame addresses, including same-value coercions.
-/// Each operand precedes its user, so every edge is followed once.
-pub(crate) fn frame_reference_roots(b: &Body, mut visit: impl FnMut()) -> Vec<u32> {
-    let mut roots = vec![NONE; b.len()];
+/// Immutable frame dependencies through unary values and single-definition
+/// locals. Local definitions may follow their uses in block layout; resolve
+/// the functional graph once, with path compression and no native recursion.
+/// Each node and edge settles once: O(instructions + locals + captures +
+/// distinct place words) work and O(instructions + locals) table space.
+pub(crate) fn frame_reference_roots(
+    b: &Body,
+    forwarding: &[u32],
+    mut visit: impl FnMut(),
+) -> Vec<u32> {
+    let n = b.len();
+    let locals = b.local_ty.len();
+    let mut parents = vec![usize::MAX; n + locals];
+    let mut roots = vec![NONE; n + locals];
+    let mut state = vec![0u8; n + locals];
+    // Zero, one, or multiple definitions; arbitrarily many stores remain
+    // ambiguous rather than being truncated to a chosen definition.
+    let mut stores = vec![0u8; locals];
+    let mut value = vec![NONE; locals];
+    let mut addressed: Vec<_> = b
+        .local_flags
+        .iter()
+        .map(|f| f & local_flags::PARAM != 0)
+        .collect();
+    let mut scopes = vec![NONE; n];
+    let mut places = hd_base::HashMap::default();
+    let mut local_in_place = |word| {
+        *places
+            .entry(word)
+            .or_insert_with(|| b.local_in_place(word).map_or(NONE, hd_base::LocalId::raw))
+    };
+    for (i, &forwarded) in forwarding.iter().enumerate() {
+        visit();
+        let [a, w] = b.data[i];
+        if b.tags[i] == Tag::Store {
+            let local = local_in_place(a);
+            if local != NONE {
+                let l = local as usize;
+                stores[l] = stores[l].saturating_add(1).min(2);
+                if b.view(a).whole() {
+                    value[l] = w;
+                }
+            }
+        } else if b.tags[i] == Tag::Ref {
+            let local = local_in_place(a);
+            if local != NONE {
+                addressed[local as usize] = true;
+            }
+        } else if b.tags[i] == Tag::Scope && forwarded != NONE {
+            scopes[a as usize] = u32_of(i);
+        }
+    }
+    for local in &b.cap_local {
+        visit();
+        addressed[local.idx()] = true;
+    }
+    for l in 0..locals {
+        visit();
+        if stores[l] == 1
+            && !addressed[l]
+            && let Some(v) = Ref(value[l]).as_inst()
+            && (v.0 as usize) < n
+        {
+            parents[n + l] = v.0 as usize;
+        }
+    }
     for (i, &tag) in b.tags.iter().enumerate() {
         visit();
         if tag == Tag::Ref
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
                 == ref_word::LOCAL | ref_word::FRAME
+            && local_in_place(b.data[i][0]) != NONE
         {
-            roots[i] = b
-                .local_in_place(b.data[i][0])
-                .map_or(NONE, hd_base::LocalId::raw);
-        } else if b.same_value_coercion(i)
-            && let Some(source) = Ref(b.data[i][0]).as_inst()
-            && (source.0 as usize) < i
+            roots[i] = local_in_place(b.data[i][0]);
+            state[i] = 2;
+            continue;
+        }
+        let source = if b.same_value_coercion(i) {
+            Some(b.data[i][0])
+        } else if tag == Tag::Scope {
+            forwarding.get(i).copied().filter(|&v| v != NONE)
+        } else {
+            None
+        };
+        if let Some(v) = source
+            .and_then(|v| Ref(v).as_inst())
+            .filter(|v| (v.0 as usize) < n)
         {
-            roots[i] = roots[source.0 as usize];
+            parents[i] = v.0 as usize;
+        } else if matches!(tag, Tag::Ref | Tag::Read) {
+            parents[i] = match b.view(b.data[i][0]).root {
+                Root::Local(l) if parents[n + l as usize] != usize::MAX => n + l as usize,
+                Root::Value(v) => v as usize,
+                _ => usize::MAX,
+            };
+        } else if tag == Tag::Store {
+            if let Some(local) = b.view(b.data[i][0]).local() {
+                parents[i] = parents[n + local as usize];
+            }
+        } else if tag == Tag::Break
+            && let Some(&block) = b.label_inst.get(b.data[i][0] as usize)
+            && scopes[block as usize] != NONE
+            && let Some(value) = Ref(b.data[i][1]).as_inst()
+        {
+            parents[i] = value.0 as usize;
         }
     }
+    let mut path = Vec::new();
+    for start in 0..parents.len() {
+        visit();
+        let mut at = start;
+        let root = loop {
+            if state[at] == 2 {
+                break roots[at];
+            }
+            if state[at] == 1 || parents[at] == usize::MAX {
+                break NONE;
+            }
+            visit();
+            state[at] = 1;
+            path.push(at);
+            at = parents[at];
+        };
+        // An unknown terminal also resolves once; cycles conservatively
+        // produce no origin and every node on their incoming path settles.
+        if state[at] == 0 {
+            state[at] = 2;
+        }
+        while let Some(at) = path.pop() {
+            visit();
+            roots[at] = root;
+            state[at] = 2;
+        }
+    }
+    roots.truncate(n);
     roots
+}
+
+/// A frame descriptor lends only when every transitive use is another
+/// indexed alias, an immutable projection, or a nonescaping direct call.
+/// The origin index turns every def-use edge into one constant-time check.
+/// Reference facts are queried once per distinct type, not once per use.
+pub(crate) fn frame_lending_roots(b: &Body, cx: &dyn OwnCx, roots: &[u32]) -> Vec<bool> {
+    frame_lending_roots_with(b, cx, roots, || {})
+}
+
+fn frame_lending_roots_with(
+    b: &Body,
+    cx: &dyn OwnCx,
+    roots: &[u32],
+    mut queried: impl FnMut(),
+) -> Vec<bool> {
+    let mut lends = vec![true; b.local_ty.len()];
+    let mut ops = Vec::new();
+    let mut through = super::promote::ReadThroughUses::default();
+    let mut types = hd_base::HashMap::default();
+    let mut references = |ty| {
+        *types.entry(ty).or_insert_with(|| {
+            queried();
+            let holds = cx.holds_ref(ty);
+            (holds, !holds || cx.counted_refs_only(ty))
+        })
+    };
+    for i in 0..b.len() {
+        operands(b, i, &mut ops);
+        for op in &ops {
+            if op.role == Role::Dropped {
+                continue;
+            }
+            let Some(&root) = roots.get(op.value as usize).filter(|&&root| root != NONE) else {
+                continue;
+            };
+            // An independently owned value read through the address ends
+            // that address use at the read. If the read later borrows,
+            // its indexed source is protected by the lifetime solver.
+            if Ref(op.value).as_inst().is_some()
+                && b.tags[op.value as usize] == Tag::Read
+                && !references(b.ty[op.value as usize]).0
+            {
+                continue;
+            }
+            let aliases = roots[i] == root;
+            let allowed = match b.tags[i] {
+                Tag::Store | Tag::Break | Tag::Read => aliases,
+                Tag::Ref => aliases && b.data[i][1] & ref_word::MUT == 0,
+                Tag::Coerce => aliases && b.same_value_coercion(i),
+                Tag::Call => references(b.ty[i]).1,
+                _ => through.permits(b, i, op.value),
+            };
+            lends[root as usize] &= allowed;
+        }
+    }
+    lends
 }
 
 /// Whether read `r` is in a match's decision block and reads through that
@@ -2216,7 +2402,7 @@ mod lending_tests {
     }
 
     #[test]
-    fn wrapper_work_is_linear_in_width_and_depth() {
+    fn wrapper_work_is_linear_with_trailing_loan_cleanup() {
         for (width, depth) in [
             (1, 1),
             (1000, 1),
@@ -2238,8 +2424,11 @@ mod lending_tests {
                     let exit = u32_of(b.len());
                     b.tags.push(Tag::Break);
                     b.data.push([label, value]);
+                    let cleanup = u32_of(b.len());
+                    b.tags.push(Tag::LoanEnd);
+                    b.data.push([0, NONE]);
                     let record = u32_of(b.extra.len());
-                    b.extra.extend([1, exit]);
+                    b.extra.extend([2, exit, cleanup]);
                     let block = u32_of(b.len());
                     b.tags.push(Tag::Block);
                     b.data.push([record, NONE]);
@@ -2254,13 +2443,15 @@ mod lending_tests {
             }
             let mut t = Tables::default();
             let mut visits = 0;
-            wrappers_with(&b, &mut t, || visits += 1);
+            let sources = b.scope_forwarders(|| visits += 1);
+            assert_eq!(visits, 2 * b.len());
+            wrappers_with(&b, &mut t, &sources, || visits += 1);
             assert_eq!(t.wrapper, expected);
-            assert_eq!(visits, b.len() + b.label_inst.len());
+            assert_eq!(visits, 3 * b.len() + b.label_inst.len());
             let mut source_visits = 0;
-            let roots = b.forwarding_reads(&[], || source_visits += 1);
+            let roots = b.forwarding_reads(&sources, || source_visits += 1);
             assert_eq!(source_visits, b.len());
-            b.index_forwarded_reads(&[]);
+            b.index_forwarded_reads(&sources);
             for &scope in &expected {
                 let root = roots[scope as usize];
                 assert_eq!(b.tags[root as usize], Tag::Read);
@@ -2275,7 +2466,7 @@ mod lending_tests {
             // A second exit to a block invalidates that wrapper only.
             b.tags.push(Tag::Break);
             b.data.push([0, 0]);
-            wrappers(&b, &mut t);
+            wrappers(&b, &mut t, &b.scope_forwarders(|| {}));
             assert_eq!(t.wrapper[0], NONE);
             assert_eq!(&t.wrapper[1..], &expected[1..]);
         }
@@ -2803,8 +2994,8 @@ mod lending_tests {
                 body.data[r][1] |= ref_word::FRAME;
             }
             let mut visits = 0;
-            let roots = frame_reference_roots(&body, || visits += 1);
-            assert_eq!(visits, body.len());
+            let roots = frame_reference_roots(&body, &body.scope_forwarders(|| {}), || visits += 1);
+            assert!(visits <= 5 * body.len() + 4 * body.local_ty.len());
             for &r in &references {
                 let local = body.local_in_place(body.data[r][0]).unwrap().raw();
                 assert!(roots[r..=r + depth].iter().all(|&root| root == local));
@@ -2813,11 +3004,90 @@ mod lending_tests {
                 body.data[r][1] |= ref_word::MUT;
             }
             assert!(
-                frame_reference_roots(&body, || {})
+                frame_reference_roots(&body, &body.scope_forwarders(|| {}), || {})
                     .iter()
                     .all(|&root| root == NONE)
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn frame_origin_work_is_linear_through_single_definition_locals() -> Result<(), String> {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let n = NodeIdx::from_raw(1);
+                let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+                let block = b.open_block();
+                let source = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+                let place = b.place(&"[$0]".parse().expect("source place"));
+                let mut expected = Vec::new();
+                for _ in 0..width {
+                    let mut value = b.emit(Tag::Ref, place, ref_word::LOCAL, LOCAL_REF, n);
+                    for _ in 0..depth {
+                        let alias = b.local(LOCAL_REF, Symbol::NONE, 0, n);
+                        b.set(alias, value, n);
+                        value = b.get(alias, LOCAL_REF, n);
+                        expected.push(value.0 as usize);
+                    }
+                    call(&mut b, 8, &[value], Ty::VOID);
+                }
+                let root = b.close_block(block, None, Ty::VOID, n);
+                let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                for i in 0..body.len() {
+                    if body.tags[i] == Tag::Ref {
+                        body.data[i][1] |= ref_word::FRAME;
+                    }
+                }
+                let mut work = 0;
+                let roots =
+                    frame_reference_roots(&body, &body.scope_forwarders(|| {}), || work += 1);
+                assert!(work <= 5 * body.len() + 4 * body.local_ty.len());
+                assert!(expected.iter().all(|&value| roots[value] == source.raw()));
+                let mut queries = 0;
+                assert!(
+                    frame_lending_roots_with(&body, &ReadOnly, &roots, || queries += 1)
+                        [source.idx()]
+                );
+                assert_eq!(
+                    queries, 2,
+                    "one query each for the reference and void types"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_reassigned_reference_cannot_lend_its_first_origin() -> Result<(), String> {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let block = b.open_block();
+        let left = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+        let right = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+        let alias = b.local(LOCAL_REF, Symbol::NONE, 0, n);
+        for source in [left, right] {
+            let place = b.place(
+                &format!("[${}]", source.raw())
+                    .parse()
+                    .map_err(|e| format!("{e:?}"))?,
+            );
+            let reference = b.emit(Tag::Ref, place, ref_word::LOCAL, LOCAL_REF, n);
+            b.set(alias, reference, n);
+        }
+        let read = b.get(alias, LOCAL_REF, n);
+        call(&mut b, 8, &[read], Ty::VOID);
+        let root = b.close_block(block, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        for i in 0..body.len() {
+            if body.tags[i] == Tag::Ref {
+                body.data[i][1] |= ref_word::FRAME;
+            }
+        }
+        let roots = frame_reference_roots(&body, &body.scope_forwarders(|| {}), || {});
+        assert_eq!(roots[read.0 as usize], NONE);
+        let lends = frame_lending_roots(&body, &ReadOnly, &roots);
+        assert!(!lends[left.idx()] && !lends[right.idx()]);
         Ok(())
     }
 }
@@ -2934,8 +3204,8 @@ mod aggregate_identity_tests {
                     reject: 0,
                 };
                 let mut work = 0;
-                let sources = constructor_sources_with(&b, &cx, |n| work += n);
-                assert_eq!(work, b.len() + 2 * depth);
+                let sources = rc_sources_with(&b, &cx, |n| work += n);
+                assert_eq!(work, 3 * b.len() + 2 * depth);
                 assert_eq!(
                     cx.queries.get(),
                     depth,
@@ -2991,7 +3261,7 @@ mod aggregate_identity_tests {
                 queries: Cell::new(0),
                 reject: 0,
             };
-            let sources = constructor_sources(&b, &cx);
+            let sources = rc_sources(&b, &cx);
             assert_eq!(sources[i], read, "form {form}");
             b.index_forwarded_reads(&sources);
             assert_eq!(b.borrowed_alias(value), Some(read), "form {form}");
@@ -3006,7 +3276,7 @@ mod aggregate_identity_tests {
                 queries: Cell::new(0),
                 reject,
             };
-            assert!(constructor_sources(&b, &cx).iter().all(|&v| v == NONE));
+            assert!(rc_sources(&b, &cx).iter().all(|&v| v == NONE));
         }
     }
 }
