@@ -238,37 +238,44 @@ fn denied(
         Ok(i) => i,
         Err(e) => return Some(Diag::error(None, &format!("the built module: {e}"))),
     };
-    let mut needs: Vec<String> = hd_run::needs(&imports)
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    match hd_driver::host_artifacts(wasm) {
-        Ok(Some(a)) => needs.extend(
-            a.contract
-                .interfaces
-                .into_iter()
-                .filter(|i| !i.handle)
-                .flat_map(|i| i.selectors),
-        ),
-        Ok(None) => {}
+    let artifacts = match hd_driver::host_artifacts(wasm) {
+        Ok(a) => a,
         Err(e) => return Some(Diag::error(None, &format!("the built host contract: {e}"))),
-    }
-    needs.into_iter().find_map(|need| {
-        let setting = table
-            .iter()
-            .find(|(k, g)| k == &need && *g == Grant::Deny)
-            .map(|(k, _)| format!("`{k} = false` in {table_name}"))
-            .or_else(|| {
-                flags
+    };
+    // The one consent index every host asks (`hd_run::Consent`), so this
+    // refusal and the engine's preflight agree on the same manifest.
+    let (table_values, flag_values) = values(table, flags);
+    let consent = hd_run::Consent::new(&table_values, &flag_values);
+    let need = hd_run::needs(&imports)
+        .into_iter()
+        .find(|need| consent.denies(need))
+        .or_else(|| {
+            artifacts.iter().find_map(|a| {
+                a.contract
+                    .interfaces
                     .iter()
-                    .find(|f| f.key == need && f.grant == Grant::Deny)
-                    .map(|f| format!("`{}`", f.text))
-            })?;
-        Some(Diag::error(
-            Some(Code::DeniedCapability),
-            &format!("{who} needs {need}, which {setting} denies, so it does not start"),
-        ))
-    })
+                    .filter(|i| !i.handle)
+                    .find_map(|i| match consent.package(i) {
+                        Err(hd_run::PackageRefusal::Denied(path)) => Some(path),
+                        _ => None,
+                    })
+            })
+        })?;
+    // The setting that denied it, read once on the refusal path.
+    let setting = table
+        .iter()
+        .find(|(k, g)| k == need && *g == Grant::Deny)
+        .map(|(k, _)| format!("`{k} = false` in {table_name}"))
+        .or_else(|| {
+            flags
+                .iter()
+                .find(|f| f.key == need && f.grant == Grant::Deny)
+                .map(|f| format!("`{}`", f.text))
+        })?;
+    Some(Diag::error(
+        Some(Code::DeniedCapability),
+        &format!("{who} needs {need}, which {setting} denies, so it does not start"),
+    ))
 }
 
 /// The table's and the flags' values, as `Grants` reads them.

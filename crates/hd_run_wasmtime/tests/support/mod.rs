@@ -683,6 +683,7 @@ pub fn parity_masked(
         providers: vec![],
         grants: Grants {
             limits: limits.clone(),
+            ..Grants::default()
         },
         limits: Limits::default(),
         args: vec![],

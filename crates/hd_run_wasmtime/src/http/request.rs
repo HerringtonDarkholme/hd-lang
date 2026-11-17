@@ -715,6 +715,7 @@ mod tests {
     fn invalid_urls_and_denials_precede_header_validation() {
         let deny = Grants {
             limits: vec![("Http".into(), Limit::Deny)],
+            ..Grants::default()
         };
         let r = request(
             "bad method",
@@ -739,6 +740,7 @@ mod tests {
     fn a_non_ascii_host_is_invalid_and_a_grant_matches_the_lowercase_host() {
         let deny = Grants {
             limits: vec![("Http".into(), Limit::Deny)],
+            ..Grants::default()
         };
         let denied = |url: &str| {
             let r = request("GET", url, &vec![], &[], 10);
@@ -758,6 +760,7 @@ mod tests {
         assert_eq!(denied("HTTP://LocalHost:1/"), encoded(0, "localhost"));
         let only = Grants {
             limits: vec![("Http".into(), Limit::Entries(vec!["Example.COM".into()]))],
+            ..Grants::default()
         };
         let r = request("GET", "http://EXAMPLE.com:1/", &vec![], &[], 10);
         assert!(matches!(
@@ -895,6 +898,7 @@ mod tests {
         });
         let grant = Grants {
             limits: vec![("Http".into(), Limit::Entries(vec![address.to_string()]))],
+            ..Grants::default()
         };
         let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10);
         let encoded = send(r.done(), &grant);

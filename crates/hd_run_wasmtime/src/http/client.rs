@@ -203,6 +203,7 @@ mod tests {
 
         let deny = Grants {
             limits: vec![("Http".into(), hd_run::Limit::Deny)],
+            ..Grants::default()
         };
         let Start::Ready(denied) = start(
             wire(None, vec![], Some(WireDuration { millis: 0 })).done(),

@@ -12,7 +12,10 @@ pub mod journal;
 pub mod replay;
 pub mod tests_model;
 
-pub use grant::{GrantValue, Grants, Limit, env_notice, lexical_path, refused_path, resolve_path};
+pub use grant::{
+    Consent, GrantValue, Grants, Limit, PackageRefusal, env_notice, lexical_path, refused_path,
+    resolve_path,
+};
 pub use hd_base::path::{canonicalize, plain_path};
 pub use imports::{module_exports, module_imports, needs, unknown_import};
 
@@ -212,6 +215,7 @@ mod tests {
     fn ungranted_capability_is_refused() {
         let g = Grants {
             limits: vec![("FsRead".into(), Limit::Deny)],
+            ..Grants::default()
         };
         assert!(check_grants(&["Console"], &g).is_ok());
         assert!(check_grants(&["Console", "FsRead"], &g).is_err());

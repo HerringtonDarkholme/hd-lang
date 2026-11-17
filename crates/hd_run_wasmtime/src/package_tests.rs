@@ -1,6 +1,7 @@
 //! Native package provider preflight and linking (`host/package.rs`):
 //! `cli.host.package.native-unregistered`, `native-cli`, `native-reachable`,
-//! `native-mismatch`, `native-preflight`, `duplicate`. Every refusal case's
+//! `native-mismatch`, `native-preflight`, `native-two-keys`,
+//! `manifest-consent`, `no-flag-consent`, `duplicate`. Every refusal case's
 //! module has a trapping start function, so a guest start is visible as a
 //! trap instead of the refusal.
 
@@ -10,7 +11,9 @@ use std::rc::Rc;
 
 use hd_cache::MemoryStore;
 use hd_host_abi::schema::{Contract, Identity, Interface, Method, Value};
-use hd_run::{Engine, Grants, HostSetup, Instance, Limits, Outcome, StartError};
+use hd_run::{
+    Consent, Engine, GrantValue, Grants, HostSetup, Instance, Limits, Outcome, StartError,
+};
 use wasm_encoder::{
     CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
     Instruction as I, MemorySection, MemoryType, Module as Wasm, StartSection, TypeSection,
@@ -22,6 +25,8 @@ use crate::native::{Bindings, HostError, HostResult};
 use crate::{HostIo, Shared};
 
 const SERVER: &str = "example.org/sdk@1.2.3/server.Server";
+/// The root source path through which the app manifest consents to it.
+const SELECTOR: &str = "dep.sdk.server.Server";
 
 fn identity(package: &str, version: &str, trait_path: &str) -> Identity {
     Identity {
@@ -158,14 +163,28 @@ fn guarded(contract: &Contract) -> Vec<u8> {
     )
 }
 
-fn setup() -> HostSetup {
+/// A run whose app manifest's table and flags are `table` and `flags`.
+fn setup_with(table: &[(&str, GrantValue)], flags: &[(&str, GrantValue)]) -> HostSetup {
+    let values = |list: &[(&str, GrantValue)]| -> Vec<(String, GrantValue)> {
+        list.iter()
+            .map(|(key, value)| ((*key).to_owned(), value.clone()))
+            .collect()
+    };
     HostSetup {
         providers: vec![],
-        grants: Grants::default(),
+        grants: Grants {
+            consent: Consent::new(&values(table), &values(flags)),
+            ..Grants::default()
+        },
         limits: Limits::default(),
         args: vec![],
         program: "native".into(),
     }
+}
+
+/// A run whose app manifest consents to the server trait.
+fn setup() -> HostSetup {
+    setup_with(&[(SELECTOR, GrantValue::All)], &[])
 }
 
 fn leak(text: String) -> &'static str {
@@ -218,9 +237,13 @@ fn bindings(companion: &Contract, identities: &[&str], recorder: Recorder) -> Bi
 }
 
 fn refusal(wasm: &[u8], bindings: Bindings) -> String {
+    refusal_in(wasm, &setup(), bindings)
+}
+
+fn refusal_in(wasm: &[u8], setup: &HostSetup, bindings: Bindings) -> String {
     let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
     let module = engine.load(wasm, &MemoryStore::default()).unwrap();
-    match engine.instantiate_with_bindings(&module, &setup(), HostIo::process(), bindings) {
+    match engine.instantiate_with_bindings(&module, setup, HostIo::process(), bindings) {
         Err(StartError::Refused(message)) => message,
         Err(StartError::Engine(message)) => panic!("not a refusal: {message}"),
         Ok(_) => panic!("instantiated"),
@@ -244,11 +267,13 @@ fn without_a_registry_a_required_trait_is_refused_before_the_guest_starts() {
 
 #[test]
 fn a_registered_provider_is_called_and_its_result_reaches_the_guest() {
-    // `read`'s result length goes straight to `echo`, whose argument is
-    // the exchange buffer's bytes: the provider sees its own reply back.
-    // The registry holds exactly the contract's root traits: a trait the
-    // manifest consents to but the module never calls is not in the
-    // contract and needs no provider (`native-reachable`).
+    // Both keys (`native-two-keys`): the manifest consents and the
+    // embedder registers. `read`'s result length goes straight to `echo`,
+    // whose argument is the exchange buffer's bytes: the provider sees its
+    // own reply back. The registry holds exactly the contract's root
+    // traits: `client.Client`, which the manifest consents to but the
+    // module never calls, is not in the contract and needs no provider
+    // (`native-reachable`).
     let contract = server(sdk());
     let wasm = module(
         &contract,
@@ -270,13 +295,110 @@ fn a_registered_provider_is_called_and_its_result_reaches_the_guest() {
     let mut instance = engine
         .instantiate_with_bindings(
             &module,
-            &setup(),
+            &setup_with(
+                &[
+                    (SELECTOR, GrantValue::All),
+                    ("dep.sdk.client.Client", GrantValue::All),
+                ],
+                &[],
+            ),
             HostIo::process(),
             bindings(&contract, &[SERVER], recorder),
         )
         .unwrap();
     assert_eq!(instance.init(), Outcome::Exit(0));
     assert_eq!(*calls.borrow(), [(0, vec![]), (1, vec![0x2a, 7, 9])]);
+}
+
+#[test]
+fn a_registered_provider_without_manifest_consent_is_refused_and_never_called() {
+    // The module's start traps and its `hd.init` calls `read`: a refusal
+    // must come before both, so the recorder sees no call.
+    let contract = server(sdk());
+    let not_granted = format!(
+        "package capability {SERVER} is not granted; add `\"{SELECTOR}\" = true` to the app's `[capabilities]` table"
+    );
+    let denied = format!("package capability denied: {SERVER}, by a `false` grant of `{SELECTOR}`");
+    for (table, flags, want) in [
+        // No entry at all.
+        (vec![], vec![], &not_granted),
+        // Another trait's consent grants nothing to this one.
+        (
+            vec![("dep.sdk.server.Other", GrantValue::All)],
+            vec![],
+            &not_granted,
+        ),
+        // A `--cap` flag cannot replace the manifest (`no-flag-consent`).
+        (vec![], vec![(SELECTOR, GrantValue::All)], &not_granted),
+        // An explicit `false`.
+        (vec![(SELECTOR, GrantValue::Deny)], vec![], &denied),
+        // A flag's `false` wins over the table's `true` (`cli.cap.order.deny`).
+        (
+            vec![(SELECTOR, GrantValue::All)],
+            vec![(SELECTOR, GrantValue::Deny)],
+            &denied,
+        ),
+    ] {
+        let calls: Calls = Rc::default();
+        let recorder = Recorder {
+            calls: Rc::clone(&calls),
+            ..Recorder::default()
+        };
+        let wasm = module(
+            &contract,
+            &[("hd:pkg:server", "read", 0, 1)],
+            &[I::Call(0), I::Drop],
+            true,
+        );
+        assert_eq!(
+            refusal_in(
+                &wasm,
+                &setup_with(&table, &flags),
+                bindings(&contract, &[SERVER], recorder)
+            ),
+            *want,
+            "table {table:?}, flags {flags:?}"
+        );
+        assert!(calls.borrow().is_empty());
+    }
+}
+
+#[test]
+fn a_root_trait_with_no_source_path_has_no_consent_to_find() {
+    let mut contract = server(sdk());
+    contract.interfaces[0].selectors.clear();
+    assert_eq!(
+        refusal(
+            &guarded(&contract),
+            bindings(&contract, &[SERVER], Recorder::default())
+        ),
+        format!(
+            "package capability {SERVER} has no source path the app's `[capabilities]` table can grant"
+        )
+    );
+}
+
+#[test]
+fn manifest_consent_without_a_registration_is_refused_as_unregistered() {
+    // Consent selects nothing native: with it and no provider, the run is
+    // refused by `native-unregistered`, with or without a registry.
+    let contract = server(sdk());
+    let unregistered = format!("no native provider registered for package host trait {SERVER:?}");
+    assert_eq!(
+        refusal(
+            &guarded(&contract),
+            Bindings::new(contract_bytes(&contract))
+        ),
+        unregistered
+    );
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let module = engine
+        .load(&guarded(&contract), &MemoryStore::default())
+        .unwrap();
+    let Err(StartError::Refused(message)) = engine.instantiate(&module, &setup()) else {
+        panic!("consent registers no provider")
+    };
+    assert_eq!(message, unregistered);
 }
 
 #[test]

@@ -879,7 +879,7 @@ fn execute(
         program: program.to_owned(),
     };
     let providers = if engine == engine::EngineKind::Node {
-        match node::manifest_providers(wasm, provider_program, table, &host.grants) {
+        match node::manifest_providers(wasm, provider_program, &host.grants) {
             Ok(providers) => providers,
             Err(error) => return rep.fail(&error),
         }

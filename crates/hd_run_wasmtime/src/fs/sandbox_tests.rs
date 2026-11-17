@@ -24,6 +24,7 @@ fn grants(entries: &[PathBuf]) -> Grants {
             ("FsRead".into(), Limit::Entries(list.clone())),
             ("FsWrite".into(), Limit::Entries(list)),
         ],
+        ..Grants::default()
     }
 }
 
@@ -129,7 +130,7 @@ fn dot_dot_cannot_leave_a_granted_directory() {
 #[test]
 fn dot_dot_after_a_missing_name_is_not_found() {
     let (dir, g) = tree();
-    let open = Grants { limits: vec![] };
+    let open = Grants::default();
     // NotFound (0) after a missing name, NotADirectory (4) after a file,
     // with and without a grant limit, on every OS.
     for (path, variant) in [

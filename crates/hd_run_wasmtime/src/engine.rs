@@ -104,7 +104,11 @@ impl WasmtimeEngine {
     /// module's contract to the registration of its nominal identity before
     /// anything is linked or the guest starts, and refuses a missing,
     /// mismatched, duplicate or unrequired registration naming the trait
-    /// (`native-unregistered`, `native-mismatch`, `duplicate`).
+    /// (`native-unregistered`, `native-mismatch`, `duplicate`). A
+    /// registered trait runs only when `setup.grants.consent`, the app
+    /// manifest's consent, grants it (`native-two-keys`): `hd` fills it from
+    /// `hd.toml`, and an embedder from its own manifest with
+    /// [`hd_run::Grants::resolve`] or [`hd_run::Consent::new`].
     pub fn instantiate_with_bindings(
         &self,
         m: &Module,
@@ -159,7 +163,7 @@ impl WasmtimeEngine {
         bindings: Option<crate::native::Bindings>,
     ) -> Result<WasmtimeInstance, StartError> {
         let package = m.2.as_deref();
-        host.natives = package::preflight(package, bindings)?;
+        host.natives = package::preflight(package, bindings, &host.grants.consent)?;
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
         let mut defined = HashSet::default();

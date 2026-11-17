@@ -1,21 +1,23 @@
 //! Package host imports on Wasmtime (`cli.host.package.native-*`): the
 //! module's contract indexed once at load, the native preflight that
-//! resolves an embedder's registrations by nominal identity before
-//! linking, and the linked root methods that call them.
+//! resolves an embedder's registrations by nominal identity and checks the
+//! root manifest's consent before linking, and the linked root methods
+//! that call them.
 //!
 //! Cost. Load decodes the contract and indexes every import it describes
 //! (`hd_host_abi::schema::Imports`): one pass over its methods. Preflight builds one identity map and one
 //! trait-path map over the registrations, decodes the companion's contract
-//! once and indexes it by module, then visits each contract interface once:
-//! linear in the registrations plus the two contracts. Linking probes the
-//! index once per module import. A call costs its argument and result
-//! bytes.
+//! once and indexes it by module, then visits each contract interface once,
+//! probing the consent index once per source path: linear in the
+//! registrations plus the two contracts, times a log of the grant's keys.
+//! Linking probes the index once per module import. A call costs its
+//! argument and result bytes.
 
 use std::any::Any;
 
 use hd_base::{HashMap, HashSet};
 use hd_host_abi::schema::{Contract, Imports, Interface, Value};
-use hd_run::StartError;
+use hd_run::{Consent, StartError};
 use wasmtime::Linker;
 
 use super::reply::{bytes, int_arg, int_val, put_bytes};
@@ -58,10 +60,13 @@ fn refused(message: String) -> StartError {
 /// Resolves `bindings` against the module's contract before anything is
 /// linked or the guest starts, and returns the providers in contract
 /// interface order. With no registry, a module requiring a root trait is
-/// refused (`cli.host.package.native-cli`).
+/// refused (`cli.host.package.native-cli`). A registered provider runs
+/// only when `consent`, the root manifest's, grants its trait
+/// (`native-two-keys`): registration grants the guest nothing.
 pub(crate) fn preflight(
     package: Option<&Package>,
     bindings: Option<Bindings>,
+    consent: &Consent,
 ) -> Result<Vec<Native>, StartError> {
     let Some(bindings) = bindings else {
         return match package.and_then(Package::first_root) {
@@ -127,6 +132,12 @@ pub(crate) fn preflight(
         let Some(registration) = registrations[n].take() else {
             unreachable!("ruled out: contract identities are unique (Contract::validate)")
         };
+        // The second key, in the same visit: the app's own decision, which
+        // no registration and no `--cap` flag replaces
+        // (`manifest-consent`, `consent-preflight`).
+        consent
+            .package(interface)
+            .map_err(|why| refused(why.message(interface)))?;
         // The companion's interface of the registered module: the same
         // methods in the same order, so a method index means one method.
         if generated.get(registration.module) != Some(interface) {

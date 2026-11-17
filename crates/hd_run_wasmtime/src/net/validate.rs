@@ -105,6 +105,7 @@ mod tests {
                     "*.example:8".into(),
                 ]),
             )],
+            ..Grants::default()
         };
         assert!(covers_lookup(&grants, "127.0.0.1"));
         assert!(covers_lookup(&grants, "::1"));

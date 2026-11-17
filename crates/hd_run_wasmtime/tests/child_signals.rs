@@ -64,6 +64,7 @@ fn main() {
         providers: vec![],
         grants: Grants {
             limits: vec![("Process".into(), Limit::Entries(vec!["true".into()]))],
+            ..Grants::default()
         },
         limits: Limits::default(),
         args: vec![],

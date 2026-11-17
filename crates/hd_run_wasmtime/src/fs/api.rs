@@ -520,6 +520,7 @@ mod tests {
                 ("FsRead".into(), entries(&source)),
                 ("FsWrite".into(), entries(&target)),
             ],
+            ..Grants::default()
         };
         let invoke = |grants: &Grants| {
             let mut args = Enc::default();
@@ -572,6 +573,7 @@ mod tests {
                     ]),
                 ),
             ],
+            ..Grants::default()
         };
         let sandbox = Sandbox::default();
         let job = || {
@@ -681,6 +683,7 @@ mod tests {
                         .into_owned(),
                 ]),
             )],
+            ..Grants::default()
         };
         assert_eq!(
             invoke("FsRead", "read_text", "item", &grants).done(),
@@ -717,6 +720,7 @@ mod tests {
     fn grants_precede_validation_and_cover_both_rename_paths() {
         let denied = Grants {
             limits: vec![("FsWrite".into(), Limit::Deny)],
+            ..Grants::default()
         };
         // Every argument decodes before the grant is checked: a missing
         // payload breaks the ABI even outside the grant.
@@ -753,6 +757,7 @@ mod tests {
                         .into_owned(),
                 ]),
             )],
+            ..Grants::default()
         };
         for (from, to, rejected) in [
             (&allowed, &refused, &refused),

@@ -13,9 +13,13 @@
 //! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
 //! resolves the registrations by nominal identity and links each root
 //! method's import to its registration's [`Dispatch`] before the guest
-//! starts. The companion's dispatch decodes each call's arguments and
-//! encodes its result with the codecs of [`wire`]. What builds on this
-//! surface: #2080 checks consent in the same preflight; #2081 drives
+//! starts, and runs a registered provider only when the app manifest's
+//! consent in `HostSetup::grants` grants its trait
+//! (`cli.host.package.native-two-keys`): an embedder resolves it from its
+//! manifest with `hd_run::Grants::resolve` or `hd_run::Consent::new`, as
+//! `hd` does from `hd.toml`, and registration grants the guest nothing.
+//! The companion's dispatch decodes each call's arguments and encodes its
+//! result with the codecs of [`wire`]. What builds on this surface: #2081 drives
 //! [`PendingCall`] from the reactor and gives [`CallContext`] the instance
 //! identity; #2082 keeps returned handle trait objects in the instance's
 //! registry.

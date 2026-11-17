@@ -41,7 +41,6 @@ pub struct HostProvider {
 pub(crate) fn manifest_providers(
     wasm: &[u8],
     program: Option<&crate::disk::Program>,
-    table: &[(String, hd_project::Grant)],
     grants: &Grants,
 ) -> Result<Vec<HostProvider>, String> {
     let Some(artifacts) = hd_driver::host_artifacts(wasm).map_err(str::to_owned)? else {
@@ -50,11 +49,11 @@ pub(crate) fn manifest_providers(
     let mut selected = Vec::new();
     for interface in artifacts.contract.interfaces.iter().filter(|i| !i.handle) {
         let name = interface.identity.to_string();
-        if interface.selectors.iter().any(|path| !grants.allows(path)) {
-            return Err(format!("package capability denied: {name}"));
-        }
-        let grant = interface.selectors.iter().find(|path| table.iter().any(|(key, value)| key == *path && *value == hd_project::Grant::All))
-            .ok_or_else(|| format!("package capability {name} is not granted; add `\"{}\" = true` to the app's `[capabilities]` table", interface.selectors.first().map_or("TRAIT_PATH", String::as_str)))?;
+        // The consent index every host asks (`hd_run::Consent`).
+        let grant = grants
+            .consent
+            .package(interface)
+            .map_err(|why| why.message(interface))?;
         let package = program
             .and_then(|p| p.host_packages.iter().find(|package| package.trait_identity(&interface.identity.trait_path).as_ref() == Some(&interface.identity)))
             .ok_or_else(|| format!("no selected package manifest provides {name}; run this program in its app package"))?;
@@ -93,7 +92,7 @@ pub(crate) fn manifest_providers(
         }
         selected.push(HostProvider {
             module: interface.module.clone(),
-            grant_path: grant.clone(),
+            grant_path: grant.to_owned(),
             path,
         });
     }
@@ -973,6 +972,7 @@ mod tests {
                     ("Console".into(), Limit::Deny),
                     ("FsWrite".into(), Limit::Entries(vec!["/tmp/a\"b".into()])),
                 ],
+                ..Grants::default()
             },
             snapshot: Snapshot {
                 root: PathBuf::from("/pkg"),

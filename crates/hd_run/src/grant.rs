@@ -5,9 +5,11 @@
 //! asks before it touches a resource.
 
 use hd_base::SliceSort as _;
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
 use hd_base::path::canonicalize;
+use hd_host_abi::schema::Interface;
 
 /// One trait's value in a table or a flag (`cli.cap.value.*`).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,6 +37,98 @@ pub enum Limit {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Grants {
     pub limits: Vec<(String, Limit)>,
+    /// The root manifest's consent to load package host providers, and
+    /// every total deny: the one check of [`Consent`].
+    pub consent: Consent,
+}
+
+/// What the root manifest and the flags say about loading a provider
+/// (`cli.host.package.manifest-consent`, `no-flag-consent`,
+/// `cli.cap.order.deny`), indexed once by key: `false` for a key that the
+/// table or any flag denies, `true` for one whose table value is an
+/// explicit `true` and that nothing denies. A flag's `true` consents to
+/// nothing. Every host asks this one index: `hd`'s `denied-capability`
+/// preflight, the Node provider selection and Wasmtime's native preflight,
+/// so the same manifest gets the same answer on each.
+///
+/// Cost: building it is O((t + f) log k) for t table entries, f flags and
+/// k distinct keys; a probe is O(log k).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Consent(BTreeMap<String, bool>);
+
+/// Why the root manifest does not let a package host trait's provider load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PackageRefusal<'a> {
+    /// The table or a flag sets this source path `false`.
+    Denied(&'a str),
+    /// No source path of the trait has an explicit `true` in the table;
+    /// the first path, which the fix names, if it has any.
+    Absent(Option<&'a str>),
+}
+
+impl Consent {
+    /// The index of a table and the flags (`Grant Precedence`).
+    #[must_use]
+    pub fn new(table: &[(String, GrantValue)], flags: &[(String, GrantValue)]) -> Consent {
+        let mut keys = BTreeMap::new();
+        for (key, value) in table {
+            let consents = match value {
+                GrantValue::Deny => false,
+                GrantValue::All => true,
+                GrantValue::Scopes(_) => continue,
+            };
+            // A deny always wins (`cli.cap.order.deny`).
+            *keys.entry(key.clone()).or_insert(consents) &= consents;
+        }
+        for (key, value) in flags {
+            if *value == GrantValue::Deny {
+                keys.insert(key.clone(), false);
+            }
+        }
+        Consent(keys)
+    }
+
+    /// Whether the table or a flag totally denies `key`.
+    #[must_use]
+    pub fn denies(&self, key: &str) -> bool {
+        self.0.get(key) == Some(&false)
+    }
+
+    /// The source path through which the root manifest consents to load a
+    /// provider for `interface`: none of its paths denied, and one with an
+    /// explicit table `true`. O(s log k) for its s source paths.
+    pub fn package<'a>(&self, interface: &'a Interface) -> Result<&'a str, PackageRefusal<'a>> {
+        let mut consented = None;
+        for path in &interface.selectors {
+            match self.0.get(path.as_str()) {
+                Some(false) => return Err(PackageRefusal::Denied(path)),
+                Some(true) if consented.is_none() => consented = Some(path.as_str()),
+                _ => {}
+            }
+        }
+        consented.ok_or(PackageRefusal::Absent(
+            interface.selectors.first().map(String::as_str),
+        ))
+    }
+}
+
+impl PackageRefusal<'_> {
+    /// The refusal of `interface`'s provider, naming its nominal identity.
+    #[must_use]
+    pub fn message(&self, interface: &Interface) -> String {
+        let name = &interface.identity;
+        match self {
+            PackageRefusal::Denied(path) => {
+                format!("package capability denied: {name}, by a `false` grant of `{path}`")
+            }
+            PackageRefusal::Absent(Some(path)) => format!(
+                "package capability {name} is not granted; add `\"{path}\" = true` to the app's `[capabilities]` table"
+            ),
+            PackageRefusal::Absent(None) => format!(
+                "package capability {name} has no source path the app's `[capabilities]` table can grant"
+            ),
+        }
+    }
 }
 
 /// The traits whose scope entries are paths.
@@ -250,7 +344,10 @@ impl Grants {
                 limits.push((key.to_owned(), l));
             }
         }
-        Grants { limits }
+        Grants {
+            limits,
+            consent: Consent::new(table, flags),
+        }
     }
 
     /// The test grant (`cli.test.env.grant.*`): the combined production/development tables and
@@ -379,7 +476,9 @@ pub fn env_notice(name: &str) -> String {
 mod tests {
     use std::path::Path;
 
-    use super::{GrantValue, Grants, Limit, env_notice};
+    use hd_host_abi::schema::{Identity, Interface};
+
+    use super::{Consent, GrantValue, Grants, Limit, PackageRefusal, env_notice};
 
     fn kv(key: &str, v: GrantValue) -> (String, GrantValue) {
         (key.to_owned(), v)
@@ -412,6 +511,83 @@ mod tests {
         assert!(g.covers_name("Env", "HOME"));
         assert!(g.covers_name("Console", "anything"));
         assert_eq!(g.limit("Console"), None);
+    }
+
+    fn root(selectors: &[&str]) -> Interface {
+        Interface {
+            identity: Identity {
+                package: "example.org/sdk".into(),
+                version: "1.2.3".into(),
+                trait_path: "server.Server".into(),
+            },
+            module: "hd:pkg:server".into(),
+            selectors: selectors.iter().map(|s| (*s).to_owned()).collect(),
+            handle: false,
+            methods: vec![],
+        }
+    }
+
+    #[test]
+    fn package_consent_needs_an_explicit_table_true_and_no_deny() {
+        let (a, b) = ("dep.sdk.server.Server", "pkg.server.Server");
+        let consent = |table: &[(String, GrantValue)], flags: &[(String, GrantValue)]| {
+            Consent::new(table, flags)
+        };
+        let one = root(&[a]);
+        // The table's `true` consents; `resolve` builds the same index.
+        let table = [kv(a, GrantValue::All)];
+        assert_eq!(consent(&table, &[]).package(&one), Ok(a));
+        let base = std::env::temp_dir();
+        assert_eq!(
+            Grants::resolve(&table, &base, &[], &base).consent,
+            consent(&table, &[])
+        );
+        // Nothing, a flag's `true` (`no-flag-consent`) and a scope list
+        // consent to nothing; the refusal names the first path.
+        for (table, flags) in [
+            (vec![], vec![]),
+            (vec![], vec![kv(a, GrantValue::All)]),
+            (vec![kv(a, scopes(&["x"]))], vec![]),
+        ] {
+            assert_eq!(
+                consent(&table, &flags).package(&one),
+                Err(PackageRefusal::Absent(Some(a)))
+            );
+        }
+        // A deny wins over a `true` wherever either is written.
+        for (table, flags) in [
+            (vec![kv(a, GrantValue::Deny)], vec![]),
+            (
+                vec![kv(a, GrantValue::All), kv(a, GrantValue::Deny)],
+                vec![],
+            ),
+            (
+                vec![kv(a, GrantValue::Deny), kv(a, GrantValue::All)],
+                vec![],
+            ),
+            (vec![kv(a, GrantValue::All)], vec![kv(a, GrantValue::Deny)]),
+        ] {
+            let index = consent(&table, &flags);
+            assert!(index.denies(a));
+            assert_eq!(index.package(&one), Err(PackageRefusal::Denied(a)));
+        }
+        // Two source paths of one trait: either consents, any deny refuses,
+        // whichever comes first.
+        let two = root(&[a, b]);
+        assert_eq!(consent(&[kv(b, GrantValue::All)], &[]).package(&two), Ok(b));
+        for flags in [vec![kv(a, GrantValue::Deny)], vec![kv(b, GrantValue::Deny)]] {
+            let index = consent(&[kv(a, GrantValue::All), kv(b, GrantValue::All)], &flags);
+            assert!(matches!(
+                index.package(&two),
+                Err(PackageRefusal::Denied(_))
+            ));
+        }
+        // A trait with no source path has nothing to consent through.
+        assert_eq!(
+            consent(&table, &[]).package(&root(&[])),
+            Err(PackageRefusal::Absent(None))
+        );
+        assert!(!consent(&table, &[]).denies("Console"));
     }
 
     /// Contract shared with `resolvePath` in `host/node-files.ts`: the nearest

@@ -795,6 +795,7 @@ mod tests {
         use super::TestPrograms;
         let grants = hd_run::Grants {
             limits: vec![("Env".into(), hd_run::Limit::Deny)],
+            ..hd_run::Grants::default()
         };
         let list = vec![("tool".to_owned(), vec![0, 97, 115, 109], grants.clone())];
         let programs = TestPrograms::new(

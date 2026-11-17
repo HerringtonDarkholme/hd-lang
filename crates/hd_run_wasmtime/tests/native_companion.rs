@@ -13,7 +13,9 @@ use std::rc::Rc;
 
 use hd_cache::MemoryStore;
 use hd_host_abi::schema::{Contract, Field, Identity, Interface, Method, Value, Variant};
-use hd_run::{Engine, Grants, HostSetup, Instance, Limits, Outcome, StartError};
+use hd_run::{
+    Consent, Engine, GrantValue, Grants, HostSetup, Instance, Limits, Outcome, StartError,
+};
 use hd_run_wasmtime::native::{
     self, CallContext, Completion, HostError, HostResult, NativeCall, Serde,
 };
@@ -587,10 +589,20 @@ fn an_aborted_call_runs_its_hook_once_and_ignores_a_late_completion() {
     assert!(call.take().is_none(), "a late completion is ignored");
 }
 
+/// A run whose app manifest consents to both companions' root traits
+/// (`cli.host.package.native-two-keys`).
 fn setup() -> HostSetup {
+    let table: Vec<(String, GrantValue)> =
+        ["dep.ui_tui.surface.Surface", "dep.ui_tui.values.Values"]
+            .into_iter()
+            .map(|path| (path.to_owned(), GrantValue::All))
+            .collect();
     HostSetup {
         providers: vec![],
-        grants: Grants::default(),
+        grants: Grants {
+            consent: Consent::new(&table, &[]),
+            ..Grants::default()
+        },
         limits: Limits::default(),
         args: vec![],
         program: String::new(),

@@ -14,6 +14,7 @@ fn random_returns_the_requested_number_of_bytes() {
 fn sys_grant_is_checked_before_reading_and_failure_is_unsupported() {
     let grants = Grants {
         limits: vec![("Sys".into(), Limit::Entries(vec!["os".into()]))],
+        ..Grants::default()
     };
     let denied = sys_read::<String>("hostname", &grants, || panic!("denied read ran"));
     let mut expected = Enc::default();
