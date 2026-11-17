@@ -84,8 +84,8 @@ fn opt_ge(a: string?, b: string?) -> bool:
 >   %0 = Release %14 Exit local $0 #2 : ()
 >   %1 = Release %14 Exit local $1 #2 : ()
     a >= b
->   %2 = Ref local frame [$0] : &string?
->   %3 = Ref local frame [$1] : &string?
+>   %2 = Ref local frame [$0] : &(string?)
+>   %3 = Ref local frame [$1] : &(string?)
 >   %4 = Call std/cmp/PartialOrd.partial_cmp for string? [] via Impl (%2, %3) : Ordering?
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()

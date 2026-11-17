@@ -44,7 +44,7 @@ fn opt_none(o: string?) -> bool:
     o == .None
 > app/main/opt_none
 >   local $0 o: string? [param read captured]
->   %0 = Ref local [$0] : &string?
+>   %0 = Ref local [$0] : &(string?)
 >   %1 = NewVariant #0 [] : string?
 >   %2 = Read [*%0] : string?
 >   %3 = ToArm #0 : never
@@ -64,11 +64,11 @@ fn opt_some(o: string?, s: string) -> bool:
 >   local $0 o: string? [param read captured]
 >   local $1 s: string [param read]
 >   local $2 $ref: string? [read assigned captured captured-assigned]
->   %0 = Ref local [$0] : &string?
+>   %0 = Ref local [$0] : &(string?)
 >   %1 = Read [$1] : string
 >   %2 = NewVariant #1 [%1] : string?
 >   %3 = Store [$2] %2 : ()
->   %4 = Ref local [$2] : &string?
+>   %4 = Ref local [$2] : &(string?)
 >   %5 = Call std/core/Eq.eq for string? [] via Impl (%0, %4) : bool
 >   %6 = Block %5 : bool
 

@@ -66,9 +66,9 @@ fn mutable(slot: &mut Slot) -> &mut Conn:
 fn generic[T < ?Copy](slot: &mut (T?)) -> &mut T:
     match slot:
 > app/main/generic
->   local $0 slot: &mut T? [param read]
+>   local $0 slot: &mut (T?) [param read]
 >   local $1 item: &mut T [read assigned]
->   %0 = Read [$0] : &mut T?
+>   %0 = Read [$0] : &mut (T?)
 >   %17 = Block - : never
 >   %18 = Match %0 [%17 %2 %4] : &mut T
 >   %19 = Block %18 : &mut T

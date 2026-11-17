@@ -59,8 +59,8 @@ fn opt_ge(a: string?, b: string?) -> bool:
 > app/main/opt_ge
 >   local $0 a: string? [param read captured]
 >   local $1 b: string? [param read captured]
->   %0 = Ref local [$0] : &string?
->   %1 = Ref local [$1] : &string?
+>   %0 = Ref local [$0] : &(string?)
+>   %1 = Ref local [$1] : &(string?)
 >   %2 = Call std/cmp/PartialOrd.partial_cmp for string? [] via Impl (%0, %1) : Ordering?
 >   %3 = Read [%2 as #1 .0] : Ordering
 >   %4 = Block 0:bool : bool

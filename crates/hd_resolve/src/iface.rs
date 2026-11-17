@@ -3183,6 +3183,23 @@ impl<'s, 'n> Shower<'s, 'n> {
         }
     }
 
+    /// Whether `t` is written in the `fn(...) -> T` form, which takes
+    /// what follows it into its result.
+    fn is_fn_sugar(&self, t: Ty) -> bool {
+        matches!(self.pool.get(t), TyData::Fn { inputs, .. } if inputs != hd_types::Inputs::Tuple)
+    }
+
+    /// Writes `t`, in parentheses when `group`.
+    fn grouped(&mut self, group: bool, t: Ty, depth: u32, marks: Option<&Marks>) {
+        if group {
+            self.put("(");
+            self.ty(t, depth, marks);
+            self.close(")");
+        } else {
+            self.ty(t, depth, marks);
+        }
+    }
+
     /// Whether `t` is written as one name, with no part below it.
     fn is_atom(&self, t: Ty) -> bool {
         match self.pool.get(t) {
@@ -3215,8 +3232,11 @@ impl<'s, 'n> Shower<'s, 'n> {
             TyData::Poison => self.put("_"),
             TyData::Const(v) => self.put(&const_literal(self.names, v)),
             // `Option[T]` is spelled `T?` (`types.option.sugar`).
+            // `?` follows a reference access type, so a function or union
+            // inside is grouped (`grammar.type.optional.function`).
             TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
-                self.ty(inner, d, marks);
+                let group = matches!(pool.get(inner), TyData::Union(_)) || self.is_fn_sugar(inner);
+                self.grouped(group, inner, d, marks);
                 self.put("?");
             }
             TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
@@ -3271,13 +3291,11 @@ impl<'s, 'n> Shower<'s, 'n> {
                     if i > 0 {
                         self.sep(" | ");
                     }
-                    if matches!(pool.get(member), TyData::Union(_)) {
-                        self.put("(");
-                        self.ty(member, d, marks);
-                        self.close(")");
-                    } else {
-                        self.ty(member, d, marks);
-                    }
+                    // A function member would take the members after it
+                    // into its result type.
+                    let group =
+                        matches!(pool.get(member), TyData::Union(_)) || self.is_fn_sugar(member);
+                    self.grouped(group, member, d, marks);
                 }
             }
             TyData::Ref {
@@ -3299,7 +3317,16 @@ impl<'s, 'n> Shower<'s, 'n> {
                 if matches!(pool.get(inner), TyData::TraitValue { .. }) {
                     self.put("dyn ");
                 }
-                self.ty(inner, d, marks);
+                // A referent is a reference type: an optional, union or
+                // function type is grouped, and so is a reference, except a
+                // counted one under a local one (`&*T`).
+                let group = match pool.get(inner) {
+                    TyData::Union(_) => true,
+                    TyData::Ref { counted: c, .. } => counted || !c,
+                    TyData::Adt { .. } => pool.sole_arg(inner, self.names.known.option).is_some(),
+                    _ => self.is_fn_sugar(inner),
+                };
+                self.grouped(group, inner, d, marks);
             }
             // Inputs of an arity not known here have no sugar form.
             TyData::Fn {
@@ -3331,8 +3358,11 @@ impl<'s, 'n> Shower<'s, 'n> {
                 self.list(pool.list_items(params), ", ", d, own);
                 self.close(")");
                 self.put(" -> ");
-                self.ty(result, d, own);
-                if self.rows && row != hd_types::RowId::EMPTY {
+                // A requirement clause after a function result belongs to
+                // the result (`grammar.type.row-owner`): group it.
+                let shows_row = self.rows && row != hd_types::RowId::EMPTY;
+                self.grouped(shows_row && self.is_fn_sugar(result), result, d, own);
+                if shows_row {
                     self.put(" ");
                     self.row(row, d);
                 }

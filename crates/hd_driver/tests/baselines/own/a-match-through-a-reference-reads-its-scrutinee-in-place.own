@@ -6,7 +6,7 @@ use std.collections.UniqList
 
 fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 > app/main/append
->   local $0 value: &mut UniqList[string]? [param read] value
+>   local $0 value: &mut (UniqList[string]?) [param read] value
 >     uses $0: entry -> %1 lend, %39 lend last
 >   local $1 item: string [param read] value
 >     uses $1: entry -> %23 consume last
@@ -18,7 +18,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >     uses $5: %7 -> %11 lend, %14 lend, %20 lend, %26 lend last
 >   %0 = Retain %53 Entry local $1 #0 : ()
     match value:
->   %1 = Read borrow [$0] : &mut UniqList[string]?
+>   %1 = Read borrow [$0] : &mut (UniqList[string]?)
 >   %35 = Drop [$2] : ()
 >   %37 = Drop [$1] : ()
 >   %51 = Block - : never

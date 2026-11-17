@@ -13,23 +13,23 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >   local $0 dog: *dyn Dog [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: *dyn Dog [read assigned captured captured-assigned] place
->   local $2 nested: *mut *dyn Dog [:= read assigned] value
+>   local $2 nested: *mut (*dyn Dog) [:= read assigned] value
 >     uses $2: %4 -> %5 consume last
->   local $3 $ref: **dyn Dog [read assigned captured] value
+>   local $3 $ref: *(*dyn Dog) [read assigned captured] value
 >     uses $3: %7 -> %8 lend last
 >   %0 = Retain %14 Entry local $0 #0 : ()
     nested := box(dog)
 >   %1 = Read move [$0] : *dyn Dog
 >   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : *mut *dyn Dog
+>   %3 = Ref take mut [$1] : *mut (*dyn Dog)
 >   %4 = Store [$2] %3 : ()
 >   %14 = Block %13 : *dyn Animal
 >   %3 finds [$1] full
     nested
->   %5 = Read move [$2] : *mut *dyn Dog
->   %6 = Coerce %5 [Weaken -] : **dyn Dog
+>   %5 = Read move [$2] : *mut (*dyn Dog)
+>   %6 = Coerce %5 [Weaken -] : *(*dyn Dog)
 >   %7 = Store [$3] %6 : ()
->   %8 = Read move [$3] : **dyn Dog
+>   %8 = Read move [$3] : *(*dyn Dog)
 >   %9 = Coerce %8 [RefToTraitValue -] : Animal
 >   %10 = Retain %9 Value #0 : ()
 >   %11 = Drop [%8] : ()

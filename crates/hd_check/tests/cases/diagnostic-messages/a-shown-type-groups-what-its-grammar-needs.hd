@@ -1,0 +1,45 @@
+# @dump: diagnostics
+# A type a message shows reads back as the same type: an optional
+# function or union, a union with a function member, a reference to an
+# optional, union or reference, and a function result that is a function
+# while the row is shown are grouped (`grammar.type.optional.function`,
+# `grammar.type.row-owner`). An optional reference and a function
+# returning an optional need no group.
+trait Db
+
+struct Point:
+    x: i32
+
+fn opt_fn(f: (fn() -> i32)?) -> i32:
+    f
+
+fn opt_union(u: (i32 | string)?) -> i32:
+    u
+
+fn union_fn(u: (fn() -> i32) | string) -> i32:
+    u
+
+fn ref_opt(r: &(Point?)) -> i32:
+    r
+
+fn ref_union(r: &(Point | string)) -> i32:
+    r
+
+fn ref_counted(r: &*Point) -> i32:
+    r
+
+fn ref_ref(r: &Point) -> i32:
+    &r
+
+fn opt_ref(r: &Point?) -> i32:
+    r
+
+fn fn_opt(f: fn() -> i32?) -> i32:
+    f
+
+fn fn_fn_row(f: (fn() -> (fn() -> i32) $ Db)?) -> i32:
+    let h: (fn() -> fn() -> i32)? = f
+    0
+
+pub fn main() -> void:
+    pass

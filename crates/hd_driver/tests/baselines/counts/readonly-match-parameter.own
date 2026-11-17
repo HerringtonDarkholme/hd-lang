@@ -7,7 +7,7 @@ fn absent(value: string?) -> bool:
 >   local $0 value: string? [param read captured] place
 >   %0 = Release %15 Exit local $0 #2 : ()
     value == .None
->   %1 = Ref local frame [$0] : &string?
+>   %1 = Ref local frame [$0] : &(string?)
 >   %2 = NewVariant #0 [] : string?
 >   %3 = Drop [%2] : ()
 >   %4 = Read borrow [*%1] : string?
@@ -30,7 +30,7 @@ fn present(value: string?) -> bool:
 >   local $0 value: string? [param read captured] place
 >   %0 = Release %17 Exit local $0 #2 : ()
     match &value:
->   %1 = Ref local frame [$0] : &string?
+>   %1 = Ref local frame [$0] : &(string?)
 >   %14 = Block - : never
 >   %15 = Match %1 [%14 %2 %3] : bool
 >   %16 = LoanEnd [%1] : ()
