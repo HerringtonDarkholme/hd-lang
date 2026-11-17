@@ -443,7 +443,7 @@ pub fn check_opt_in(
         })
         .collect();
     if opt.trait_ == names.known.serialize {
-        let skip_none = names.item("std.serde", "SkipNone");
+        let skip_none = names.known.skip_none;
         for (i, member) in opt.members.iter().enumerate() {
             let carries_skip_none = member.positional
                 && member.facts.iter().any(|&fact| {

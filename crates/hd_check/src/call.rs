@@ -2760,7 +2760,7 @@ impl Ck<'_, '_> {
         // `std-testing.hd-run.integration-only`: a call of `hd_run!`
         // outside an integration test module is an error, reported here
         // rather than as the requirement its row would need.
-        if def == self.cx.names.item("std.testing", "hd_run") && !self.in_integration_test() {
+        if def == self.cx.names.known.hd_run && !self.in_integration_test() {
             self.err(
                 Code::TestOnlyUse,
                 n,
@@ -6476,7 +6476,7 @@ impl Ck<'_, '_> {
         let some = self.b.open_block();
         let d = self.b.payload(timeout, 1, 0, duration, n.index());
         let c = Callee::Item {
-            def: self.cx.names.item("std.testing", "case_timeout"),
+            def: self.cx.names.known.case_timeout,
             targs: TyList::EMPTY,
         };
         self.b.call(&c, &[d], Providers::None, Ty::VOID, n.index());

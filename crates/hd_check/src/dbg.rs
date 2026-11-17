@@ -22,8 +22,6 @@ pub struct DbgRef {
     pub call: bool,
 }
 
-const FORMAT: &str = "std.format";
-
 impl Ck<'_, '_> {
     /// Notes a reference to `dbg` at `n`; a body checked twice notes it once.
     pub(crate) fn note_dbg(&self, n: NodeRef<'_>, call: bool) {
@@ -37,21 +35,17 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn format_fn(&self, name: &str) -> DefId {
-        self.cx.names.item(FORMAT, name)
-    }
-
     /// A call of a `std.format` support function.
     fn dbg_support(
         &mut self,
-        name: &str,
+        def: DefId,
         targs: &[Ty],
         args: &[Ref],
         ret: Ty,
         n: NodeRef<'_>,
     ) -> Ref {
         let c = Callee::Item {
-            def: self.format_fn(name),
+            def,
             targs: self.pool().list(targs),
         };
         self.b.call(&c, args, Providers::None, ret, n.index())
@@ -105,9 +99,21 @@ impl Ck<'_, '_> {
                 Ty::prim(hd_types::Prim::Usize),
                 u64::try_from(width).unwrap_or(u64::MAX),
             );
-            self.dbg_support("repl_text", &[t], &[r, width], Ty::STRING, n)
+            self.dbg_support(
+                self.cx.names.known.repl_text,
+                &[t],
+                &[r, width],
+                Ty::STRING,
+                n,
+            )
         };
         let ty = self.b.const_str(&ty);
-        self.dbg_support("repl_value", &[], &[text, ty], Ty::VOID, n);
+        self.dbg_support(
+            self.cx.names.known.repl_value,
+            &[],
+            &[text, ty],
+            Ty::VOID,
+            n,
+        );
     }
 }

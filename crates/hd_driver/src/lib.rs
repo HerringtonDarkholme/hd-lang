@@ -13434,7 +13434,7 @@ impl ProgramEnv for Env<'_> {
     }
     fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
         *self.p.dbg_structure.get_or_init(|| {
-            let trait_def = self.run.names().item("std.format", "DbgStructural");
+            let trait_def = self.run.names().known.dbg_structural;
             let template = |kind, _| kind == hd_resolve::ImplKind::Template;
             self.p.items.impls(template).find_map(|item| {
                 let ItemData::Impl {

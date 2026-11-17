@@ -19,12 +19,15 @@ use crate::expr::{normalize_line_endings, strip_piece};
 pub(crate) use hd_resolve::literal::{decimal_digits, radix_digits, split_suffix};
 
 /// Built-in duration units (`types.literal.duration.fixed`).
-fn duration_scale(name: &str) -> Option<u64> {
+/// The `std.time` function of the duration suffix `name` and its scale in
+/// milliseconds.
+fn duration_scale(known: &hd_resolve::KnownItems, name: &str) -> Option<(DefId, u64)> {
+    let [ms, s, min, h] = known.duration_suffix;
     Some(match name {
-        "ms" => 1,
-        "s" => 1_000,
-        "min" => 60_000,
-        "h" => 3_600_000,
+        "ms" => (ms, 1),
+        "s" => (s, 1_000),
+        "min" => (min, 60_000),
+        "h" => (h, 3_600_000),
         _ => return None,
     })
 }
@@ -107,9 +110,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let duration = (kind == LITERAL_SUFFIX)
-            .then(|| duration_scale(name))
+            .then(|| duration_scale(self.cx.names.known, name))
             .flatten();
-        let def = if let Some(scale) = duration {
+        let def = if let Some((suffix, scale)) = duration {
             let text = self.cx.src.text(self.cx.src.first(n));
             let digits = split_suffix(text).0;
             if !decimal_digits(digits) {
@@ -134,7 +137,7 @@ impl Ck<'_, '_> {
                 );
                 return Ok(self.poison(n));
             }
-            self.cx.names.item("std.time", name)
+            suffix
         } else {
             let sym = self.cx.names.syms.intern(name);
             if self.is_poison_name(name) {

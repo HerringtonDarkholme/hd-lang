@@ -572,7 +572,7 @@ impl Ck<'_, '_> {
     /// Whether `t` is `&mut std.text.StringBuilder`.
     fn is_builder(&self, t: Ty) -> bool {
         let pool = self.pool();
-        let sb = self.cx.names.item("std.text", "StringBuilder");
+        let sb = self.cx.names.known.string_builder;
         matches!(pool.get(self.resolved(t)), TyData::Ref { inner, mutable: true, .. }
             if matches!(pool.get(inner), TyData::Adt { def, .. } if def == sb))
     }
@@ -756,7 +756,7 @@ impl Ck<'_, '_> {
     /// Makes an empty local builder through its byte field's constructor.
     fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> InterpolationBuilder {
         let pool = self.pool();
-        let def = self.cx.names.item("std.text", "StringBuilder");
+        let def = self.cx.names.known.string_builder;
         let item = self.cx.lookup.item(def).expect("stdpack StringBuilder");
         let ItemData::Struct(fields, _) = &item.data else {
             unreachable!("stdpack StringBuilder is a struct");
@@ -817,7 +817,7 @@ impl Ck<'_, '_> {
     pub(crate) fn string_builder_helper(&mut self, name: &str) -> DefId {
         let pool = self.pool();
         let sb = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.item("std.text", "StringBuilder"),
+            def: self.cx.names.known.string_builder,
             args: pool.list(&[]),
         });
         // ruled out: every build loads the whole std (the CLI names no
@@ -1024,7 +1024,7 @@ impl Ck<'_, '_> {
     /// interpolation lowers to, each argument fitted to its parameter.
     pub(crate) fn builder_call(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> (Ref, Ty) {
         let pool = self.pool();
-        let def = self.cx.names.item("std.text", "StringBuilder");
+        let def = self.cx.names.known.string_builder;
         let sb = pool.intern_ty(&TyData::Adt {
             def,
             args: pool.list(&[]),
@@ -4202,12 +4202,12 @@ impl Ck<'_, '_> {
                 // cursor, so its type is known before the element type is
                 // (`flow.for.range.cursor`).
                 let cursor = if def == self.cx.names.known.range {
-                    "RangeIter"
+                    self.cx.names.known.range_iter
                 } else {
-                    "RangeFromIter"
+                    self.cx.names.known.range_from_iter
                 };
                 let it_t = pool.intern_ty(&TyData::Adt {
-                    def: self.cx.names.item("std.ops", cursor),
+                    def: cursor,
                     args: pool.list(&[et]),
                 });
                 let c = hd_tir::ir::Callee::TraitMethod {

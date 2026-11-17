@@ -315,7 +315,7 @@ pub fn entry_point(cx: &HeaderCx<'_>, it: &Item, host: &[DefId]) -> StageResult<
     let mut findings = Vec::new();
     let mut hc = ItemCheck::new(cx, it, &mut findings);
     let termination = pool.intern_ty(&TyData::TraitValue {
-        def: cx.names.item("std.process", "Termination"),
+        def: cx.names.known.termination,
         args: TyList::EMPTY,
         bindings: vec![],
     });
@@ -1987,8 +1987,8 @@ pub fn boundary(
     returned: &dyn Fn(DefId, bool) -> Returned,
 ) -> StageResult<Vec<Finding>> {
     let mut out = Vec::new();
-    let serialize = cx.names.item("std.serde", "Serialize");
-    let deserialize = cx.names.item("std.serde", "Deserialize");
+    let serialize = cx.names.known.serialize;
+    let deserialize = cx.names.known.deserialize;
     let mut traits = roots.to_vec();
     let mut queued: hd_base::HashSet<DefId> = roots.iter().map(|r| r.0).collect();
     // The traits a host binds a provider or a handle for, each once.

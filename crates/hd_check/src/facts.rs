@@ -35,7 +35,7 @@ use crate::ty::Named;
 
 /// `Facts` and the type of its `items`.
 fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
-    let facts = cx.names.item("std.structure", "Facts");
+    let facts = cx.names.known.facts;
     // ruled out: every build loads the whole std, embedded or, for a root
     // package named `std`, the root's own sources; the CLI names no
     // directory's program `std` (#1714) and rejects a manifest that names
@@ -300,7 +300,7 @@ fn fact_list_steps(
     let pool = names.pool;
     let (facts_ty, items_ty) = facts_types(cx);
     let trait_value = pool.intern_ty(&TyData::TraitValue {
-        def: names.item("std.inspect", "Inspectable"),
+        def: names.known.inspectable,
         args: TyList::EMPTY,
         bindings: vec![],
     });
@@ -658,9 +658,9 @@ fn check_enum_tagging(
     let ItemData::Enum { variants, .. } = &item.data else {
         return;
     };
-    let tagging = cx.names.item("std.serde", "EnumTagging");
-    let tag = cx.names.item("std.serde", "tag");
-    let untagged = cx.names.item("std.serde", "untagged");
+    let tagging = cx.names.known.enum_tagging;
+    let tag = cx.names.known.tag;
+    let untagged = cx.names.known.untagged;
     let internal_variant = cx.names.member(tagging, PathKind::Variant, "Internal");
     let adjacent_variant = cx.names.member(tagging, PathKind::Variant, "Adjacent");
     let untagged_variant = cx.names.member(tagging, PathKind::Variant, "Untagged");
@@ -760,11 +760,11 @@ fn check_enum_tagging(
         }
     }
 
-    let rename_type = cx.names.item("std.serde", "Rename");
-    let rename = cx.names.item("std.serde", "rename");
-    let rename_all_type = cx.names.item("std.serde", "RenameAll");
-    let rename_all = cx.names.item("std.serde", "rename_all");
-    let rename_case = cx.names.item("std.serde", "RenameCase");
+    let rename_type = cx.names.known.rename_type;
+    let rename = cx.names.known.rename;
+    let rename_all_type = cx.names.known.rename_all_type;
+    let rename_all = cx.names.known.rename_all;
+    let rename_case = cx.names.known.rename_case;
     let view_type_sources = view_facts
         .slots()
         .into_iter()
@@ -899,9 +899,9 @@ fn check_enum_tagging(
 /// enum then reads its own entry. Linear in the heads, where a scan of
 /// every head per enum was quadratic (#1910).
 pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut DiagBuf) {
-    let serialize = cx.names.item("std.serde", "Serialize");
-    let deserialize = cx.names.item("std.serde", "Deserialize");
-    let tagging = cx.names.item("std.serde", "EnumTagging");
+    let serialize = cx.names.known.serialize;
+    let deserialize = cx.names.known.deserialize;
+    let tagging = cx.names.known.enum_tagging;
     // Per self type: the first no-trait `by` impl, and the `Serialize` and
     // `Deserialize` `by` impls in head order.
     let mut by_impls: HashMap<DefId, (Option<&Head<'_>>, Vec<&Head<'_>>)> = HashMap::default();

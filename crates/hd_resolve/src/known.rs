@@ -89,6 +89,10 @@ pub struct KnownItems {
     pub range_from: DefId,
     pub range_to: DefId,
     pub range_full: DefId,
+    /// The std cursors a `for` over a `Range` or `RangeFrom` of integers
+    /// iterates with (`flow.for.range.cursor`).
+    pub range_iter: DefId,
+    pub range_from_iter: DefId,
     pub template: DefId,
     pub num_suffix: DefId,
     pub str_prefix: DefId,
@@ -138,9 +142,40 @@ pub struct KnownItems {
     /// `std.format.dbg`, each reference to which the checker notes for the
     /// release check (spec/lang/10-modules.md "Release Builds And Dependencies").
     pub dbg: DefId,
+    /// `std.format.debug`, the prelude function whose bare call of a
+    /// statement value the checker leaves unwarned.
+    pub debug_fn: DefId,
+    /// `std.format.DbgStructural`, the structural `dbg` rendering trait.
+    pub dbg_structural: DefId,
+    /// `std.format`'s REPL support functions, which render and record a
+    /// REPL line's value.
+    pub repl_text: DefId,
+    pub repl_value: DefId,
+    /// `std.text.StringBuilder`, which a template literal builds into.
+    pub string_builder: DefId,
     // std.serde
     pub serialize: DefId,
     pub deserialize: DefId,
+    /// The serde facts the checker reads from declarations: `SkipNone`,
+    /// the `EnumTagging` type with its `tag` and `untagged` constructors,
+    /// and the `Rename`, `RenameAll` and `RenameCase` types with the
+    /// `rename` and `rename_all` constructors.
+    pub skip_none: DefId,
+    pub enum_tagging: DefId,
+    pub tag: DefId,
+    pub untagged: DefId,
+    pub rename_type: DefId,
+    pub rename: DefId,
+    pub rename_all_type: DefId,
+    pub rename_all: DefId,
+    pub rename_case: DefId,
+    /// `std.process.Termination`, the trait a `main` result implements.
+    pub termination: DefId,
+    /// `std.rt.entry.host_provider`, which shares a host provider object.
+    pub host_provider: DefId,
+    /// The duration literal functions `ms`, `s`, `min` and `h` of
+    /// `std.time`, in that order.
+    pub duration_suffix: [DefId; 4],
     // std.iter, std.convert, std.error
     pub iterator: DefId,
     pub iterable: DefId,
@@ -183,6 +218,11 @@ pub struct KnownItems {
     /// (`module.testing.reg.calls-ref`), and the private std bodies that their
     /// test cases run, which take the generics of the registration
     /// function in order.
+    /// `hd_run!`, legal only in an integration test module
+    /// (`std-testing.hd-run.integration-only`).
+    pub hd_run: DefId,
+    /// `case_timeout`, which a test case's timeout argument lowers to.
+    pub case_timeout: DefId,
     pub it_each: DefId,
     pub it_prop: DefId,
     pub it_prop_with: DefId,
@@ -321,6 +361,8 @@ impl KnownItems {
             range_from: item("std.ops", "RangeFrom"),
             range_to: item("std.ops", "RangeTo"),
             range_full: item("std.ops", "RangeFull"),
+            range_iter: item("std.ops", "RangeIter"),
+            range_from_iter: item("std.ops", "RangeFromIter"),
             template: item("std.ops", "Template"),
             num_suffix: item("std.ops", "num_suffix"),
             str_prefix: item("std.ops", "str_prefix"),
@@ -360,8 +402,30 @@ impl KnownItems {
             site_args: item("std.debug", "site_args"),
             site_function_text: item("std.debug", "site_function_text"),
             dbg: item("std.format", "dbg"),
+            debug_fn: item("std.format", "debug"),
+            dbg_structural: item("std.format", "DbgStructural"),
+            repl_text: item("std.format", "repl_text"),
+            repl_value: item("std.format", "repl_value"),
+            string_builder: item("std.text", "StringBuilder"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),
+            skip_none: item("std.serde", "SkipNone"),
+            enum_tagging: item("std.serde", "EnumTagging"),
+            tag: item("std.serde", "tag"),
+            untagged: item("std.serde", "untagged"),
+            rename_type: item("std.serde", "Rename"),
+            rename: item("std.serde", "rename"),
+            rename_all_type: item("std.serde", "RenameAll"),
+            rename_all: item("std.serde", "rename_all"),
+            rename_case: item("std.serde", "RenameCase"),
+            termination: item("std.process", "Termination"),
+            host_provider: item("std.rt.entry", "host_provider"),
+            duration_suffix: [
+                item("std.time", "ms"),
+                item("std.time", "s"),
+                item("std.time", "min"),
+                item("std.time", "h"),
+            ],
             iterator: item("std.iter", "Iterator"),
             iterable: item("std.iter", "Iterable"),
             from: item("std.convert", "From"),
@@ -374,6 +438,8 @@ impl KnownItems {
             inline: item("std.annotation", "inline"),
             cold: item("std.annotation", "cold"),
             testing_module: module("std.testing"),
+            hd_run: item("std.testing", "hd_run"),
+            case_timeout: item("std.testing", "case_timeout"),
             it_each: item("std.testing", "it_each"),
             it_prop: item("std.testing", "it_prop"),
             it_prop_with: item("std.testing", "it_prop_with"),

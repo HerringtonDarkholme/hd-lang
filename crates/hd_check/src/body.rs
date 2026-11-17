@@ -3202,7 +3202,7 @@ impl Ck<'_, '_> {
             return;
         };
         if binding.kind != hd_resolve::BindingKind::Item
-            || DefId::from_raw(binding.value) != self.cx.names.item("std.format", "debug")
+            || DefId::from_raw(binding.value) != self.cx.names.known.debug_fn
         {
             return;
         }
@@ -4188,7 +4188,7 @@ impl Ck<'_, '_> {
 
     /// Whether the bare name `name` resolves to its std.format declaration
     /// at `at`: no local, global or earlier REPL binding shadows it.
-    fn standard_format_name(&self, name: &str, at: u32) -> bool {
+    fn standard_format_name(&self, name: &str, def: DefId, at: u32) -> bool {
         let sym = self.cx.names.syms.intern(name);
         let init = self.cx.init.borrow();
         if self.find_local(sym).is_some()
@@ -4199,8 +4199,7 @@ impl Ck<'_, '_> {
             return false;
         }
         self.cx.scope_at(at).lookup(sym).is_some_and(|binding| {
-            binding.kind == hd_resolve::BindingKind::Item
-                && DefId::from_raw(binding.value) == self.cx.names.item("std.format", name)
+            binding.kind == hd_resolve::BindingKind::Item && DefId::from_raw(binding.value) == def
         })
     }
 
@@ -4245,7 +4244,7 @@ impl Ck<'_, '_> {
                     && !self.pool().has_poison(t)
                     && !self.must_use(t)
                     && !auto_closing;
-                let prelude_debug = selected == Some(self.cx.names.item("std.format", "debug"));
+                let prelude_debug = selected == Some(self.cx.names.known.debug_fn);
                 if void_value && !prelude_debug {
                     let open = matches!(self.pool().get(t), TyData::Infer(_))
                         && !matches!(
@@ -4280,8 +4279,14 @@ impl Ck<'_, '_> {
                             selected,
                             prelude_debug,
                             unbound_disposable,
-                            standard_debug: bare_debug && self.standard_format_name("debug", at),
-                            standard_dbg: bare_debug && self.standard_format_name("dbg", at),
+                            standard_debug: bare_debug
+                                && self.standard_format_name(
+                                    "debug",
+                                    self.cx.names.known.debug_fn,
+                                    at,
+                                ),
+                            standard_dbg: bare_debug
+                                && self.standard_format_name("dbg", self.cx.names.known.dbg, at),
                         });
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });
