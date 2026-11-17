@@ -511,6 +511,19 @@ impl Ck<'_, '_> {
                 if matches!(self.infer.resolve(pool, t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
                     return Ok(self.ref_poison(n));
                 }
+                // `ref.static.literal`: `&` of a constant literal refers to
+                // the constant, which the backend places in static data
+                // once per distinct value, as rustc promotes `&2`. No local
+                // holds it, so the reference is static wherever it goes.
+                if !mutable && is_literal(e) && self.b.const_of(v).is_some() {
+                    let inner = self.resolved(self.infer.resolve(pool, t));
+                    let rt = self.ref_ty(inner, false, false);
+                    let word = self.b.place(&TirPlace {
+                        root: PlaceRoot::Value(v),
+                        proj: vec![],
+                    });
+                    return Ok((self.b.emit(Tag::Ref, word, 0, rt, n.index()), rt));
+                }
                 // A new object holds a copy of the value (`ref.expr.allocate`).
                 let (l, d) = self.hold(v, t, e);
                 // The closures share the new local (a cell); the `set`
@@ -1397,6 +1410,16 @@ impl Ck<'_, '_> {
             pool.erase_fn_deps_list(l)
         });
     }
+}
+
+/// Whether `e` is a constant literal, through parentheses
+/// (`ref.static.literal`).
+fn is_literal(mut e: NodeRef<'_>) -> bool {
+    while e.kind() == SyntaxKind::ParenExpr {
+        let [inner] = e.parts();
+        e = inner;
+    }
+    matches!(e.kind(), SyntaxKind::LiteralExpr | SyntaxKind::StringExpr)
 }
 
 /// Whether every counted `Ref` of `b` refers to a whole object

@@ -23,4 +23,4 @@ pub fn main() -> void $ Console:
     h := Holder { ops: &table }
     boxed := keep(&table)
     let all: List[&'static Ops] = [&table, h.ops]
-    println("{h.ops.base} {boxed.base} {all.len()} {run(&table)}")
+    println("${h.ops.base} ${boxed.base} ${all.len()} ${run(&table)}")

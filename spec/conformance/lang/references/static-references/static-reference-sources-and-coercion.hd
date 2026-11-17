@@ -36,6 +36,6 @@ pub fn main() -> void $ Console:
     let y: &'static i32 = &origin.y
     let x5: &'static i32 = &pair.p.x
     let nine: &'static i32 = &9
-    println("{plain(p)} {*y} {*x5} {*word()} {*nine}")
+    println("${plain(p)} ${*y} ${*x5} ${*word()} ${*nine}")
     if p.sum() != widen(p).sum():
         panic("coercion changed the value")

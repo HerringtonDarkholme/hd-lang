@@ -1653,7 +1653,9 @@ enum Origin {
     Global(u32),
     /// What a static reference may refer to: a top-level binding bound
     /// without `mut`, reached through no reference, by its definition
-    /// (`ref.static.place`). It is a top-level binding everywhere else.
+    /// (`ref.static.place`), or [`LITERAL`] for a constant literal's
+    /// static data (`ref.static.literal`). It is a top-level binding
+    /// everywhere else.
     Static(u32),
     /// A mark that the value may point into result path `k`'s parameter
     /// outside that path (`ref.result.path.callee`).
@@ -1663,6 +1665,10 @@ enum Origin {
     /// check only (`ref.excl.shared`, `ref.excl.call`).
     Site(u32),
 }
+
+/// The definition word of [`Origin::Static`] for a constant literal, which
+/// no top-level binding's raw id reaches.
+const LITERAL: u32 = u32::MAX;
 
 /// An instruction's, a local's or a parameter's index as a word.
 fn w(i: usize) -> u32 {

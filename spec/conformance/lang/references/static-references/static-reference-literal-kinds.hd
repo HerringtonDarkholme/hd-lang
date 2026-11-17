@@ -1,0 +1,56 @@
+# test: `&` of every constant literal kind is a static reference to one value in static memory
+# Spec 13 Static References: ref.static.literal.
+# expect-stdout: 9 120 300 70000 9000000000 1.5 2.25 true x hihi | 9 9 true
+# expect-stdout: 6 hi1 4
+fn int() -> &'static i32:
+    &9
+
+fn twice() -> &'static i32:
+    &(9)
+
+fn small() -> &'static i8:
+    &120i8
+
+fn short() -> &'static u16:
+    &300
+
+fn word() -> &'static u32:
+    &70000
+
+fn wide() -> &'static i64:
+    &9000000000
+
+fn half() -> &'static f32:
+    &1.5
+
+fn whole() -> &'static f64:
+    &2.25
+
+fn yes() -> &'static bool:
+    &true
+
+fn letter() -> &'static char:
+    &'x'
+
+fn text() -> &'static string:
+    &"hi"
+
+fn empty() -> &'static string:
+    &""
+
+fn again() -> &'static string:
+    &"hi"
+
+fn plain(n: &i32) -> i32:
+    *n
+
+pub fn main() -> void $ Console:
+    println(
+        "${*int()} ${*small()} ${*short()} ${*word()} ${*wide()} ${*half()} ${*whole()} ${*yes()} ${*letter()} ${*text()}${*empty()}${*again()} | ${*twice()} ${plain(&9)} ${int() == twice()}",
+    )
+    m := &mut 5
+    *m = *m + 1
+    n := 1
+    s := &"hi${n}"
+    let four: &i32 = &4
+    println("${*m} ${*s} ${*four}")

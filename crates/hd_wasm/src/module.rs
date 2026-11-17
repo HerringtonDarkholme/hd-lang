@@ -1139,6 +1139,13 @@ pub struct Module {
     /// Static data from [`STATIC_BASE`], deduplicated by content.
     data: Vec<u8>,
     data_at: hd_base::HashMap<Vec<u8>, u32>,
+    /// Static records holding static addresses ([`Module::static_record`]),
+    /// deduplicated apart from `data_at`: their address words move with a
+    /// session extension's segment, plain bytes never do.
+    record_at: hd_base::HashMap<Vec<u8>, u32>,
+    /// The data offsets of the address words of those records, which a
+    /// session extension relocates.
+    data_pointers: Vec<u32>,
     data_chunks: Vec<crate::static_data::Chunk>,
     data_roots: Vec<u32>,
     /// Static vtables: each one's slots, then the vtables of its direct
@@ -1316,6 +1323,8 @@ impl Module {
             inst_order: Vec::default(),
             data: Vec::default(),
             data_at: hd_base::HashMap::default(),
+            record_at: hd_base::HashMap::default(),
+            data_pointers: Vec::new(),
             data_chunks: Vec::new(),
             data_roots: Vec::new(),
             vtables: Vec::default(),
@@ -1474,7 +1483,7 @@ impl Module {
         while !self.data.len().is_multiple_of(align) {
             self.data.push(0);
         }
-        let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        let at = self.static_end();
         let start = self.data.len();
         self.data.extend_from_slice(bytes);
         if !bytes.is_empty() {
@@ -1488,6 +1497,43 @@ impl Module {
             self.static_labels
                 .insert(at, crate::StaticData::Bytes(bytes.to_vec()));
         }
+        at
+    }
+
+    /// The static address just past the data so far: the next
+    /// allocation's, before its alignment.
+    fn static_end(&self) -> u32 {
+        // ruled out: static data fits a 32-bit Wasm memory.
+        STATIC_BASE + crate::emit::required(u32::try_from(self.data.len()).ok(), "static data")
+    }
+
+    /// The static address of an immutable record `bytes` whose words at
+    /// `pointers` (byte offsets, each 4-aligned) are static addresses, one
+    /// copy per distinct content, as rustc's promoted constants: a
+    /// constant literal's place (`ref.static.literal`). Each address word
+    /// is recorded once, so a session extension relocates it once.
+    pub fn static_record(&mut self, bytes: &[u8], align: u32, pointers: &[u32]) -> u32 {
+        if pointers.is_empty() {
+            return self.static_bytes(bytes, align);
+        }
+        if let Some(at) = self.record_at.get(bytes) {
+            return *at;
+        }
+        let align = align.max(4) as usize;
+        while !self.data.len().is_multiple_of(align) {
+            self.data.push(0);
+        }
+        let start = self.data.len();
+        let at = self.static_end();
+        self.data.extend_from_slice(bytes);
+        self.data_chunks.push(crate::static_data::Chunk {
+            range: start..self.data.len(),
+            live: false,
+        });
+        for &p in pointers {
+            self.data_pointers.push(at - STATIC_BASE + p);
+        }
+        self.record_at.insert(bytes.to_vec(), at);
         at
     }
 
@@ -1506,7 +1552,7 @@ impl Module {
         while !self.data.len().is_multiple_of(align) {
             self.data.push(0);
         }
-        let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        let at = self.static_end();
         self.data.resize(self.data.len() + size.max(1) as usize, 0);
         at
     }
@@ -2419,6 +2465,9 @@ impl Module {
             }
         }
         let mut data_relocations = Vec::new();
+        if previous.is_some() {
+            data_relocations.extend_from_slice(&self.data_pointers);
+        }
         for (v, at) in self.vtables.iter().zip(&vtable_at) {
             assert_eq!(
                 self.data.len(),

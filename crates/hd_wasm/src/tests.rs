@@ -566,6 +566,49 @@ fn cold_paths_are_no_direct_calls() {
     assert!(reached.iter().any(|n| n.starts_with("rt:list_unique")));
 }
 
+/// A static record keeps one copy per content, apart from plain bytes of
+/// the same content, and a session extension relocates its address word
+/// once, so it addresses the extension's own text (`ref.static.literal`).
+#[test]
+fn session_static_record_relocates_its_address_word_once() {
+    // ruled out: a failed link or a missing section fails this test.
+    let base = Module::default();
+    let (_, manifest) = base.finish_session(true).expect("base");
+    let mut extension = Module::default();
+    let text = extension.static_bytes(b"REC!", 1);
+    let mut bytes = text.to_le_bytes().to_vec();
+    bytes.extend_from_slice(&4u32.to_le_bytes());
+    let record = extension.static_record(&bytes, 4, &[0]);
+    assert_eq!(extension.static_record(&bytes, 4, &[0]), record);
+    assert_ne!(extension.static_bytes(&bytes, 4), record);
+    let mut f = extension.func("record", vec![], vec![Val::I32]);
+    f.mark_static(text);
+    f.static_addr(record);
+    let key = Sym::Inst(Hash128(652));
+    extension.define(key.clone(), f);
+    extension.export("record", key);
+    // ruled out: the extension links against the base just made.
+    let (extension, _) = extension.finish_extension(&manifest).expect("extension");
+    validate(&extension.wasm);
+    // ruled out: every session extension has well-formed payloads and
+    // its `hd.session` metadata.
+    let metadata = wasmparser::Parser::new(0)
+        .parse_all(&extension.wasm)
+        // ruled out: a validated module's payloads parse.
+        .find_map(|p| match p.expect("payload") {
+            wasmparser::Payload::CustomSection(c) if c.name() == "hd.session" => {
+                Some(c.data().to_vec())
+            }
+            _ => None,
+        })
+        // ruled out: a session extension always writes `hd.session`.
+        .expect("session metadata");
+    // ruled out: the metadata is whole words.
+    let word = |k: usize| u32::from_le_bytes(metadata[k * 4..k * 4 + 4].try_into().expect("word"));
+    assert_eq!(word(4), 1, "one relocation for the deduplicated record");
+    assert_eq!(word(5), record - crate::module::STATIC_BASE);
+}
+
 /// A data relocation must never reinterpret an integer whose value happens
 /// to equal an address. The relocated operand keeps its source mapping.
 #[test]

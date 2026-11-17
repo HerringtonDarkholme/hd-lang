@@ -1,0 +1,23 @@
+# @dump: wat counts
+# @build: v8 release
+# `&` of a constant literal is the address of its value in static data
+# (`ref.static.literal`): no allocation and no count, and two references to
+# one value share one copy. A string's record holds its text's address.
+fn nine() -> &'static i32:
+    &9
+
+fn also_nine() -> &'static i32:
+    &9
+
+fn word() -> &'static string:
+    &"hi"
+
+fn sum(a: &'static i32, b: &'static i32) -> i32:
+    *a + *b
+
+pub fn main() -> void $ Console:
+    # subject
+    n := sum(nine(), also_nine())
+    # subject
+    w := word()
+    println("${n} ${*w}")

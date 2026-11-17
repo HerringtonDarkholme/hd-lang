@@ -668,6 +668,12 @@ impl Em<'_, '_, '_> {
     /// struct field the fields after the head name.
     fn counted_ref(&mut self, i: u32) -> StageResult<()> {
         let p = self.place(self.b.data[i as usize][0]);
+        if let PlaceRoot::Value(r) = p.root
+            && r.as_inst().is_none()
+            && p.proj.is_empty()
+        {
+            return self.literal_ref(i, r);
+        }
         // ruled out: checked Tag::Ref keeps a reference result after substitution.
         let fat = matches!(self.kind(self.ty(i)), Kind::Ref { fat: true, .. });
         let last = self.last_through(&p)?;
@@ -743,6 +749,55 @@ impl Em<'_, '_, '_> {
         };
         self.ref_from(i, at, ty, &path, fat)?;
         Ok(())
+    }
+
+    /// `Ref` `i` of constant `r`, a literal's own place
+    /// (`ref.static.literal`): the address of its value in static data,
+    /// one copy per distinct value ([`crate::module::Module::static_record`]),
+    /// as rustc's promoted constants. The reference holds no count, and
+    /// nothing in the frame or the heap holds the value.
+    fn literal_ref(&mut self, i: u32, r: Ref) -> StageResult<()> {
+        let (ty, bits) = self.b.consts[(r.0 & !Ref::CONST_BIT) as usize];
+        let ty = self.sub(ty);
+        let m = mem_of(self.pool(), self.env(), ty)?;
+        let mut pointers = Vec::new();
+        let words: Vec<u64> =
+            if hd_mono::layout::strip_newtype(self.pool(), self.env(), ty) == Ty::STRING {
+                // A string's text is static data of its own, which the
+                // record's address word keeps live through this body.
+                // ruled out: a string constant indexes its body's table.
+                let k = super::required(usize::try_from(bits).ok(), "a string constant's index");
+                let text = self.b.strings[k].clone();
+                let at = if text.is_empty() {
+                    EMPTY
+                } else {
+                    self.m.static_bytes(text.as_bytes(), 1)
+                };
+                self.f.mark_static(at);
+                pointers.push(m.leaves[0].offset);
+                vec![u64::from(at), text.len() as u64]
+            } else if matches!(self.vals(ty)?.as_slice(), [crate::module::Val::F32]) {
+                // A float literal's constant holds its `f64` bits.
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "this is the specified f64-to-f32 literal conversion"
+                )]
+                let value = f64::from_bits(bits) as f32;
+                vec![u64::from(value.to_bits())]
+            } else {
+                vec![bits]
+            };
+        // ruled out: a literal is a string or one scalar (`hd_check`'s
+        // `is_literal`), so its words are its layout's leaves.
+        assert_eq!(words.len(), m.leaves.len(), "a literal's leaves");
+        let mut bytes = vec![0; m.size as usize];
+        for (leaf, word) in m.leaves.iter().zip(&words) {
+            let (at, n) = (leaf.offset as usize, usize::from(leaf.bytes));
+            bytes[at..at + n].copy_from_slice(&word.to_le_bytes()[..n]);
+        }
+        let at = self.m.static_record(&bytes, m.align, &pointers);
+        self.f.static_addr(at);
+        self.store_owned(i)
     }
 
     /// The rest of `Ref` `i` when `steps` go through a variant's payload

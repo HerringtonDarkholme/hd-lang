@@ -5899,6 +5899,7 @@ lang/references/generic-locality/static-bound-unbounded-parameter-argument.hd	ty
 lang/references/generic-locality/static-bound-impl-unmet.hd	type	reject:unsatisfied-trait-bound	lang/13-values-and-references.md#r-ref.generic.static.impl
 lang/references/static-references/static-reference-parameter-reads-a-field.hd	type	accept	lang/13-values-and-references.md#r-ref.static.form
 lang/references/static-references/static-reference-sources-and-coercion.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.place
+lang/references/static-references/static-reference-literal-kinds.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.literal
 lang/references/static-references/static-reference-stored-and-called.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.not-local
 lang/references/static-references/static-reference-from-a-local.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
 lang/references/static-references/static-reference-from-a-counted-reference.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error

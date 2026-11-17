@@ -10,9 +10,9 @@ use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC, STATIC_MSG, STORE_FN_MSG, Set,
-    Var, Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops, local_ref, referent,
-    returned, scoped_uses, site, source_arg, w,
+    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC, STATIC_MSG,
+    STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops,
+    local_ref, referent, returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
@@ -332,6 +332,10 @@ impl Gen<'_, '_> {
                     }
                     _ => Some(Ok(Origin::Hidden(v.0))),
                 }
+            }
+            // A constant literal's own place (`ref.static.literal`).
+            PlaceRoot::Value(v) if v.as_inst().is_none() && p.proj.is_empty() => {
+                Some(Ok(Origin::Static(LITERAL)))
             }
             PlaceRoot::Value(_) => Some(Ok(Origin::Hidden(i))),
             PlaceRoot::Global(d, _) if self.static_place(d, &p.proj) => {

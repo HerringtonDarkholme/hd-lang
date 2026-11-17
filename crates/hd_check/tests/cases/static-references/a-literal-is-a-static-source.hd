@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# `&` of a constant literal is a static source (`ref.static.literal`), in
+# parentheses too; `&mut` of one, a negated number, which is no literal, and
+# a string that interpolates a value are not (`ref.static.source.error`).
+fn number() -> &'static i32:
+    &7
+
+fn paren() -> &'static string:
+    &("text")
+
+fn bound() -> bool:
+    let yes: &'static bool = &true
+    *yes
+
+fn changing() -> &'static i32:
+    &mut 7
+
+fn negated() -> &'static i32:
+    &-7
+
+fn interpolated(n: i32) -> &'static string:
+    &"n${n}"

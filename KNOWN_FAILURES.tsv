@@ -1,3 +1,2 @@
 path	issue	engine	reason
-lang/references/static-references/static-reference-sources-and-coercion.hd	#1435		`&<literal>` is not promoted to static data yet
 lang/references/static-references/static-reference-stored-and-called.hd	#1435		`T < 'static` rejects a `&T` argument by its type; the static source is not asked
