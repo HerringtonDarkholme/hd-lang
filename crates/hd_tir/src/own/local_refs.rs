@@ -222,7 +222,6 @@ fn forward(
                 }
                 Tag::Store => rewritten[i].is_some(),
                 Tag::Coerce => values[i].is_some(),
-                Tag::LoanEnd => b.view(b.data[i][0]).whole(),
                 _ => false,
             };
             if !allowed {
@@ -239,8 +238,9 @@ fn forward(
             let allowed = match b.tags[i] {
                 Tag::Read | Tag::Store => p.whole() || rewritten[i].is_some(),
                 Tag::Ref => values[i].is_some(),
-                Tag::LoanEnd => p.whole(),
-                _ => false,
+                // ruled out: this is the first ownership pass. Invariant
+                // 22 permits only Read, Store and Ref as place operations.
+                _ => unreachable!("ownership place before local-reference forwarding"),
             };
             if !allowed {
                 bad[origin.local as usize] = true;
@@ -272,7 +272,7 @@ fn forward(
             };
             b.data[i][0] = word;
         }
-        if matches!(b.tags[i], Tag::Store | Tag::LoanEnd) {
+        if b.tags[i] == Tag::Store {
             let p = b.view(b.data[i][0]);
             let origin = match p.root {
                 Root::Local(l) if p.whole() => locals[l as usize].as_ref(),

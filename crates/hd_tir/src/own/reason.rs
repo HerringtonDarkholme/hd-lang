@@ -421,7 +421,7 @@ fn used_again(
 /// Whether a write may change the source of copy read `r` while its value
 /// lives, up to its last use `end` ([`copy_reasons`]), over the range of
 /// instructions from the first of the read's statement.
-#[cfg(any(test, target_arch = "wasm32"))]
+#[cfg(any(test, feature = "test-utils", target_arch = "wasm32"))]
 fn changed_while(
     b: &Body,
     topo: &Topology,
@@ -467,6 +467,31 @@ fn changed_while(
             _ => false,
         }
     })
+}
+
+/// Compare the production sweep with the browser's range walk on a
+/// supplied program body. Available only to cross-crate compiler tests.
+#[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
+pub fn check_write_sweep(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
+    let topo = Topology::new(b);
+    let last = vec![u32_of(b.len().saturating_sub(1)); b.len()];
+    let actual = native::changes(b, &topo, cx, &last);
+    let held = loan_holds(b);
+    (0..b.len())
+        .filter(|&r| b.tags[r] == Tag::Read && b.data[r][1] == ReadMode::Copy as u32)
+        .filter(|&r| {
+            actual[r]
+                != changed_while(
+                    b,
+                    &topo,
+                    cx,
+                    r,
+                    last[r],
+                    held_source(b, &held, b.data[r][0]),
+                )
+        })
+        .map(u32_of)
+        .collect()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

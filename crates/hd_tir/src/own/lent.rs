@@ -9,8 +9,7 @@
 //!    ([`OwnCx::may_frame_referent`]) is a `Ref` of the storage of a local
 //!    of the root (`ref_word::LOCAL`, no count of its own, no frame slot)
 //!    that only this call uses, and at least one is; and
-//! 2. its frame value is used, `Drop`s and `LoanEnd`s aside, only by an
-//!    `AwaitAll` or `AwaitValue` in the root, or by one `Store` into a bare
+//! 2. its frame value is used only by an `AwaitAll` or `AwaitValue` in the root, or by one `Store` into a bare
 //!    local of the root that no closure captures, no `Ref` addresses, and
 //!    whose every read is a whole read used only by such an await.
 //!
@@ -42,9 +41,9 @@ pub(super) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, mut access: imp
     if calls.is_empty() {
         return;
     }
-    // Each value's users, by one scan: (user, role), `Drop`s and
-    // `LoanEnd`s aside. Each bare local's reads, and whether a `Ref` or a
-    // non-bare place touches it.
+    // Before insertion, invariant 22 rules out ownership statements.
+    // Each value's users, by one scan: (user, role). Each bare local's
+    // reads, and whether a Ref or non-bare place touches it.
     let mut users: Vec<Vec<(u32, Role)>> = vec![Vec::new(); n];
     let mut reads: Vec<Vec<u32>> = vec![Vec::new(); b.local_ty.len()];
     let mut stores = vec![0u32; b.local_ty.len()];
@@ -64,9 +63,6 @@ pub(super) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, mut access: imp
                 Tag::Store if bare && topo.sub[i] == 0 => stores[l as usize] += 1,
                 _ => opaque[l as usize] = true,
             }
-        }
-        if matches!(tag, Tag::Drop | Tag::LoanEnd) {
-            continue;
         }
         operands(b, i, &mut ops);
         for op in &ops {

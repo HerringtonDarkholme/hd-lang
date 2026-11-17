@@ -195,9 +195,10 @@ impl ElementChecks {
                                 if loans.get(j) != Some(&epoch) {
                                     return false;
                                 }
-                                let Some((root, value)) = elements[j] else {
-                                    return false;
-                                };
+                                // ruled out: a current loan is set only for
+                                // Some(element); the element index is immutable.
+                                let (root, value) =
+                                    elements[j].expect("a current element loan has an element");
                                 args.push((root, value));
                                 true
                             })

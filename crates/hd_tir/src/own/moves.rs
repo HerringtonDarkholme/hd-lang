@@ -166,9 +166,9 @@ impl Hooks {
         let mut ty = match p.root {
             Root::Local(l) => b.local_ty[l as usize],
             Root::Value(v) => b.ty[v as usize],
-            // ruled out: [`apply`] asks only of a candidate's read, whose
-            // root is a local or a value.
-            _ => return false,
+            // ruled out: part_bits_of_reads admits only Local/Value roots;
+            // apply asks only of those candidates' part reads.
+            _ => unreachable!("a movable part has a local or value root"),
         };
         let mut steps = p.steps(b).peekable();
         let mut variant = NONE;
@@ -189,7 +189,9 @@ impl Hooks {
                 Proj::Field(k) => k as usize,
                 // ruled out: a read the walk moves reads in place
                 // (`PlaceView::in_place`), by fields and variants only.
-                Proj::Deref | Proj::Elem(_) => return false,
+                Proj::Deref | Proj::Elem(_) => {
+                    unreachable!("an in-place part has only fields and variants")
+                }
             };
             if steps.peek().is_none() {
                 return false;
@@ -211,7 +213,10 @@ impl Hooks {
             };
             ty = next;
         }
-        false
+        // ruled out: candidates have nonempty in-place projections. The
+        // checker pairs Variant with Field (pat.rs); re-rooting keeps pairs.
+        // Their final Field always returns above.
+        unreachable!("an in-place part read ends in a field")
     }
 }
 

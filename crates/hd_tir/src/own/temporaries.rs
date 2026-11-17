@@ -2,8 +2,10 @@
 //! This is the same lifetime mechanism as a named collection or object:
 //! frame analysis follows its references and holders through their last uses.
 
-use super::{OwnCx, lending_coercion, owned_value, splice};
-use crate::ir::{Body, NONE, ReadMode, Root, Tag, Topology, local_flags, place, u32_of};
+use super::{OwnCx, owned_value, splice};
+#[cfg(test)]
+use crate::ir::ReadMode;
+use crate::ir::{Body, NONE, Root, Tag, Topology, local_flags, place, u32_of};
 use hd_base::Symbol;
 use hd_types::Ty;
 
@@ -28,13 +30,11 @@ pub(crate) fn run(
 ) -> Result<(), String> {
     normalize(
         body,
-        |body, i| {
-            if lending_coercion(body, cx, i) {
-                Some(body.data[i][0] as usize)
-            } else {
-                reference_value(body, i, |ty| cx.holds_ref(ty) && !cx.counted_refs_only(ty))
-            }
-        },
+        // The checker makes a thin counted-to-local conversion as Ref
+        // through its producer (body.rs, ref.convert.lend). A local dyn
+        // conversion reads the explicit holder made by build_dyn_ref_kind;
+        // its Coerce therefore already has named storage, not a temporary.
+        |body, i| reference_value(body, i, |ty| cx.holds_ref(ty) && !cx.counted_refs_only(ty)),
         |ty| cx.reference_target(ty).is_none() || cx.counted_refs_only(ty),
         || cx.temporary_owner_name(),
         topo,
@@ -192,13 +192,6 @@ fn normalize(
         } else {
             tables.owners[value]
         };
-        if body.tags[i] == Tag::Coerce {
-            // The existing lending-read form borrows a counted pointer
-            // from its named owner without copying or changing its bits.
-            body.tags[i] = Tag::Read;
-            body.data[i] = [place::BARE_LOCAL | local, ReadMode::Use as u32];
-            continue;
-        }
         let word = body.data[i][0] as usize;
         let rewritten = if tables.places[word] == NONE {
             // Both roots use two words. Preserve every projection and its

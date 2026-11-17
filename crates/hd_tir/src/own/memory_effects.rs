@@ -61,9 +61,10 @@ impl Writes {
     }
 
     fn delta(self, sent: Self) -> Self {
-        if sent.external {
-            Self::default()
-        } else if self.external {
+        // ruled out: solve queues only a strict join. Once external/top has
+        // been sent, join always returns false and cannot queue this node.
+        debug_assert!(!sent.external, "an external effect cannot grow again");
+        if self.external {
             Self::EXTERNAL
         } else {
             Self {

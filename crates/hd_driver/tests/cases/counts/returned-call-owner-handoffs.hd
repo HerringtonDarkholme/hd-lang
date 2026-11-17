@@ -1,0 +1,144 @@
+# @dump: own counts stdout
+# @build: release checked
+# expected: returned loans preserve their source and temporary owners transfer once.
+use std.annotation.{cold, inline}
+use std.testing.assert_equal
+
+@cold
+fn identity(value: string) -> string:
+    value
+
+@cold
+fn indirect(callback: fn(string) -> string, value: string) -> string:
+    callback(value)
+
+@cold
+fn choose(first: bool, left: string, right: string) -> string:
+    selected := if first: left else: right
+    identity(selected)
+
+@cold
+fn borrowed_then_owned(value: string) -> string:
+    result := identity(value)
+    assert_equal(result.len(), value.len())
+    result
+
+@cold
+fn repeated_result(value: string) -> (string, string):
+    result := identity(value)
+    (result, result)
+
+@cold
+fn fresh(seed: usize) -> string:
+    "fresh $seed"
+
+@cold
+fn discard(seed: usize, callback: fn(usize) -> string) -> void:
+    _ := identity("static")
+    _ := identity(fresh(seed))
+    _ := identity(callback(seed))
+
+@cold
+fn chain(seed: usize, callback: fn(usize) -> string) -> string:
+    identity(identity(callback(seed)))
+
+@cold
+fn stored_handoff(seed: usize) -> string:
+    value := fresh(seed)
+    identity(value)
+
+@cold
+fn reused_handoff(seed: usize) -> string:
+    value := identity(fresh(seed))
+    assert_equal(value.len(), 7)
+    identity(value)
+
+@cold
+fn overwritten(value: string) -> string:
+    let result = identity(value)
+    result = "replacement"
+    result
+
+@cold
+fn read_size(value: &string) -> usize:
+    value.len()
+
+@cold
+fn addressed(value: string) -> string:
+    _ := read_size(&value)
+    identity(value)
+
+@cold
+fn ignore_right(value: string, other: string) -> string:
+    value
+
+@cold
+fn different_owner(seed: usize) -> string:
+    left := fresh(seed)
+    right := fresh(seed + 1)
+    ignore_right(left, right)
+
+@cold
+# subject
+fn temporary_handoff(first: bool, value: string) -> string:
+    identity(if first: identity(value) else: indirect(identity, value))
+
+struct TextPair:
+    left: string
+    right: string
+
+@cold
+fn make_pair(seed: usize) -> TextPair:
+    TextPair { left: fresh(seed), right: fresh(seed + 1) }
+
+@cold
+fn field_handoff(seed: usize) -> string:
+    identity(make_pair(seed).left)
+
+@cold
+fn read_returned(value: string) -> usize:
+    result := identity(value)
+    result.len()
+
+@inline(.Always)
+fn produced(seed: usize) -> string:
+    fresh(seed)
+
+@inline(.Always)
+fn literal() -> string:
+    "literal"
+
+@cold
+fn wrapped_handoff(seed: usize) -> string:
+    identity(produced(seed))
+
+@cold
+fn constant_handoff() -> string:
+    identity(literal())
+
+@cold
+fn matched_handoff(seed: usize) -> string:
+    match fresh(seed):
+        value => identity(value)
+
+pub fn main() -> void:
+    assert_equal(wrapped_handoff(7), "fresh 7")
+    assert_equal(constant_handoff(), "literal")
+    assert_equal(matched_handoff(7), "fresh 7")
+    assert_equal(field_handoff(7), "fresh 7")
+    assert_equal(read_returned("borrowed"), 8)
+    assert_equal(choose(true, "left", "right"), "left")
+    assert_equal(choose(false, "left", "right"), "right")
+    assert_equal(borrowed_then_owned("kept"), "kept")
+    pair := repeated_result("twice")
+    assert_equal(pair._0, "twice")
+    assert_equal(pair._1, "twice")
+    assert_equal(temporary_handoff(true, "left"), "left")
+    assert_equal(temporary_handoff(false, "right"), "right")
+    discard(7, fresh)
+    assert_equal(chain(7, fresh), "fresh 7")
+    assert_equal(stored_handoff(7), "fresh 7")
+    assert_equal(reused_handoff(7), "fresh 7")
+    assert_equal(overwritten("original"), "replacement")
+    assert_equal(addressed("addressed"), "addressed")
+    assert_equal(different_owner(7), "fresh 7")

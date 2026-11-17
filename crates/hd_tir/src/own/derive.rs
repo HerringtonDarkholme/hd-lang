@@ -1376,9 +1376,12 @@ fn parameter_joins(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             continue;
         };
         let eligible = reads.iter().all(|&r| {
-            let Some(p) = b.view(b.data[r as usize][0]).local() else {
-                return false;
-            };
+            let p = b
+                .view(b.data[r as usize][0])
+                .local()
+                // ruled out: parameter_join_with admits only whole PARAM
+                // reads, including on malformed input.
+                .expect("parameter join reads a whole parameter local");
             let p = t.l[p as usize];
             p.stores == 0
                 && !p.captured
@@ -1624,7 +1627,10 @@ fn lend_copied_parameters_with(
                     Root::Value(v) => {
                         moved_from[v as usize] != NONE && eligible[moved_from[v as usize] as usize]
                     }
-                    _ => false,
+                    // ruled out: insertion emits Drop only for an owned
+                    // local or SSA value. Replaced global/referent contents
+                    // are Release packets at their Store operation.
+                    _ => unreachable!("a whole Drop has a local or value root"),
                 }
             {
                 // Keep the original parameter words intact: a caller may
