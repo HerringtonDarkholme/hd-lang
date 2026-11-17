@@ -13,11 +13,6 @@
   )
   (func $temp_receiver (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 31 |     make(s).label_len()
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
     local.get $s.1
   )
   (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t1 i64) (local $p i32) (local $t0 i32)

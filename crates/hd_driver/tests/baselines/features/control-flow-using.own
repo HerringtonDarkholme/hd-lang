@@ -101,8 +101,8 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   local $6 x: string [read assigned] value
 >     uses $6: %28 -> %14 consume last
 >   local $7 r: Res [:= read assigned captured captured-assigned] place
->   %0 = Release %40 Exit local $1 #2 : ()
->   %1 = Retain %40 Entry local $0 #0 : ()
+>   %0 = Release %39 Exit local $1 #2 : ()
+>   %1 = Retain %39 Entry local $0 #0 : ()
     for x in xs:
 >   %2 = Read borrow [$1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -119,17 +119,16 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %26 = Block - : ()
 >   %27 = Read borrow [%10] : string
 >   %28 = Store [$6] %27 : ()
->   %29 = Release %28 Operation #3 : ()
->   %31 = Block - : never
->   %32 = Match %10 [%31 %26] : ()
->   %33 = Block - : ()
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If %8 [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
+>   %30 = Block - : never
+>   %31 = Match %10 [%30 %26] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %8 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$0] : ()
+>   %39 = Block - : ()
         using r = Res { name: x, log: log }
 >   %14 = Read copy [$6] : string
 >   %15 = Read copy [$0] : *mut List[string]

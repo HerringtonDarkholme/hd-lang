@@ -55,6 +55,11 @@ impl Stores {
         let [word, value] = b.data[i];
         let p = b.view(word);
         let whole = p.whole().then(|| p.local()).flatten();
+        // Every store of a binding holds a borrow (invariant 23), so a
+        // repeated frame-slot initialization owns no previous descriptor.
+        if whole.is_some() && b.loan_value(value).is_some() {
+            return false;
+        }
         let counts = match whole {
             Some(l) => self.placed[l as usize] || cx.counted(b.local_ty[l as usize]),
             None => match Ref(value).as_inst() {

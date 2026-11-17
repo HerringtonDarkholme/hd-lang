@@ -6,16 +6,15 @@ app/main/total
   local $10 i: usize [read assigned] value
     uses $10: %40 -> %45 lend last
   local $11 self: string [read] value
-    uses $11: %47 -> %49 lend last
+    uses $11: %47 -> %48 lend last
   %44 = Read copy [$6] : usize
   %45 = Read copy [$10] : usize
   %46 = Read borrow [$1 [%45]] : string
   %47 = Store [$11] %46 : ()
-  %48 = Release %47 Operation #3 : ()
-  %49 = Read borrow [$11] : string
-  %50 = Call std/rt.bytes/bytes_len[] (%49) : usize
-  %51 = Break L2 %50 : never
-  %52 = Block - : usize
-  %53 = Scope %52 [] : usize
-  %54 = Prim Add [%44 %53] : usize
-  %55 = Store [$6] %54 : ()
+  %48 = Read borrow [$11] : string
+  %49 = Call std/rt.bytes/bytes_len[] (%48) : usize
+  %50 = Break L2 %49 : never
+  %51 = Block - : usize
+  %52 = Scope %51 [] : usize
+  %53 = Prim Add [%44 %52] : usize
+  %54 = Store [$6] %53 : ()

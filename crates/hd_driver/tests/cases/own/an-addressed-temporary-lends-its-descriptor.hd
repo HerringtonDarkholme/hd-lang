@@ -1,0 +1,53 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: `address` and `optional` borrow their constructor operands in
+# release. Mutating the source while later call arguments are evaluated
+# keeps a separate snapshot until the addressed reader returns.
+struct Names:
+    first: string
+    second: string
+
+struct Wrapped:
+    values: Names
+    n: i64
+
+fn observe(value: &Wrapped, ignored: usize) -> usize $ Console:
+    println("observe")
+    if value.values.second == "beta":
+        value.values.first.len() + value.values.second.len() + ignored
+    else:
+        1000
+
+fn address(input: Names) -> usize $ Console:
+    observe(&Wrapped { values: input, n: 1 }, 0)
+
+fn optional(input: string, expected: string?) -> bool:
+    expected == .Some(input)
+
+fn replace(source: &mut Names) -> usize:
+    source.second = "fresh"
+    churn := source.first + "!"
+    churn.len()
+
+fn during_arguments(input: Names) -> usize $ Console:
+    let mut source = input
+    observe(&Wrapped { values: source, n: 1 }, replace(&mut source))
+
+fn replace_pointer(source: *mut Names) -> usize:
+    source.second = "fresh"
+    churn := source.first + "!"
+    churn.len()
+
+fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
+    observe(&Wrapped { values: *source, n: 1 }, replace_pointer(alias))
+
+pub fn main() -> void $ Console:
+    original := Names { first: "alpha" + "one", second: "b" + "eta" }
+    println(address(original))
+    println(during_arguments(original))
+    println(original.second)
+    println(during_arguments(Names { first: "alpha" + "one", second: "b" + "eta" }))
+    shared := box(Names { first: "alpha" + "one", second: "b" + "eta" })
+    println(through_alias(shared, shared))
+    println(optional(original.first, .Some(original.first)))
+    println(optional(original.first, .None))

@@ -2,7 +2,7 @@
 # @dump: tir own counts wat
 # @build: v8 release
 # Feature: Methods And Receivers, Reference Receivers (spec/lang/07-functions.md, #1364).
-# expected: `temp_receiver` frees the temporary once; `element_receiver`
+# expected: `temp_receiver` borrows its input with no count; `element_receiver`
 # changes the element in place (one uniqueness check, no element
 # count); `element_read` takes no count; `place_receiver` takes no
 # count; `mut_self` copies `v` once (it is read after). `counted` reads

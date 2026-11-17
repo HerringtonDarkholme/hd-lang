@@ -190,7 +190,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >     uses $5: %4 -> %5 lend, %11 consume last
 >   local $7 index: usize [read] value
 >     uses $7: %12 -> %15 lend last
->   %0 = Retain %46 Entry local $2 #0 : ()
+>   %0 = Retain %45 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -219,11 +219,11 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %25 = Break L1 %24 : never
 >   %26 = Block - : &mut string?
 >   %27 = Scope %26 [] : &mut string?
->   %42 = Block - : never
->   %43 = Match %27 [%42 %31 %33] : ()
->   %44 = LoanEnd [%27] : ()
->   %45 = Drop [$2] : ()
->   %46 = Block - : ()
+>   %41 = Block - : never
+>   %42 = Match %27 [%41 %31 %33] : ()
+>   %43 = LoanEnd [%27] : ()
+>   %44 = Drop [$2] : ()
+>   %45 = Block - : ()
         .Some(r) => *r = s
 >   %28 = Read move [$2] : string
 >   %29 = Store [*$3] %28 : ()
@@ -231,9 +231,8 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %31 = Block - : ()
 >   %34 = Read borrow [%27 as #1 .0] : &mut string
 >   %35 = Store [$3] %34 : ()
->   %36 = Release %35 Operation #3 : ()
->   %38 = Block - : never
->   %41 = SwitchTag %27 [#1 %38 %40] : never
+>   %37 = Block - : never
+>   %40 = SwitchTag %27 [#1 %37 %39] : never
         .None => panic("index")
 >   %32 = Call std/core/panic[] ("index") : never
 >   %33 = Block - : never

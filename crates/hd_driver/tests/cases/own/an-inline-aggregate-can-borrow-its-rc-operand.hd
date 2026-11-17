@@ -1,0 +1,152 @@
+# @dump: counts stdout
+# @build: dev | checked | release
+# expected: release readers borrow their one nontrivial constructor operand.
+# Replacing a field of the original source preserves the wrapper's snapshot.
+struct Names:
+    first: string
+    second: string
+
+struct Wrapped:
+    values: Names
+    n: i64
+
+struct PointerHolder:
+    value: *Names
+
+struct Wide:
+    n0: i64
+    n1: i64
+    n2: i64
+    n3: i64
+    n4: i64
+    n5: i64
+    n6: i64
+    n7: i64
+    n8: i64
+    n9: i64
+    text: string
+    n10: i64
+    n11: i64
+    n12: i64
+    n13: i64
+    n14: i64
+    n15: i64
+    n16: i64
+    n17: i64
+    n18: i64
+    n19: i64
+
+type Label(string)
+type TextOrNumber = i32 | string
+
+enum Choice:
+    Pick(text: string)
+    Empty
+
+fn plain(input: Names) -> usize:
+    holder := Wrapped { values: input, n: 1 }
+    holder.values.first.len() + holder.values.second.len()
+
+fn pointer_len(input: *Names) -> usize:
+    holder := PointerHolder { value: input }
+    holder.value.first.len() + holder.value.second.len()
+
+fn replaced(input: Names) -> usize:
+    let mut source = input
+    holder := Wrapped { values: source, n: 1 }
+    source.second = "fresh"
+    churn := source.first + "!"
+    old := if holder.values.second == "beta": 100 else: 1000
+    old + source.second.len() + churn.len()
+
+fn replaced_optional(input: Names) -> usize:
+    let mut source = input
+    let value: Names? = source
+    source.second = "fresh"
+    churn := source.first + "!"
+    old := match value:
+        .Some(snapshot) => if snapshot.second == "beta": 100 else: 1000
+        .None => 10000
+    old + source.second.len() + churn.len()
+
+fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
+    holder := Wrapped { values: *p, n: 1 }
+    alias.second = "fresh"
+    churn := p.first + "!"
+    old := if holder.values.second == "beta": 100 else: 1000
+    old + alias.second.len() + churn.len()
+
+fn enum_len(text: string) -> usize:
+    value := Choice.Pick(text)
+    match value:
+        .Pick(s) => s.len()
+        .Empty => 0
+
+fn tuple_len(text: string) -> usize:
+    value := (text, +2)
+    value._0.len() + usize(value._1)
+
+fn optional_len(text: string) -> usize:
+    let value: string? = text
+    match value:
+        .Some(s) => s.len()
+        .None => 0
+
+fn union_len(text: string) -> usize:
+    let value: TextOrNumber = ._1(text)
+    match value:
+        ._0(_) => 0
+        ._1(s) => s.len()
+
+fn newtype_len(text: string) -> usize:
+    value := Label(text)
+    string(value).len()
+
+fn rest_head(items: List[i32]) -> i32:
+    value := (+2, items...)
+    value._0
+
+fn wide_len(text: string) -> usize:
+    holder := Wide {
+        n0: 0,
+        n1: 0,
+        n2: 0,
+        n3: 0,
+        n4: 0,
+        n5: 0,
+        n6: 0,
+        n7: 0,
+        n8: 0,
+        n9: 0,
+        text: text,
+        n10: 0,
+        n11: 0,
+        n12: 0,
+        n13: 0,
+        n14: 0,
+        n15: 0,
+        n16: 0,
+        n17: 0,
+        n18: 0,
+        n19: 0,
+    }
+    holder.text.len()
+
+pub fn main() -> void $ Console:
+    source := Names { first: "alpha" + "one", second: "b" + "eta" }
+    println(plain(source))
+    println(replaced(source))
+    println(replaced_optional(source))
+    println(source.second)
+    println(enum_len(source.first))
+    println(tuple_len(source.first))
+    println(replaced(Names { first: "alpha" + "one", second: "b" + "eta" }))
+    println(replaced_optional(Names { first: "alpha" + "one", second: "b" + "eta" }))
+    println(wide_len(source.first))
+    shared := box(Names { first: "alpha" + "one", second: "b" + "eta" })
+    println(pointer_len(shared))
+    println(behind_pointer(shared, shared))
+    println(optional_len(source.first))
+    println(union_len(source.first))
+    println(newtype_len(source.first))
+    println(rest_head([+1, +2]))

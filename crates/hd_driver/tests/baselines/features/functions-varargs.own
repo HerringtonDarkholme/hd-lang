@@ -16,10 +16,10 @@ fn total(parts...: List[string]) -> usize:
 >     uses $5: %4 -> %7 lend
 >   local $6 p: string [read assigned] value
 >     uses $6: %24 -> %15 lend last
->   %0 = Release %36 Exit local $0 #2 : ()
+>   %0 = Release %35 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %36 = Block %35 : usize
+>   %35 = Block %34 : usize
     for p in parts:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -36,15 +36,14 @@ fn total(parts...: List[string]) -> usize:
 >   %22 = Block - : ()
 >   %23 = Read borrow [%10] : string
 >   %24 = Store [$6] %23 : ()
->   %25 = Release %24 Operation #3 : ()
->   %27 = Block - : never
->   %28 = Match %10 [%27 %22] : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %8 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %26 = Block - : never
+>   %27 = Match %10 [%26 %22] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %8 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         n += p.len()
 >   %14 = Read copy [$1] : usize
 >   %15 = Read borrow [$6] : string
@@ -55,9 +54,9 @@ fn total(parts...: List[string]) -> usize:
 >   %20 = Prim Add [%14 %19] : usize
 >   %21 = Store [$1] %20 : ()
     n
->   %35 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %34 keeps [$0]
+>   loop %33 keeps [$0]
 
 fn three(a: string, b: string, c: string) -> usize:
 > app/main/three

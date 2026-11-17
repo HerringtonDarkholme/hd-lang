@@ -87,8 +87,8 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %20 -> %15 lend last
->   %0 = Release %31 Exit local $0 #2 : ()
->   %1 = Release %31 Exit local $1 #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -105,16 +105,15 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%10] : string
 >   %20 = Store [$6] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %23 = Block - : never
->   %24 = Match %10 [%23 %18] : ()
->   %25 = Block - : ()
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If %8 [%25 %27] : ()
->   %29 = Block - : ()
->   %30 = Loop %29 - : ()
->   %31 = Block - : ()
+>   %22 = Block - : never
+>   %23 = Match %10 [%22 %18] : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If %8 [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Block - : ()
         f(x)
 >   %14 = Read borrow [$1] : F
 >   %15 = Read copy [$6] : string
@@ -135,10 +134,10 @@ fn fn_mut(xs: List[string]) -> usize:
 >     uses $8: %8 -> %11 lend
 >   local $9 x: string [read assigned] value
 >     uses $9: %34 -> %19 lend last
->   %0 = Release %50 Exit local $0 #2 : ()
+>   %0 = Release %49 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %50 = Block %48 : usize
+>   %49 = Block %47 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Retain %5 Entry local $2 #0 : ()
 >   %3 = Drop [$2] : ()
@@ -173,28 +172,27 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %32 = Block - : ()
 >   %33 = Read borrow [%14] : string
 >   %34 = Store [$9] %33 : ()
->   %35 = Release %34 Operation #3 : ()
->   %37 = Block - : never
->   %38 = Match %14 [%37 %32] : ()
->   %39 = Block - : ()
->   %40 = Break L0 - : never
->   %41 = Block - : ()
->   %42 = If %12 [%39 %41] : ()
->   %43 = Block - : ()
->   %44 = Loop %43 - : ()
->   %45 = Break L1 - : never
->   %46 = Block - : ()
->   %47 = Scope %46 [] : ()
+>   %36 = Block - : never
+>   %37 = Match %14 [%36 %32] : ()
+>   %38 = Block - : ()
+>   %39 = Break L0 - : never
+>   %40 = Block - : ()
+>   %41 = If %12 [%38 %40] : ()
+>   %42 = Block - : ()
+>   %43 = Loop %42 - : ()
+>   %44 = Break L1 - : never
+>   %45 = Block - : ()
+>   %46 = Scope %45 [] : ()
 >   %18 finds [$1] full
 >   %25 finds [$1] full
->   %44 finds [$1] full
+>   %43 finds [$1] full
     n
->   %48 = Read copy [$1] : usize
->   %49 = Drop [$1] : ()
->   %48 finds [$1] full
+>   %47 = Read copy [$1] : usize
+>   %48 = Drop [$1] : ()
+>   %47 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$2]
 >   storage sub 0: $1 slot
 >   storage sub 1: $1 cell
 >   summary kept [] borrows [$0]
->   loop %44 keeps [$0]
+>   loop %43 keeps [$0]

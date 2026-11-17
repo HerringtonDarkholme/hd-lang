@@ -11,7 +11,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   local $0 values: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %2 -> %3 consume, %19 lend, %35 consume last
+>     uses $1: %2 -> %3 consume, %19 lend, %34 consume last
 >   local $2 $coll: List[string] [assigned] value
 >     uses $2: %4 -> %5 lend, %13 lend
 >   local $4 $pos: usize [assigned] place
@@ -19,11 +19,11 @@ fn doubled(values: List[string]) -> List[string]:
 >     uses $5: %7 -> %10 lend
 >   local $6 v: string [read assigned] value
 >     uses $6: %23 -> %17 consume last
->   %0 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %35 Entry local $0 #0 : ()
     let mut out = values
 >   %1 = Read move [$0] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %36 = Block %35 : List[string]
+>   %35 = Block %34 : List[string]
     for v in out:
 >   %3 = Read copy [$1] : List[string]
 >   %4 = Store [$2] %3 : ()
@@ -42,26 +42,25 @@ fn doubled(values: List[string]) -> List[string]:
 >   %21 = Block - : ()
 >   %22 = Read borrow [%13] : string
 >   %23 = Store [$6] %22 : ()
->   %24 = Release %23 Operation #3 : ()
->   %26 = Block - : never
->   %27 = Match %13 [%26 %21] : ()
->   %28 = Block - : ()
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %11 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
->   %34 = Drop [$2] : ()
+>   %25 = Block - : never
+>   %26 = Match %13 [%25 %21] : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %11 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
+>   %33 = Drop [$2] : ()
         out.push(v)
 >   %17 = Read copy [$6] : string
 >   %18 = IsUnique [$1] : ()
 >   %19 = Read borrow [$1] : List[string]
 >   %20 = Intrinsic ListPush [%19 %17] : ()
     out
->   %35 = Read move [$1] : List[string]
+>   %34 = Read move [$1] : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
->   loop %33 keeps [$2]
+>   loop %32 keeps [$2]
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
 > app/main/cursor_then_push

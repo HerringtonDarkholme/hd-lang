@@ -17,11 +17,11 @@ fn by_value(m: Map[string, string]) -> usize:
 >   local $6 k: &string [read assigned] value
 >     uses $6: %34 -> %24 lend last
 >   local $7 v: &string [read assigned] value
->     uses $7: %36 -> %26 lend last
->   %0 = Release %49 Exit local $0 #2 : ()
+>     uses $7: %35 -> %26 lend last
+>   %0 = Release %47 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %49 = Block %48 : usize
+>   %47 = Block %46 : usize
     for (k, v) in m:
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Intrinsic MapLen [%2] : usize
@@ -48,18 +48,16 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %32 = Read borrow [%19 .0] : &string
 >   %33 = Read borrow [%19 .1] : &string
 >   %34 = Store [$6] %32 : ()
->   %35 = Release %34 Operation #3 : ()
->   %36 = Store [$7] %33 : ()
->   %37 = Release %36 Operation #3 : ()
->   %39 = Block - : never
->   %40 = Match %19 [%39 %31] : ()
->   %41 = Drop [%19] : ()
+>   %35 = Store [$7] %33 : ()
+>   %37 = Block - : never
+>   %38 = Match %19 [%37 %31] : ()
+>   %39 = Drop [%19] : ()
+>   %40 = Block - : ()
+>   %41 = Break L0 - : never
 >   %42 = Block - : ()
->   %43 = Break L0 - : never
+>   %43 = If %16 [%40 %42] : ()
 >   %44 = Block - : ()
->   %45 = If %16 [%42 %44] : ()
->   %46 = Block - : ()
->   %47 = Loop %46 - : ()
+>   %45 = Loop %44 - : ()
         n += k.len() + v.len()
 >   %23 = Read copy [$1] : usize
 >   %24 = Read borrow [$6] : &string
@@ -70,7 +68,7 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %29 = Prim Add [%23 %28] : usize
 >   %30 = Store [$1] %29 : ()
     n
->   %48 = Read copy [$1] : usize
+>   %46 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
 
 fn by_ref(m: &Map[string, string]) -> usize:
@@ -89,7 +87,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   local $6 v: &string [read assigned] value
 >     uses $6: %31 -> %25 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %44 = Block %43 : usize
+>   %43 = Block %42 : usize
     for (_, v) in m:
 >   %1 = Read borrow [*$0] : Map[string, string]
 >   %2 = Store [$2] %1 : ()
@@ -117,16 +115,15 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   %29 = Block - : ()
 >   %30 = Read borrow [%20 .1] : &string
 >   %31 = Store [$6] %30 : ()
->   %32 = Release %31 Operation #3 : ()
->   %34 = Block - : never
->   %35 = Match %20 [%34 %29] : ()
->   %36 = Drop [%20] : ()
->   %37 = Block - : ()
->   %38 = Break L0 - : never
->   %39 = Block - : ()
->   %40 = If %17 [%37 %39] : ()
->   %41 = Block - : ()
->   %42 = Loop %41 - : ()
+>   %33 = Block - : never
+>   %34 = Match %20 [%33 %29] : ()
+>   %35 = Drop [%20] : ()
+>   %36 = Block - : ()
+>   %37 = Break L0 - : never
+>   %38 = Block - : ()
+>   %39 = If %17 [%36 %38] : ()
+>   %40 = Block - : ()
+>   %41 = Loop %40 - : ()
         n += v.len()
 >   %24 = Read copy [$1] : usize
 >   %25 = Read borrow [$6] : &string
@@ -134,7 +131,7 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   %27 = Prim Add [%24 %26] : usize
 >   %28 = Store [$1] %27 : ()
     n
->   %43 = Read copy [$1] : usize
+>   %42 = Read copy [$1] : usize
 >   summary kept []
 
 fn keys(m: Map[string, string]) -> List[string]:

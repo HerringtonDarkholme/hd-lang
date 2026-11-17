@@ -2,10 +2,8 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $unused (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
@@ -44,11 +42,6 @@
   (func $discard (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     _ := save(s)
     local.get $s.0
-    if
-      local.get $s.0
-      call $retain
-    end
-    local.get $s.0
     local.get $s.1
     call $"impl string.len"
     if (result i32)
@@ -78,18 +71,8 @@
     local.get $t1
     local.get $t0
     call $rt:release
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
     ;; 15 |     let _ = save(s)
     local.get $s.0
-    if
-      local.get $s.0
-      call $retain
-    end
-    local.get $s.0
     local.get $s.1
     call $"impl string.len"
     if (result i32)
@@ -119,11 +102,6 @@
     local.get $t1
     local.get $t0
     call $rt:release
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
     ;; 16 |     s.len()
     local.get $s.1
   )
