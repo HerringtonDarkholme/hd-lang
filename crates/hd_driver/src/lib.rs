@@ -1683,6 +1683,13 @@ struct Run<'a> {
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
     entry_roots: OnceLock<Vec<DefId>>,
+    /// Per generic item, the bodies its folded and inlined form
+    /// (`BodyForms::inlined`) read: a body that substitutes the cached
+    /// form reads them too (`own::Run::package_owned_key`, #2028).
+    inlined_reads: Mutex<HashMap<DefId, Arc<[DefId]>>>,
+    /// The hash of every non-std module's declarations, once per run
+    /// (`own::Run::program_api_hash`).
+    program_api: OnceLock<Hash128>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -2717,6 +2724,8 @@ fn build_packages_inner(
             .then(own::Summaries::default),
         instances: Mutex::new(HashMap::default()),
         entry_roots: OnceLock::new(),
+        inlined_reads: Mutex::new(HashMap::default()),
+        program_api: OnceLock::new(),
         promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"arg_promote"),
@@ -9505,9 +9514,16 @@ impl Run<'_> {
         b: &'p LazyBody,
     ) -> Option<&'p (Body, Hash128)> {
         let key = self.owned_std_key(def, b);
-        if let Some(key) = key
-            && let Some(stored) = self.stored_owned(key)
-        {
+        let package_key = key
+            .is_none()
+            .then(|| self.package_owned_key(def, b))
+            .flatten();
+        let stored = match (key, package_key) {
+            (Some(key), _) => self.stored_owned(key),
+            (_, Some(key)) => self.stored_package_owned(p, key),
+            _ => None,
+        };
+        if let Some(stored) = stored {
             #[cfg(test)]
             own::owned_cache_tests::verify_stored(self, p, &stored.0);
             return b.owned.get_or_init(|| Some(stored)).as_ref();
@@ -9522,9 +9538,11 @@ impl Run<'_> {
         self.owned_bottom_up(p, (def, TyList::EMPTY));
         b.owned
             .get_or_init(|| {
-                let owned = self.own_body(p, raw.clone(), *hash);
+                let (owned, reads) = own::reading(|| self.own_body(p, raw.clone(), *hash));
                 if let (Some(key), Some(owned)) = (key, &owned) {
                     self.store_owned(key, owned);
+                } else if let (Some(key), Some(owned)) = (package_key, &owned) {
+                    self.store_package_owned(p, def, key, owned, reads);
                 }
                 owned
             })

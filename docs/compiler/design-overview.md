@@ -72,7 +72,7 @@ edit from one key.
 | Coherence | impl heads of the traits whose `coh_key` changed | `overlapping-impl` | one task per changed trait | `coh` part of `graph` | trait path plus sorted head hashes |
 | Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder | `init` part of `graph` | `init_key` |
 | Package result | all of the above | sorted diagnostics, summary | package | no | |
-| Collect, Link | TIR, interfaces | Wasm | program | `link` per program; `owned` per std body in a dev build | `prog_key`; `owned_std_key` |
+| Collect, Link | TIR, interfaces | Wasm | program | `link` per program; `owned` per std or package body in a dev build | `prog_key`; `owned_std_key`, `package_owned_key` |
 
 Planned, not built: per-instance code entries packed per folder group
 (`codepack`, `packhint`) and one `Emit` task per folder group with a miss

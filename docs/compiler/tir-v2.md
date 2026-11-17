@@ -706,7 +706,12 @@ serves only past the instance leaf limit
 ([As built](#as-built-2026-11-13)). A std body's owned form
 in a dev build is the same in every program, so the driver stores it
 and later builds decode it instead of running the passes again
-(`Run::owned_std_key`, #1423).
+(`Run::owned_std_key`, #1423). A package body's owned form is stored
+too, keyed by the body, the program's declarations and the build's
+settings, with the bodies the folds and the inliner read, each by TIR
+hash; a later dev build takes it while each still hashes the same
+(`Run::package_owned_key`, #2028). After a body edit, the passes run on
+the edited bodies and the bodies that read them.
 
 - **Why after decoding, not in `ModuleFinish`.** At decode the program's
   layout facts are at hand (whether a type has counted leaves), and the

@@ -3,7 +3,9 @@
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
 //! `dbg` body); a std body in a dev build is owned once per toolchain
-//! and settings and stored (`Run::owned_std_key`). Checked and debug
+//! and settings and stored (`Run::owned_std_key`), and a package body
+//! once per body, program declarations and bodies read
+//! (`Run::package_owned_key`). Checked and debug
 //! builds, and any build that asks
 //! (`Packages::verify_own`), verify the result
 //! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' own
@@ -2600,9 +2602,16 @@ impl Env<'_> {
     /// ([`Env::inlined_instance`] at no type arguments), once.
     pub(super) fn generic_inlined(&self, def: DefId) -> Option<&(Body, Hash128)> {
         let lazy = self.run.lazy_body(self.p, def)?;
-        let inlined = lazy
-            .inlined
-            .get_or_init(|| self.inlined_instance((def, TyList::EMPTY)).map(Box::new));
+        let inlined = lazy.inlined.get_or_init(|| {
+            let (inlined, reads) = reading(|| self.inlined_instance((def, TyList::EMPTY)));
+            lock(&self.run.inlined_reads).insert(def, reads.into());
+            inlined.map(Box::new)
+        });
+        // The reads that made the form, here or under another body, are
+        // this body's too (#2028).
+        if let Some(reads) = lock(&self.run.inlined_reads).get(&def) {
+            note_reads(reads);
+        }
         inlined.as_deref()
     }
 
@@ -3118,9 +3127,35 @@ impl Env<'_> {
     }
 }
 
+thread_local! {
+    /// The bodies each running [`reading`] call has read, innermost last.
+    static READS: RefCell<Vec<Vec<DefId>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Records reads of `defs` for the innermost [`reading`] call running.
+fn note_reads(defs: &[DefId]) {
+    READS.with(|r| {
+        if let Some(top) = r.borrow_mut().last_mut() {
+            top.extend_from_slice(defs);
+        }
+    });
+}
+
+/// Runs `f`, and returns the bodies it read through [`Run::lazy_body`].
+/// A body's owned form read under another's reading would hold its reads
+/// there; no dev build does, since only collection and release argument
+/// promotion read one (`ProgramEnv::body`).
+pub(super) fn reading<T>(f: impl FnOnce() -> T) -> (T, Vec<DefId>) {
+    READS.with(|r| r.borrow_mut().push(Vec::new()));
+    let out = f();
+    let reads = READS.with(|r| r.borrow_mut().pop().unwrap_or_default());
+    (out, reads)
+}
+
 impl Run<'_> {
     /// The body table's entry for `def`.
     pub(super) fn lazy_body<'p>(&self, p: &'p ProgramTables, def: DefId) -> Option<&'p LazyBody> {
+        note_reads(&[def]);
         p.body_entry(self.paths.hash(hd_base::PathId::from_raw(def.raw())), def)
     }
 
@@ -3148,6 +3183,8 @@ impl Run<'_> {
         body: Body,
         hash: Hash128,
     ) -> Option<(Body, Hash128)> {
+        let path = self.names().path(body.item);
+        lock(&self.counters).bodies_owned.push(path);
         let owned = self.with_env(p, |env| {
             let mut body = body;
             let hash = env.fold_and_inline(&mut body, hash);
@@ -3234,6 +3271,159 @@ impl Run<'_> {
                 hd_cache::EntryKind::Owned,
                 key,
                 &[&hash.0.to_le_bytes(), &wire],
+            );
+        }
+    }
+
+    /// The store key of package body `b`'s owned form, item `def`'s, or
+    /// `None` where a build may not share it (#2028). The passes read the
+    /// body, the program's declarations and impls, and the bodies the
+    /// folds and the inliner copy in. The key holds the first two; the
+    /// entry holds the bodies read, each by path and TIR hash, and
+    /// [`Run::stored_package_owned`] takes it only while each still
+    /// hashes the same (rustc's red-green check of a query's recorded
+    /// reads). Keyed:
+    /// - the settings in [`Run::owned_std_key`]'s key, and the root
+    ///   package's key and settings;
+    /// - every non-std module's declarations ([`Run::program_api_hash`]):
+    ///   impl selection, associated-type normalization, `has_drop` and
+    ///   layouts read them, private ones included;
+    /// - whether the body is an entry root (`OwnCx::entry_root`) and its
+    ///   package fetched (`module.dbg.own-code`), and its TIR hash.
+    ///
+    /// Left out, as for std: a release build, whose passes read the
+    /// callees' summaries, and a build that promotes arguments, which
+    /// reads callees' owned bodies.
+    pub(super) fn package_owned_key(&self, def: DefId, b: &LazyBody) -> Option<Hash128> {
+        let (m, entry, at) = b.wire.as_ref()?;
+        let package = usize::from(self.table.modules[*m].package);
+        if self.summaries.is_some() || self.promote_args || package == self.table.packages.len() - 1
+        {
+            return None;
+        }
+        let entry_root = self
+            .entry_roots
+            .get()
+            .is_some_and(|roots| roots.contains(&def));
+        let mut k = StableHasher::new("owned-package-body-v1");
+        k.hash(self.toolchain);
+        k.hash(self.pipeline);
+        k.u8(self.build_profile as u8);
+        k.u8(u8::from(self.checked()));
+        k.u8(u8::from(self.verifies_own()));
+        k.hash(self.package_key);
+        k.hash(self.root_settings);
+        k.hash(self.program_api_hash());
+        k.hash(self.paths.hash(hd_base::PathId::from_raw(def.raw())));
+        k.u8(u8::from(entry_root));
+        k.u8(u8::from(self.fetched[package]));
+        k.hash(hd_tir::wire::tir_hash(entry.get(at.clone())?));
+        Some(k.finish())
+    }
+
+    /// One hash of every non-std module's declarations, private ones
+    /// included, and every non-std folder's interface with its impl
+    /// heads; once per run, linear in the modules. A body edit changes
+    /// neither (`HeaderSkeleton::api_text_hash` leaves bodies out, and
+    /// `template_text_hash` keeps only those whose signature is inferred).
+    fn program_api_hash(&self) -> Hash128 {
+        *self.program_api.get_or_init(|| {
+            let std = self.table.packages.len() - 1;
+            let mut k = StableHasher::new("owned-program-api-v1");
+            for (m, module) in self.table.modules.iter().enumerate() {
+                if usize::from(module.package) == std {
+                    continue;
+                }
+                let file = &self.skim_of(m).file;
+                k.str(&module.path);
+                k.hash(file.api_text_hash);
+                k.hash(file.template_text_hash);
+            }
+            for (f, folder) in self.table.folders.iter().enumerate() {
+                if usize::from(folder.package) == std {
+                    continue;
+                }
+                k.str(&folder.path);
+                let heads = u32::try_from(f)
+                    .ok()
+                    .and_then(|f| self.iface_of(hd_base::FolderId::from_raw(f)));
+                k.hash(heads.map_or(Hash128::default(), |i| i.heads_hash));
+            }
+            k.finish()
+        })
+    }
+
+    /// Package body `def`'s owned form stored under `key`
+    /// ([`Run::package_owned_key`]), when every body its passes read
+    /// still has the TIR hash they read.
+    pub(super) fn stored_package_owned(
+        &self,
+        p: &ProgramTables,
+        key: Hash128,
+    ) -> Option<(Body, Hash128)> {
+        let sections = self.lookup(hd_cache::EntryKind::Owned, key)?;
+        let [hash, wire, reads] = &sections[..] else {
+            return None;
+        };
+        for read in reads.chunks(32) {
+            let path = Hash128(u128::from_le_bytes(read.get(..16)?.try_into().ok()?));
+            let then = Hash128(u128::from_le_bytes(read.get(16..)?.try_into().ok()?));
+            let (_, entry, at) = p.bodies.all.get(&path)?.wire.as_ref()?;
+            if hd_tir::wire::tir_hash(entry.get(at.clone())?) != then {
+                return None;
+            }
+        }
+        let hash = Hash128(u128::from_le_bytes((**hash).try_into().ok()?));
+        let body = hd_tir::wire::read_body(wire, &self.pool, &self.paths, &self.syms)?;
+        Some((body, hash))
+    }
+
+    /// Stores package body `def`'s owned form under `key`, with the
+    /// bodies its passes read (`reads`) other than std's, which the
+    /// toolchain hash covers, and its own, which the key holds.
+    pub(super) fn store_package_owned(
+        &self,
+        p: &ProgramTables,
+        def: DefId,
+        key: Hash128,
+        (body, hash): &(Body, Hash128),
+        mut reads: Vec<DefId>,
+    ) {
+        let std = self.table.packages.len() - 1;
+        reads.sort_stable_by_key(|d| d.raw());
+        reads.dedup();
+        let mut rows = Vec::with_capacity(reads.len() * 32);
+        let mut sorted = Vec::with_capacity(reads.len());
+        for read in reads {
+            // A bodyless callee is a declaration, in the key.
+            let Some(lazy) = self.lazy_body(p, read) else {
+                continue;
+            };
+            let wire = lazy.wire.as_ref();
+            if read == def
+                || wire.is_some_and(|(m, ..)| usize::from(self.table.modules[*m].package) == std)
+            {
+                continue;
+            }
+            // A body built in this run has no bytes, and no later build
+            // finds its zero hash.
+            let then = wire
+                .and_then(|(_, entry, at)| entry.get(at.clone()))
+                .map_or(Hash128::default(), hd_tir::wire::tir_hash);
+            sorted.push((self.paths.hash(hd_base::PathId::from_raw(read.raw())), then));
+        }
+        // Path order, so equal reads give equal bytes in any run.
+        sorted.sort_stable_by_key(|&(path, _)| path.0);
+        for (path, then) in sorted {
+            rows.extend_from_slice(&path.0.to_le_bytes());
+            rows.extend_from_slice(&then.0.to_le_bytes());
+        }
+        // Ruled out: a refusal, as in `Run::store_owned`.
+        if let Ok(wire) = hd_tir::wire::write_body(body, &self.pool, &self.paths, &self.syms) {
+            self.put(
+                hd_cache::EntryKind::Owned,
+                key,
+                &[&hash.0.to_le_bytes(), &wire, &rows],
             );
         }
     }
