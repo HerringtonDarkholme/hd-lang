@@ -704,6 +704,7 @@ impl Ck<'_, '_> {
                     if self.first_unknown_variant(t) {
                         let msg = self.unknown_variant_msg(&name, t);
                         self.err(Code::UnknownVariant, p, &msg);
+                        self.result_pattern_fixes(t, p);
                     }
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);

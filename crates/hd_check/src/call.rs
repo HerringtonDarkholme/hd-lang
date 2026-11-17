@@ -5395,7 +5395,16 @@ impl Ck<'_, '_> {
                     closure_wants: Some(&closure_wants),
                     destination: ArgumentDestination::Call,
                 };
+                let before = self.diags.len();
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
+                if name == "append" && params.len() == 2 && refs.len() == 2 {
+                    self.list_element_append_fixes(
+                        (rt, params[1].1, self.b.ty_of(refs[1])),
+                        args,
+                        n,
+                        before,
+                    );
+                }
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
                 self.row_argument_vars(impl_def, &impl_args, n);
                 self.open_call_params(method, &vars, &refs, n);
@@ -5589,9 +5598,127 @@ impl Ck<'_, '_> {
                     String::new()
                 };
                 let msg = format!("no method `{name}` on {}{advice}", self.show(rt));
-                self.no_method(rt, name, n, &msg);
+                if self.no_method(rt, name, n, &msg) && name == "unwrap" {
+                    self.unwrap_suggestions(rt, args, n, want);
+                }
                 Ok((Ref(NONE), Ty::POISON))
             }
+        }
+    }
+
+    /// The no-argument spelling has two policies: expect success, or use
+    /// a default value. Error formatting is offered only with Display.
+    fn unwrap_suggestions(&mut self, rt: Ty, args: &Args<'_>, n: NodeRef<'_>, want: Option<Ty>) {
+        if !args.positional.is_empty()
+            || args.spread.is_some()
+            || !args.after_spread.is_empty()
+            || !args.named.is_empty()
+            || args.trailing.is_some()
+            || !self.method_targs.is_empty()
+        {
+            return;
+        }
+        let pool = self.pool();
+        let rt = self
+            .ref_of(self.resolved(rt))
+            .map_or(self.resolved(rt), |(inner, _)| inner);
+        let TyData::Adt { def, args: types } = pool.get(rt) else {
+            return;
+        };
+        let types = pool.list_items(types);
+        let (value, error) = match types {
+            [value, error] if def == self.cx.names.known.result => (*value, Some(*error)),
+            [value] if def == self.cx.names.known.option => (*value, None),
+            _ => return,
+        };
+        let Some(callee) = n.children().next() else {
+            return;
+        };
+        let Some(name) = callee.name(&self.cx.src.parse.tokens) else {
+            return;
+        };
+        let Some(arguments) = Src::child(n, SyntaxKind::ArgumentList) else {
+            return;
+        };
+        let Some(open) = arguments.direct_token(&self.cx.src.parse.tokens, TokenKind::LParen)
+        else {
+            return;
+        };
+        let method = self.cx.src.token_span(name);
+        let argument = self.cx.src.token_span(open);
+        let argument = hd_base::Span {
+            lo: argument.hi,
+            hi: argument.hi,
+            ..argument
+        };
+        let discard =
+            if want.is_some_and(|ty| self.resolved(self.infer.resolve(pool, ty)) == Ty::VOID) {
+                let tree = &self.cx.src.parse.tree;
+                let mut parent = tree.parent(n.index());
+                while let Some(index) = parent {
+                    if tree.node(index).kind() != SyntaxKind::ParenExpr {
+                        break;
+                    }
+                    parent = tree.parent(index);
+                }
+                parent
+                    .map(|index| tree.node(index))
+                    .filter(|node| node.kind() == SyntaxKind::ExprStmt)
+                    .map(|node| {
+                        let span = self.cx.src.span(node);
+                        hd_base::Span {
+                            hi: span.lo,
+                            ..span
+                        }
+                    })
+            } else {
+                None
+            };
+        let statement = |mut edits: Vec<(hd_base::Span, String)>| {
+            if let Some(at) = discard {
+                // An import and a script's discard can start at the same
+                // byte. Keep them one insertion in source order.
+                if let Some((_, text)) = edits.iter_mut().find(|(span, _)| *span == at) {
+                    text.push_str("_ := ");
+                } else {
+                    edits.push((at, "_ := ".into()));
+                }
+            }
+            edits
+        };
+        if error.is_none_or(|ty| self.suggestion_trait(ty, self.cx.names.known.display)) {
+            self.guess_fix(
+                "expect a successful value",
+                &statement(vec![
+                    (method, "expect".to_owned()),
+                    (argument, "\"missing value\"".to_owned()),
+                ]),
+            );
+        }
+        if let Some(mut edits) = self.default_suggestion(value, method) {
+            edits.extend([
+                (method, "unwrap_or".to_owned()),
+                (argument, "Default::default()".to_owned()),
+            ]);
+            self.guess_fix("use the value type's default on failure", &statement(edits));
+        }
+        if error.is_some() {
+            let end = self.cx.src.span(n);
+            self.guess_fix(
+                "discard the error text and expect a value",
+                &statement(vec![
+                    (method, "map_err".to_owned()),
+                    (argument, "fn(_error): \"\"".to_owned()),
+                    (
+                        hd_base::Span {
+                            lo: end.hi,
+                            hi: end.hi,
+                            ..end
+                        },
+                        ".expect(\"missing value\")".to_owned(),
+                    ),
+                ]),
+            );
         }
     }
 

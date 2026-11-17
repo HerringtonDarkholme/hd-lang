@@ -14,6 +14,78 @@ impl Parser<'_> {
         self.ty_with(true)
     }
 
+    /// An annotation with a named binding: prefer moving a displaced `mut`
+    /// to that binding over changing the type to a reference.
+    pub(crate) fn ty_binding(&mut self, binding: usize, parameter: bool) -> Done {
+        let annotation = self.pos();
+        let error = self
+            .at(TokenKind::KwMut)
+            .then(|| (self.errors.len(), self.token_span(self.pos()).0));
+        let done = if parameter {
+            self.ty_parameter()
+        } else {
+            self.ty()
+        };
+        let annotation_end = self.pos();
+        if let Some((error, keyword)) = error {
+            let (lo, _) = self.token_span(binding);
+            let already_mutable = self.toks.kind[binding] == TokenKind::KwMut;
+            if let Some(diagnostic) = self.errors.get_mut(error)
+                && diagnostic.primary.lo == keyword
+                && let Some(mut preferred) = diagnostic.fixes.last().cloned()
+            {
+                if already_mutable {
+                    diagnostic.fixes.clear();
+                } else {
+                    let at = hd_base::Span {
+                        lo,
+                        hi: lo,
+                        ..diagnostic.primary
+                    };
+                    preferred.edits.insert(0, (at, "mut ".to_owned()));
+                }
+                (if already_mutable {
+                    "remove `mut` from the type"
+                } else {
+                    "move `mut` before the binding"
+                })
+                .clone_into(&mut preferred.message);
+                if !already_mutable && !parameter {
+                    // A reference annotation alone would leave an ordinary
+                    // initializer and value returns ill-typed. Infer the
+                    // existing value's type as the second binding repair.
+                    diagnostic.fixes.clear();
+                    if annotation > 0
+                        && annotation_end > annotation
+                        && self.toks.kind[annotation - 1] == TokenKind::Colon
+                    {
+                        let mut inferred = preferred.clone();
+                        "make the binding mutable and infer its type"
+                            .clone_into(&mut inferred.message);
+                        let colon = self.toks.start[annotation - 1];
+                        let end = self.toks.end[annotation_end - 1];
+                        inferred.edits.truncate(1);
+                        inferred.edits.push((
+                            hd_base::Span {
+                                lo: colon,
+                                hi: end,
+                                ..diagnostic.primary
+                            },
+                            String::new(),
+                        ));
+                        diagnostic.fixes.push(inferred);
+                    }
+                } else if parameter && !already_mutable {
+                    // Removing `mut` alone leaves writes to the parameter
+                    // invalid. Retain the writable-reference alternative.
+                    diagnostic.fixes.pop();
+                }
+                diagnostic.fixes.insert(0, preferred);
+            }
+        }
+        done
+    }
+
     /// `result_type`: a function type here carries no requirement clause,
     /// so a header's clause belongs to the header.
     pub(crate) fn ty_result(&mut self) -> Done {
@@ -136,13 +208,25 @@ impl Parser<'_> {
             self.ty_reference(rows);
             self.complete(marker, SyntaxKind::Error)
         } else if self.at(TokenKind::KwMut) {
-            // grammar.type.no-mut: no type starts with `mut`. The type after
-            // it stands, so nothing more is reported about it.
+            // Recover a whole repeated prefix iteratively; malformed input
+            // must not make a native recursion chain.
+            let error = self.errors.len();
             self.error(
                 Code::SyntaxError,
                 "a type cannot start with `mut`: write `let mut name: T` or `mut name: T` for a binding that changes, or `&mut T` for a writable reference",
             );
-            self.bump();
+            let mut remove = Vec::new();
+            while self.at(TokenKind::KwMut) {
+                let (lo, hi) = self.token_span(self.pos());
+                remove.push((lo, hi, ""));
+                self.bump();
+            }
+            let mut reference = remove.clone();
+            if let Some(first) = reference.first_mut() {
+                first.2 = "&mut";
+            }
+            self.suggest_error(error, "use a writable reference type", &reference);
+            self.suggest_error(error, "remove `mut` from the type", &remove);
             self.abandon(marker);
             return self.ty_inner(rows);
         } else {

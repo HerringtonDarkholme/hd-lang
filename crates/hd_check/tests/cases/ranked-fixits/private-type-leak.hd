@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+
+struct Item:
+    name: string
+
+pub fn label(item: Item) -> string:
+    item.name

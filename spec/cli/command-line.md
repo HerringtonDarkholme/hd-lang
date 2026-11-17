@@ -1290,7 +1290,7 @@ hd check shape.hd
 #     fix: insert `dyn` before the trait name
 ```
 
-1. r[cli.text.fix-line] In text output, each fix-it of a diagnostic prints on its own line after the diagnostic's line: four spaces, `fix: `, and the fix-it's message, as [`cli.json.fix.object`](#r-cli.json.fix.object) gives it.
+1. r[cli.text.fix-line] In text output, each fix-it of a diagnostic prints on its own line after the diagnostic's line: four spaces, `fix: `, and the fix-it's message, as [`cli.json.fix.object.v2`](#r-cli.json.fix.object.v2) gives it.
 
 > **Note.** The rest of a text diagnostic's layout is the implementation's.
 > [Machine Output](#machine-output) is the stable form, and it also holds
@@ -1318,11 +1318,13 @@ hd check --format json
 12. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
 13. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
 14. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
-15. r[cli.json.fix.object] A fix-it is an object with the fields `message`, which says what the fix-it does, and `edits`, a list of its edits.
+15. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
 16. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
 17. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
 18. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
-19. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+19. r[cli.json.fix.ranked] When a diagnostic has two or more plausible repairs, `fixes` lists them in order, likeliest first.
+20. r[cli.json.fix.guess] `guess` is `true` for an uncertain repair, including the first alternative when several repairs are plausible.
+21. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
 
 > **Note.** A diagnostic object's `file` names its file by
 > [`cli.diagnostic.file`](#r-cli.diagnostic.file), as text output does.
@@ -1330,7 +1332,7 @@ hd check --format json
 ```sh
 hd check --format json
 # {"kind":"diagnostic","code":"unknown-name","severity":"error","message":"...","file":"src/cart.hd","line":4,"column":12,
-#  "fixes":[{"message":"replace 'totl' with 'total'","edits":[{"file":"src/cart.hd","start":61,"end":65,"text":"total"}]}]}
+#  "fixes":[{"message":"replace 'totl' with 'total'","guess":true,"edits":[{"file":"src/cart.hd","start":61,"end":65,"text":"total"}]}]}
 # {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":1}
 ```
 

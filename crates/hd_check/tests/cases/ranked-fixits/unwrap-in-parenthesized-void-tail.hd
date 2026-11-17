@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+
+fn parenthesized(value: string?) -> void:
+    (value.unwrap())

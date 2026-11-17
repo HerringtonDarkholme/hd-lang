@@ -1,6 +1,6 @@
 // Reading and applying the CLI specification's fix-its
-// (cli.json.fix.object, cli.json.fix.edit, cli.json.fix.offsets).
-// `fixes` lists alternatives; the metric applies only a single fix for
+// (cli.json.fix.object.v2, cli.json.fix.edit, cli.json.fix.offsets).
+// `fixes` lists ranked alternatives; the metric applies the first fix for
 // the diagnostic's own file. Offsets count UTF-8 bytes, with an exclusive end.
 
 export interface Edit {
@@ -41,9 +41,9 @@ function readFix(value: unknown): Edit[] | undefined {
   return edits;
 }
 
-/** One unambiguous fix this single-file metric can apply, or undefined. */
+/** The first ranked fix this single-file metric can apply, or undefined. */
 export function fixOf(diagnostic: Record<string, unknown>): Edit[] | undefined {
-  if (!Array.isArray(diagnostic.fixes) || diagnostic.fixes.length !== 1) {
+  if (!Array.isArray(diagnostic.fixes) || diagnostic.fixes.length === 0) {
     return undefined;
   }
   const edits = readFix(diagnostic.fixes[0]);

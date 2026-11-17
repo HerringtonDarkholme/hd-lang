@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+
+fn plain(value: string?) -> void:
+    value.unwrap()

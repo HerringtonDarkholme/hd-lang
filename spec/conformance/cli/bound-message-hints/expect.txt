@@ -50,7 +50,7 @@ run: hd check --format json list-spread.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json optional.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"string? does not implement Display; use `debug(value)` or `unwrap_or(...)`","line":2,"column":8,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"string? does not implement Display; use `debug(value)` or `unwrap_or(...)`","line":2,"column":8,"fixes":[{"message":"format the present value, or empty text when absent","guess":true,"edits":[{"file":"optional.hd","start":41,"end":46,"text":"(value).as_ref().map(fn(value): \"$value\").unwrap_or(\"\")"}]},{"message":"expect a present value before formatting","guess":true,"edits":[{"file":"optional.hd","start":41,"end":46,"text":"(value).as_ref().expect(\"missing value\")"}]},{"message":"format the optional with `debug`","guess":true,"edits":[{"file":"optional.hd","start":41,"end":46,"text":"debug(value)"}]}],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json probe-does-not-learn.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"Wrapper[usize] does not implement Container[i32]; integer literals defaulted to `usize`","line":15,"column":5,"fixes":[],"file":"probe-does-not-learn.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

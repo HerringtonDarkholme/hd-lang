@@ -82,6 +82,9 @@ pub struct Finding {
     /// `data.enum.no-recursion.fix`, `types.newtype.no-recursion.fix`).
     /// Empty for every other finding.
     pub ref_fix: Vec<u32>,
+    /// Visibility choices, ranked: declaration and whether to expose it.
+    /// `DefId`s are remapped through the folder's existing own-item index.
+    pub visibility_fix: Vec<(DefId, bool)>,
 }
 
 /// Stage B over a folder's interface items that `HeaderCheck(F)` covers
@@ -521,6 +524,7 @@ impl<'a> ItemCheck<'_, 'a> {
             code,
             message,
             ref_fix: Vec::new(),
+            visibility_fix: Vec::new(),
         });
     }
 
@@ -911,6 +915,42 @@ impl<'a> ItemCheck<'_, 'a> {
             self.cx.names.display_name(self.item)
         );
         self.report(slot, Code::PrivateTypeLeak, message);
+        let hide = match self.cx.lookup.item(self.item).map(|item| &item.data) {
+            Some(ItemData::Method { owner, .. })
+                if matches!(
+                    self.cx.lookup.item(*owner).map(|item| &item.data),
+                    Some(ItemData::Trait { .. })
+                ) =>
+            {
+                *owner
+            }
+            _ => self.item,
+        };
+        let hidden = match self.cx.lookup.item(hide).map(|item| &item.data) {
+            Some(ItemData::Impl {
+                self_ty, trait_, ..
+            }) => {
+                // An impl's publicness belongs to its trait and target
+                // (`module.vis.signature.coverage`), not an impl modifier.
+                let target = match self.pool().get(*self_ty) {
+                    TyData::Adt { def, .. } => def,
+                    _ => DefId::NONE,
+                };
+                [target, *trait_]
+            }
+            _ => [hide, DefId::NONE],
+        };
+        let mut fixes = vec![(def, true)];
+        fixes.extend(
+            hidden
+                .into_iter()
+                .filter(|&owner| owner != DefId::NONE)
+                .map(|owner| (owner, false)),
+        );
+        fixes.retain(|(owner, _)| self.cx.lookup.own_index.contains_key(owner));
+        if let Some(finding) = self.out.last_mut() {
+            finding.visibility_fix = fixes;
+        }
     }
 
     /// The bounds, defaults and supertraits of a public declaration's
@@ -1851,6 +1891,7 @@ impl<'a> ItemCheck<'_, 'a> {
             code: Code::RecursiveValueType,
             message,
             ref_fix: holding.into_iter().map(slot).collect(),
+            visibility_fix: Vec::new(),
         });
     }
 
@@ -2000,6 +2041,7 @@ pub fn boundary(
                 code: Code::BoundaryNotSafe,
                 message: format!("a {what} trait declares no type parameters"),
                 ref_fix: Vec::new(),
+                visibility_fix: Vec::new(),
             });
         }
     };
@@ -2030,6 +2072,7 @@ pub fn boundary(
                             cx.names.display_name(d)
                         ),
                         ref_fix: Vec::new(),
+            visibility_fix: Vec::new(),
                     });
                     return;
                 }
@@ -2054,6 +2097,7 @@ pub fn boundary(
                     code: Code::BoundaryNotSafe,
                     message,
                     ref_fix: Vec::new(),
+                    visibility_fix: Vec::new(),
                 });
                 return;
             }

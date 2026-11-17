@@ -4029,7 +4029,7 @@ impl Run<'_> {
                         ..x.primary
                     };
                     d.push(x.code, x.severity, span, &x.message, None);
-                    if let Some(fix) = &x.fix {
+                    for fix in &x.fixes {
                         // Parse spans are local to this module; the buffer
                         // already has fix columns for their remapped edits.
                         let edits: Vec<_> = fix
@@ -5451,6 +5451,33 @@ impl Run<'_> {
         hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
     }
 
+    /// Strict lookup: an older/missing anchor never falls back to deleting
+    /// the whole header when a visibility edit is proposed.
+    fn visibility_span(&self, def: DefId) -> Option<Span> {
+        let mid = self.item_module(def)?;
+        let module = &self.table.modules[mid.idx()];
+        let iface = self.iface_of(module.folder)?;
+        let (m, anchor) = iface
+            .spans
+            .get(&(def, hd_resolve::anchor::VISIBILITY_SLOT))?;
+        let target = self.table.folders[module.folder.idx()]
+            .modules
+            .get(*m as usize)?;
+        let src = self.src(target.idx());
+        let first = hd_resolve::anchor::resolve(&src, anchor)?;
+        let (end_module, end_anchor) = iface
+            .spans
+            .get(&(def, hd_resolve::anchor::VISIBILITY_END_SLOT))?;
+        if end_module != m {
+            return None;
+        }
+        let keyword = hd_resolve::anchor::resolve(&src, end_anchor)?;
+        Some(Span {
+            hi: keyword.lo,
+            ..first
+        })
+    }
+
     /// `HeaderCheck(F)`: stage B (§4.10.1) over F's interface, its goals
     /// asked through the solver with the impls of `closure(F)` and its
     /// impl universe, taken when the task starts (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
@@ -5582,7 +5609,7 @@ impl Run<'_> {
         let Some(findings) = self.stage(Stage::HeaderCheck, r) else {
             return;
         };
-        let bytes = encode_header_findings(&findings, &own.items);
+        let bytes = encode_header_findings(&findings, &lookup.own_index);
         if parses {
             self.put(EntryKind::Graph, key, &[&bytes, &uses]);
         }
@@ -5597,7 +5624,12 @@ impl Run<'_> {
     fn emit_findings(&self, findings: &[hd_check::header::Finding]) {
         let mut d = lock(&self.diags);
         for f in findings {
-            emit_finding(&mut d, f, |slot| self.item_span(f.item, slot));
+            emit_finding(
+                &mut d,
+                f,
+                |slot| self.item_span(f.item, slot),
+                |def| self.visibility_span(def),
+            );
         }
     }
 
@@ -7591,11 +7623,20 @@ impl Run<'_> {
         }
         let spans = hd_resolve::anchor::ModuleSpans::new(&cx.names, &cx.src, heads, cx.lookup.own);
         for f in findings {
-            emit_finding(diags, &f, |slot| {
-                spans
-                    .span(&cx.src, (f.item, slot))
-                    .unwrap_or_else(|| self.item_span(f.item, slot))
-            });
+            emit_finding(
+                diags,
+                &f,
+                |slot| {
+                    spans
+                        .span(&cx.src, (f.item, slot))
+                        .unwrap_or_else(|| self.item_span(f.item, slot))
+                },
+                |def| {
+                    spans
+                        .visibility_span(&cx.src, def)
+                        .or_else(|| self.visibility_span(def))
+                },
+            );
         }
     }
 
@@ -12393,8 +12434,30 @@ fn encode_mentioned(mentions: &[(String, Hash128)]) -> Vec<u8> {
 /// (`data.struct.no-recursion.fix`, `data.enum.no-recursion.fix`,
 /// `types.newtype.no-recursion.fix`), a counted reference, since a field
 /// never holds a local one (`ref.local.escape.field`).
-fn emit_finding(d: &mut DiagBuf, f: &hd_check::header::Finding, span_of: impl Fn(u32) -> Span) {
+fn emit_finding(
+    d: &mut DiagBuf,
+    f: &hd_check::header::Finding,
+    span_of: impl Fn(u32) -> Span,
+    visibility_of: impl Fn(DefId) -> Option<Span>,
+) {
     d.error(f.code, span_of(f.slot), &f.message);
+    for &(item, expose) in &f.visibility_fix {
+        if let Some(at) = visibility_of(item) {
+            if expose {
+                d.add_fix(
+                    "make the signature's private type public",
+                    hd_diag::FixSafety::Suggestion,
+                    &[(Span { hi: at.lo, ..at }, "pub ")],
+                );
+            } else {
+                d.add_fix(
+                    "make the public declaration private",
+                    hd_diag::FixSafety::Suggestion,
+                    &[(at, "")],
+                );
+            }
+        }
+    }
     if f.ref_fix.is_empty() {
         return;
     }
@@ -12413,11 +12476,16 @@ fn emit_finding(d: &mut DiagBuf, f: &hd_check::header::Finding, span_of: impl Fn
     );
 }
 
-fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) -> Vec<u8> {
+fn encode_header_findings(
+    found: &[hd_check::header::Finding],
+    index: &HashMap<DefId, usize>,
+) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(found);
     for f in found {
-        let at = items.defs().iter().position(|d| *d == f.item).unwrap_or(0);
+        let Some(&at) = index.get(&f.item) else {
+            return Vec::new();
+        };
         w.u32(u32_of(at));
         w.u32(f.slot);
         w.str(f.code.as_str());
@@ -12425,6 +12493,16 @@ fn encode_header_findings(found: &[hd_check::header::Finding], items: &Items) ->
         w.len_of(&f.ref_fix);
         for &slot in &f.ref_fix {
             w.u32(slot);
+        }
+        let visibility: Vec<_> = f
+            .visibility_fix
+            .iter()
+            .filter_map(|(item, expose)| index.get(item).map(|&at| (at, *expose)))
+            .collect();
+        w.len_of(&visibility);
+        for (item, expose) in visibility {
+            w.u32(u32_of(item));
+            w.u8(u8::from(expose));
         }
     }
     w.bytes
@@ -12439,12 +12517,18 @@ fn decode_header_findings(b: &[u8], items: &Items) -> Option<Vec<hd_check::heade
         let code = Code::from_name(r.str())?;
         let message = r.str().to_owned();
         let ref_fix = (0..r.count()).map(|_| r.u32()).collect();
+        let mut visibility_fix = Vec::new();
+        for _ in 0..r.count() {
+            let item = *items.defs().get(r.u32() as usize)?;
+            visibility_fix.push((item, r.u8() != 0));
+        }
         out.push(hd_check::header::Finding {
             item: *items.defs().get(at)?,
             slot,
             code,
             message,
             ref_fix,
+            visibility_fix,
         });
     }
     r.ok().then_some(out)

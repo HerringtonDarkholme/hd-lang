@@ -17,11 +17,18 @@ use hd_base::HashMap;
 
 use hd_base::{DefId, Span};
 use hd_intern::PathKind;
-use hd_syntax::{NodeRef, SyntaxKind};
+use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 
 use crate::iface::{HeadKind, ImplKind, Item, ItemData, Names};
 use crate::lower::Head;
 use crate::view::Src;
+
+/// A named metadata slot for the declaration's visibility/keyword token;
+/// not a count limit. Written type slots are bounded by source-file bytes.
+pub const VISIBILITY_SLOT: u32 = u32::MAX;
+/// The declaration keyword after an optional `pub`; another metadata key,
+/// so a visibility deletion includes its separator without scanning text.
+pub const VISIBILITY_END_SLOT: u32 = u32::MAX - 1;
 
 /// A token range inside a declaration or one of its block members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +83,45 @@ impl<'t> Ctx<'_, 't> {
             tok: lo.raw().checked_sub(base_lo)?,
             count: hi.raw().checked_sub(lo.raw())? + 1,
         })
+    }
+
+    fn visibility(&mut self, def: DefId, base: NodeRef<'t>, member: u32, node: NodeRef<'t>) {
+        let token = node.direct_tokens().find(|&t| {
+            matches!(
+                self.src.tkind(t),
+                Some(
+                    TokenKind::KwPub
+                        | TokenKind::KwFn
+                        | TokenKind::KwStruct
+                        | TokenKind::KwEnum
+                        | TokenKind::KwTrait
+                        | TokenKind::KwType
+                )
+            )
+        });
+        if let Some(token) = token
+            && let Some(mut anchor) = self.at(base, member, node, true)
+        {
+            anchor.tok += token.raw() - self.src.first(node).raw();
+            anchor.count = 1;
+            self.push(def, VISIBILITY_SLOT, Some(anchor));
+            let keyword = node.direct_tokens().find(|&token| {
+                matches!(
+                    self.src.tkind(token),
+                    Some(
+                        TokenKind::KwFn
+                            | TokenKind::KwStruct
+                            | TokenKind::KwEnum
+                            | TokenKind::KwTrait
+                            | TokenKind::KwType
+                    )
+                )
+            });
+            if let Some(keyword) = keyword {
+                anchor.tok += keyword.raw() - token.raw();
+                self.push(def, VISIBILITY_END_SLOT, Some(anchor));
+            }
+        }
     }
 
     fn push(&mut self, def: DefId, slot: u32, a: Option<Anchor>) {
@@ -165,6 +211,18 @@ impl ModuleSpans {
             rows.entry((def, slot)).or_insert(a);
         }
         ModuleSpans { rows }
+    }
+
+    /// A visibility edit requires both exact metadata anchors. The
+    /// ordinary slot-0 fallback is not a safe range to delete.
+    #[must_use]
+    pub fn visibility_span(&self, src: &Src<'_>, def: DefId) -> Option<Span> {
+        let first = resolve(src, self.rows.get(&(def, VISIBILITY_SLOT))?)?;
+        let keyword = resolve(src, self.rows.get(&(def, VISIBILITY_END_SLOT))?)?;
+        Some(Span {
+            hi: keyword.lo,
+            ..first
+        })
     }
 
     /// Where `(def, slot)` sits, slot 0 when the item has no such slot.
@@ -272,6 +330,7 @@ pub(crate) fn collect(
                     let a = cx.at(f, member, f, true);
                     cx.push(def, 0, a);
                     cx.sig(def, f, f, member);
+                    cx.visibility(def, f, member, f);
                 }
             }
         }
@@ -284,6 +343,7 @@ pub(crate) fn collect(
         if matches!(h.kind, HeadKind::Struct | HeadKind::Enum) {
             error_impls(&mut cx, names, h);
         }
+        cx.visibility(h.def, n, 0, n);
     }
     cx.out
 }

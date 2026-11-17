@@ -569,6 +569,7 @@ impl Parser<'_> {
                     self.bump();
                     self.eat(TokenKind::Lifetime);
                 }
+                let binding = self.pos();
                 self.eat(TokenKind::KwMut);
                 if self.at(TokenKind::KwSelfValue) {
                     self.bump();
@@ -576,7 +577,7 @@ impl Parser<'_> {
                     self.expect_name("a parameter name");
                     let vararg = self.eat(TokenKind::Ellipsis);
                     if self.expect_token(TokenKind::Colon, "':'") {
-                        self.ty_parameter();
+                        self.ty_binding(binding, true);
                     }
                     if self.at(TokenKind::Ellipsis) {
                         // grammar.type.rest.elsewhere
@@ -594,10 +595,11 @@ impl Parser<'_> {
             }
             Params::Closure => {
                 // grammar.fn.param-mut
+                let binding = self.pos();
                 self.eat(TokenKind::KwMut);
                 self.expect_name("a closure parameter name");
                 if self.eat(TokenKind::Colon) {
-                    self.ty();
+                    self.ty_binding(binding, false);
                 }
             }
             Params::Enum | Params::Variant => {

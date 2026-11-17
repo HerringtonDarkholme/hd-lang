@@ -37,7 +37,7 @@ pub struct Diagnostic {
     pub primary: Span,
     /// What the user reads: the situation, not the code.
     pub message: String,
-    pub fix: Option<DiagnosticFix>,
+    pub fixes: Vec<DiagnosticFix>,
 }
 
 impl Diagnostic {
@@ -48,7 +48,7 @@ impl Diagnostic {
             severity: Severity::Error,
             primary,
             message: message.into(),
-            fix: None,
+            fixes: Vec::new(),
         }
     }
 }

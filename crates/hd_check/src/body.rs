@@ -314,6 +314,9 @@ pub(crate) struct Ck<'a, 'c> {
     pub diags: &'c mut DiagBuf,
     pub fuel: Fuel,
     pub memo: BodyMemo,
+    /// Advice shares canonical query results across diagnostics, while its
+    /// proof charges and inference trials stay separate from the body.
+    pub advice_memo: BodyMemo,
     /// The value rule's decisions the solver made under this body's
     /// lookup alone ([`crate::value::SolverDecls`]).
     pub inline: crate::value::InlineDecls,
@@ -778,6 +781,7 @@ pub(crate) fn new_ck<'a, 'c>(
         diags,
         fuel: Fuel::new(cx.fuel),
         memo: BodyMemo::default(),
+        advice_memo: BodyMemo::default(),
         inline: crate::value::InlineDecls::default(),
         rets: crate::frames::Frames::new(ret),
         strict_rets: vec![],
@@ -2394,6 +2398,7 @@ impl Ck<'_, '_> {
                         "in {what}: expected {want_s}, found {got_s}; a read-only reference never becomes writable"
                     );
                     self.err(Code::MutableUpgrade, n, &msg);
+                    self.mutable_reference_fixes(inner, n);
                     return r;
                 }
                 // The same mutability, or a target that is no reference:
@@ -2432,7 +2437,9 @@ impl Ck<'_, '_> {
             // Convert the payload before the wrap, including a counted
             // reference lent as a local one (`ref.convert.lend`) and a
             // trait value reference (`trait.dyn.ref.convert`).
+            let before = self.diags.len();
             let r = self.coerce(r, got, inner, n, what, position);
+            self.result_optional_fixes(got, inner, n, before);
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
         // A suspending function value weakens to its lowered constructor
@@ -2678,7 +2685,9 @@ impl Ck<'_, '_> {
             self.err(code, n, &format!("{msg}{hint}"));
             // `types.num.no-implicit.fix`: write the conversion around the
             // value, as `i64(small)`.
-            if code == Code::TypeMismatch && self.num_widens(got, want) {
+            if code == Code::MixedSignedness
+                || (code == Code::TypeMismatch && self.num_widens(got, want))
+            {
                 // A labelled field or argument: wrap the value after the
                 // label. A shorthand `{ x }` names its value: it becomes
                 // `x: i64(x)`.
@@ -2698,7 +2707,11 @@ impl Ck<'_, '_> {
                 };
                 self.diags.add_fix(
                     &format!("convert the value with `{ty}(...)`"),
-                    hd_diag::FixSafety::Exact,
+                    if code == Code::MixedSignedness {
+                        hd_diag::FixSafety::Suggestion
+                    } else {
+                        hd_diag::FixSafety::Exact
+                    },
                     &[
                         (
                             Span {
@@ -2716,6 +2729,9 @@ impl Ck<'_, '_> {
                         ),
                     ],
                 );
+                if code == Code::MixedSignedness {
+                    self.other_integer_family_fix(got, want, n);
+                }
             }
             return true;
         }
@@ -3449,6 +3465,7 @@ impl Ck<'_, '_> {
         if stretch != self.impl_stretch {
             self.impl_stretch = stretch;
             self.memo = BodyMemo::default();
+            self.advice_memo = BodyMemo::default();
         }
     }
 
@@ -3612,6 +3629,7 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, s, &msg);
+                    self.missing_else_fixes(s, w);
                     diverged = true;
                     continue;
                 }
@@ -3653,6 +3671,7 @@ impl Ck<'_, '_> {
                     let at = stmts.last().copied().unwrap_or(block);
                     let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, at, &msg);
+                    self.missing_else_fixes(at, w);
                 } else if !snap_ok && !Self::ends_in_return(block) {
                     let msg = format!("in result: expected {}, found void", self.show(w));
                     self.err(Code::TypeMismatch, block, &msg);
@@ -4197,9 +4216,9 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Whether the bare name `name` resolves to its std.format declaration
+    /// Whether the bare name `name` resolves to the expected declaration
     /// at `at`: no local, global or earlier REPL binding shadows it.
-    fn standard_format_name(&self, name: &str, def: DefId, at: u32) -> bool {
+    pub(crate) fn standard_name(&self, name: &str, def: DefId, at: u32) -> bool {
         let sym = self.cx.names.syms.intern(name);
         let init = self.cx.init.borrow();
         if self.find_local(sym).is_some()
@@ -4291,13 +4310,9 @@ impl Ck<'_, '_> {
                             prelude_debug,
                             unbound_disposable,
                             standard_debug: bare_debug
-                                && self.standard_format_name(
-                                    "debug",
-                                    self.cx.names.known.debug_fn,
-                                    at,
-                                ),
+                                && self.standard_name("debug", self.cx.names.known.debug_fn, at),
                             standard_dbg: bare_debug
-                                && self.standard_format_name("dbg", self.cx.names.known.dbg, at),
+                                && self.standard_name("dbg", self.cx.names.known.dbg, at),
                         });
                 }
                 return Ok(if t == Ty::NEVER { Ty::NEVER } else { Ty::VOID });

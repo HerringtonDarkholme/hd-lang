@@ -24,7 +24,7 @@ pub struct Edit {
 /// One fix-it. `exact` is [`hd_diag::FixSafety::Exact`]: the compiler
 /// offers it as the whole fix, so `hd check --fix` tries it
 /// (`cli.check.fix.safe`); a
-/// suggestion is only shown. The JSON line leaves it out.
+/// suggestion is only shown. JSON exposes uncertainty as `guess`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Fix {
     pub message: String,
@@ -136,7 +136,12 @@ impl Diag {
             if n > 0 {
                 s.push(',');
             }
-            let _ = write!(s, "{{\"message\":{},\"edits\":[", quote(&f.message));
+            let guess = !f.exact || self.fixes.len() > 1;
+            let _ = write!(
+                s,
+                "{{\"message\":{},\"guess\":{guess},\"edits\":[",
+                quote(&f.message)
+            );
             for (m, e) in f.edits.iter().enumerate() {
                 if m > 0 {
                     s.push(',');
@@ -400,6 +405,31 @@ mod tests {
         let diags = vec![warned, Diag::error(None, "no code")];
         assert_eq!(super::decode(&super::encode(&diags)), Some(diags));
         assert_eq!(super::decode(&[1, 0, 0]), None);
+    }
+
+    #[test]
+    fn json_marks_uncertain_and_ranked_repairs_as_guesses_after_cache_decode() {
+        let mut d = Diag::error(Some(Code::MixedSignedness), "choose an integer family");
+        let fix = |message: &str, exact| Fix {
+            message: message.into(),
+            exact,
+            edits: vec![Edit {
+                file: "main.hd".into(),
+                start: 0,
+                end: 0,
+                text: "i64(".into(),
+            }],
+        };
+        d.fixes.push(fix("unambiguous", true));
+        assert!(d.json().contains("\"guess\":false"));
+        d.fixes[0].exact = false;
+        assert!(d.json().contains("\"guess\":true"));
+        d.fixes[0].exact = true;
+        d.fixes.push(fix("alternative", true));
+        let encoded = super::encode(&[d.clone()]);
+        assert_eq!(super::decode(&encoded), Some(vec![d.clone()]));
+        assert_eq!(d.json().matches("\"guess\":true").count(), 2);
+        assert!(d.json().find("unambiguous") < d.json().find("alternative"));
     }
 
     use hd_base::{DefId, NodeIdx, NotImplemented, Stage};

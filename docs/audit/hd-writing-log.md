@@ -1268,3 +1268,5 @@ says that the check covered syntax only.
 | 2026-11-17 | #1813 flat enum fixture | type | `pub fn ordinal(value: Choice)` with a private enum | ``private-type-leak: `Choice` is private, so the public `ordinal` cannot name it in its signature`` | yes | Make the fixture function private | Codex (GPT-6) |
 | 2026-11-17 | #1813 two-variant codegen fixture | api | Three `# subject` markers to select three functions | `app/main/ordinal` (only the first selected function appeared in the TIR dump) | partly | Remove the markers so this small fixture dumps all three functions | Codex (GPT-6) |
 | 2026-11-17 | #1813 loan cleanup fixture | api | A caret under the reference expression to inspect its later loan cleanup | `;; ...` after `call $"impl Slots.get_ref"`; the later cleanup was outside the selected span | yes | Put one `# subject` before the complete function | Codex (GPT-6) |
+
+| 2026-11-17 | #1771 default-value repair probe | api | `std.ops.Default::default()` without a use | `` `std` is not defined `` | partly | Add `use std.ops.Default`, then call `Default::default()` | GPT-6 (Codex) |

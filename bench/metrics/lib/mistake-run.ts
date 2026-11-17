@@ -5,7 +5,7 @@
 // 1. `hd check` or a fixture's `# tool: lint`, with --tests --format json,
 //    gives the diagnostic objects;
 // 2. the same tool with --tests gives the text an agent reads by default;
-// 3. when the diagnostic for the mistake carries one fix-it, the fix is
+// 3. when the diagnostic for the mistake carries fix-its, the first is
 //    applied to a copy and step 1 runs again on it.
 
 import { writeFileSync } from "node:fs";
@@ -27,7 +27,7 @@ export interface MistakeOutcome {
   readonly reported?: Record<string, unknown>;
   /** Whether any diagnostic object had a `fix` or `fixes` field. */
   readonly fixFieldSeen: boolean;
-  /** Whether the reported diagnostic had one fix-it to apply. */
+  /** Whether the reported diagnostic had a first fix-it to apply. */
   readonly fixApplied: boolean;
   /** Diagnostics after applying the fix-it; undefined when none was applied. */
   readonly afterFix?: readonly Record<string, unknown>[];

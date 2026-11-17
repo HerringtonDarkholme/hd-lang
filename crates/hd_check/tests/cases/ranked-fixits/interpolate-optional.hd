@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+
+fn greeting(nickname: string?) -> string:
+    "hello ${nickname}"

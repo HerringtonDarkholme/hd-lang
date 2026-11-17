@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+
+fn describe(text: string) -> string:
+    if text == "":
+        "empty"

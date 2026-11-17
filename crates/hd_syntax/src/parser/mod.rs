@@ -693,13 +693,32 @@ impl<'t> Parser<'t> {
     /// Attaches to the just-reported error only; suppressed errors have
     /// no row at `index`, so never borrow another statement's fix.
     pub(crate) fn fix_error(&mut self, index: usize, message: &str, edits: &[(u32, u32, &str)]) {
+        self.error_fix(index, message, FixSafety::Exact, edits);
+    }
+
+    pub(crate) fn suggest_error(
+        &mut self,
+        index: usize,
+        message: &str,
+        edits: &[(u32, u32, &str)],
+    ) {
+        self.error_fix(index, message, FixSafety::Suggestion, edits);
+    }
+
+    fn error_fix(
+        &mut self,
+        index: usize,
+        message: &str,
+        safety: FixSafety,
+        edits: &[(u32, u32, &str)],
+    ) {
         let Some(diagnostic) = self.errors.get_mut(index) else {
             return;
         };
         let file = diagnostic.primary.file;
-        diagnostic.fix = Some(DiagnosticFix {
+        diagnostic.fixes.push(DiagnosticFix {
             message: message.to_owned(),
-            safety: FixSafety::Exact,
+            safety,
             edits: edits
                 .iter()
                 .map(|(lo, hi, text)| {
