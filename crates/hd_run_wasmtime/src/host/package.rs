@@ -3,8 +3,8 @@
 //! resolves an embedder's registrations by nominal identity before
 //! linking, and the linked root methods that call them.
 //!
-//! Cost. Load decodes the contract and indexes every import it describes:
-//! one pass over its methods. Preflight builds one identity map and one
+//! Cost. Load decodes the contract and indexes every import it describes
+//! (`hd_host_abi::schema::Imports`): one pass over its methods. Preflight builds one identity map and one
 //! trait-path map over the registrations, decodes the companion's contract
 //! once and indexes it by module, then visits each contract interface once:
 //! linear in the registrations plus the two contracts. Linking probes the
@@ -14,7 +14,7 @@
 use std::any::Any;
 
 use hd_base::{HashMap, HashSet};
-use hd_host_abi::schema::{Contract, Interface, Value};
+use hd_host_abi::schema::{Contract, Imports, Interface, Value};
 use hd_run::StartError;
 use wasmtime::Linker;
 
@@ -22,45 +22,21 @@ use super::reply::{bytes, int_arg, int_val, put_bytes};
 use super::{Host, Stop};
 use crate::native::{Bindings, Dispatch, Unregistered};
 
-/// One module's described import names: the root method a plain call
-/// names, as (interface, method) indices; `None` for a `.start`, `.finish`,
-/// `$release` or handle method, which preflight refuses.
-type Names = HashMap<Box<str>, Option<(usize, usize)>>;
-
 /// A module's package host contract and the imports it describes.
 pub(crate) struct Package {
     contract: Contract,
-    /// Each described import by module, then name.
-    imports: HashMap<Box<str>, Names>,
+    imports: Imports,
 }
 
 impl Package {
     pub(crate) fn new(contract: Contract) -> Self {
-        let mut imports: HashMap<Box<str>, Names> = HashMap::default();
-        for (i, interface) in contract.interfaces.iter().enumerate() {
-            let names = imports.entry(interface.module.as_str().into()).or_default();
-            if interface.handle {
-                names.insert("$release".into(), None);
-            }
-            for (n, method) in interface.methods.iter().enumerate() {
-                if method.suspends {
-                    names.insert(format!("{}.start", method.name).into(), None);
-                    names.insert(format!("{}.finish", method.name).into(), None);
-                } else {
-                    // Only a root's methods link to a registration.
-                    let call = (!interface.handle).then_some((i, n));
-                    names.insert(method.name.as_str().into(), call);
-                }
-            }
-        }
+        let imports = Imports::new(&contract);
         Self { contract, imports }
     }
 
     /// Whether the contract describes the import `module` `name`.
     pub(crate) fn describes(&self, module: &str, name: &str) -> bool {
-        self.imports
-            .get(module)
-            .is_some_and(|names| names.contains_key(name))
+        self.imports.describes(module, name)
     }
 
     /// The first root interface, the one a refusal names.
@@ -199,8 +175,8 @@ pub(crate) fn define(
     };
     for import in module.imports() {
         let (m, n) = (import.module(), import.name());
-        let described = package.imports.get(m).and_then(|names| names.get(n));
-        let (Some(&Some((interface, index))), Some(ty)) = (described, import.ty().func().cloned())
+        let (Some((interface, index)), Some(ty)) =
+            (package.imports.call(m, n), import.ty().func().cloned())
         else {
             continue;
         };

@@ -1,7 +1,7 @@
 //! Owned signatures for package host adapters. The custom section contains
 //! data, never executable JavaScript. Its encoding is toolchain ABI v1.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const SECTION: &str = "hd.capabilities";
 pub const VERSION: u32 = 1;
@@ -110,23 +110,55 @@ pub struct Contract {
     pub interfaces: Vec<Interface>,
 }
 
-impl Contract {
-    /// Only the imports described by this contract, including handle release.
+/// The imports one contract describes, including handle release, indexed
+/// once by module, then name: each maps to the root method a plain call
+/// names, as (interface, method) indices, or to `None` for a `.start`, a
+/// `.finish`, a `$release` or a handle's method. Building it is one pass
+/// over the contract's methods; a probe is two ordered-map lookups.
+#[derive(Clone, Debug, Default)]
+pub struct Imports(BTreeMap<Box<str>, Names>);
+
+/// One module's import names and the root method each plain call names.
+type Names = BTreeMap<Box<str>, Option<(usize, usize)>>;
+
+impl Imports {
     #[must_use]
-    pub fn contains_import(&self, module: &str, name: &str) -> bool {
-        self.interfaces.iter().any(|i| {
-            i.module == module
-                && ((i.handle && name == "$release")
-                    || i.methods.iter().any(|m| {
-                        if m.suspends {
-                            name.strip_suffix(".start") == Some(m.name.as_str())
-                                || name.strip_suffix(".finish") == Some(m.name.as_str())
-                        } else {
-                            name == m.name
-                        }
-                    }))
-        })
+    pub fn new(contract: &Contract) -> Self {
+        let mut modules: BTreeMap<Box<str>, Names> = BTreeMap::new();
+        for (i, interface) in contract.interfaces.iter().enumerate() {
+            let names = modules.entry(interface.module.as_str().into()).or_default();
+            if interface.handle {
+                names.insert("$release".into(), None);
+            }
+            for (n, method) in interface.methods.iter().enumerate() {
+                if method.suspends {
+                    names.insert(format!("{}.start", method.name).into(), None);
+                    names.insert(format!("{}.finish", method.name).into(), None);
+                } else {
+                    let call = (!interface.handle).then_some((i, n));
+                    names.insert(method.name.as_str().into(), call);
+                }
+            }
+        }
+        Self(modules)
     }
+
+    /// Whether the contract describes the import `module` `name`.
+    #[must_use]
+    pub fn describes(&self, module: &str, name: &str) -> bool {
+        self.0
+            .get(module)
+            .is_some_and(|names| names.contains_key(name))
+    }
+
+    /// The root method the plain call `module` `name` names.
+    #[must_use]
+    pub fn call(&self, module: &str, name: &str) -> Option<(usize, usize)> {
+        *self.0.get(module)?.get(name)?
+    }
+}
+
+impl Contract {
     /// A deterministic, length-delimited representation. The compiler
     /// validates its own constructed contract before embedding these bytes.
     #[must_use]
@@ -871,15 +903,29 @@ pub(crate) mod tests {
     #[test]
     fn prebuilt_import_authorization_is_exact_and_includes_handle_release() {
         let c = sample();
+        let imports = Imports::new(&c);
         let root = &c.interfaces[0];
         let method = &root.methods[0];
-        assert!(c.contains_import(&root.module, &format!("{}.start", method.name)));
-        assert!(c.contains_import(&root.module, &format!("{}.finish", method.name)));
-        assert!(!c.contains_import(&root.module, &method.name));
-        assert!(!c.contains_import(&root.module, "$release"));
-        assert!(!c.contains_import("hd:pkg:unknown", &format!("{}.start", method.name)));
-        assert!(c.contains_import(&c.interfaces[1].module, "$release"));
-        assert!(!c.contains_import(&c.interfaces[1].module, "$release.finish"));
+        assert!(imports.describes(&root.module, &format!("{}.start", method.name)));
+        assert!(imports.describes(&root.module, &format!("{}.finish", method.name)));
+        assert!(!imports.describes(&root.module, &method.name));
+        assert!(!imports.describes(&root.module, "$release"));
+        assert!(!imports.describes("hd:pkg:unknown", &format!("{}.start", method.name)));
+        assert!(imports.describes(&c.interfaces[1].module, "$release"));
+        assert!(!imports.describes(&c.interfaces[1].module, "$release.finish"));
+        // Only a root's plain method is a call; a suspending half is not.
+        assert_eq!(
+            imports.call(&root.module, &format!("{}.start", method.name)),
+            None
+        );
+        assert_eq!(imports.call("hd:pkg:unknown", &method.name), None);
+        let events = &c.interfaces[1].module;
+        assert!(imports.describes(events, "close"));
+        assert_eq!(imports.call(events, "close"), None, "a handle's method");
+        let mut ready = c.clone();
+        ready.interfaces[0].methods[0].suspends = false;
+        let imports = Imports::new(&ready);
+        assert_eq!(imports.call(&root.module, &method.name), Some((0, 0)));
     }
 
     #[test]

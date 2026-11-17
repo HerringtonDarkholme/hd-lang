@@ -1113,13 +1113,13 @@ fn run_wasm_command(args: &[OsString]) -> ExitCode {
         Ok(a) => a,
         Err(e) => return rep.fail(&format!("`{shown}` has an invalid host contract: {e}")),
     };
+    // One index of the contract's imports, probed once per import.
+    let described = artifacts
+        .as_ref()
+        .map(|a| hd_host_abi::schema::Imports::new(&a.contract));
     let ordinary: Vec<_> = imports
         .into_iter()
-        .filter(|(m, n)| {
-            !artifacts
-                .as_ref()
-                .is_some_and(|a| a.contract.contains_import(m, n))
-        })
+        .filter(|(m, n)| !described.as_ref().is_some_and(|d| d.describes(m, n)))
         .collect();
     if let Some((m, n)) = hd_run::unknown_import(&ordinary) {
         return rep.fail(&format!(
