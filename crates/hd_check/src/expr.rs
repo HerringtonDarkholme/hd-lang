@@ -641,12 +641,18 @@ impl Ck<'_, '_> {
                     let (r, ty) = self.expr(e, None)?;
                     (r, ty, false)
                 };
+                let before = self.diags.len();
                 self.interpolate_value(out, (r, ty, held), e, n)?;
+                self.optional_interpolation_fixes(ty, self.cx.src.span(e), false, before);
             }
-            let raw = strip_piece(self.cx.src.text(t), k).to_owned();
+            let (raw, prefix) = hd_resolve::literal::strip_piece_offset(self.cx.src.text(t), k);
+            let raw = raw.to_owned();
+            let token = self.cx.src.token_span(t);
             let mut pieces = Vec::new();
-            decode_piece(&raw, &mut pieces);
-            for p in pieces {
+            hd_resolve::literal::decode_piece_spanned(&raw, |piece, range| {
+                pieces.push((piece, range));
+            });
+            for (p, range) in pieces {
                 match p {
                     Piece::Text(s) => out.text.push_str(&s),
                     Piece::Name(name) => {
@@ -670,7 +676,20 @@ impl Ck<'_, '_> {
                             }
                             continue;
                         };
+                        let before = self.diags.len();
                         self.interpolate_value(out, (r, ty, held), n, n)?;
+                        // Token spans already obey the source-file u32 byte limit.
+                        if let (Ok(lo), Ok(hi)) = (
+                            u32::try_from(token.lo as usize + prefix + range.start),
+                            u32::try_from(token.lo as usize + prefix + range.end),
+                        ) {
+                            self.optional_interpolation_fixes(
+                                ty,
+                                hd_base::Span { lo, hi, ..token },
+                                true,
+                                before,
+                            );
+                        }
                     }
                 }
             }
@@ -5737,6 +5756,7 @@ impl Ck<'_, '_> {
                     n,
                     "`?` needs a Result or an optional in a function returning one",
                 );
+                self.void_try_fixes(t, ret, n, e);
                 self.infer.rebind(pool, t, Ty::POISON);
                 self.infer.rebind(pool, ret, Ty::POISON);
                 Ok((Ref(NONE), Ty::POISON))

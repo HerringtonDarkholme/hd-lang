@@ -1,0 +1,2 @@
+pub fn plus(signed: i64, unsigned: usize) -> i64:
+    signed + unsigned

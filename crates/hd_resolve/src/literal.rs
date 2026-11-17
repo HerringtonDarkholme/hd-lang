@@ -11,21 +11,30 @@ pub enum Piece {
 }
 
 pub fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
-    let raw = &normalize_line_endings(raw);
+    decode_piece_spanned(raw, |piece, _| out.push(piece));
+}
+
+/// Decode with each piece's range in the original UTF-8 source, including
+/// `$` for a name. CRLF normalization and escapes do not move source spans.
+pub fn decode_piece_spanned(raw: &str, mut emit: impl FnMut(Piece, std::ops::Range<usize>)) {
     let mut text = String::new();
-    let mut chars = raw.chars().peekable();
-    while let Some(c) = chars.next() {
+    let mut text_start = 0;
+    let mut chars = raw
+        .char_indices()
+        .filter(|&(i, c)| c != '\r' || raw.as_bytes().get(i + 1) != Some(&b'\n'))
+        .peekable();
+    while let Some((at, c)) = chars.next() {
         match c {
-            '\\' => match chars.next() {
+            '\\' => match chars.next().map(|(_, c)| c) {
                 Some('n') => text.push('\n'),
                 Some('t') => text.push('\t'),
                 Some('r') => text.push('\r'),
                 Some('0') => text.push('\0'),
                 Some('u') => {
                     let mut hex = String::new();
-                    if chars.peek() == Some(&'{') {
+                    if chars.peek().map(|&(_, c)| c) == Some('{') {
                         chars.next();
-                        while let Some(&h) = chars.peek() {
+                        while let Some(&(_, h)) = chars.peek() {
                             chars.next();
                             if h == '}' {
                                 break;
@@ -40,26 +49,32 @@ pub fn decode_piece(raw: &str, out: &mut Vec<Piece>) {
                 Some(o) => text.push(o),
                 None => {}
             },
-            '$' if chars.peek().is_some_and(|n| n.is_alphabetic() || *n == '_') => {
+            '$' if chars
+                .peek()
+                .is_some_and(|&(_, n)| n.is_alphabetic() || n == '_') =>
+            {
                 let mut name = String::new();
-                while let Some(&n) = chars.peek() {
+                let mut end = at + 1;
+                while let Some(&(i, n)) = chars.peek() {
                     if n.is_alphanumeric() || n == '_' {
                         name.push(n);
+                        end = i + n.len_utf8();
                         chars.next();
                     } else {
                         break;
                     }
                 }
                 if !text.is_empty() {
-                    out.push(Piece::Text(std::mem::take(&mut text)));
+                    emit(Piece::Text(std::mem::take(&mut text)), text_start..at);
                 }
-                out.push(Piece::Name(name));
+                emit(Piece::Name(name), at..end);
+                text_start = end;
             }
             _ => text.push(c),
         }
     }
     if !text.is_empty() {
-        out.push(Piece::Text(text));
+        emit(Piece::Text(text), text_start..raw.len());
     }
 }
 
@@ -79,22 +94,30 @@ pub fn normalize_line_endings(raw: &str) -> std::borrow::Cow<'_, str> {
 /// openers and closers.
 #[must_use]
 pub fn strip_piece(t: &str, kind: TokenKind) -> &str {
+    strip_piece_offset(t, kind).0
+}
+
+/// The undecorated text and its starting byte within the token.
+#[must_use]
+pub fn strip_piece_offset(token: &str, kind: TokenKind) -> (&str, usize) {
     let t = match kind {
         TokenKind::StrHead | TokenKind::String => {
-            let t = t.trim_start_matches(|c: char| c.is_alphanumeric() || c == '_');
+            let t = token.trim_start_matches(|c: char| c.is_alphanumeric() || c == '_');
             t.strip_prefix("\"\"\"")
                 .or_else(|| t.strip_prefix('"'))
                 .unwrap_or(t)
         }
-        _ => t.strip_prefix('}').unwrap_or(t),
+        _ => token.strip_prefix('}').unwrap_or(token),
     };
-    match kind {
+    let offset = token.len() - t.len();
+    let raw = match kind {
         TokenKind::StrHead | TokenKind::StrMid => t.strip_suffix("${").unwrap_or(t),
         _ => t
             .strip_suffix("\"\"\"")
             .or_else(|| t.strip_suffix('"'))
             .unwrap_or(t),
-    }
+    };
+    (raw, offset)
 }
 
 /// The radix and digits of a prefixed integer literal (`lex.int.forms`):
@@ -147,4 +170,64 @@ pub fn split_suffix(text: &str) -> (&str, &str) {
         }
     }
     text.split_at(i)
+}
+
+#[cfg(test)]
+mod span_tests {
+    use super::*;
+
+    fn decoded(raw: &str) -> Vec<(&str, String, String)> {
+        let mut out = Vec::new();
+        decode_piece_spanned(raw, |piece, span| {
+            let (kind, text) = match piece {
+                Piece::Text(text) => ("text", text),
+                Piece::Name(name) => ("name", name),
+            };
+            out.push((kind, text, raw[span].to_owned()));
+        });
+        out
+    }
+
+    #[test]
+    fn names_keep_original_utf8_spans_through_escapes_and_crlf() {
+        let raw = "é $café\r\n\\$escaped \\u{24}fake $next";
+        assert_eq!(
+            decoded(raw),
+            vec![
+                ("text", "é ".into(), "é ".into()),
+                ("name", "café".into(), "$café".into()),
+                (
+                    "text",
+                    "\n$escaped $fake ".into(),
+                    "\r\n\\$escaped \\u{24}fake ".into()
+                ),
+                ("name", "next".into(), "$next".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_source_crlf_before_decoding_but_preserve_escaped_cr() {
+        assert_eq!(
+            decoded("\\\r\n$name\r\n"),
+            vec![
+                ("text", "\n".into(), "\\\r\n".into()),
+                ("name", "name".into(), "$name".into()),
+                ("text", "\n".into(), "\r\n".into()),
+            ]
+        );
+        assert_eq!(decoded("\\u{d}\n")[0].1, "\r\n");
+    }
+
+    #[test]
+    fn stripping_delimiters_reports_the_original_token_offset() {
+        for (token, kind, text, offset) in [
+            ("fmt\"\"\"é $x\"\"\"", TokenKind::String, "é $x", 6),
+            ("fmt\"\"\"a${", TokenKind::StrHead, "a", 6),
+            ("}b${", TokenKind::StrMid, "b", 1),
+            ("}c\"\"\"", TokenKind::StrTail, "c", 1),
+        ] {
+            assert_eq!(strip_piece_offset(token, kind), (text, offset));
+        }
+    }
 }

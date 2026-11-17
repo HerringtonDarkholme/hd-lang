@@ -198,11 +198,17 @@ describe("fix-its", () => {
     );
   });
 
-  it("reads the specified single-fix shape, never an alternative", () => {
+  it("takes the first ranked fix, including a marked guess", () => {
     const edit = { file: "case.hd", start: 0, end: 1, text: "" };
     const fix = { message: "remove the prefix", edits: [edit] };
     assert.deepEqual(fixOf({ file: "case.hd", fixes: [fix] }), [edit]);
-    assert.equal(fixOf({ fixes: [fix, fix] }), undefined);
+    const alternative = {
+      message: "another repair",
+      guess: true,
+      edits: [{ ...edit, text: "other" }],
+    };
+    assert.deepEqual(fixOf({ fixes: [{ ...fix, guess: true }, alternative] }), [edit]);
+    assert.equal(fixOf({ fixes: [null, alternative] }), undefined);
     assert.equal(fixOf({ fixes: [] }), undefined);
     assert.equal(fixOf({}), undefined);
     assert.equal(fixOf({ fix }), undefined);

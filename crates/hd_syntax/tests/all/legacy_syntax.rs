@@ -19,11 +19,7 @@ fn legacy_syntax_fixes_preserve_the_actual_names() {
         ),
     ] {
         let parsed = parse(source.as_bytes());
-        let fixes: Vec<_> = parsed
-            .diagnostics
-            .iter()
-            .filter_map(|d| d.fix.as_ref())
-            .collect();
+        let fixes: Vec<_> = parsed.diagnostics.iter().flat_map(|d| &d.fixes).collect();
         assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
         if source.contains("τιμή") {
             assert!(
@@ -60,7 +56,7 @@ fn legacy_syntax_fixes_do_not_guess_other_forms() {
         let parsed = parse(source.as_bytes());
         assert!(!parsed.is_ok(), "{source}");
         assert!(
-            parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+            parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
             "{source}: {:?}",
             parsed.diagnostics
         );

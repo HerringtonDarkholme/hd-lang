@@ -54,6 +54,7 @@ mod receiver;
 mod refs;
 mod regions;
 mod render;
+mod repair;
 pub mod results;
 mod rows;
 pub mod stages;

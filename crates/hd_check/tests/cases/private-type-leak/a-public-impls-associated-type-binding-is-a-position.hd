@@ -1,4 +1,4 @@
-# @dump: diagnostics
+# @dump: diagnostics fixed
 struct Hidden:
     n: i32
 

@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+
+fn parse(text: string) -> Result[i32, string]:
+    if text == "": .Err("empty") else: .Ok(1)
+
+fn value(text: string) -> i32:
+    match parse(text):
+        .Some(n) => n
+        .None => 0

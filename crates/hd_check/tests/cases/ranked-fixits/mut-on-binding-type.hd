@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+
+fn letters(text: string) -> List[char]:
+    let chars: mut List[char] = []
+    for c in text.chars():
+        chars.push(c)
+    chars

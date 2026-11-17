@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+
+fn words(text: string) -> List[string]:
+    let mut found: List[string] = []
+    found.append(text)
+    found

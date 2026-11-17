@@ -253,6 +253,7 @@ impl Parser<'_> {
     fn let_statement(&mut self, ctx: Ctx) {
         let marker = self.start();
         self.bump(); // let
+        let binding = self.pos();
         self.pattern(true);
         if !matches!(self.current(), Some(TokenKind::Colon | TokenKind::Eq)) {
             // grammar.stmt.let-list.bare and friends.
@@ -271,7 +272,7 @@ impl Parser<'_> {
         if self.eat(TokenKind::Colon) {
             let before = self.infer_types;
             self.infer_types = true;
-            self.ty();
+            self.ty_binding(binding, false);
             self.infer_types = before;
         }
         if self.expect_token(TokenKind::Eq, "'='") {
@@ -312,7 +313,7 @@ mod tests {
                 parsed.diagnostics
             );
             assert!(
-                parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+                parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
                 "{source}: {:?}",
                 parsed.diagnostics
             );

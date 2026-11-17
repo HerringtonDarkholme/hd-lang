@@ -1,0 +1,18 @@
+# Cold and warm diagnostics preserve the ranking and guess marks.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"mixed-signedness","fixes":[{"message":"convert the value with `i64(...)`","guess":true},{"message":"calculate in the other integer family","guess":true}]},{"kind":"summary","errors":1,"status":101}]
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"mixed-signedness","fixes":[{"message":"convert the value with `i64(...)`","guess":true},{"message":"calculate in the other integer family","guess":true}]},{"kind":"summary","errors":1,"status":101}]
+# Suggestions remain choices for the caller.
+run: hd check --fix
+exit: 101
+same-text: src/lib.hd original.hd
+# An impl is public through its target and trait; cache all three choices.
+run: hd check --format json private.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"private-type-leak","fixes":[{"message":"make the signature's private type public","guess":true,"edits":[{"start":0,"end":0,"text":"pub "}]},{"message":"make the public declaration private","guess":true,"edits":[{"start":124,"end":128,"text":""}]},{"message":"make the public declaration private","guess":true,"edits":[{"start":63,"end":67,"text":""}]}]},{"kind":"summary","errors":1,"status":101}]
+run: hd check --format json private.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"private-type-leak","fixes":[{"message":"make the signature's private type public","guess":true,"edits":[{"start":0,"end":0,"text":"pub "}]},{"message":"make the public declaration private","guess":true,"edits":[{"start":124,"end":128,"text":""}]},{"message":"make the public declaration private","guess":true,"edits":[{"start":63,"end":67,"text":""}]}]},{"kind":"summary","errors":1,"status":101}]

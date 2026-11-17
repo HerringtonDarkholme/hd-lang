@@ -1,10 +1,10 @@
 # Cold and warm parser diagnostics carry the same UTF-8 edits.
 run: hd check --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/lib.hd","line":4,"fixes":[{"message":"replace `loop:` with `while true:`","edits":[{"file":"src/lib.hd","start":108,"end":112,"text":"while true"}]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/lib.hd","line":4,"fixes":[{"message":"replace `loop:` with `while true:`","guess":false,"edits":[{"file":"src/lib.hd","start":108,"end":112,"text":"while true"}]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/lib.hd","line":4,"fixes":[{"message":"replace `loop:` with `while true:`","edits":[{"file":"src/lib.hd","start":108,"end":112,"text":"while true"}]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/lib.hd","line":4,"fixes":[{"message":"replace `loop:` with `while true:`","guess":false,"edits":[{"file":"src/lib.hd","start":108,"end":112,"text":"while true"}]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --fix
 same-text: src/lib.hd want/lib.hd
 run: hd check --format json

@@ -23,11 +23,7 @@ fn migration_fixes_preserve_surrounding_source_and_parse() {
         ),
     ] {
         let parsed = parse(source.as_bytes());
-        let fixes: Vec<_> = parsed
-            .diagnostics
-            .iter()
-            .filter_map(|d| d.fix.as_ref())
-            .collect();
+        let fixes: Vec<_> = parsed.diagnostics.iter().flat_map(|d| &d.fixes).collect();
         assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
         let mut edits = fixes[0].edits.clone();
         edits.sort_stable_by_key(|(span, _)| std::cmp::Reverse(span.lo));
@@ -55,7 +51,7 @@ fn migration_fixes_do_not_guess_from_other_invalid_forms() {
         let parsed = parse(source.as_bytes());
         assert!(!parsed.is_ok(), "{source}");
         assert!(
-            parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+            parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
             "{source}: {:?}",
             parsed.diagnostics
         );

@@ -8,11 +8,7 @@ fn elif_continuations_offer_the_keyword_edit() {
         "fn f(n: bool):\n    if n: 3\n    elif false: 2\n    else: 1\n",
     ] {
         let parsed = parse(source.as_bytes());
-        let fixes: Vec<_> = parsed
-            .diagnostics
-            .iter()
-            .filter_map(|d| d.fix.as_ref())
-            .collect();
+        let fixes: Vec<_> = parsed.diagnostics.iter().flat_map(|d| &d.fixes).collect();
         assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
         assert_eq!(fixes[0].edits.len(), 1);
         let (span, replacement) = &fixes[0].edits[0];
@@ -35,7 +31,7 @@ fn elif_remains_a_name_and_incomplete_headers_have_no_guessed_fix() {
     ] {
         let parsed = parse(source.as_bytes());
         assert!(parsed.is_ok(), "{source}: {:?}", parsed.diagnostics);
-        assert!(parsed.diagnostics.iter().all(|d| d.fix.is_none()));
+        assert!(parsed.diagnostics.iter().all(|d| d.fixes.is_empty()));
     }
     for source in [
         "fn f(n: bool):\n    if n: pass\n    elif ready\n",
@@ -45,7 +41,7 @@ fn elif_remains_a_name_and_incomplete_headers_have_no_guessed_fix() {
         let parsed = parse(source.as_bytes());
         assert!(!parsed.is_ok(), "{source}");
         assert!(
-            parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+            parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
             "{source}: {:?}",
             parsed.diagnostics
         );

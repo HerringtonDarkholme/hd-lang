@@ -1,0 +1,13 @@
+# @dump: diagnostics fixed
+
+struct Config:
+    port: i32
+
+fn load(text: string) -> Result[Config, string]:
+    .Ok(Config { port: 80 })
+
+fn port(text: string) -> i32:
+    let loaded: Config? = load(text)
+    match loaded:
+        .Some(config) => config.port
+        .None => 0

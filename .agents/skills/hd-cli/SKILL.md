@@ -79,14 +79,15 @@ Put flags after the command word: `hd check --format json FILE`.
 A JSON diagnostic, then the summary that always ends the stream:
 
 ```text
-{"kind":"diagnostic","code":"trait-used-as-type","severity":"error","message":"`Shape` is a trait, not a type","file":"g7.hd","line":7,"column":23,"fixes":[{"message":"insert `dyn` before the trait name","edits":[{"file":"g7.hd","start":158,"end":158,"text":"dyn "}]}]}
+{"kind":"diagnostic","code":"trait-used-as-type","severity":"error","message":"`Shape` is a trait, not a type","file":"g7.hd","line":7,"column":23,"fixes":[{"message":"insert `dyn` before the trait name","guess":false,"edits":[{"file":"g7.hd","start":158,"end":158,"text":"dyn "}]}]}
 {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":0}
 ```
 
 - A fix-it edit replaces bytes `start` up to `end` of `file` with `text`;
-  offsets are UTF-8 bytes from 0. Text output does not show fix-its, so
-  use JSON to inspect them, or `hd check --fix` / `hd lint --fix` to apply
-  the eligible ones.
+  offsets are UTF-8 bytes from 0. Text output lists fix-it messages;
+  JSON includes their edits. `fixes` ranks alternatives likeliest first,
+  and `guess: true` marks an uncertain repair. `hd check --fix` and
+  `hd lint --fix` apply eligible fixes.
 - Few diagnostics carry fix-its; most messages say the fix in words,
   such as "use `let` to reassign it".
 - `hd test --format json` prints one `{"kind":"test",...}` line per case,

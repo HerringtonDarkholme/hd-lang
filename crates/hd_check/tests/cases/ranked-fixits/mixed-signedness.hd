@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+
+fn total(values: List[i64]) -> i64:
+    let sum: i64 = 0
+    for index in 0..values.len():
+        sum = sum + index
+    sum

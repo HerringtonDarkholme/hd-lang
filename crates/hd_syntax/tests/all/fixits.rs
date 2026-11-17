@@ -21,11 +21,7 @@ fn moved_punctuation_and_documentation_fixes_parse() {
         ),
     ] {
         let parsed = parse(source.as_bytes());
-        let fixes: Vec<_> = parsed
-            .diagnostics
-            .iter()
-            .filter_map(|d| d.fix.as_ref())
-            .collect();
+        let fixes: Vec<_> = parsed.diagnostics.iter().flat_map(|d| &d.fixes).collect();
         assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
         let mut edits = fixes[0].edits.clone();
         edits.sort_stable_by_key(|(span, _)| std::cmp::Reverse(span.lo));
@@ -57,7 +53,7 @@ fn incomplete_spreads_and_other_comment_positions_have_no_fix() {
         let parsed = parse(source.as_bytes());
         assert!(!parsed.is_ok(), "{source}");
         assert!(
-            parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+            parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
             "{source}: {:?}",
             parsed.diagnostics
         );
@@ -111,5 +107,18 @@ fn a_missing_import_goes_after_the_last_use_or_the_module_doc() {
         assert_eq!(parsed.use_insertion(source), want, "{source:?}");
         // The answer is kept for the next call.
         assert_eq!(parsed.use_insertion(source), want, "{source:?}");
+    }
+}
+
+#[test]
+fn repeated_mut_type_prefixes_have_one_diagnostic_and_linear_edit_work() {
+    for n in [1000, 10000] {
+        let source = format!("fn f(x: {}i32) -> void: pass\n", "mut ".repeat(n));
+        let parsed = parse(source.as_bytes());
+        assert_eq!(parsed.diagnostics.len(), 1, "{n}: {:?}", parsed.diagnostics);
+        let fixes = &parsed.diagnostics[0].fixes;
+        assert_eq!(fixes.len(), 2);
+        assert_eq!(fixes[0].edits.len(), n + 1);
+        assert_eq!(fixes[1].edits.len(), n);
     }
 }
