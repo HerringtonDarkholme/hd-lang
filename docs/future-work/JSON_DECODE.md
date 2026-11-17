@@ -35,29 +35,24 @@ A format opts in with one method, `keyed() -> true`, and then implements
 name through `member(m)`. The signatures and a hand-written example are in
 [json-decode/](json-decode/src/json_decode.hd).
 
-## Open Questions
+## Decisions
 
-1. Adopt the key loop (V3) as `decode`'s only reader and delete the indexed
-   `TextReader`? **Recommendation:** yes; it is faster than today in 26
-   of 27 cells, and its Wasm grows 7 to 10% where V2's grows 18 to 41%.
-2. Name match: a per-type wire-name table, made once per type per decode
-   and keyed by a compiler-assigned id on `Members` (needs approval: one
-   `usize` per member directory)? **Recommendation:** yes. A scan is O(F)
-   per out-of-order key: 3.1x today's time on a shuffled 64-field struct,
-   where the table is 19% faster than today (Appendix A).
-3. A variant object with a second key (`{"A":{},"A":{}}`) becomes a
-   `WrongType` at the variant, as in serde_json, instead of duplicate-last?
-   **Recommendation:** yes; one pass cannot reread the first payload.
-4. A repeated record key keeps duplicate-last (today), not serde's
-   `DuplicateField`? **Recommendation:** keep duplicate-last; it matches
-   `parse` and `from_json`, and costs nothing in the key loop.
-5. Add `skip()` to `Deserializer` (serde's `IgnoredAny`), so a hand-written
-   key loop can drop an unknown key's value without building a `Json`?
-   **Recommendation:** yes.
-6. With two typed errors in one document, report the first in text order
-   (serde_json), not the first in declaration order? **Recommendation:**
-   yes; a one-pass reader sees them in text order, and two conformance
-   fixtures change (Appendix A).
+Owner, 2026-11-17, on PR #2099:
+
+1. **Adopted:** the key loop (V3) is `decode`'s only reader; the indexed
+   `TextReader` is deleted.
+2. **Approved:** a compiler-assigned id on `Members` (one `usize` per member
+   directory) keys the per-type wire-name table.
+3. **Changed from the recommendation:** a repeated record key is a
+   `DuplicateField` error, as in serde, with one seen bit per field in the
+   key loop. `parse` and `from_json` keep last-value-wins: they build a
+   `Json` tree, not a record.
+4. **Adopted:** with two typed errors in one document, the first in text
+   order is reported, as in serde_json.
+
+Decided by the orchestrator with the doc's recommendation (the owner may
+revise): a variant object with a second key is a `WrongType` at the variant,
+as in serde_json; `Deserializer` gains `skip()` (serde's `IgnoredAny`).
 
 ## Problems It Solves
 
@@ -226,8 +221,8 @@ let secs = secs.ok_or_else(|| de::Error::missing_field("secs"))?;
 ```
 
 `__Field` is a `match` on `&str`, which rustc lowers to length and byte
-comparisons. hd takes the slot loop and the any-order read. It keeps
-duplicate-last instead of `duplicate_field` (question 4), and matches
+comparisons. hd takes the slot loop, the any-order read and `duplicate_field`
+(decision 3), and matches
 names with a per-type table because the template is library code, not a
 generated `match`.
 
@@ -300,30 +295,30 @@ so the key loop needs no compiler change.
 
 ## E. Details
 
-Proposed spec text, not applied:
+Proposed spec text, not applied. New rule IDs are in bold, not code, until the spec has them:
 
 - `std-json.decode.direct`: "`decode` | ... | the `T` that `T::deserialize`
   reads from the text in one pass".
 - `std-json.decode.parse-error`: "When `parse` fails, `decode` returns its
   parse error. `T::deserialize` may have run on the text before the error."
-- `std-serde.read.keyed` (new): "`keyed()` is `true` for a reader that names
+- New rule **std-serde.read.keyed**: "`keyed()` is `true` for a reader that names
   a record's members itself through `next_field`; the default is `false`."
-- `std-serde.read.next-field` (new): "`next_field(members, facts, guess)` is
+- New rule **std-serde.read.next-field**: "`next_field(members, facts, guess)` is
   the index of the member that the record's next key names, or `.None`
   after its last key. A key that names no unskipped member is skipped with
   its value."
-- `std-serde.read.absent-field` (new): "After `absent_field(m, facts)`,
+- New rule **std-serde.read.absent-field**: "After `absent_field(m, facts)`,
   `is_absent` and `is_null` are true and any other read is the format's
   missing-member error."
-- `std-serde.read.skip` (new): "`skip()` reads one value of any kind and
+- New rule **std-serde.read.skip**: "`skip()` reads one value of any kind and
   drops it."
 - `std-serde.derive.deserialize.data-and-enum-forms`: "... reads every
   unskipped built member: in the order `next_field` names them when the
   reader is keyed, then each unnamed one through `absent_field`; otherwise
   in declaration order through `member(m)`."
-- `std-json.decode.first-error` (new): "When the text holds several typed
+- New rule **std-json.decode.first-error**: "When the text holds several typed
   errors, `decode` returns the first one in text order."
-- `std-json.derive.variant-object-one-key` (new): "An externally tagged
+- New rule **std-json.derive.variant-object-one-key**: "An externally tagged
   variant object has one key; a second key is `WrongType` at the object,
   expecting `variant`."
 
