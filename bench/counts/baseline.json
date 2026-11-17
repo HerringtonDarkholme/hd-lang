@@ -222,11 +222,11 @@
     {
       "program": "bench/study/json.hd",
       "retained": "2040003",
-      "released": "3060094",
-      "uniques": "10540015",
-      "total": "15640112",
-      "noOpsAndSkipped": "19720133",
-      "reason": "#2074: TextReader.new mutates its Parser binding before constructing an owning reader; donation of the input string count through that mutable binding is not proven. The JSON workload pays one balanced retain/release pair (2040003 retains, 3060094 releases, total 15640112); the other 33 workloads and JSON no-ops/skips are unchanged."
+      "released": "3060076",
+      "uniques": "9350031",
+      "total": "14450110",
+      "noOpsAndSkipped": "24650131",
+      "reason": "#1809 (e70be2212): decode reads JSON in one pass through the keyed stream reader. Its key loop writes each member into a slot and probes the guess and the per-type name table per key; those take count operations on string keys and slot values that are already sole-owned or static, which the runtime skips. The reader replaces two passes (validate with an index, then read), and decode is 6-21% faster on 10 MB documents (A/B on #1809)."
     },
     {
       "program": "bench/study/mandelbrot.hd",
