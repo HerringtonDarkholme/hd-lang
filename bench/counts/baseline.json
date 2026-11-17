@@ -266,12 +266,11 @@
     },
     {
       "program": "bench/study/readonly-comparison.hd",
-      "retained": "6000003",
-      "released": "6000008",
+      "retained": "3",
+      "released": "8",
       "uniques": "0",
-      "total": "12000011",
-      "noOpsAndSkipped": "51000014",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "total": "11",
+      "noOpsAndSkipped": "39000014"
     },
     {
       "program": "bench/study/sieve.hd",
@@ -306,8 +305,7 @@
       "released": "3500061",
       "uniques": "0",
       "total": "6650101",
-      "noOpsAndSkipped": "13125181",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "11025157"
     }
   ]
 }
