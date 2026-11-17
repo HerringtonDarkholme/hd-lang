@@ -12,7 +12,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { canMeasure, runHd, runProblem } from "../lib/hd.ts";
+import { canMeasure, freshCache, runHd, runProblem } from "../lib/hd.ts";
 import type { MetricContext } from "../lib/metric.ts";
 import { failed, judge, notApplicable, type Metric, type TargetResult } from "../lib/metric.ts";
 import { p50 } from "../lib/stats.ts";
@@ -25,9 +25,9 @@ const TIME_LIMIT_MS = 20;
 const RSS_LIMIT = 10 * 1024 * 1024;
 
 /** The first of `hd --version` and `hd version` that exits 0, else `hd help`. */
-async function versionCommand(context: MetricContext, cwd: string) {
+async function versionCommand(context: MetricContext, cwd: string, env: Record<string, string>) {
   for (const args of [["--version"], ["version"]]) {
-    const result = await runHd(context.hd, args, { cwd, timeoutMs: TIMEOUT_MS });
+    const result = await runHd(context.hd, args, { cwd, env, timeoutMs: TIMEOUT_MS });
     if (result.status === 0) {
       return { args, label: `hd ${args[0]}` };
     }
@@ -39,7 +39,7 @@ async function measure(
   context: MetricContext,
   label: string,
   args: readonly string[],
-  cwd: string,
+  where: { readonly cwd: string; readonly env: Record<string, string> },
 ): Promise<TargetResult[]> {
   const labels = [`${label}: wall time`, `${label}: CPU time`, `${label}: peak RSS`];
   const targets = [`≤ ${TIME_LIMIT_MS} ms`, `≤ ${TIME_LIMIT_MS} ms`, "≤ 10.0 MB"];
@@ -47,7 +47,11 @@ async function measure(
   const cpus: number[] = [];
   const rsss: number[] = [];
   for (let index = 0; index <= RUNS; index++) {
-    const result = await runHd(context.hd, args, { cwd, timeoutMs: TIMEOUT_MS, measure: true });
+    const result = await runHd(context.hd, args, {
+      ...where,
+      timeoutMs: TIMEOUT_MS,
+      measure: true,
+    });
     const problem = runProblem(result, TIMEOUT_MS, `${label}, run ${index + 1}`);
     if (problem) {
       return labels.map((name, k) => failed(NAME, name, targets[k]!, problem));
@@ -82,20 +86,24 @@ export const startup: Metric = {
     if (!canMeasure()) {
       context.log(`${NAME}: no /usr/bin/time; CPU and RSS are n/a`);
     }
-    const version = await versionCommand(context, cwd);
+    // Its own cache, never the user's shared one: other runs on the machine
+    // queue on that cache's lock (#1932). The discarded first run warms it.
+    const env = freshCache();
+    const version = await versionCommand(context, cwd, env);
+    const where = { cwd, env };
     // Agents check both a file they just wrote, which hd reads again until
     // it is SETTLE old, and a settled one, whose stamp hd trusts.
     const fresh = await measure(
       context,
       "hd check empty.hd, just written",
       ["check", "empty.hd"],
-      cwd,
+      where,
     );
     await settle(cwd);
     return [
-      ...(await measure(context, version.label, version.args, cwd)),
+      ...(await measure(context, version.label, version.args, where)),
       ...fresh,
-      ...(await measure(context, "hd check empty.hd, settled", ["check", "empty.hd"], cwd)),
+      ...(await measure(context, "hd check empty.hd, settled", ["check", "empty.hd"], where)),
     ];
   },
 };

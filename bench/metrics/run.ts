@@ -16,7 +16,7 @@ import { parseArgs } from "node:util";
 
 import { killLiveRuns, parseHdCommand } from "./lib/hd.ts";
 import type { Metric, TargetResult } from "./lib/metric.ts";
-import { keepTempDirs, removeAllTempDirs } from "./lib/tmp.ts";
+import { keepTempDirs, makeTempDir, removeAllTempDirs } from "./lib/tmp.ts";
 import { METRICS } from "./scripts/index.ts";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..");
@@ -391,6 +391,10 @@ async function main(): Promise<number> {
   }
   const selected = requireMetrics(selectMetrics(METRICS, values.only ?? [], values.pillar));
   keepTempDirs(values["keep-temp"] ?? false);
+  // Every hd the suite runs uses a cache of its own, never the user's shared
+  // one: other runs on the machine queue on that cache's lock (#1932). A
+  // metric that needs a fresh cache still passes its own HD_CACHE.
+  process.env.HD_CACHE = makeTempDir("suite-cache");
   const hd = parseHdCommand(metricsCommand(values.hd), REPO_ROOT);
   console.log(`hd under test: ${hd.display}`);
   const context = {
