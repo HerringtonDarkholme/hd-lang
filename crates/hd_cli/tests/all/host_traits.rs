@@ -17,7 +17,7 @@ fn work(name: &str) -> Scratch {
 }
 
 fn hd(dir: &Path, args: &[&str]) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     c.env(
         "HD_CACHE",
         crate::shared_objects(dir.with_extension("cache")),

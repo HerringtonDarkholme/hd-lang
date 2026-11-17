@@ -6,7 +6,7 @@
 
 use std::io::{BufRead as _, BufReader, Read as _};
 use std::os::unix::process::CommandExt as _;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -47,7 +47,7 @@ impl Run {
     fn start(engine: &str, name: &str, cleanup_limit: &str) -> Self {
         let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), &format!("interrupt-{name}"));
         std::fs::write(dir.join("wait.hd"), PROGRAM).expect("write the program");
-        let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
+        let mut child = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
             .current_dir(&dir)
             .env("HD_CACHE", crate::shared_objects(dir.cache()))
             .env_remove("HD_ENGINE")

@@ -44,7 +44,7 @@ struct Ran {
 
 /// `hd ARGS` in `cwd` over the cache directory `cache`, with the cap `cap`.
 fn hd(cwd: &Path, cache: &Path, cap: Option<&str>, args: &[&str]) -> Ran {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     c.env("HD_CACHE", cache).env_remove("HD_CACHE_MAX_SIZE");
     if let Some(cap) = cap {
         c.env("HD_CACHE_MAX_SIZE", cap);
@@ -456,7 +456,7 @@ fn eviction_running_beside_a_check_never_breaks_it() {
 /// One `hd check` of `file` over the cache `cache`, its work counted by
 /// `HD_WORK` on one thread (`HD_JOBS=1`, as counted runs need).
 fn counted_check(dir: &Path, cache: &Path, file: &str, n: usize) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     c.env("HD_CACHE", cache)
         .env_remove("HD_CACHE_MAX_SIZE")
         .env("HD_JOBS", "1")
@@ -620,7 +620,7 @@ fn rejected_checks(label: &str, files: &[(&str, &str)], good: &str, errors: u64)
             // one deadline kills every unfinished child before failing.
             let mut children: Vec<_> = (0..4)
                 .map(|n| {
-                    Command::new(env!("CARGO_BIN_EXE_hd"))
+                    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
                         .current_dir(&dir)
                         .env("HD_CACHE", &cache)
                         .env("HD_JOBS", if round < 4 { "1" } else { "2" })

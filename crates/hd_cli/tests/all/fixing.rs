@@ -5,7 +5,6 @@
 //! with a stand-in check.
 
 use std::path::Path;
-use std::process::Command;
 use std::time::SystemTime;
 
 use hd_testkit::Scratch;
@@ -26,7 +25,7 @@ fn package(name: &str, lib: &str) -> Scratch {
 }
 
 fn hd(cwd: &Path, dir: &Scratch, args: &[&str]) -> Ran {
-    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let output = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(cwd)
         .args(args)

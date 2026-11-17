@@ -21,7 +21,7 @@ fn work(name: &str) -> Scratch {
 }
 
 fn hd(dir: &Path) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     // The cache goes under the test temp dir, never next to `dir`: some
     // runs use the repository's `examples/` folders.
     let name = dir

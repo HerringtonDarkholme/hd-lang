@@ -44,7 +44,7 @@ fn hd(cache_dir: &Path) -> Command {
 }
 
 fn hd_own_objects(cache_dir: &Path) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     c.env("HD_CACHE", cache_dir);
     offline_git(&mut c);
     c

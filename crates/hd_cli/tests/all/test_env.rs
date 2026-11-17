@@ -8,7 +8,7 @@
 //! grant's scope checks.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use hd_testkit::Scratch;
 
@@ -38,7 +38,7 @@ fn package(name: &str, manifest: &str) -> Scratch {
 }
 
 fn hd(root: &Path, temp: Option<&Path>, args: &[&str]) -> Output {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut c = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     c.env(
         "HD_CACHE",
         crate::shared_objects(root.with_extension("cache")),

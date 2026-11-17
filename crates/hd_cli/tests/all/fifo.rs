@@ -43,7 +43,7 @@ fn package(name: &str) -> Scratch {
 /// Runs `hd ARGS` and returns its exit status, or fails the test when it
 /// does not finish in time (a regression hangs).
 fn hd(root: &Path, args: &[&str]) -> std::process::ExitStatus {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let mut child = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),

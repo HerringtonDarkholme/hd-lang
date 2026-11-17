@@ -2,8 +2,6 @@
 //! JSON object; a serial run of the same input repeats every count, and a
 //! report it cannot write leaves the command's status alone.
 
-use std::process::Command;
-
 use hd_testkit::Scratch;
 
 const MAIN: &str = "pub fn main() -> void $ Console:\n    println(\"ok\")\n";
@@ -21,7 +19,7 @@ fn package(name: &str) -> Scratch {
 }
 
 fn check(dir: &Scratch, work: &std::path::Path) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_hd"))
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", dir.cache())
         .env("HD_JOBS", "1")
         .env("HD_WORK", work)

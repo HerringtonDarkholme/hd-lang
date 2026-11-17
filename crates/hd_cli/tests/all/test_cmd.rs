@@ -5,7 +5,7 @@
 //! on several (`cli.jobs.result`).
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use hd_testkit::Scratch;
 
@@ -18,7 +18,7 @@ fn cache(name: &str) -> Scratch {
 }
 
 fn hd_test(cache_dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_hd"))
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(cache_dir))
         .env_remove("HD_JOBS")
         .current_dir(package())

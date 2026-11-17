@@ -14,7 +14,7 @@ fn host() -> PathBuf {
 }
 
 fn hd(dir: &Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
+    let mut command = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"));
     command
         .current_dir(dir)
         .env("HD_CACHE", crate::shared_objects(dir.join("cache")))

@@ -7,7 +7,6 @@
 //! each seen.
 
 use std::path::Path;
-use std::process::Command;
 use std::time::{Duration, SystemTime};
 
 use hd_testkit::Scratch;
@@ -21,7 +20,7 @@ const BAD: &str = "pub fn price() -> i32:\n    return no\n";
 
 /// `hd check` in `root`; whether it found no error.
 fn check(root: &Path) -> bool {
-    let out = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),

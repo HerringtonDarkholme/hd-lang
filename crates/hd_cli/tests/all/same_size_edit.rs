@@ -3,7 +3,6 @@
 //! so the build is the clean build of the edited text, byte for byte.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -25,7 +24,7 @@ fn package(name: &str, price: &str) -> Scratch {
 
 /// `hd build` in `root`, with its own cache; the debug Wasm it wrote.
 fn build(root: &Path) -> Vec<u8> {
-    let out = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),

@@ -3,7 +3,7 @@
 //! except where `expr.call.spread.vararg-duplicate` applies.
 
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use hd_testkit::Scratch;
 
@@ -20,7 +20,7 @@ fn check(name: &str, lib: &str) -> (Option<i32>, String) {
 }
 
 fn hd(root: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_hd"))
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),

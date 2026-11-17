@@ -2,7 +2,6 @@
 //! and file mode, the exit status, the JSON lines, and the warm second run.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -35,7 +34,7 @@ fn check(dir: &Scratch, args: &[&str]) -> Ran {
 /// `hd check` run in `cwd`, with the build cache of `dir`.
 fn check_at(cwd: &Path, dir: &Scratch, args: &[&str]) -> Ran {
     let cache = dir.cache();
-    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let output = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(cache))
         .current_dir(cwd)
         .arg("check")
@@ -778,7 +777,7 @@ fn test_code_makes_no_folder_cycle() {
 
 /// `hd WORDS` in `dir`, with the build cache of `dir`.
 fn hd(dir: &Scratch, words: &[&str]) -> Ran {
-    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let output = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(dir)
         .args(words)
@@ -984,7 +983,7 @@ fn a_no_root_file_in_a_package_uses_only_std() {
 #[test]
 fn a_format_flag_before_the_command_selects_json() {
     let dir = package("hd-check-format-first", BROKEN);
-    let output = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let output = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(&*dir)
         .args(["--format", "json", "check", "main.hd"])
@@ -1091,7 +1090,7 @@ fn a_warm_check_prints_before_it_publishes() {
     assert!(before > 0, "the first check publishes");
     let edited = CLEAN.replace("\"ok\"", "\"edited\"");
     std::fs::write(dir.join("src/main.hd"), edited).expect("write");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let mut child = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(dir.cache()))
         .current_dir(&*dir)
         .args(["check", "--format", "json"])
@@ -1132,7 +1131,7 @@ fn jobs_change_no_output() {
 fn build_accepts_jobs() {
     let dir = package("hd-build-jobs", CLEAN);
     let cache = dir.cache();
-    let built = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let built = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(cache))
         .current_dir(&dir)
         .args(["build", "--jobs", "2"])
@@ -1149,7 +1148,7 @@ fn bad_jobs_is_the_same_usage_error_everywhere() {
     for value in ["0", "many"] {
         let message = format!("`--jobs {value}`: N is a whole number of at least 1");
         for command in ["check", "build", "test", "fmt"] {
-            let out = Command::new(env!("CARGO_BIN_EXE_hd"))
+            let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
                 .env("HD_CACHE", crate::shared_objects(dir.cache()))
                 .current_dir(&dir)
                 .args([command, "--jobs", value])

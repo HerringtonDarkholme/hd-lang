@@ -14,7 +14,7 @@
 
 use hd_base::SliceSort as _;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use hd_testkit::Scratch;
 
@@ -77,7 +77,7 @@ fn package(name: &str, lib: &str) -> Scratch {
 }
 
 fn hd(root: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_hd"))
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env(
             "HD_CACHE",
             crate::shared_objects(root.with_extension("cache")),
@@ -624,7 +624,7 @@ fn a_built_module_prints_its_frames_without_the_cache() {
     assert!(built.status.success(), "{}", text(&built.stderr));
     let empty = root.join("empty-cache");
     std::fs::create_dir_all(&empty).expect("empty cache");
-    let ran = Command::new(env!("CARGO_BIN_EXE_hd"))
+    let ran = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", &empty)
         .env_remove("HD_ENGINE")
         .current_dir(&*root)

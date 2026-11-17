@@ -9,7 +9,6 @@
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -57,7 +56,7 @@ fn concurrent_checks_over_one_reused_cache_never_wait_inside_a_claim() {
         let children: Vec<_> = dirs
             .iter()
             .map(|dir| {
-                Command::new(env!("CARGO_BIN_EXE_hd"))
+                hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
                     .env("HD_CACHE", &cache)
                     .env_remove("HD_JOBS")
                     .current_dir(dir)

@@ -7,7 +7,7 @@
 
 use hd_base::SliceSort as _;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
 use hd_testkit::Scratch;
 
@@ -61,7 +61,7 @@ fn write(root: &Path, files: &[(&str, &str)]) {
 }
 
 fn hd(root: &Path, cache: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_hd"))
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", crate::shared_objects(cache))
         .env_remove("HD_JOBS")
         .env_remove("HD_ENGINE")

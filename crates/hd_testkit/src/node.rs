@@ -1,7 +1,8 @@
 //! The Node every test runs (#2059): the version the repository pins in
 //! `.node-version`, found once per test process. A test that starts
 //! `node` itself takes [`command`]; a test that starts `hd`, which starts
-//! `node` from PATH, gives the child [`path_env`].
+//! `node` from PATH, takes [`child`], or gives its own command
+//! [`path_env`].
 //!
 //! Which Node: PATH's `node` when it is the pinned version, else fnm's
 //! install of the pinned version, else PATH's `node` when it is newer. An
@@ -65,14 +66,14 @@ pub fn found() -> Result<&'static Path, &'static str> {
     }
 }
 
-/// A command that starts [`binary`].
+/// A command that starts [`binary`], with [`path_env`] as its PATH, so a
+/// script that starts `node` or `hd` runs the same Node.
 ///
 /// # Panics
 /// As [`binary`].
 #[must_use]
 pub fn command() -> Command {
-    // cost: builds one command; the caller starts it once.
-    Command::new(binary())
+    child(binary())
 }
 
 /// PATH with [`binary`]'s directory first, for a child that starts `node`
@@ -82,7 +83,21 @@ pub fn command() -> Command {
 /// As [`binary`].
 #[must_use]
 pub fn path_env() -> OsString {
-    path_before(binary())
+    static PATH: OnceLock<OsString> = OnceLock::new();
+    PATH.get_or_init(|| path_before(binary())).clone()
+}
+
+/// A command that starts `program` (such as `hd`, which starts `node`
+/// from PATH) with [`path_env`] as its PATH.
+///
+/// # Panics
+/// As [`binary`].
+#[must_use]
+pub fn child(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    // cost: builds one command; the caller starts it once.
+    let mut command = Command::new(program);
+    command.env("PATH", path_env());
+    command
 }
 
 /// PATH with `node`'s directory first.
@@ -287,13 +302,27 @@ mod tests {
 
     #[test]
     fn this_machine_resolves_a_node_at_least_the_pinned_one() {
-        let ran = command().arg("--version").output().expect("node runs");
+        let ran = command()
+            .args([
+                "-p",
+                // cost: one Node start, which starts one more `node`.
+                "require('child_process').execSync('node --version').toString()",
+            ])
+            .output()
+            .expect("node runs");
         let version = parse(&String::from_utf8_lossy(&ran.stdout)).expect("a version");
         assert!(version >= parse(pinned()).expect("pinned"));
         assert_eq!(found(), Ok(binary()));
         let dir = binary().parent().expect("a directory");
         let path = path_env();
         assert_eq!(std::env::split_paths(&path).next().as_deref(), Some(dir));
+        let child = child("hd");
+        let set: Vec<_> = child.get_envs().collect();
+        assert_eq!(
+            set,
+            [(std::ffi::OsStr::new("PATH"), Some(path.as_os_str()))]
+        );
+        assert_eq!(child.get_program(), "hd");
     }
 
     #[test]
