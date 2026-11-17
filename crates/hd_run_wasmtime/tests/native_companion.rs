@@ -500,8 +500,8 @@ fn instantiation_takes_the_registry_by_value() {
     assert_eq!(instance.init(), Outcome::Exit(0));
     assert_eq!(instance.poll(), std::task::Poll::Ready(Outcome::Exit(5)));
 
-    // A loaded module has no package host contract yet, so a provider
-    // names no trait it requires: refused before the guest starts.
+    // This module has no package host contract, so a provider names no
+    // trait it requires: refused before the guest starts.
     let bindings = surface::Bindings::builder()
         .surface(Renderer {
             applied: Rc::new(Cell::new(0)),

@@ -16,8 +16,11 @@ design. Native provider registration on Wasmtime is the accepted
 [Native Package Host Bindings](../future-work/NATIVE_PACKAGE_HOST_BINDINGS.md),
 specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
 `hd build --engine wasmtime` writes its Rust companion `NAME.host.rs`, and
-`hd_run_wasmtime::native` is the embedder surface it registers through;
-linking and calling the providers is not yet built (#2078 to #2083).
+`hd_run_wasmtime::native` is the embedder surface it registers through.
+Instantiation resolves each root trait to its registration by nominal identity
+and links its ready methods to the registration's dispatch (#2078); the
+generated dispatch and codecs, consent, pending calls and handles are not yet
+built (#2079 to #2083).
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

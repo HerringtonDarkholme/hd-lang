@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
+use hd_base::HashSet;
 use hd_cache::CacheStore;
 use hd_run::{Engine, HostSetup, Instance, LoadError, StartError};
 use wasmtime::{Linker, Store};
 
 use super::instance::WasmtimeInstance;
-use crate::host::{Host, HostIo, Stop, define, start_clock, supported, unsupported_message};
+use crate::host::{
+    Host, HostIo, Stop, define, package, start_clock, supported, unsupported_message,
+};
 use crate::runtime::epochs;
 use crate::{cache, limits};
 
@@ -90,24 +93,18 @@ impl WasmtimeEngine {
         setup: &HostSetup,
         io: HostIo,
     ) -> Result<WasmtimeInstance, StartError> {
-        let host = Host::new(
-            io,
-            setup.args.clone(),
-            setup.program.clone(),
-            setup.grants.clone(),
-            setup.limits.wall_ms,
-        );
-        self.instantiate_host(m, host)
+        self.instantiate_host(m, host_of(setup, io))
     }
 
     /// [`WasmtimeEngine::instantiate_with`] with an embedder's native
     /// package providers (`cli.host.package.native-registration`): the one
     /// registry its generated companion built, passed by value.
     ///
-    /// Preflight runs before linking or guest start. Every module `load`
-    /// accepts today has no package host contract (`load` refuses one;
-    /// #2078 moves that refusal here and links the registered imports), so
-    /// a registration names no trait the module requires and is refused.
+    /// Preflight (`host/package.rs`) resolves every root trait of the
+    /// module's contract to the registration of its nominal identity before
+    /// anything is linked or the guest starts, and refuses a missing,
+    /// mismatched, duplicate or unrequired registration naming the trait
+    /// (`native-unregistered`, `native-mismatch`, `duplicate`).
     pub fn instantiate_with_bindings(
         &self,
         m: &Module,
@@ -115,15 +112,7 @@ impl WasmtimeEngine {
         io: HostIo,
         bindings: crate::native::Bindings,
     ) -> Result<WasmtimeInstance, StartError> {
-        // The instance takes the providers over; a refusal drops them.
-        let registrations = bindings.into_registrations();
-        if let Some(r) = registrations.first() {
-            return Err(StartError::Refused(format!(
-                "native provider for package host trait {:?} names no trait this module requires",
-                r.identity
-            )));
-        }
-        self.instantiate_with(m, setup, io)
+        self.instantiate_native(m, host_of(setup, io), Some(bindings))
     }
 
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
@@ -136,13 +125,7 @@ impl WasmtimeEngine {
         interrupt: &crate::HostInterrupt,
         bound: std::time::Duration,
     ) -> Result<WasmtimeInstance, StartError> {
-        let mut host = Host::new(
-            io,
-            setup.args.clone(),
-            setup.program.clone(),
-            setup.grants.clone(),
-            setup.limits.wall_ms,
-        );
+        let mut host = host_of(setup, io);
         host.interrupt = Some(Arc::clone(&interrupt.flag));
         let mut inst = self.instantiate_host(m, host)?;
         *interrupt
@@ -158,14 +141,30 @@ impl WasmtimeEngine {
         Ok(inst)
     }
 
+    /// Instantiates `m` with no native package provider: a module whose
+    /// contract requires a root trait is refused before the guest starts
+    /// (`cli.host.package.native-cli`).
     pub(crate) fn instantiate_host(
         &self,
         m: &Module,
         host: Host,
     ) -> Result<WasmtimeInstance, StartError> {
+        self.instantiate_native(m, host, None)
+    }
+
+    fn instantiate_native(
+        &self,
+        m: &Module,
+        mut host: Host,
+        bindings: Option<crate::native::Bindings>,
+    ) -> Result<WasmtimeInstance, StartError> {
+        let package = m.2.as_deref();
+        host.natives = package::preflight(package, bindings)?;
         let mut store = new_store(&self.engine, host)?;
         let mut linker = Linker::new(&self.engine);
-        define(&mut linker, &m.0, self.profile).map_err(StartError::Engine)?;
+        let mut defined = HashSet::default();
+        package::define(&mut linker, &m.0, package, &mut defined)?;
+        define(&mut linker, &m.0, self.profile, &mut defined).map_err(StartError::Engine)?;
         let instance = match linker.instantiate(&mut store, &m.0) {
             Ok(instance) => instance,
             Err(error)
@@ -188,6 +187,17 @@ impl WasmtimeEngine {
         run.report.clone_from(&m.1);
         Ok(run)
     }
+}
+
+/// The host state of one instance of `setup`, its standard streams on `io`.
+fn host_of(setup: &HostSetup, io: HostIo) -> Host {
+    Host::new(
+        io,
+        setup.args.clone(),
+        setup.program.clone(),
+        setup.grants.clone(),
+        setup.limits.wall_ms,
+    )
 }
 
 pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
@@ -251,10 +261,12 @@ pub(crate) fn new_store(
 }
 
 /// A compiled module. The artifact is shared: loading identical bytes
-/// returns the same compilation (see `cache`).
+/// returns the same compilation (see `cache`). Its package host contract,
+/// when it has one, is decoded and indexed once here.
 pub struct Module(
     pub(crate) Arc<wasmtime::Module>,
     pub(crate) Option<crate::checked_report::Report>,
+    pub(crate) Option<Arc<package::Package>>,
 );
 
 impl Engine for WasmtimeEngine {
@@ -263,28 +275,22 @@ impl Engine for WasmtimeEngine {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err(LoadError::NotHd("not a Wasm module".into()));
         }
-        if let Some(contract) = hd_host_abi::schema::from_wasm(wasm)
+        // The package imports the contract describes are resolved at
+        // instantiation, against the embedder's registry, if any.
+        let package = hd_host_abi::schema::from_wasm(wasm)
             .map_err(|why| LoadError::Engine(format!("invalid package host contract: {why}")))?
-            && let Some(interface) = contract
-                .interfaces
-                .iter()
-                .find(|i| !i.handle)
-                .or_else(|| contract.interfaces.first())
-        {
-            let name = interface.identity.to_string();
-            return Err(LoadError::Engine(format!(
-                "package host trait {name:?} requires a JS host; wasmtime does not load package host providers"
-            )));
-        }
+            .map(|contract| Arc::new(package::Package::new(contract)));
         let imports = hd_run::module_imports(wasm).map_err(LoadError::NotHd)?;
-        if let Some((m, n)) = imports.iter().find(|(m, n)| !supported(m, n, self.profile)) {
+        if let Some((m, n)) = imports.iter().find(|(m, n)| {
+            !supported(m, n, self.profile) && !package.as_ref().is_some_and(|p| p.describes(m, n))
+        }) {
             return Err(LoadError::Engine(unsupported_message(m, n)));
         }
         let shared = cache::ondemand(&self.config).map_err(LoadError::Engine)?;
         shared
             .cache
             .get_or_compile(&shared.engine, wasm)
-            .map(|module| Module(module, crate::checked_report::Report::read(wasm)))
+            .map(|module| Module(module, crate::checked_report::Report::read(wasm), package))
             .map_err(|e| LoadError::Engine(format!("{e:#}")))
     }
     fn instantiate(&self, m: &Module, host: &HostSetup) -> Result<Box<dyn Instance>, StartError> {
@@ -297,54 +303,5 @@ impl Engine for WasmtimeEngine {
 }
 
 #[cfg(test)]
-mod package_host_tests {
-    use super::*;
-    use hd_host_abi::schema::{Contract, Identity, Interface, SECTION};
-
-    #[test]
-    fn a_package_host_is_refused_before_the_guest_start_function() {
-        let contract = Contract {
-            interfaces: vec![Interface {
-                identity: Identity {
-                    package: "example.org/sdk".into(),
-                    version: "1.2.3".into(),
-                    trait_path: "server.Server".into(),
-                },
-                module: "hd:pkg:provider".into(),
-                selectors: vec!["dep.sdk.server.Server".into()],
-                handle: false,
-                methods: vec![],
-            }],
-        };
-        let mut module = wasm_encoder::Module::new();
-        let mut types = wasm_encoder::TypeSection::new();
-        types.ty().function([], []);
-        module.section(&types);
-        let mut functions = wasm_encoder::FunctionSection::new();
-        functions.function(0);
-        module.section(&functions);
-        module.section(&wasm_encoder::StartSection { function_index: 0 });
-        let mut code = wasm_encoder::CodeSection::new();
-        let mut start = wasm_encoder::Function::new([]);
-        start.instruction(&wasm_encoder::Instruction::Unreachable);
-        start.instruction(&wasm_encoder::Instruction::End);
-        code.function(&start);
-        module.section(&code);
-        module.section(&wasm_encoder::CustomSection {
-            name: SECTION.into(),
-            data: contract.encode().into(),
-        });
-        let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
-        let Err(LoadError::Engine(message)) =
-            engine.load(&module.finish(), &hd_cache::MemoryStore::default())
-        else {
-            panic!("package host must be refused at load")
-        };
-        assert!(message.contains("example.org/sdk@1.2.3/server.Server"));
-        assert!(message.contains("requires a JS host"));
-        assert!(
-            !message.contains("unreachable"),
-            "the trapping start function did not run"
-        );
-    }
-}
+#[path = "package_tests.rs"]
+mod package_tests;

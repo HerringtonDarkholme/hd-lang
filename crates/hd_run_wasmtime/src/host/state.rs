@@ -62,6 +62,9 @@ pub struct Host {
     pub(crate) net: net::Client,
     deadline: Option<Instant>,
     pub(crate) fixture: crate::profiles::State,
+    /// The embedder's native package providers, by contract interface
+    /// (`host/package.rs`); empty for every other run.
+    pub(crate) natives: Vec<super::package::Native>,
     pub(crate) testing: Option<crate::testing::State>,
     pub(crate) environment: Option<crate::test_engine::TestEnvironment>,
     /// Pairs a test child's command added to the process's environment,
@@ -114,6 +117,7 @@ impl Host {
             net: net::Client::default(),
             deadline,
             fixture: crate::profiles::State::default(),
+            natives: Vec::new(),
             testing: None,
             environment: None,
             env_overlay: Vec::new(),

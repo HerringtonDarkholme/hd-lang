@@ -1,7 +1,9 @@
 # Native Package Host Bindings
 
 Status: accepted design, 2026-11-02; domain: runtime and host; specified; the companion
-and embedder surface are built (#2077), loading and calls are not.
+and embedder surface are built (#2077), and so are the identity preflight and
+ready calls through a registration's dispatch (#2078); codecs, consent, pending
+calls and handles are not.
 Tracked by [#1822](https://github.com/HerringtonDarkholme/hd-lang/issues/1822) (owner, 2026-11-13: a package already needs it).
 The spec pass applied it as [Native Package Providers](../../spec/cli/command-line.md#native-package-providers)
 and the [Native Value Table](../../spec/lang/10-modules.md#native-value-table);
@@ -271,9 +273,11 @@ allows package providers on JavaScript hosts and as registered native providers.
 [`cli.host.package.native-unregistered`](../../spec/cli/command-line.md#r-cli.host.package.native-unregistered)
 requires Wasmtime to refuse an unregistered trait before guest initialization.
 
-`hd_run_wasmtime::WasmtimeEngine::load` performs that refusal whenever it sees
-`hd.capabilities`. The linker, store host state, import dispatcher, and reactor
-registration are internal. `hd_run::Instance` already exposes `init`, `poll`,
+`hd_run_wasmtime::WasmtimeEngine::load` indexes `hd.capabilities` once;
+instantiation without a registry refuses its first root trait, and
+`instantiate_with_bindings` resolves each root trait to its registration by
+nominal identity before linking (`crates/hd_run_wasmtime/src/host/package.rs`). The linker, store host
+state, import dispatcher, and reactor registration are internal. `hd_run::Instance` already exposes `init`, `poll`,
 `wake`, and `completed`, so a GUI can own the driving loop after instantiation.
 
 JavaScript generation in `hd_host_abi` already uses the checked contract and

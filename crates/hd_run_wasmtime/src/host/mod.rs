@@ -23,6 +23,8 @@
 //! - `reply.rs` reads arguments from and writes results to the exchange
 //!   buffer; `offload.rs` is the `.start` and `.finish` every provider
 //!   that waits on the `hd-io` runtime shares.
+//! - `package.rs` indexes a module's package host contract, resolves an
+//!   embedder's native providers against it, and links their root methods.
 //! - `state.rs` is the per-instance `Host`: its streams, grants, deadline,
 //!   reactor and provider state.
 //!
@@ -37,6 +39,7 @@ mod kind;
 mod link;
 pub(crate) mod offload;
 mod output;
+pub(crate) mod package;
 mod reply;
 mod rt;
 mod state;

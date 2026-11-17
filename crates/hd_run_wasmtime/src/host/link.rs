@@ -25,19 +25,17 @@ pub fn capability(module: &str) -> Option<&str> {
     module.strip_prefix("hd:")
 }
 
-/// Defines each import of `module` in `linker`, or names the first one
-/// that does not run on wasmtime yet.
+/// Defines each import of `module` in `linker` not already in `defined`,
+/// or names the first one that does not run on wasmtime yet.
 pub fn define(
     linker: &mut Linker<Host>,
     module: &wasmtime::Module,
     profile: RuntimeProfile,
+    defined: &mut HashSet<(String, String)>,
 ) -> Result<(), String> {
-    define_with(
-        linker,
-        module.imports(),
-        &mut HashSet::default(),
-        |module, name| Kind::with_profile(module, name, profile),
-    )
+    define_with(linker, module.imports(), defined, |module, name| {
+        Kind::with_profile(module, name, profile)
+    })
 }
 
 /// Defines the host imports of a session input (`f1c55020:future-work/compiler/repl-plan.md` §2.3) in the

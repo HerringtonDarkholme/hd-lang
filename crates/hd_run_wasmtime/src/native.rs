@@ -10,9 +10,11 @@
 //! takes. Hd never discovers or loads a library
 //! (`cli.host.package.native-no-discovery`).
 //!
-//! What builds on this surface: #2078 indexes the registrations by
-//! identity and links the package imports at instantiation; #2079 adds the
-//! generated codecs and the typed [`Serde`] transport; #2080 checks consent
+//! [`WasmtimeEngine::instantiate_with_bindings`](crate::WasmtimeEngine::instantiate_with_bindings)
+//! resolves the registrations by nominal identity and links each root
+//! method's import to its registration's [`Dispatch`] before the guest
+//! starts. What builds on this surface: #2079 generates the companion's
+//! dispatch and codecs and the typed [`Serde`] transport; #2080 checks consent
 //! in the same preflight; #2081 drives [`PendingCall`] from the reactor and
 //! gives [`CallContext`] the instance identity; #2082 keeps returned handle
 //! trait objects in the instance's registry.
@@ -164,12 +166,23 @@ impl std::fmt::Display for Unregistered {
 
 impl std::error::Error for Unregistered {}
 
-/// One root provider: its trait's nominal identity, its import module, and
-/// the generated trait object (`Box<dyn Trait>`, boxed again as `Any`).
+/// The byte-level entry of one root provider: calls the method at index
+/// `method` of its interface in the contract, with that method's encoded
+/// arguments, and returns its encoded result (empty for `()`). The
+/// companion generates one per root trait; it downcasts `provider` to the
+/// trait object it registered.
+pub type Dispatch = fn(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Vec<u8>>;
+
+/// One root provider: its trait's nominal identity, its import module, the
+/// generated trait object (`Box<dyn Trait>`, boxed again as `Any`), and its
+/// dispatch.
 pub struct Registration {
     pub identity: &'static str,
     pub module: &'static str,
     pub provider: Box<dyn Any>,
+    /// gap: #2079 generates the companion's dispatch; a registration
+    /// without one is refused before the guest starts.
+    pub dispatch: Option<Dispatch>,
 }
 
 /// The providers an embedder passes, by value, to one instantiation. The
@@ -189,7 +202,8 @@ impl Bindings {
         }
     }
 
-    /// Adds the provider of one root trait.
+    /// Adds the provider of one root trait, without a dispatch: the
+    /// companion's form until #2079 generates its codecs.
     pub fn register(
         &mut self,
         identity: &'static str,
@@ -200,6 +214,24 @@ impl Bindings {
             identity,
             module,
             provider,
+            dispatch: None,
+        });
+    }
+
+    /// Adds the provider of one root trait and the dispatch its calls go
+    /// through.
+    pub fn register_dispatch(
+        &mut self,
+        identity: &'static str,
+        module: &'static str,
+        provider: Box<dyn Any>,
+        dispatch: Dispatch,
+    ) {
+        self.registrations.push(Registration {
+            identity,
+            module,
+            provider,
+            dispatch: Some(dispatch),
         });
     }
 

@@ -148,7 +148,9 @@ The design record in #182 is closed; no implementation ticket is open.
   `Random`, `Sys`, `Http`, `Net` and their handle traits, the `hd:rt` and
   `hd:prim` imports, `TestRunner`, `PropertyRunner`, and the conformance
   runtime profiles (`profiles.rs`). A module that imports any other trait
-  is refused at load with a message naming it.
+  is refused at load with a message naming it, except a package host trait
+  its `hd.capabilities` contract describes: instantiation refuses that one
+  unless an embedder registered a native provider for it.
 - **Output contract.** Standard output is held until standard error is
   written or the run ends. A panic prints its report and exits with
   status 3; an entry's `.Err` is status 1 and `ExitCode(n)` is n. A stack
