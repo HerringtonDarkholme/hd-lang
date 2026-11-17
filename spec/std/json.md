@@ -540,14 +540,18 @@ fn load(text: string) -> Result[Session, JsonError]:
 | r[std-json.from-json] `from_json` | `pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads from `value`, or the first error it finds |
 | r[std-json.encode] `encode` | `pub fn encode[T < Serialize](value: T) -> string` | the [compact text](#compact-text) of `to_json(value)` |
 | r[std-json.encode-pretty] `encode_pretty` | `pub fn encode_pretty[T < Serialize](value: T) -> string` | the [pretty text](#pretty-text) of `to_json(value)`, as `to_json(value).pretty()` gives |
-| r[std-json.decode.direct] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads directly from validated JSON text |
+| r[std-json.decode.direct.v2] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads from the text in one pass |
 
-1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and reads no value.
+1. r[std-json.decode.parse-error.v2] When `parse` fails, `decode` returns its parse error. `T::deserialize` may have run on the text before the error.
 2. r[std-json.from-json.errors.v2] `from_json` returns only the decode errors: `WrongType`, `MissingField`, `DuplicateField`, and `UnknownVariant`.
 3. r[std-json.from-json.root] Each path that `from_json` reports starts at the value it reads, whose path is `$`.
 4. r[std-json.encode.serialize] `encode` or `to_json` of a type that does not implement `Serialize` is an error. Error: `unsatisfied-trait-bound`.
 5. r[std-json.decode.deserialize] `decode` or `from_json` into a type that does not implement `Deserialize` is an error. Error: `unsatisfied-trait-bound`.
 6. r[std-json.decode.no-tree] `decode` reads typed values without constructing an intermediate `Json` tree.
+7. r[std-json.decode.first-error] When the text holds several typed errors, `decode` returns the first one in text order.
+8. r[std-json.decode.keyed] `decode`'s reader is keyed ([`std-serde.read.keyed`](serde.md#r-std-serde.read.keyed)): a derived `Deserialize` reads a record's keys in the order the text has them.
+9. r[std-json.derive.duplicate-field] When `decode` reads a record whose key repeats an earlier key of the same object, the result is `DuplicateField` at that member's path. `parse` and `from_json` keep the last value, since `Json` has one entry per key.
+10. r[std-json.derive.variant-object-one-key] An externally tagged variant object that `decode` reads has one key; a second key is `WrongType` at the object, expecting `variant`.
 
 ```text
 use std.json.{encode, decode, JsonError}
@@ -690,6 +694,7 @@ and below are unchanged.
 10. r[std-json.derive.untagged.read] Untagged deserialization tries the same four payload shapes under [`std-serde.enum-tagging.untagged-order`](serde.md#r-std-serde.enum-tagging.untagged-order). Both the tree reader and direct text reader restore their complete value, offset, frame, and path state after a failed candidate.
 11. r[std-json.derive.untagged.failure] When no candidate accepts the value, JSON returns `WrongType(original-path, "variant")`.
 12. r[std-json.derive.tagged.order] JSON preserves the tag-first and content-second object order in `to_json`, `encode`, and `encode_pretty`; `from_json` and `decode` accept object members in any order.
+13. r[std-json.derive.adjacent.duplicate-read] `decode` rejects an adjacently tagged object in which the tag key or the content key occurs more than once with `DuplicateField` at that key's path.
 
 > **Note.** Direct `decode` observes repeated tag keys before the untyped
 > parser's ordinary duplicate-last normalization. Likewise, `from_json`

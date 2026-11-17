@@ -300,6 +300,85 @@ tests:
             assert_equal(internal_direct_error(text), expected, reason="direct internal tag error")
             assert_equal(internal_tree_error(text), expected, reason="tree internal tag error")
 
+    it("the internal tag is found after other keys, and the rest of the object is read once"):
+        for (text, expected) in [
+            ("{\"type\":\"Empty\",\"x\":[1]}", "{\"type\":\"Empty\"}"),
+            ("{\"x\":{\"type\":1},\"type\":\"Empty\"}", "{\"type\":\"Empty\"}"),
+            (
+                "{\"label\":\"x\",\"_0\":1,\"type\":\"Mixed\"}",
+                "{\"type\":\"Mixed\",\"_0\":1,\"label\":\"x\"}",
+            ),
+            ("{\"value\":4,\"type\":\"Box\",\"y\":null}", "{\"type\":\"Box\",\"value\":4}"),
+            ("{\"type\":\"Box\",\"value\":4}", "{\"type\":\"Box\",\"value\":4}"),
+            ("{\"a\":1,\"type\":\"Entries\",\"b\":2}", "{\"type\":\"Entries\",\"a\":1,\"b\":2}"),
+            ("{\"type\":\"Entries\"}", "{\"type\":\"Entries\"}"),
+            ("{\"value\":5,\"type\":\"Handwritten\"}", "{\"type\":\"Handwritten\",\"value\":5}"),
+        ]:
+            assert_equal(
+                encode(decode::[Internal](text).expect("direct internal, any key order")),
+                expected,
+                reason="direct internal key order",
+            )
+        for (text, expected) in [
+            (
+                "{\"value\":3,\"type\":\"Record\",\"type\":\"Record\"}",
+                JsonError.DuplicateField("$.type"),
+            ),
+            ("{\"type\":\"Box\",\"type\":\"Box\",\"value\":4}", JsonError.DuplicateField("$.type")),
+            ("{\"type\":\"Nope\"}", JsonError.UnknownVariant("$", "Nope")),
+            ("{\"value\":\"x\",\"type\":\"Box\"}", JsonError.WrongType("$.value", "i32")),
+            ("{\"type\":\"Box\"}", JsonError.MissingField("$.value")),
+            ("{\"x\":1}", JsonError.MissingField("$.type")),
+            ("\"Empty\"", JsonError.WrongType("$", "object")),
+        ]:
+            assert_equal(internal_direct_error(text), expected, reason="direct internal key errors")
+
+    it("pretty text with whitespace and line breaks reads back in every tagged form"):
+        for value in [
+            Internal.Empty,
+            Internal.Record(value=3),
+            Internal.Mixed(1, label="x"),
+            Internal.Box(Payload { value: 4 }),
+            Internal.Entries({ "count": 5 }),
+        ]:
+            text := encode_pretty(value)
+            assert_equal(
+                encode(decode::[Internal](text).expect("pretty internal")),
+                encode(value),
+                reason="pretty internal",
+            )
+            crlf := text.replace("\n", "\r\n")
+            assert_equal(
+                encode(decode::[Internal](crlf).expect("CRLF internal")),
+                encode(value),
+                reason="CRLF internal",
+            )
+        for value in [
+            Adjacent.Empty,
+            Adjacent.Text("hi"),
+            Adjacent.Pair(1, 2),
+            Adjacent.Record(value=6),
+            Adjacent.Maybe(value=.None),
+        ]:
+            text := encode_pretty(value)
+            assert_equal(
+                encode(decode::[Adjacent](text).expect("pretty adjacent")),
+                encode(value),
+                reason="pretty adjacent",
+            )
+        for value in [
+            Untagged.Empty,
+            Untagged.Text("hi"),
+            Untagged.Pair(1, 2),
+            Untagged.Record(value=6),
+        ]:
+            text := encode_pretty(value)
+            assert_equal(
+                encode(decode::[Untagged](text).expect("pretty untagged")),
+                encode(value),
+                reason="pretty untagged",
+            )
+
     it("an internal map tag collision is written twice and rejected on read"):
         text := encode(Internal.Entries({ "type": 5 }))
         assert_equal(
@@ -365,9 +444,9 @@ tests:
         )
         duplicate_tag := "{\"t\":\"Empty\",\"t\":\"Text\",\"c\":\"hi\"}"
         assert_equal(
-            encode(decode::[Adjacent](duplicate_tag).expect("direct duplicate adjacent tag")),
-            "{\"t\":\"Text\",\"c\":\"hi\"}",
-            reason="direct duplicate adjacent tag uses the last value",
+            adjacent_direct_error(duplicate_tag),
+            JsonError.DuplicateField("$.t"),
+            reason="direct duplicate adjacent tag is a repeated key",
         )
         assert_equal(
             encode(
@@ -377,6 +456,44 @@ tests:
             "{\"t\":\"Text\",\"c\":\"hi\"}",
             reason="tree duplicate adjacent tag uses the last value",
         )
+        # The tag after other keys: the reader checks the whole object once
+        # to find it, then reads the content where it is.
+        for (text, expected) in [
+            ("{\"x\":[1,{\"t\":0}],\"c\":[3,4],\"t\":\"Pair\"}", "{\"t\":\"Pair\",\"c\":[3,4]}"),
+            (
+                "{\"c\":{\"value\":6},\"x\":1,\"t\":\"Record\"}",
+                "{\"t\":\"Record\",\"c\":{\"value\":6}}",
+            ),
+            ("{\"c\":null,\"t\":\"Empty\"}", "{\"t\":\"Empty\"}"),
+            ("{\"t\":\"Empty\",\"x\":2,\"c\":null}", "{\"t\":\"Empty\"}"),
+            (
+                "{\"t\":\"Text\",\"x\":{\"c\":1},\"c\":\"hi\",\"y\":[]}",
+                "{\"t\":\"Text\",\"c\":\"hi\"}",
+            ),
+            (
+                "{\"t\":\"Record\",\"c\":{\"t\":1,\"value\":6}}",
+                "{\"t\":\"Record\",\"c\":{\"value\":6}}",
+            ),
+        ]:
+            assert_equal(
+                encode(decode::[Adjacent](text).expect("direct adjacent, any key order")),
+                expected,
+                reason="direct adjacent key order",
+            )
+        for (text, expected) in [
+            ("{\"t\":\"Text\",\"c\":\"hi\",\"c\":\"ho\"}", JsonError.DuplicateField("$.c")),
+            ("{\"t\":\"Empty\",\"c\":1,\"c\":2}", JsonError.DuplicateField("$.c")),
+            ("{\"c\":\"hi\",\"c\":\"ho\",\"t\":\"Text\"}", JsonError.DuplicateField("$.c")),
+            ("{\"c\":\"hi\",\"t\":\"Text\",\"t\":\"Text\"}", JsonError.DuplicateField("$.t")),
+            ("{\"t\":\"Text\",\"c\":\"hi\",\"t\":\"Text\"}", JsonError.DuplicateField("$.t")),
+            ("{\"c\":[1],\"t\":\"Pair\"}", JsonError.WrongType("$.c", "array of 2 items")),
+            ("{\"t\":\"Pair\",\"c\":[1,2,3]}", JsonError.WrongType("$.c", "array of 2 items")),
+            ("{\"t\":\"Record\",\"c\":{\"value\":\"x\"}}", JsonError.WrongType("$.c.value", "i32")),
+            ("{\"x\":1,\"t\":\"Record\"}", JsonError.MissingField("$.c")),
+            ("{\"t\":\"Nope\",\"c\":1}", JsonError.UnknownVariant("$", "Nope")),
+            ("[1]", JsonError.WrongType("$", "object")),
+        ]:
+            assert_equal(adjacent_direct_error(text), expected, reason="direct adjacent key errors")
         for (text, expected) in [
             ("{\"t\":\"Text\"}", JsonError.MissingField("$.c")),
             ("{\"t\":\"Maybe\"}", JsonError.MissingField("$.c")),

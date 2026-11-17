@@ -1,0 +1,322 @@
+# JSON decode throughput (#1809): three shapes, five key orders, three
+# sizes. The corpus is generated here from a fixed seed, linearly in its
+# size, so `run.ts` rebuilds the same texts for every compiler it compares.
+# Each cell prints 7 batches of at least 150 ms as
+# `shape order objects bytes nanoseconds-per-decode`.
+use std.json.decode
+use std.serde.{Deserialize, rename}
+use std.time.{Clock, elapsed, monotonic}
+
+@derive(Deserialize)
+struct Line:
+    sku: string
+    qty: i64
+    price: f64
+
+# The serde-throughput order record.
+@derive(Deserialize)
+struct Order:
+    id: i64
+    customer: string
+    email: string?
+    total: f64
+    paid: bool
+    note: string?
+    lines: List[Line]
+    tags: List[string]
+    created: string
+    priority: i64
+
+@derive(Deserialize)
+struct User:
+    login: string
+    id: i64
+    site_admin: bool
+
+@derive(Deserialize)
+struct Label:
+    id: i64
+    name: string
+    color: string
+
+# A GitHub-API-like issue: 14 fields.
+@derive(Deserialize)
+struct Issue:
+    id: i64
+    number: i64
+    title: string
+    user: User
+    labels: List[Label]
+    state: string
+    locked: bool
+    assignee: User?
+    comments: i64
+    created_at: string
+    updated_at: string
+    closed_at: string?
+    body: string?
+    score: f64
+
+@derive(Deserialize)
+struct Person:
+    name: string
+    email: string?
+
+@derive(Deserialize)
+struct Repository:
+    @rename("type")
+    kind: string
+    url: string
+
+# A package.json-like record: 12 fields, three of them string maps.
+@derive(Deserialize)
+struct Package:
+    name: string
+    version: string
+    description: string?
+    main: string
+    scripts: Map[string, string]
+    dependencies: Map[string, string]
+    @rename("devDependencies")
+    dev_dependencies: Map[string, string]
+    author: Person
+    repository: Repository
+    license: string?
+    keywords: List[string]
+    private: bool
+
+# A linear congruential generator with a fixed seed.
+struct Rng:
+    state: u64
+
+impl Rng:
+    fn next(&mut self, bound: usize) -> usize:
+        self.state = self.state * 6364136223846793005 + 1442695040888963407
+        usize((self.state >> 33) % u64(bound))
+
+# One key, its value's text, and whether the member may be absent.
+struct Field:
+    key: string
+    value: string
+    optional: bool
+
+fn field(key: string, value: string) -> Field:
+    Field { key: key, value: value, optional: false }
+
+fn optional(key: string, value: string) -> Field:
+    Field { key: key, value: value, optional: true }
+
+fn quoted(text: string) -> string:
+    "\"$text\""
+
+# The object of `fields` in key order `order`: 0 declaration, 1 shuffled,
+# 2 reversed, 3 an unknown key with a nested value after every second
+# field, 4 the optional members left out.
+fn object(rng: &mut Rng, order: i32, fields: List[Field]) -> string:
+    let mut chosen: List[Field] = []
+    for f in fields:
+        if order != 4 || !f.optional:
+            chosen.push(f)
+    if order == 1:
+        let i = chosen.len()
+        while i > 1:
+            j := rng.next(i)
+            i -= 1
+            held := chosen[i]
+            chosen[i] = chosen[j]
+            chosen[j] = held
+    let mut parts: List[string] = []
+    let at: usize = 0
+    while at < chosen.len():
+        f := if order == 2: chosen[chosen.len() - 1 - at] else: chosen[at]
+        parts.push("${quoted(f.key)}:${f.value}")
+        if order == 3 && at % 2 == 1:
+            parts.push("\"x_$at\":{\"a\":[1,2.5,\"s\"],\"b\":null,\"c\":{\"d\":true}}")
+        at += 1
+    "{" + parts.join(",") + "}"
+
+fn word(rng: &mut Rng) -> string:
+    words := ["alpha", "beta", "gamma", "delta", "omega", "kappa", "sigma", "theta"]
+    words[rng.next(words.len())]
+
+fn order_json(rng: &mut Rng, order: i32, i: usize) -> string:
+    let mut lines: List[string] = []
+    for k in 0..(1 + rng.next(4)):
+        lines.push(
+            object(
+                rng,
+                order,
+                [
+                    field("sku", quoted("SKU-${i}-$k")),
+                    field("qty", "${1 + rng.next(9)}"),
+                    field("price", "${rng.next(10000)}.25"),
+                ],
+            ),
+        )
+    let mut tags: List[string] = []
+    for _ in 0..rng.next(4):
+        tags.push(quoted(word(rng)))
+    object(
+        rng,
+        order,
+        [
+            field("id", "${100000 + i}"),
+            field("customer", quoted("${word(rng)} ${word(rng)}")),
+            optional("email", quoted("${word(rng)}@example.com")),
+            field("total", "${rng.next(100000)}.5"),
+            field("paid", if rng.next(2) == 0: "true" else: "false"),
+            optional("note", quoted("leave at the ${word(rng)} door")),
+            field("lines", "[" + lines.join(",") + "]"),
+            field("tags", "[" + tags.join(",") + "]"),
+            field("created", quoted("2026-11-17T10:${10 + rng.next(49)}:00Z")),
+            field("priority", "${rng.next(5)}"),
+        ]
+    )
+
+fn user_json(rng: &mut Rng, order: i32) -> string:
+    object(
+        rng,
+        order,
+        [
+            field("login", quoted("${word(rng)}${rng.next(1000)}")),
+            field("id", "${rng.next(1000000)}"),
+            field("site_admin", if rng.next(9) == 0: "true" else: "false")
+        ]
+    )
+
+fn issue_json(rng: &mut Rng, order: i32, i: usize) -> string:
+    let mut labels: List[string] = []
+    for _ in 0..rng.next(4):
+        labels.push(
+            object(
+                rng,
+                order,
+                [
+                    field("id", "${rng.next(100000)}"),
+                    field("name", quoted(word(rng))),
+                    field("color", quoted("ff${rng.next(9999)}")),
+                ],
+            ),
+        )
+    object(
+        rng,
+        order,
+        [
+            field("id", "${2000000 + i}"),
+            field("number", "$i"),
+            field("title", quoted("Fix the ${word(rng)} ${word(rng)} when ${word(rng)} is empty")),
+            field("user", user_json(rng, order)),
+            field("labels", "[" + labels.join(",") + "]"),
+            field("state", quoted(if rng.next(3) == 0: "closed" else: "open")),
+            field("locked", "false"),
+            optional("assignee", user_json(rng, order)),
+            field("comments", "${rng.next(50)}"),
+            field("created_at", quoted("2026-10-${10 + rng.next(18)}T08:00:00Z")),
+            field("updated_at", quoted("2026-11-${10 + rng.next(18)}T09:30:00Z")),
+            optional("closed_at", quoted("2026-11-17T12:00:00Z")),
+            optional(
+                "body",
+                quoted(
+                    "Steps: run the ${word(rng)} job, then the ${word(rng)} check fails with code ${rng.next(100)}.",
+                ),
+            ),
+            field("score", "${rng.next(100)}.75"),
+        ]
+    )
+
+fn string_map(rng: &mut Rng, order: i32, prefix: string, count: usize) -> string:
+    let mut fields: List[Field] = []
+    for k in 0..count:
+        fields.push(field("$prefix-${word(rng)}-$k", quoted("^${rng.next(20)}.${rng.next(10)}.0")))
+    # A map has no unknown keys and no optional entries.
+    object(rng, if order >= 3: 0 else: order, fields)
+
+fn package_json(rng: &mut Rng, order: i32, i: usize) -> string:
+    let mut keywords: List[string] = []
+    for _ in 0..rng.next(5):
+        keywords.push(quoted(word(rng)))
+    object(
+        rng,
+        order,
+        [
+            field("name", quoted("@scope/${word(rng)}-$i")),
+            field("version", quoted("${rng.next(9)}.${rng.next(30)}.${rng.next(100)}")),
+            optional(
+                "description",
+                quoted("A ${word(rng)} library for ${word(rng)} ${word(rng)} work"),
+            ),
+            field("main", quoted("dist/index.js")),
+            field("scripts", string_map(rng, order, "run", 3)),
+            field("dependencies", string_map(rng, order, "dep", 1 + rng.next(6))),
+            field("devDependencies", string_map(rng, order, "dev", rng.next(5))),
+            field(
+                "author",
+                object(
+                    rng,
+                    order,
+                    [
+                        field("name", quoted("${word(rng)} ${word(rng)}")),
+                        optional("email", quoted("${word(rng)}@example.org")),
+                    ],
+                ),
+            ),
+            field(
+                "repository",
+                object(
+                    rng,
+                    order,
+                    [
+                        field("type", quoted("git")),
+                        field("url", quoted("https://example.com/${word(rng)}/${word(rng)}.git")),
+                    ],
+                ),
+            ),
+            optional("license", quoted("MIT")),
+            field("keywords", "[" + keywords.join(",") + "]"),
+            field("private", "false"),
+        ],
+    )
+
+# A list of objects of `shape` in key order `order`, of at least `bytes`.
+fn corpus(shape: i32, order: i32, bytes: usize) -> (string, usize):
+    let mut rng = Rng { state: u64(shape * 31 + order + 7) }
+    let mut objects: List[string] = []
+    let size: usize = 2
+    while size < bytes:
+        i := objects.len()
+        text := match shape:
+            0 => order_json(&mut rng, order, i)
+            1 => issue_json(&mut rng, order, i)
+            _ => package_json(&mut rng, order, i)
+        size += text.len() + 1
+        objects.push(text)
+    ("[" + objects.join(",") + "]", objects.len())
+
+# Nanoseconds per decode over a batch of at least 150 ms.
+fn batch[T < Deserialize](text: string, objects: usize) -> i64 $ Clock:
+    let count: i64 = 0
+    let ms: i64 = 0
+    start := monotonic()
+    while ms < 150:
+        match decode::[List[T]](text):
+            .Ok(rows) =>
+                if rows.len() != objects:
+                    panic("decoded ${rows.len()} of $objects objects")
+            .Err(error) => panic("decode failed: $error")
+        count += 1
+        ms = elapsed(start).as_milliseconds()
+    ms * 1000000 / count
+
+pub fn main() -> void $ Console + Clock:
+    shapes := ["order", "issue", "package"]
+    orders := ["declaration", "shuffled", "reversed", "unknown keys", "optional missing"]
+    for shape in 0..3:
+        for (bytes, cell_orders) in [(1000, [0, 1]), (100000, [0, 1, 2, 3, 4]), (10000000, [0, 1])]:
+            for order in cell_orders:
+                let (text, objects) = corpus(i32(shape), i32(order), bytes)
+                for _ in 0..7:
+                    ns := match shape:
+                        0 => batch::[Order](text, objects)
+                        1 => batch::[Issue](text, objects)
+                        _ => batch::[Package](text, objects)
+                    println("${shapes[shape]}\t${orders[order]}\t$objects\t${text.len()}\t$ns")

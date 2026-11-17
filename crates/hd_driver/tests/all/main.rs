@@ -41,6 +41,7 @@ mod inlined_callee_edit;
 mod instantiation_depth;
 mod instruction_origins;
 mod join_once;
+mod json_keyed_work;
 mod json_object_remove;
 mod lazy_borrow_work;
 mod lazy_ifaces;

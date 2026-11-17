@@ -3481,7 +3481,7 @@ std/digest/streaming/sha256-handle-shared.hd	runtime	accept	std/digest.md#r-std-
 std/digest/hmac/digest-hmac.hd	runtime	accept	std/digest.md#r-std-digest.hmac.vectors
 std/json/parsing/json-adversarial-inputs.hd	runtime	accept	std/json.md#r-std-json.parse.strict
 std/json/typed-json/json-enum-tagging.hd	runtime	accept	std/json.md#tagged-enum-forms
-std/json/typed-json/json-model-round-trips.hd	runtime	accept	std/json.md#r-std-json.decode.direct
+std/json/typed-json/json-model-round-trips.hd	runtime	accept	std/json.md#r-std-json.decode.direct.v2
 std/json/json-values/json-round-trip.hd	runtime	accept	std/json.md#r-std-json.value.accessors
 std/json/parsing/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string.surrogates
 std/json/json-errors/json-errors.hd	runtime	accept	std/json.md#r-std-json.error.position-bytes
@@ -5215,7 +5215,7 @@ std/collections/set-deque-and-heap-values/collection-temporary-receivers.hd	runt
 lang/functions/methods-and-receivers/temporary-receiver-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
 std/text/joining-and-building/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r-std-text.builder.push-local
 std/text/joining-and-building/string-builder-local-reference.hd	runtime	accept	std/text.md#r-std-text.builder.push-local
-std/json/typed-json/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct
+std/json/typed-json/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct.v2
 lang/data/struct-declarations/wide-value-field-reads.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.value
 std/time/clock/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 lang/types/numeric-conversions/integer-remainder-native-widths.hd	runtime	accept	lang/04-type-system.md#integer-arithmetic
@@ -6079,7 +6079,7 @@ lang/types/union-construction-and-matching/union-runtime-layout-and-ownership.hd
 lang/traits/trait-implementations/implementation-targets/union-trait-forwarding.hd	runtime	accept	lang/09-traits.md#r-trait.target.union.conditional
 lang/traits/trait-implementations/implementation-targets/union-trait-requires-every-member.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.target.union.conditional
 std/hash/default-hasher/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
-std/json/typed-json/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
+std/json/typed-json/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct.v2
 lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-across-a-wait-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
 lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-call-result-loan-across-a-wait-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/references/dependent-results/conflicts-through-aliases/bang-call-pointer-argument-beside-a-shared-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access

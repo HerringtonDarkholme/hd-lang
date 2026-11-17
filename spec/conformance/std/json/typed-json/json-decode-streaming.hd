@@ -1,7 +1,8 @@
 # test: direct typed decoding preserves the tree reader's values and errors
-# Spec std/json: std-json.decode.direct, std-json.decode.no-tree, std-json.decode.parse-error.
+# Spec std/json: std-json.decode.direct.v2, std-json.decode.no-tree, std-json.decode.parse-error.v2,
+# std-json.derive.duplicate-field, std-json.derive.variant-object-one-key.
 use std.json.{decode, parse, from_json, JsonError, Json}
-use std.serde.{Deserialize, Deserializer}
+use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.testing.assert_equal
 
 @derive(Deserialize, Eq, Debug)
@@ -26,11 +27,18 @@ fn same[T < Deserialize & Eq & Debug](text: string) -> void:
         .Err(error) => .Err(error)
     assert_equal(decode::[T](text), expected, reason=text)
 
-struct Unread: pass
+# Reads only the first byte's kind, so the reader stops before the bad
+# bytes, since `deserialize` may run before the end of the text is checked.
+@derive(Eq, Debug)
+struct Unread:
+    map: bool
 
 impl Deserialize for Unread:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Unread, R::Error]:
-        panic("malformed input must not call Deserialize")
+        map := match input.peek()?:
+            .Map => true
+            _ => false
+        .Ok(Unread { map: map })
 
 struct Skip: pass
 
@@ -40,8 +48,19 @@ impl Deserialize for Skip:
         .Ok(Skip {})
 
 tests:
-    it("records retain duplicate-last keys, defaults, and declaration order"):
-        same::[User]("{\"count\":2,\"name\":\"first\",\"name\":\"last\"}")
+    it("records keep defaults and read keys in any order; a repeated key is an error"):
+        repeated := "{\"count\":2,\"name\":\"first\",\"name\":\"last\"}"
+        assert_equal(
+            decode::[User](repeated),
+            .Err(JsonError.DuplicateField("$.name")),
+            reason="decode reads a record's keys once each",
+        )
+        assert_equal(
+            from_json::[User](parse(repeated).expect("valid")),
+            .Ok(User { name: "last", count: 2 }),
+            reason="the tree keeps the last value",
+        )
+        same::[User]("{\"count\":2,\"name\":\"Ada\"}")
         same::[User]("{\"ignored\":{\"deep\":[false,null,{\"x\":1}]},\"name\":\"Ada\"}")
         same::[User]("{\"name\":\"a\\u0062\\n\"}")
         same::[User]("{\"count\":null,\"name\":\"Ada\"}")
@@ -57,7 +76,11 @@ tests:
         same::[Choice]("{\"User\":{\"name\":0}}")
         same::[Choice]("{\"User\":false}")
         same::[Choice]("{\"Unknown\":false}")
-        same::[Choice]("{\"Empty\":{},\"Empty\":{}}")
+        assert_equal(
+            decode::[Choice]("{\"Empty\":{},\"Empty\":{}}"),
+            .Err(JsonError.WrongType("$", "variant")),
+            reason="a variant object has one key",
+        )
         same::[Choice]("{\"Empty\":{},\"User\":{}}")
 
     it("maps retain first key order with last values"):
@@ -81,14 +104,23 @@ tests:
         same::[User]("{\"name\":\"\\uD800\"}")
         same::[User]("{\"name\":\"\\q\"}")
         same::[User]("{\"name\":\"x\",}")
-        match decode::[Unread]("{bad"):
-            .Err(error) =>
-                assert_equal(
-                    error,
-                    JsonError.UnexpectedCharacter(1),
-                    reason="Deserialize is never invoked",
-                )
-            .Ok(_) => panic("invalid JSON accepted")
+        for text in ["{bad", "[1 2]", "1 x", "\"a"]:
+            expected := match parse(text):
+                .Err(found) => found
+                .Ok(_) => panic("broken text parsed: $text")
+            match decode::[Unread](text):
+                .Err(error) =>
+                    assert_equal(
+                        error,
+                        expected,
+                        reason="the syntax error wins over a read that stopped early",
+                    )
+                .Ok(_) => panic("invalid JSON accepted: $text")
+        assert_equal(
+            decode::[Unread]("{\"a\":[1,{}]} "),
+            .Ok(Unread { map: true }),
+            reason="valid text with unread values still decodes",
+        )
 
     it("list iteration advances even when a custom reader does not consume a value"):
         values := decode::[List[Skip]]("[true,{\"x\":[1,2]},[false,null]]").expect("valid values")

@@ -1,0 +1,268 @@
+# Wasm size of decode with 20 derived types (#1809): each type is read once
+# from a fixed text, so every derived `deserialize` is linked.
+use std.json.decode
+use std.serde.Deserialize
+
+@derive(Deserialize)
+struct T0:
+    m0_0: i64
+    m0_1: string
+    m0_2: bool
+    m0_3: f64
+    m0_4: string?
+    m0_5: List[i64]
+
+@derive(Deserialize)
+struct T1:
+    m1_0: i64
+    m1_1: string
+    m1_2: bool
+    m1_3: f64
+    m1_4: string?
+    m1_5: List[i64]
+
+@derive(Deserialize)
+struct T2:
+    m2_0: i64
+    m2_1: string
+    m2_2: bool
+    m2_3: f64
+    m2_4: string?
+    m2_5: List[i64]
+
+@derive(Deserialize)
+struct T3:
+    m3_0: i64
+    m3_1: string
+    m3_2: bool
+    m3_3: f64
+    m3_4: string?
+    m3_5: List[i64]
+
+@derive(Deserialize)
+struct T4:
+    m4_0: i64
+    m4_1: string
+    m4_2: bool
+    m4_3: f64
+    m4_4: string?
+    m4_5: List[i64]
+
+@derive(Deserialize)
+struct T5:
+    m5_0: i64
+    m5_1: string
+    m5_2: bool
+    m5_3: f64
+    m5_4: string?
+    m5_5: List[i64]
+
+@derive(Deserialize)
+struct T6:
+    m6_0: i64
+    m6_1: string
+    m6_2: bool
+    m6_3: f64
+    m6_4: string?
+    m6_5: List[i64]
+
+@derive(Deserialize)
+struct T7:
+    m7_0: i64
+    m7_1: string
+    m7_2: bool
+    m7_3: f64
+    m7_4: string?
+    m7_5: List[i64]
+
+@derive(Deserialize)
+struct T8:
+    m8_0: i64
+    m8_1: string
+    m8_2: bool
+    m8_3: f64
+    m8_4: string?
+    m8_5: List[i64]
+
+@derive(Deserialize)
+struct T9:
+    m9_0: i64
+    m9_1: string
+    m9_2: bool
+    m9_3: f64
+    m9_4: string?
+    m9_5: List[i64]
+
+@derive(Deserialize)
+struct T10:
+    m10_0: i64
+    m10_1: string
+    m10_2: bool
+    m10_3: f64
+    m10_4: string?
+    m10_5: List[i64]
+
+@derive(Deserialize)
+struct T11:
+    m11_0: i64
+    m11_1: string
+    m11_2: bool
+    m11_3: f64
+    m11_4: string?
+    m11_5: List[i64]
+
+@derive(Deserialize)
+struct T12:
+    m12_0: i64
+    m12_1: string
+    m12_2: bool
+    m12_3: f64
+    m12_4: string?
+    m12_5: List[i64]
+
+@derive(Deserialize)
+struct T13:
+    m13_0: i64
+    m13_1: string
+    m13_2: bool
+    m13_3: f64
+    m13_4: string?
+    m13_5: List[i64]
+
+@derive(Deserialize)
+struct T14:
+    m14_0: i64
+    m14_1: string
+    m14_2: bool
+    m14_3: f64
+    m14_4: string?
+    m14_5: List[i64]
+
+@derive(Deserialize)
+struct T15:
+    m15_0: i64
+    m15_1: string
+    m15_2: bool
+    m15_3: f64
+    m15_4: string?
+    m15_5: List[i64]
+
+@derive(Deserialize)
+struct T16:
+    m16_0: i64
+    m16_1: string
+    m16_2: bool
+    m16_3: f64
+    m16_4: string?
+    m16_5: List[i64]
+
+@derive(Deserialize)
+struct T17:
+    m17_0: i64
+    m17_1: string
+    m17_2: bool
+    m17_3: f64
+    m17_4: string?
+    m17_5: List[i64]
+
+@derive(Deserialize)
+struct T18:
+    m18_0: i64
+    m18_1: string
+    m18_2: bool
+    m18_3: f64
+    m18_4: string?
+    m18_5: List[i64]
+
+@derive(Deserialize)
+struct T19:
+    m19_0: i64
+    m19_1: string
+    m19_2: bool
+    m19_3: f64
+    m19_4: string?
+    m19_5: List[i64]
+
+pub fn main() -> void $ Console:
+    let total: usize = 0
+    match decode::[T0]("{\"m0_0\":0,\"m0_1\":\"x\",\"m0_2\":true,\"m0_3\":1.5,\"m0_5\":[1,2]}"):
+        .Ok(v) => total += v.m0_5.len()
+        .Err(error) => panic("T0: $error")
+    match decode::[T1]("{\"m1_0\":1,\"m1_1\":\"x\",\"m1_2\":true,\"m1_3\":1.5,\"m1_5\":[1,2]}"):
+        .Ok(v) => total += v.m1_5.len()
+        .Err(error) => panic("T1: $error")
+    match decode::[T2]("{\"m2_0\":2,\"m2_1\":\"x\",\"m2_2\":true,\"m2_3\":1.5,\"m2_5\":[1,2]}"):
+        .Ok(v) => total += v.m2_5.len()
+        .Err(error) => panic("T2: $error")
+    match decode::[T3]("{\"m3_0\":3,\"m3_1\":\"x\",\"m3_2\":true,\"m3_3\":1.5,\"m3_5\":[1,2]}"):
+        .Ok(v) => total += v.m3_5.len()
+        .Err(error) => panic("T3: $error")
+    match decode::[T4]("{\"m4_0\":4,\"m4_1\":\"x\",\"m4_2\":true,\"m4_3\":1.5,\"m4_5\":[1,2]}"):
+        .Ok(v) => total += v.m4_5.len()
+        .Err(error) => panic("T4: $error")
+    match decode::[T5]("{\"m5_0\":5,\"m5_1\":\"x\",\"m5_2\":true,\"m5_3\":1.5,\"m5_5\":[1,2]}"):
+        .Ok(v) => total += v.m5_5.len()
+        .Err(error) => panic("T5: $error")
+    match decode::[T6]("{\"m6_0\":6,\"m6_1\":\"x\",\"m6_2\":true,\"m6_3\":1.5,\"m6_5\":[1,2]}"):
+        .Ok(v) => total += v.m6_5.len()
+        .Err(error) => panic("T6: $error")
+    match decode::[T7]("{\"m7_0\":7,\"m7_1\":\"x\",\"m7_2\":true,\"m7_3\":1.5,\"m7_5\":[1,2]}"):
+        .Ok(v) => total += v.m7_5.len()
+        .Err(error) => panic("T7: $error")
+    match decode::[T8]("{\"m8_0\":8,\"m8_1\":\"x\",\"m8_2\":true,\"m8_3\":1.5,\"m8_5\":[1,2]}"):
+        .Ok(v) => total += v.m8_5.len()
+        .Err(error) => panic("T8: $error")
+    match decode::[T9]("{\"m9_0\":9,\"m9_1\":\"x\",\"m9_2\":true,\"m9_3\":1.5,\"m9_5\":[1,2]}"):
+        .Ok(v) => total += v.m9_5.len()
+        .Err(error) => panic("T9: $error")
+    match decode::[T10](
+        "{\"m10_0\":10,\"m10_1\":\"x\",\"m10_2\":true,\"m10_3\":1.5,\"m10_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m10_5.len()
+        .Err(error) => panic("T10: $error")
+    match decode::[T11](
+        "{\"m11_0\":11,\"m11_1\":\"x\",\"m11_2\":true,\"m11_3\":1.5,\"m11_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m11_5.len()
+        .Err(error) => panic("T11: $error")
+    match decode::[T12](
+        "{\"m12_0\":12,\"m12_1\":\"x\",\"m12_2\":true,\"m12_3\":1.5,\"m12_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m12_5.len()
+        .Err(error) => panic("T12: $error")
+    match decode::[T13](
+        "{\"m13_0\":13,\"m13_1\":\"x\",\"m13_2\":true,\"m13_3\":1.5,\"m13_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m13_5.len()
+        .Err(error) => panic("T13: $error")
+    match decode::[T14](
+        "{\"m14_0\":14,\"m14_1\":\"x\",\"m14_2\":true,\"m14_3\":1.5,\"m14_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m14_5.len()
+        .Err(error) => panic("T14: $error")
+    match decode::[T15](
+        "{\"m15_0\":15,\"m15_1\":\"x\",\"m15_2\":true,\"m15_3\":1.5,\"m15_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m15_5.len()
+        .Err(error) => panic("T15: $error")
+    match decode::[T16](
+        "{\"m16_0\":16,\"m16_1\":\"x\",\"m16_2\":true,\"m16_3\":1.5,\"m16_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m16_5.len()
+        .Err(error) => panic("T16: $error")
+    match decode::[T17](
+        "{\"m17_0\":17,\"m17_1\":\"x\",\"m17_2\":true,\"m17_3\":1.5,\"m17_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m17_5.len()
+        .Err(error) => panic("T17: $error")
+    match decode::[T18](
+        "{\"m18_0\":18,\"m18_1\":\"x\",\"m18_2\":true,\"m18_3\":1.5,\"m18_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m18_5.len()
+        .Err(error) => panic("T18: $error")
+    match decode::[T19](
+        "{\"m19_0\":19,\"m19_1\":\"x\",\"m19_2\":true,\"m19_3\":1.5,\"m19_5\":[1,2]}",
+    ):
+        .Ok(v) => total += v.m19_5.len()
+        .Err(error) => panic("T19: $error")
+    println("$total")

@@ -1,12 +1,13 @@
 # JSON Decode: One Pass With A Key Loop
 
 Status: accepted design (owner, 2026-11-17; see Decisions); domain:
-std.json and std.serde reading; not built. It follows the owner's rule (a) on #1809 (2026-11-17):
-`deserialize` may run before the end of the text is validated. Under
-review: [std-json.decode.direct](../../spec/std/json.md#r-std-json.decode.direct),
-[std-json.decode.parse-error](../../spec/std/json.md#r-std-json.decode.parse-error),
-[std-serde.derive.deserialize.data-and-enum-forms](../../spec/std/serde.md#r-std-serde.derive.deserialize.data-and-enum-forms)
-and the [Reading table](../../spec/std/serde.md#reading).
+std.json and std.serde reading; built and applied (#1809). It follows the owner's rule (a) on #1809 (2026-11-17):
+`deserialize` may run before the end of the text is validated. Applied as
+[std-json.decode.direct.v2](../../spec/std/json.md#r-std-json.decode.direct.v2),
+[std-json.decode.parse-error.v2](../../spec/std/json.md#r-std-json.decode.parse-error.v2),
+[std-serde.derive.deserialize.keyed-order](../../spec/std/serde.md#r-std-serde.derive.deserialize.keyed-order)
+and the keyed rows of the [Reading table](../../spec/std/serde.md#reading).
+The corpus and A/B driver are [bench/json-decode/](../../bench/json-decode/run.ts).
 
 ## The Proposal
 
@@ -80,7 +81,7 @@ as in serde_json; `Deserializer` gains `skip()` (serde's `IgnoredAny`).
   list past 64 members). After the last key it offers each unseen
   unskipped member once with `absent_field`, so `T?` reads `.None`, a
   declared default applies, and anything else is `MissingField` at the
-  member's path. A repeated key reads again and its last value wins.
+  member's path. A repeated key is `DuplicateField` (decision 3).
 - **Errors.** A failed or unfinished read validates the whole text once.
   A syntax error found there is returned; otherwise the reader's typed
   error is, with the same path today's reader reports.
@@ -295,7 +296,9 @@ so the key loop needs no compiler change.
 
 ## E. Details
 
-Proposed spec text, not applied. New rule IDs are in bold, not code, until the spec has them:
+Spec text as proposed; applied in #1809 with `.v2` IDs for the two
+changed rules, the duplicate rule as `std-json.derive.duplicate-field`,
+and `std-json.derive.adjacent.duplicate-read` for adjacent tags. New rule IDs are in bold:
 
 - `std-json.decode.direct`: "`decode` | ... | the `T` that `T::deserialize`
   reads from the text in one pass".

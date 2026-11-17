@@ -1,0 +1,6 @@
+[package]
+name = "json_decode_bench"
+
+[capabilities]
+Console = true
+Clock = true

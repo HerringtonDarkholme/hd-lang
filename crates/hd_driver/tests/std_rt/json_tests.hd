@@ -1,6 +1,6 @@
-# The hd tests of `std.json.decode`'s structural index (#165): `validate`
-# records each container's members, and the typed reader finds keys and
-# steps over values through that index instead of scanning the text again.
+# The hd tests of `std.json.decode`'s one-pass key-loop reader (#1809): it
+# names each key's member in text order, skips unknown values once, and
+# lets a syntax error anywhere in the text win over a typed error.
 # The conformance runner adds this file to std as `std.rt_tests.json_tests`.
 use std.json.{decode, parse, Json, JsonError}
 use std.serde.{Deserialize, Deserializer, Serialize}
@@ -44,13 +44,17 @@ struct Wide:
     b6: i64
     b7: i64
 
-# A reader that must never run: decode validates the whole text first.
+# A reader that reads its object's first value and stops: `decode` may run
+# it before the end of the text is checked (std-json.decode.parse-error.v2),
+# and the parse error still wins.
 struct Guarded:
     value: i64
 
 impl Deserialize for Guarded:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Guarded, R::Error]:
-        panic("Guarded read malformed text")
+        input.begin_map()?
+        _ := input.next_key()?
+        .Ok(Guarded { value: input.int("i64")? })
 
 fn nested(depth: i32) -> string:
     let mut parts: List[string] = []
@@ -118,9 +122,11 @@ tests:
         lists := decode::[List[List[i64]]]("[[1, 2], [], [3]]")
         assert(lists == .Ok([[1, 2], [], [3]]), "lists of lists")
 
-    it("takes a repeated key's last value"):
+    it("rejects a repeated record key"):
         found := decode::[Point]("{\"x\":1,\"y\":2,\"x\":3}")
-        assert(found == .Ok(Point { x: 3, y: 2 }), "last value wins")
+        assert(found == .Err(JsonError.DuplicateField("$.x")), "a repeated key is an error")
+        escaped := decode::[Point]("{\"x\":1,\"y\":2,\"\\u0078\":3}")
+        assert(escaped == .Err(JsonError.DuplicateField("$.x")), "an escaped repeat too")
 
     it("reads distinct keys that share a length and first byte"):
         found := decode::[Point]("{\"xa\":0,\"xb\":0,\"y\":2,\"x\":1}")
@@ -131,7 +137,7 @@ tests:
         assert(found == .Ok(Point { x: 1, y: 2 }), "escaped key decoded")
 
     it("reads a record of more than 16 members in any order"):
-        text := "{\"b7\":17,\"b6\":16,\"b5\":15,\"b4\":14,\"b3\":13,\"b2\":12,\"b1\":11,\"b0\":10,\"a9\":9,\"a8\":8,\"a7\":7,\"a6\":6,\"a5\":5,\"a4\":4,\"a3\":3,\"a2\":2,\"a1\":1,\"a0\":0,\"a0\":-1}"
+        text := "{\"b7\":17,\"b6\":16,\"b5\":15,\"b4\":14,\"b3\":13,\"b2\":12,\"b1\":11,\"b0\":10,\"a9\":9,\"a8\":8,\"a7\":7,\"a6\":6,\"a5\":5,\"a4\":4,\"a3\":3,\"a2\":2,\"a1\":1,\"a0\":-1}"
         match decode::[Wide](text):
             .Ok(wide) =>
                 assert(
@@ -139,6 +145,32 @@ tests:
                     "wide record read",
                 )
             .Err(_) => assert(false, "wide record failed")
+        repeated := decode::[Wide](text.replace("\"b7\":17", "\"a0\":7,\"b7\":17"))
+        match repeated:
+            .Err(error) => assert(error == JsonError.DuplicateField("$.a0"), "wide repeat")
+            .Ok(_) => assert(false, "wide repeat accepted")
+
+    it("names keys of a wide record by scan, then by its name table, escaped or not"):
+        # Reversed keys miss every guess: the first 64 misses of a decode
+        # scan the members, later ones use the type's name table.
+        names := ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7"]
+        let mut objects: List[string] = []
+        for row in 0..8:
+            let mut parts: List[string] = []
+            let at = names.len()
+            while at > 0:
+                at -= 1
+                key := if row % 3 == 2 && at == 1: "\\u0061\\u0031" else: names[at]
+                parts.push("\"$key\":${row * 100 + at}")
+                if at == 9:
+                    parts.push("\"zz\":{\"a0\":[1]}")
+            objects.push("{" + parts.join(",") + "}")
+        match decode::[List[Wide]]("[" + objects.join(",") + "]"):
+            .Ok(rows) =>
+                assert(rows.len() == 8, "every row")
+                assert(rows[7].a1 == 701 && rows[7].b7 == 717 && rows[0].a0 == 0, "every member found")
+                assert(rows[2].a1 == 201 && rows[5].a1 == 501, "escaped keys found")
+            .Err(error) => assert(false, "wide rows failed: $error")
 
     it("reads deep nesting with skipped members at every level"):
         match decode::[Node](nested(40)):
@@ -176,8 +208,14 @@ tests:
         )
         assert(nested_bad == .Err(JsonError.UnexpectedCharacter(29)), "a nested parse error wins")
 
-    it("never runs a reader on malformed text"):
-        found := decode::[Guarded]("{\"value\":1")
-        assert(found.is_err(), "the parse error returned")
-        list := decode::[List[Guarded]]("[{\"value\":1},]")
-        assert(list.is_err(), "the parse error returned")
+    it("returns the parse error after a reader that stopped early"):
+        match decode::[Guarded]("{\"value\":1"):
+            .Err(error) => assert(error == JsonError.UnexpectedEnd(10), "the parse error returned")
+            .Ok(_) => panic("malformed text accepted")
+        match decode::[List[Guarded]]("[{\"value\":1},]"):
+            .Err(error) =>
+                assert(error == JsonError.UnexpectedCharacter(13), "the parse error returned")
+            .Ok(_) => panic("malformed text accepted")
+        match decode::[Guarded]("{\"value\":1,\"more\":[2]}"):
+            .Ok(found) => assert(found.value == 1, "valid text keeps the value")
+            .Err(error) => panic("valid text rejected: $error")

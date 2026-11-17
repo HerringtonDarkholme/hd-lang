@@ -14,8 +14,10 @@ use std.serde.{
     ValueKind,
     EnumTagging,
     member_name,
+    Skip,
 }
 use std.structure.{VariantInfo, Member, Facts}
+use std.rt.memory.string_bytes
 use std.rt.bytes.{
     bytes_len,
     bytes_at,
@@ -655,14 +657,7 @@ pub enum JsonError:
 ## Reads one JSON text, strictly as RFC 8259 defines it, and returns `.Ok` of the value or `.Err` of the first error.
 ## See [std-json.parse](../../spec/std/json.md#r-std-json.parse).
 pub fn parse(text: string) -> Result[Json, JsonError]:
-    parser := &mut Parser {
-        text: text,
-        size: bytes_len(text),
-        at: 0,
-        index: [],
-        pending: [],
-        held: 0,
-    }
+    parser := &mut Parser { text: text, size: bytes_len(text), at: 0 }
     value := parser.value(0)?
     parser.skip_space()
     if parser.at < parser.size:
@@ -674,30 +669,16 @@ pub fn parse(text: string) -> Result[Json, JsonError]:
 # a slice of the input, which shares its bytes: the input is a valid string
 # and the slice starts and ends next to a quote, so it needs no check.
 #
-# `validate` also writes the structural index that `decode` reads instead
-# of scanning the text again. Each non-empty array or object has one entry,
-# written when it closes. Its first word is twice its member count, plus 1
-# for an object whose keys may repeat; its second is the offset after its
-# closing bracket. An object then has each member's key quote and value
-# offset. Last come the entries of the container values, in order: an
-# array records nothing for a scalar item, so a list of scalars costs two
-# words. An empty container's entry is 0, and `index[0]` is 0, so entry 0
-# reads as a container with no members. While a container is open, its
-# members wait in `pending`, whose first `held` words are live; both lists
-# are reused across the whole document, never a buffer per container.
 struct Parser:
     text: string
     size: usize
     at: usize
-    index: List[usize]
-    pending: List[usize]
-    held: usize
 
 impl Parser:
-    # Validate without retaining an untyped container, and return the
-    # value's index entry. Decode validates first so a syntax error still
-    # wins over any later typed-reader error.
-    fn validate(&mut self, depth: usize) -> Result[usize, JsonError]:
+    # Checks one value and moves past it, retaining nothing. `depth` is
+    # the number of brackets already open around it, which `parse` limits
+    # to 128; the recursion is bounded by that limit, not by the input.
+    fn validate(&mut self, depth: usize) -> Result[void, JsonError]:
         self.skip_space()
         start := self.at
         if start >= self.size:
@@ -705,150 +686,51 @@ impl Parser:
         byte := bytes_at(self.text, start)
         if byte == 34:
             _ := self.validate_string()?
-            return .Ok(0)
+            return .Ok(())
         if byte == 116:
-            self.validate_word("true")?
-            return .Ok(0)
+            return self.validate_word("true")
         if byte == 102:
-            self.validate_word("false")?
-            return .Ok(0)
+            return self.validate_word("false")
         if byte == 110:
-            self.validate_word("null")?
-            return .Ok(0)
+            return self.validate_word("null")
         if byte == 45 || is_digit(byte):
-            self.validate_number()?
-            return .Ok(0)
+            return self.validate_number()
         if byte != 91 && byte != 123:
             return .Err(self.unexpected(start))
         if depth >= 128:
             return .Err(JsonError.NestingTooDeep(start))
         object := byte == 123
         let close: u8 = if object: 125 else: 93
-        mark := self.held
-        # A bit per key's length and first byte: a repeated bit, or an
-        # escaped key, marks the object as one whose keys may repeat.
-        let seen: u64 = 0
-        let repeats: usize = 0
         self.at = start + 1
         self.skip_space()
         if self.at < self.size && bytes_at(self.text, self.at) == close:
             self.at = self.at + 1
-            return .Ok(0)
+            return .Ok(())
         while true:
             if object:
                 key := self.at
                 if key >= self.size || bytes_at(self.text, key) != 34:
                     return .Err(self.unexpected(key))
-                if self.validate_string()?:
-                    length := self.at - key - 2
-                    let first: u64 = if length > 0: u64(bytes_at(self.text, key + 1)) else: 0
-                    let bit: u64 = 1 << ((u64(length) * 31 + first) & 63)
-                    if seen & bit != 0:
-                        repeats = 1
-                    seen = seen | bit
-                else:
-                    repeats = 1
+                _ := self.validate_string()?
                 self.skip_space()
                 if self.at >= self.size || bytes_at(self.text, self.at) != 58:
                     return .Err(self.unexpected(self.at))
                 self.at = self.at + 1
-                self.skip_space()
-                value := self.at
-                entry := self.validate(depth + 1)?
-                self.hold(key)
-                self.hold(value)
-                self.hold(entry)
-            else:
-                self.skip_space()
-                item := if self.at < self.size: bytes_at(self.text, self.at) else: 0
-                entry := self.validate(depth + 1)?
-                if item == 91 || item == 123:
-                    self.hold(entry)
+            self.validate(depth + 1)?
             self.skip_space()
             index := self.at
             if index < self.size:
                 next := bytes_at(self.text, index)
                 if next == close:
                     self.at = index + 1
-                    return .Ok(
-                        if object: self.close_object(mark, repeats) else: self.close_array(mark)
-                    )
+                    return .Ok(())
                 if next == 44:
                     self.at = index + 1
                     if object:
                         self.skip_space()
                     continue
             return .Err(self.unexpected(index))
-
-    # Keep one word of an open container's member.
-    fn hold(&mut self, word: usize) -> void:
-        held := self.held
-        if held < self.pending.len():
-            self.pending[held] = word
-        else:
-            self.pending.push(word)
-        self.held = held + 1
-
-    # Move the child entries held since `mark` into a new array entry, and
-    # return its position.
-    fn close_array(&mut self, mark: usize) -> usize:
-        entry := self.index.len()
-        held := self.held
-        self.index.push((held - mark) * 2)
-        self.index.push(self.at)
-        let word = mark
-        while word < held:
-            self.index.push(self.pending[word])
-            word = word + 1
-        self.held = mark
-        entry
-
-    # Move the members held since `mark`, as key, value and entry, into a
-    # new object entry, and return its position.
-    fn close_object(&mut self, mark: usize, repeats: usize) -> usize:
-        entry := self.index.len()
-        held := self.held
-        self.index.push((held - mark) / 3 * 2 + repeats)
-        self.index.push(self.at)
-        let word = mark
-        while word < held:
-            self.index.push(self.pending[word])
-            self.index.push(self.pending[word + 1])
-            word = word + 3
-        word = mark
-        while word < held:
-            value := bytes_at(self.text, self.pending[word + 1])
-            if value == 91 || value == 123:
-                self.index.push(self.pending[word + 2])
-            word = word + 3
-        self.held = mark
-        entry
-
-    # The entry of member `slot`'s value at `at`, in the object whose entry
-    # is `object` with `count` members: 0 for a scalar, else the child entry
-    # after those of the container values before it.
-    fn child_of(&self, object: usize, count: usize, slot: usize, at: usize) -> usize:
-        byte := bytes_at(self.text, at)
-        if byte != 91 && byte != 123:
-            return 0
-        let child: usize = 0
-        let before: usize = 0
-        while before < slot:
-            value := bytes_at(self.text, self.index[object + 3 + 2 * before])
-            if value == 91 || value == 123:
-                child = child + 1
-            before = before + 1
-        self.index[object + 2 + 2 * count + child]
-
-    # Move to the next item of a validated list after `cursor`, past any
-    # comma, and return its first byte, which is `]` after the last item.
-    fn list_item(&mut self, cursor: usize) -> u8:
-        self.at = cursor
-        self.skip_space()
-        if bytes_at(self.text, self.at) == 44:
-            self.at = self.at + 1
-            self.skip_space()
-        bytes_at(self.text, self.at)
+        .Ok(())
 
     # The decoded key whose opening quote is at `quote`.
     fn key_at(&mut self, quote: usize) -> Result[string, JsonError]:
@@ -871,42 +753,6 @@ impl Parser:
                 return .Ok(false)
             offset = offset + 1
         .Ok(false)
-
-    # The offset after the validated value at `at`, whose entry is
-    # `entry`: a minimal scan with no error checks.
-    fn value_end(&self, at: usize, entry: usize) -> usize:
-        byte := bytes_at(self.text, at)
-        if byte == 91 || byte == 123:
-            if entry > 0:
-                return self.index[entry + 1]
-            let index = at + 1
-            while true:
-                next := bytes_at(self.text, index)
-                if next == 93 || next == 125:
-                    return index + 1
-                index = index + 1
-        if byte == 34:
-            let index = at + 1
-            while true:
-                index = bytes_index_set(self.text, index, 0x0000_0004_FFFF_FFFF, 0x1000_0000, 0, 0)
-                if bytes_at(self.text, index) == 34:
-                    return index + 1
-                index = index + 2
-        let index = at + 1
-        while index < self.size:
-            next := bytes_at(self.text, index)
-            if (
-                next == 44
-                || next == 93
-                || next == 125
-                || next == 32
-                || next == 9
-                || next == 10
-                || next == 13
-            ):
-                return index
-            index = index + 1
-        index
 
     # Syntax-only scalar readers retain no Json, Number, or decoded string.
     fn validate_word(&mut self, word: string) -> Result[void, JsonError]:
@@ -1461,24 +1307,29 @@ pub fn encode_pretty[T < Serialize](value: T) -> string:
         .Some(text) => text
         .None => encode_pretty_fallback(value)
 
-# Read validated text directly through the typed deserializer (r-std-json.decode.direct).
-## Reads a typed value directly from validated JSON text.
-## See [std-json.decode.direct](../../spec/std/json.md#r-std-json.decode.direct).
+# Read the text once through the typed deserializer (r-std-json.decode.direct.v2).
+## Reads a typed value from JSON text in one pass.
+## See [std-json.decode.direct.v2](../../spec/std/json.md#r-std-json.decode.direct.v2).
 pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
-    let mut parser = Parser {
-        text: text,
-        size: bytes_len(text),
-        at: 0,
-        index: [0, 0],
-        pending: [],
-        held: 0,
-    }
-    root := parser.validate(0)?
+    # One pass: the key-loop reader reads the text in order, and the
+    # derived walk takes the keys in any order. Only a failed or unfinished
+    # read goes on: a syntax error anywhere in the text wins over the
+    # reader's error (r-std-json.decode.parse-error.v2), so that path checks
+    # the whole text once. A hand-written `deserialize` that leaves values
+    # or containers unread still gets its value when the text is valid.
+    let mut stream = StreamReader::new(text)
+    let mut result = T::deserialize(&mut stream)
+    match result:
+        .Ok(_) =>
+            if stream.finish():
+                return result
+        .Err(_) => pass
+    let mut parser = Parser { text: text, size: bytes_len(text), at: 0 }
+    parser.validate(0)?
     parser.skip_space()
     if parser.at != parser.size:
         return .Err(parser.unexpected(parser.at))
-    let mut reader = TextReader::new(parser, root)
-    T::deserialize(&mut reader)
+    result
 
 # `Json` writes and reads itself (r-std-json.std.json).
 # Keep handwritten Serialize: write the JSON value itself, not an externally tagged enum.
@@ -2819,762 +2670,6 @@ impl Deserializer for JsonReader:
     fn is_absent(&mut self) -> bool:
         !self.present
 
-# The text reader keeps offsets, not Json values. It moves through the
-# index that `validate` wrote (see `Parser`): a list scans to each item and
-# jumps over a container item to its recorded end, and a record finds a key
-# among its entry's members. A map and a record of more than 16 members
-# list their distinct keys in reusable frame buffers. Frames are reused by
-# depth, so retained storage is the active containers, never the document
-# tree.
-struct TextReadFrame:
-    pub kind: ReadKind
-    # The raw offset of this frame's value.
-    pub at: usize
-    # The container's index entry, and its member count there.
-    pub entry: usize
-    pub count: usize
-    # Whether the object's keys may repeat, so a key's last member must be found.
-    pub repeats: bool
-    pub next: usize
-    # A list's offset after its last item read, and its next child entry.
-    pub cursor: usize
-    pub child: usize
-    # The distinct keys, first occurrence first, and the value offset and
-    # entry of each one's last member; filled by `scan_object` only.
-    pub keys: List[string]
-    pub key_count: usize
-    pub offsets: List[usize]
-    pub children: List[usize]
-    pub positions: Map[string, usize]
-    pub base: usize
-    pub home: usize
-    pub name: string
-    pub facts: Facts
-
-struct TextReader:
-    pub parser: Parser
-    pub at: usize
-    # The index entry of the value at `at` (0 for a scalar).
-    pub entry: usize
-    pub present: bool
-    pub depth: usize
-    pub steps: List[i64]
-    pub names: List[string]
-    pub open: usize
-    pub frames: List[TextReadFrame]
-    # The facts of a list or a map frame, made once per reader.
-    pub no_facts: Facts
-
-# List the distinct keys of the frame's object: the first occurrence
-# fixes key order and the last one the value, matching JsonObject. Small
-# objects need no map, and their unescaped keys remain input slices.
-fn scan_object(parser: &mut Parser, frame: &mut TextReadFrame) -> Result[void, JsonError]:
-    frame.key_count = 0
-    if frame.positions.len() > 0:
-        frame.positions = {}
-    let member: usize = 0
-    let child = frame.entry + 2 + 2 * frame.count
-    while member < frame.count:
-        key := parser.key_at(parser.index[frame.entry + 2 + 2 * member])?
-        value := parser.index[frame.entry + 3 + 2 * member]
-        byte := bytes_at(parser.text, value)
-        let entry: usize = 0
-        if byte == 91 || byte == 123:
-            entry = parser.index[child]
-            child = child + 1
-        let slot = frame.key_count
-        if frame.key_count <= 16:
-            let i: usize = 0
-            while i < frame.key_count:
-                if frame.keys[i] == key:
-                    slot = i
-                    break
-                i = i + 1
-        else:
-            slot = frame.positions.get(key).unwrap_or(frame.key_count)
-        if slot == frame.key_count:
-            if slot < frame.keys.len():
-                frame.keys[slot] = key
-                frame.offsets[slot] = value
-                frame.children[slot] = entry
-            else:
-                frame.keys.push(key)
-                frame.offsets.push(value)
-                frame.children.push(entry)
-            frame.key_count = slot + 1
-            if frame.key_count == 17:
-                let i: usize = 0
-                while i < frame.key_count:
-                    frame.positions[frame.keys[i]] = i
-                    i = i + 1
-            else if frame.key_count > 17:
-                frame.positions[key] = slot
-        else:
-            frame.offsets[slot] = value
-            frame.children[slot] = entry
-        member = member + 1
-    .Ok(())
-
-# Record `key` as the path step at `slot`.
-fn step_key_in(steps: &mut List[i64], names: &mut List[string], slot: usize, key: string) -> void:
-    if slot < steps.len():
-        steps[slot] = -1
-        names[slot] = key
-    else:
-        steps.push(-1)
-        names.push(key)
-
-impl TextReader:
-    fn new(parser: Parser, root: usize) -> TextReader:
-        let mut source = parser
-        source.at = 0
-        source.skip_space()
-        start := source.at
-        TextReader {
-            parser: source,
-            at: start,
-            entry: root,
-            present: true,
-            depth: 0,
-            steps: [],
-            names: [],
-            open: 0,
-            frames: [],
-            no_facts: Facts { items: [] },
-        }
-
-    fn path_to(&self, depth: usize) -> string:
-        let mut parts: List[string] = ["\$"]
-        let index: usize = 0
-        while index < depth:
-            step := self.steps[index]
-            if step < 0:
-                parts.push("." + self.names[index])
-            else:
-                parts.push("[$step]")
-            index = index + 1
-        concat_all(parts)
-
-    fn fail(&self, expected: string) -> JsonError:
-        path := self.path_to(self.depth)
-        if !self.present:
-            return JsonError.MissingField(path)
-        JsonError.WrongType(path, expected)
-
-    fn step_index(&mut self, slot: usize, index: usize) -> void:
-        if slot < self.steps.len():
-            self.steps[slot] = i64(index)
-        else:
-            self.steps.push(i64(index))
-            self.names.push("")
-
-    fn step_key(&mut self, slot: usize, key: string) -> void:
-        step_key_in(&mut self.steps, &mut self.names, slot, key)
-
-    fn byte(&mut self) -> u8:
-        self.parser.at = self.at
-        bytes_at(self.parser.text, self.at)
-
-    # Move to the value of member `slot` of the object whose entry is
-    # `object`, with `count` members.
-    fn at_slot(&mut self, object: usize, count: usize, slot: usize) -> void:
-        at := self.parser.index[object + 3 + 2 * slot]
-        self.at = at
-        self.entry = self.parser.child_of(object, count, slot, at)
-
-    fn enter(
-        &mut self,
-        at: usize,
-        entry: usize,
-        kind: ReadKind,
-        base: usize,
-        name: string,
-        facts: Facts,
-    ) -> Result[void, JsonError]:
-        slot := self.open
-        if slot == self.frames.len():
-            self.frames.push(
-                TextReadFrame {
-                    kind: kind,
-                    at: 0,
-                    entry: 0,
-                    count: 0,
-                    repeats: false,
-                    next: 0,
-                    cursor: 0,
-                    child: 0,
-                    keys: [],
-                    key_count: 0,
-                    offsets: [],
-                    children: [],
-                    positions: {},
-                    base: base,
-                    home: self.depth,
-                    name: name,
-                    facts: facts,
-                },
-            )
-        frame := &mut self.frames[slot]
-        frame.kind = kind
-        frame.at = at
-        frame.entry = entry
-        let head: usize = 0
-        match kind:
-            .Unit => pass
-            .Tagged =>
-                if bytes_at(self.parser.text, at) == 123:
-                    head = self.parser.index[entry]
-            _ => head = self.parser.index[entry]
-        frame.count = head / 2
-        frame.repeats = head % 2 == 1
-        frame.next = 0
-        frame.cursor = at + 1
-        frame.child = 0
-        frame.key_count = 0
-        frame.base = base
-        frame.home = self.depth
-        frame.name = name
-        frame.facts = facts
-        match kind:
-            .Items => pass
-            .Entries => scan_object(&mut self.parser, frame)?
-            _ =>
-                if frame.count > 16:
-                    scan_object(&mut self.parser, frame)?
-        self.open = slot + 1
-        .Ok(())
-
-    fn top(&self) -> usize:
-        if self.open == 0:
-            panic("std.json: no open container")
-        self.open - 1
-
-    fn leave(&mut self) -> void:
-        # Index with a local: in a dev build, `self.frames[self.top()]`
-        # copies `frames` before the call (#1153).
-        top := self.top()
-        self.depth = self.frames[top].home
-        self.open = self.open - 1
-
-    fn number(&mut self) -> Result[Number?, JsonError]:
-        if self.present:
-            byte := self.byte()
-            if byte == 45 || is_digit(byte):
-                match self.parser.number()?:
-                    .Number(value) => return .Ok(.Some(value))
-                    _ => pass
-        .Ok(.None)
-
-impl Deserializer for TextReader:
-    type Error = JsonError
-
-    fn peek(&mut self) -> Result[ValueKind, JsonError]:
-        if !self.present:
-            return .Ok(ValueKind.Null)
-        byte := self.byte()
-        if byte == 110:
-            return .Ok(ValueKind.Null)
-        if byte == 116 || byte == 102:
-            return .Ok(ValueKind.Bool)
-        if byte == 34:
-            return .Ok(ValueKind.Text)
-        if byte == 91:
-            return .Ok(ValueKind.List)
-        if byte == 123:
-            return .Ok(ValueKind.Map)
-        match self.number()?:
-            .Some(number) =>
-                match number.repr:
-                    .Negative(_) => return .Ok(ValueKind.Int)
-                    .NonNegative(found) =>
-                        return .Ok(if found < sign_limit(): ValueKind.Int else: ValueKind.Uint)
-                    .Float(_) => return .Ok(ValueKind.Float)
-            .None => pass
-        .Err(self.fail("value"))
-
-    fn is_null(&mut self) -> Result[bool, JsonError]:
-        .Ok(!self.present || self.byte() == 110)
-
-    fn bool(&mut self, expected: string) -> Result[bool, JsonError]:
-        if self.present:
-            byte := self.byte()
-            if byte == 116:
-                return .Ok(true)
-            if byte == 102:
-                return .Ok(false)
-        .Err(self.fail(expected))
-
-    fn int(&mut self, expected: string) -> Result[i64, JsonError]:
-        match self.number()?:
-            .Some(number) =>
-                match number.as_i64():
-                    .Some(value) => return .Ok(value)
-                    .None => pass
-            .None => pass
-        .Err(self.fail(expected))
-
-    fn uint(&mut self, expected: string) -> Result[u64, JsonError]:
-        match self.number()?:
-            .Some(number) =>
-                match number.as_u64():
-                    .Some(value) => return .Ok(value)
-                    .None => pass
-            .None => pass
-        .Err(self.fail(expected))
-
-    fn float(&mut self, expected: string) -> Result[f64, JsonError]:
-        match self.number()?:
-            .Some(number) =>
-                match number.as_f64():
-                    .Some(value) => return .Ok(value)
-                    .None => pass
-            .None => pass
-        .Err(self.fail(expected))
-
-    fn text(&mut self, expected: string) -> Result[string, JsonError]:
-        if self.present && self.byte() == 34:
-            return self.parser.string()
-        .Err(self.fail(expected))
-
-    fn begin_list(&mut self) -> Result[void, JsonError]:
-        if self.present && self.byte() == 91:
-            return self.enter(self.at, self.entry, ReadKind.Items, self.depth, "", self.no_facts)
-        .Err(self.fail("array"))
-
-    fn next_item(&mut self) -> Result[bool, JsonError]:
-        frame := &mut self.frames[self.top()]
-        index := frame.next
-        let found = false
-        let next_index = index + 1
-        match frame.kind:
-            .Items =>
-                byte := self.parser.list_item(frame.cursor)
-                at := self.parser.at
-                if byte != 93:
-                    let entry: usize = 0
-                    if byte == 91 || byte == 123:
-                        entry = self.parser.index[frame.entry + 2 + frame.child]
-                        frame.child = frame.child + 1
-                    frame.cursor = self.parser.value_end(at, entry)
-                    self.at = at
-                    self.entry = entry
-                    found = true
-            .Entries =>
-                let found_index = index
-                while (
-                    found_index < frame.key_count
-                    && frame.name != ""
-                    && frame.keys[found_index] == frame.name
-                ):
-                    found_index += 1
-                if found_index < frame.key_count:
-                    self.at = frame.offsets[found_index]
-                    self.entry = frame.children[found_index]
-                    found = true
-                    next_index = found_index + 1
-            _ => pass
-        if found:
-            frame.next = next_index
-            self.present = true
-            base := frame.base
-            self.step_index(base, index)
-            self.depth = base + 1
-            return .Ok(true)
-        self.leave()
-        .Ok(false)
-
-    fn begin_map(&mut self) -> Result[void, JsonError]:
-        if self.present && self.byte() == 123:
-            let name = ""
-            if self.open > 0:
-                frame := &mut self.frames[self.top()]
-                let tagged = false
-                match frame.kind:
-                    .Tagged => tagged = true
-                    _ => pass
-                if tagged && !frame.facts.items.is_empty():
-                    match enum_tagging(frame.facts):
-                        .Some(.Internal(_)) => name = frame.name
-                        _ => pass
-            return self.enter(
-                self.at,
-                self.entry,
-                ReadKind.Entries,
-                self.depth,
-                name,
-                self.no_facts,
-            )
-        .Err(self.fail("object"))
-
-    fn next_key(&mut self) -> Result[string?, JsonError]:
-        frame := &mut self.frames[self.top()]
-        index := frame.next
-        match frame.kind:
-            .Entries =>
-                let found = index
-                while (
-                    found < frame.key_count
-                    && frame.name != ""
-                    && frame.keys[found] == frame.name
-                ):
-                    found += 1
-                if found < frame.key_count:
-                    key := frame.keys[found]
-                    self.at = frame.offsets[found]
-                    self.entry = frame.children[found]
-                    self.present = true
-                    frame.next = found + 1
-                    base := frame.base
-                    self.step_key(base, key)
-                    self.depth = base + 1
-                    return .Ok(.Some(key))
-            .Items =>
-                if self.parser.list_item(frame.cursor) != 93:
-                    panic("std.json: next_key in a list")
-            _ => pass
-        self.leave()
-        .Ok(.None)
-
-    fn next_map_key(&mut self) -> Result[MapKeyValue?, JsonError]:
-        match self.next_key()?:
-            .Some(key) => .Ok(.Some(MapKeyValue.Text(key)))
-            .None => .Ok(.None)
-
-    fn begin_data(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
-        if self.present && self.byte() == 123:
-            self.enter(self.at, self.entry, ReadKind.Record, self.depth, "", facts)?
-            return .Ok(0)
-        .Err(self.fail("object"))
-
-    fn begin_variant(
-        &mut self,
-        facts: Facts,
-        choices: List[VariantInfo],
-    ) -> Result[usize, JsonError]:
-        if choices.len() == 1 && choices[0].of_data:
-            if self.present && self.byte() == 123:
-                self.enter(self.at, self.entry, ReadKind.Record, self.depth, "", facts)?
-                return .Ok(0)
-            return .Err(self.fail("object"))
-        if !facts.items.is_empty():
-            match enum_tagging(facts):
-                .Some(tagging) =>
-                    match tagging:
-                        .Untagged => return .Err(self.fail("untagged variant attempt"))
-                        _ => pass
-                    if !self.present || self.byte() != 123:
-                        return .Err(self.fail("object"))
-                    object_at := self.at
-                    object := self.entry
-                    count := self.parser.index[object] / 2
-                    let tag = ""
-                    let content: string? = .None
-                    match tagging:
-                        .Internal(found) => tag = found
-                        .Adjacent(found, payload) =>
-                            tag = found
-                            content = .Some(payload)
-                        .Untagged => pass
-                    let tag_slot: usize? = .None
-                    let tag_matches: usize = 0
-                    let content_slot: usize? = .None
-                    let slot: usize = 0
-                    while slot < count:
-                        if self.parser.key_is(self.parser.index[object + 2 + 2 * slot], tag)?:
-                            tag_matches += 1
-                            match content:
-                                .Some(_) => tag_slot = .Some(slot)
-                                .None =>
-                                    if tag_matches == 1:
-                                        tag_slot = .Some(slot)
-                        match content:
-                            .Some(key) =>
-                                if self.parser.key_is(
-                                    self.parser.index[object + 2 + 2 * slot],
-                                    key,
-                                )?:
-                                    content_slot = .Some(slot)
-                            .None => pass
-                        slot += 1
-                    match tagging:
-                        .Internal(_) =>
-                            if tag_matches > 1:
-                                return .Err(
-                                    JsonError.DuplicateField(self.path_to(self.depth) + "." + tag),
-                                )
-                        _ => pass
-                    depth := self.depth
-                    found_tag := match tag_slot:
-                        .Some(found) => found
-                        .None =>
-                            self.present = false
-                            self.step_key(depth, tag)
-                            self.depth = depth + 1
-                            return .Err(self.fail("variant tag"))
-                    self.at_slot(object, count, found_tag)
-                    self.present = true
-                    self.step_key(depth, tag)
-                    self.depth = depth + 1
-                    if self.byte() != 34:
-                        return .Err(self.fail("variant tag"))
-                    name := self.parser.string()?
-                    self.depth = depth
-                    let index: usize = 0
-                    while index < choices.len():
-                        if choices[index].name == name:
-                            match tagging:
-                                .Internal(_) =>
-                                    self.at = object_at
-                                    self.entry = object
-                                    self.enter(
-                                        object_at,
-                                        object,
-                                        ReadKind.Tagged,
-                                        self.depth,
-                                        tag,
-                                        facts,
-                                    )?
-                                .Adjacent(_, payload_name) =>
-                                    let payload_at = object_at
-                                    let payload_entry = object
-                                    let present = false
-                                    match content_slot:
-                                        .Some(found) =>
-                                            payload_at = self.parser.index[object + 3 + 2 * found]
-                                            payload_entry = self.parser.child_of(
-                                                object,
-                                                count,
-                                                found,
-                                                payload_at,
-                                            )
-                                            present = true
-                                        .None => pass
-                                    self.step_key(depth, payload_name)
-                                    self.present = present
-                                    if (
-                                        !present
-                                        && (
-                                            choices[index].named > 0
-                                            || choices[index].included_positional > 0
-                                        )
-                                    ):
-                                        self.depth = depth + 1
-                                        return .Err(self.fail("variant content"))
-                                    self.enter(
-                                        payload_at,
-                                        payload_entry,
-                                        if present: ReadKind.Tagged else: ReadKind.Unit,
-                                        depth + 1,
-                                        payload_name,
-                                        facts,
-                                    )?
-                                .Untagged => pass
-                            return .Ok(index)
-                        index += 1
-                    return .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
-                .None => pass
-        if !self.present:
-            return .Err(self.fail("variant"))
-        byte := self.byte()
-        let name = ""
-        let payload: usize? = .None
-        if byte == 34:
-            name = self.parser.string()?
-        else if byte == 123:
-            # Exactly one distinct key: every member has the first one's key,
-            # and the last member holds the value.
-            object := self.entry
-            count := self.parser.index[object] / 2
-            if count == 0:
-                return .Err(self.fail("variant"))
-            name = self.parser.key_at(self.parser.index[object + 2])?
-            let other: usize = 1
-            while other < count:
-                same := self.parser.key_is(self.parser.index[object + 2 + 2 * other], name)?
-                if !same:
-                    return .Err(self.fail("variant"))
-                other = other + 1
-            payload = .Some(count - 1)
-        else:
-            return .Err(self.fail("variant"))
-        let index: usize = 0
-        while index < choices.len():
-            if choices[index].name == name:
-                let at: usize = self.at
-                let entry: usize = self.entry
-                let present = false
-                match payload:
-                    .Some(slot) =>
-                        object := self.entry
-                        at = self.parser.index[object + 3 + 2 * slot]
-                        entry = self.parser.child_of(
-                            object,
-                            self.parser.index[object] / 2,
-                            slot,
-                            at,
-                        )
-                        present = true
-                    .None => pass
-                depth := self.depth
-                self.step_key(depth, name)
-                self.enter(
-                    at,
-                    entry,
-                    if present: ReadKind.Tagged else: ReadKind.Unit,
-                    depth + 1,
-                    name,
-                    facts,
-                )?
-                return .Ok(index)
-            index = index + 1
-        .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
-
-    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
-        frame := &mut self.frames[self.top()]
-        match frame.kind:
-            .Tagged =>
-                if !frame.facts.items.is_empty():
-                    match enum_tagging(frame.facts):
-                        .Some(.Internal(_)) =>
-                            self.at = frame.at
-                            self.entry = frame.entry
-                            self.present = true
-                            self.depth = frame.base
-                            return .Ok(())
-                        _ => pass
-                frame.kind = ReadKind.Unit
-                self.at = frame.at
-                self.entry = frame.entry
-                self.present = true
-                self.depth = frame.base
-                return .Ok(())
-            _ => pass
-        .Err(self.fail("newtype variant"))
-
-    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
-        frame := &mut self.frames[self.top()]
-        self.depth = frame.base
-        match frame.kind:
-            .Tagged =>
-                if bytes_at(self.parser.text, frame.at) == 91:
-                    let count: usize = 0
-                    let cursor = frame.at + 1
-                    let child: usize = 0
-                    while true:
-                        byte := self.parser.list_item(cursor)
-                        at := self.parser.at
-                        if byte == 93:
-                            break
-                        let entry: usize = 0
-                        if byte == 91 || byte == 123:
-                            entry = self.parser.index[frame.entry + 2 + child]
-                            child = child + 1
-                        cursor = self.parser.value_end(at, entry)
-                        count = count + 1
-                    if count == len:
-                        frame.kind = ReadKind.Items
-                        frame.count = count
-                        frame.next = 0
-                        frame.cursor = frame.at + 1
-                        frame.child = 0
-                        return .Ok(())
-            _ => pass
-        .Err(self.fail("array of $len items"))
-
-    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
-        frame := &mut self.frames[self.top()]
-        base := frame.base
-        name := member_name(m, frame.facts)
-        let found = false
-        let record = true
-        match frame.kind:
-            .Record => pass
-            .Tagged =>
-                let internal = false
-                if !frame.facts.items.is_empty():
-                    match enum_tagging(frame.facts):
-                        .Some(.Internal(_)) => internal = true
-                        _ => pass
-                if !internal:
-                    # The steps only: a call on `self` would change `frames`.
-                    step_key_in(&mut self.steps, &mut self.names, base - 1, frame.name)
-                    if bytes_at(self.parser.text, frame.at) != 123:
-                        return .Err(JsonError.WrongType(self.path_to(base), "object"))
-            _ => record = false
-        if record:
-            if frame.count <= 16:
-                # With distinct keys, try the member after the last one
-                # found, then the first match; when keys may repeat, the
-                # last match holds the value.
-                let slot = frame.next
-                let hit = (
-                    !frame.repeats
-                    && slot < frame.count
-                    && self.parser.key_is(self.parser.index[frame.entry + 2 + 2 * slot], name)?
-                )
-                if !hit:
-                    let probe: usize = 0
-                    while probe < frame.count:
-                        if self.parser.key_is(
-                            self.parser.index[frame.entry + 2 + 2 * probe],
-                            name,
-                        )?:
-                            slot = probe
-                            hit = true
-                            if !frame.repeats:
-                                break
-                        probe = probe + 1
-                if hit:
-                    frame.next = slot + 1
-                    entry := frame.entry
-                    count := frame.count
-                    self.at_slot(entry, count, slot)
-                    found = true
-            else:
-                let slot = frame.next
-                if slot >= frame.key_count || frame.keys[slot] != name:
-                    if frame.key_count > 16:
-                        slot = frame.positions.get(name).unwrap_or(frame.key_count)
-                    else:
-                        slot = 0
-                        while slot < frame.key_count && frame.keys[slot] != name:
-                            slot = slot + 1
-                if slot < frame.key_count:
-                    self.at = frame.offsets[slot]
-                    self.entry = frame.children[slot]
-                    found = true
-                    frame.next = slot + 1
-        self.present = found
-        if !found:
-            self.at = 0
-            self.entry = 0
-        self.step_key(base, name)
-        self.depth = base + 1
-        .Ok(())
-
-    fn end_data(&mut self) -> Result[void, JsonError]:
-        self.leave()
-        .Ok(())
-
-    fn end_variant(&mut self) -> Result[void, JsonError]:
-        frame := &mut self.frames[self.top()]
-        match frame.kind:
-            .Tagged =>
-                if bytes_at(self.parser.text, frame.at) != 123:
-                    base := frame.base
-                    name := frame.name
-                    self.step_key(base - 1, name)
-                    return .Err(JsonError.WrongType(self.path_to(base), "object"))
-            _ => pass
-        self.leave()
-        .Ok(())
-
-    fn invalid(&mut self, expected: string) -> JsonError:
-        self.fail(expected)
-
-    fn is_absent(&mut self) -> bool:
-        !self.present
-
 # The tree path of `encode` and `encode_pretty`, out of line: `@cold`
 # keeps the inliner from copying it into the encoder, and a `T` whose
 # `regular()` holds never calls it. These stay last so no existing item ID
@@ -3586,3 +2681,1019 @@ fn encode_fallback[T < Serialize](value: T) -> string:
 @cold
 fn encode_pretty_fallback[T < Serialize](value: T) -> string:
     to_json(value).pretty()
+
+# ---------------------------------------------------------------------------
+# The one-pass decode (r-std-json.decode.direct.v2). `StreamReader` reads the
+# text once, in order, and checks each byte it passes as `parse` does. It
+# is a keyed reader (r-std-serde.read.keyed): a record's keys come in text
+# order through `next_field`, which matches each key to a member without
+# copying it and skips the value of a key that names no member. A member
+# the record never names is read as absent. Its errors are `parse`'s
+# errors and the typed errors with their paths; `decode` lets a syntax
+# error anywhere in the text win over them.
+
+# What an open container of the stream reader is, and how it closes.
+enum StreamKind:
+    # A list, closed by `]`.
+    Items
+    # A map, closed by `}`.
+    Entries
+    # A data type's object, or an internally tagged record or unit
+    # variant's object: its remaining keys are skipped, then `}`.
+    Record
+    # An externally tagged variant's one-key object before its payload,
+    # closed by `}`.
+    Variant
+    # A named variant's payload object and its variant object: `}}`.
+    VariantRecord
+    # A tuple variant's payload list and its variant object: `]}`.
+    VariantTuple
+    # A variant written as its name, with nothing to close.
+    Unit
+    # An internally tagged newtype variant's object, which its payload's
+    # record or map frame reads and closes.
+    Internal
+    # An adjacently tagged variant's object, at its content value.
+    Adjacent
+    # An adjacently tagged named variant's payload object, then the
+    # variant object.
+    AdjacentRecord
+    # An adjacently tagged tuple variant's payload list, then the variant
+    # object.
+    AdjacentTuple
+    # An adjacently tagged variant with no payload: its object only.
+    AdjacentUnit
+
+# The open containers are a stack of `open` frames in parallel lists, kept
+# when a frame closes and reused by the next frame at that depth: each
+# frame's kind, whether its next item is its first, its item count, and
+# its path step (an item index, or -1 with the key in `names`). `nest`
+# counts the open brackets, which `parse` limits to 128.
+#
+# A tagged frame (an internally or adjacently tagged variant's object, and
+# the record or map that reads an internal newtype's payload in the same
+# object) has its tag key in `tags` and that key's quote offset in
+# `tag_ats`; every other frame has `no_offset()` there. The key loop passes
+# over the tag key read at that offset, and any other key that spells the
+# tag is `DuplicateField`. An adjacent frame also has its content key in
+# `contents`, the content key's quote in `content_ats` once read, and in
+# `ends` the offset after its closing brace when the whole object was
+# scanned to find the tag, or `no_offset()`.
+struct StreamReader:
+    pub parser: Parser
+    pub kinds: List[StreamKind]
+    pub firsts: List[bool]
+    pub counts: List[usize]
+    pub steps: List[i64]
+    pub names: List[string]
+    # A variant frame's variant name, which its path step follows.
+    pub variants: List[string]
+    # A tuple variant frame's declared item count.
+    pub arities: List[usize]
+    # Each record frame's name table in `tables`, or `no_offset`.
+    pub frame_tables: List[usize]
+    # A record or variant frame's container facts, for `member`'s wire
+    # names; set by `begin_data` and `begin_variant`, never reset.
+    pub frame_facts: List[Facts]
+    pub tag_ats: List[usize]
+    pub tags: List[string]
+    pub contents: List[string]
+    pub content_ats: List[usize]
+    pub ends: List[usize]
+    # The name tables of the record types met so far, each a map from a
+    # wire name to its member's index, found by the type's member
+    # directory id (`MembersRecord.id`).
+    pub tables: List[Map[string, usize]]
+    pub by_id: Map[usize, usize]
+    pub open: usize
+    pub nest: usize
+    # The value at the cursor is a member's absent value (`absent_field`).
+    pub absent: bool
+    # A slot's value is due and no read has started it: a `deserialize`
+    # that reads nothing (as `peek` alone) leaves it, and the next slot or
+    # the close skips it, so each slot still moves past one value.
+    pub pending: bool
+    # The value at the cursor is an internal newtype's payload: the rest of
+    # the open tagged object, whose `{` is already read.
+    pub inner: bool
+    # Whether the key `next_quote` last returned has no escape.
+    pub plain: bool
+    # Keys whose guess missed, counted up to `table_after()`.
+    pub misses: usize
+
+impl StreamReader:
+    fn new(text: string) -> StreamReader:
+        StreamReader {
+            parser: Parser { text: text, size: bytes_len(text), at: 0 },
+            kinds: [],
+            firsts: [],
+            counts: [],
+            steps: [],
+            names: [],
+            variants: [],
+            arities: [],
+            frame_tables: [],
+            frame_facts: [],
+            tag_ats: [],
+            tags: [],
+            contents: [],
+            content_ats: [],
+            ends: [],
+            tables: [],
+            by_id: {},
+            open: 0,
+            nest: 0,
+            absent: false,
+            # The top-level value is due like a slot's.
+            pending: true,
+            inner: false,
+            plain: true,
+            misses: 0,
+        }
+
+    # Whether the walk read the one value, closed every container, and only
+    # whitespace follows.
+    fn finish(&mut self) -> bool:
+        if self.pending || self.open != 0:
+            return false
+        self.parser.skip_space()
+        self.parser.at >= self.parser.size
+
+    fn path(&self) -> string:
+        let mut parts: List[string] = ["\$"]
+        let index: usize = 0
+        while index < self.open:
+            if bytes_len(self.variants[index]) > 0:
+                parts.push("." + self.variants[index])
+            step := self.steps[index]
+            if step < 0:
+                if bytes_len(self.names[index]) > 0:
+                    parts.push("." + self.names[index])
+            else:
+                parts.push("[$step]")
+            index = index + 1
+        concat_all(parts)
+
+    fn fail(&mut self, expected: string) -> JsonError:
+        if self.absent:
+            self.absent = false
+            return JsonError.MissingField(self.path())
+        JsonError.WrongType(self.path(), expected)
+
+    # The error at frame `top`'s key `name`.
+    fn at_key(&mut self, top: usize, name: string) -> void:
+        self.steps[top] = -1
+        self.names[top] = name
+
+    # The byte after any whitespace at the cursor, or 0 at the end.
+    fn byte(&mut self) -> u8:
+        self.parser.skip_space()
+        if self.parser.at < self.parser.size:
+            return bytes_at(self.parser.text, self.parser.at)
+        0
+
+    fn unexpected(&self) -> JsonError:
+        self.parser.unexpected(self.parser.at)
+
+    # The first byte of the value at the cursor; a byte that starts no
+    # value is a syntax error. An internal newtype's payload is the open
+    # object, so it starts with `{`.
+    fn value_byte(&mut self, expected: string) -> Result[u8, JsonError]:
+        if self.absent:
+            return .Err(self.fail(expected))
+        if self.inner:
+            return .Ok(123)
+        self.pending = false
+        byte := self.byte()
+        if (
+            byte == 34
+            || byte == 91
+            || byte == 123
+            || byte == 116
+            || byte == 102
+            || byte == 110
+            || byte == 45
+            || is_digit(byte)
+        ):
+            return .Ok(byte)
+        .Err(self.unexpected())
+
+    # Moves past `byte`, after any whitespace.
+    fn expect(&mut self, byte: u8) -> Result[void, JsonError]:
+        if self.byte() != byte:
+            return .Err(self.unexpected())
+        self.parser.at = self.parser.at + 1
+        .Ok(())
+
+    # Opens the bracket at the cursor.
+    fn bracket(&mut self, byte: u8) -> Result[void, JsonError]:
+        if self.nest >= 128:
+            return .Err(JsonError.NestingTooDeep(self.parser.at))
+        self.expect(byte)?
+        self.nest = self.nest + 1
+        .Ok(())
+
+    fn close(&mut self, byte: u8) -> Result[void, JsonError]:
+        self.expect(byte)?
+        self.nest = self.nest - 1
+        .Ok(())
+
+    fn push(&mut self, kind: StreamKind) -> void:
+        at := self.open
+        if at < self.kinds.len():
+            self.kinds[at] = kind
+            self.firsts[at] = true
+            self.counts[at] = 0
+            self.steps[at] = -1
+            self.names[at] = ""
+            self.variants[at] = ""
+            self.arities[at] = 0
+            self.frame_tables[at] = no_offset()
+            self.tag_ats[at] = no_offset()
+        else:
+            self.kinds.push(kind)
+            self.firsts.push(true)
+            self.counts.push(0)
+            self.steps.push(-1)
+            self.names.push("")
+            self.variants.push("")
+            self.arities.push(0)
+            self.frame_tables.push(no_offset())
+            self.frame_facts.push(Facts { items: [] })
+            self.tag_ats.push(no_offset())
+            self.tags.push("")
+            self.contents.push("")
+            self.content_ats.push(no_offset())
+            self.ends.push(no_offset())
+        self.open = at + 1
+
+    # Opens an object: at the cursor, or the open tagged object for an
+    # internal newtype's payload, which then shares that object's keys,
+    # tag and first-key state.
+    fn open_object(&mut self, kind: StreamKind) -> Result[void, JsonError]:
+        if self.inner:
+            self.inner = false
+            parent := self.open - 1
+            self.push(kind)
+            top := self.open - 1
+            self.firsts[top] = self.firsts[parent]
+            self.tag_ats[top] = self.tag_ats[parent]
+            self.tags[top] = self.tags[parent]
+            return .Ok(())
+        self.bracket(123)?
+        self.push(kind)
+        .Ok(())
+
+    fn top(&self) -> usize:
+        if self.open == 0:
+            panic("std.json: no open container")
+        self.open - 1
+
+    # A tuple variant's payload with another item count, at the variant.
+    fn tuple_error(&mut self, top: usize) -> JsonError:
+        self.steps[top] = -1
+        self.names[top] = ""
+        self.open = top + 1
+        JsonError.WrongType(self.path(), "array of ${self.arities[top]} items")
+
+    # Checks and passes over one value at the cursor.
+    fn pass_value(&mut self) -> Result[void, JsonError]:
+        self.parser.skip_space()
+        self.parser.validate(self.nest)
+
+    # Skips a due value that no read started.
+    fn settle(&mut self) -> Result[void, JsonError]:
+        if self.pending:
+            self.pending = false
+            self.pass_value()?
+        .Ok(())
+
+    # The comma before every member or item of frame `top` but its first.
+    fn next_slot(&mut self, top: usize) -> Result[void, JsonError]:
+        self.settle()?
+        if self.firsts[top]:
+            self.firsts[top] = false
+            return .Ok(())
+        self.expect(44)
+
+    # The quote offset of frame `top`'s next key, with the cursor after the
+    # key's closing quote, or `.None` at the closing brace. It passes over
+    # the frame's tag key that was read already, value and all; another key
+    # that spells the tag is `DuplicateField` at the tag.
+    fn next_quote(&mut self, top: usize) -> Result[usize?, JsonError]:
+        while true:
+            self.settle()?
+            if self.byte() == 125:
+                return .Ok(.None)
+            self.next_slot(top)?
+            if self.byte() != 34:
+                return .Err(self.unexpected())
+            quote := self.parser.at
+            self.plain = self.parser.validate_string()?
+            tag_at := self.tag_ats[top]
+            if tag_at == no_offset() || !self.parser.key_is(quote, self.tags[top])?:
+                return .Ok(.Some(quote))
+            if quote != tag_at:
+                self.at_key(top, self.tags[top])
+                return .Err(JsonError.DuplicateField(self.path()))
+            self.expect(58)?
+            self.pass_value()?
+        .Ok(.None)
+
+    # Skips the remaining keys of record frame `top` and its `}`.
+    fn close_record(&mut self, top: usize) -> Result[void, JsonError]:
+        while self.next_quote(top)?.is_some():
+            self.expect(58)?
+            self.pass_value()?
+        self.close(125)
+
+    # A key and its colon, copied.
+    fn key(&mut self) -> Result[string, JsonError]:
+        if self.byte() != 34:
+            return .Err(self.unexpected())
+        key := self.parser.string()?
+        self.expect(58)?
+        .Ok(key)
+
+    fn number(&mut self, expected: string) -> Result[Number, JsonError]:
+        byte := self.value_byte(expected)?
+        if byte == 45 || is_digit(byte):
+            match self.parser.number()?:
+                .Number(number) => return .Ok(number)
+                _ => pass
+        .Err(self.fail(expected))
+
+    # The index of the member whose wire name the validated key at `quote`
+    # spells: `guess` first, then each member whose name has the key's
+    # length, or `members.len()` when none does.
+    fn match_key(
+        &mut self,
+        quote: usize,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize, JsonError]:
+        count := members.len()
+        plain := self.plain
+        length := self.parser.at - quote - 2
+        if guess < count && named(&members[guess]):
+            name := member_name(&members[guess], facts)
+            if (!plain || bytes_len(name) == length) && self.parser.key_is(quote, name)?:
+                return .Ok(guess)
+        # A small type, or the first misses of a decode, scan the members by
+        # name length: cheaper than building a table that a short text
+        # would barely use. Past `table_after` misses, each type with more
+        # than 8 members gets its table, so the scans cost at most
+        # `table_after` times the widest type per decode.
+        if (
+            count <= 8
+            || (self.misses < table_after() && self.frame_tables[self.open - 1] == no_offset())
+        ):
+            if count > 8:
+                self.misses = self.misses + 1
+            let k: usize = 0
+            while k < count:
+                if k != guess && named(&members[k]):
+                    name := member_name(&members[k], facts)
+                    if (!plain || bytes_len(name) == length) && self.parser.key_is(quote, name)?:
+                        return .Ok(k)
+                k = k + 1
+            return .Ok(count)
+        # More members: one hash lookup in the type's name table.
+        table := self.table_for(members, id, facts)
+        end := self.parser.at
+        key := self.parser.key_at(quote)?
+        self.parser.at = end
+        match self.tables[table].get(key):
+            .Some(k) => .Ok(k)
+            .None => .Ok(count)
+
+    # The name table of the open record's type: the frame's, or one made
+    # once per type per decode, found by the type's directory id.
+    fn table_for(&mut self, members: &List[Member], id: usize, facts: Facts) -> usize:
+        top := self.open - 1
+        known := self.frame_tables[top]
+        if known != no_offset():
+            return known
+        match self.by_id.get(id):
+            .Some(found) =>
+                self.frame_tables[top] = found
+                return found
+            .None => pass
+        let mut index: Map[string, usize] = {}
+        let k: usize = 0
+        while k < members.len():
+            if named(&members[k]):
+                index[member_name(&members[k], facts)] = k
+            k = k + 1
+        self.tables.push(index)
+        made := self.tables.len() - 1
+        self.by_id[id] = made
+        self.frame_tables[top] = made
+        made
+
+    # A record variant's frame, ready for its keys: an externally tagged
+    # variant object opens its payload object, an adjacent one its content
+    # object; a variant with no keys gives false.
+    fn record_frame(&mut self, top: usize) -> Result[bool, JsonError]:
+        match self.kinds[top]:
+            .Record => pass
+            .VariantRecord => pass
+            .AdjacentRecord => pass
+            .Variant =>
+                if self.value_byte("object")? != 123:
+                    return .Err(self.fail("object"))
+                self.bracket(123)?
+                self.kinds[top] = StreamKind.VariantRecord
+                self.firsts[top] = true
+            .Adjacent =>
+                if self.value_byte("object")? != 123:
+                    return .Err(self.fail("object"))
+                self.bracket(123)?
+                self.kinds[top] = StreamKind.AdjacentRecord
+                self.firsts[top] = true
+                self.tag_ats[top] = no_offset()
+            # A unit variant has no keys.
+            _ => return .Ok(false)
+        .Ok(true)
+
+    # The variant whose wire name the tag value at the cursor spells, for
+    # an internally or adjacently tagged object at frame `top`.
+    fn tag_variant(
+        &mut self,
+        top: usize,
+        quote: usize,
+        choices: &List[VariantInfo],
+    ) -> Result[usize, JsonError]:
+        self.at_key(top, self.tags[top])
+        if self.byte() != 34:
+            return .Err(self.fail("variant tag"))
+        name := self.parser.string()?
+        self.tag_ats[top] = quote
+        self.at_key(top, "")
+        choose(choices, name, self)
+
+    # Finds the internal tag of the object just opened at frame `top`: the
+    # first key (the fast path, one pass), or a later one, found by
+    # checking and passing over the keys before it and then going back to
+    # the first key. The record then reads every key but the tag.
+    fn internal_tag(&mut self, top: usize, choices: &List[VariantInfo]) -> Result[usize, JsonError]:
+        start := self.parser.at
+        let first = true
+        while true:
+            if self.byte() == 125:
+                self.at_key(top, self.tags[top])
+                self.absent = true
+                return .Err(self.fail("variant tag"))
+            self.next_slot(top)?
+            if self.byte() != 34:
+                return .Err(self.unexpected())
+            quote := self.parser.at
+            _ := self.parser.validate_string()?
+            is_tag := self.parser.key_is(quote, self.tags[top])?
+            self.expect(58)?
+            if is_tag:
+                index := self.tag_variant(top, quote, choices)?
+                if !first:
+                    self.parser.at = start
+                    self.firsts[top] = true
+                return .Ok(index)
+            first = false
+            self.pass_value()?
+        .Ok(0)
+
+    # Finds the adjacent tag of the object just opened at frame `top`.
+    # When the tag is the first key, the content is read where it is
+    # (`adjacent_content`); otherwise the whole object is checked once to
+    # find both keys, the content is read at its offset, and the close
+    # jumps past the object (`ends`).
+    fn adjacent_tag(&mut self, top: usize, choices: &List[VariantInfo]) -> Result[usize, JsonError]:
+        let found = no_offset()
+        let content = no_offset()
+        let first = true
+        while true:
+            if self.byte() == 125:
+                break
+            self.next_slot(top)?
+            if self.byte() != 34:
+                return .Err(self.unexpected())
+            quote := self.parser.at
+            _ := self.parser.validate_string()?
+            if self.parser.key_is(quote, self.tags[top])?:
+                self.expect(58)?
+                if found != no_offset():
+                    self.at_key(top, self.tags[top])
+                    return .Err(JsonError.DuplicateField(self.path()))
+                found = self.tag_variant(top, quote, choices)?
+                if first:
+                    return .Ok(found)
+            else if self.parser.key_is(quote, self.contents[top])?:
+                self.expect(58)?
+                if content != no_offset():
+                    self.at_key(top, self.contents[top])
+                    return .Err(JsonError.DuplicateField(self.path()))
+                self.parser.skip_space()
+                content = self.parser.at
+                self.content_ats[top] = quote
+                self.pass_value()?
+            else:
+                self.expect(58)?
+                self.pass_value()?
+            first = false
+        if found == no_offset():
+            self.at_key(top, self.tags[top])
+            self.absent = true
+            return .Err(self.fail("variant tag"))
+        self.parser.at = self.parser.at + 1
+        self.ends[top] = self.parser.at
+        if content != no_offset():
+            self.parser.at = content
+        else:
+            self.absent = true
+        .Ok(found)
+
+    # After a first-key adjacent tag: moves to the content value, passing
+    # over unknown keys; a missing content key reads as absent.
+    fn adjacent_content(&mut self, top: usize) -> Result[void, JsonError]:
+        while true:
+            match self.next_quote(top)?:
+                .Some(quote) =>
+                    is_content := self.parser.key_is(quote, self.contents[top])?
+                    self.expect(58)?
+                    if is_content:
+                        self.content_ats[top] = quote
+                        return .Ok(())
+                    self.pass_value()?
+                .None =>
+                    self.absent = true
+                    return .Ok(())
+        .Ok(())
+
+    # Closes an adjacently tagged object at frame `top`: past its end when
+    # it was scanned whole, else its remaining keys, where a second content
+    # key is `DuplicateField`.
+    fn close_adjacent(&mut self, top: usize) -> Result[void, JsonError]:
+        self.absent = false
+        if self.ends[top] != no_offset():
+            self.parser.at = self.ends[top]
+            self.nest = self.nest - 1
+            return .Ok(())
+        # The tag was the first key, so any later key that spells it is a
+        # second tag; offset 0 is never a key's quote.
+        self.tag_ats[top] = 0
+        self.firsts[top] = false
+        self.variants[top] = ""
+        while true:
+            match self.next_quote(top)?:
+                .Some(quote) =>
+                    if self.parser.key_is(quote, self.contents[top])?:
+                        if self.content_ats[top] != no_offset():
+                            self.at_key(top, self.contents[top])
+                            return .Err(JsonError.DuplicateField(self.path()))
+                        self.content_ats[top] = quote
+                    self.expect(58)?
+                    self.pass_value()?
+                .None => break
+        self.close(125)
+
+# The index of the variant named `name`, or `UnknownVariant` at the
+# reader's path.
+fn choose(
+    choices: &List[VariantInfo],
+    name: string,
+    reader: &mut StreamReader,
+) -> Result[usize, JsonError]:
+    let index: usize = 0
+    while index < choices.len():
+        if choices[index].name == name:
+            return .Ok(index)
+        index = index + 1
+    .Err(JsonError.UnknownVariant(reader.path(), name))
+
+# Key misses per decode answered by a scan before name tables are built.
+fn table_after() -> usize:
+    64
+
+fn no_offset() -> usize:
+    0xFFFF_FFFF
+
+# A member that a key can name: one without `Skip`.
+fn named(m: &Member) -> bool:
+    m.facts.items.is_empty() || m.facts.find::[Skip]().is_none()
+
+# A variant with nothing to read: no included positional and no named
+# member.
+fn payload_free(info: &VariantInfo) -> bool:
+    info.named == 0 && info.included_positional == 0
+
+impl Deserializer for StreamReader:
+    type Error = JsonError
+
+    fn peek(&mut self) -> Result[ValueKind, JsonError]:
+        if self.absent:
+            return .Ok(ValueKind.Null)
+        due := self.pending
+        byte := self.value_byte("value")?
+        self.pending = due
+        if byte == 110:
+            return .Ok(ValueKind.Null)
+        if byte == 116 || byte == 102:
+            return .Ok(ValueKind.Bool)
+        if byte == 34:
+            return .Ok(ValueKind.Text)
+        if byte == 91:
+            return .Ok(ValueKind.List)
+        if byte == 123:
+            return .Ok(ValueKind.Map)
+        at := self.parser.at
+        number := self.number("number")?
+        self.parser.at = at
+        self.pending = due
+        match number.repr:
+            .Negative(_) => .Ok(ValueKind.Int)
+            .NonNegative(found) =>
+                .Ok(if found < sign_limit(): ValueKind.Int else: ValueKind.Uint)
+            .Float(_) => .Ok(ValueKind.Float)
+
+    fn is_null(&mut self) -> Result[bool, JsonError]:
+        if self.absent:
+            self.absent = false
+            return .Ok(true)
+        due := self.pending
+        if self.value_byte("null")? != 110:
+            self.pending = due
+            return .Ok(false)
+        self.parser.validate_word("null")?
+        .Ok(true)
+
+    fn bool(&mut self, expected: string) -> Result[bool, JsonError]:
+        byte := self.value_byte(expected)?
+        if byte == 116:
+            self.parser.validate_word("true")?
+            return .Ok(true)
+        if byte == 102:
+            self.parser.validate_word("false")?
+            return .Ok(false)
+        .Err(self.fail(expected))
+
+    fn int(&mut self, expected: string) -> Result[i64, JsonError]:
+        match self.number(expected)?.as_i64():
+            .Some(value) => .Ok(value)
+            .None => .Err(self.fail(expected))
+
+    fn uint(&mut self, expected: string) -> Result[u64, JsonError]:
+        match self.number(expected)?.as_u64():
+            .Some(value) => .Ok(value)
+            .None => .Err(self.fail(expected))
+
+    fn float(&mut self, expected: string) -> Result[f64, JsonError]:
+        match self.number(expected)?.repr:
+            .Negative(value) => .Ok(f64(value))
+            .NonNegative(value) => .Ok(f64(value))
+            .Float(value) => .Ok(value)
+
+    fn text(&mut self, expected: string) -> Result[string, JsonError]:
+        if self.value_byte(expected)? != 34:
+            return .Err(self.fail(expected))
+        self.parser.string()
+
+    fn begin_list(&mut self) -> Result[void, JsonError]:
+        if self.value_byte("array")? != 91:
+            return .Err(self.fail("array"))
+        self.bracket(91)?
+        self.push(StreamKind.Items)
+        .Ok(())
+
+    # In a map or a record, the values are the items, as `from_json`'s
+    # reader gives them; in a variant with no list, there is none.
+    fn next_item(&mut self) -> Result[bool, JsonError]:
+        top := self.top()
+        let list = false
+        match self.kinds[top]:
+            .Items => list = true
+            .VariantTuple => pass
+            .AdjacentTuple => pass
+            .Entries => return self.next_value(top)
+            .Record => return self.next_value(top)
+            _ =>
+                self.end_variant()?
+                return .Ok(false)
+        self.settle()?
+        if self.byte() == 93:
+            if !list:
+                return .Err(self.tuple_error(top))
+            self.close(93)?
+            self.open = top
+            return .Ok(false)
+        self.next_slot(top)?
+        self.steps[top] = i64(self.counts[top])
+        self.counts[top] = self.counts[top] + 1
+        self.pending = true
+        .Ok(true)
+
+    fn begin_map(&mut self) -> Result[void, JsonError]:
+        if self.value_byte("object")? != 123:
+            return .Err(self.fail("object"))
+        self.open_object(StreamKind.Entries)
+
+    # A repeated key comes again; the map keeps its first place and its
+    # last value (r-std-json.parse.object.duplicate-last).
+    fn next_key(&mut self) -> Result[string?, JsonError]:
+        top := self.top()
+        match self.kinds[top]:
+            .Entries => pass
+            .Record => pass
+            .Items =>
+                self.settle()?
+                if self.byte() != 93:
+                    panic("std.json: next_key in a list")
+                self.end_variant()?
+                return .Ok(.None)
+            _ =>
+                self.end_variant()?
+                return .Ok(.None)
+        match self.next_quote(top)?:
+            .Some(quote) =>
+                key := self.parser.key_at(quote)?
+                self.expect(58)?
+                self.steps[top] = -1
+                self.names[top] = key
+                self.pending = true
+                .Ok(.Some(key))
+            .None =>
+                self.close(125)?
+                self.open = top
+                .Ok(.None)
+
+    fn begin_data(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, JsonError]:
+        if self.value_byte("object")? != 123:
+            return .Err(self.fail("object"))
+        self.open_object(StreamKind.Record)?
+        self.frame_facts[self.open - 1] = facts
+        .Ok(0)
+
+    fn begin_variant(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+    ) -> Result[usize, JsonError]:
+        if !facts.items.is_empty():
+            match enum_tagging(facts):
+                .Some(tagging) => return self.begin_tagged(facts, choices, tagging)
+                .None => pass
+        if self.inner:
+            return .Err(self.fail("variant"))
+        byte := self.value_byte("variant")?
+        let object = false
+        if byte == 123:
+            object = true
+            self.bracket(123)?
+            if self.byte() == 125:
+                return .Err(self.fail("variant"))
+        else if byte != 34:
+            return .Err(self.fail("variant"))
+        name := if object: self.key()? else: self.parser.string()?
+        index := choose(&choices, name, self)?
+        info := choices[index]
+        # The frame goes first, so a payload error's path has the variant.
+        # A variant object's payload form is fixed by the next call: a
+        # newtype reads it directly, a tuple opens a list, and a record's
+        # first `next_field` opens an object.
+        self.push(if object: StreamKind.Variant else: StreamKind.Unit)
+        top := self.open - 1
+        self.variants[top] = name
+        self.frame_facts[top] = facts
+        if !object:
+            # A name alone: its members are absent.
+            if info.included_positional > 0 && info.named == 0:
+                if info.included_positional == 1:
+                    return .Err(self.fail("object"))
+                self.arities[top] = info.included_positional
+                return .Err(self.tuple_error(top))
+        else:
+            self.pending = true
+        .Ok(index)
+
+    fn begin_newtype_variant(&mut self) -> Result[void, JsonError]:
+        top := self.top()
+        match self.kinds[top]:
+            .Internal => self.inner = true
+            _ => pass
+        .Ok(())
+
+    fn begin_tuple_variant(&mut self, len: usize) -> Result[void, JsonError]:
+        top := self.top()
+        self.arities[top] = len
+        if self.value_byte("array")? != 91:
+            return .Err(self.tuple_error(top))
+        self.bracket(91)?
+        self.firsts[top] = true
+        match self.kinds[top]:
+            .Adjacent => self.kinds[top] = StreamKind.AdjacentTuple
+            _ => self.kinds[top] = StreamKind.VariantTuple
+        .Ok(())
+
+    # Positions a hand-written record walk at member `m`'s value when the
+    # record's next key names it; otherwise `m` reads as absent and the key
+    # stays for a later member. A keyed reader names members in text order,
+    # so this walk honours keys in declaration order only.
+    fn member(&mut self, m: &Member) -> Result[void, JsonError]:
+        self.absent = false
+        top := self.top()
+        name := member_name(m, self.frame_facts[top])
+        if self.record_frame(top)?:
+            self.settle()?
+            at := self.parser.at
+            first := self.firsts[top]
+            match self.next_quote(top)?:
+                .Some(quote) =>
+                    if self.parser.key_is(quote, name)?:
+                        self.expect(58)?
+                        self.at_key(top, name)
+                        self.pending = true
+                        return .Ok(())
+                    self.parser.at = at
+                    self.firsts[top] = first
+                .None => pass
+        self.at_key(top, name)
+        self.absent = true
+        .Ok(())
+
+    fn keyed(&self) -> bool:
+        true
+
+    fn next_field(
+        &mut self,
+        members: &List[Member],
+        id: usize,
+        facts: Facts,
+        guess: usize,
+    ) -> Result[usize?, JsonError]:
+        self.absent = false
+        top := self.top()
+        if !self.record_frame(top)?:
+            return .Ok(.None)
+        while true:
+            match self.next_quote(top)?:
+                .Some(quote) =>
+                    k := self.match_key(quote, members, id, facts, guess)?
+                    self.expect(58)?
+                    if k < members.len():
+                        self.steps[top] = -1
+                        self.names[top] = member_name(&members[k], facts)
+                        self.pending = true
+                        return .Ok(.Some(k))
+                    # A key that names no member: its value is checked and
+                    # skipped.
+                    self.pass_value()?
+                .None => return .Ok(.None)
+        .Ok(.None)
+
+    fn absent_field(&mut self, m: &Member, facts: Facts) -> void:
+        top := self.top()
+        self.steps[top] = -1
+        self.names[top] = member_name(m, facts)
+        self.absent = true
+
+    fn is_absent(&mut self) -> bool:
+        self.absent
+
+    fn end_data(&mut self) -> Result[void, JsonError]:
+        self.end_variant()
+
+    fn end_variant(&mut self) -> Result[void, JsonError]:
+        self.absent = false
+        self.settle()?
+        top := self.top()
+        match self.kinds[top]:
+            .Record => self.close_record(top)?
+            .Variant => self.close_variant(top)?
+            .VariantRecord =>
+                self.close_record(top)?
+                self.close_variant(top)?
+            .VariantTuple =>
+                if self.byte() == 44:
+                    return .Err(self.tuple_error(top))
+                self.close(93)?
+                self.close_variant(top)?
+            .Unit => pass
+            .Items =>
+                while true:
+                    self.settle()?
+                    if self.byte() == 93:
+                        break
+                    self.next_slot(top)?
+                    self.pass_value()?
+                self.close(93)?
+            .Entries => self.close_record(top)?
+            # The payload's frame read and closed the object, unless the
+            # payload read nothing.
+            .Internal =>
+                if self.inner:
+                    self.inner = false
+                    self.close_record(top)?
+            .Adjacent => self.close_adjacent(top)?
+            .AdjacentUnit => self.close_adjacent(top)?
+            .AdjacentRecord =>
+                self.close_record(top)?
+                self.close_adjacent(top)?
+            .AdjacentTuple =>
+                if self.byte() == 44:
+                    return .Err(self.tuple_error(top))
+                self.close(93)?
+                self.close_adjacent(top)?
+        self.open = top
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> JsonError:
+        self.fail(expected)
+
+    # The key just named repeats one of the record's earlier keys
+    # (r-std-json.derive.duplicate-field); the path ends at that member.
+    fn duplicate_field(&mut self) -> JsonError:
+        JsonError.DuplicateField(self.path())
+
+    # One value of any kind, checked as `parse` checks it and dropped.
+    fn skip(&mut self) -> Result[void, JsonError]:
+        _ := self.value_byte("value")?
+        if self.inner:
+            self.inner = false
+            return self.close_record(self.open - 1)
+        self.pass_value()
+
+impl StreamReader:
+    # The next value of map or record frame `top` as an item, or false
+    # after its last, closing it.
+    fn next_value(&mut self, top: usize) -> Result[bool, JsonError]:
+        match self.next_quote(top)?:
+            .Some(_) =>
+                self.expect(58)?
+                self.steps[top] = i64(self.counts[top])
+                self.counts[top] = self.counts[top] + 1
+                self.pending = true
+                .Ok(true)
+            .None =>
+                self.close(125)?
+                self.open = top
+                .Ok(false)
+
+    # Closes a variant object. A second key is a typed error at the
+    # variant object: one pass reads the first key's payload only.
+    fn close_variant(&mut self, top: usize) -> Result[void, JsonError]:
+        if self.byte() == 44:
+            self.open = top
+            return .Err(self.fail("variant"))
+        self.close(125)
+
+    # An internally or adjacently tagged variant (r-std-json.derive.internal.read,
+    # r-std-json.derive.adjacent.read). The tag key is found in the object
+    # without copying the object; untagged enums never come here, since
+    # derived code tries each payload shape itself.
+    fn begin_tagged(
+        &mut self,
+        facts: Facts,
+        choices: List[VariantInfo],
+        tagging: EnumTagging,
+    ) -> Result[usize, JsonError]:
+        match tagging:
+            .Untagged => return .Err(self.fail("untagged variant attempt"))
+            _ => pass
+        if self.value_byte("object")? != 123:
+            return .Err(self.fail("object"))
+        let index: usize = 0
+        match tagging:
+            .Internal(tag) =>
+                self.open_object(StreamKind.Record)?
+                top := self.open - 1
+                self.frame_facts[top] = facts
+                self.tags[top] = tag
+                index = self.internal_tag(top, &choices)?
+                if choices[index].included_positional == 1 && choices[index].named == 0:
+                    self.kinds[top] = StreamKind.Internal
+            .Adjacent(tag, content) =>
+                if self.inner:
+                    return .Err(self.fail("variant"))
+                self.bracket(123)?
+                self.push(StreamKind.Adjacent)
+                top := self.open - 1
+                self.frame_facts[top] = facts
+                self.tags[top] = tag
+                self.contents[top] = content
+                self.content_ats[top] = no_offset()
+                self.ends[top] = no_offset()
+                index = self.adjacent_tag(top, &choices)?
+                if payload_free(&choices[index]):
+                    self.kinds[top] = StreamKind.AdjacentUnit
+                    self.absent = false
+                else:
+                    if self.ends[top] == no_offset():
+                        self.adjacent_content(top)?
+                    # The payload's path goes through the content key.
+                    self.variants[top] = content
+                    self.at_key(top, "")
+                    if self.absent:
+                        return .Err(self.fail("variant content"))
+                    self.pending = true
+            .Untagged => pass
+        .Ok(index)

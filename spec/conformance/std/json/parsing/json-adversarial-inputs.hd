@@ -1,5 +1,5 @@
 # test: JSON rejects malformed text and typed serde failures with specified errors
-# Spec std/json: std-json.parse.strict, std-json.parse.end, std-json.parse.depth, std-json.decode.parse-error,
+# Spec std/json: std-json.parse.strict, std-json.parse.end, std-json.parse.depth, std-json.decode.parse-error.v2,
 # std-json.parse.object.duplicate-last, std-json.parse.number.negative-zero,
 # std-json.parse.number.nonfinite-parse-result, std-json.parse.string.surrogates,
 # std-json.parse.string.lone-surrogate, std-json.error.position-bytes,
@@ -73,9 +73,15 @@ enum Event:
     Count(value: i32)
     Pair(i32, string)
 
+# `direct` is `decode`'s result where it differs from `from_json`'s: a
+# repeated record key is `DuplicateField` (std-json.derive.duplicate-field),
+# and of two typed errors the first in text order is reported
+# (std-json.decode.first-error); the tree keeps the last value of a key and
+# reads members in declaration order.
 struct DocumentCase:
     text: string
     expected: Result[Document, JsonError]
+    direct: Result[Document, JsonError]? = .None
 
 fn document_cases() -> List[DocumentCase]:
     [
@@ -90,6 +96,7 @@ fn document_cases() -> List[DocumentCase]:
         DocumentCase {
             text: "{\"count\":0,\"name\":\"first\",\"name\":\"last\",\"count\":255}",
             expected: .Ok(Document { name: "last", count: 255, note: .None, cache: 7 }),
+            direct: .Some(.Err(.DuplicateField("$.name"))),
         },
         DocumentCase {
             text: "{\"name\":\"Ada\",\"note\":null}",
@@ -108,6 +115,7 @@ fn document_cases() -> List[DocumentCase]:
         DocumentCase {
             text: "{\"count\":null,\"name\":false}",
             expected: .Err(.WrongType("$.name", "string")),
+            direct: .Some(.Err(.WrongType("$.count", "u8"))),
         },
     ]
 
@@ -210,7 +218,11 @@ tests:
     it_each("record unknown fields defaults duplicates and paths", document_cases(), body=fn!(
         row: DocumentCase,
     ):
-        assert_equal(decode::[Document](row.text), row.expected, reason="direct typed result")
+        assert_equal(
+            decode::[Document](row.text),
+            row.direct.unwrap_or(row.expected),
+            reason="direct typed result",
+        )
         assert_equal(
             from_json::[Document](parse(row.text).expect("syntactically valid record")),
             row.expected,

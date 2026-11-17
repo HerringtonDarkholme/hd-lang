@@ -625,13 +625,15 @@ impl[T] Deserialize for T by Structure:
                         let mut source = DeserializeSource::[T, R] {
                             input: input,
                             facts: facts,
-                            at: attempt + 1,
                             form: VariantForm.Raw,
                             keyed: input.keyed(),
-                            seen: 0,
-                            seen_more: [],
-                            ended: false,
-                            absent: false,
+                            walk: KeyWalk {
+                                at: attempt + 1,
+                                seen: 0,
+                                seen_more: [],
+                                ended: false,
+                                absent: false,
+                            },
                         }
                         # The source holds `input` while the built value
                         # lives, so the end hooks go through it.
@@ -659,13 +661,9 @@ impl[T] Deserialize for T by Structure:
         let mut source = DeserializeSource::[T, R] {
             input: input,
             facts: facts,
-            at: 0,
             form: VariantForm.Record,
             keyed: input.keyed(),
-            seen: 0,
-            seen_more: [],
-            ended: false,
-            absent: false,
+            walk: KeyWalk { at: 0, seen: 0, seen_more: [], ended: false, absent: false },
         }
         built := T::build(&mut source)?
         match source.form:
@@ -680,13 +678,9 @@ impl[T < UnionType] Deserialize for T by Structure:
         let mut source = DeserializeSource::[T, R] {
             input: input,
             facts: facts,
-            at: 0,
             form: VariantForm.Record,
             keyed: input.keyed(),
-            seen: 0,
-            seen_more: [],
-            ended: false,
-            absent: false,
+            walk: KeyWalk { at: 0, seen: 0, seen_more: [], ended: false, absent: false },
         }
         built := T::build(&mut source)?
         match source.form:
@@ -694,44 +688,19 @@ impl[T < UnionType] Deserialize for T by Structure:
             _ => source.input.end_variant()?
         .Ok(built)
 
-@cold
-fn enum_tagging(facts: Facts) -> EnumTagging?:
-    facts.find::[EnumTagging]()
-
-# The fields are public because the prototype checks the instantiated
-# source in the deriving module.
-struct DeserializeSource[S < ?Copy, R < Deserializer, 'a]:
-    pub input: &'a mut R
-    pub facts: Facts
+# The walk over a record's members that does not depend on the record's
+# type, out of line so that one copy serves every type a reader reads.
+# Keyed: `at` is the guess, `seen` marks the members named so far (bit k
+# for member k < 64, `seen_more` past that), and after the record's last
+# key `ended` walks the unseen members once, each read as absent (`absent`).
+struct KeyWalk:
     pub at: usize
-    pub form: VariantForm
-    # Keyed reading: the reader names the members in text order, `seen`
-    # marks the members named so far (bit k for member k < 64, `seen_more`
-    # past that), and after the record's last key `ended` walks the unseen
-    # members once, each read as absent (`absent`).
-    pub keyed: bool
     pub seen: u64
     pub seen_more: List[bool]
     pub ended: bool
     pub absent: bool
 
-impl['a, S < ?Copy, R < Deserializer] DeserializeSource[S, R, 'a]:
-    fn record_form(&self) -> bool:
-        match self.form:
-            .Data => true
-            .Record => true
-            _ => false
-
-    # Positions the reader at member `m`'s value: a keyed reader already
-    # sits there, or reads it as absent; any other reader is asked.
-    fn position(&mut self, m: &Member) -> Result[void, R::Error]:
-        if self.keyed:
-            if self.absent:
-                self.absent = false
-                self.input.absent_field(m, self.facts)
-            return .Ok(())
-        self.input.member(m)
-
+impl KeyWalk:
     # Marks member `k` named, or reports whether it already was.
     fn mark(&mut self, k: usize) -> bool:
         if k < 64:
@@ -749,6 +718,78 @@ impl['a, S < ?Copy, R < Deserializer] DeserializeSource[S, R, 'a]:
         if k < 64:
             return self.seen & (u64(1) << u64(k)) != 0
         k - 64 < self.seen_more.len() && self.seen_more[k - 64]
+
+# The index in `members.infos` of the next member to read, or `.None`.
+# Keyed: each member the reader names, in text order, then each unseen
+# unskipped member as absent; a member named twice is the reader's
+# duplicate error. Otherwise every unskipped member, in declaration order.
+fn next_index[R < Deserializer](
+    input: &mut R,
+    infos: &List[Member],
+    id: usize,
+    facts: Facts,
+    keyed: bool,
+    walk: &mut KeyWalk,
+) -> Result[usize?, R::Error]:
+    if keyed:
+        if !walk.ended:
+            match input.next_field(infos, id, facts, walk.at)?:
+                .Some(k) =>
+                    if walk.mark(k):
+                        return .Err(input.duplicate_field())
+                    walk.at = k + 1
+                    return .Ok(.Some(k))
+                .None =>
+                    walk.ended = true
+                    walk.at = 0
+        while walk.at < infos.len():
+            k := walk.at
+            walk.at += 1
+            if !walk.was_seen(k) && read_member(&infos[k]):
+                walk.absent = true
+                return .Ok(.Some(k))
+        return .Ok(.None)
+    while walk.at < infos.len():
+        k := walk.at
+        walk.at += 1
+        if read_member(&infos[k]):
+            return .Ok(.Some(k))
+    .Ok(.None)
+
+# A member without `Skip`, which a reader reads.
+fn read_member(m: &Member) -> bool:
+    m.facts.items.is_empty() || m.facts.find::[Skip]().is_none()
+
+@cold
+fn enum_tagging(facts: Facts) -> EnumTagging?:
+    facts.find::[EnumTagging]()
+
+# The fields are public because the prototype checks the instantiated
+# source in the deriving module.
+struct DeserializeSource[S < ?Copy, R < Deserializer, 'a]:
+    pub input: &'a mut R
+    pub facts: Facts
+    pub form: VariantForm
+    # Keyed reading: the reader names the members in text order.
+    pub keyed: bool
+    pub walk: KeyWalk
+
+impl['a, S < ?Copy, R < Deserializer] DeserializeSource[S, R, 'a]:
+    fn record_form(&self) -> bool:
+        match self.form:
+            .Data => true
+            .Record => true
+            _ => false
+
+    # Positions the reader at member `m`'s value: a keyed reader already
+    # sits there, or reads it as absent; any other reader is asked.
+    fn position(&mut self, m: &Member) -> Result[void, R::Error]:
+        if self.keyed:
+            if self.walk.absent:
+                self.walk.absent = false
+                self.input.absent_field(m, self.facts)
+            return .Ok(())
+        self.input.member(m)
 
 # `skips::[Skip]()` omits a member whose known facts hold `Skip`: `build`
 # fills a named member from its declared default and a positional member
@@ -770,8 +811,8 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
         if !self.facts.items.is_empty():
             match enum_tagging(self.facts):
                 .Some(.Untagged) =>
-                    attempt := self.at - 1
-                    self.at = 0
+                    attempt := self.walk.at - 1
+                    self.walk.at = 0
                     if attempt >= choices.len():
                         self.form = VariantForm.Exhausted
                         return .Err(self.input.invalid("variant"))
@@ -817,46 +858,20 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
             .Exhausted => pass
         .Ok(choices[index])
 
-    # Keyed: each member the reader names, in text order, then each unseen
-    # unskipped member as absent; a member named twice is the reader's
-    # duplicate error. Otherwise every unskipped member, in declaration
-    # order.
+    # The member `next_index` picks, read in place, not copied out of the
+    # list.
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
-        if self.keyed && self.record_form():
-            if !self.ended:
-                match self.input.next_field(&members.infos, members.id(), self.facts, self.at)?:
-                    .Some(k) =>
-                        if self.mark(k):
-                            return .Err(self.input.duplicate_field())
-                        self.at = k + 1
-                        return .Ok(members.at(members.infos[k].position))
-                    .None =>
-                        self.ended = true
-                        self.at = 0
-            while self.at < members.infos.len():
-                k := self.at
-                self.at += 1
-                if (
-                    !self.was_seen(k)
-                    && (
-                        members.infos[k].facts.items.is_empty()
-                        || members.infos[k].facts.find::[Skip]().is_none()
-                    )
-                ):
-                    self.absent = true
-                    return .Ok(members.at(members.infos[k].position))
-            return .Ok(.None)
-        # The member is read in place, not copied out of the list.
-        while self.at < members.infos.len():
-            at := self.at
-            self.at += 1
-            if (
-                members.infos[at].facts.items.is_empty()
-                || members.infos[at].facts.find::[Skip]().is_none()
-            ):
-                position := members.infos[at].position
-                return .Ok(members.at(position))
-        .Ok(.None)
+        keyed := self.keyed && self.record_form()
+        match next_index(
+            &mut *self.input,
+            &members.infos,
+            members.id(),
+            self.facts,
+            keyed,
+            &mut self.walk,
+        )?:
+            .Some(k) => .Ok(members.at(members.infos[k].position))
+            .None => .Ok(.None)
 
     # An absent member that declares a default takes it, and is not read
     # (r-std-serde.derive.deserialize.unskipped-default).

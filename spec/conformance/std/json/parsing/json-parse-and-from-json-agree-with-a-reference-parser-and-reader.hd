@@ -647,13 +647,40 @@ fn parse_disagreement(text: string) -> string:
         _ => pass
     ""
 
-# Where from_json and decode differ from the old reader, or "".
-fn read_disagreement[T < Deserialize & Debug](value: Json) -> string:
+# Where from_json differs from the old reader, or "".
+fn tree_disagreement[T < Deserialize & Debug](value: Json) -> string:
     old := result_text(old_from_json::[T](value))
     now := result_text(from_json::[T](value))
     if now != old:
         return "from_json ${debug(value)}: new $now, old $old"
+    ""
+
+# Whether `error` is a decode error at a path, not a parse error.
+fn typed_error(error: JsonError) -> bool:
+    match error:
+        .WrongType(_, _) => true
+        .MissingField(_) => true
+        .DuplicateField(_) => true
+        .UnknownVariant(_, _) => true
+        _ => false
+
+# Where from_json and decode differ from the old reader, or "". The old
+# reader reads members in declaration order, and `decode` in text order
+# (std-json.decode.first-error): a text with two typed errors may report
+# either, so two typed errors agree in kind only. A value and a parse
+# error must be the same.
+fn read_disagreement[T < Deserialize & Debug](value: Json) -> string:
+    tree := tree_disagreement::[T](value)
+    if tree != "":
+        return tree
     text := "$value"
+    old_result := old_decode::[T](text)
+    now_result := decode::[T](text)
+    match (old_result, now_result):
+        (.Err(old), .Err(now)) =>
+            if typed_error(old) && typed_error(now):
+                return ""
+        _ => pass
     old_text := result_text(old_decode::[T](text))
     now_text := result_text(decode::[T](text))
     if now_text != old_text:
@@ -1437,9 +1464,13 @@ fn probed(stop: i32, value: Json) -> Json:
     Json.Array([int_json(i64(stop)), value])
 
 # The walk with every error logged, then the walk stopped at each error in
-# turn, so that each error's text and path are compared too.
+# turn, so that each error's text and path are compared too. Only the tree
+# reader is compared: `decode`'s reader is keyed, and a `member` walk on it
+# honours keys in declaration order only (std-serde.read.keyed), so its
+# walk is run for its answers, not compared.
 fn probe_disagreement(value: Json) -> string:
-    all := read_disagreement::[*Probe](probed(-1, value))
+    _ := decode::[*Probe]("${probed(-1, value)}")
+    all := tree_disagreement::[*Probe](probed(-1, value))
     if all != "":
         return all
     count := match from_json::[*Probe](probed(-1, value)):
@@ -1447,7 +1478,7 @@ fn probe_disagreement(value: Json) -> string:
         .Err(_) => +0
     let stop = +1
     while stop <= count && stop <= 40:
-        found := read_disagreement::[*Probe](probed(stop, value))
+        found := tree_disagreement::[*Probe](probed(stop, value))
         if found != "":
             return found
         stop = stop + 1

@@ -1,6 +1,6 @@
 # test: successive JSON objects retain only their own active keys and last values
-# Spec std/json Encode And Decode: std-json.decode.direct, std-json.decode.no-tree, std-json.parse.object.duplicate-last, std-json.object.order.
-use std.json.{decode, parse, from_json}
+# Spec std/json Encode And Decode: std-json.decode.direct.v2, std-json.decode.no-tree, std-json.parse.object.duplicate-last, std-json.object.order, std-json.derive.duplicate-field.
+use std.json.{decode, parse, from_json, JsonError}
 use std.serde.Deserialize
 use std.testing.assert_equal
 
@@ -23,12 +23,22 @@ fn same[T < Deserialize & Eq & Debug](text: string) -> void:
 tests:
     it("wide, small, empty and nested objects may reuse the same depth"):
         same::[List[Item]](
-            "[{\"a0\":0,\"a1\":1,\"a2\":2,\"a3\":3,\"a4\":4,\"a5\":5,\"a6\":6,\"a7\":7,\"a8\":8,\"a9\":9,\"a10\":10,\"a11\":11,\"a12\":12,\"a13\":13,\"a14\":14,\"a15\":15,\"name\":\"first\",\"count\":2,\"name\":\"last\"},{\"name\":\"small\"},{\"na\\u006de\":\"escaped\",\"count\":3}]",
+            "[{\"a0\":0,\"a1\":1,\"a2\":2,\"a3\":3,\"a4\":4,\"a5\":5,\"a6\":6,\"a7\":7,\"a8\":8,\"a9\":9,\"a10\":10,\"a11\":11,\"a12\":12,\"a13\":13,\"a14\":14,\"a15\":15,\"count\":2,\"name\":\"last\"},{\"name\":\"small\"},{\"na\\u006de\":\"escaped\",\"count\":3}]",
         )
         same::[List[Group]](
             "[{\"items\":[{\"name\":\"one\",\"count\":1},{\"count\":2,\"name\":\"two\"}],\"note\":\"first\"},{\"items\":[],\"note\":null},{\"items\":[{\"name\":\"three\"}]}]",
         )
         same::[List[Item]]("[{\"name\":\"one\",\"count\":1},{}]")
+
+    it("a record's seen keys belong to its own frame"):
+        # The second object repeats `name` in its own frame; the first
+        # object's `name` at the same depth is not a repeat.
+        assert_equal(
+            decode::[List[Item]]("[{\"name\":\"a\"},{\"count\":1,\"name\":\"b\",\"name\":\"c\"}]"),
+            .Err(JsonError.DuplicateField("$[1].name")),
+            reason="repeated key in the second frame",
+        )
+        same::[List[Item]]("[{\"name\":\"a\",\"count\":1},{\"count\":2,\"name\":\"b\"}]")
 
     it("maps preserve key order and duplicate-last values across frame reuse"):
         same::[List[Map[string, usize]]](
