@@ -2047,7 +2047,9 @@ See also: [Boundary Encoding](10-modules.md#boundary-encoding),
 ### The `std.serde` Module
 
 The module `std.serde` declares the two serialization traits and the format
-protocol they drive:
+protocol they drive. The block below is abridged: it shows the core of each
+trait, and [Serde](../std/serde.md) lists every method, with the data-type,
+variant-form, keyed-reading and `skip` hooks it leaves out.
 
 ```text
 pub trait Serialize < ?Copy:
@@ -2071,8 +2073,8 @@ pub trait Serializer:
     fn begin_map(&mut self, len: usize) -> Result[void, Self::Error]
     fn key(&mut self, key: string) -> Result[void, Self::Error]
     fn end_map(&mut self) -> Result[void, Self::Error]
-    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, Self::Error]
-    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn begin_variant(&mut self, facts: Facts, v: &VariantInfo) -> Result[void, Self::Error]
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
 
 pub enum ValueKind:
@@ -2099,7 +2101,7 @@ pub trait Deserializer:
     fn begin_map(&mut self) -> Result[void, Self::Error]
     fn next_key(&mut self) -> Result[string?, Self::Error]
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, Self::Error]
-    fn member(&mut self, m: Member) -> Result[void, Self::Error]
+    fn member(&mut self, m: &Member) -> Result[void, Self::Error]
     fn end_variant(&mut self) -> Result[void, Self::Error]
     fn invalid(&mut self, expected: string) -> Self::Error
     fn is_absent(&mut self) -> bool:
