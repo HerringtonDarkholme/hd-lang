@@ -273,7 +273,7 @@ pub(crate) fn define(
                         host.reactor
                             .finish_native(h, call, &mut host.handles)
                             .ok_or_else(|| fail("a finish of an operation that is not pending"))?
-                            .map_err(|error| fail(&error.to_string()))?
+                            .map_err(|failure| Stop::Contract(failure.message(&label)))?
                     }
                     Part::Call | Part::Start => {
                         let args = if params.len() == usize::from(on_handle) {
@@ -311,7 +311,7 @@ pub(crate) fn define(
                                 &mut host.handles,
                             )
                         }
-                        .map_err(|error| fail(&error.to_string()))?;
+                        .map_err(|failure| Stop::Contract(failure.message(&label)))?;
                         match (part, answer) {
                             (_, Answer::Ready(value)) => value,
                             (Part::Start, Answer::Pending(pending)) => {

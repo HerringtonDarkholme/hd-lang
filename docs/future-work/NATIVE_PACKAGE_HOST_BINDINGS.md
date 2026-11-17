@@ -143,8 +143,8 @@ serialized as a string reaches Rust as a string, not as its hidden fields.
 | --- | --- |
 | Code removed | Replace Wasmtime's blanket package-host refusal; keep refusal when bindings are absent. |
 | Code added | Rust generator, native value codecs, registry, pending calls, and handle release. Count during implementation. |
-| Compile time | Not measured; compare an hdru-shaped build with and without companion generation. |
-| Runtime | One schema preflight; codec cost per call. Benchmark ready and pending renderer calls. |
+| Compile time | Measured (#2083): `hd build --release` of the hdru-shaped `Surface` takes 44.0 ms with the companion and 42.9 ms without (medians of 7, alternating). |
+| Runtime | One schema preflight; codec cost per call. Measured (#2083, release, medians of 7): a ready 3-command `apply!` costs 299 ns on Wasmtime and 2.3 us on Node; a settled pending `next_event!` 658 ns and 1.28 ms (Node waits a 1 ms timer per Promise). |
 | Wasm size | No intended change: the same imports and `hd.capabilities` section remain. Require byte identity. |
 | Web compiler gzip | The `native-rust` generator feature is off in `hd_web`, so it adds no web bytes; the existing 2 MB gate verifies this. |
 

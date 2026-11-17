@@ -960,7 +960,7 @@ fn dispatch_values(
     provider: &mut dyn std::any::Any,
     method: usize,
     args: &[u8],
-) -> HostResult<Vec<u8>> {
+) -> Result<Vec<u8>, native::Failure> {
     match values::dispatch_Values(provider, method, args, &mut native::Handles::default())? {
         native::Answer::Ready(bytes) => Ok(bytes),
         native::Answer::Pending(_) => panic!("`Values` has no suspending method"),
@@ -1013,16 +1013,26 @@ fn a_single_string_argument_is_its_bare_utf8() {
 #[test]
 fn a_malformed_value_fails_the_call_with_the_js_hosts_message() {
     let (mut provider, _) = codecs(made(true));
-    let fail = |provider: &mut Box<dyn std::any::Any>, method, args: &[u8]| {
-        dispatch_values(provider.as_mut(), method, args)
-            .unwrap_err()
-            .0
+    // A codec or host check fails as the host's own failure; only the
+    // provider's own error is its throw.
+    let fail = |provider: &mut Box<dyn std::any::Any>, method, args: &[u8]| match dispatch_values(
+        provider.as_mut(),
+        method,
+        args,
+    )
+    .unwrap_err()
+    {
+        native::Failure::Host(error) => error.0,
+        other => panic!("not the host's failure: {other:?}"),
     };
     assert_eq!(
         fail(&mut provider, 3, &[]),
         "package host: invalid private object key"
     );
-    assert_eq!(fail(&mut provider, 4, &[]), "stopped");
+    assert_eq!(
+        dispatch_values(provider.as_mut(), 4, &[]),
+        Err(native::Failure::Threw(HostError("stopped".into())))
+    );
     let bytes = dispatch_values(provider.as_mut(), 0, &[]).unwrap();
     assert_eq!(
         fail(&mut provider, 1, &bytes[..bytes.len() - 1]),

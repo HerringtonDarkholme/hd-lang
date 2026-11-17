@@ -24,8 +24,8 @@ use wasm_encoder::{
 
 use super::{EngineConfig, WasmtimeEngine};
 use crate::native::{
-    Answer, Bindings, Completion, Dispatch, Handles, HostError, HostResult, NativeCall, pending,
-    wire,
+    Answer, Bindings, Completion, Dispatch, Dispatched, Failure, Handles, HostError, HostResult,
+    NativeCall, pending, wire,
 };
 use crate::{HostIo, Shared};
 
@@ -211,18 +211,13 @@ struct Recorder {
     failure: Option<&'static str>,
 }
 
-fn dispatch(
-    provider: &mut dyn Any,
-    method: usize,
-    args: &[u8],
-    _: &mut Handles,
-) -> HostResult<Answer> {
+fn dispatch(provider: &mut dyn Any, method: usize, args: &[u8], _: &mut Handles) -> Dispatched {
     let recorder = provider
         .downcast_mut::<Recorder>()
         .expect("the registered recorder");
     recorder.calls.borrow_mut().push((method, args.to_vec()));
     if let Some(failure) = recorder.failure {
-        return Err(HostError(failure.into()));
+        return Err(Failure::Threw(HostError(failure.into())));
     }
     Ok(Answer::Ready(if method == 0 {
         recorder.reply.clone()
@@ -569,7 +564,7 @@ fn a_provider_failure_is_a_host_contract_panic_naming_the_method() {
     assert_eq!(outcome, Outcome::Exit(3));
     assert!(
         error.starts_with(&format!(
-            "panic: host-contract: {SERVER}.read: sensor offline"
+            "panic: host-contract: {SERVER}.read: provider threw sensor offline"
         )),
         "{error}"
     );
@@ -666,7 +661,7 @@ fn dispatch_waiter(
     method: usize,
     args: &[u8],
     handles: &mut Handles,
-) -> HostResult<Answer> {
+) -> Dispatched {
     let waiter = provider.downcast_mut::<Waiter>().expect("the waiter");
     waiter.calls.borrow_mut().push((method, args.to_vec()));
     match method {
@@ -922,7 +917,7 @@ fn a_failed_completion_is_a_host_contract_panic_naming_the_method() {
     let error = run.error();
     assert!(
         error.starts_with(&format!(
-            "panic: host-contract: {SERVER}.wait: sensor offline"
+            "panic: host-contract: package host: provider {SERVER}.wait rejected: sensor offline"
         )),
         "{error}"
     );
@@ -1114,7 +1109,7 @@ fn dispatch_opener(
     method: usize,
     _: &[u8],
     handles: &mut Handles,
-) -> HostResult<Answer> {
+) -> Dispatched {
     let opener = wire::provider::<Opener>(provider)?;
     let mut e = wire::Encoder::new(handles);
     match method {
@@ -1146,7 +1141,7 @@ fn dispatch_conn(
     method: usize,
     args: &[u8],
     handles: &mut Handles,
-) -> HostResult<Answer> {
+) -> Dispatched {
     let conn = wire::provider::<Conn>(provider)?;
     conn.0.call();
     match method {
@@ -1160,12 +1155,7 @@ fn dispatch_conn(
     }
 }
 
-fn dispatch_file(
-    provider: &mut dyn Any,
-    _: usize,
-    _: &[u8],
-    handles: &mut Handles,
-) -> HostResult<Answer> {
+fn dispatch_file(provider: &mut dyn Any, _: usize, _: &[u8], handles: &mut Handles) -> Dispatched {
     wire::provider::<File>(provider)?.0.call();
     Ok(Answer::Ready(encode_int(3, handles)?))
 }

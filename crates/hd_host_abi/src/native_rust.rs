@@ -265,7 +265,7 @@ impl Gen {
         };
         let _ = write!(
             dispatches,
-            "\n/// Calls the method at index `method` of {whose} `{name}` with its\n/// encoded arguments and returns its encoded result, or a suspending\n/// method's pending call.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8], {handles}: &mut {NATIVE}::Handles) -> {NATIVE}::HostResult<{NATIVE}::Answer> {{\n    {bind}{WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
+            "\n/// Calls the method at index `method` of {whose} `{name}` with its\n/// encoded arguments and returns its encoded result, or a suspending\n/// method's pending call.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8], {handles}: &mut {NATIVE}::Handles) -> {NATIVE}::Dispatched {{\n    {bind}{WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method).into()),\n    }}\n}}\n"
         );
     }
 
@@ -312,7 +312,9 @@ impl Gen {
             arm.push_str("        }\n");
             return arm;
         }
-        call.push(')');
+        // The provider's own error is its throw; every other `?` here is
+        // the codec's or the host's failure.
+        let _ = write!(call, ").map_err({NATIVE}::Failure::Threw)");
         match m.result {
             Value::Void => {
                 let _ = writeln!(

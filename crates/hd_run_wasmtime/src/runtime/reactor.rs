@@ -375,7 +375,7 @@ impl Reactor {
         h: i32,
         method: (usize, usize),
         handles: &mut crate::native::Handles,
-    ) -> Option<crate::native::HostResult<Vec<u8>>> {
+    ) -> Option<Result<Vec<u8>, crate::native::Failure>> {
         let op = self.ops.get(&h)?;
         if !op.completed || !matches!(op.work, Work::Native { method: m, .. } if m == method) {
             return None;

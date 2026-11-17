@@ -359,11 +359,11 @@ pub trait Values {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Values>>(provider)?;
     match method {
         0 => {
-            let value = provider.make()?;
+            let value = provider.make().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             ValuesMakeResult::wire_encode(value, e)?;
@@ -403,29 +403,29 @@ pub fn dispatch_Values(provider: &mut dyn std::any::Any, method: usize, args: &[
             let arg29 = if d.tag(2)? == 0 { None } else { Some(ValuesMakeResultNothing::wire_decode(d)?) };
             let arg30 = ValuesMakeResultEmpty::wire_decode(d)?;
             d.finish()?;
-            let () = provider.take(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, arg24, arg25, arg26, arg27, arg28, arg29, arg30)?;
+            let () = provider.take(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20, arg21, arg22, arg23, arg24, arg25, arg26, arg27, arg28, arg29, arg30).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(Vec::new()))
         }
         2 => {
             let arg0 = hd_run_wasmtime::native::wire::text(args);
-            let value = provider.text(arg0)?;
+            let value = provider.text(arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.string(&value);
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         3 => {
-            let value = provider.bad()?;
+            let value = provider.bad().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.serde(&value)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         4 => {
-            let value = provider.stop()?;
+            let value = provider.stop().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             match value {}
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 

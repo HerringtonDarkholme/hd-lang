@@ -49,6 +49,44 @@ impl std::error::Error for HostError {}
 
 pub type HostResult<T> = Result<T, HostError>;
 
+/// Why a dispatched call failed. Each kind prints the JS host's text for
+/// the same failure (`module.host.package.native-parity`), so the engine
+/// takes it from the dispatch rather than from the message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Failure {
+    /// The provider's own error, answered at once: a JS provider throwing.
+    Threw(HostError),
+    /// A pending call completed with the provider's error: a JS
+    /// provider's promise rejecting.
+    Rejected(HostError),
+    /// The companion's codec or the host's own check failed.
+    Host(HostError),
+}
+
+impl From<HostError> for Failure {
+    fn from(error: HostError) -> Self {
+        Self::Host(error)
+    }
+}
+
+impl Failure {
+    /// The `host-contract` panic message of this failure of the method
+    /// `label` (`TRAIT.method`), as the JS host words it.
+    #[must_use]
+    pub fn message(&self, label: &str) -> String {
+        match self {
+            Self::Threw(HostError(why)) => format!("{label}: provider threw {why}"),
+            Self::Rejected(HostError(why)) => {
+                format!("package host: provider {label} rejected: {why}")
+            }
+            Self::Host(HostError(why)) => format!("{label}: {why}"),
+        }
+    }
+}
+
+/// A dispatch's result: its answer, or why the call failed.
+pub type Dispatched = Result<Answer, Failure>;
+
 /// What a suspending provider method returns
 /// (`cli.host.package.native-completion-forms`).
 pub enum NativeCall<T> {
@@ -215,7 +253,7 @@ impl Suspension {
 
     /// The delivered value, encoded, with any handle it holds issued in
     /// `handles`; `None` while pending.
-    pub(crate) fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>> {
+    pub(crate) fn finish(&mut self, handles: &mut Handles) -> Option<Result<Vec<u8>, Failure>> {
         self.0.finish(handles)
     }
 }
@@ -226,7 +264,7 @@ pub type Encode<T> = fn(T, &mut Handles) -> HostResult<Vec<u8>>;
 
 trait Suspended {
     fn bind(&mut self, wake: Wake) -> Bound;
-    fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>>;
+    fn finish(&mut self, handles: &mut Handles) -> Option<Result<Vec<u8>, Failure>>;
 }
 
 struct Encoded<T> {
@@ -239,12 +277,11 @@ impl<T> Suspended for Encoded<T> {
         self.call.bind(wake)
     }
 
-    fn finish(&mut self, handles: &mut Handles) -> Option<HostResult<Vec<u8>>> {
-        Some(
-            self.call
-                .take()?
-                .and_then(|value| (self.encode)(value, handles)),
-        )
+    fn finish(&mut self, handles: &mut Handles) -> Option<Result<Vec<u8>, Failure>> {
+        Some(match self.call.take()? {
+            Ok(value) => (self.encode)(value, handles).map_err(Failure::Host),
+            Err(error) => Err(Failure::Rejected(error)),
+        })
     }
 }
 
@@ -329,12 +366,8 @@ impl std::error::Error for Unregistered {}
 /// in `handles`. The companion generates one per trait; it downcasts
 /// `provider` to the trait object it registered, or for a handle trait to
 /// the one a result returned.
-pub type Dispatch = fn(
-    provider: &mut dyn Any,
-    method: usize,
-    args: &[u8],
-    handles: &mut Handles,
-) -> HostResult<Answer>;
+pub type Dispatch =
+    fn(provider: &mut dyn Any, method: usize, args: &[u8], handles: &mut Handles) -> Dispatched;
 
 /// One root provider: its trait's nominal identity, its import module, the
 /// generated trait object (`Box<dyn Trait>`, boxed again as `Any`), and its

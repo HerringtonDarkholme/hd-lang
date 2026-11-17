@@ -78,6 +78,8 @@ mod interrupt_signal;
 mod metrics_fixtures;
 #[cfg(feature = "wasmtime")]
 mod native_companion;
+#[cfg(feature = "wasmtime")]
+mod native_parity;
 mod node_host_exit;
 mod panic_frames;
 mod property_tests;

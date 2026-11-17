@@ -19,11 +19,11 @@ pub trait Server {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Server>>(provider)?;
     match method {
         0 => {
-            let value = provider.read()?;
+            let value = provider.read().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.signed(i64::from(value));
@@ -37,7 +37,7 @@ pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &
                 Ok(enc.into_bytes())
             }, handles)
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 

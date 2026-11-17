@@ -172,10 +172,10 @@ impl Handles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native::{Answer, HostResult};
+    use crate::native::{Answer, Dispatched};
 
     #[allow(clippy::unnecessary_wraps)]
-    fn none(_: &mut dyn Any, _: usize, _: &[u8], _: &mut Handles) -> HostResult<Answer> {
+    fn none(_: &mut dyn Any, _: usize, _: &[u8], _: &mut Handles) -> Dispatched {
         Ok(Answer::Ready(Vec::new()))
     }
 

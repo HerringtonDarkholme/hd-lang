@@ -226,10 +226,10 @@ pub trait Events {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     hd_run_wasmtime::native::wire::provider::<Box<dyn Surface2>>(provider)?;
     match method {
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
@@ -237,10 +237,10 @@ pub fn dispatch_Surface2(provider: &mut dyn std::any::Any, method: usize, _args:
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_String2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_String2(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], _handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     hd_run_wasmtime::native::wire::provider::<Box<dyn String2>>(provider)?;
     match method {
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
@@ -248,7 +248,7 @@ pub fn dispatch_String2(provider: &mut dyn std::any::Any, method: usize, _args: 
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface>>(provider)?;
     match method {
         0 => {
@@ -287,13 +287,13 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             }, handles)
         }
         1 => {
-            let value = provider.r#type()?;
+            let value = provider.r#type().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             match value {}
         }
         2 => {
             hd_run_wasmtime::native::wire::answer(provider.halt(hd_run_wasmtime::native::CallContext::new()), |value: std::convert::Infallible, _: &mut hd_run_wasmtime::native::Handles| match value {}, handles)
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
@@ -301,17 +301,17 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface3>>(provider)?;
     match method {
         0 => {
-            let () = provider.close()?;
+            let () = provider.close().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(Vec::new()))
         }
         1 => {
             hd_run_wasmtime::native::wire::answer(provider.flush(hd_run_wasmtime::native::CallContext::new()), |(): (), _: &mut hd_run_wasmtime::native::Handles| Ok(Vec::new()), handles)
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
@@ -319,7 +319,7 @@ pub fn dispatch_Surface3(provider: &mut dyn std::any::Any, method: usize, _args:
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Events(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Events(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Events>>(provider)?;
     match method {
         0 => {
@@ -330,7 +330,7 @@ pub fn dispatch_Events(provider: &mut dyn std::any::Any, method: usize, _args: &
                 Ok(enc.into_bytes())
             }, handles)
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 

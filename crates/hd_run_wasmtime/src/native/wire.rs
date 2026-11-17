@@ -27,7 +27,8 @@ use std::fmt::Write as _;
 use hd_base::HashSet;
 
 use super::{
-    Answer, Dispatch, Encode, Handles, HostError, HostResult, NativeCall, Serde, Suspension,
+    Answer, Dispatch, Dispatched, Encode, Failure, Handles, HostError, HostResult, NativeCall,
+    Serde, Suspension,
 };
 use crate::codec::{Dec, Enc};
 
@@ -61,9 +62,12 @@ pub fn answer<T: 'static>(
     call: NativeCall<T>,
     encode: Encode<T>,
     handles: &mut Handles,
-) -> HostResult<Answer> {
+) -> Dispatched {
     match call {
-        NativeCall::Ready(value) => Ok(Answer::Ready(encode(value?, handles)?)),
+        NativeCall::Ready(value) => Ok(Answer::Ready(encode(
+            value.map_err(Failure::Threw)?,
+            handles,
+        )?)),
         NativeCall::Pending(call) => Ok(Answer::Pending(Suspension::new(call, encode))),
     }
 }
@@ -713,8 +717,10 @@ fn number(tag: &str, text: &str) -> HostResult<Serde> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Decoder, Encoder, Serde, answer, text};
-    use crate::native::{Answer, Handles, HostError, HostResult, NativeCall, pending};
+    use super::{Decoder, Encoder, Serde, answer, fail, text};
+    use crate::native::{
+        Answer, Dispatched, Failure, Handles, HostError, HostResult, NativeCall, pending,
+    };
 
     fn message<T: std::fmt::Debug>(result: Result<T, HostError>) -> String {
         result.unwrap_err().0
@@ -932,8 +938,12 @@ mod tests {
             panic!("a ready value is encoded at once")
         };
         assert_eq!(bytes, [4]);
+        // The provider's own error is its throw; the codec's is the host's.
         let failed = answer(NativeCall::Ready(Err(HostError("no".into()))), encode, h);
-        assert_eq!(failed.err(), Some(HostError("no".into())));
+        assert_eq!(failed.err(), Some(Failure::Threw(HostError("no".into()))));
+        let refuse: fn(u8, &mut Handles) -> HostResult<Vec<u8>> = |_, _| Err(fail("codec"));
+        let failed = answer(NativeCall::Ready(Ok(4)), refuse, h);
+        assert_eq!(failed.err(), Some(Failure::Host(fail("codec"))));
         let aborted = std::rc::Rc::new(std::cell::Cell::new(0));
         let hook = std::rc::Rc::clone(&aborted);
         let (call, _completion) = pending::<u8>(move || hook.set(hook.get() + 1));
@@ -945,8 +955,44 @@ mod tests {
         assert_eq!(aborted.get(), 1, "dropped undelivered, it is aborted");
     }
 
+    #[test]
+    fn a_pending_calls_own_error_is_its_rejection_and_its_codecs_the_hosts() {
+        let encode: fn(u8, &mut Handles) -> HostResult<Vec<u8>> = |value, _| {
+            if value == 0 {
+                Err(fail("codec"))
+            } else {
+                Ok(vec![value])
+            }
+        };
+        let finished = |value: HostResult<u8>| {
+            let (call, completion) = pending::<u8>(|| {});
+            completion.complete(value);
+            crate::native::Suspension::new(call, encode).finish(&mut Handles::default())
+        };
+        assert_eq!(finished(Ok(4)), Some(Ok(vec![4])));
+        assert_eq!(
+            finished(Err(HostError("no".into()))),
+            Some(Err(Failure::Rejected(HostError("no".into()))))
+        );
+        assert_eq!(finished(Ok(0)), Some(Err(Failure::Host(fail("codec")))));
+        // Each kind prints the JS host's text for it.
+        let label = "p/m.T.wait";
+        assert_eq!(
+            Failure::Threw(HostError("no".into())).message(label),
+            "p/m.T.wait: provider threw no"
+        );
+        assert_eq!(
+            Failure::Rejected(HostError("no".into())).message(label),
+            "package host: provider p/m.T.wait rejected: no"
+        );
+        assert_eq!(
+            Failure::Host(fail("codec")).message(label),
+            "p/m.T.wait: package host: codec"
+        );
+    }
+
     #[allow(clippy::unnecessary_wraps)]
-    fn none(_: &mut dyn std::any::Any, _: usize, _: &[u8], _: &mut Handles) -> HostResult<Answer> {
+    fn none(_: &mut dyn std::any::Any, _: usize, _: &[u8], _: &mut Handles) -> Dispatched {
         Ok(Answer::Ready(Vec::new()))
     }
 

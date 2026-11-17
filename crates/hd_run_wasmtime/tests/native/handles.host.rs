@@ -29,24 +29,24 @@ pub trait File {
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Files(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_Files(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Files>>(provider)?;
     match method {
         0 => {
-            let value = provider.pair()?;
+            let value = provider.pair().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             { let (t0, t1) = value; e.handle(Box::new(t0), 1, dispatch_File)?; e.handle(Box::new(t1), 1, dispatch_File)?; }
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         1 => {
-            let value = provider.bad()?;
+            let value = provider.bad().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             { let (t0, t1) = value; e.handle(Box::new(t0), 1, dispatch_File)?; e.serde(&t1)?; }
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
@@ -54,24 +54,24 @@ pub fn dispatch_Files(provider: &mut dyn std::any::Any, method: usize, _args: &[
 /// encoded arguments and returns its encoded result, or a suspending
 /// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_File(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
+pub fn dispatch_File(provider: &mut dyn std::any::Any, method: usize, _args: &[u8], handles: &mut hd_run_wasmtime::native::Handles) -> hd_run_wasmtime::native::Dispatched {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn File>>(provider)?;
     match method {
         0 => {
-            let value = provider.size()?;
+            let value = provider.size().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.unsigned(u64::from(value));
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         1 => {
-            let value = provider.dup()?;
+            let value = provider.dup().map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
             e.handle(Box::new(value), 1, dispatch_File)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
-        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
+        _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),
     }
 }
 
