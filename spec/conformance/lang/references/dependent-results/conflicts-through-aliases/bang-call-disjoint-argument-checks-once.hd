@@ -1,7 +1,13 @@
+# fixture-runtime-profile: pending-tick
 # test: a bang call's disjoint argument passes, and a resumed poll does not recheck it against the callee's own live loan
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.counted-access, ref.excl.alias.conflict.
 # expect-stdout: a 1
-use std.time.{Clock, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Stats:
     count: i32
@@ -13,17 +19,17 @@ struct User:
 struct Team:
     lead: *mut User
 
-fn count_after_wait!(stats: *mut Stats) -> i32 $ Clock:
+fn count_after_wait!(stats: *mut Stats) -> i32 $ Tick:
     held := &stats.count
-    sleep!(1ms)
+    host_wait!()
     *held
 
-fn disjoint!(t: &Team, alias: *mut User) -> void $ Console + Clock:
+fn disjoint!(t: &Team, alias: *mut User) -> void $ Console + Tick:
     held := &t.lead.name
     count := count_after_wait!(alias.stats)
     println("${*held} $count")
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     t := Team { lead: box(User { name: "a", stats: box(Stats { count: +1 }) }) }
     alias := t.lead
     disjoint!(&t, alias)

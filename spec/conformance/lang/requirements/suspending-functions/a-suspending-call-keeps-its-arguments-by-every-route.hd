@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # test: a suspension holds its own count of each argument at the call, by every route a call reaches it, so the source may change before it runs
 # Spec 11 Requirements and Suspension: req.suspend.cold.
 # expect-stdout: f1 f2
@@ -12,29 +13,34 @@
 # expect-stdout: j1 j2
 # expect-stdout: e1 e2
 use std.task.join
-use std.time.{Clock, ms, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Note:
     text: string
 
 trait Show:
-    fn show!(&self, s: string) -> string $ Clock
+    fn show!(&self, s: string) -> string $ Tick
 
 struct Tag:
     tag: string
 
 impl Show for Tag:
-    fn show!(&self, s: string) -> string $ Clock:
-        sleep!(ms(1))
+    fn show!(&self, s: string) -> string $ Tick:
+        host_wait!()
         "$s ${self.tag}"
 
-fn kept!(s: string) -> string $ Clock:
-    sleep!(ms(1))
+fn kept!(s: string) -> string $ Tick:
+    host_wait!()
     s
 
-fn through_closure!() -> void $ Console + Clock:
-    f := fn!(s: string) -> string $ Clock:
-        sleep!(ms(1))
+fn through_closure!() -> void $ Console + Tick:
+    f := fn!(s: string) -> string $ Tick:
+        host_wait!()
         s
     let mut s = "f${1}"
     let job: Suspend[string] = f(s)
@@ -42,7 +48,7 @@ fn through_closure!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn through_function_reference!() -> void $ Console + Clock:
+fn through_function_reference!() -> void $ Console + Tick:
     f := kept
     let mut s = "fn${1}"
     let job: Suspend[string] = f(s)
@@ -50,7 +56,7 @@ fn through_function_reference!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn through_trait_value!() -> void $ Console + Clock:
+fn through_trait_value!() -> void $ Console + Tick:
     t := Tag { tag: "t" }
     let d: &dyn Show = &t
     let mut s = "d${1}"
@@ -59,7 +65,7 @@ fn through_trait_value!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn through_method!() -> void $ Console + Clock:
+fn through_method!() -> void $ Console + Tick:
     t := Tag { tag: "t" }
     let mut s = "m${1}"
     let job: Suspend[string] = t.show(s)
@@ -67,10 +73,10 @@ fn through_method!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn generic_show[T < Show](t: &T, s: string) -> Suspend[string] $ Clock:
+fn generic_show[T < Show](t: &T, s: string) -> Suspend[string] $ Tick:
     t.show(s)
 
-fn through_bound!() -> void $ Console + Clock:
+fn through_bound!() -> void $ Console + Tick:
     t := Tag { tag: "t" }
     let mut s = "b${1}"
     let job: Suspend[string] = generic_show(&t, s)
@@ -78,7 +84,7 @@ fn through_bound!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn through_generic_trait_value!() -> void $ Console + Clock:
+fn through_generic_trait_value!() -> void $ Console + Tick:
     t := Tag { tag: "t" }
     let d: &dyn Show = &t
     let mut s = "g${1}"
@@ -87,12 +93,12 @@ fn through_generic_trait_value!() -> void $ Console + Clock:
     out := job!()
     println("$out $s")
 
-fn set_then_read!(s: string, n: *mut Note) -> string $ Clock:
+fn set_then_read!(s: string, n: *mut Note) -> string $ Tick:
     n.text = "h${2}"
-    sleep!(ms(1))
+    host_wait!()
     s
 
-fn at_a_hot_start!() -> void $ Console + Clock:
+fn at_a_hot_start!() -> void $ Console + Tick:
     n := box::[Note](Note { text: "h${1}" })
     out := set_then_read!(n.text, n)
     println("$out ${n.text}")
@@ -101,17 +107,17 @@ fn set_with_no_wait!(s: string, n: *mut Note) -> string:
     n.text = "p${2}"
     s
 
-fn at_a_start_with_no_wait!() -> void $ Console + Clock:
+fn at_a_start_with_no_wait!() -> void $ Console + Tick:
     n := box::[Note](Note { text: "p${1}" })
     out := set_with_no_wait!(n.text, n)
     println("$out ${n.text}")
 
-fn call_then_read!(s: string, change: fn() -> void) -> string $ Clock:
+fn call_then_read!(s: string, change: fn() -> void) -> string $ Tick:
     change()
-    sleep!(ms(1))
+    host_wait!()
     s
 
-fn with_a_shared_source!() -> void $ Console + Clock:
+fn with_a_shared_source!() -> void $ Console + Tick:
     let s = "s${1}"
     out := call_then_read!(s, fn() -> void: s = "s${2}")
     println("$out $s")
@@ -120,19 +126,19 @@ fn set!(n: *mut Note) -> string:
     n.text = "j${2}"
     "set"
 
-fn in_a_join!() -> void $ Console + Clock:
+fn in_a_join!() -> void $ Console + Tick:
     n := box::[Note](Note { text: "j${1}" })
     let (out, _) = join!(kept(n.text), set(n))
     println("$out ${n.text}")
 
-fn elem!() -> void $ Console + Clock:
+fn elem!() -> void $ Console + Tick:
     let mut xs = ["e${1}"]
     let job: Suspend[string] = kept(xs[0])
     xs[0] = "e${2}"
     out := job!()
     println("$out ${xs[0]}")
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     through_closure!()
     through_function_reference!()
     through_trait_value!()

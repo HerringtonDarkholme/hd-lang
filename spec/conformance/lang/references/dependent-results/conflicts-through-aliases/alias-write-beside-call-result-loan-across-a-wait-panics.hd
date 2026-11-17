@@ -1,6 +1,12 @@
+# fixture-runtime-profile: pending-tick
 # test: a call's result held across a suspension keeps its loan on the whole object its argument reaches while the body waits, so a write to another field through an alias after the suspension panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
-use std.time.{Clock, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Addr:
     city: string
@@ -17,16 +23,16 @@ struct User:
 struct Team:
     lead: *mut User
 
-fn moved!(t: &Team, alias: *mut User) -> void $ Console + Clock:
+fn moved!(t: &Team, alias: *mut User) -> void $ Console + Tick:
     c := t.lead.addr.place()
-    sleep!(1ms)
+    host_wait!()
     alias.age += 1 # panic: borrow-conflict
     println("${*c} ${alias.name} ${alias.age}")
-    sleep!(1ms)
+    host_wait!()
     alias.addr.city = "d"
     println(*t.lead.addr.place())
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     t := Team { lead: box(User { name: "a", age: +1, addr: Addr { city: "c" } }) }
     alias := t.lead
     moved!(&t, alias)

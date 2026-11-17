@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # test: a store that keeps fields of the place it replaces holds what the spread read
 # Spec 05 Copy-Update: expr.update.spread-first, expr.update.copy-time.
 # expect-stdout: store-between 1 0 2
@@ -10,7 +11,12 @@
 # expect-stdout: suspension 1 0 7
 # expect-stdout: other-index 2 1 3
 # expect-stdout: index-changes 1 0 4
-use std.time.{Clock, ms, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Item:
     batches: List[i64]
@@ -76,12 +82,12 @@ fn written_out_pointer() -> void $ Console:
     h.batches = [h.batches[0] + 8]
     show("written-out-pointer", h)
 
-fn write_later!(q: *mut Item) -> usize $ Clock:
-    sleep!(ms(1))
+fn write_later!(q: *mut Item) -> usize $ Tick:
+    host_wait!()
     q.batches = [9]
     +7
 
-fn suspension_between!() -> void $ Console + Clock:
+fn suspension_between!() -> void $ Console + Tick:
     h := box(make(1))
     *h = Item { ...*h, r: write_later!(h) }
     show("suspension", h)
@@ -95,7 +101,7 @@ fn index_changes(items: &mut List[Item]) -> void:
     i = 1
     items[i] = Item { ...previous, r: 4 }
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     let mut items = [make(1), make(2)]
     store_between(&mut items)
     show("store-between", &items[0])

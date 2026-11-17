@@ -960,7 +960,7 @@ lang/types/union-type-identity/union-duplicate-arity-is-type-identity.hd	A9	reje
 lang/types/union-type-identity/union-nesting-is-type-identity.hd	A9	reject:type-mismatch not mentioned in cited lang/04-type-system.md#r-types.union.nesting
 lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.loan
 lang/traits/trait-implementations/implementation-targets/union-trait-requires-every-member.hd	A9	reject:type-mismatch not mentioned in cited lang/09-traits.md#r-trait.target.union.conditional
-lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-across-sleep-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.loan
+lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-across-a-wait-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.loan
 lang/references/dependent-results/conflicts-through-aliases/shared-counted-reference-loan-write-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
 lang/references/dependent-results/conflicts-through-aliases/call-reference-loan-hidden-alias-write-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.call-loan
 lang/references/dependent-results/conflicts-through-aliases/call-reference-loan-hidden-alias-other-field-panics.hd	A9	panic:borrow-conflict not mentioned in cited lang/13-values-and-references.md#r-ref.excl.alias.call-loan

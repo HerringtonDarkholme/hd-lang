@@ -1,8 +1,14 @@
+# fixture-runtime-profile: pending-tick
 # test: a task holds its own copy of a pointer's field while another task writes through the pointer
 # Spec 11 Requirements and Suspension: req.suspend.cold.
 # expect-stdout: n4 m5
 use std.task.join
-use std.time.{Clock, ms, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Note:
     text: string
@@ -11,11 +17,11 @@ fn change!(n: *mut Note) -> string:
     n.text = "m${5}"
     "changed"
 
-fn read!(s: string) -> string $ Clock:
-    sleep!(ms(2))
+fn read!(s: string) -> string $ Tick:
+    host_wait!()
     s
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     n := box::[Note](Note { text: "n${4}" })
     let (held, _) = join!(read(n.text), change(n))
     println("$held ${n.text}")

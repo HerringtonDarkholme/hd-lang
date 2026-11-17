@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # test: a cast reads a number through an explicit `*` from a map loop value, an associated `&S::Item`, a `&mut`, a pointer payload, a closure capture and a suspending function
 # Spec 06 Control Flow: flow.for.map.borrowed-entries. Spec 13 Values And References: ref.read.auto.explicit. Spec 04 Numeric Casts: types.cast.syntax.
 # expect-stdout: 30
@@ -6,7 +7,12 @@
 # expect-stdout: 8
 # expect-stdout: 8
 # expect-stdout: 4
-use std.time.{Clock, ms, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 trait Source:
     type Item
@@ -32,11 +38,11 @@ fn slot(s: &Slot) -> usize:
         .Held(at) => usize(*at)
         .Empty => 0
 
-fn later!(x: &i32) -> usize $ Clock:
-    sleep!(ms(1))
+fn later!(x: &i32) -> usize $ Tick:
+    host_wait!()
     usize(*x)
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     values := { "a": 10, "b": 20 }
     let total: usize = 0
     for (_, value) in values:

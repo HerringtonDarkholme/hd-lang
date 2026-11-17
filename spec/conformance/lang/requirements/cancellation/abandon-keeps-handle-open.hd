@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won stopped
 # expect-stdout: close sent, channel defer
 # expect-stdout: closed false
@@ -10,7 +11,12 @@ use std.ops.defer
 use std.net.{ScriptedStream, TcpStream}
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Channel:
     socket: *mut ScriptedStream
@@ -26,9 +32,9 @@ impl AsyncDisposable for Channel:
         wait!()
         self.log.push("ack received")
 
-fn serve!(socket: *mut ScriptedStream, log: *mut List[string]) -> string $ Clock:
-    using! channel = &mut Channel { socket: socket, acked: sleep(s(60)), log: log }
-    sleep!(s(60))
+fn serve!(socket: *mut ScriptedStream, log: *mut List[string]) -> string $ Tick:
+    using! channel = &mut Channel { socket: socket, acked: host_wait(), log: log }
+    host_wait!()
     "late"
 
 fn ready!() -> string:
@@ -38,7 +44,7 @@ fn stop!(job: Suspend[string]) -> string:
     job.abandon()
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     socket := ScriptedStream::new([[7]])
     let job: Suspend[string] = serve(socket, log)

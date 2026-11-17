@@ -1,7 +1,13 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: a
 # test: passing a `*mut` alias to a bang call is no access, and the callee only reads the object a live shared loan holds, so it runs
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.counted-access, ref.excl.alias.conflict.
-use std.time.{Clock, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct User:
     name: string
@@ -9,16 +15,16 @@ struct User:
 struct Team:
     lead: *mut User
 
-fn wait!(user: *mut User) -> void $ Clock:
-    sleep!(1ms)
+fn wait!(user: *mut User) -> void $ Tick:
+    host_wait!()
     _ := user.name
 
-fn conflict!(t: &Team, alias: *mut User) -> string $ Clock:
+fn conflict!(t: &Team, alias: *mut User) -> string $ Tick:
     held := &t.lead.name
     wait!(alias)
     *held
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     t := Team { lead: box(User { name: "a" }) }
     alias := t.lead
     println(conflict!(&t, alias))

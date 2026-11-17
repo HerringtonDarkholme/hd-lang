@@ -6066,8 +6066,8 @@ lang/traits/trait-implementations/implementation-targets/union-trait-forwarding.
 lang/traits/trait-implementations/implementation-targets/union-trait-requires-every-member.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.target.union.conditional
 std/hash/default-hasher/union-hash.hd	runtime	accept	std/hash.md#r-std-hash.hash-of-local
 std/json/typed-json/union-serde.hd	runtime	accept	std/json.md#r-std-json.decode.direct
-lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
-lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-call-result-loan-across-sleep-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
+lang/references/dependent-results/conflicts-through-aliases/alias-write-under-call-result-loan-across-a-wait-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
+lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-call-result-loan-across-a-wait-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/references/dependent-results/conflicts-through-aliases/bang-call-pointer-argument-beside-a-shared-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 lang/references/dependent-results/conflicts-through-aliases/bang-call-disjoint-argument-checks-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 lang/references/dependent-results/conflicts-through-aliases/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan

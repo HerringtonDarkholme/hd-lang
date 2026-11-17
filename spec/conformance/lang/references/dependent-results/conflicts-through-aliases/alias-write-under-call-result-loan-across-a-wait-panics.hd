@@ -1,6 +1,12 @@
+# fixture-runtime-profile: pending-tick
 # test: a call's result held across a suspension in a suspending body keeps the object its receiver refers to, so a write through an unseen alias after the resume panics with borrow-conflict
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
-use std.time.{Clock, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct User:
     name: string
@@ -13,13 +19,13 @@ impl User:
 struct Team:
     lead: *mut User
 
-fn older!(t: &Team, alias: *mut User) -> string $ Clock:
+fn older!(t: &Team, alias: *mut User) -> string $ Tick:
     n := t.lead.label()
-    sleep!(1ms)
+    host_wait!()
     alias.age += 1 # panic: borrow-conflict
     *n
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     t := Team { lead: box(User { name: "a", age: +1 }) }
     alias := t.lead
     println(older!(&t, alias))

@@ -1,9 +1,15 @@
+# fixture-runtime-profile: pending-tick
 # test: abandoning a task that holds a call's result's run-time loan while it waits ends the loan, so a write through an alias afterwards passes
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.loan; Spec 11 Abandoning.
 # expect-stdout: won stopped
 # expect-stdout: a 2
 use std.task.{join, race}
-use std.time.{Clock, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct User:
     name: string
@@ -16,9 +22,9 @@ impl User:
 struct Team:
     lead: *mut User
 
-fn hold!(t: Team) -> string $ Clock:
+fn hold!(t: Team) -> string $ Tick:
     n := t.lead.label()
-    sleep!(60s)
+    host_wait!()
     *n
 
 fn ready!() -> string:
@@ -28,7 +34,7 @@ fn stop!(job: Suspend[string]) -> string:
     job.abandon()
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     t := Team { lead: box(User { name: "a", age: +1 }) }
     alias := t.lead
     let mut job: Suspend[string] = hold(t)
