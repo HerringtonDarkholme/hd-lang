@@ -1,0 +1,31 @@
+# @dump: diagnostics
+# Each body holding a by-value cycle through an associated payload
+# reports it, the second after the first reported the same instance
+# (`data.enum.no-recursion`, #1972): two `recursive-value-type` errors,
+# in `hd check` (`Analyze`) and in `hd check --tests` (`CheckTests`, the
+# conformance suite's goal) alike. A conformance case pins one error per
+# case, so this count is pinned here.
+trait Source:
+    type Item
+
+struct Provider[T]: pass
+
+enum Holder[S < Source]:
+    Empty
+    Full(value: S::Item)
+
+impl[T] Source for Provider[T]:
+    type Item = Holder[Provider[T]]
+
+fn make[S < Source]() -> Holder[S]:
+    .Empty
+
+fn first() -> void:
+    value := make::[Provider[i32]]()
+
+fn second() -> void:
+    pair := (make::[Provider[i32]](), 1)
+
+pub fn main() -> void:
+    first()
+    second()
