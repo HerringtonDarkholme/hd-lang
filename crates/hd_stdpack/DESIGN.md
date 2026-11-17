@@ -86,6 +86,7 @@ others are private to the one module that calls them.
 | `map_hash_seed` | `() -> u64`, in `rt/mod.hd`; the compiler mixes the `hd:rt` `hash_seed` import with a per-run counter | compiler |
 | `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`, in `function.hd` | compiler |
 | `ref_identity` | `identity_of[T](target: &T) -> RefIdentity`, in `cmp.hd` | compiler |
+| `mem_ref_address` | `address_of[T](target: &T) -> usize`, in `structure.hd`, under `MembersRecord.id` | compiler |
 | `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()`, in `debug.hd` | compiler |
 | `descriptor_glue_mask` | `() -> usize`, in `rt/checked_report/mod.hd` | compiler |
 | `snapshot_update` | `(site: string) -> bool`, in `testing.hd` | host primitive |

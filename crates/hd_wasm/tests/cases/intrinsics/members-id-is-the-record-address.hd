@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: std
+# expected: `mem_ref_address`, under `MembersRecord.id`, is the reference's address word itself: no load and no call (annot.structure.members.id).
+
+@intrinsic("mem_ref_address")
+fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
+struct Record:
+    infos: List[string]
+
+fn id(record: &Record) -> usize:
+    address_of(record)

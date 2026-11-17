@@ -4262,7 +4262,9 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         let op = match key {
-            "mem_string_bytes" => {
+            // A string's bytes, and the place a shared reference refers
+            // to, are the address word.
+            "mem_string_bytes" | "mem_ref_address" => {
                 self.comp(args[0], 0)?;
                 return self.store(i);
             }

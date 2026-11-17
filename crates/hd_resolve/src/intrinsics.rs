@@ -158,6 +158,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("mem_load_u8", &[s(0, &[USIZE], U8)]),
     ("mem_new_string", &[s(0, &[USIZE], STR)]),
     ("mem_pages", &[s(0, &[], USIZE)]),
+    ("mem_ref_address", &[s(1, &[REF], USIZE)]),
     ("mem_store_u16", &[s(0, &[USIZE, U16], VOID)]),
     ("mem_store_u32", &[s(0, &[USIZE, U32], VOID)]),
     ("mem_store_u64", &[s(0, &[USIZE, U64], VOID)]),
