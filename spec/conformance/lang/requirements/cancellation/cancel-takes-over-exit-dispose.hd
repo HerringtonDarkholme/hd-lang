@@ -1,10 +1,16 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won stopped
 # expect-stdout: leaving, closing, closed, stopper finished
 # test: a cancel that reaches a task disposing at the end of a using block takes that dispose over: it runs once, and the code after the block never runs
 # Spec lang/11 Cancellation: req.cancel.takeover.
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, ms, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -17,9 +23,9 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: *mut List[string], open: bool) -> string $ Clock:
+fn session!(log: *mut List[string], open: bool) -> string $ Tick:
     if open:
-        using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+        using! conn = &mut Conn { log: log, closing: host_wait() }
         log.push("leaving")
     log.push("after the block")
     "done"
@@ -33,7 +39,7 @@ fn stopper!(job: Suspend[string], log: &mut List[string]) -> string:
         .Abandoned => log.push("stopper abandoned")
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let job: Suspend[string] = session(log, true)
     let (winner, stopped) = join!(race(job, ready()), stopper(job, log))

@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # test: a local reference keeps its source alive however a local collection holds it: a copy of the list, a slot through a reference, a slot's slot, a tuple in a slot, a map slot, a slot read from another slot, a store in a loop, a source in a cell, and a suspending body
 # Spec 13 Values and References: ref.dep.scope, ref.local.escape.
 # expect-stdout: a1 b2 c3
@@ -13,7 +14,8 @@
 # expect-stdout: d4 d4 c3
 # expect-stdout: b2 a1 c3
 
-use std.time.{Clock, ms, sleep}
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
 
 struct P:
     name: string
@@ -122,17 +124,17 @@ fn in_a_cell() -> void $ Console:
     j := junk()
     println("${ps[0].name} ${ps[1].name} $j")
 
-fn suspending!() -> void $ Console + Clock:
+fn suspending!() -> void $ Console + Tick:
     p := make("a", 1)
     q := make("b", 2)
     let mut ps = [&p]
     ps[0] = &q
     ps.push(&p)
-    sleep!(ms(1))
+    $.use(Tick).tick!("")
     j := junk()
     println("${ps[0].name} ${ps[1].name} $j")
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     pushed()
     pushed_binding()
     in_an_optional()

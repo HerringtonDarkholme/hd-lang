@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won stopped
 # expect-stdout: closing, abandon child, parent defer
 # expect-stdout: parent abandoned
@@ -7,7 +8,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -20,9 +26,9 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn child!(log: *mut List[string]) -> string $ Clock:
-    using! conn = &mut Conn { log: log, closing: sleep(s(60)) }
-    sleep!(s(60))
+fn child!(log: *mut List[string]) -> string $ Tick:
+    using! conn = &mut Conn { log: log, closing: host_wait() }
+    host_wait!()
     "child"
 
 fn parent!(kid: Suspend[string], log: &mut List[string]) -> string:
@@ -42,7 +48,7 @@ fn stop!(kid: Suspend[string], log: &mut List[string]) -> string:
     kid.abandon()
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let kid: Suspend[string] = child(log)
     parent_log := log

@@ -1,23 +1,29 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: first a, second a, first b
 # expect-stdout: 1
 # test: after a wake, race! polls its unfinished children in argument order again, so a child woken during a sibling's poll runs before that sibling
 # Spec lang/11 Cooperative Scheduling: req.schedule.race-order.
 use std.task.race
-use std.time.{Clock, ms, s, sleep}
 
-fn first!(log: &mut List[string]) -> usize $ Clock:
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
+
+fn first!(log: &mut List[string]) -> usize $ Tick:
     log.push("first a")
-    sleep!(ms(0))
+    host_wait!()
     log.push("first b")
     1
 
-fn second!(log: &mut List[string]) -> usize $ Clock:
+fn second!(log: &mut List[string]) -> usize $ Tick:
     log.push("second a")
-    sleep!(s(5))
+    host_wait!()
     log.push("second b")
     2
 
-pub fn main!() -> void $ Clock + Console:
+pub fn main!() -> void $ Tick + Console:
     log := box::[List[string]]([])
     winner := race!(first(log), second(log))
     println(log.join(", "))

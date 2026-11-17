@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: before: cancelled
 # expect-stdout: inside: cancelled
 # expect-stdout: work defer, stop finished, closing, closed, both defer
@@ -6,7 +7,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, block_on}
-use std.time.{Clock, ms, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -16,15 +22,15 @@ impl AsyncDisposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("closing")
         let mut wait = self.closing
-        wait!() # block_on waits here on the host timer
+        wait!() # block_on waits here on the host
         self.log.push("closed")
 
 fn ready!() -> i32:
     42
 
-fn work!(log: &mut List[string]) -> string $ Clock:
+fn work!(log: &mut List[string]) -> string $ Tick:
     defer(fn() -> void: log.push("work defer"))
-    sleep!(s(60))
+    host_wait!()
     "late"
 
 fn stop!(job: Suspend[string], log: &mut List[string]) -> string:
@@ -36,9 +42,9 @@ fn stop!(job: Suspend[string], log: &mut List[string]) -> string:
 # `job` turns out cancelled when `join!` polls it again, so `join!` is
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
-fn both!(job: Suspend[string], log: *mut List[string]) -> string $ Clock:
+fn both!(job: Suspend[string], log: *mut List[string]) -> string $ Tick:
     defer(fn() -> void: log.push("both defer"))
-    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
+    using! conn = &mut Conn { log: log, closing: host_wait() }
     let (worked, stopped) = join!(job, stop(job, log))
     "${worked} ${stopped}"
 
@@ -48,12 +54,12 @@ fn ended[T](pending: Suspend[T]) -> string:
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
-fn inside(log: *mut List[string]) -> string $ Clock:
+fn inside(log: *mut List[string]) -> string $ Tick:
     work_log := log
     let job: Suspend[string] = work(work_log)
     ended(both(job, log))
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     let pending: Suspend[i32] = ready()
     _ := pending.cancel!()
     println("before: ${ended(pending)}")

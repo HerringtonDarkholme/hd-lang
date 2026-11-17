@@ -1,12 +1,18 @@
+# fixture-runtime-profile: pending-tick
 # fixture-runtime-scenario: cancellation-cleanup
 # fixture-runtime-pending-function: wait
 # Spec lang/11 Cancelling The Entry: req.entry.cancel, req.entry.cancel.wait, req.entry.cancelled.
 # The host cancels the entry at its held wait, then drives the dispose
-# through its own timer wait, well inside the bound, to its end.
+# through its own host wait, well inside the bound, to its end.
 use std.ops.AsyncDisposable
-use std.time.{Clock, ms, sleep}
 
 let closed: bool = false
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 fn wait!() -> void:
     pass
@@ -20,8 +26,8 @@ impl AsyncDisposable for Conn:
         closing!()
         closed = true
 
-pub fn main!() -> void $ Clock:
-    using! conn = Conn { closing: sleep(ms(10)) }
+pub fn main!() -> void $ Tick:
+    using! conn = Conn { closing: host_wait() }
     wait!()
 
 pub fn cleanup_ran() -> bool:

@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won
 # expect-stdout: send close, channel defer, plain closed
 # expect-stdout: cancelled abandoned
@@ -9,7 +10,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.race
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Channel['a]:
     log: *mut List[string]
@@ -30,10 +36,10 @@ impl AsyncDisposable for Plain:
     fn dispose!(&mut self) -> void:
         self.log.push("plain closed")
 
-fn talk!(log: *mut List[string], ack: Suspend[void]) -> string $ Clock:
+fn talk!(log: *mut List[string], ack: Suspend[void]) -> string $ Tick:
     using! plain = &mut Plain { log: log }
     using! channel = &mut Channel { log: log, ack: ack }
-    sleep!(s(60))
+    host_wait!()
     "late"
 
 fn quick!(log: *mut List[string], ack: Suspend[void]) -> string:
@@ -48,8 +54,8 @@ fn ended!(job: Suspend[string]) -> string:
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-pub fn main!() -> void $ Console + Clock:
-    let ack: Suspend[void] = sleep(s(60))
+pub fn main!() -> void $ Console + Tick:
+    let ack: Suspend[void] = host_wait()
     _ := ack.cancel!()
     log := box::[List[string]]([])
     let job: Suspend[string] = talk(log, ack)

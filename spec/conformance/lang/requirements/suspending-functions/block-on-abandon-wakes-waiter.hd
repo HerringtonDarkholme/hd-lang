@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won waited stopped
 # expect-stdout: closing, abandon, conn defer, session defer, abandon returned, waiter abandoned
 # test: an abandon() inside a block_on drive that ends a cleanup another task of the drive waits on lets that waiter go on instead of reporting suspension-deadlock
@@ -7,7 +8,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, block_on, race}
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -21,10 +27,10 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: *mut List[string]) -> string $ Clock:
+fn session!(log: *mut List[string]) -> string $ Tick:
     defer(fn() -> void: log.push("session defer"))
-    using! conn = &mut Conn { log: log, closing: sleep(s(60)) }
-    sleep!(s(60))
+    using! conn = &mut Conn { log: log, closing: host_wait() }
+    host_wait!()
     "late"
 
 fn ready!() -> string:
@@ -46,14 +52,14 @@ fn trio!(job: Suspend[string], log: &mut List[string]) -> string:
     let (winner, waited, stopped) = join!(race(job, ready()), waiter(job, log), stop(job, log))
     "${winner} ${waited} ${stopped}"
 
-fn drive(log: *mut List[string]) -> string $ Clock:
+fn drive(log: *mut List[string]) -> string $ Tick:
     let job: Suspend[string] = session(log)
     match block_on(trio(job, log)):
         .Completed(value) => value
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
-pub fn main() -> void $ Console + Clock:
+pub fn main() -> void $ Console + Tick:
     log := box::[List[string]]([])
     println(drive(log))
     println(log.join(", "))

@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won
 # expect-stdout: closing, closed, waiters, finished, finished
 # expect-stdout: later finished
@@ -5,7 +6,12 @@
 # Spec lang/11 Cancellation: req.cancel.shared, req.cancel.kept.
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, ms, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -18,9 +24,9 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: *mut List[string]) -> string $ Clock:
-    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
-    sleep!(s(60))
+fn session!(log: *mut List[string]) -> string $ Tick:
+    using! conn = &mut Conn { log: log, closing: host_wait() }
+    host_wait!()
     "late"
 
 fn ready!() -> string:
@@ -35,7 +41,7 @@ fn stop_twice!(job: Suspend[string], log: &mut List[string]) -> string:
             .Abandoned => log.push("abandoned")
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let job: Suspend[string] = session(log)
     let (winner, _) = join!(race(job, ready()), stop_twice(job, log))

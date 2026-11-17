@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: completed 42
 # expect-stdout: completed value
 # expect-stdout: send close, channel defer
@@ -7,7 +8,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.block_on
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Channel['a]:
     log: *mut List[string]
@@ -45,9 +51,9 @@ fn drive_text(job: Suspend[string]) -> string:
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     println(drive_number())
-    let ack: Suspend[void] = sleep(s(60))
+    let ack: Suspend[void] = host_wait()
     ack.abandon()
     log := box::[List[string]]([])
     let job: Suspend[string] = quick(log, ack)

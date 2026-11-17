@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won
 # expect-stdout: open b, open a, defer inner, closing a, closed a, defer outer, closing b, closed b
 # expect-stdout: done
@@ -6,7 +7,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.race
-use std.time.{Clock, ms, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     name: string
@@ -20,26 +26,26 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed ${self.name}")
 
-fn connect(name: string, log: *mut List[string]) -> *mut Conn $ Clock:
+fn connect(name: string, log: *mut List[string]) -> *mut Conn $ Tick:
     log.push("open ${name}")
-    box(Conn { name: name, log: log, closing: sleep(ms(2)) })
+    box(Conn { name: name, log: log, closing: host_wait() })
 
-fn fetch!(log: *mut List[string]) -> string $ Clock:
+fn fetch!(log: *mut List[string]) -> string $ Tick:
     defer(fn() -> void: log.push("defer outer"))
     using! a = connect("a", log)
     defer(fn() -> void: log.push("defer inner"))
-    sleep!(s(60))
+    host_wait!()
     log.push("fetched")
     "late"
 
-fn session!(log: *mut List[string]) -> string $ Clock:
+fn session!(log: *mut List[string]) -> string $ Tick:
     using! b = connect("b", log)
     fetch!(log)
 
 fn ready!() -> string:
     "won"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     winner := race!(session(log), ready())
     println(winner)

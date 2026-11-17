@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: abandon, a closing, a defer, b closing, b defer
 # expect-stdout: c closing, abandon, c defer, waiter abandoned
 # test: abandon() abandons every cleanup folded into the job: the children join! started, and a shared cleanup the job waits on in cancel!(), whose other waiter gets .Abandoned
@@ -5,7 +6,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     name: string
@@ -20,12 +26,12 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("${self.name} closed")
 
-fn worker!(name: string, log: *mut List[string]) -> i32 $ Clock:
-    using! conn = &mut Conn { name: name, log: log, closing: sleep(s(60)) }
-    sleep!(s(60))
+fn worker!(name: string, log: *mut List[string]) -> i32 $ Tick:
+    using! conn = &mut Conn { name: name, log: log, closing: host_wait() }
+    host_wait!()
     +1
 
-fn pair!(log: *mut List[string]) -> i32 $ Clock:
+fn pair!(log: *mut List[string]) -> i32 $ Tick:
     let (a, b) = join!(worker("a", log), worker("b", log))
     a + b
 
@@ -44,7 +50,7 @@ fn stop!(job: Suspend[i32], log: &mut List[string]) -> i32:
     job.abandon()
     +3
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let job: Suspend[i32] = pair(log)
     _ := race!(job, stop(job, log))

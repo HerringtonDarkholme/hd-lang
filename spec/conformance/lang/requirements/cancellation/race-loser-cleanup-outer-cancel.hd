@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won stopped
 # expect-stdout: loser closing, loser closed, racer defer, cancel finished
 # test: a cancel that reaches a race! while a loser's dispose! waits continues that dispose inside the cleanup of the race's task, and a cancel!() of that task waits for it
@@ -5,7 +6,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, ms, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -18,28 +24,28 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("loser closed")
 
-fn slow!(log: *mut List[string]) -> string $ Clock:
-    using! conn = &mut Conn { log: log, closing: sleep(ms(5)) }
-    sleep!(s(60))
+fn slow!(log: *mut List[string]) -> string $ Tick:
+    using! conn = &mut Conn { log: log, closing: host_wait() }
+    host_wait!()
     "late"
 
 fn ready!() -> string:
     "won"
 
-fn racer!(log: *mut List[string]) -> string $ Clock:
+fn racer!(log: *mut List[string]) -> string $ Tick:
     defer(fn() -> void: log.push("racer defer"))
     winner := race!(slow(log), ready())
     log.push("racer got ${winner}")
     winner
 
-fn stopper!(job: Suspend[string], log: &mut List[string]) -> string $ Clock:
-    sleep!(ms(1))
+fn stopper!(job: Suspend[string], log: &mut List[string]) -> string $ Tick:
+    host_wait!()
     match job.cancel!():
         .Finished => log.push("cancel finished")
         .Abandoned => log.push("cancel abandoned")
     "stopped"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let job: Suspend[string] = racer(log)
     let (winner, stopped) = join!(race(job, ready()), stopper(job, log))

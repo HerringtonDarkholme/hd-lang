@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: won won
 # expect-stdout: closing, closed, stopper defer
 # test: cancelling a task that waits in cancel!() stops only its wait: the cleanup goes on inside that task's own cleanup, which ends after it
@@ -5,7 +6,12 @@
 use std.ops.defer
 use std.ops.AsyncDisposable
 use std.task.{join, race}
-use std.time.{Clock, ms, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn:
     log: *mut List[string]
@@ -18,9 +24,9 @@ impl AsyncDisposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: *mut List[string]) -> string $ Clock:
-    using! conn = &mut Conn { log: log, closing: sleep(ms(2)) }
-    sleep!(s(60))
+fn session!(log: *mut List[string]) -> string $ Tick:
+    using! conn = &mut Conn { log: log, closing: host_wait() }
+    host_wait!()
     "late"
 
 fn ready!() -> string:
@@ -32,7 +38,7 @@ fn stopper!(job: Suspend[string], log: &mut List[string]) -> string:
     log.push("stopper resumed")
     "stopper"
 
-pub fn main!() -> void $ Console + Clock:
+pub fn main!() -> void $ Console + Tick:
     log := box::[List[string]]([])
     let job: Suspend[string] = session(log)
     let (first, second) = join!(race(job, ready()), race(stopper(job, log), ready()))

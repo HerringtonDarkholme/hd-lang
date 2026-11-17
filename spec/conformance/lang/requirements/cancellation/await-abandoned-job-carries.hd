@@ -1,3 +1,4 @@
+# fixture-runtime-profile: pending-tick
 # expect-stdout: abandon: drive abandoned, cleanup abandoned
 # expect-stdout: graceful: drive cancelled, cleanup finished
 # expect-stdout: dependency: drive abandoned, cleanup abandoned
@@ -6,7 +7,12 @@
 # Spec lang/11 Abandoning: req.abandon.carry; Cancellation: req.cancel.await, req.cancel.await.unwind, req.cancel.await.propagate; Driving A Stored Suspension: req.drive.block-on.cancelled.
 use std.ops.AsyncDisposable
 use std.task.{join, block_on}
-use std.time.{Clock, s, sleep}
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
 
 struct Conn['a]:
     closing: Suspend[void, 'a]
@@ -19,9 +25,9 @@ impl['a] AsyncDisposable for Conn['a]:
         let mut ack = self.ack
         ack!() # abandoned in the dependency case
 
-fn session!(ack: Suspend[void]) -> string $ Clock:
-    using! conn = Conn { closing: sleep(s(1)), ack: ack }
-    sleep!(s(60))
+fn session!(ack: Suspend[void]) -> string $ Tick:
+    using! conn = Conn { closing: host_wait(), ack: ack }
+    host_wait!()
     "late"
 
 fn stop!(job: Suspend[string], hard: bool) -> string:
@@ -51,7 +57,7 @@ fn report!(task: Suspend[string]) -> string:
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-fn run(name: string, hard: bool, ack: Suspend[void]) -> string $ Clock:
+fn run(name: string, hard: bool, ack: Suspend[void]) -> string $ Tick:
     let job: Suspend[string] = session(ack)
     drive(name, pair(job, hard))
 
@@ -66,11 +72,11 @@ fn drive(name: string, task: Suspend[string]) -> string:
         .Abandoned => "abandoned"
     "${name}: drive ${drive}, cleanup ${cleanup}"
 
-pub fn main() -> void $ Console + Clock:
-    println(run("abandon", true, sleep(s(0))))
-    println(run("graceful", false, sleep(s(0))))
-    let dep: Suspend[void] = sleep(s(60))
+pub fn main() -> void $ Console + Tick:
+    println(run("abandon", true, host_wait()))
+    println(run("graceful", false, host_wait()))
+    let dep: Suspend[void] = host_wait()
     dep.abandon()
     println(run("dependency", false, dep))
-    let job: Suspend[string] = session(sleep(s(0)))
+    let job: Suspend[string] = session(host_wait())
     println(drive("chain", chained(job)))
