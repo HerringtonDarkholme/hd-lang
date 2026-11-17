@@ -60,9 +60,19 @@ whose shift counts are masked; `hd test --release` stays checked.
 
 ## Wasmtime Engine
 
-Node is the default engine. The in-process wasmtime engine
-(`--engine wasmtime`, `HD_ENGINE=wasmtime`) is the `wasmtime` cargo feature
-of `hd_cli`, off by default, because wasmtime and cranelift are most of a
+The shipped binary defaults to Wasmtime in process. Build it with
+`cargo build --profile dist -p hd_cli --features dist`; it is written to
+`target/dist/hd`. The `dist` feature enables the Wasmtime dependency and
+selects it as the optimized binary's default. Explicit `--engine node`
+still works. The measured macOS arm64 binary is 26,193,872 bytes
+(25.0 MiB), including Wasmtime and the embedded Node host. Package host
+traits select Node before startup unless an
+explicit `--engine` names an engine.
+
+Developer and test builds default to Node, including optimized builds
+with only the `wasmtime` feature and debug builds with all features.
+The optional in-process Wasmtime engine (`--engine wasmtime`,
+`HD_ENGINE=wasmtime`) is the `wasmtime` cargo feature of `hd_cli`, off by default, because wasmtime and cranelift are most of a
 cold build (a dev `hd` build is about 8 s without them and 27 s with them).
 `hd_run_wasmtime` is also outside the workspace's `default-members`, so plain
 `cargo build`, `cargo test` and `cargo clippy` never compile it.
@@ -79,7 +89,7 @@ wasmtime`. It never falls back to Node.
 Every build that runs is tuned for the engine that runs it
 ([optimization pipelines](hd_opt/DESIGN.md), §5): `hd run`,
 `hd FILE`, `hd test` and `hd build` take the engine from `--engine`, else
-`HD_ENGINE`, else Node, so `hd build --engine wasmtime` writes a module
+`HD_ENGINE`, else that compiler build's default, so `hd build --engine wasmtime` writes a module
 tuned for wasmtime, which `hd --engine wasmtime FILE.wasm` runs. Every
 target's module runs on every engine; a mismatch costs only speed. The
 REPL builds for wasmtime and `hd_web` for the browser.

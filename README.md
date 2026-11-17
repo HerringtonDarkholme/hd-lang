@@ -131,16 +131,18 @@ track every target. The scripts are in [bench/metrics](bench/metrics/README.md).
 hd is installed from source for now. You need the Rust toolchain
 ([rustup](https://rustup.rs); the repository pins its version in
 `rust-toolchain.toml`), git (used to fetch dependencies), and Node.js 26.13.1
-(the repository pins it in `.node-version`; programs run on Node by default).
+(pinned in `.node-version`, used to embed the Node host during the build).
 
 ```sh
 git clone https://github.com/HerringtonDarkholme/hd-lang
 cd hd-lang
-cargo install --path crates/hd_cli
+cargo install --path crates/hd_cli --profile dist --features dist
 ```
 
-This puts `hd` in `~/.cargo/bin`. To run programs on wasmtime instead of
-Node, install with `--features wasmtime` and pass `hd --engine wasmtime`.
+This puts `hd` in `~/.cargo/bin`. The released binary defaults to Wasmtime
+in process; `--engine node` selects Node. Packages with their own host
+traits select Node before startup. The measured macOS arm64 binary is
+25.0 MiB (26,193,872 bytes). Developer builds keep Node as their default.
 
 ## Start
 

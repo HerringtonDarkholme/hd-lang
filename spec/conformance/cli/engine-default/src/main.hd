@@ -1,0 +1,6 @@
+pub fn main() -> void $ Console:
+    println("default engine")
+
+tests:
+    it("runs on the default engine"):
+        assert(true)

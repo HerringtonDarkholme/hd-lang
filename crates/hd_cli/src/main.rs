@@ -969,7 +969,7 @@ struct FileWords {
     file: Option<PathBuf>,
     /// The program's arguments (`cli.args.pass`).
     program_args: Vec<OsString>,
-    /// `--engine NAME`, else `HD_ENGINE`, else Node.
+    /// `--engine NAME`, else `HD_ENGINE`, else this build's default.
     engine: engine::Choice,
     release: bool,
     limits: engine::ProgramLimits,
@@ -1229,7 +1229,7 @@ struct Words {
     program_args: Vec<OsString>,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
-    /// `--engine NAME`, else `HD_ENGINE`, else Node: the engine `hd run`
+    /// `--engine NAME`, else `HD_ENGINE`, else this build's default: the engine `hd run`
     /// runs on, and the one whose target `hd run` and `hd build` tune for.
     engine: engine::Choice,
     limits: engine::ProgramLimits,

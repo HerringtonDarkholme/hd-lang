@@ -41,7 +41,7 @@ jobs:
       - name: Build the shipped compiler
         run: |
           # The `dist` profile is the shipped binary (Cargo.toml): stripped, ThinLTO.
-          cargo build --profile dist -p hd_cli
+          cargo build --profile dist -p hd_cli --features dist
           # The `scale` metric's node-kind coverage dumps trees with it.
           cargo build --release -p hd_syntax --example parse_check
 

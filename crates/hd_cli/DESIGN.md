@@ -315,7 +315,11 @@ release does, so the compiler needs no spec decision. The full table:
 
 Programs run on one of two engines (`engine.rs`): Node with the JS host
 (`host/*.ts`), or wasmtime in process. `--engine NAME` picks one, else
-`HD_ENGINE`, else Node. Making wasmtime the default is #19.
+`HD_ENGINE`, else the compiler build's default. The shipped binary
+(`--profile dist --features dist`) defaults to Wasmtime in process;
+developer and test builds default to Node. A package host trait selects
+Node before startup unless the engine flag explicitly names Wasmtime,
+which needs an embedding Rust program with a native provider.
 
 ### 20.1 `hd test`
 

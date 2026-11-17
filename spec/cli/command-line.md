@@ -988,12 +988,13 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 3. r[cli.engine.flag] `hd FILE`, `hd FILE.wasm`, `hd run`, `hd build`, and `hd test` take `--engine NAME`, where NAME names an engine.
 4. r[cli.engine.select] A command that takes `--engine` uses the engine that the flag names. Without the flag, it uses the engine that the environment variable `HD_ENGINE` names. Without both, it uses the default engine.
 5. r[cli.engine.env-empty] An empty `HD_ENGINE` counts as unset.
-6. r[cli.engine.default] Which engine is the default is implementation-defined.
-7. r[cli.engine.build] `hd build --engine NAME` builds the module for that engine. A module that `hd build` wrote runs on every engine, whichever engine it was built for.
-8. r[cli.engine.same-behavior] A program's output, exit status, panic categories, and panic sites are the same on every engine, as [`cli.profile.pipeline.unobservable`](#r-cli.profile.pipeline.unobservable) says of pipelines.
-9. r[cli.engine.differences] Between engines, only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
-10. r[cli.engine.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). That includes an engine that this build lacks.
-11. r[cli.engine.unknown.no-run] A command that rejects its engine name runs no program, and never falls back to another engine.
+6. r[cli.engine.default.shipped] The released `hd` binary defaults to Wasmtime, running programs and tests in process.
+7. r[cli.engine.default.development] Developer and test builds of `hd` default to Node.
+8. r[cli.engine.build] `hd build --engine NAME` builds the module for that engine. A module that `hd build` wrote runs on every engine, whichever engine it was built for.
+9. r[cli.engine.same-behavior] A program's output, exit status, panic categories, and panic sites are the same on every engine, as [`cli.profile.pipeline.unobservable`](#r-cli.profile.pipeline.unobservable) says of pipelines.
+10. r[cli.engine.differences] Between engines, only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
+11. r[cli.engine.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). That includes an engine that this build lacks.
+12. r[cli.engine.unknown.no-run] A command that rejects its engine name runs no program, and never falls back to another engine.
 
 > **Note.** Without the flag, a module requiring a package host trait runs
 > on Node, by
