@@ -1,0 +1,56 @@
+# @dump: stdout wat
+# @build: release
+# fn.local.declare: a local function or closure whose parameter type names
+# the enclosing item's type parameter, or `Self`, in release.
+# expected: 7 7 7 7 8 7 7, then a b; the generic body keeps each call, and
+# each instance inlines it at its concrete type.
+struct Hold[T]:
+    v: T
+
+fn plain[T](x: T) -> T:
+    fn read(s: T) -> T:
+        s
+    read(x)
+
+fn held[T](x: T) -> T:
+    fn read(s: Hold[T]) -> Hold[T]:
+        s
+    read(Hold { v: x }).v
+
+fn borrowed[T](x: T) -> i32:
+    fn read(s: &T) -> i32:
+        7
+    read(&x)
+
+fn tupled[T](x: T) -> T:
+    fn read(s: (T, i32)) -> T:
+        let (t, _) = s
+        t
+    read((x, 1))
+
+fn counted[T](x: T, f: fn(T) -> T) -> T:
+    fn apply(g: fn(T) -> T, v: T) -> T:
+        g(v)
+    apply(f, x)
+
+fn literal[T](x: T) -> T:
+    id := fn(s: T) -> T: s
+    id(x)
+
+trait Named:
+    fn get(self) -> i32
+    fn twice(self) -> i32:
+        fn read(s: Self) -> i32:
+            s.get()
+        read(self)
+
+struct P:
+    n: i32
+
+impl Named for P:
+    fn get(self) -> i32:
+        self.n
+
+pub fn main!() -> void $ Console:
+    println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
+    println("${held("a")} ${literal("b")}")

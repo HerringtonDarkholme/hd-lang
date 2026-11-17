@@ -478,7 +478,17 @@ impl dyn InlineEnv + '_ {
                     body,
                     INLINE_LIMIT,
                     &|caller, call, copy| {
-                        let references: Vec<_> = hd_tir::own::params(copy)
+                        let params = hd_tir::own::params(copy);
+                        // A parameter of an open type, in a generic item's
+                        // own body, has no layout yet: as an item call's
+                        // (`Self::reference_params`), its instances inline it.
+                        if params
+                            .iter()
+                            .any(|&local| self.is_open(copy.local_ty[local as usize]))
+                        {
+                            return false;
+                        }
+                        let references: Vec<_> = params
                             .iter()
                             .enumerate()
                             .filter_map(|(k, &local)| {
