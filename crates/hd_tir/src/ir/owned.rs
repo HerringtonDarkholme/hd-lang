@@ -90,8 +90,10 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         .collect();
     let reference_uses = crate::own::derive::reference_uses(b, cx);
     let forwarding = crate::own::derive::rc_sources(b, cx);
-    let reference_roots = crate::own::derive::frame_reference_roots(b, &forwarding, || {});
-    let frame_lends = crate::own::derive::frame_lending_roots(b, cx, &reference_roots);
+    let reference_roots = crate::own::derive::frame_reference_origins(b, &forwarding, || {}).roots;
+    let neutral_stores = crate::own::derive::count_neutral_stores(b, cx);
+    let frame_lends =
+        crate::own::derive::frame_lending_roots(b, cx, &reference_roots, &neutral_stores);
     let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {
@@ -103,6 +105,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         reference_values: &reference_values,
         reference_roots: &reference_roots,
         frame_lends: &frame_lends,
+        neutral_stores: &neutral_stores,
     };
     decided(b, &mut errs);
     crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
@@ -116,7 +119,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
     borrowed_wrappers(b, &forwarding, &mut errs);
-    Balance::new(b, &topo, own).walk(&mut errs);
+    Balance::new(b, &topo, own, &neutral_stores).walk(&mut errs);
     copies(b, &mut errs);
     errs
 }
@@ -847,6 +850,7 @@ struct Cx<'a> {
     reference_values: &'a [u32],
     reference_roots: &'a [u32],
     frame_lends: &'a [bool],
+    neutral_stores: &'a [bool],
 }
 
 /// The value stored once into each unaddressed local. Multiple stores,
@@ -1286,10 +1290,11 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         if b.tags[i] == Tag::Ref
             && frame_slots[l.idx()]
             && cx.topo.sub[i] == 0
-            && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
+            && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME)
                 == ref_word::LOCAL | ref_word::FRAME
             && (binding[l.idx()] && cx.frame_lends[l.idx()]
                 || !binding[l.idx()]
+                    && b.data[i][1] & ref_word::MUT == 0
                     && (no_external_write
                         || (call != NONE
                             && b.data
@@ -1299,6 +1304,18 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                                 .and_then(|(&len, words)| words.get(..len as usize))
                                 .and_then(Callee::from_words)
                                 .is_some_and(|callee| !own.may_write(&callee)))))
+        {
+            continue;
+        }
+        if b.tags[i] == Tag::Store
+            && binding[l.idx()]
+            && cx.neutral_stores[i]
+            && cx.places[i].as_ref().is_some_and(|p| {
+                !p.proj.is_empty()
+                    && p.proj
+                        .iter()
+                        .all(|step| matches!(step, Proj::Field(_) | Proj::Variant(_)))
+            })
         {
             continue;
         }
@@ -1735,6 +1752,7 @@ struct Balance<'a> {
     b: &'a Body,
     topo: &'a Topology,
     cx: &'a dyn OwnCx,
+    neutral_stores: &'a [bool],
     /// Each tracked value's number among the tracked values, or `NONE`.
     num: Vec<u32>,
     /// Each local's number among the locals, all of them.
@@ -1757,7 +1775,7 @@ struct Balance<'a> {
 }
 
 impl<'a> Balance<'a> {
-    fn new(b: &'a Body, topo: &'a Topology, cx: &'a dyn OwnCx) -> Self {
+    fn new(b: &'a Body, topo: &'a Topology, cx: &'a dyn OwnCx, neutral_stores: &'a [bool]) -> Self {
         let n = b.len();
         let mut num = vec![NONE; n];
         let mut k = 0u32;
@@ -1800,6 +1818,7 @@ impl<'a> Balance<'a> {
             b,
             topo,
             cx,
+            neutral_stores,
             num,
             words: (k as usize).div_ceil(64),
             lwords: b.local_ty.len().div_ceil(64),
@@ -1956,7 +1975,12 @@ impl<'a> Balance<'a> {
         match b.tags[x as usize] {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
-            Tag::Store if b.loan_value(w).is_none() => {
+            Tag::Store
+                if b.loan_value(w).is_none()
+                    && (b.view(a).whole() || !self.neutral_stores[x as usize]) =>
+            {
+                // A trivial field write introduces no ownership and does
+                // not refill a moved counted field beside it.
                 // Into the local itself: one through it, into what it
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {

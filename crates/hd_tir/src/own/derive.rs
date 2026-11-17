@@ -582,6 +582,7 @@ impl Tables {
 /// The facts of each value and local: uses, drops, stores.
 fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     let n = b.len();
+    let neutral = count_neutral_stores(b, cx);
     wrappers(b, t, constructors);
     let recursive = super::RecursiveBindings::new(b);
     let mut ops = std::mem::take(&mut t.ops);
@@ -606,7 +607,9 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
                 }
             }
             (Tag::Store, Some(l)) => {
-                t.l[l].stores += 1;
+                if b.view(a).whole() || !neutral[i] || b.local_flags[l] & local_flags::PARAM != 0 {
+                    t.l[l].stores += 1;
+                }
                 // A fresh value shares its header with no place.
                 t.l[l].fresh &= Ref(w).as_inst().is_none_or(|_| {
                     matches!(
@@ -721,8 +724,17 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     t.ops = ops;
     let (counts, last): (Vec<u32>, Vec<u32>) = t.v.iter().map(|f| (f.uses, f.user)).unzip();
     let calls = local_lending_calls(b, cx, &counts, &last);
-    t.reference_roots = frame_reference_roots(b, constructors, || {});
-    let frame_lends = frame_lending_roots(b, cx, &t.reference_roots);
+    let origins = frame_reference_origins(b, constructors, || {});
+    let frame_lends = frame_lending_roots(b, cx, &origins.roots, &neutral);
+    t.reference_roots = origins.roots;
+    // Preserve the existing source paths for mutable descriptors unless
+    // their complete use graph proves they only change trivial fields.
+    for (i, &mutable) in origins.mutable.iter().enumerate() {
+        let root = t.reference_roots[i];
+        if mutable && root != NONE && !frame_lends[root as usize] {
+            t.reference_roots[i] = NONE;
+        }
+    }
     for (i, &call) in calls.iter().enumerate() {
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(b.data[i][0])
@@ -2059,20 +2071,31 @@ pub(crate) fn reference_uses(b: &Body, cx: &dyn OwnCx) -> ReferenceUses {
     }
 }
 
-/// Immutable frame dependencies through unary values and single-definition
+/// Frame dependencies through unary values and single-definition
 /// locals. Local definitions may follow their uses in block layout; resolve
 /// the functional graph once, with path compression and no native recursion.
 /// Each node and edge settles once: O(instructions + locals + captures +
 /// distinct place words) work and O(instructions + locals) table space.
-pub(crate) fn frame_reference_roots(
+pub(crate) struct FrameOrigins {
+    pub roots: Vec<u32>,
+    pub mutable: Vec<bool>,
+}
+
+#[cfg(test)]
+fn frame_reference_roots(b: &Body, forwarding: &[u32], visit: impl FnMut()) -> Vec<u32> {
+    frame_reference_origins(b, forwarding, visit).roots
+}
+
+pub(crate) fn frame_reference_origins(
     b: &Body,
     forwarding: &[u32],
     mut visit: impl FnMut(),
-) -> Vec<u32> {
+) -> FrameOrigins {
     let n = b.len();
     let locals = b.local_ty.len();
     let mut parents = vec![usize::MAX; n + locals];
     let mut roots = vec![NONE; n + locals];
+    let mut mutable = vec![false; n + locals];
     let mut state = vec![0u8; n + locals];
     // Zero, one, or multiple definitions; arbitrarily many stores remain
     // ambiguous rather than being truncated to a chosen definition.
@@ -2128,11 +2151,12 @@ pub(crate) fn frame_reference_roots(
     for (i, &tag) in b.tags.iter().enumerate() {
         visit();
         if tag == Tag::Ref
-            && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
+            && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME)
                 == ref_word::LOCAL | ref_word::FRAME
             && local_in_place(b.data[i][0]) != NONE
         {
             roots[i] = local_in_place(b.data[i][0]);
+            mutable[i] = b.data[i][1] & ref_word::MUT != 0;
             state[i] = 2;
             continue;
         }
@@ -2187,34 +2211,91 @@ pub(crate) fn frame_reference_roots(
         if state[at] == 0 {
             state[at] = 2;
         }
+        let is_mutable = root != NONE && mutable[at];
         while let Some(at) = path.pop() {
             visit();
             roots[at] = root;
+            mutable[at] = is_mutable;
             state[at] = 2;
         }
     }
     roots.truncate(n);
-    roots
+    mutable.truncate(n);
+    FrameOrigins { roots, mutable }
+}
+
+/// Stores whose new value changes no count, reference dependency or Drop
+/// obligation. One instruction census and one query per distinct stored type.
+pub(crate) fn count_neutral_stores(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
+    count_neutral_stores_with(b, |ty| {
+        !cx.counted(ty)
+            && !cx.holds_ref(ty)
+            && cx.holds_drop(ty) == Tri::No
+            && cx.copies(ty) == Tri::Yes
+    })
+}
+
+fn count_neutral_stores_with(b: &Body, mut neutral: impl FnMut(hd_types::Ty) -> bool) -> Vec<bool> {
+    let mut types = hd_base::HashMap::default();
+    b.tags
+        .iter()
+        .enumerate()
+        .map(|(i, &tag)| {
+            if tag != Tag::Store {
+                return false;
+            }
+            let value = Ref(b.data[i][1]);
+            let ty = match value.as_inst() {
+                Some(v) => b.ty.get(v.0 as usize).copied(),
+                None => b
+                    .consts
+                    .get((value.0 & !Ref::CONST_BIT) as usize)
+                    .map(|c| c.0),
+            };
+            ty.is_some_and(|ty| *types.entry(ty).or_insert_with(|| neutral(ty)))
+        })
+        .collect()
 }
 
 /// A frame descriptor lends only when every transitive use is another
-/// indexed alias, an immutable projection, or a nonescaping direct call.
+/// indexed alias, a projection, a count-neutral field write, or a nonescaping direct call.
+/// Mutable descriptors passed to calls keep ownership.
 /// The origin index turns every def-use edge into one constant-time check.
 /// Reference facts are queried once per distinct type, not once per use.
-pub(crate) fn frame_lending_roots(b: &Body, cx: &dyn OwnCx, roots: &[u32]) -> Vec<bool> {
-    frame_lending_roots_with(b, cx, roots, || {})
+pub(crate) fn frame_lending_roots(
+    b: &Body,
+    cx: &dyn OwnCx,
+    roots: &[u32],
+    neutral: &[bool],
+) -> Vec<bool> {
+    frame_lending_roots_with(b, cx, roots, neutral, || {})
 }
 
 fn frame_lending_roots_with(
     b: &Body,
     cx: &dyn OwnCx,
     roots: &[u32],
+    neutral: &[bool],
     mut queried: impl FnMut(),
 ) -> Vec<bool> {
     let mut lends = vec![true; b.local_ty.len()];
+    let mut mutable = vec![false; b.local_ty.len()];
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Ref && b.data[i][1] & ref_word::MUT != 0 && roots[i] != NONE {
+            mutable[roots[i] as usize] = true;
+        }
+    }
     let mut ops = Vec::new();
     let mut through = super::promote::ReadThroughUses::default();
     let mut types = hd_base::HashMap::default();
+    let mut paths = hd_base::HashMap::default();
+    let mut frame_path = |word| {
+        *paths.entry(word).or_insert_with(|| {
+            let mut steps = b.view(word).steps(b);
+            steps.next() == Some(Proj::Deref)
+                && steps.all(|step| matches!(step, Proj::Field(_) | Proj::Variant(_)))
+        })
+    };
     let mut references = |ty| {
         *types.entry(ty).or_insert_with(|| {
             queried();
@@ -2223,6 +2304,28 @@ fn frame_lending_roots_with(
         })
     };
     for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref) {
+            let word = b.data[i][0];
+            let p = b.view(word);
+            let root = match p.root {
+                Root::Local(_) if p.first(b) == Some(Proj::Deref) => roots[i],
+                Root::Value(v)
+                    if b.tags[v as usize] != Tag::Read || references(b.ty[v as usize]).0 =>
+                {
+                    roots[v as usize]
+                }
+                _ => NONE,
+            };
+            if root != NONE && mutable[root as usize] {
+                let allowed = match b.tags[i] {
+                    Tag::Store => neutral[i] && frame_path(word),
+                    Tag::Ref => frame_path(word),
+                    Tag::Read => b.data[i][1] != ReadMode::Move as u32,
+                    _ => false,
+                };
+                lends[root as usize] &= allowed;
+            }
+        }
         operands(b, i, &mut ops);
         for op in &ops {
             if op.role == Role::Dropped {
@@ -2242,10 +2345,15 @@ fn frame_lending_roots_with(
             }
             let aliases = roots[i] == root;
             let allowed = match b.tags[i] {
-                Tag::Store | Tag::Break | Tag::Read => aliases,
-                Tag::Ref => aliases && b.data[i][1] & ref_word::MUT == 0,
+                Tag::Store => {
+                    aliases
+                        || neutral[i]
+                            && frame_path(b.data[i][0])
+                            && b.view(b.data[i][0]).value() == Some(op.value)
+                }
+                Tag::Break | Tag::Read | Tag::Ref => aliases,
                 Tag::Coerce => aliases && b.same_value_coercion(i),
-                Tag::Call => references(b.ty[i]).1,
+                Tag::Call => !mutable[root as usize] && references(b.ty[i]).1,
                 _ => through.permits(b, i, op.value),
             };
             lends[root as usize] &= allowed;
@@ -3003,11 +3111,15 @@ mod lending_tests {
             for &r in &references {
                 body.data[r][1] |= ref_word::MUT;
             }
-            assert!(
-                frame_reference_roots(&body, &body.scope_forwarders(|| {}), || {})
-                    .iter()
-                    .all(|&root| root == NONE)
+            let mutable_roots = frame_reference_roots(&body, &body.scope_forwarders(|| {}), || {});
+            assert_eq!(mutable_roots, roots);
+            let lends = frame_lending_roots(
+                &body,
+                &ReadOnly,
+                &mutable_roots,
+                &count_neutral_stores(&body, &ReadOnly),
             );
+            assert!(lends.iter().all(|&allowed| !allowed));
         }
         Ok(())
     }
@@ -3046,13 +3158,95 @@ mod lending_tests {
                 assert!(expected.iter().all(|&value| roots[value] == source.raw()));
                 let mut queries = 0;
                 assert!(
-                    frame_lending_roots_with(&body, &ReadOnly, &roots, || queries += 1)
-                        [source.idx()]
+                    frame_lending_roots_with(
+                        &body,
+                        &ReadOnly,
+                        &roots,
+                        &count_neutral_stores(&body, &ReadOnly),
+                        || queries += 1
+                    )[source.idx()]
                 );
                 assert_eq!(
                     queries, 2,
                     "one query each for the reference and void types"
                 );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn trivial_frame_writes_share_type_facts_at_width_and_depth() -> Result<(), String> {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let n = NodeIdx::from_raw(1);
+                let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+                let block = b.open_block();
+                let source = b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n);
+                let place = b.place(&crate::ir::Place::local(source));
+                let mut stores = Vec::new();
+                for _ in 0..width {
+                    let mut r = b.emit(
+                        Tag::Ref,
+                        place,
+                        ref_word::LOCAL | ref_word::MUT,
+                        LOCAL_REF,
+                        n,
+                    );
+                    for _ in 0..depth {
+                        r = b.coerce(Coercion::Identity, NONE, r, LOCAL_REF, n);
+                    }
+                    let mut proj = vec![Proj::Deref];
+                    proj.extend(std::iter::repeat_n(Proj::Field(0), depth));
+                    let field = b.place(&crate::ir::Place {
+                        root: crate::ir::PlaceRoot::Value(r),
+                        proj,
+                    });
+                    let value = call(&mut b, 7, &[], Ty::I32);
+                    stores.push(b.emit(Tag::Store, field, value.0, Ty::VOID, n).0 as usize);
+                }
+                let root = b.close_block(block, None, Ty::VOID, n);
+                let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                for i in 0..body.len() {
+                    if body.tags[i] == Tag::Ref {
+                        body.data[i][1] |= ref_word::FRAME;
+                    }
+                }
+                let mut work = 0;
+                let origins =
+                    frame_reference_origins(&body, &body.scope_forwarders(|| {}), || work += 1);
+                assert!(
+                    origins
+                        .roots
+                        .iter()
+                        .zip(&origins.mutable)
+                        .all(|(&root, &mutable)| root == NONE || mutable)
+                );
+                let roots = origins.roots;
+                assert!(work <= 5 * body.len() + 4 * body.local_ty.len());
+                let mut queries = 0;
+                let neutral = count_neutral_stores_with(&body, |ty| {
+                    queries += 1;
+                    ty == Ty::I32
+                });
+                assert_eq!(
+                    queries, 1,
+                    "one fact query independent of write count or depth"
+                );
+                assert!(stores.iter().all(|&i| neutral[i]));
+                assert!(frame_lending_roots(&body, &ReadOnly, &roots, &neutral)[source.idx()]);
+
+                // One write through another pointer leaves the local's
+                // field storage and must keep its owner, even for i32.
+                let i = stores[0];
+                let mut path = body.decode_place(body.data[i][0]).ok_or("field place")?;
+                path.proj.push(Proj::Deref);
+                let words = path.words().ok_or("projected place")?;
+                let record = u32_of(body.extra.len());
+                body.extra.push(u32_of(words.len()));
+                body.extra.extend(words);
+                body.data[i][0] = record;
+                assert!(!frame_lending_roots(&body, &ReadOnly, &roots, &neutral)[source.idx()]);
             }
         }
         Ok(())
@@ -3086,7 +3280,12 @@ mod lending_tests {
         }
         let roots = frame_reference_roots(&body, &body.scope_forwarders(|| {}), || {});
         assert_eq!(roots[read.0 as usize], NONE);
-        let lends = frame_lending_roots(&body, &ReadOnly, &roots);
+        let lends = frame_lending_roots(
+            &body,
+            &ReadOnly,
+            &roots,
+            &count_neutral_stores(&body, &ReadOnly),
+        );
         assert!(!lends[left.idx()] && !lends[right.idx()]);
         Ok(())
     }

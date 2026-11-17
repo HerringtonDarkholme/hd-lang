@@ -162,15 +162,15 @@ fn place_receiver(s: string) -> i64:
 >   local $1 p: Vec2 [read assigned captured captured-assigned] place
 >   local $3 d: i64 [read] value
 >     uses $3: %8 -> %10 lend last
->   %0 = Retain %19 Entry local $0 #0 : ()
+>   %0 = Release %18 Exit local $0 #2 : ()
     let mut p = make(s)
->   %1 = Read move [$0] : string
+>   %1 = Read borrow [$0] : string
 >   %2 = NewStruct [%1 0:i64] : Vec2
 >   %3 = Break L1 %2 : never
 >   %4 = Block - : Vec2
 >   %5 = Scope %4 [] : Vec2
 >   %6 = Store [$1] %5 : ()
->   %19 = Block %17 : i64
+>   %18 = Block %17 : i64
     p.shift(2)
 >   %7 = Ref mut local frame [$1] : &mut Vec2
 >   %8 = Store [$3] 2:i64 : ()
@@ -185,11 +185,9 @@ fn place_receiver(s: string) -> i64:
 >   %7 finds [$1] full
     p.x
 >   %17 = Read copy [$1 .x] : i64
->   %18 = Drop [$1] : ()
 >   %17 finds [$1] full
->   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
->   summary kept [$0]
+>   summary kept [] borrows [$0]
 
 fn mut_self(v: Vec2, n: string) -> usize:
 > app/main/mut_self

@@ -221,12 +221,12 @@
     },
     {
       "program": "bench/study/json.hd",
-      "retained": "2040002",
-      "released": "3060093",
+      "retained": "2040003",
+      "released": "3060094",
       "uniques": "10540015",
-      "total": "15640110",
+      "total": "15640112",
       "noOpsAndSkipped": "19720133",
-      "reason": "#2074 aggregate identity forwarding: CI run 44092408354 measures 19,720,133 no-op/skipped calls (+1), with 2,040,002 retains and 3,060,093 releases (-680,000 combined). Aggregate loans change generated cleanup shapes; json emits one additional release-helper specialization. Record the exact cleanup-call increase rather than relaxing the limit; the ownership operation total falls to 15,640,110."
+      "reason": "#2074: TextReader.new mutates its Parser binding before constructing an owning reader; donation of the input string count through that mutable binding is not proven. The JSON workload pays one balanced retain/release pair (2040003 retains, 3060094 releases, total 15640112); the other 33 workloads and JSON no-ops/skips are unchanged."
     },
     {
       "program": "bench/study/mandelbrot.hd",

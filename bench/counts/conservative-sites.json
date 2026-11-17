@@ -53,7 +53,8 @@
     },
     {
       "reason": "conservative: copy read",
-      "sites": 0
+      "sites": 1,
+      "explanation": "#2074: TextReader.new in bench/study/json.hd keeps a conservative string copy while Parser state is mutated and the returned owning reader is constructed; count donation across that mutable binding is not proven. The retain is balanced by its release."
     },
     {
       "reason": "conservative: entry",
