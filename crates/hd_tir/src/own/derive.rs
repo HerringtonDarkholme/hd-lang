@@ -603,9 +603,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     t.v[v].alias = u32_of(i);
                     false
                 }
-                Role::Consume
-                    if tag == Tag::Break && b.tags[v] == Tag::Read && t.v[v].alias == NONE =>
-                {
+                Role::Consume if tag == Tag::Break && t.v[v].alias == NONE => {
                     let s = t.wrapper[b.data[i][0] as usize];
                     if s == NONE {
                         true
@@ -691,6 +689,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             t.v[v].keeps |= f.keeps || (f.stored != NONE && !bound);
         }
     }
+    collapse_aliases(&mut t.v, || {});
     // A value no instance may copy needs a count wherever a use keeps it or a
     // store takes a part of it, which only a move gives; so does the read the
     // part leaves.
@@ -711,6 +710,21 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 && b.tags[v as usize] == Tag::Read
             {
                 t.v[v as usize].keeps = true;
+            }
+        }
+    }
+}
+
+/// Unary forwarding scopes/coercions preserve RC identity (Swift SIL ARC).
+/// Collapse single-use, undropped intermediates once, in reverse SSA order.
+fn collapse_aliases(values: &mut [Value], mut visit: impl FnMut()) {
+    for v in (0..values.len()).rev() {
+        visit();
+        let c = values[v].alias;
+        if c != NONE {
+            let f = values[c as usize];
+            if f.uses == 1 && !f.dropped && f.stored == NONE && f.alias != NONE {
+                values[v].alias = f.alias;
             }
         }
     }
@@ -1658,6 +1672,7 @@ fn takers(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 /// Derives which reads of `b`, as insertion left it, borrow and which
 /// parameters and bindings the body owns none of.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
+    b.index_forwarded_reads();
     t.reset(b.len(), b.local_ty.len());
     {
         let b = &*b;
@@ -1989,8 +2004,61 @@ mod lending_tests {
     const LOCAL_REF: Ty = Ty(1_000_004);
 
     #[test]
+    fn forwarding_aliases_collapse_once_at_width_and_depth() {
+        for width in [1_000, 10_000] {
+            for depth in [1, 20] {
+                let mut t = super::Tables::default();
+                t.reset(width * (depth + 1), 0);
+                for root in (0..t.v.len()).step_by(depth + 1) {
+                    for j in root..root + depth {
+                        t.v[j].uses = 1;
+                        t.v[j].alias = u32::try_from(j + 1).expect("generated value");
+                    }
+                    t.v[root + depth].uses = 1;
+                    t.v[root + depth].stored = 42;
+                }
+                let mut visits = 0;
+                super::collapse_aliases(&mut t.v, || visits += 1);
+                assert_eq!(visits, t.v.len());
+                for root in (0..t.v.len()).step_by(depth + 1) {
+                    assert_eq!(t.v[root].alias as usize, root + depth);
+                    assert_eq!(t.store_of(root), 42);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn forwarding_aliases_keep_drop_store_and_shared_use_boundaries() {
+        for barrier in 0..3 {
+            let mut t = super::Tables::default();
+            t.reset(4, 0);
+            for j in 0..3 {
+                t.v[j].uses = 1;
+                t.v[j].alias = u32::try_from(j + 1).expect("generated value");
+            }
+            t.v[3].uses = 1;
+            t.v[3].stored = 42;
+            match barrier {
+                0 => t.v[1].dropped = true,
+                1 => t.v[1].stored = 41,
+                _ => t.v[1].uses = 2,
+            }
+            super::collapse_aliases(&mut t.v, || {});
+            assert_eq!(t.v[0].alias, 1);
+        }
+    }
+
+    #[test]
     fn wrapper_work_is_linear_in_width_and_depth() {
-        for (width, depth) in [(1, 1), (1000, 1), (1, 20), (1000, 20)] {
+        for (width, depth) in [
+            (1, 1),
+            (1000, 1),
+            (10_000, 1),
+            (1, 20),
+            (1000, 20),
+            (10_000, 20),
+        ] {
             let mut b = Body::new(DefId::from_raw(4), BodyKind::Fn);
             // Only the instruction and label columns are queried by this
             // index. Build nested single-exit scopes without a native walk.
@@ -2023,6 +2091,21 @@ mod lending_tests {
             wrappers_with(&b, &mut t, || visits += 1);
             assert_eq!(t.wrapper, expected);
             assert_eq!(visits, b.len() + b.label_inst.len());
+            let mut source_visits = 0;
+            let roots = b.forwarding_reads(|| source_visits += 1);
+            assert_eq!(source_visits, b.len());
+            b.index_forwarded_reads();
+            for &scope in &expected {
+                let root = roots[scope as usize];
+                assert_eq!(b.tags[root as usize], Tag::Read);
+                assert_eq!(b.borrowed_alias(scope), Some(root));
+                // A later ownership decision changes the result without
+                // rebuilding the identity index.
+                b.data[root as usize][1] = ReadMode::Copy as u32;
+                assert_eq!(b.borrowed_alias(scope), None);
+                b.data[root as usize][1] = ReadMode::Borrow as u32;
+            }
+
             // A second exit to a block invalidates that wrapper only.
             b.tags.push(Tag::Break);
             b.data.push([0, 0]);

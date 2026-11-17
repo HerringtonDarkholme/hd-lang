@@ -998,6 +998,10 @@ pub struct Body {
     /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
     /// and 23).
     pub regions: Vec<(u32, u32)>,
+    /// Nested unary forwarding identities: (scope/coercion, source Read).
+    /// Sorted ownership-pass output. Single-hop identities need no row;
+    /// read modes remain authoritative for whether the identity is borrowed.
+    pub forwarded_reads: Vec<(u32, u32)>,
     /// Per instruction of a body the ownership passes made, the checker's
     /// instruction it came from, which a call it writes names as its
     /// anchor in the line table (`crates/hd_wasm/DESIGN.md` §15.9),
@@ -1066,6 +1070,7 @@ impl Body {
             full_cells: vec![],
             stable_lists: vec![],
             regions: vec![],
+            forwarded_reads: vec![],
             anchors: vec![],
             inlined: vec![],
             inlined_origins: vec![],
@@ -1298,7 +1303,59 @@ impl Body {
         } else {
             self.wrapper_value(v as usize)?
         };
-        self.is_borrow(x).then_some(x)
+        if self.is_borrow(x) {
+            return Some(x);
+        }
+        let at = self
+            .forwarded_reads
+            .binary_search_by_key(&v, |&(value, _)| value)
+            .ok()?;
+        let root = self.forwarded_reads[at].1;
+        self.is_borrow(root).then_some(root)
+    }
+
+    /// Canonical Read sources of unary forwarding instructions. SSA operands
+    /// precede their users, so each edge is visited once, without recursion.
+    pub(crate) fn forwarding_reads(&self, mut visit: impl FnMut()) -> Vec<u32> {
+        let mut roots = vec![NONE; self.len()];
+        for i in 0..self.len() {
+            visit();
+            if self.tags[i] == Tag::Read {
+                roots[i] = u32_of(i);
+                continue;
+            }
+            let value = if self.same_value_coercion(i) {
+                Some(self.data[i][0])
+            } else {
+                self.wrapper_value(i)
+            };
+            if let Some(source) = value
+                .and_then(|v| Ref(v).as_inst())
+                .map(|v| v.0 as usize)
+                .filter(|&source| source < i)
+            {
+                roots[i] = roots[source];
+            }
+        }
+        roots
+    }
+
+    pub(crate) fn index_forwarded_reads(&mut self) {
+        let roots = self.forwarding_reads(|| {});
+        self.forwarded_reads.clear();
+        for (i, &root) in roots.iter().enumerate() {
+            if root == NONE || root as usize == i {
+                continue;
+            }
+            let direct = if self.same_value_coercion(i) {
+                Some(self.data[i][0])
+            } else {
+                self.wrapper_value(i)
+            };
+            if direct != Some(root) {
+                self.forwarded_reads.push((u32_of(i), root));
+            }
+        }
     }
 
     /// The value a wrapper `Scope` `s` takes from its block's last
@@ -2476,6 +2533,13 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             what,
         });
     }
+    if !b.forwarded_reads.is_empty() {
+        errs.push(VerifyError {
+            invariant: 22,
+            inst: NONE,
+            what: "forwarded reads before the ownership passes".into(),
+        });
+    }
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.unwind_drops.is_empty()
@@ -3046,6 +3110,9 @@ pub fn print(b: &Body) -> String {
     for (inst, region) in &b.regions {
         let _ = writeln!(o, "region {inst} {region}");
     }
+    for (inst, read) in &b.forwarded_reads {
+        let _ = writeln!(o, "forwardread {inst} {read}");
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -3186,6 +3253,10 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.fallback.push([v[0], v[1]]);
             }
+            "forwardread" => match nums(1)?[..] {
+                [value, read] => b.forwarded_reads.push((value, read)),
+                _ => return Err(e("forwardread needs 2 fields".into())),
+            },
             "heldarg" => match nums(1)?[..] {
                 [c, a] => b.held_args.push((c, a)),
                 _ => return Err(e("heldarg needs 2 fields".into())),

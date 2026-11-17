@@ -10,7 +10,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $use_first (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32)
-    ;; 27 |     first_len(&xs) + checksum(&xs)
+    ;; 28 |     first_len(&xs) + checksum(&xs)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -84,7 +84,7 @@
     global.set $locals
   )
   (func $checksum'1 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32)
-    ;; 16 |     for x in xs:
+    ;; 17 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
     local.set $t0
@@ -114,31 +114,31 @@
           br 0
           unreachable
         end
-    ;; 17 |         n += x.len()
+    ;; 18 |         n += x.len()
         local.get $n
         local.get $x.1
         i32.add
         local.set $n
-    ;; 16 |     for x in xs:
+    ;; 17 |     for x in xs:
         br 0
       end
     end
-    ;; 18 |     n
+    ;; 19 |     n
     local.get $n
   )
   (func $first_len (param $xs i32) (result i32)
-    ;; 22 |     if xs.len() == 0:
+    ;; 23 |     if xs.len() == 0:
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
     i32.eqz
     if
-    ;; 23 |         return 0
+    ;; 24 |         return 0
       i32.const 0
       return
-    ;; 22 |     if xs.len() == 0:
+    ;; 23 |     if xs.len() == 0:
     end
-    ;; 24 |     xs[0].len()
+    ;; 25 |     xs[0].len()
     local.get $xs
     i32.load $heap
     local.set $xs
@@ -159,7 +159,7 @@
     local.get $xs
   )
   (func $unexpected (param $at i32) (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
-    ;; 11 |     "unexpected byte at $at"
+    ;; 12 |     "unexpected byte at $at"
     local.get $at
     i64.extend_i32_u
     local.tee $t0
@@ -200,20 +200,20 @@
     local.get $t2
   )
   (func $check (param $xs i32) (param $at i32) (result i32 i32)
-    ;; 30 |     if at >= xs.len():
+    ;; 31 |     if at >= xs.len():
     local.get $at
     local.get $xs
     i32.load $heap offset=4
     i32.ge_u
     if
-    ;; 31 |         return unexpected(at)
+    ;; 32 |         return unexpected(at)
       local.get $at
       i32.const 1
       call_indirect $table0 (param i32) (result i32 i32)
       return
-    ;; 30 |     if at >= xs.len():
+    ;; 31 |     if at >= xs.len():
     end
-    ;; 32 |     xs[at]
+    ;; 33 |     xs[at]
     local.get $at
     local.get $xs
     i32.load $heap offset=4
@@ -237,12 +237,12 @@
       local.get $at
       call $retain
     end
-    ;; 30 |     if at >= xs.len():
+    ;; 31 |     if at >= xs.len():
     local.get $at
     local.get $xs
   )
   (func $checksum'2 (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32)
-    ;; 16 |     for x in xs:
+    ;; 17 |     for x in xs:
     local.get $xs
     i32.load $heap
     local.tee $xs
@@ -274,16 +274,16 @@
           br 0
           unreachable
         end
-    ;; 17 |         n += x.len()
+    ;; 18 |         n += x.len()
         local.get $n
         local.get $x.1
         i32.add
         local.set $n
-    ;; 16 |     for x in xs:
+    ;; 17 |     for x in xs:
         br 0
       end
     end
-    ;; 18 |     n
+    ;; 19 |     n
     local.get $n
   )
 )

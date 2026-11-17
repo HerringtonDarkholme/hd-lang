@@ -7,16 +7,11 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $first_len (param $c.value.0 i32) (param $c.value.1 i32) (result i32)
-    ;; 24 |     first(c).len()
-    local.get $c.value.0
-    if
-      local.get $c.value.0
-      call $rt:release_ref
-    end
+    ;; 25 |     first(c).len()
     local.get $c.value.1
   )
   (func $read (param $source.0 i32) (param $source.1 i32) (result i32)
-    ;; 27 |     source.get().len()
+    ;; 28 |     source.get().len()
     local.get $source.0
     local.get $source.1
     i32.load $heap
@@ -30,7 +25,7 @@
     local.get $source.0
   )
   (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $c i32)
-    ;; 30 |     read(&c)
+    ;; 31 |     read(&c)
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -93,7 +88,7 @@
     global.set $locals
   )
   (func $"impl Supplier for Constant.get" (param $self i32) (result i32 i32) (local $t0 i32)
-    ;; 18 |         self.value
+    ;; 19 |         self.value
     local.get $self
     i32.load $heap
     local.get $self

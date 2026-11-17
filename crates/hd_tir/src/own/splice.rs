@@ -409,6 +409,11 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for row in &mut b.regions {
         row.0 = map(t, row.0);
     }
+    for row in &mut b.forwarded_reads {
+        *row = (map(t, row.0), map(t, row.1));
+    }
+    b.forwarded_reads
+        .retain(|&(value, read)| value != NONE && read != NONE);
     // A row whose call or argument an edit deletes goes with it.
     b.held_args = (b.held_args.iter())
         .map(|&(c, a)| (map(t, c), map(t, a)))

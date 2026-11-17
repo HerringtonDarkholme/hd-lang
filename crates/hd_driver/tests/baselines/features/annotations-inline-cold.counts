@@ -4,7 +4,8 @@
 # Feature: Inline And Cold (spec/lang/14-annotations.md, #1364).
 # expected: `first_len` is copied into `use_first` with no call and no
 # count; `checksum` stays a call that borrows `xs`; `unexpected` is a
-# table call on the rare path only.
+# table call on the rare path only. `check` retains the selected string
+# because it returns an owned element while its caller keeps `xs`.
 use std.annotation.{InlineHint, cold, inline}
 
 @cold
