@@ -805,3 +805,91 @@ test("a caller cannot override the context policy with an unrelated env service"
     operation.host.close();
   }
 });
+
+test("a recursive codec reads and writes a 1,000,000-deep value through one explicit stack", () => {
+  const codecs = runtime();
+  const end = { tag: "End", fields: {} };
+  // `Node` with a reference under every container form, and `Twig`, a
+  // nested recursive record reaching back to `Node`.
+  const node = codecs.rec(0, (self: Dynamic) =>
+    codecs.enumeration([
+      ["End", []],
+      ["Next", [["next", self]]],
+      ["Many", [["items", codecs.list(self)]]],
+      ["Maybe", [["at", codecs.option(self)]]],
+      ["Pair", [["pair", codecs.tuple([self, codecs.int(32, true)])]]],
+      ["Keyed", [["map", codecs.map(codecs.str, self)]]],
+      ["Either", [["either", codecs.result(self, codecs.str)]]],
+      [
+        "Inner",
+        [
+          [
+            "inner",
+            codecs.rec(1, (twig: Dynamic) =>
+              codecs.record([
+                ["up", codecs.option(self)],
+                ["kids", codecs.list(twig)],
+              ]),
+            ),
+          ],
+        ],
+      ],
+    ]),
+  );
+  const wrap: ((below: Dynamic) => Dynamic)[] = [
+    (below) => ({ tag: "Next", fields: { next: below } }),
+    (below) => ({ tag: "Many", fields: { items: [below] } }),
+    (below) => ({ tag: "Maybe", fields: { at: below } }),
+    (below) => ({ tag: "Pair", fields: { pair: [below, 7] } }),
+    (below) => ({ tag: "Keyed", fields: { map: new Map([["k", below]]) } }),
+    (below) => ({ tag: "Either", fields: { either: { ok: true, value: below } } }),
+    (below) => ({ tag: "Inner", fields: { inner: { up: below, kids: [] } } }),
+  ];
+  // Each form's child, by tag; `End` has none.
+  const belowOf: Record<string, (fields: Dynamic) => Dynamic> = {
+    Next: (fields) => fields.next,
+    Many: (fields) => fields.items[0],
+    Maybe: (fields) => fields.at,
+    Pair: (fields) => fields.pair[0],
+    Keyed: (fields) => fields.map.get("k"),
+    Either: (fields) => fields.either.value,
+    Inner: (fields) => fields.inner.up,
+  };
+  // The levels of a decoded value, walked with a stack of its own.
+  const levels = (value: Dynamic): number => {
+    let count = 0;
+    for (const stack = [value]; stack.length > 0; count++) {
+      const item = stack.pop();
+      const { tag, fields } = item;
+      const below = belowOf[tag]?.(fields);
+      if (below !== undefined) {
+        stack.push(below);
+      }
+    }
+    return count;
+  };
+  // The first form at the full depth; the rest at a tenth, still far past
+  // the depth a native recursion reaches.
+  for (const [form, step] of wrap.entries()) {
+    const depth = form === 0 ? 1_000_000 : 100_000;
+    let value: Dynamic = end;
+    for (let level = 0; level < depth; level++) {
+      value = step(value);
+    }
+    assert.equal(levels(roundTrip(node, value)), depth + 1, `form ${form}`);
+  }
+  // A failure part way leaves no value on the cycle path: the same root
+  // encodes once its bad leaf is fixed.
+  const bad: Dynamic = { tag: "Bogus", fields: {} };
+  const root = wrap[0](wrap[1](bad));
+  assert.throws(() => encode(node, root), /unknown enum variant/);
+  bad.tag = "End";
+  assert.equal(levels(roundTrip(node, root)), 3);
+  // A value on its own path is a cycle; one shared by two siblings is not.
+  const loop: Dynamic = { tag: "Next", fields: {} };
+  loop.fields.next = loop;
+  assert.throws(() => encode(node, loop), /boundary-cycle/);
+  const shared = wrap[0](end);
+  const twice = { tag: "Many", fields: { items: [shared, shared] } };
+  assert.equal(roundTrip(node, twice).fields.items.length, 2);
+});

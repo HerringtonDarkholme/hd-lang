@@ -21,7 +21,139 @@ interface RuntimeCodec {
   shape: ContractValue;
   enc(encoder: Enc, value: Dynamic, transaction: number[]): Dynamic;
   dec(decoder: Dec): Dynamic;
+  /** A container's own step: its tag or count, and its children. */
+  open?: Container;
 }
+
+/** One step of the encode loop: a value to write, or a recursive type's exit. */
+type EncodeTask = [RuntimeCodec, Dynamic] | (() => void);
+
+/**
+ * A container's step in the explicit-stack codec loops: `encode` writes
+ * its tag or count and pushes its children's tasks, last first; `decode`
+ * reads its tag or count and returns the frame that takes its children's
+ * values in order.
+ */
+interface Container {
+  encode(
+    encoder: Enc,
+    value: Dynamic,
+    transaction: number[],
+    push: (task: EncodeTask) => void,
+  ): void;
+  decode(decoder: Dec): Frame;
+}
+
+/** A container being decoded: its next child's codec, then its value. */
+interface Frame {
+  next(): RuntimeCodec | undefined;
+  put(value: Dynamic): void;
+  done(): Dynamic;
+}
+
+/**
+ * Writes `value` through `root` with one explicit stack, so a value as deep
+ * as the provider makes it never recurses natively (AGENTS.md
+ * "Performant"). A failure part way runs the exits still pending, so a
+ * recursive type's path set is left empty. Cost: O(1) per container plus
+ * each leaf's codec; the stack holds the open containers' pending children.
+ */
+const encodeAll = (root: RuntimeCodec, encoder: Enc, value: Dynamic, tx: number[]): void => {
+  const stack: EncodeTask[] = [[root, value]];
+  const push = (task: EncodeTask): void => {
+    stack.push(task);
+  };
+  try {
+    for (let task = stack.pop(); task !== undefined; task = stack.pop()) {
+      if (typeof task === "function") {
+        task();
+        continue;
+      }
+      const [codec, item] = task;
+      if (codec.open) {
+        codec.open.encode(encoder, item, tx, push);
+      } else {
+        codec.enc(encoder, item, tx);
+      }
+    }
+  } catch (error) {
+    for (const task of stack) {
+      if (typeof task === "function") {
+        task();
+      }
+    }
+    throw error;
+  }
+};
+
+/**
+ * Reads a value through `root` with one explicit stack of open frames; each
+ * finished value goes to the frame below it. Cost: O(1) per container plus
+ * each leaf's codec; the stack holds the open containers.
+ */
+const decodeAll = (root: RuntimeCodec, decoder: Dec): Dynamic => {
+  const frames: Frame[] = [];
+  let next: RuntimeCodec = root;
+  for (;;) {
+    let value: Dynamic;
+    if (next.open) {
+      const frame = next.open.decode(decoder);
+      const child = frame.next();
+      if (child !== undefined) {
+        frames.push(frame);
+        next = child;
+        continue;
+      }
+      value = frame.done();
+    } else {
+      value = next.dec(decoder);
+    }
+    for (;;) {
+      const top = frames.at(-1);
+      if (top === undefined) {
+        return value;
+      }
+      top.put(value);
+      const child = top.next();
+      if (child !== undefined) {
+        next = child;
+        break;
+      }
+      frames.pop();
+      value = top.done();
+    }
+  }
+};
+
+/** A container codec whose `enc` and `dec` run the explicit-stack loops. */
+const container = (shape: ContractValue, open: Container): RuntimeCodec => {
+  const self: RuntimeCodec = {
+    shape,
+    enc: (encoder, value, tx) => encodeAll(self, encoder, value, tx),
+    dec: (decoder) => decodeAll(self, decoder),
+    open,
+  };
+  return self;
+};
+
+/** The frame of children read in order by `codecs`, built by `build`. */
+const sequence = (codecs: RuntimeCodec[], build: (values: Dynamic[]) => Dynamic): Frame => {
+  const values: Dynamic[] = [];
+  return {
+    next: () => codecs[values.length],
+    put: (value) => {
+      values.push(value);
+    },
+    done: () => build(values),
+  };
+};
+
+/** Pushes each child task last first, so the first is written first. */
+const pushAll = (push: (task: EncodeTask) => void, tasks: [RuntimeCodec, Dynamic][]): void => {
+  for (let index = tasks.length - 1; index >= 0; index--) {
+    push(tasks[index]);
+  }
+};
 
 interface RuntimeMethod {
   name: string;
@@ -399,118 +531,143 @@ export function createPackageRuntime(
     }
   };
   const list = (text: RuntimeCodec): RuntimeCodec =>
-    codec(
-      [8, text.shape],
-      (error, xs, tx) => {
+    container([8, text.shape], {
+      encode: (error, xs, _tx, push) => {
         array(xs);
         error.leb(xs.length);
-        for (const item of xs) {
-          text.enc(error, item, tx);
+        for (let index = xs.length - 1; index >= 0; index--) {
+          push([text, xs[index]]);
         }
       },
-      (data) => {
+      decode: (data) => {
         const length = data.num();
         if (!Number.isSafeInteger(length) || length > 0xffffffff) {
           fail("invalid list length");
         }
-        return Array.from({ length }, () => text.dec(data));
+        const out: Dynamic[] = [];
+        return {
+          next: () => (out.length < length ? text : undefined),
+          put: (value) => {
+            out.push(value);
+          },
+          done: () => out,
+        };
       },
-    );
+    });
   // `Map[K, V]` as a JS `Map`: its size, then each key and value in the
   // map's order. Decoding keeps a repeated key's last value, as hd's
   // decoder does (module.boundary.map-decode).
   const map = (key: RuntimeCodec, value: RuntimeCodec): RuntimeCodec =>
-    codec(
-      [18, key.shape, value.shape],
-      (error, entries, tx) => {
+    container([18, key.shape, value.shape], {
+      encode: (error, entries, _tx, push) => {
         if (!(entries instanceof Map)) {
           fail("expected Map");
         }
         error.leb(entries.size);
+        const tasks: [RuntimeCodec, Dynamic][] = [];
         for (const [entryKey, entryValue] of entries) {
-          key.enc(error, entryKey, tx);
-          value.enc(error, entryValue, tx);
+          tasks.push([key, entryKey], [value, entryValue]);
         }
+        pushAll(push, tasks);
       },
-      (data) => {
+      decode: (data) => {
         const size = data.num();
         if (!Number.isSafeInteger(size) || size > 0xffffffff) {
           fail("invalid map size");
         }
         const out = new Map<unknown, unknown>();
-        for (let index = 0; index < size; index++) {
-          const entryKey = key.dec(data);
-          out.set(entryKey, value.dec(data));
-        }
-        return out;
+        let read = 0;
+        let entryKey: Dynamic;
+        return {
+          next: () => {
+            if (read >= 2 * size) {
+              return undefined;
+            }
+            return read % 2 === 0 ? key : value;
+          },
+          put: (item) => {
+            if (read % 2 === 0) {
+              entryKey = item;
+            } else {
+              out.set(entryKey, item);
+            }
+            read++;
+          },
+          done: () => out,
+        };
       },
-    );
+    });
   const option = (text: RuntimeCodec): RuntimeCodec =>
-    codec(
-      [9, text.shape],
-      (error, value, tx) => {
+    container([9, text.shape], {
+      encode: (error, value, _tx, push) => {
         if (value === null) {
           error.leb(0);
         } else {
-          text.enc(error.leb(1), value, tx);
+          error.leb(1);
+          push([text, value]);
         }
       },
-      (data) => (data.tag(2) ? text.dec(data) : null),
-    );
+      decode: (data) =>
+        sequence(data.tag(2) ? [text] : [], (values) => (values.length > 0 ? values[0] : null)),
+    });
   const tuple = (ts: RuntimeCodec[]): RuntimeCodec =>
-    codec(
-      [10, ts.map((item) => item.shape)],
-      (error, xs, tx) => {
+    container([10, ts.map((item) => item.shape)], {
+      encode: (_error, xs, _tx, push) => {
         array(xs, ts.length);
-        ts.forEach((item, index) => item.enc(error, xs[index], tx));
+        pushAll(
+          push,
+          ts.map((item, index): [RuntimeCodec, Dynamic] => [item, xs[index]]),
+        );
       },
-      (data) => ts.map((item) => item.dec(data)),
-    );
+      decode: () => sequence(ts, (values) => values),
+    });
   const fieldShape = (fs: RuntimeField[]): ContractField[] =>
     fs.map(([count, text]) => [count, text.shape]);
-  const encFields = (error: Enc, value: Dynamic, fs: RuntimeField[], tx: number[]): void => {
-    for (const [count, text] of fs) {
-      text.enc(error, own(value, count), tx);
-    }
-  };
-  const decFields = (data: Dec, fs: RuntimeField[]): DynamicRecord =>
-    object(fs.map(([count, text]) => [count, text.dec(data)]));
-  const record = (fs: RuntimeField[]): RuntimeCodec =>
-    codec(
-      [11, fieldShape(fs)],
-      (error, value, tx) => encFields(error, value, fs, tx),
-      (data) => decFields(data, fs),
+  // Each field's codec and value in order, read before any is written, so
+  // a missing field fails on the first one as the field order reads.
+  const fieldTasks = (value: Dynamic, fs: RuntimeField[]): [RuntimeCodec, Dynamic][] =>
+    fs.map(([count, text]) => [text, own(value, count)]);
+  const fieldFrame = (fs: RuntimeField[], build: (record: DynamicRecord) => Dynamic): Frame =>
+    sequence(
+      fs.map(([, text]) => text),
+      (values) => build(object(fs.map(([count], index) => [count, values[index]]))),
     );
+  const record = (fs: RuntimeField[]): RuntimeCodec =>
+    container([11, fieldShape(fs)], {
+      encode: (_error, value, _tx, push) => pushAll(push, fieldTasks(value, fs)),
+      decode: () => fieldFrame(fs, (fields) => fields),
+    });
   const enumeration = (vs: RuntimeVariant[]): RuntimeCodec =>
-    codec(
-      [12, vs.map(([count, fs]) => [count, fieldShape(fs)])],
-      (error, value, tx) => {
+    container([12, vs.map(([count, fs]) => [count, fieldShape(fs)])], {
+      encode: (error, value, _tx, push) => {
         const tag = own(value, "tag"),
           index = vs.findIndex(([count]) => count === tag);
         if (index < 0) {
           fail("unknown enum variant");
         }
         error.leb(index);
-        encFields(error, own(value, "fields"), vs[index][1], tx);
+        pushAll(push, fieldTasks(own(value, "fields"), vs[index][1]));
       },
-      (data) => {
+      decode: (data) => {
         const [tag, fs] = vs[data.tag(vs.length)];
-        return { tag, fields: decFields(data, fs) };
+        return fieldFrame(fs, (fields) => ({ tag, fields }));
       },
-    );
+    });
   const result = (ok: RuntimeCodec, err: RuntimeCodec): RuntimeCodec =>
-    codec(
-      [13, ok.shape, err.shape],
-      (error, value, tx) => {
+    container([13, ok.shape, err.shape], {
+      encode: (error, value, _tx, push) => {
         const tag = own(value, "ok");
         if (typeof tag !== "boolean") {
           fail("invalid Result tag");
         }
-        (tag ? ok : err).enc(error.leb(tag ? 0 : 1), own(value, tag ? "value" : "error"), tx);
+        error.leb(tag ? 0 : 1);
+        push([tag ? ok : err, own(value, tag ? "value" : "error")]);
       },
-      (data) =>
-        data.tag(2) ? { ok: false, error: err.dec(data) } : { ok: true, value: ok.dec(data) },
-    );
+      decode: (data) =>
+        data.tag(2)
+          ? sequence([err], ([error]) => ({ ok: false, error }))
+          : sequence([ok], ([value]) => ({ ok: true, value })),
+    });
   const handle = (namespace: string): RuntimeCodec =>
     codec(
       [15, namespace],
@@ -533,35 +690,32 @@ export function createPackageRuntime(
       () => fail("a handle cannot be passed as a data argument"),
     );
   // A recursive type's one codec (`[16, id, body]`). `build` makes the
-  // body from the codec of `[17, id]`, which calls the body again. Encoding
-  // tracks the values on its path: a provider value that reaches itself
-  // again is the `boundary-cycle` failure (module.boundary.cycle.tracked),
-  // never an unbounded walk.
+  // body from the codec of `[17, id]`, which steps into the body again
+  // through the caller's explicit stack, never a native call per level.
+  // Encoding tracks the values on its path: a provider value that reaches
+  // itself again is the `boundary-cycle` failure
+  // (module.boundary.cycle.tracked), never an unbounded walk. A value
+  // joins the path when its step runs and leaves it when the exit task,
+  // pushed under its body's children, runs after the last of them.
   const rec = (id: number, build: (self: RuntimeCodec) => RuntimeCodec): RuntimeCodec => {
     const active = new Set<object>();
     let body: RuntimeCodec | undefined;
-    const self = codec(
-      [17, id],
-      (error, value, tx) => {
-        const tracked = typeof value === "object" && value !== null;
-        if (tracked && active.has(value)) {
-          fail("boundary-cycle: a provider value reaches itself");
-        }
-        if (tracked) {
-          active.add(value);
-        }
-        try {
-          body!.enc(error, value, tx);
-        } finally {
-          if (tracked) {
-            active.delete(value);
+    const open: Container = {
+      encode: (_error, value, _tx, push) => {
+        if (typeof value === "object" && value !== null) {
+          if (active.has(value)) {
+            fail("boundary-cycle: a provider value reaches itself");
           }
+          active.add(value);
+          push(() => active.delete(value));
         }
+        push([body!, value]);
       },
-      (data) => body!.dec(data),
-    );
+      decode: () => sequence([body!], ([value]) => value),
+    };
+    const self = container([17, id], open);
     body = build(self);
-    return codec([16, id, body.shape], self.enc, self.dec);
+    return container([16, id, body.shape], open);
   };
   const runtime = {
     rec,
