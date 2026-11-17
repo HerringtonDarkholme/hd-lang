@@ -121,12 +121,14 @@ fn explicit_engine(words: &[String]) -> Option<&str> {
         .next_back()
 }
 
+/// A step naming `--engine wasmtime` needs the engine whatever its
+/// command: hd refuses the name when it reads it, so `hd build --engine
+/// wasmtime` fails as `hd run --engine wasmtime` does.
 fn unavailable_wasmtime(steps: &[Step], wasmtime_available: bool) -> bool {
     !wasmtime_available
-        && steps.iter().any(|step| {
-            runtime_command(&step.words).is_some()
-                && explicit_engine(&step.words) == Some("wasmtime")
-        })
+        && steps
+            .iter()
+            .any(|step| explicit_engine(&step.words) == Some("wasmtime"))
 }
 
 fn select_engine(
@@ -1325,12 +1327,19 @@ fn engine_mode_parser_rejects_unknown_modes() {
 fn explicit_wasmtime_step_is_unsupported_only_without_the_feature() {
     let steps = parse_expect(
         "run: hd main.hd --engine wasmtime\n\
-         run: hd other.hd -- --engine wasmtime\n",
+         run: hd other.hd -- --engine wasmtime\n\
+         run: hd build --engine wasmtime\n\
+         run: hd build --engine=wasmtime --release\n\
+         run: hd build --engine node\n",
     )
     .unwrap();
     assert!(unavailable_wasmtime(&steps[..1], false));
     assert!(!unavailable_wasmtime(&steps[..1], true));
-    assert!(!unavailable_wasmtime(&steps[1..], false));
+    assert!(!unavailable_wasmtime(&steps[1..2], false));
+    assert!(unavailable_wasmtime(&steps[2..3], false));
+    assert!(!unavailable_wasmtime(&steps[2..3], true));
+    assert!(unavailable_wasmtime(&steps[3..4], false));
+    assert!(!unavailable_wasmtime(&steps[4..], false));
 }
 
 #[test]
