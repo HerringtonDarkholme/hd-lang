@@ -19,13 +19,15 @@
 //! manifest with `hd_run::Grants::resolve` or `hd_run::Consent::new`, as
 //! `hd` does from `hd.toml`, and registration grants the guest nothing.
 //! The companion's dispatch decodes each call's arguments and encodes its
-//! result with the codecs of [`wire`]. What builds on this surface: #2081 drives
-//! [`PendingCall`] from the reactor and gives [`CallContext`] the instance
-//! identity; #2082 keeps returned handle trait objects in the instance's
-//! registry.
+//! result with the codecs of [`wire`]. A suspending method's
+//! [`PendingCall`] is held by the instance's reactor, which its
+//! [`Completion`] wakes from any thread. What builds on this surface:
+//! #2082 keeps returned handle trait objects in the instance's registry.
 
 use std::any::Any;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
+use crate::runtime::reactor::Wake;
 
 pub mod wire;
 
@@ -51,64 +53,192 @@ pub enum NativeCall<T> {
     Pending(PendingCall<T>),
 }
 
+/// The one-shot slot a pending call and its completion share. Every
+/// transition happens under its lock, so a completion either lands before
+/// the call ends or finds it ended and wakes nothing
+/// (`cli.host.package.native-late-completion`).
+struct Slot<T>(Mutex<State<T>>);
+
+enum State<T> {
+    /// Not completed. Once the instance registered the call, the wake of
+    /// its own reactor and handle: a completion reaches that instance and
+    /// no other.
+    Waiting(Option<Wake>),
+    /// Completed; the instance has not taken the value.
+    Done(HostResult<T>),
+    /// Taken, aborted, or its instance closed: a completion is dropped.
+    Ended,
+}
+
+impl<T> Slot<T> {
+    fn lock(&self) -> MutexGuard<'_, State<T>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Ends the call and returns what it held, for the caller to drop
+    /// outside the lock.
+    fn end(&self) -> State<T> {
+        std::mem::replace(&mut *self.lock(), State::Ended)
+    }
+}
+
 /// The call side of a pending native call. It stays on the instance's
 /// thread; only its [`Completion`] may cross threads
-/// (`cli.host.package.native-thread`).
+/// (`cli.host.package.native-thread`). Dropping it undelivered aborts it,
+/// so an instance's close runs the hook of every call it holds
+/// (`cli.host.package.native-abort`).
 pub struct PendingCall<T> {
-    result: Option<mpsc::Receiver<HostResult<T>>>,
+    slot: Arc<Slot<T>>,
     abort: Option<Box<dyn FnOnce()>>,
 }
 
 /// The one-shot completion sender of a [`PendingCall`]: `Send` when its
 /// value is.
 pub struct Completion<T> {
-    sender: mpsc::SyncSender<HostResult<T>>,
+    slot: Arc<Slot<T>>,
 }
 
 /// A pending call and its completion sender; `abort` runs at most once, on
-/// [`PendingCall::abort`] (`cli.host.package.native-abort`).
+/// [`PendingCall::abort`] or when the call is dropped undelivered
+/// (`cli.host.package.native-abort`).
 pub fn pending<T>(abort: impl FnOnce() + 'static) -> (PendingCall<T>, Completion<T>) {
-    // Capacity one: the single completion never blocks its sender.
-    let (sender, receiver) = mpsc::sync_channel(1);
+    let slot = Arc::new(Slot(Mutex::new(State::Waiting(None))));
     (
         PendingCall {
-            result: Some(receiver),
+            slot: Arc::clone(&slot),
             abort: Some(Box::new(abort)),
         },
-        Completion { sender },
+        Completion { slot },
     )
 }
 
 impl<T> Completion<T> {
-    /// Delivers the call's value. After the call's abort it is dropped
-    /// (`cli.host.package.native-late-completion`).
+    /// Delivers the call's value and wakes its instance. After the call's
+    /// abort or its instance's close, the value is dropped and nothing
+    /// wakes (`cli.host.package.native-late-completion`).
     pub fn complete(self, value: HostResult<T>) {
-        // A closed receiver is an aborted call: the value is ignored.
-        let _ = self.sender.send(value);
+        let mut state = self.slot.lock();
+        if let State::Waiting(wake) = &*state {
+            // The wake is sent under the slot's lock, so an abort cannot
+            // end the call between the check and the wake.
+            if let Some(wake) = wake {
+                wake.wake();
+            }
+            *state = State::Done(value);
+        } else {
+            drop(state);
+            drop(value);
+        }
     }
 }
 
 impl<T> PendingCall<T> {
     /// The delivered value, once; `None` while pending or after abort.
+    /// Taking it delivers the call: there is no abort left to run.
     pub fn take(&mut self) -> Option<HostResult<T>> {
-        let value = self.result.as_ref()?.try_recv().ok()?;
-        self.result = None;
+        let mut state = self.slot.lock();
+        if !matches!(*state, State::Done(_)) {
+            return None;
+        }
+        let State::Done(value) = std::mem::replace(&mut *state, State::Ended) else {
+            unreachable!("ruled out: matched as `Done` under the same lock")
+        };
+        drop(state);
         self.abort = None;
         Some(value)
     }
 
-    /// Aborts the call: its hook runs once, its receiver closes, and a
-    /// later completion is ignored. A second abort does nothing.
+    /// Aborts the call: a later completion is ignored, a value delivered
+    /// and not taken is dropped, and then the hook runs and its captures
+    /// are released. A second abort, or one after `take`, does nothing.
     pub fn abort(&mut self) {
-        self.result = None;
         if let Some(hook) = self.abort.take() {
+            drop(self.slot.end());
             hook();
+        }
+    }
+
+    /// Registers the call with its instance's `wake`.
+    fn bind(&mut self, wake: Wake) -> Bound {
+        let mut state = self.slot.lock();
+        match &mut *state {
+            State::Waiting(target) => {
+                *target = Some(wake);
+                Bound::Waiting
+            }
+            State::Done(_) => Bound::Done,
+            State::Ended => Bound::Ended,
         }
     }
 }
 
-/// The context of one suspending provider call. #2081 adds its instance
-/// identity and readiness wake.
+impl<T> Drop for PendingCall<T> {
+    fn drop(&mut self) {
+        self.abort();
+    }
+}
+
+/// What registering a pending call with its instance found.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Bound {
+    /// Pending: its completion wakes the instance.
+    Waiting,
+    /// Completed before it was registered: the instance wakes itself.
+    Done,
+    /// Aborted by its provider before it was returned: it never completes.
+    Ended,
+}
+
+/// A suspending method's answer to a dispatch: its encoded value, or the
+/// pending call the instance drives until its `.finish`.
+pub enum Answer {
+    Ready(Vec<u8>),
+    Pending(Suspension),
+}
+
+/// A pending call with its value's codec, for the instance's reactor,
+/// which holds every pending call alike.
+pub struct Suspension(Box<dyn Suspended>);
+
+impl Suspension {
+    #[must_use]
+    pub fn new<T: 'static>(call: PendingCall<T>, encode: fn(&T) -> HostResult<Vec<u8>>) -> Self {
+        Self(Box::new(Encoded { call, encode }))
+    }
+
+    pub(crate) fn bind(&mut self, wake: Wake) -> Bound {
+        self.0.bind(wake)
+    }
+
+    /// The delivered value, encoded; `None` while pending.
+    pub(crate) fn finish(&mut self) -> Option<HostResult<Vec<u8>>> {
+        self.0.finish()
+    }
+}
+
+trait Suspended {
+    fn bind(&mut self, wake: Wake) -> Bound;
+    fn finish(&mut self) -> Option<HostResult<Vec<u8>>>;
+}
+
+struct Encoded<T> {
+    call: PendingCall<T>,
+    encode: fn(&T) -> HostResult<Vec<u8>>,
+}
+
+impl<T> Suspended for Encoded<T> {
+    fn bind(&mut self, wake: Wake) -> Bound {
+        self.call.bind(wake)
+    }
+
+    fn finish(&mut self) -> Option<HostResult<Vec<u8>>> {
+        Some(self.call.take()?.and_then(|value| (self.encode)(&value)))
+    }
+}
+
+/// The context of one suspending provider call. A pending call's
+/// completion gets its instance's identity when the instance registers
+/// the call, not from here.
 pub struct CallContext<'a> {
     _call: std::marker::PhantomData<&'a mut ()>,
 }
@@ -182,10 +312,10 @@ impl std::error::Error for Unregistered {}
 
 /// The byte-level entry of one root provider: calls the method at index
 /// `method` of its interface in the contract, with that method's encoded
-/// arguments, and returns its encoded result (empty for `()`). The
-/// companion generates one per root trait; it downcasts `provider` to the
-/// trait object it registered.
-pub type Dispatch = fn(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Vec<u8>>;
+/// arguments, and returns its encoded result (empty for `()`), or a
+/// suspending method's pending call. The companion generates one per root
+/// trait; it downcasts `provider` to the trait object it registered.
+pub type Dispatch = fn(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer>;
 
 /// One root provider: its trait's nominal identity, its import module, the
 /// generated trait object (`Box<dyn Trait>`, boxed again as `Any`), and its

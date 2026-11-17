@@ -78,6 +78,13 @@ pub enum Work {
     /// An operation offloaded to the `hd-io` runtime: its result, once
     /// its task delivers it.
     Offloaded(Option<Done>),
+    /// A native provider's pending call, of the root method at `method`
+    /// (interface and method index in the contract), until its `.finish`
+    /// takes the value; dropping it undelivered aborts it.
+    Native {
+        call: crate::native::Suspension,
+        method: (usize, usize),
+    },
 }
 
 pub struct Op {
@@ -143,11 +150,13 @@ struct Deliveries {
     chunks: VecDeque<Result<Vec<u8>, i32>>,
     /// Offloaded operations' results, by handle.
     done: Vec<(i32, Done)>,
+    /// The native pending calls whose completion arrived, by handle.
+    woken: Vec<i32>,
 }
 
 impl Deliveries {
     fn is_empty(&self) -> bool {
-        self.chunks.is_empty() && self.done.is_empty()
+        self.chunks.is_empty() && self.done.is_empty() && self.woken.is_empty()
     }
 }
 
@@ -176,6 +185,28 @@ impl Waker {
     /// reaches it there: no Wasm runs and no host call is made.
     pub fn parked(&self) -> bool {
         self.0.parked.load(Ordering::SeqCst)
+    }
+}
+
+/// Where a native pending call's completion lands: the inbox of the
+/// reactor that registered the call, and its handle there. Another
+/// instance's reactor has another inbox, so a handle number it reuses is
+/// never woken by this call.
+pub(crate) struct Wake {
+    inbox: Arc<Inbox>,
+    handle: i32,
+}
+
+impl Wake {
+    /// Queues the call's handle and wakes the reactor's wait.
+    pub(crate) fn wake(&self) {
+        let mut queue = self
+            .inbox
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        queue.woken.push(self.handle);
+        self.inbox.ready.notify_all();
     }
 }
 
@@ -309,6 +340,50 @@ impl Reactor {
         Ok(h)
     }
 
+    /// A native provider's pending call of the root method `method`,
+    /// registered with this reactor's wake: one map insert, and its
+    /// completion queues its handle alone. `None` when its provider
+    /// aborted it before returning it, so it can never complete.
+    pub(crate) fn native(
+        &mut self,
+        mut call: crate::native::Suspension,
+        method: (usize, usize),
+    ) -> Option<i32> {
+        use crate::native::Bound;
+        let handle = self.next_handle;
+        let wake = Wake {
+            inbox: Arc::clone(&self.inbox),
+            handle,
+        };
+        let bound = call.bind(wake);
+        if bound == Bound::Ended {
+            return None;
+        }
+        let h = self.start(None, Work::Native { call, method });
+        if bound == Bound::Done {
+            self.ready.push((now_ns(), h));
+        }
+        Some(h)
+    }
+
+    /// The `.finish` of the native call `h` of `method`: its encoded
+    /// value, once it completed. `None` for any other handle, which the
+    /// caller reports as a broken contract.
+    pub(crate) fn finish_native(
+        &mut self,
+        h: i32,
+        method: (usize, usize),
+    ) -> Option<crate::native::HostResult<Vec<u8>>> {
+        let op = self.ops.get(&h)?;
+        if !op.completed || !matches!(op.work, Work::Native { method: m, .. } if m == method) {
+            return None;
+        }
+        let Work::Native { mut call, .. } = self.ops.remove(&h)?.work else {
+            unreachable!("ruled out: matched as `Native` above")
+        };
+        call.finish()
+    }
+
     /// A read of the next line of standard input.
     pub fn read_line(&mut self) -> i32 {
         self.read(false)
@@ -399,14 +474,18 @@ impl Reactor {
     /// each result for its operation. A result whose operation has ended,
     /// aborted while its task ran, is dropped.
     fn take_delivered(&mut self) {
-        let (chunks, done) = {
+        let (chunks, done, woken) = {
             let mut queue = self
                 .inbox
                 .queue
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
             let chunks: Vec<_> = queue.chunks.drain(..).collect();
-            (chunks, std::mem::take(&mut queue.done))
+            (
+                chunks,
+                std::mem::take(&mut queue.done),
+                std::mem::take(&mut queue.woken),
+            )
         };
         for chunk in chunks {
             self.asked = false;
@@ -428,6 +507,17 @@ impl Reactor {
             {
                 op.task = None;
                 op.work = Work::Offloaded(Some(done));
+                self.ready.push((now_ns(), h));
+            }
+        }
+        // A completion queues its handle only while its call is pending,
+        // under the call's own lock, so each probe here finds the call:
+        // one map probe per completion, never a scan of pending calls.
+        for h in woken {
+            if let Some(op) = self.ops.get(&h)
+                && !op.completed
+                && matches!(op.work, Work::Native { .. })
+            {
                 self.ready.push((now_ns(), h));
             }
         }
@@ -653,17 +743,16 @@ impl Reactor {
                 _ => None,
             })
             .collect();
+        let mut queue = self
+            .inbox
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        queue.woken.clear();
         delivered.extend(
-            std::mem::take(
-                &mut self
-                    .inbox
-                    .queue
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .done,
-            )
-            .into_iter()
-            .map(|(_, done)| done),
+            std::mem::take(&mut queue.done)
+                .into_iter()
+                .map(|(_, done)| done),
         );
         delivered
     }
@@ -735,6 +824,73 @@ mod tests {
                 return done;
             }
         }
+    }
+
+    /// A native pending call of an `i64`, whose hook counts into `aborts`.
+    fn native_call(
+        aborts: &std::rc::Rc<std::cell::Cell<usize>>,
+    ) -> (crate::native::Suspension, crate::native::Completion<i64>) {
+        let hook = std::rc::Rc::clone(aborts);
+        let (call, completion) = crate::native::pending(move || hook.set(hook.get() + 1));
+        let encode: fn(&i64) -> crate::native::HostResult<Vec<u8>> =
+            |value| Ok(value.to_le_bytes().to_vec());
+        (crate::native::Suspension::new(call, encode), completion)
+    }
+
+    #[test]
+    fn a_native_completion_wakes_only_the_reactor_that_registered_it() {
+        // Two instances' reactors number their operations alike, so both
+        // calls get one handle number; the closed one's completion lands
+        // nowhere (`cli.host.package.native-late-completion`).
+        let aborts = std::rc::Rc::default();
+        let (mut old, mut new) = (Reactor::new(None), Reactor::new(None));
+        let (first, late) = native_call(&aborts);
+        let (second, completion) = native_call(&aborts);
+        let h = old.native(first, (0, 2)).unwrap();
+        assert_eq!(new.native(second, (0, 2)), Some(h));
+        old.drop_all();
+        assert_eq!(aborts.get(), 1, "closing aborts the pending call");
+        late.complete(Ok(7));
+        assert!(old.due().is_empty() && !old.waiting());
+        assert!(new.inbox.queue.lock().unwrap().is_empty(), "no wake");
+        assert!(new.due().is_empty() && new.waiting());
+        assert_eq!(new.finish_native(h, (0, 2)), None, "not completed");
+        // cost: one thread, the completion's sender.
+        std::thread::spawn(move || completion.complete(Ok(9)))
+            .join()
+            .unwrap();
+        assert_eq!(next_due(&mut new), [h]);
+        assert_eq!(new.finish_native(h, (0, 1)), None, "another method's");
+        assert_eq!(
+            new.finish_native(h, (0, 2)),
+            Some(Ok(9_i64.to_le_bytes().to_vec()))
+        );
+        assert_eq!(new.finish_native(h, (0, 2)), None, "delivered once");
+        drop(new);
+        assert_eq!(aborts.get(), 1, "a delivered call has no abort");
+    }
+
+    #[test]
+    fn a_native_call_completed_before_registration_is_due_at_once() {
+        let aborts = std::rc::Rc::default();
+        let mut r = Reactor::new(None);
+        let (call, completion) = native_call(&aborts);
+        completion.complete(Ok(3));
+        let h = r.native(call, (0, 0)).unwrap();
+        assert_eq!(r.due(), [h]);
+        assert_eq!(
+            r.finish_native(h, (0, 0)),
+            Some(Ok(3_i64.to_le_bytes().to_vec()))
+        );
+        // A call its provider aborted before returning it never completes,
+        // so it is not registered.
+        let (mut pending, _completion) = crate::native::pending::<i64>(|| {});
+        pending.abort();
+        let encode: fn(&i64) -> crate::native::HostResult<Vec<u8>> = |_| Ok(Vec::new());
+        let aborted = crate::native::Suspension::new(pending, encode);
+        assert_eq!(r.native(aborted, (0, 0)), None);
+        assert!(!r.waiting());
+        assert_eq!(aborts.get(), 0);
     }
 
     /// The `.finish` of offloaded operation `h`: the result it delivered.

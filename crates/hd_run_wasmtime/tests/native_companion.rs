@@ -202,13 +202,17 @@ fn forms_contract() -> Contract {
                 vec![
                     method("draw", all, Value::Handle("hd:pkg:events".into()), true),
                     method("type", vec![], Value::Never, false),
+                    method("halt", vec![], Value::Never, true),
                 ],
             ),
             interface(
                 "window.Surface",
                 "hd:pkg:window",
                 false,
-                vec![method("close", vec![], Value::Void, false)],
+                vec![
+                    method("close", vec![], Value::Void, false),
+                    method("flush", vec![], Value::Void, true),
+                ],
             ),
             interface(
                 "screen.Events",
@@ -520,13 +524,30 @@ fn every_root_trait_of_a_companion_gets_a_setter() {
         fn r#type(&mut self) -> HostResult<std::convert::Infallible> {
             Err(HostError("never returns".into()))
         }
+        fn halt(&mut self, _cx: CallContext<'_>) -> NativeCall<std::convert::Infallible> {
+            NativeCall::Pending(native::pending(|| {}).0)
+        }
     }
     struct Window;
     impl forms::Surface3 for Window {
         fn close(&mut self) -> HostResult<()> {
             Ok(())
         }
+        fn flush(&mut self, _cx: CallContext<'_>) -> NativeCall<()> {
+            NativeCall::Ready(Ok(()))
+        }
     }
+    // A suspending `()` method's ready answer is empty; a suspending
+    // `never` method can only stay pending.
+    let mut window: Box<dyn std::any::Any> = Box::new(Box::new(Window) as Box<dyn forms::Surface3>);
+    let Ok(native::Answer::Ready(empty)) = forms::dispatch_Surface3(window.as_mut(), 1, &[]) else {
+        panic!("`flush` answers at once")
+    };
+    assert!(empty.is_empty());
+    let mut screen: Box<dyn std::any::Any> = Box::new(Box::new(Screen) as Box<dyn forms::Surface>);
+    let Ok(native::Answer::Pending(_)) = forms::dispatch_Surface(screen.as_mut(), 2, &[]) else {
+        panic!("`halt` stays pending")
+    };
     let Err(missing) = forms::Bindings::builder().surface(Screen).build() else {
         panic!("the second root trait has no provider")
     };
@@ -876,6 +897,18 @@ fn made(first: bool) -> values::ValuesMakeResult {
 
 type Taken = Rc<std::cell::RefCell<Vec<String>>>;
 
+/// The `Values` dispatch, whose methods all answer at once.
+fn dispatch_values(
+    provider: &mut dyn std::any::Any,
+    method: usize,
+    args: &[u8],
+) -> HostResult<Vec<u8>> {
+    match values::dispatch_Values(provider, method, args)? {
+        native::Answer::Ready(bytes) => Ok(bytes),
+        native::Answer::Pending(_) => panic!("`Values` has no suspending method"),
+    }
+}
+
 fn codecs(made: values::ValuesMakeResult) -> (Box<dyn std::any::Any>, Taken) {
     let taken = Rc::default();
     let provider: Box<dyn values::Values> = Box::new(Codecs {
@@ -890,12 +923,12 @@ fn every_value_form_round_trips_through_a_native_provider() {
     for first in [true, false] {
         let made = made(first);
         let (mut provider, taken) = codecs(made.clone());
-        let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+        let bytes = dispatch_values(provider.as_mut(), 0, &[]).unwrap();
         // `bin` is bytes, its length then its bytes; `nums` a list of
         // `u8`, its count then each LEB128 value; `nothing` is `None`.
         assert!(bytes.ends_with(&[1, 200, 1, 0xc8, 1, 0]), "{bytes:?}");
         assert!(
-            values::dispatch_Values(provider.as_mut(), 1, &bytes)
+            dispatch_values(provider.as_mut(), 1, &bytes)
                 .unwrap()
                 .is_empty()
         );
@@ -903,7 +936,7 @@ fn every_value_form_round_trips_through_a_native_provider() {
     }
     let (mut provider, _) = codecs(made(true));
     // `-0.0` keeps its sign bit through both directions.
-    let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+    let bytes = dispatch_values(provider.as_mut(), 0, &[]).unwrap();
     assert!(bytes.windows(8).any(|w| w == (-0.0_f64).to_le_bytes()));
 }
 
@@ -913,7 +946,7 @@ fn a_single_string_argument_is_its_bare_utf8() {
     let mut expected = native::wire::Encoder::default();
     expected.string("HÉ");
     assert_eq!(
-        values::dispatch_Values(provider.as_mut(), 2, "hé".as_bytes()).unwrap(),
+        dispatch_values(provider.as_mut(), 2, "hé".as_bytes()).unwrap(),
         expected.into_bytes()
     );
 }
@@ -922,7 +955,7 @@ fn a_single_string_argument_is_its_bare_utf8() {
 fn a_malformed_value_fails_the_call_with_the_js_hosts_message() {
     let (mut provider, _) = codecs(made(true));
     let fail = |provider: &mut Box<dyn std::any::Any>, method, args: &[u8]| {
-        values::dispatch_Values(provider.as_mut(), method, args)
+        dispatch_values(provider.as_mut(), method, args)
             .unwrap_err()
             .0
     };
@@ -931,7 +964,7 @@ fn a_malformed_value_fails_the_call_with_the_js_hosts_message() {
         "package host: invalid private object key"
     );
     assert_eq!(fail(&mut provider, 4, &[]), "stopped");
-    let bytes = values::dispatch_Values(provider.as_mut(), 0, &[]).unwrap();
+    let bytes = dispatch_values(provider.as_mut(), 0, &[]).unwrap();
     assert_eq!(
         fail(&mut provider, 1, &bytes[..bytes.len() - 1]),
         "an argument does not decode"

@@ -26,7 +26,7 @@ use std::fmt::Write as _;
 
 use hd_base::HashSet;
 
-use super::{HostError, HostResult, NativeCall, Serde};
+use super::{Answer, HostError, HostResult, NativeCall, Serde, Suspension};
 use crate::codec::{Dec, Enc};
 
 /// The JS host's failure text for `message`.
@@ -52,16 +52,16 @@ pub fn unknown_method(method: usize) -> HostError {
     fail(&format!("no provider method at index {method}"))
 }
 
-/// The value of a suspending method that answered at once. A pending
-/// answer is aborted and fails the call: preflight refuses suspending
-/// methods before linking (gap: #2081 drives pending native calls).
-pub fn ready<T>(call: NativeCall<T>) -> HostResult<T> {
+/// A suspending method's answer: a ready value encoded at once, or the
+/// pending call with the codec its `.finish` encodes the value with
+/// (`cli.host.package.native-completion-forms`).
+pub fn answer<T: 'static>(
+    call: NativeCall<T>,
+    encode: fn(&T) -> HostResult<Vec<u8>>,
+) -> HostResult<Answer> {
     match call {
-        NativeCall::Ready(value) => value,
-        NativeCall::Pending(mut call) => {
-            call.abort();
-            Err(fail("wasmtime does not drive pending native calls yet"))
-        }
+        NativeCall::Ready(value) => Ok(Answer::Ready(encode(&value?)?)),
+        NativeCall::Pending(call) => Ok(Answer::Pending(Suspension::new(call, encode))),
     }
 }
 
@@ -674,8 +674,8 @@ fn number(tag: &str, text: &str) -> HostResult<Serde> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Decoder, Encoder, Serde, ready, text};
-    use crate::native::{HostError, NativeCall, pending};
+    use super::{Decoder, Encoder, Serde, answer, text};
+    use crate::native::{Answer, HostError, HostResult, NativeCall, pending};
 
     fn message<T: std::fmt::Debug>(result: Result<T, HostError>) -> String {
         result.unwrap_err().0
@@ -886,16 +886,22 @@ mod tests {
     }
 
     #[test]
-    fn a_suspending_method_answers_only_when_ready() {
-        assert_eq!(ready(NativeCall::Ready(Ok(4))), Ok(4));
+    fn a_suspending_method_answers_ready_or_pending() {
+        let encode: fn(&u8) -> HostResult<Vec<u8>> = |value| Ok(vec![*value]);
+        let Ok(Answer::Ready(bytes)) = answer(NativeCall::Ready(Ok(4)), encode) else {
+            panic!("a ready value is encoded at once")
+        };
+        assert_eq!(bytes, [4]);
+        let failed = answer(NativeCall::Ready(Err(HostError("no".into()))), encode);
+        assert_eq!(failed.err(), Some(HostError("no".into())));
         let aborted = std::rc::Rc::new(std::cell::Cell::new(0));
         let hook = std::rc::Rc::clone(&aborted);
         let (call, _completion) = pending::<u8>(move || hook.set(hook.get() + 1));
-        // gap: #2081 drives a pending call; until then it is aborted.
-        assert_eq!(
-            message(ready(NativeCall::Pending(call))),
-            "package host: wasmtime does not drive pending native calls yet"
-        );
-        assert_eq!(aborted.get(), 1);
+        let Ok(Answer::Pending(suspension)) = answer(NativeCall::Pending(call), encode) else {
+            panic!("a pending call stays pending")
+        };
+        assert_eq!(aborted.get(), 0);
+        drop(suspension);
+        assert_eq!(aborted.get(), 1, "dropped undelivered, it is aborted");
     }
 }

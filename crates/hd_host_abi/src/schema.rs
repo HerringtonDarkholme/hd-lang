@@ -111,15 +111,24 @@ pub struct Contract {
 }
 
 /// The imports one contract describes, including handle release, indexed
-/// once by module, then name: each maps to the root method a plain call
-/// names, as (interface, method) indices, or to `None` for a `.start`, a
-/// `.finish`, a `$release` or a handle's method. Building it is one pass
+/// once by module, then name: each maps to the root method it calls, as
+/// (interface, method) indices and the [`Part`] of the call it is, or to
+/// `None` for a `$release` or a handle's method. Building it is one pass
 /// over the contract's methods; a probe is two ordered-map lookups.
 #[derive(Clone, Debug, Default)]
 pub struct Imports(BTreeMap<Box<str>, Names>);
 
-/// One module's import names and the root method each plain call names.
-type Names = BTreeMap<Box<str>, Option<(usize, usize)>>;
+/// One module's import names and the root method call each names.
+type Names = BTreeMap<Box<str>, Option<(usize, usize, Part)>>;
+
+/// Which import of a root method a name is: a plain method's one call, or
+/// a suspending method's `.start` or `.finish`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Part {
+    Call,
+    Start,
+    Finish,
+}
 
 impl Imports {
     #[must_use]
@@ -131,12 +140,12 @@ impl Imports {
                 names.insert("$release".into(), None);
             }
             for (n, method) in interface.methods.iter().enumerate() {
+                let call = |part| (!interface.handle).then_some((i, n, part));
                 if method.suspends {
-                    names.insert(format!("{}.start", method.name).into(), None);
-                    names.insert(format!("{}.finish", method.name).into(), None);
+                    names.insert(format!("{}.start", method.name).into(), call(Part::Start));
+                    names.insert(format!("{}.finish", method.name).into(), call(Part::Finish));
                 } else {
-                    let call = (!interface.handle).then_some((i, n));
-                    names.insert(method.name.as_str().into(), call);
+                    names.insert(method.name.as_str().into(), call(Part::Call));
                 }
             }
         }
@@ -151,9 +160,10 @@ impl Imports {
             .is_some_and(|names| names.contains_key(name))
     }
 
-    /// The root method the plain call `module` `name` names.
+    /// The root method the import `module` `name` calls, and which part of
+    /// its call it is.
     #[must_use]
-    pub fn call(&self, module: &str, name: &str) -> Option<(usize, usize)> {
+    pub fn call(&self, module: &str, name: &str) -> Option<(usize, usize, Part)> {
         *self.0.get(module)?.get(name)?
     }
 }
@@ -913,10 +923,14 @@ pub(crate) mod tests {
         assert!(!imports.describes("hd:pkg:unknown", &format!("{}.start", method.name)));
         assert!(imports.describes(&c.interfaces[1].module, "$release"));
         assert!(!imports.describes(&c.interfaces[1].module, "$release.finish"));
-        // Only a root's plain method is a call; a suspending half is not.
+        // A root's suspending method is its `.start` and `.finish` halves.
         assert_eq!(
             imports.call(&root.module, &format!("{}.start", method.name)),
-            None
+            Some((0, 0, Part::Start))
+        );
+        assert_eq!(
+            imports.call(&root.module, &format!("{}.finish", method.name)),
+            Some((0, 0, Part::Finish))
         );
         assert_eq!(imports.call("hd:pkg:unknown", &method.name), None);
         let events = &c.interfaces[1].module;
@@ -925,7 +939,10 @@ pub(crate) mod tests {
         let mut ready = c.clone();
         ready.interfaces[0].methods[0].suspends = false;
         let imports = Imports::new(&ready);
-        assert_eq!(imports.call(&root.module, &method.name), Some((0, 0)));
+        assert_eq!(
+            imports.call(&root.module, &method.name),
+            Some((0, 0, Part::Call))
+        );
     }
 
     #[test]

@@ -249,7 +249,7 @@ impl Gen {
             let args = if reads { "args" } else { "_args" };
             let _ = write!(
                 dispatches,
-                "\n/// Calls the method at index `method` of the registered `{name}` with its\n/// encoded arguments and returns its encoded result.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8]) -> {NATIVE}::HostResult<Vec<u8>> {{\n    let provider = {WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
+                "\n/// Calls the method at index `method` of the registered `{name}` with its\n/// encoded arguments and returns its encoded result, or a suspending\n/// method's pending call.\n#[allow(non_snake_case)]\npub fn dispatch_{name}(provider: &mut dyn std::any::Any, method: usize, {args}: &[u8]) -> {NATIVE}::HostResult<{NATIVE}::Answer> {{\n    let provider = {WIRE}::provider::<Box<dyn {name}>>(provider)?;\n    match method {{\n{arms}        _ => Err({WIRE}::unknown_method(method)),\n    }}\n}}\n"
             );
         }
     }
@@ -277,19 +277,30 @@ impl Gen {
         let args: Vec<String> = (0..params.len()).map(|n| format!("arg{n}")).collect();
         let mut call = format!("provider.{member}({}", args.join(", "));
         if m.suspends {
+            // The value's codec, which the `.finish` of a pending call runs.
             if !params.is_empty() {
                 call.push_str(", ");
             }
-            let _ = write!(call, "{NATIVE}::CallContext::new()");
-            call = format!("{WIRE}::ready({call}))");
-        } else {
-            call.push(')');
+            let _ = write!(call, "{NATIVE}::CallContext::new())");
+            let encode = match m.result {
+                Value::Void => "|(): &()| Ok(Vec::new())".to_owned(),
+                Value::Never => "|value: &std::convert::Infallible| match *value {}".to_owned(),
+                _ => format!(
+                    "|value: &{}| {{\n                let e = &mut {WIRE}::Encoder::default();\n                {}\n                Ok(std::mem::take(e).into_bytes())\n            }}",
+                    result.rust,
+                    result.enc("value")
+                ),
+            };
+            let _ = writeln!(arm, "            {WIRE}::answer({call}, {encode})");
+            arm.push_str("        }\n");
+            return arm;
         }
+        call.push(')');
         match m.result {
             Value::Void => {
                 let _ = writeln!(
                     arm,
-                    "            let () = {call}?;\n            Ok(Vec::new())"
+                    "            let () = {call}?;\n            Ok({NATIVE}::Answer::Ready(Vec::new()))"
                 );
             }
             Value::Never => {
@@ -301,7 +312,7 @@ impl Gen {
             _ => {
                 let _ = writeln!(
                     arm,
-                    "            let value = &{call}?;\n            let e = &mut {WIRE}::Encoder::default();\n            {}\n            Ok(std::mem::take(e).into_bytes())",
+                    "            let value = &{call}?;\n            let e = &mut {WIRE}::Encoder::default();\n            {}\n            Ok({NATIVE}::Answer::Ready(std::mem::take(e).into_bytes()))",
                     result.enc("value")
                 );
             }

@@ -5,25 +5,35 @@
 pub const CONTRACT: &[u8] = &[
     1, 0, 0, 0, 1, 17, 101, 120, 97, 109, 112, 108, 101, 46, 111, 114, 103, 47, 112, 114, 111, 98, 101, 5, 49, 46, 48, 46, 48, 11, 109, 97,
     105, 110, 46, 83, 101, 114, 118, 101, 114, 13, 104, 100, 58, 112, 107, 103, 58, 115, 101, 114, 118, 101, 114, 1, 15, 112, 107, 103, 46, 109, 97, 105,
-    110, 46, 83, 101, 114, 118, 101, 114, 0, 1, 4, 114, 101, 97, 100, 4, 114, 101, 97, 100, 0, 0, 3, 32, 1,
+    110, 46, 83, 101, 114, 118, 101, 114, 0, 2, 4, 114, 101, 97, 100, 4, 114, 101, 97, 100, 0, 0, 3, 32, 1, 4, 119, 97, 105, 116, 4, 119,
+    97, 105, 116, 1, 0, 3, 32, 1,
 ];
 
 /// `example.org/probe@1.0.0/main.Server`.
 pub trait Server {
     fn read(&mut self) -> hd_run_wasmtime::native::HostResult<i32>;
+    fn wait(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<i32>;
 }
 
 /// Calls the method at index `method` of the registered `Server` with its
-/// encoded arguments and returns its encoded result.
+/// encoded arguments and returns its encoded result, or a suspending
+/// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8]) -> hd_run_wasmtime::native::HostResult<Vec<u8>> {
+pub fn dispatch_Server(provider: &mut dyn std::any::Any, method: usize, _args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Server>>(provider)?;
     match method {
         0 => {
             let value = &provider.read()?;
             let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
             e.signed(i64::from(*value));
-            Ok(std::mem::take(e).into_bytes())
+            Ok(hd_run_wasmtime::native::Answer::Ready(std::mem::take(e).into_bytes()))
+        }
+        1 => {
+            hd_run_wasmtime::native::wire::answer(provider.wait(hd_run_wasmtime::native::CallContext::new()), |value: &i32| {
+                let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
+                e.signed(i64::from(*value));
+                Ok(std::mem::take(e).into_bytes())
+            })
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }

@@ -136,9 +136,10 @@ pub trait Surface {
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its
-/// encoded arguments and returns its encoded result.
+/// encoded arguments and returns its encoded result, or a suspending
+/// method's pending call.
 #[allow(non_snake_case)]
-pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<Vec<u8>> {
+pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &[u8]) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Answer> {
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Surface>>(provider)?;
     match method {
         0 => {
@@ -146,13 +147,14 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
             let arg0 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceApplyArg0Item::wire_decode(d)?); } x };
             d.finish()?;
             let () = provider.apply(arg0)?;
-            Ok(Vec::new())
+            Ok(hd_run_wasmtime::native::Answer::Ready(Vec::new()))
         }
         1 => {
-            let value = &hd_run_wasmtime::native::wire::ready(provider.next_event(hd_run_wasmtime::native::CallContext::new()))?;
-            let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
-            SurfaceNextEventResult::wire_encode(value, e)?;
-            Ok(std::mem::take(e).into_bytes())
+            hd_run_wasmtime::native::wire::answer(provider.next_event(hd_run_wasmtime::native::CallContext::new()), |value: &SurfaceNextEventResult| {
+                let e = &mut hd_run_wasmtime::native::wire::Encoder::default();
+                SurfaceNextEventResult::wire_encode(value, e)?;
+                Ok(std::mem::take(e).into_bytes())
+            })
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method)),
     }

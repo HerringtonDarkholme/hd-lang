@@ -9,7 +9,7 @@ use std::path::Path;
 use hd_testkit::Scratch;
 
 const MANIFEST: &str = "[package]\nname = \"probe\"\n\n[host]\n\"main.Server\" = \"provider.ts\"\n\n[capabilities]\nConsole = true\n\"pkg.main.Server\" = true\n";
-const MAIN: &str = "@host\npub trait Server:\n    fn read(&self) -> i32\n\npub fn main() -> void $ Console + Server:\n    println(\"${$.use(Server).read()}\")\n";
+const MAIN: &str = "@host\npub trait Server:\n    fn read(&self) -> i32\n    fn wait!(&mut self) -> i32\n\npub fn main!() -> void $ Console + Server:\n    println(\"${$.use(Server).read()}\")\n    println(\"${$.use(Server).wait!()}\")\n";
 const PLAIN: &str = "pub fn main() -> void $ Console:\n    println(\"plain\")\n";
 
 /// `hd build ARGS` in `root`, with its own cache.
@@ -41,7 +41,7 @@ fn package(name: &str, manifest: &str, main: &str) -> Scratch {
     std::fs::write(root.join("hd.toml"), manifest).expect("hd.toml");
     std::fs::write(
         root.join("provider.ts"),
-        "export default { read() { return 7; } };\n",
+        "export default { read() { return 7; }, async wait() { return 8; } };\n",
     )
     .expect("provider");
     std::fs::write(root.join("src/main.hd"), main).expect("main");
@@ -114,12 +114,25 @@ mod probe {
     include!("native/probe.host.rs");
 }
 
-/// A `Server` provider answering 7.
+/// A `Server` provider answering 7, and 8 from another thread when the
+/// guest waits.
 struct Seven;
 
 impl probe::Server for Seven {
     fn read(&mut self) -> hd_run_wasmtime::native::HostResult<i32> {
         Ok(7)
+    }
+
+    fn wait(
+        &mut self,
+        _cx: hd_run_wasmtime::native::CallContext<'_>,
+    ) -> hd_run_wasmtime::native::NativeCall<i32> {
+        let (call, completion) = hd_run_wasmtime::native::pending(|| {});
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            completion.complete(Ok(8));
+        });
+        hd_run_wasmtime::native::NativeCall::Pending(call)
     }
 }
 
@@ -225,11 +238,12 @@ fn the_companion_of_a_wasmtime_build_answers_its_guest() {
         .instantiate_with_bindings(&module, &setup, io, bindings)
         .expect("the registered provider loads");
     assert_eq!(instance.init(), Outcome::Exit(0));
-    // The program waits on nothing: its first poll finishes it.
-    assert_eq!(instance.poll(), std::task::Poll::Ready(Outcome::Exit(0)));
+    // `wait!` stays pending until its completion, sent from another
+    // thread, wakes the instance (`cli.host.package.native-completion-forms`).
+    assert_eq!(hd_run::drive(&mut instance, 16), Outcome::Exit(0));
     drop(instance);
     assert_eq!(
         String::from_utf8(stdout.0.lock().expect("output").clone()).expect("utf-8"),
-        "7\n"
+        "7\n8\n"
     );
 }

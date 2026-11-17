@@ -24,8 +24,11 @@ host's exchange-buffer encoding, with private-field values as a typed Serde
 tree (`hd_run_wasmtime::native::wire`, #2079). The same preflight runs a
 registered provider only with the app manifest's consent, which the embedder
 passes in `HostSetup::grants` (`hd_run::Consent`, the one index `hd`'s
-`denied-capability` refusal and Node's provider selection also ask, #2080);
-pending calls and handles are not yet built (#2081 to #2083).
+`denied-capability` refusal and Node's provider selection also ask, #2080).
+A suspending method's `.start` answers at once or registers the provider's
+pending call with the instance's reactor, whose `Send` completion wakes that
+instance alone; abort or close runs its hook at most once, and a late
+completion is dropped (#2081). Handles are not yet built (#2082, #2083).
 The earlier embedding survey is in git history:
 `docs/future-work/HOST_EMBEDDING.md` at 7ccbb4ea8.
 An SDK owns an ordinary `@host` trait and maps it to a JavaScript provider in its package.

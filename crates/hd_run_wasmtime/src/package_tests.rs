@@ -8,6 +8,8 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::{Arc, mpsc};
+use std::time::Duration;
 
 use hd_cache::MemoryStore;
 use hd_host_abi::schema::{Contract, Identity, Interface, Method, Value};
@@ -21,7 +23,9 @@ use wasm_encoder::{
 };
 
 use super::{EngineConfig, WasmtimeEngine};
-use crate::native::{Bindings, HostError, HostResult};
+use crate::native::{
+    Answer, Bindings, Completion, HostError, HostResult, NativeCall, pending, wire,
+};
 use crate::{HostIo, Shared};
 
 const SERVER: &str = "example.org/sdk@1.2.3/server.Server";
@@ -120,7 +124,7 @@ fn module(
     exports.export("hd.x", ExportKind::Memory, 0);
     exports.export("hd.init", ExportKind::Func, base);
     exports.export("hd.poll", ExportKind::Func, base + 1);
-    let mut body = Function::new([]);
+    let mut body = Function::new([(2, ValType::I32)]);
     for instruction in init {
         body.instruction(instruction);
     }
@@ -206,7 +210,7 @@ struct Recorder {
     failure: Option<&'static str>,
 }
 
-fn dispatch(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Vec<u8>> {
+fn dispatch(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer> {
     let recorder = provider
         .downcast_mut::<Recorder>()
         .expect("the registered recorder");
@@ -214,11 +218,11 @@ fn dispatch(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Ve
     if let Some(failure) = recorder.failure {
         return Err(HostError(failure.into()));
     }
-    Ok(if method == 0 {
+    Ok(Answer::Ready(if method == 0 {
         recorder.reply.clone()
     } else {
         Vec::new()
-    })
+    }))
 }
 
 /// Bindings generated from `companion`, registering `identities` in order.
@@ -500,27 +504,7 @@ fn a_companion_of_other_method_schemas_is_refused() {
 }
 
 #[test]
-fn suspending_methods_and_returned_handles_are_refused_before_the_guest_starts() {
-    let mut waiting = server(sdk());
-    waiting.interfaces[0]
-        .methods
-        .push(method("wait", vec![], Value::Void, true));
-    let wasm = module(
-        &waiting,
-        &[
-            ("hd:pkg:server", "wait.start", 0, 2),
-            ("hd:pkg:server", "wait.finish", 1, 1),
-        ],
-        &[],
-        true,
-    );
-    assert_eq!(
-        refusal(&wasm, bindings(&waiting, &[SERVER], Recorder::default())),
-        format!(
-            "native provider method {SERVER:?}.wait suspends, and wasmtime does not drive pending native calls yet"
-        )
-    );
-
+fn returned_handles_are_refused_before_the_guest_starts() {
     let mut handles = server(sdk());
     handles.interfaces[0].methods[0].result = Value::Handle("hd:pkg:conn".into());
     handles.interfaces.push(Interface {
@@ -650,4 +634,393 @@ fn a_handle_method_is_never_linked_to_a_root_provider() {
         panic!("an unprovided handle method must not start")
     };
     assert!(message.contains("hd:pkg:conn"), "{message}");
+}
+
+/// A value a completion carries: its `Arc` shows when it is dropped.
+struct Held {
+    _value: Arc<()>,
+    n: i64,
+}
+
+fn held(value: Arc<()>, n: i64) -> Held {
+    Held { _value: value, n }
+}
+
+/// What a `Waiter`'s `wait` does.
+#[derive(Clone, Copy)]
+enum Mode {
+    /// Returns a pending call and sends its completion out.
+    Pending,
+    /// Answers at once.
+    Ready,
+    /// Completes its call before returning it.
+    CompletedFirst,
+    /// Aborts its call before returning it.
+    AbortedFirst,
+}
+
+/// A provider of `read`, `echo` and the suspending `wait`. It holds an
+/// `Rc`, so it is not `Send` and stays on its instance's thread
+/// (`cli.host.package.native-thread`); only each `wait`'s completion
+/// crosses to the test's thread.
+struct Waiter {
+    mode: Mode,
+    /// Each pending `wait`'s hook counts here and holds a clone.
+    aborts: Rc<std::cell::Cell<usize>>,
+    completions: mpsc::Sender<Completion<Held>>,
+    calls: Calls,
+    /// `read` returns a pending call though it does not suspend.
+    pending_read: bool,
+}
+
+impl Waiter {
+    fn call(&self) -> (NativeCall<Held>, Completion<Held>) {
+        let aborts = Rc::clone(&self.aborts);
+        let (mut call, completion) = pending(move || aborts.set(aborts.get() + 1));
+        match self.mode {
+            Mode::CompletedFirst => {
+                completion.complete(Ok(held(Arc::default(), 11)));
+                let (_, unused) = pending(|| {});
+                return (NativeCall::Pending(call), unused);
+            }
+            Mode::AbortedFirst => call.abort(),
+            Mode::Pending | Mode::Ready => {}
+        }
+        (NativeCall::Pending(call), completion)
+    }
+}
+
+/// The codec `wire::answer` takes, which may fail.
+#[allow(clippy::unnecessary_wraps)]
+fn encode_held(value: &Held) -> HostResult<Vec<u8>> {
+    let mut e = wire::Encoder::default();
+    e.signed(value.n);
+    Ok(e.into_bytes())
+}
+
+fn encoded(value: i64) -> Vec<u8> {
+    encode_held(&held(Arc::default(), value)).unwrap()
+}
+
+fn dispatch_waiter(provider: &mut dyn Any, method: usize, args: &[u8]) -> HostResult<Answer> {
+    let waiter = provider.downcast_mut::<Waiter>().expect("the waiter");
+    waiter.calls.borrow_mut().push((method, args.to_vec()));
+    match method {
+        0 if waiter.pending_read => {
+            let (call, _) = waiter.call();
+            wire::answer(call, encode_held)
+        }
+        2 if matches!(waiter.mode, Mode::Ready) => {
+            wire::answer(NativeCall::Ready(Ok(held(Arc::default(), 5))), encode_held)
+        }
+        2 => {
+            let (call, completion) = waiter.call();
+            let _ = waiter.completions.send(completion);
+            wire::answer(call, encode_held)
+        }
+        _ => Ok(Answer::Ready(Vec::new())),
+    }
+}
+
+/// `server` with the suspending `wait() -> Int`, method 2.
+fn waiting() -> Contract {
+    let mut contract = server(sdk());
+    contract.interfaces[0]
+        .methods
+        .push(method("wait", vec![], int(), true));
+    contract
+}
+
+/// The imports a `wait` body calls, at indices 0 to 5.
+const WAIT_IMPORTS: &[(&str, &str, usize, usize)] = &[
+    ("hd:pkg:server", "wait.start", 0, 2),
+    ("hd:pkg:server", "wait.finish", 1, 1),
+    ("hd:pkg:server", "echo", 1, 0),
+    ("hd:rt", "block", 0, 1),
+    ("hd:rt", "abort", 1, 0),
+    ("hd:pkg:server", "read", 0, 1),
+];
+
+/// `wait.start`, then the wait for its completion and `echo` of its
+/// `.finish`ed value.
+const WAKE: &[I<'static>] = &[
+    I::Call(0),
+    I::LocalSet(1),
+    I::LocalSet(0),
+    I::Call(3),
+    I::Drop,
+    I::LocalGet(1),
+    I::Call(1),
+    I::Call(2),
+];
+
+/// `wait.start`, with the call left pending when `hd.init` returns.
+const LEAVE: &[I<'static>] = &[I::Call(0), I::Drop, I::Drop];
+
+/// A run of `body` against a `Waiter`: the instance, after `hd.init`.
+struct Waited {
+    instance: crate::WasmtimeInstance,
+    outcome: Outcome,
+    err: Shared,
+    calls: Calls,
+    aborts: Rc<std::cell::Cell<usize>>,
+}
+
+impl Waited {
+    fn error(&self) -> String {
+        String::from_utf8(self.err.take()).unwrap()
+    }
+
+    /// The bytes each `echo` took.
+    fn echoed(&self) -> Vec<Vec<u8>> {
+        self.calls
+            .borrow()
+            .iter()
+            .filter(|(m, _)| *m == 1)
+            .map(|(_, args)| args.clone())
+            .collect()
+    }
+}
+
+/// Runs `body` with `wait` in `mode`; `complete` gets each completion on
+/// another thread, started before the guest.
+fn waited(
+    body: &[I<'_>],
+    mode: Mode,
+    pending_read: bool,
+    complete: impl FnOnce(mpsc::Receiver<Completion<Held>>) + Send + 'static,
+) -> Waited {
+    let contract = waiting();
+    let engine = WasmtimeEngine::new(EngineConfig::default()).unwrap();
+    let module = engine
+        .load(
+            &module(&contract, WAIT_IMPORTS, body, false),
+            &MemoryStore::default(),
+        )
+        .unwrap();
+    let (completions, received) = mpsc::channel();
+    let calls = Calls::default();
+    let aborts = Rc::default();
+    let waiter = Waiter {
+        mode,
+        aborts: Rc::clone(&aborts),
+        completions,
+        calls: Rc::clone(&calls),
+        pending_read,
+    };
+    let mut bindings = Bindings::new(contract_bytes(&contract));
+    bindings.register_dispatch(SERVER, "hd:pkg:server", Box::new(waiter), dispatch_waiter);
+    let err = Shared::default();
+    let io = HostIo {
+        out: Box::new(Shared::default()),
+        err: Box::new(err.clone()),
+        input: None,
+    };
+    let mut instance = engine
+        .instantiate_with_bindings(&module, &setup(), io, bindings)
+        .unwrap();
+    // cost: one thread per test run, for the completions it sends.
+    let thread = std::thread::spawn(move || complete(received));
+    let outcome = instance.init();
+    thread.join().unwrap();
+    Waited {
+        instance,
+        outcome,
+        err,
+        calls,
+        aborts,
+    }
+}
+
+#[test]
+fn a_pending_call_wakes_its_instance_from_another_thread() {
+    let value = Arc::new(());
+    let sent = Arc::clone(&value);
+    let run = waited(WAKE, Mode::Pending, false, move |received| {
+        let completion = received.recv().unwrap();
+        std::thread::sleep(Duration::from_millis(20));
+        completion.complete(Ok(held(sent, 42)));
+    });
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.echoed(), [encoded(42)]);
+    assert_eq!(
+        Arc::strong_count(&value),
+        1,
+        "the delivered value is dropped"
+    );
+    drop(run.instance);
+    assert_eq!(run.aborts.get(), 0, "a delivered call has no abort");
+}
+
+#[test]
+fn a_ready_or_completed_answer_reaches_the_guest_without_a_wait() {
+    let ready = &[
+        I::Call(0),
+        I::LocalSet(1),
+        I::Drop,
+        I::LocalGet(1),
+        I::Call(2),
+    ];
+    let run = waited(ready, Mode::Ready, false, |_| {});
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.echoed(), [encoded(5)]);
+    // Completed before `.start` registered it: the first wait is due.
+    let run = waited(WAKE, Mode::CompletedFirst, false, |_| {});
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.echoed(), [encoded(11)]);
+}
+
+#[test]
+fn closing_an_instance_aborts_its_pending_call_once_and_drops_a_late_completion() {
+    let (sender, late) = mpsc::channel();
+    let run = waited(LEAVE, Mode::Pending, false, move |received| {
+        sender.send(received.recv().unwrap()).unwrap();
+    });
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.aborts.get(), 0, "still pending");
+    let aborts = Rc::clone(&run.aborts);
+    drop(run);
+    assert_eq!(aborts.get(), 1, "the close aborts it");
+    assert_eq!(
+        Rc::strong_count(&aborts),
+        1,
+        "the hook's captures are released"
+    );
+    let value = Arc::new(());
+    late.recv()
+        .unwrap()
+        .complete(Ok(held(Arc::clone(&value), 1)));
+    assert_eq!(Arc::strong_count(&value), 1, "the late value is dropped");
+    assert_eq!(aborts.get(), 1);
+}
+
+#[test]
+fn aborting_a_pending_call_twice_runs_its_hook_once() {
+    let twice = &[
+        I::Call(0),
+        I::LocalSet(1),
+        I::Drop,
+        I::LocalGet(1),
+        I::Call(4),
+        I::LocalGet(1),
+        I::Call(4),
+    ];
+    let (sender, late) = mpsc::channel();
+    let run = waited(twice, Mode::Pending, false, move |received| {
+        sender.send(received.recv().unwrap()).unwrap();
+    });
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.aborts.get(), 1);
+    let value = Arc::new(());
+    late.recv()
+        .unwrap()
+        .complete(Ok(held(Arc::clone(&value), 1)));
+    assert_eq!(Arc::strong_count(&value), 1, "the late value is dropped");
+    let aborts = Rc::clone(&run.aborts);
+    drop(run);
+    assert_eq!(aborts.get(), 1, "the close does not abort it again");
+}
+
+#[test]
+fn a_new_instance_is_not_woken_by_a_closed_instances_completion() {
+    // Both instances' first operation has one handle number. The closed
+    // instance's completion, sent first, neither wakes the new instance
+    // nor answers its wait.
+    let (sender, old) = mpsc::channel();
+    drop(waited(LEAVE, Mode::Pending, false, move |received| {
+        sender.send(received.recv().unwrap()).unwrap();
+    }));
+    let old = old.recv().unwrap();
+    let late = Arc::new(());
+    let kept = Arc::clone(&late);
+    let run = waited(WAKE, Mode::Pending, false, move |received| {
+        let completion = received.recv().unwrap();
+        old.complete(Ok(held(kept, 7)));
+        std::thread::sleep(Duration::from_millis(20));
+        completion.complete(Ok(held(Arc::default(), 9)));
+    });
+    assert_eq!(run.outcome, Outcome::Exit(0), "{}", run.error());
+    assert_eq!(run.echoed(), [encoded(9)]);
+    assert_eq!(Arc::strong_count(&late), 1, "the late value is dropped");
+}
+
+#[test]
+fn a_failed_completion_is_a_host_contract_panic_naming_the_method() {
+    let run = waited(WAKE, Mode::Pending, false, |received| {
+        received
+            .recv()
+            .unwrap()
+            .complete(Err(HostError("sensor offline".into())));
+    });
+    assert_eq!(run.outcome, Outcome::Exit(3));
+    let error = run.error();
+    assert!(
+        error.starts_with(&format!(
+            "panic: host-contract: {SERVER}.wait: sensor offline"
+        )),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_pending_call_out_of_place_is_a_host_contract_panic() {
+    let cases: [(&[I<'_>], Mode, bool, &str); 3] = [
+        // A `.finish` before the call completed.
+        (
+            &[
+                I::Call(0),
+                I::LocalSet(1),
+                I::Drop,
+                I::LocalGet(1),
+                I::Call(1),
+                I::Drop,
+            ],
+            Mode::Pending,
+            false,
+            "wait: a finish of an operation that is not pending",
+        ),
+        (
+            &[I::Call(0), I::Drop, I::Drop],
+            Mode::AbortedFirst,
+            false,
+            "wait: the provider aborted the pending call it returned",
+        ),
+        (
+            &[I::Call(5), I::Drop],
+            Mode::Pending,
+            true,
+            "read: a method that does not suspend returned a pending call",
+        ),
+    ];
+    for (body, mode, pending_read, message) in cases {
+        let run = waited(body, mode, pending_read, drop);
+        assert_eq!(run.outcome, Outcome::Exit(3));
+        let error = run.error();
+        assert!(
+            error.starts_with(&format!("panic: host-contract: {SERVER}.{message}")),
+            "{error}"
+        );
+        let aborts = Rc::clone(&run.aborts);
+        drop(run);
+        assert_eq!(aborts.get(), 1, "{message}: aborted once");
+    }
+}
+
+#[test]
+fn a_suspending_import_of_another_signature_is_refused_before_the_guest_starts() {
+    let contract = waiting();
+    for (name, params, results) in [("wait.start", 0, 1), ("wait.finish", 1, 2)] {
+        let wasm = module(
+            &contract,
+            &[("hd:pkg:server", name, params, results)],
+            &[],
+            true,
+        );
+        assert_eq!(
+            refusal(&wasm, bindings(&contract, &[SERVER], Recorder::default())),
+            format!(
+                "the import `hd:pkg:server` `{name}` of package host method {SERVER}.wait has an unexpected signature"
+            )
+        );
+    }
 }
