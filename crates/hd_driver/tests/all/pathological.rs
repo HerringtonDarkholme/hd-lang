@@ -372,6 +372,33 @@ fn a_generic_alias_chain_walks_each_distinct_node_once() {
     });
 }
 
+// Solver: a concrete projection's normal form is memoized per (part,
+// binding depth) within a query, so #1984's chain instantiated at a
+// concrete type, `A{n}[Src]`, whose `Src::Item` leaves the pool shares
+// along 2^n paths, normalizes each distinct part once. Unmemoized, 24
+// levels took 11.6 s and 200 did not finish.
+#[test]
+fn a_concrete_alias_chain_normalizes_each_shared_part_once() {
+    on_test_stack(|| {
+        let work = |n| {
+            let src = param_alias_chain(n).replace(
+                "fn id[",
+                "struct Src: pass\n\nimpl Source for Src:\n    type Item = i32\n\nfn id[",
+            );
+            let src = format!("{src}fn concrete(x: A{n}[Src]) -> void: pass\n");
+            let (out, nodes) = hd_types::work::count_type_nodes(|| compile(&src, &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            nodes
+        };
+        work(1);
+        let (small, large) = (work(20), work(200));
+        assert!(
+            small > 0 && large <= small * 10 * 5 / 4,
+            "type nodes for 20 and 200 levels: {small} and {large}"
+        );
+    });
+}
+
 /// The header types an alias chain of `n` checks, and its codes.
 fn alias_chain_work(n: u32) -> (u64, Vec<String>) {
     alias_chain_work_of(n, false)

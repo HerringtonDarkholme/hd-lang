@@ -2294,6 +2294,11 @@ pub fn row_goals(
 struct Reads {
     seen: UniverseReads,
     keys: Vec<(DefId, HeadKey)>,
+    /// [`norm_concrete`]'s answers by (type, binding depth), under the
+    /// one impl view a `Reads` serves: a part the pool shares, as
+    /// `(A[S], A[S])` through a chain of aliases, is normalized once, not
+    /// once per path to it.
+    norm: HashMap<(Ty, u32), Result<Ty, ProjectionTooDeep>>,
 }
 
 impl Reads {
@@ -3627,13 +3632,33 @@ pub struct ProjectionTooDeep {
 /// `PROJECTION_DEPTH` bindings is an error, not an answer.
 ///
 /// Cost: one head match per binding followed, at most `PROJECTION_DEPTH`
-/// per projection in `t`.
+/// per distinct projection in `t`; each distinct part is walked once per
+/// binding depth it is reached at.
 pub fn normalize_concrete(
     pool: Types<'_>,
     impls: Impls<'_>,
     t: Ty,
 ) -> Result<Ty, ProjectionTooDeep> {
-    norm_concrete(pool, impls, t, 0, &mut Reads::default())
+    ConcreteNorm::default().normalize(pool, impls, t)
+}
+
+/// [`normalize_concrete`] over many types under one impl view, keeping
+/// each distinct part's normal form across them: a walk that normalizes
+/// each part of a type it visits does linear work, not work per path.
+#[derive(Default)]
+pub struct ConcreteNorm(Reads);
+
+impl ConcreteNorm {
+    /// `t` normalized as [`normalize_concrete`] does; `impls` is the same
+    /// view at every call.
+    pub fn normalize(
+        &mut self,
+        pool: Types<'_>,
+        impls: Impls<'_>,
+        t: Ty,
+    ) -> Result<Ty, ProjectionTooDeep> {
+        norm_concrete(pool, impls, t, 0, &mut self.0)
+    }
 }
 
 fn norm_list(
@@ -3663,6 +3688,23 @@ fn norm_concrete(
     if !pool.has_assoc(t) {
         return Ok(t);
     }
+    if let Some(&r) = reads.norm.get(&(t, depth)) {
+        return r;
+    }
+    crate::work::type_node();
+    let r = norm_node(pool, impls, t, depth, reads);
+    reads.norm.insert((t, depth), r);
+    r
+}
+
+/// [`norm_concrete`] of a type holding a projection, not yet memoized.
+fn norm_node(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: Ty,
+    depth: u32,
+    reads: &mut Reads,
+) -> Result<Ty, ProjectionTooDeep> {
     let d = match pool.get(t) {
         TyData::Assoc {
             assoc,

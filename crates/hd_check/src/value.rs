@@ -61,6 +61,9 @@ pub(crate) struct ProjectionCycles<'a> {
     reported: HashSet<Ty>,
     checked: HashSet<Ty>,
     normalized: HashMap<Ty, Ty>,
+    /// The normal forms of the parts of the types normalized so far, so a
+    /// part shared by many visited types is normalized once.
+    norm: hd_types::solver::ConcreteNorm,
     /// The run's memo and the impl universe of a view with no hidden
     /// local impl: then a closed type's answer is the same in every body.
     shared: Option<(
@@ -122,7 +125,7 @@ impl<'a> ProjectionCycles<'a> {
                 if let Some(&n) = self.normalized.get(&t) {
                     return n;
                 }
-                let n = match hd_types::solver::normalize_concrete(pool, impls, t) {
+                let n = match self.norm.normalize(pool, impls, t) {
                     Ok(n) => n,
                     Err(e) => {
                         too_deep.get_or_insert(e.head);
