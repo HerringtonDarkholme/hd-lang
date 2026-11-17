@@ -22,21 +22,94 @@ pub enum SurfaceRenderArg0 {
 #[allow(dead_code)]
 impl SurfaceRenderArg0 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        match self {
-            Self::Leaf => e.tag(0),
-            Self::Node { kids: f0 } => {
-                e.tag(1);
-                { e.count(f0.len()); for x in f0 { SurfaceRenderArg0::wire_encode(x, e)?; } }
+        SurfaceRenderArg0Wire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        SurfaceRenderArg0Wire::decode(d)
+    }
+}
+
+/// A value of `SurfaceRenderArg0`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceRenderArg0Wire {
+    P0(SurfaceRenderArg0),
+    P1(Vec<SurfaceRenderArg0>),
+}
+
+/// A step of `SurfaceRenderArg0`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceRenderArg0WireOp {
+    D0,
+    D1,
+    L1(Vec<SurfaceRenderArg0>, usize),
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceRenderArg0Wire {
+    fn encode(root: SurfaceRenderArg0, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(SurfaceRenderArg0::Leaf) => e.tag(0),
+                Self::P1(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P0(SurfaceRenderArg0::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
             }
         }
         Ok(())
     }
 
-    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Leaf,
-            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceRenderArg0::wire_decode(d)?); } x } },
-        })
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceRenderArg0> {
+        let mut ops = vec![SurfaceRenderArg0WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceRenderArg0WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                SurfaceRenderArg0WireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderArg0WireOp::L1(x, n)); ops.push(SurfaceRenderArg0WireOp::D0); } }
+                SurfaceRenderArg0WireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderArg0WireOp::L1(x, n - 1)); ops.push(SurfaceRenderArg0WireOp::D0); } }
+                SurfaceRenderArg0WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceRenderArg0::Node { kids: f0 })); }
+                SurfaceRenderArg0WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceRenderArg0::Leaf)); } _ => { ops.push(SurfaceRenderArg0WireOp::B0v1); ops.push(SurfaceRenderArg0WireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<SurfaceRenderArg0WireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                SurfaceRenderArg0WireOp::L1(x, _) => items.push(Self::P1(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P0(SurfaceRenderArg0::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -51,21 +124,94 @@ pub enum SurfaceRenderResult {
 #[allow(dead_code)]
 impl SurfaceRenderResult {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        match self {
-            Self::Leaf => e.tag(0),
-            Self::Node { kids: f0 } => {
-                e.tag(1);
-                { e.count(f0.len()); for x in f0 { SurfaceRenderResult::wire_encode(x, e)?; } }
+        SurfaceRenderResultWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        SurfaceRenderResultWire::decode(d)
+    }
+}
+
+/// A value of `SurfaceRenderResult`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceRenderResultWire {
+    P0(SurfaceRenderResult),
+    P1(Vec<SurfaceRenderResult>),
+}
+
+/// A step of `SurfaceRenderResult`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceRenderResultWireOp {
+    D0,
+    D1,
+    L1(Vec<SurfaceRenderResult>, usize),
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceRenderResultWire {
+    fn encode(root: SurfaceRenderResult, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(SurfaceRenderResult::Leaf) => e.tag(0),
+                Self::P1(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P0(SurfaceRenderResult::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
             }
         }
         Ok(())
     }
 
-    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Leaf,
-            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceRenderResult::wire_decode(d)?); } x } },
-        })
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceRenderResult> {
+        let mut ops = vec![SurfaceRenderResultWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceRenderResultWireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                SurfaceRenderResultWireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderResultWireOp::L1(x, n)); ops.push(SurfaceRenderResultWireOp::D0); } }
+                SurfaceRenderResultWireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderResultWireOp::L1(x, n - 1)); ops.push(SurfaceRenderResultWireOp::D0); } }
+                SurfaceRenderResultWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceRenderResult::Node { kids: f0 })); }
+                SurfaceRenderResultWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceRenderResult::Leaf)); } _ => { ops.push(SurfaceRenderResultWireOp::B0v1); ops.push(SurfaceRenderResultWireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<SurfaceRenderResultWireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                SurfaceRenderResultWireOp::L1(x, _) => items.push(Self::P1(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P0(SurfaceRenderResult::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
+                _ => {}
+            }
+        }
     }
 }
 

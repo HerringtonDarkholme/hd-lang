@@ -141,25 +141,115 @@ pub enum ValuesMakeResultTree {
 #[allow(dead_code)]
 impl ValuesMakeResultTree {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        match self {
-            Self::Leaf { value: f0 } => {
-                e.tag(0);
-                e.signed(i64::from(f0));
-            }
-            Self::Node { kids: f0, parent: f1 } => {
-                e.tag(1);
-                { e.count(f0.len()); for x in f0 { ValuesMakeResultTree::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesMakeResultTree::wire_encode(*x, e)?; } }
+        ValuesMakeResultTreeWire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        ValuesMakeResultTreeWire::decode(d)
+    }
+}
+
+/// A value of `ValuesMakeResultTree`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum ValuesMakeResultTreeWire {
+    P0(ValuesMakeResultTree),
+    P1(i32),
+    P2(Vec<ValuesMakeResultTree>),
+    P3(Option<Box<ValuesMakeResultTree>>),
+    P4(Box<ValuesMakeResultTree>),
+}
+
+/// A step of `ValuesMakeResultTree`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum ValuesMakeResultTreeWireOp {
+    D0,
+    D1,
+    B0v0,
+    D2,
+    L2(Vec<ValuesMakeResultTree>, usize),
+    D3,
+    D4,
+    W4,
+    S3,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl ValuesMakeResultTreeWire {
+    fn encode(root: ValuesMakeResultTree, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P1(x) => { e.signed(i64::from(x)); }
+                Self::P0(ValuesMakeResultTree::Leaf { value: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P2(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P4(x) => stack.push(Self::P0(*x)),
+                Self::P3(x) => match x { None => e.tag(0), Some(x) => { e.tag(1); stack.push(Self::P4(x)); } }
+                Self::P0(ValuesMakeResultTree::Node { kids: f0, parent: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
             }
         }
         Ok(())
     }
 
-    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Leaf { value: d.signed::<i32>()? },
-            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(ValuesMakeResultTree::wire_decode(d)?); } x }, parent: if d.tag(2)? == 0 { None } else { Some(Box::new(ValuesMakeResultTree::wire_decode(d)?)) } },
-        })
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<ValuesMakeResultTree> {
+        let mut ops = vec![ValuesMakeResultTreeWireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<ValuesMakeResultTreeWireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                ValuesMakeResultTreeWireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                ValuesMakeResultTreeWireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(ValuesMakeResultTree::Leaf { value: f0 })); }
+                ValuesMakeResultTreeWireOp::D2 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P2(x)); } else { ops.push(ValuesMakeResultTreeWireOp::L2(x, n)); ops.push(ValuesMakeResultTreeWireOp::D0); } }
+                ValuesMakeResultTreeWireOp::L2(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P2(x)); } else { ops.push(ValuesMakeResultTreeWireOp::L2(x, n - 1)); ops.push(ValuesMakeResultTreeWireOp::D0); } }
+                ValuesMakeResultTreeWireOp::D4 => { ops.push(ValuesMakeResultTreeWireOp::W4); ops.push(ValuesMakeResultTreeWireOp::D0); }
+                ValuesMakeResultTreeWireOp::W4 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P4(Box::new(x))); }
+                ValuesMakeResultTreeWireOp::D3 => if d.tag(2)? == 0 { vals.push(Self::P3(None)); } else { ops.push(ValuesMakeResultTreeWireOp::S3); ops.push(ValuesMakeResultTreeWireOp::D4); }
+                ValuesMakeResultTreeWireOp::S3 => { let Some(Self::P4(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Some(x))); }
+                ValuesMakeResultTreeWireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(ValuesMakeResultTree::Node { kids: f0, parent: f1 })); }
+                ValuesMakeResultTreeWireOp::D0 => match d.tag(2)? { 0 => { ops.push(ValuesMakeResultTreeWireOp::B0v0); ops.push(ValuesMakeResultTreeWireOp::D1); } _ => { ops.push(ValuesMakeResultTreeWireOp::B0v1); ops.push(ValuesMakeResultTreeWireOp::D3); ops.push(ValuesMakeResultTreeWireOp::D2); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<ValuesMakeResultTreeWireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                ValuesMakeResultTreeWireOp::L2(x, _) => items.push(Self::P2(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P0(ValuesMakeResultTree::Leaf { .. }) => { }
+                Self::P2(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P4(x) => items.push(Self::P0(*x)),
+                Self::P3(Some(x)) => items.push(Self::P4(x)),
+                Self::P0(ValuesMakeResultTree::Node { kids: f0, parent: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -324,25 +414,115 @@ pub enum ValuesTakeArg25 {
 #[allow(dead_code)]
 impl ValuesTakeArg25 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        match self {
-            Self::Leaf { value: f0 } => {
-                e.tag(0);
-                e.signed(i64::from(f0));
-            }
-            Self::Node { kids: f0, parent: f1 } => {
-                e.tag(1);
-                { e.count(f0.len()); for x in f0 { ValuesTakeArg25::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); ValuesTakeArg25::wire_encode(*x, e)?; } }
+        ValuesTakeArg25Wire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        ValuesTakeArg25Wire::decode(d)
+    }
+}
+
+/// A value of `ValuesTakeArg25`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum ValuesTakeArg25Wire {
+    P0(ValuesTakeArg25),
+    P1(i32),
+    P2(Vec<ValuesTakeArg25>),
+    P3(Option<Box<ValuesTakeArg25>>),
+    P4(Box<ValuesTakeArg25>),
+}
+
+/// A step of `ValuesTakeArg25`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum ValuesTakeArg25WireOp {
+    D0,
+    D1,
+    B0v0,
+    D2,
+    L2(Vec<ValuesTakeArg25>, usize),
+    D3,
+    D4,
+    W4,
+    S3,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl ValuesTakeArg25Wire {
+    fn encode(root: ValuesTakeArg25, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P1(x) => { e.signed(i64::from(x)); }
+                Self::P0(ValuesTakeArg25::Leaf { value: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P2(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P4(x) => stack.push(Self::P0(*x)),
+                Self::P3(x) => match x { None => e.tag(0), Some(x) => { e.tag(1); stack.push(Self::P4(x)); } }
+                Self::P0(ValuesTakeArg25::Node { kids: f0, parent: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
             }
         }
         Ok(())
     }
 
-    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Leaf { value: d.signed::<i32>()? },
-            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(ValuesTakeArg25::wire_decode(d)?); } x }, parent: if d.tag(2)? == 0 { None } else { Some(Box::new(ValuesTakeArg25::wire_decode(d)?)) } },
-        })
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<ValuesTakeArg25> {
+        let mut ops = vec![ValuesTakeArg25WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<ValuesTakeArg25WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                ValuesTakeArg25WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                ValuesTakeArg25WireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(ValuesTakeArg25::Leaf { value: f0 })); }
+                ValuesTakeArg25WireOp::D2 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P2(x)); } else { ops.push(ValuesTakeArg25WireOp::L2(x, n)); ops.push(ValuesTakeArg25WireOp::D0); } }
+                ValuesTakeArg25WireOp::L2(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P2(x)); } else { ops.push(ValuesTakeArg25WireOp::L2(x, n - 1)); ops.push(ValuesTakeArg25WireOp::D0); } }
+                ValuesTakeArg25WireOp::D4 => { ops.push(ValuesTakeArg25WireOp::W4); ops.push(ValuesTakeArg25WireOp::D0); }
+                ValuesTakeArg25WireOp::W4 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P4(Box::new(x))); }
+                ValuesTakeArg25WireOp::D3 => if d.tag(2)? == 0 { vals.push(Self::P3(None)); } else { ops.push(ValuesTakeArg25WireOp::S3); ops.push(ValuesTakeArg25WireOp::D4); }
+                ValuesTakeArg25WireOp::S3 => { let Some(Self::P4(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Some(x))); }
+                ValuesTakeArg25WireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(ValuesTakeArg25::Node { kids: f0, parent: f1 })); }
+                ValuesTakeArg25WireOp::D0 => match d.tag(2)? { 0 => { ops.push(ValuesTakeArg25WireOp::B0v0); ops.push(ValuesTakeArg25WireOp::D1); } _ => { ops.push(ValuesTakeArg25WireOp::B0v1); ops.push(ValuesTakeArg25WireOp::D3); ops.push(ValuesTakeArg25WireOp::D2); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<ValuesTakeArg25WireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                ValuesTakeArg25WireOp::L2(x, _) => items.push(Self::P2(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P0(ValuesTakeArg25::Leaf { .. }) => { }
+                Self::P2(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P4(x) => items.push(Self::P0(*x)),
+                Self::P3(Some(x)) => items.push(Self::P4(x)),
+                Self::P0(ValuesTakeArg25::Node { kids: f0, parent: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
+                _ => {}
+            }
+        }
     }
 }
 

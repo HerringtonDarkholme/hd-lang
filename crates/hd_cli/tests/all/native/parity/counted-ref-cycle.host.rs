@@ -19,14 +19,99 @@ pub struct SurfaceSizeArg0 {
 #[allow(dead_code)]
 impl SurfaceSizeArg0 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        let Self { label: f0, next: f1 } = self;
-        e.signed(i64::from(f0));
-        match f1 { None => e.tag(0), Some(x) => { e.tag(1); SurfaceSizeArg0::wire_encode(*x, e)?; } }
-        Ok(())
+        SurfaceSizeArg0Wire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(Self { label: d.signed::<i32>()?, next: if d.tag(2)? == 0 { None } else { Some(Box::new(SurfaceSizeArg0::wire_decode(d)?)) } })
+        SurfaceSizeArg0Wire::decode(d)
+    }
+}
+
+/// A value of `SurfaceSizeArg0`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceSizeArg0Wire {
+    P0(SurfaceSizeArg0),
+    P1(i32),
+    P2(Option<Box<SurfaceSizeArg0>>),
+    P3(Box<SurfaceSizeArg0>),
+}
+
+/// A step of `SurfaceSizeArg0`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceSizeArg0WireOp {
+    D0,
+    D1,
+    D2,
+    D3,
+    W3,
+    S2,
+    B0,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceSizeArg0Wire {
+    fn encode(root: SurfaceSizeArg0, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P1(x) => { e.signed(i64::from(x)); }
+                Self::P3(x) => stack.push(Self::P0(*x)),
+                Self::P2(x) => match x { None => e.tag(0), Some(x) => { e.tag(1); stack.push(Self::P3(x)); } }
+                Self::P0(SurfaceSizeArg0 { label: f0, next: f1 }) => { stack.push(Self::P2(f1)); stack.push(Self::P1(f0)); }
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceSizeArg0> {
+        let mut ops = vec![SurfaceSizeArg0WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceSizeArg0WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                SurfaceSizeArg0WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                SurfaceSizeArg0WireOp::D3 => { ops.push(SurfaceSizeArg0WireOp::W3); ops.push(SurfaceSizeArg0WireOp::D0); }
+                SurfaceSizeArg0WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                SurfaceSizeArg0WireOp::D2 => if d.tag(2)? == 0 { vals.push(Self::P2(None)); } else { ops.push(SurfaceSizeArg0WireOp::S2); ops.push(SurfaceSizeArg0WireOp::D3); }
+                SurfaceSizeArg0WireOp::S2 => { let Some(Self::P3(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Some(x))); }
+                SurfaceSizeArg0WireOp::B0 => { let Some(Self::P2(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceSizeArg0 { label: f0, next: f1 })); }
+                SurfaceSizeArg0WireOp::D0 => { ops.push(SurfaceSizeArg0WireOp::B0); ops.push(SurfaceSizeArg0WireOp::D2); ops.push(SurfaceSizeArg0WireOp::D1); }
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<SurfaceSizeArg0WireOp>, items: &mut Vec<Self>) {
+        let _ = (ops, items);
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P3(x) => items.push(Self::P0(*x)),
+                Self::P2(Some(x)) => items.push(Self::P3(x)),
+                Self::P0(SurfaceSizeArg0 { next: f1, .. }) => { items.push(Self::P2(f1)); }
+                _ => {}
+            }
+        }
     }
 }
 

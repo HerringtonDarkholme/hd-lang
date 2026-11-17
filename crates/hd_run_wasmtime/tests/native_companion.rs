@@ -41,6 +41,11 @@ mod handles {
     include!("native/handles.host.rs");
 }
 
+#[allow(dead_code, clippy::all, clippy::pedantic)]
+mod deep {
+    include!("native/deep.host.rs");
+}
+
 fn int(bits: u8, signed: bool) -> Value {
     Value::Int { bits, signed }
 }
@@ -343,6 +348,86 @@ fn values_contract() -> Contract {
     }
 }
 
+/// A recursive type through every container form and a nested recursive
+/// type reaching back to it: `Node` is `End`, `Next(next: Node)`,
+/// `Many(items: List[Node])`, `Maybe(at: Node?)`, `Pair(pair: (Node,
+/// i32))`, `Keyed(map: Map[String, Node])`, `Either(either: Result[Node,
+/// String])`, `Inner(inner: Twig)` or `Bad(bad: json, rest: Node)`, where
+/// `Twig` is `{ up: Node?, kids: List[Twig], tag: i32 }`; `make(depth,
+/// form) -> Node` and `take(node: Node) -> u32`.
+fn deep_contract() -> Contract {
+    let node = Value::Rec(
+        0,
+        Box::new(Value::Enum(vec![
+            variant("End", vec![]),
+            variant("Next", vec![field("next", Value::Ref(0))]),
+            variant(
+                "Many",
+                vec![field("items", Value::List(Box::new(Value::Ref(0))))],
+            ),
+            variant(
+                "Maybe",
+                vec![field("at", Value::Option(Box::new(Value::Ref(0))))],
+            ),
+            variant(
+                "Pair",
+                vec![field(
+                    "pair",
+                    Value::Tuple(vec![Value::Ref(0), int(32, true)]),
+                )],
+            ),
+            variant(
+                "Keyed",
+                vec![field(
+                    "map",
+                    Value::Map(Box::new(Value::String), Box::new(Value::Ref(0))),
+                )],
+            ),
+            variant(
+                "Either",
+                vec![field(
+                    "either",
+                    Value::Result(Box::new(Value::Ref(0)), Box::new(Value::String)),
+                )],
+            ),
+            variant(
+                "Inner",
+                vec![field(
+                    "inner",
+                    Value::Rec(
+                        1,
+                        Box::new(Value::Record(vec![
+                            field("up", Value::Option(Box::new(Value::Ref(0)))),
+                            field("kids", Value::List(Box::new(Value::Ref(1)))),
+                            field("tag", int(32, true)),
+                        ])),
+                    ),
+                )],
+            ),
+            variant(
+                "Bad",
+                vec![field("bad", Value::Json), field("rest", Value::Ref(0))],
+            ),
+        ])),
+    );
+    Contract {
+        interfaces: vec![interface(
+            "Deep",
+            "hd:pkg:deep",
+            false,
+            vec![
+                method(
+                    "make",
+                    vec![int(32, false), int(32, false)],
+                    node.clone(),
+                    false,
+                ),
+                method("take", vec![node], int(32, false), false),
+            ],
+        )],
+    }
+}
+
 /// A root trait returning handles of a handle trait whose own method
 /// returns another: `pair() -> (File, File)`, `bad() -> (File, Json)`,
 /// and `File`'s `size() -> u64` and `dup() -> File`.
@@ -416,6 +501,11 @@ fn the_companion_of_every_codec_is_its_snapshot() {
 #[test]
 fn the_companion_of_returned_handles_is_its_snapshot() {
     snapshot("handles.host.rs", &handles_contract());
+}
+
+#[test]
+fn the_companion_of_a_recursive_group_is_its_snapshot() {
+    snapshot("deep.host.rs", &deep_contract());
 }
 
 #[test]
@@ -1281,4 +1371,241 @@ fn a_handle_in_a_result_that_fails_its_codec_is_released_at_once() {
         "{error}"
     );
     assert_eq!(seen, [1, 1, 0], "released before the guest saw it");
+}
+
+/// Each allocation's call and bytes on the current thread: a counted
+/// measure of a codec's work, which a codec that copied or rescanned its
+/// stacks would grow faster than its input.
+struct Counting;
+
+thread_local! {
+    static ALLOCATED: Cell<(u64, u64)> = const { Cell::new((0, 0)) };
+}
+
+fn counted(bytes: usize) {
+    let bytes = u64::try_from(bytes).unwrap_or(u64::MAX);
+    let _ = ALLOCATED.try_with(|n| n.set((n.get().0 + 1, n.get().1 + bytes)));
+}
+
+// SAFETY: every method forwards to `System` with its own arguments, as
+// `hd_cli`'s work allocator does; the count touches only a thread-local
+// cell and never allocates.
+#[allow(unsafe_code)]
+unsafe impl std::alloc::GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        counted(layout.size());
+        // SAFETY: the caller's contract for `alloc` is `System`'s.
+        unsafe { std::alloc::System.alloc(layout) }
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout) {
+        // SAFETY: `ptr` came from `System` with `layout`.
+        unsafe { std::alloc::System.dealloc(ptr, layout) }
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: std::alloc::Layout, new_size: usize) -> *mut u8 {
+        counted(new_size);
+        // SAFETY: as `dealloc`, and the caller's `new_size` contract.
+        unsafe { std::alloc::System.realloc(ptr, layout, new_size) }
+    }
+}
+
+#[global_allocator]
+static COUNTING: Counting = Counting;
+
+use deep::{
+    DeepMakeResult as Made, DeepMakeResultInnerInner as MadeTwig, DeepTakeArg0 as Got,
+    DeepTakeArg0InnerInner as GotTwig,
+};
+
+/// A `Node` `depth` levels deep, each level wrapping the one below in one
+/// container form: 0 `Next`, 1 `Many`, 2 `Maybe`, 3 `Pair`, 4 `Keyed`, 5
+/// `Either`, 6 `Inner.up`, 7 `Bad.rest`, 8 `Twig.kids` under one `Inner`;
+/// 9 is form 7 under a `Bad` whose json fails to encode.
+fn chain(depth: u32, form: u32) -> Made {
+    if form == 8 {
+        let mut twig = MadeTwig {
+            up: None,
+            kids: vec![],
+            tag: 0,
+        };
+        for _ in 0..depth {
+            twig = MadeTwig {
+                up: None,
+                kids: vec![twig],
+                tag: 1,
+            };
+        }
+        return Made::Inner { inner: twig };
+    }
+    let mut node = Made::End;
+    for _ in 0..depth {
+        node = match form {
+            0 => Made::Next {
+                next: Box::new(node),
+            },
+            1 => Made::Many { items: vec![node] },
+            2 => Made::Maybe {
+                at: Some(Box::new(node)),
+            },
+            3 => Made::Pair {
+                pair: (Box::new(node), 7),
+            },
+            4 => Made::Keyed {
+                map: vec![("k".into(), Box::new(node))],
+            },
+            5 => Made::Either {
+                either: Ok(Box::new(node)),
+            },
+            6 => Made::Inner {
+                inner: MadeTwig {
+                    up: Some(Box::new(node)),
+                    kids: vec![],
+                    tag: 1,
+                },
+            },
+            _ => Made::Bad {
+                bad: Serde::Unit,
+                rest: Box::new(node),
+            },
+        };
+    }
+    if form == 9 {
+        node = Made::Bad {
+            bad: Serde::Map(vec![(Serde::Bool(true), Serde::Unit)]),
+            rest: Box::new(node),
+        };
+    }
+    node
+}
+
+/// The `Node`s and `Twig`s of `node`, counted and dropped one at a time.
+fn levels(node: Got) -> u32 {
+    enum Item {
+        Node(Got),
+        Twig(GotTwig),
+    }
+    let mut stack = vec![Item::Node(node)];
+    let mut count = 0;
+    while let Some(item) = stack.pop() {
+        count += 1;
+        match item {
+            Item::Node(
+                Got::Next { next }
+                | Got::Maybe { at: Some(next) }
+                | Got::Pair { pair: (next, _) }
+                | Got::Either { either: Ok(next) }
+                | Got::Bad { rest: next, .. },
+            ) => stack.push(Item::Node(*next)),
+            Item::Node(Got::End | Got::Maybe { at: None } | Got::Either { either: Err(_) }) => {}
+            Item::Node(Got::Many { items }) => stack.extend(items.into_iter().map(Item::Node)),
+            Item::Node(Got::Keyed { map }) => {
+                stack.extend(map.into_iter().map(|(_, n)| Item::Node(*n)));
+            }
+            Item::Node(Got::Inner { inner }) => stack.push(Item::Twig(inner)),
+            Item::Twig(twig) => {
+                stack.extend(twig.up.map(|n| Item::Node(*n)));
+                stack.extend(twig.kids.into_iter().map(Item::Twig));
+            }
+        }
+    }
+    count
+}
+
+struct Deeps;
+
+impl deep::Deep for Deeps {
+    fn make(&mut self, depth: u32, form: u32) -> HostResult<Made> {
+        Ok(chain(depth, form))
+    }
+
+    fn take(&mut self, node: Got) -> HostResult<u32> {
+        Ok(levels(node))
+    }
+}
+
+/// `method` of a `Deeps` provider with `args`, answered at once.
+fn call_deep(method: usize, args: &[u8]) -> Result<Vec<u8>, native::Failure> {
+    let provider: Box<dyn deep::Deep> = Box::new(Deeps);
+    let mut provider: Box<dyn std::any::Any> = Box::new(provider);
+    let mut handles = native::Handles::default();
+    match deep::dispatch_Deep(provider.as_mut(), method, args, &mut handles)? {
+        native::Answer::Ready(bytes) => Ok(bytes),
+        native::Answer::Pending(_) => panic!("`Deep` has no suspending method"),
+    }
+}
+
+/// The encoded `Node` of `make(depth, form)`.
+fn made_bytes(depth: u32, form: u32) -> Result<Vec<u8>, native::Failure> {
+    let mut handles = native::Handles::default();
+    let mut args = native::wire::Encoder::new(&mut handles);
+    args.unsigned(depth.into());
+    args.unsigned(form.into());
+    call_deep(0, &args.into_bytes())
+}
+
+/// The level count `take` reads back from `bytes`.
+fn taken_levels(bytes: &[u8]) -> Result<u32, native::Failure> {
+    let answer = call_deep(1, bytes)?;
+    Ok(native::wire::Decoder::new(&answer)
+        .unsigned::<u32>()
+        .unwrap())
+}
+
+/// `f` on a thread whose native stack is far smaller than one frame per
+/// level of a 1,000,000-deep value.
+fn on_small_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(f)
+        .unwrap()
+        .join()
+        .unwrap()
+}
+
+#[test]
+fn a_million_deep_value_crosses_a_generated_codec_both_ways_in_constant_native_stack() {
+    on_small_stack(|| {
+        const DEPTH: u32 = 1_000_000;
+        for form in 0..=8 {
+            let bytes = made_bytes(DEPTH, form).unwrap();
+            let expected = match form {
+                6 => 2 * DEPTH + 1,
+                8 => DEPTH + 2,
+                _ => DEPTH + 1,
+            };
+            assert_eq!(taken_levels(&bytes).unwrap(), expected, "form {form}");
+            if form == 3 {
+                // The outermost pair's `i32` is the last byte: without it
+                // the whole finished value below is dismantled.
+                assert!(taken_levels(&bytes[..bytes.len() - 1]).is_err());
+            }
+        }
+        // A provider value failing part way leaves its deep rest to drop.
+        assert!(made_bytes(DEPTH, 9).is_err());
+    });
+}
+
+#[test]
+fn a_generated_codecs_work_is_linear_in_its_values_depth() {
+    let counted = |depth: u32, form: u32| {
+        on_small_stack(move || {
+            let before = ALLOCATED.with(Cell::get);
+            let bytes = made_bytes(depth, form).unwrap();
+            taken_levels(&bytes).unwrap();
+            let after = ALLOCATED.with(Cell::get);
+            (after.0 - before.0, after.1 - before.1)
+        })
+    };
+    for form in [0, 1, 4, 8] {
+        let (small, large) = (counted(100_000, form), counted(1_000_000, form));
+        // Ten times the depth is at most ten times the work, with slack
+        // for the stacks' power-of-two growth.
+        for (what, s, l) in [("calls", small.0, large.0), ("bytes", small.1, large.1)] {
+            assert!(
+                l <= 11 * s,
+                "form {form}: {what} {s} at 100,000 and {l} at 1,000,000"
+            );
+        }
+    }
 }

@@ -109,22 +109,108 @@ pub enum SurfaceDrawArg21 {
 #[allow(dead_code)]
 impl SurfaceDrawArg21 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        match self {
-            Self::Leaf => e.tag(0),
-            Self::Node { kids: f0, parent: f1 } => {
-                e.tag(1);
-                { e.count(f0.len()); for x in f0 { SurfaceDrawArg21::wire_encode(x, e)?; } }
-                match f1 { None => e.tag(0), Some(x) => { e.tag(1); SurfaceDrawArg21::wire_encode(*x, e)?; } }
+        SurfaceDrawArg21Wire::encode(self, e)
+    }
+
+    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
+        SurfaceDrawArg21Wire::decode(d)
+    }
+}
+
+/// A value of `SurfaceDrawArg21`'s recursive group at one position of its codec.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceDrawArg21Wire {
+    P0(SurfaceDrawArg21),
+    P1(Vec<SurfaceDrawArg21>),
+    P2(Option<Box<SurfaceDrawArg21>>),
+    P3(Box<SurfaceDrawArg21>),
+}
+
+/// A step of `SurfaceDrawArg21`'s decoder.
+#[allow(dead_code, clippy::large_enum_variant)]
+enum SurfaceDrawArg21WireOp {
+    D0,
+    D1,
+    L1(Vec<SurfaceDrawArg21>, usize),
+    D2,
+    D3,
+    W3,
+    S2,
+    B0v1,
+}
+
+#[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
+impl SurfaceDrawArg21Wire {
+    fn encode(root: SurfaceDrawArg21, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        let mut stack = vec![Self::P0(root)];
+        let written = Self::encode_all(&mut stack, e);
+        Self::dismantle(stack);
+        written
+    }
+
+    fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(item) = stack.pop() {
+            match item {
+                Self::P0(SurfaceDrawArg21::Leaf) => e.tag(0),
+                Self::P1(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
+                Self::P3(x) => stack.push(Self::P0(*x)),
+                Self::P2(x) => match x { None => e.tag(0), Some(x) => { e.tag(1); stack.push(Self::P3(x)); } }
+                Self::P0(SurfaceDrawArg21::Node { kids: f0, parent: f1 }) => { e.tag(1); stack.push(Self::P2(f1)); stack.push(Self::P1(f0)); }
             }
         }
         Ok(())
     }
 
-    fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::Leaf,
-            _ => Self::Node { kids: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceDrawArg21::wire_decode(d)?); } x }, parent: if d.tag(2)? == 0 { None } else { Some(Box::new(SurfaceDrawArg21::wire_decode(d)?)) } },
-        })
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceDrawArg21> {
+        let mut ops = vec![SurfaceDrawArg21WireOp::D0];
+        let mut vals = Vec::new();
+        if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
+            Self::dismantle_ops(ops, &mut vals);
+            Self::dismantle(vals);
+            return Err(error);
+        }
+        let Some(Self::P0(root)) = vals.pop() else { unreachable!("ruled out: a finished decode leaves its root") };
+        Ok(root)
+    }
+
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceDrawArg21WireOp>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+        while let Some(op) = ops.pop() {
+            match op {
+                SurfaceDrawArg21WireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceDrawArg21WireOp::L1(x, n)); ops.push(SurfaceDrawArg21WireOp::D0); } }
+                SurfaceDrawArg21WireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceDrawArg21WireOp::L1(x, n - 1)); ops.push(SurfaceDrawArg21WireOp::D0); } }
+                SurfaceDrawArg21WireOp::D3 => { ops.push(SurfaceDrawArg21WireOp::W3); ops.push(SurfaceDrawArg21WireOp::D0); }
+                SurfaceDrawArg21WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                SurfaceDrawArg21WireOp::D2 => if d.tag(2)? == 0 { vals.push(Self::P2(None)); } else { ops.push(SurfaceDrawArg21WireOp::S2); ops.push(SurfaceDrawArg21WireOp::D3); }
+                SurfaceDrawArg21WireOp::S2 => { let Some(Self::P3(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Some(x))); }
+                SurfaceDrawArg21WireOp::B0v1 => { let Some(Self::P2(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceDrawArg21::Node { kids: f0, parent: f1 })); }
+                SurfaceDrawArg21WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceDrawArg21::Leaf)); } _ => { ops.push(SurfaceDrawArg21WireOp::B0v1); ops.push(SurfaceDrawArg21WireOp::D2); ops.push(SurfaceDrawArg21WireOp::D1); } },
+            }
+        }
+        Ok(())
+    }
+
+    /// The partial lists and maps a failed decode leaves in its ops.
+    fn dismantle_ops(ops: Vec<SurfaceDrawArg21WireOp>, items: &mut Vec<Self>) {
+        for op in ops {
+            match op {
+                SurfaceDrawArg21WireOp::L1(x, _) => items.push(Self::P1(x)),
+                _ => {}
+            }
+        }
+    }
+
+    /// Drops values of the group one position at a time, so a deep value
+    /// never drops recursively.
+    fn dismantle(mut items: Vec<Self>) {
+        while let Some(item) = items.pop() {
+            match item {
+                Self::P1(x) => items.extend(x.into_iter().map(Self::P0)),
+                Self::P3(x) => items.push(Self::P0(*x)),
+                Self::P2(Some(x)) => items.push(Self::P3(x)),
+                Self::P0(SurfaceDrawArg21::Node { kids: f0, parent: f1, .. }) => { items.push(Self::P1(f0)); items.push(Self::P2(f1)); }
+                _ => {}
+            }
+        }
     }
 }
 
