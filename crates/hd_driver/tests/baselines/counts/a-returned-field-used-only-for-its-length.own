@@ -13,9 +13,9 @@ app/main/query
   local $6 i: usize [read assigned] value
     uses $6: %13 -> %18 lend last
   local $7 $ref: string [read assigned captured captured-assigned] value
-    uses $7: %29 -> %31 lend last
+    uses $7: %28 -> %29 lend last
   local $9 r: Rec [read] value
-    uses $9: %23 -> %25 consume last
+    uses $9: %23 -> %24 consume last
   %0 = Store [$2] 0:usize : ()
   %1 = Read copy [$1] : usize
   %2 = NewStruct [0:usize %1 0:bool] : Range[usize]
@@ -40,27 +40,25 @@ app/main/query
   %21 = Prim Rem [%18 %20] : usize
   %22 = Read borrow [*$0 [%21]] : Rec
   %23 = Store [$9] %22 : ()
-  %24 = Release %23 Operation #3 : ()
-  %25 = Read borrow [$9 .name] : string
-  %26 = Break L2 %25 : never
-  %27 = Block - : string
-  %28 = Scope %27 [] : string
-  %29 = Store [$7] %28 : ()
-  %30 = Release %29 Operation #3 : ()
-  %31 = Read borrow [$7] : string
-  %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
-  %33 = Break L1 %32 : never
-  %34 = Block - : usize
-  %35 = Scope %34 [] : usize
-  %36 = Prim Add [%17 %35] : usize
-  %37 = Store [$2] %36 : ()
+  %24 = Read borrow [$9 .name] : string
+  %25 = Break L2 %24 : never
+  %26 = Block - : string
+  %27 = Scope %26 [] : string
+  %28 = Store [$7] %27 : ()
+  %29 = Read borrow [$7] : string
+  %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+  %31 = Break L1 %30 : never
+  %32 = Block - : usize
+  %33 = Scope %32 [] : usize
+  %34 = Prim Add [%17 %33] : usize
+  %35 = Store [$2] %34 : ()
+  %36 = Block - : ()
+  %37 = Break L0 - : never
   %38 = Block - : ()
-  %39 = Break L0 - : never
+  %39 = If %11 [%36 %38] : ()
   %40 = Block - : ()
-  %41 = If %11 [%38 %40] : ()
-  %42 = Block - : ()
-  %43 = Loop %42 - : ()
-  %44 = Read copy [$2] : usize
-  %45 = Block %44 : usize
+  %41 = Loop %40 - : ()
+  %42 = Read copy [$2] : usize
+  %43 = Block %42 : usize
   summary kept []
-  loop %43 keeps [*$0]
+  loop %41 keeps [*$0]

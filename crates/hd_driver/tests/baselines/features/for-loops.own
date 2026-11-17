@@ -15,10 +15,10 @@ fn over_value(xs: List[string]) -> usize:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %24 -> %15 lend last
->   %0 = Release %36 Exit local $0 #2 : ()
+>   %0 = Release %35 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %36 = Block %35 : usize
+>   %35 = Block %34 : usize
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -35,15 +35,14 @@ fn over_value(xs: List[string]) -> usize:
 >   %22 = Block - : ()
 >   %23 = Read borrow [%10] : string
 >   %24 = Store [$6] %23 : ()
->   %25 = Release %24 Operation #3 : ()
->   %27 = Block - : never
->   %28 = Match %10 [%27 %22] : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %8 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %26 = Block - : never
+>   %27 = Match %10 [%26 %22] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %8 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         n += x.len()
 >   %14 = Read copy [$1] : usize
 >   %15 = Read borrow [$6] : string
@@ -54,9 +53,9 @@ fn over_value(xs: List[string]) -> usize:
 >   %20 = Prim Add [%14 %19] : usize
 >   %21 = Store [$1] %20 : ()
     n
->   %35 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %34 keeps [$0]
+>   loop %33 keeps [$0]
 
 fn over_ref(xs: &List[string]) -> usize:
     let n: usize = 0
@@ -72,7 +71,7 @@ fn over_ref(xs: &List[string]) -> usize:
 >   local $6 x: string [read assigned] value
 >     uses $6: %25 -> %16 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %37 = Block %36 : usize
+>   %36 = Block %35 : usize
     for x in xs:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Store [$2] %1 : ()
@@ -91,15 +90,14 @@ fn over_ref(xs: &List[string]) -> usize:
 >   %23 = Block - : ()
 >   %24 = Read borrow [%11] : string
 >   %25 = Store [$6] %24 : ()
->   %26 = Release %25 Operation #3 : ()
->   %28 = Block - : never
->   %29 = Match %11 [%28 %23] : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %9 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
+>   %27 = Block - : never
+>   %28 = Match %11 [%27 %23] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %9 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
         n += x.len()
 >   %15 = Read copy [$1] : usize
 >   %16 = Read borrow [$6] : string
@@ -110,9 +108,9 @@ fn over_ref(xs: &List[string]) -> usize:
 >   %21 = Prim Add [%15 %20] : usize
 >   %22 = Store [$1] %21 : ()
     n
->   %36 = Read copy [$1] : usize
+>   %35 = Read copy [$1] : usize
 >   summary kept []
->   loop %35 keeps [$2]
+>   loop %34 keeps [$2]
 
 fn over_mut(xs: &mut List[string]) -> void:
     for x in &mut *xs:
@@ -141,17 +139,16 @@ fn over_mut(xs: &mut List[string]) -> void:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%13] : &mut string
 >   %20 = Store [$3] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %23 = Block - : never
->   %24 = Match %13 [%23 %18] : ()
->   %25 = LoanEnd [%13] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %7 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %32 = Block - : ()
+>   %22 = Block - : never
+>   %23 = Match %13 [%22 %18] : ()
+>   %24 = LoanEnd [%13] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %7 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = Block - : ()
         *x += "!"
 >   %14 = Read borrow [*$3] : string
 >   %15 = Intrinsic StrConcat [%14 "!"] : string
@@ -164,17 +161,17 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %3 lend, %11 lend
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %2 -> %17 lend, %32 consume last
+>     uses $1: %2 -> %17 lend, %31 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %21 -> %15 consume last
->   %0 = Release %33 Exit local $0 #2 : ()
+>   %0 = Release %32 Exit local $0 #2 : ()
     let mut out: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %33 = Block %32 : List[string]
+>   %32 = Block %31 : List[string]
     for x in xs:
 >   %3 = Read borrow [$0] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -191,22 +188,21 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %19 = Block - : ()
 >   %20 = Read borrow [%11] : string
 >   %21 = Store [$6] %20 : ()
->   %22 = Release %21 Operation #3 : ()
->   %24 = Block - : never
->   %25 = Match %11 [%24 %19] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %9 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %23 = Block - : never
+>   %24 = Match %11 [%23 %19] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %9 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         out.push(x)
 >   %15 = Read copy [$6] : string
 >   %16 = IsUnique fresh [$1] : ()
 >   %17 = Read borrow [$1] : List[string]
 >   %18 = Intrinsic ListPush [%17 %15] : ()
     out
->   %32 = Read move [$1] : List[string]
+>   %31 = Read move [$1] : List[string]
 >   summary kept [] borrows [$0]
 
 fn comprehension(xs: List[string]) -> List[usize]:
@@ -214,7 +210,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %3 lend, %17 lend
 >   local $1 $acc: List[usize] [assigned] value
->     uses $1: %2 -> %8 lend, %27 lend, %42 consume last
+>     uses $1: %2 -> %8 lend, %27 lend, %41 consume last
 >   local $3 $len: usize [assigned] value
 >     uses $3: %5 -> %6 lend, %10 consume last
 >   local $4 $pos: usize [assigned] place
@@ -222,7 +218,7 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >     uses $5: %11 -> %14 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %31 -> %21 lend last
->   %0 = Release %43 Exit local $0 #2 : ()
+>   %0 = Release %42 Exit local $0 #2 : ()
     [for x in xs => x.len()]
 >   %1 = NewList - [] : List[usize]
 >   %2 = Store [$1] %1 : ()
@@ -255,15 +251,14 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %29 = Block - : ()
 >   %30 = Read borrow [%17] : string
 >   %31 = Store [$6] %30 : ()
->   %32 = Release %31 Operation #3 : ()
->   %34 = Block - : never
->   %35 = Match %17 [%34 %29] : ()
->   %36 = Block - : ()
->   %37 = Break L0 - : never
->   %38 = Block - : ()
->   %39 = If %15 [%36 %38] : ()
->   %40 = Block - : ()
->   %41 = Loop %40 - : ()
->   %42 = Read move [$1] : List[usize]
->   %43 = Block %42 : List[usize]
+>   %33 = Block - : never
+>   %34 = Match %17 [%33 %29] : ()
+>   %35 = Block - : ()
+>   %36 = Break L0 - : never
+>   %37 = Block - : ()
+>   %38 = If %15 [%35 %37] : ()
+>   %39 = Block - : ()
+>   %40 = Loop %39 - : ()
+>   %41 = Read move [$1] : List[usize]
+>   %42 = Block %41 : List[usize]
 >   summary kept [] borrows [$0]

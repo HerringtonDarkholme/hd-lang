@@ -38,55 +38,53 @@ fn total(head: *Chain?) -> usize:
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 cur: *Chain? [read assigned mutated] place
 >   local $3 c: *Chain [read assigned] value
->     uses $3: %23 -> %6 lend, %16 lend last
+>     uses $3: %22 -> %6 lend, %15 lend last
 >   local $4 self: string [read] value
->     uses $4: %7 -> %9 lend last
->   %0 = Retain %40 Entry local $0 #0 : ()
+>     uses $4: %7 -> %8 lend last
+>   %0 = Retain %38 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %40 = Block %39 : usize
+>   %38 = Block %37 : usize
     let cur = head
 >   %2 = Read move [$0] : *Chain?
 >   %3 = Store [$2] %2 : ()
     while true:
->   %33 = Break L0 - : never
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = If 1:bool [%30 %32] : ()
 >   %34 = Block - : ()
->   %35 = If 1:bool [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [$2] : ()
+>   %35 = Loop %34 - : ()
+>   %36 = Drop [$2] : ()
         match cur:
 >   %4 = Read borrow [$2] : *Chain?
->   %30 = Block - : never
->   %31 = Match %4 [%30 %19 %21] : ()
->   %32 = Block - : ()
+>   %28 = Block - : never
+>   %29 = Match %4 [%28 %18 %20] : ()
+>   %30 = Block - : ()
             .Some(c) =>
->   %22 = Read borrow [%4 as #1 .0] : *Chain
->   %23 = Store [$3] %22 : ()
->   %24 = Release %23 Operation #3 : ()
->   %26 = Block - : never
->   %29 = SwitchTag %4 [#1 %26 %28] : never
+>   %21 = Read borrow [%4 as #1 .0] : *Chain
+>   %22 = Store [$3] %21 : ()
+>   %24 = Block - : never
+>   %27 = SwitchTag %4 [#1 %24 %26] : never
                 n += c.name.len()
 >   %5 = Read copy [$1] : usize
 >   %6 = Read borrow [*$3 .name] : string
 >   %7 = Store [$4] %6 : ()
->   %8 = Release %7 Operation #3 : ()
->   %9 = Read borrow [$4] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L1 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Prim Add [%5 %13] : usize
->   %15 = Store [$1] %14 : ()
->   %19 = Block - : ()
+>   %8 = Read borrow [$4] : string
+>   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %10 = Break L1 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Prim Add [%5 %12] : usize
+>   %14 = Store [$1] %13 : ()
+>   %18 = Block - : ()
                 cur = c.next
->   %16 = Read copy [*$3 .next] : *Chain?
->   %17 = Store [$2] %16 : ()
->   %18 = Release %17 Operation #3 : ()
+>   %15 = Read copy [*$3 .next] : *Chain?
+>   %16 = Store [$2] %15 : ()
+>   %17 = Release %16 Operation #3 : ()
             .None => break
->   %20 = Break L0 - : never
->   %21 = Block - : never
+>   %19 = Break L0 - : never
+>   %20 = Block - : never
     n
->   %39 = Read copy [$1] : usize
+>   %37 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

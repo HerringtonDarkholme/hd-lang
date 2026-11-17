@@ -29,7 +29,7 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %0 = Read borrow [*$1] : Sink
 >   %1 = Read copy [*$0 .value] : i64
 >   %2 = Call app/main/Sink.emit for Sink [] via TraitValue (%0, %1) : ()
->   %34 = Block - : ()
+>   %33 = Block - : ()
     for child in &node.children:
 >   %3 = Read copy [*$0 .children] : List[*Node]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -46,17 +46,16 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %19 = Block - : ()
 >   %20 = Read borrow [%14] : &*Node
 >   %21 = Store [$4] %20 : ()
->   %22 = Release %21 Operation #3 : ()
->   %24 = Block - : never
->   %25 = Match %14 [%24 %19] : ()
->   %26 = LoanEnd [%14] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %9 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
->   %33 = Drop [%3] : ()
+>   %23 = Block - : never
+>   %24 = Match %14 [%23 %19] : ()
+>   %25 = LoanEnd [%14] : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %9 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
+>   %32 = Drop [%3] : ()
         walk(*child, sink)
 >   %15 = Ref local [**$4] : &Node
 >   %16 = Read borrow [$1] : &mut dyn Sink

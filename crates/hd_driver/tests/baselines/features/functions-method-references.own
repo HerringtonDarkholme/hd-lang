@@ -165,12 +165,12 @@ fn adapter(us: List[User]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %4 -> %7 lend
 >   local $6 u: User [read assigned] value
->     uses $6: %33 -> %15 consume last
+>     uses $6: %32 -> %15 consume last
 >   local $9 self: string [read] value
->     uses $9: %16 -> %18 lend last
->   %0 = Release %45 Exit local $0 #2 : ()
+>     uses $9: %16 -> %17 lend last
+>   %0 = Release %43 Exit local $0 #2 : ()
     g := fn(u: User) -> usize: u.name_len()
->   %45 = Block %44 : usize
+>   %43 = Block %42 : usize
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
     for u in us:
@@ -186,37 +186,35 @@ fn adapter(us: List[User]) -> usize:
 >   %11 = Read copy [$4] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
 >   %13 = Store [$4] %12 : ()
->   %31 = Block - : ()
->   %32 = Read borrow [%10] : User
->   %33 = Store [$6] %32 : ()
->   %34 = Release %33 Operation #3 : ()
->   %36 = Block - : never
->   %37 = Match %10 [%36 %31] : ()
+>   %30 = Block - : ()
+>   %31 = Read borrow [%10] : User
+>   %32 = Store [$6] %31 : ()
+>   %34 = Block - : never
+>   %35 = Match %10 [%34 %30] : ()
+>   %36 = Block - : ()
+>   %37 = Break L1 - : never
 >   %38 = Block - : ()
->   %39 = Break L1 - : never
+>   %39 = If %8 [%36 %38] : ()
 >   %40 = Block - : ()
->   %41 = If %8 [%38 %40] : ()
->   %42 = Block - : ()
->   %43 = Loop %42 - : ()
+>   %41 = Loop %40 - : ()
         n += g(u)
 >   %14 = Read copy [$1] : usize
 >   %15 = Read borrow [$6 .name] : string
 >   %16 = Store [$9] %15 : ()
->   %17 = Release %16 Operation #3 : ()
->   %18 = Read borrow [$9] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
->   %20 = Break L2 %19 : never
->   %21 = Block - : usize
->   %22 = Scope %21 [] : usize
->   %23 = Break L3 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Break L0 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Prim Add [%14 %28] : usize
->   %30 = Store [$1] %29 : ()
+>   %17 = Read borrow [$9] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L2 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Break L3 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Break L0 %24 : never
+>   %26 = Block - : usize
+>   %27 = Scope %26 [] : usize
+>   %28 = Prim Add [%14 %27] : usize
+>   %29 = Store [$1] %28 : ()
     n
->   %44 = Read copy [$1] : usize
+>   %42 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %43 keeps [$0]
+>   loop %41 keeps [$0]

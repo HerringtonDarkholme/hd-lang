@@ -3013,7 +3013,11 @@ impl Em<'_, '_, '_> {
                 );
                 let srcs: Vec<value::Src> = members.into_iter().map(value::Src::Ref).collect();
                 // Construction consumes its parts (§23.25).
-                let srcs = self.count_parts(&srcs, &tys)?;
+                let srcs = if self.b.is_borrowed_coercion(i) {
+                    srcs
+                } else {
+                    self.count_parts(&srcs, &tys)?
+                };
                 for (s, mt) in srcs.iter().zip(tys) {
                     for k in 0..self.vals(mt)?.len() {
                         self.src(s, k)?;

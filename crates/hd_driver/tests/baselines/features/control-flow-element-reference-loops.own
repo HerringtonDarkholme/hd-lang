@@ -15,10 +15,10 @@ fn total_len(xs: List[string]) -> usize:
 >   local $3 $pos: usize [assigned] place
 >   local $4 p: &string [read assigned] value
 >     uses $4: %21 -> %15 lend last
->   %0 = Release %34 Exit local $0 #2 : ()
+>   %0 = Release %33 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %34 = Block %33 : usize
+>   %33 = Block %32 : usize
     for p in &xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -35,16 +35,15 @@ fn total_len(xs: List[string]) -> usize:
 >   %19 = Block - : ()
 >   %20 = Read borrow [%13] : &string
 >   %21 = Store [$4] %20 : ()
->   %22 = Release %21 Operation #3 : ()
->   %24 = Block - : never
->   %25 = Match %13 [%24 %19] : ()
->   %26 = LoanEnd [%13] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %8 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
+>   %23 = Block - : never
+>   %24 = Match %13 [%23 %19] : ()
+>   %25 = LoanEnd [%13] : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %8 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
         n += p.len()
 >   %14 = Read copy [$1] : usize
 >   %15 = Read borrow [$4] : &string
@@ -52,7 +51,7 @@ fn total_len(xs: List[string]) -> usize:
 >   %17 = Prim Add [%14 %16] : usize
 >   %18 = Store [$1] %17 : ()
     n
->   %33 = Read copy [$1] : usize
+>   %32 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
 
 fn through_ref(r: &List[string]) -> usize:
@@ -67,7 +66,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   local $4 p: &string [read assigned] value
 >     uses $4: %20 -> %14 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %33 = Block %32 : usize
+>   %32 = Block %31 : usize
     for p in &r:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -84,16 +83,15 @@ fn through_ref(r: &List[string]) -> usize:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%12] : &string
 >   %20 = Store [$4] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %23 = Block - : never
->   %24 = Match %12 [%23 %18] : ()
->   %25 = LoanEnd [%12] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %7 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %22 = Block - : never
+>   %23 = Match %12 [%22 %18] : ()
+>   %24 = LoanEnd [%12] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %7 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         n += p.len()
 >   %13 = Read copy [$1] : usize
 >   %14 = Read borrow [$4] : &string
@@ -101,7 +99,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   %16 = Prim Add [%13 %15] : usize
 >   %17 = Store [$1] %16 : ()
     n
->   %32 = Read copy [$1] : usize
+>   %31 = Read copy [$1] : usize
 >   summary kept []
 
 fn shouted(prices: List[string]) -> List[string]:
@@ -114,11 +112,11 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $3 $pos: usize [assigned] place
 >   local $4 p: &mut string [read assigned] value
 >     uses $4: %23 -> %17 lend, %19 lend last
->   %0 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %35 Entry local $0 #0 : ()
     let mut out = prices
 >   %1 = Read move [$0] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %36 = Block %35 : List[string]
+>   %35 = Block %34 : List[string]
     for p in &mut out:
 >   %3 = Read borrow [$1] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -137,22 +135,21 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %21 = Block - : ()
 >   %22 = Read borrow [%16] : &mut string
 >   %23 = Store [$4] %22 : ()
->   %24 = Release %23 Operation #3 : ()
->   %26 = Block - : never
->   %27 = Match %16 [%26 %21] : ()
->   %28 = LoanEnd [%16] : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %10 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %25 = Block - : never
+>   %26 = Match %16 [%25 %21] : ()
+>   %27 = LoanEnd [%16] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %10 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         *p = *p + "!"
 >   %17 = Read borrow [*$4] : string
 >   %18 = Intrinsic StrConcat [%17 "!"] : string
 >   %19 = Store [*$4] %18 : ()
 >   %20 = Release %19 Operation #3 : ()
     out
->   %35 = Read move [$1] : List[string]
+>   %34 = Read move [$1] : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes

@@ -13,7 +13,7 @@ std/rt_tests.stage_case/sum
   local $6 key: &usize [read assigned] value
     uses $6: %36 -> %26 lend last
   local $7 value: &mut usize [read assigned] value
-    uses $7: %38 -> %25 lend, %28 lend, %30 lend last
+    uses $7: %37 -> %25 lend, %28 lend, %30 lend last
   %1 = Ref mut local [*$0] : &mut Map[usize, usize]
   %2 = Store [$2] %1 : ()
   %3 = Read borrow [*$2] : Map[usize, usize]
@@ -50,17 +50,15 @@ std/rt_tests.stage_case/sum
   %34 = Read borrow [%21 .0] : &usize
   %35 = Read borrow [%21 .1] : &mut usize
   %36 = Store [$6] %34 : ()
-  %37 = Release %36 Operation #3 : ()
-  %38 = Store [$7] %35 : ()
-  %39 = Release %38 Operation #3 : ()
-  %41 = Block - : never
-  %42 = Match %21 [%41 %33] : ()
-  %43 = Drop [%21] : ()
+  %37 = Store [$7] %35 : ()
+  %39 = Block - : never
+  %40 = Match %21 [%39 %33] : ()
+  %41 = Drop [%21] : ()
+  %42 = Block - : ()
+  %43 = Break L0 - : never
   %44 = Block - : ()
-  %45 = Break L0 - : never
+  %45 = If %17 [%42 %44] : ()
   %46 = Block - : ()
-  %47 = If %17 [%44 %46] : ()
-  %48 = Block - : ()
-  %49 = Loop %48 - : ()
-  %50 = LoanEnd [$2] : ()
+  %47 = Loop %46 - : ()
+  %48 = LoanEnd [$2] : ()
   summary kept [] writes

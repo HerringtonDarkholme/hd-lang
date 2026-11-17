@@ -6,7 +6,6 @@
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_hash'2" (func $rt:map_hash'2 (param i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find'2" (func $rt:map_find'2 (param i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -207,7 +206,7 @@
     end
     i32.const 0
   )
-  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
+  (func $tuple_key (param $m i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 26 |     m.get((s, 1)).unwrap_or(0)
     local.get $m
     local.get $s.0
@@ -220,10 +219,10 @@
     local.get $s.1
     i32.const 1
     call $rt:map_find'2
-    local.tee $s.1
+    local.tee $s.0
     i32.const 0
     i32.ge_s
-    if
+    if (result i32)
       i32.const 1
       local.get $m
       local.get $m
@@ -233,22 +232,19 @@
       i32.add
       i32.const 32
       i32.add
-      local.get $s.1
+      local.get $s.0
       i32.const 16
       i32.mul
       i32.add
       i32.load $heap offset=12
       local.set $t0
-      local.set $t1
+    else
+      i32.const 0
     end
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
+    local.set $m
     block
       block
-        local.get $t1
+        local.get $m
         i32.eqz
         br_if 1
         br 0

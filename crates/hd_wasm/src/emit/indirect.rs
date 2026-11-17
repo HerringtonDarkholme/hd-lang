@@ -893,6 +893,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn write_in_place(&mut self, i: u32, members: &[u32]) -> hd_base::StageResult<()> {
         let (base, off) = self.placed[&i];
         let t = self.ty(i);
+        let borrowed = self.b.is_borrowed_coercion(i);
         let mut parts = None;
         for (k, &r) in members.iter().enumerate() {
             if self.written.contains(&r) {
@@ -913,7 +914,11 @@ impl Em<'_, '_, '_> {
             }
             // Construction consumes its parts (`Em::new_data`): a counted
             // one moves in or takes counts of its own.
-            let src = self.retain_src(&super::value::Src::Ref(r), ft)?;
+            let src = if borrowed {
+                super::value::Src::Ref(r)
+            } else {
+                self.retain_src(&super::value::Src::Ref(r), ft)?
+            };
             for (j, leaf) in mem.leaves.iter().enumerate() {
                 self.f.get(base);
                 self.src(&src, j)?;

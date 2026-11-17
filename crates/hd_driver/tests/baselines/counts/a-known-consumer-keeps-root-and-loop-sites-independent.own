@@ -16,8 +16,8 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >     uses $5: %4 -> %7 lend
 >   local $6 x: string [read assigned] value
 >     uses $6: %20 -> %15 lend last
->   %0 = Release %31 Exit local $0 #2 : ()
->   %1 = Release %31 Exit local $1 #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -34,16 +34,15 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%10] : string
 >   %20 = Store [$6] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %23 = Block - : never
->   %24 = Match %10 [%23 %18] : ()
->   %25 = Block - : ()
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If %8 [%25 %27] : ()
->   %29 = Block - : ()
->   %30 = Loop %29 - : ()
->   %31 = Block - : ()
+>   %22 = Block - : never
+>   %23 = Match %10 [%22 %18] : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If %8 [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Block - : ()
         f(x)
 >   %14 = Read borrow [$1] : F
 >   %15 = Read copy [$6] : string
@@ -71,10 +70,10 @@ fn mixed(xs: List[string]) -> usize:
 >     uses $12: %49 -> %52 lend
 >   local $13 x: string [read assigned] value
 >     uses $13: %75 -> %60 lend last
->   %0 = Release %91 Exit local $0 #2 : ()
+>   %0 = Release %90 Exit local $0 #2 : ()
     let total: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %91 = Block %89 : usize
+>   %90 = Block %88 : usize
     for _ in 0..3:
 >   %2 = NewStruct [0:usize 3:usize 0:bool] : Range[usize]
 >   %3 = Read copy [%2 .start] : usize
@@ -154,25 +153,24 @@ fn mixed(xs: List[string]) -> usize:
 >   %73 = Block - : ()
 >   %74 = Read borrow [%55] : string
 >   %75 = Store [$13] %74 : ()
->   %76 = Release %75 Operation #3 : ()
->   %78 = Block - : never
->   %79 = Match %55 [%78 %73] : ()
->   %80 = Block - : ()
->   %81 = Break L1 - : never
->   %82 = Block - : ()
->   %83 = If %53 [%80 %82] : ()
->   %84 = Block - : ()
->   %85 = Loop %84 - : ()
->   %86 = Break L2 - : never
->   %87 = Block - : ()
->   %88 = Scope %87 [] : ()
+>   %77 = Block - : never
+>   %78 = Match %55 [%77 %73] : ()
+>   %79 = Block - : ()
+>   %80 = Break L1 - : never
+>   %81 = Block - : ()
+>   %82 = If %53 [%79 %81] : ()
+>   %83 = Block - : ()
+>   %84 = Loop %83 - : ()
+>   %85 = Break L2 - : never
+>   %86 = Block - : ()
+>   %87 = Scope %86 [] : ()
 >   %59 finds [$1] full
 >   %66 finds [$1] full
->   %85 finds [$1] full
+>   %84 finds [$1] full
     total
->   %89 = Read copy [$1] : usize
->   %90 = Drop [$1] : ()
->   %89 finds [$1] full
+>   %88 = Read copy [$1] : usize
+>   %89 = Drop [$1] : ()
+>   %88 finds [$1] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1 $5]
 >   exit sub 2 drops [$6]

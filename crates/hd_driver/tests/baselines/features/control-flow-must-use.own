@@ -34,12 +34,12 @@ fn save(s: string) -> Result[string, SaveError]:
 fn discard(s: string) -> usize:
 > app/main/discard
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 consume, %20 consume, %43 lend last
+>     uses $0: entry -> %1 consume, %19 consume, %41 lend last
 >   local $2 s: string [read captured] place
 >   local $3 s: string [read captured] place
->   %0 = Release %48 Exit local $0 #2 : ()
+>   %0 = Release %46 Exit local $0 #2 : ()
     _ := save(s)
->   %1 = Read copy [$0] : string
+>   %1 = Read borrow [$0] : string
 >   %2 = Store [$3] %1 : ()
 >   %3 = Ref local frame [$3] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
@@ -57,41 +57,39 @@ fn discard(s: string) -> usize:
 >   %16 = Block - : Result[string, SaveError]
 >   %17 = Scope %16 [] : Result[string, SaveError]
 >   %18 = Drop [%17] : ()
->   %19 = Drop [$3] : ()
->   %48 = Block %47 : usize
+>   %46 = Block %45 : usize
 >   %3 finds [$3] full
 >   %7 finds [$3] full
     let _ = save(s)
->   %20 = Read copy [$0] : string
->   %21 = Store [$2] %20 : ()
->   %22 = Ref local frame [$2] : &string
->   %23 = Call std/text/impl string.len[] (%22) : usize
->   %24 = LoanEnd [%22] : ()
->   %25 = Prim Gt [%23 0:usize] : bool
->   %26 = Read borrow [$2] : string
->   %27 = Intrinsic StrConcat [%26 "!"] : string
->   %28 = NewVariant #0 [%27] : Result[string, SaveError]
->   %29 = Block %28 : Result[string, SaveError]
->   %30 = NewVariant #0 ["empty"] : SaveError
->   %31 = NewVariant #1 [%30] : Result[string, SaveError]
->   %32 = Block %31 : Result[string, SaveError]
->   %33 = If %25 [%29 %32] : Result[string, SaveError]
->   %34 = Break L1 %33 : never
->   %35 = Block - : Result[string, SaveError]
->   %36 = Scope %35 [] : Result[string, SaveError]
->   %37 = Drop [%36] : ()
->   %38 = Drop [$2] : ()
+>   %19 = Read borrow [$0] : string
+>   %20 = Store [$2] %19 : ()
+>   %21 = Ref local frame [$2] : &string
+>   %22 = Call std/text/impl string.len[] (%21) : usize
+>   %23 = LoanEnd [%21] : ()
+>   %24 = Prim Gt [%22 0:usize] : bool
+>   %25 = Read borrow [$2] : string
+>   %26 = Intrinsic StrConcat [%25 "!"] : string
+>   %27 = NewVariant #0 [%26] : Result[string, SaveError]
+>   %28 = Block %27 : Result[string, SaveError]
+>   %29 = NewVariant #0 ["empty"] : SaveError
+>   %30 = NewVariant #1 [%29] : Result[string, SaveError]
+>   %31 = Block %30 : Result[string, SaveError]
+>   %32 = If %24 [%28 %31] : Result[string, SaveError]
+>   %33 = Break L1 %32 : never
+>   %34 = Block - : Result[string, SaveError]
+>   %35 = Scope %34 [] : Result[string, SaveError]
+>   %36 = Drop [%35] : ()
+>   %37 = Block - : ()
 >   %39 = Block - : ()
->   %41 = Block - : ()
->   %42 = Scope %39 [] : ()
->   %22 finds [$2] full
->   %26 finds [$2] full
+>   %40 = Scope %37 [] : ()
+>   %21 finds [$2] full
+>   %25 finds [$2] full
     s.len()
->   %43 = Read borrow [$0] : string
->   %44 = Call std/rt.bytes/bytes_len[] (%43) : usize
->   %45 = Break L0 %44 : never
->   %46 = Block - : usize
->   %47 = Scope %46 [] : usize
+>   %41 = Read borrow [$0] : string
+>   %42 = Call std/rt.bytes/bytes_len[] (%41) : usize
+>   %43 = Break L0 %42 : never
+>   %44 = Block - : usize
+>   %45 = Scope %44 [] : usize
 >   storage sub 0: $2 slot, $3 slot
 >   summary kept [] borrows [$0]
 

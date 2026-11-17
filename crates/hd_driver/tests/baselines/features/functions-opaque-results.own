@@ -36,10 +36,10 @@ fn count_long(xs: List[string]) -> usize:
 >     uses $6: %3 -> %4 lend last
 >   local $7 self: List[string] [read] value
 >     uses $7: %5 -> %6 consume last
->   %0 = Retain %48 Entry local $0 #0 : ()
+>   %0 = Retain %47 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %48 = Block %47 : usize
+>   %47 = Block %46 : usize
     for x in names(&xs):
 >   %2 = Ref local frame [$0] : &List[string]
 >   %3 = Store [$6] %2 : ()
@@ -65,16 +65,15 @@ fn count_long(xs: List[string]) -> usize:
 >   %31 = Block - : ()
 >   %32 = Read borrow [%20 as #1 .0] : string
 >   %33 = Store [$4] %32 : ()
->   %34 = Release %33 Operation #3 : ()
->   %40 = Block - : never
->   %41 = Match %20 [%40 %29 %31] : ()
->   %42 = Drop [%20] : ()
->   %43 = Block - : ()
->   %44 = Loop %43 - : ()
->   %45 = LoanEnd [$3] : ()
->   %46 = Drop [$2] : ()
+>   %39 = Block - : never
+>   %40 = Match %20 [%39 %29 %31] : ()
+>   %41 = Drop [%20] : ()
+>   %42 = Block - : ()
+>   %43 = Loop %42 - : ()
+>   %44 = LoanEnd [$3] : ()
+>   %45 = Drop [$2] : ()
 >   %17 finds [$2] full
->   %44 finds [$2] full
+>   %43 finds [$2] full
         n += x.len()
 >   %21 = Read copy [$1] : usize
 >   %22 = Read borrow [$4] : string
@@ -85,7 +84,7 @@ fn count_long(xs: List[string]) -> usize:
 >   %27 = Prim Add [%21 %26] : usize
 >   %28 = Store [$1] %27 : ()
     n
->   %47 = Read copy [$1] : usize
+>   %46 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [$0] writes

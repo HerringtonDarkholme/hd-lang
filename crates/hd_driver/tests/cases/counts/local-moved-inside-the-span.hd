@@ -1,8 +1,8 @@
 # @dump: counts
 # @build: v8 release
-# The first read of `b` keeps its count: the second read is the local's
-# last access, so it moves the count into `Holder`, which `consume` frees
-# before `keep` reads the first value.
+# Release inlining leaves both readers borrowing `b`: `Holder` borrows
+# the same box, so its end does not consume the owner's count while
+# `keep` still reads it. The original local retains its final cleanup.
 struct Box:
     n: usize
 

@@ -21,7 +21,7 @@ fn alias_push() -> void:
 >   %3 = Store [$0] %2 : ()
 >   %4 = Ref take mut [$0] : *mut List[i32]
 >   %5 = Store [$1] %4 : ()
->   %40 = Block - : ()
+>   %39 = Block - : ()
 >   %4 finds [$0] full
     b := a
 >   %6 = Read borrow [$1] : *mut List[i32]
@@ -42,18 +42,17 @@ fn alias_push() -> void:
 >   %24 = Block - : ()
 >   %25 = Read borrow [%19] : &i32
 >   %26 = Store [$5] %25 : ()
->   %27 = Release %26 Operation #3 : ()
->   %29 = Block - : never
->   %30 = Match %19 [%29 %24] : ()
->   %31 = LoanEnd [%19] : ()
->   %32 = Block - : ()
->   %33 = Break L0 - : never
->   %34 = Block - : ()
->   %35 = If %14 [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [%8] : ()
->   %39 = Drop [$1] : ()
+>   %28 = Block - : never
+>   %29 = Match %19 [%28 %24] : ()
+>   %30 = LoanEnd [%19] : ()
+>   %31 = Block - : ()
+>   %32 = Break L0 - : never
+>   %33 = Block - : ()
+>   %34 = If %14 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
+>   %37 = Drop [%8] : ()
+>   %38 = Drop [$1] : ()
         b.push(*c) # panic: borrow-conflict
 >   %20 = Read copy [*$5] : i32
 >   %21 = IsUnique [*$2] : ()

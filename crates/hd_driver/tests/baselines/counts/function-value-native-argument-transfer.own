@@ -93,6 +93,7 @@ fn conditional_size(value: Conditional) -> usize:
 >     uses $1: %15 -> %2 consume last
 >   local $2 value: Resource [read captured] place
 >   %0 = Read move [$0] : Conditional
+>   %10 = Drop [$1] : ()
 >   %19 = Block - : never
 >   %20 = Match %0 [%19 %1 %11] : usize
 >   %21 = Block %20 : usize
@@ -101,7 +102,7 @@ fn conditional_size(value: Conditional) -> usize:
 >   %13 = Block - : never
 >   %18 = SwitchTag %0 [#0 %13 %17] : never
         .Live(resource) => size(resource)
->   %2 = Read move [$1] : Resource
+>   %2 = Read borrow [$1] : Resource
 >   %3 = Store [$2] %2 : ()
 >   %4 = Ref local frame [$2 .owned] : &UniqList[usize]
 >   %5 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%4) : usize
@@ -109,7 +110,6 @@ fn conditional_size(value: Conditional) -> usize:
 >   %7 = Break L0 %5 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
->   %10 = Drop [$2] : ()
 >   %11 = Block %9 : usize
 >   %14 = Read move [%0 as #1 .0] : Resource
 >   %15 = Store [$1] %14 : ()
