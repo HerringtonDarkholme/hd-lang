@@ -101,7 +101,7 @@ fn checksum(xs: &List[string]) -> usize:
 >   local $6 x: string [read assigned] value
 >     uses $6: %25 -> %16 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %37 = Block %36 : usize
+>   %36 = Block %35 : usize
     for x in xs:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Store [$2] %1 : ()
@@ -120,15 +120,14 @@ fn checksum(xs: &List[string]) -> usize:
 >   %23 = Block - : ()
 >   %24 = Read borrow [%11] : string
 >   %25 = Store [$6] %24 : ()
->   %26 = Release %25 Operation #3 : ()
->   %28 = Block - : never
->   %29 = Match %11 [%28 %23] : ()
->   %30 = Block - : ()
->   %31 = Break L0 - : never
->   %32 = Block - : ()
->   %33 = If %9 [%30 %32] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
+>   %27 = Block - : never
+>   %28 = Match %11 [%27 %23] : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %9 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
         n += x.len()
 >   %15 = Read copy [$1] : usize
 >   %16 = Read borrow [$6] : string
@@ -139,9 +138,9 @@ fn checksum(xs: &List[string]) -> usize:
 >   %21 = Prim Add [%15 %20] : usize
 >   %22 = Store [$1] %21 : ()
     n
->   %36 = Read copy [$1] : usize
+>   %35 = Read copy [$1] : usize
 >   summary kept []
->   loop %35 keeps [$2]
+>   loop %34 keeps [$2]
 
 @inline
 fn first_len(xs: &List[string]) -> usize:

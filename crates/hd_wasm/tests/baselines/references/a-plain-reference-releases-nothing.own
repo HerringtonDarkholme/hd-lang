@@ -49,19 +49,18 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %24 = Break L1 %23 : never
 >   %25 = Block - : &mut i32?
 >   %26 = Scope %25 [] : &mut i32?
->   %40 = Block - : never
->   %41 = Match %26 [%40 %29 %31] : ()
->   %42 = LoanEnd [%26] : ()
->   %43 = Block - : ()
+>   %39 = Block - : never
+>   %40 = Match %26 [%39 %29 %31] : ()
+>   %41 = LoanEnd [%26] : ()
+>   %42 = Block - : ()
         .Some(r) => *r = v
 >   %27 = Read copy [$2] : i32
 >   %28 = Store [*$3] %27 : ()
 >   %29 = Block - : ()
 >   %32 = Read borrow [%26 as #1 .0] : &mut i32
 >   %33 = Store [$3] %32 : ()
->   %34 = Release %33 Operation #3 : ()
->   %36 = Block - : never
->   %39 = SwitchTag %26 [#1 %36 %38] : never
+>   %35 = Block - : never
+>   %38 = SwitchTag %26 [#1 %35 %37] : never
         .None => panic("index")
 >   %30 = Call std/core/panic[] ("index") : never
 >   %31 = Block - : never

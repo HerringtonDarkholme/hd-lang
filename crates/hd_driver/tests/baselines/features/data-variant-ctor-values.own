@@ -17,7 +17,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   local $0 errors: List[FsError] [param read] value
 >     uses $0: entry -> %3 lend, %17 lend
 >   local $1 $acc: List[SyncError] [assigned] value
->     uses $1: %2 -> %8 lend, %24 lend, %39 consume last
+>     uses $1: %2 -> %8 lend, %24 lend, %38 consume last
 >   local $3 $len: usize [assigned] value
 >     uses $3: %5 -> %6 lend, %10 consume last
 >   local $4 $pos: usize [assigned] place
@@ -25,7 +25,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >     uses $5: %11 -> %14 lend
 >   local $6 e: FsError [read assigned] value
 >     uses $6: %28 -> %21 consume last
->   %0 = Release %40 Exit local $0 #2 : ()
+>   %0 = Release %39 Exit local $0 #2 : ()
     [for e in errors => SyncError.Fs(e)]
 >   %1 = NewList - [] : List[SyncError]
 >   %2 = Store [$1] %1 : ()
@@ -55,17 +55,16 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %26 = Block - : ()
 >   %27 = Read borrow [%17] : FsError
 >   %28 = Store [$6] %27 : ()
->   %29 = Release %28 Operation #3 : ()
->   %31 = Block - : never
->   %32 = Match %17 [%31 %26] : ()
->   %33 = Block - : ()
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If %15 [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
->   %39 = Read move [$1] : List[SyncError]
->   %40 = Block %39 : List[SyncError]
+>   %30 = Block - : never
+>   %31 = Match %17 [%30 %26] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %15 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Read move [$1] : List[SyncError]
+>   %39 = Block %38 : List[SyncError]
 >   summary kept [] borrows [$0]
 
 fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
@@ -75,7 +74,7 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   local $1 wrap: fn(FsError) -> SyncError [param read] value
 >     uses $1: entry -> %22 lend
 >   local $2 $acc: List[SyncError] [assigned] value
->     uses $2: %3 -> %9 lend, %27 lend, %42 consume last
+>     uses $2: %3 -> %9 lend, %27 lend, %41 consume last
 >   local $4 $len: usize [assigned] value
 >     uses $4: %6 -> %7 lend, %11 consume last
 >   local $5 $pos: usize [assigned] place
@@ -83,8 +82,8 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >     uses $6: %12 -> %15 lend
 >   local $7 e: FsError [read assigned] value
 >     uses $7: %31 -> %23 lend last
->   %0 = Release %43 Exit local $0 #2 : ()
->   %1 = Release %43 Exit local $1 #2 : ()
+>   %0 = Release %42 Exit local $0 #2 : ()
+>   %1 = Release %42 Exit local $1 #2 : ()
     [for e in errors => wrap(e)]
 >   %2 = NewList - [] : List[SyncError]
 >   %3 = Store [$2] %2 : ()
@@ -116,17 +115,16 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %29 = Block - : ()
 >   %30 = Read borrow [%18] : FsError
 >   %31 = Store [$7] %30 : ()
->   %32 = Release %31 Operation #3 : ()
->   %34 = Block - : never
->   %35 = Match %18 [%34 %29] : ()
->   %36 = Block - : ()
->   %37 = Break L0 - : never
->   %38 = Block - : ()
->   %39 = If %16 [%36 %38] : ()
->   %40 = Block - : ()
->   %41 = Loop %40 - : ()
->   %42 = Read move [$2] : List[SyncError]
->   %43 = Block %42 : List[SyncError]
+>   %33 = Block - : never
+>   %34 = Match %18 [%33 %29] : ()
+>   %35 = Block - : ()
+>   %36 = Break L0 - : never
+>   %37 = Block - : ()
+>   %38 = If %16 [%35 %37] : ()
+>   %39 = Block - : ()
+>   %40 = Loop %39 - : ()
+>   %41 = Read move [$2] : List[SyncError]
+>   %42 = Block %41 : List[SyncError]
 >   summary kept [] borrows [$0 $1] writes
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:
@@ -136,7 +134,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   local $1 $0: FsError [param] value
 >     uses $1: none
 >   local $4 $acc: List[SyncError] [assigned] value
->     uses $4: %6 -> %12 lend, %31 lend, %46 consume last
+>     uses $4: %6 -> %12 lend, %31 lend, %45 consume last
 >   local $6 $len: usize [assigned] value
 >     uses $6: %9 -> %10 lend, %14 consume last
 >   local $7 $pos: usize [assigned] place
@@ -144,7 +142,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >     uses $8: %15 -> %18 lend
 >   local $9 e: FsError [read assigned] value
 >     uses $9: %35 -> %25 consume last
->   %0 = Release %50 Exit local $0 #2 : ()
+>   %0 = Release %49 Exit local $0 #2 : ()
     wrap_with(errors, SyncError.Fs)
 >   %1 = Retain %4 Entry local $1 #0 : ()
 >   %2 = Drop [$1] : ()
@@ -181,20 +179,19 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %33 = Block - : ()
 >   %34 = Read borrow [%21] : FsError
 >   %35 = Store [$9] %34 : ()
->   %36 = Release %35 Operation #3 : ()
->   %38 = Block - : never
->   %39 = Match %21 [%38 %33] : ()
->   %40 = Block - : ()
->   %41 = Break L0 - : never
->   %42 = Block - : ()
->   %43 = If %19 [%40 %42] : ()
->   %44 = Block - : ()
->   %45 = Loop %44 - : ()
->   %46 = Read move [$4] : List[SyncError]
->   %47 = Break L1 %46 : never
->   %48 = Block - : List[SyncError]
->   %49 = Scope %48 [] : List[SyncError]
->   %50 = Block %49 : List[SyncError]
+>   %37 = Block - : never
+>   %38 = Match %21 [%37 %33] : ()
+>   %39 = Block - : ()
+>   %40 = Break L0 - : never
+>   %41 = Block - : ()
+>   %42 = If %19 [%39 %41] : ()
+>   %43 = Block - : ()
+>   %44 = Loop %43 - : ()
+>   %45 = Read move [$4] : List[SyncError]
+>   %46 = Break L1 %45 : never
+>   %47 = Block - : List[SyncError]
+>   %48 = Scope %47 [] : List[SyncError]
+>   %49 = Block %48 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0]
 

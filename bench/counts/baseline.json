@@ -221,11 +221,12 @@
     },
     {
       "program": "bench/study/json.hd",
-      "retained": "2380002",
-      "released": "3400093",
+      "retained": "2040002",
+      "released": "3060093",
       "uniques": "10540015",
-      "total": "16320110",
-      "noOpsAndSkipped": "19720132"
+      "total": "15640110",
+      "noOpsAndSkipped": "19720133",
+      "reason": "#2074 aggregate identity forwarding: CI run 44092408354 measures 19,720,133 no-op/skipped calls (+1), with 2,040,002 retains and 3,060,093 releases (-680,000 combined). Aggregate loans change generated cleanup shapes; json emits one additional release-helper specialization. Record the exact cleanup-call increase rather than relaxing the limit; the ownership operation total falls to 15,640,110."
     },
     {
       "program": "bench/study/mandelbrot.hd",

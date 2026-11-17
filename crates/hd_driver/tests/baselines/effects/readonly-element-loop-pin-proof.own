@@ -15,7 +15,7 @@ fn read_only(values: &List[string]) -> usize:
 >   local $4 item: &string [read assigned] value
 >     uses $4: %20 -> %14 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %33 = Block %32 : usize
+>   %32 = Block %31 : usize
     for item in &values:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -32,16 +32,15 @@ fn read_only(values: &List[string]) -> usize:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%12] : &string
 >   %20 = Store [$4] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %23 = Block - : never
->   %24 = Match %12 [%23 %18] : ()
->   %25 = LoanEnd [%12] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %7 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %22 = Block - : never
+>   %23 = Match %12 [%22 %18] : ()
+>   %24 = LoanEnd [%12] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %7 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         total += item.len()
 >   %13 = Read copy [$1] : usize
 >   %14 = Read borrow [$4] : &string
@@ -49,7 +48,7 @@ fn read_only(values: &List[string]) -> usize:
 >   %16 = Prim Add [%13 %15] : usize
 >   %17 = Store [$1] %16 : ()
     total
->   %32 = Read copy [$1] : usize
+>   %31 = Read copy [$1] : usize
 >   summary kept []
 
 fn mutable(values: &mut List[string]) -> void:
@@ -79,17 +78,16 @@ fn mutable(values: &mut List[string]) -> void:
 >   %16 = Block - : ()
 >   %17 = Read borrow [%13] : &mut string
 >   %18 = Store [$3] %17 : ()
->   %19 = Release %18 Operation #3 : ()
->   %21 = Block - : never
->   %22 = Match %13 [%21 %16] : ()
->   %23 = LoanEnd [%13] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %7 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %30 = Block - : ()
+>   %20 = Block - : never
+>   %21 = Match %13 [%20 %16] : ()
+>   %22 = LoanEnd [%13] : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %7 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
+>   %29 = Block - : ()
         *item = "changed"
 >   %14 = Store [*$3] "changed" : ()
 >   %15 = Release %14 Operation #3 : ()

@@ -13,7 +13,7 @@ fn build(parts: &List[string]) -> string:
 >   local $0 parts: &List[string] [param read] value
 >     uses $0: entry -> %8 lend last
 >   local $1 sb: *mut StringBuilder [:= read assigned] value
->     uses $1: %7 -> %22 lend, %26 lend, %42 lend last
+>     uses $1: %7 -> %22 lend, %26 lend, %41 lend last
 >   local $2 $coll: List[string] [assigned] value
 >     uses $2: %9 -> %10 lend, %18 lend
 >   local $4 $pos: usize [assigned] place
@@ -30,7 +30,7 @@ fn build(parts: &List[string]) -> string:
 >   %5 = Block - : *mut StringBuilder
 >   %6 = Scope %5 [] : *mut StringBuilder
 >   %7 = Store [$1] %6 : ()
->   %45 = Block %43 : string
+>   %44 = Block %42 : string
 >   %3 finds [$7] full
     for p in parts:
 >   %8 = Read copy [*$0] : List[string]
@@ -50,16 +50,15 @@ fn build(parts: &List[string]) -> string:
 >   %28 = Block - : ()
 >   %29 = Read borrow [%18] : string
 >   %30 = Store [$6] %29 : ()
->   %31 = Release %30 Operation #3 : ()
->   %33 = Block - : never
->   %34 = Match %18 [%33 %28] : ()
->   %35 = Block - : ()
->   %36 = Break L0 - : never
->   %37 = Block - : ()
->   %38 = If %16 [%35 %37] : ()
->   %39 = Block - : ()
->   %40 = Loop %39 - : ()
->   %41 = Drop [$2] : ()
+>   %32 = Block - : never
+>   %33 = Match %18 [%32 %28] : ()
+>   %34 = Block - : ()
+>   %35 = Break L0 - : never
+>   %36 = Block - : ()
+>   %37 = If %16 [%34 %36] : ()
+>   %38 = Block - : ()
+>   %39 = Loop %38 - : ()
+>   %40 = Drop [$2] : ()
         sb.push(p)
 >   %22 = Read borrow [$1] : *mut StringBuilder
 >   %23 = Read borrow [$6] : string
@@ -69,12 +68,12 @@ fn build(parts: &List[string]) -> string:
 >   %26 = Read borrow [$1] : *mut StringBuilder
 >   %27 = Call std/text/impl StringBuilder.push[] (%26, ",") : ()
     sb.build()
->   %42 = Read move [$1] : *mut StringBuilder
->   %43 = Call std/text/impl StringBuilder.build[] (%42) : string
->   %44 = Drop [%42] : ()
+>   %41 = Read move [$1] : *mut StringBuilder
+>   %42 = Call std/text/impl StringBuilder.build[] (%41) : string
+>   %43 = Drop [%41] : ()
 >   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
->   loop %40 keeps [$2]
+>   loop %39 keeps [$2]
 
 fn fields(line: string) -> usize:
 > app/main/fields
@@ -88,10 +87,10 @@ fn fields(line: string) -> usize:
 >     uses $5: %8 -> %11 lend
 >   local $6 f: string [read assigned] value
 >     uses $6: %28 -> %19 lend last
->   %0 = Release %41 Exit local $0 #2 : ()
+>   %0 = Release %40 Exit local $0 #2 : ()
     let mut n = 0
 >   %1 = Store [$1] 0:usize : ()
->   %41 = Block %40 : usize
+>   %40 = Block %39 : usize
     for f in line.split(","):
 >   %2 = Read borrow [$0] : string
 >   %3 = Call std/text/impl string.split[] (%2, ",") : List[string]
@@ -112,16 +111,15 @@ fn fields(line: string) -> usize:
 >   %26 = Block - : ()
 >   %27 = Read borrow [%14] : string
 >   %28 = Store [$6] %27 : ()
->   %29 = Release %28 Operation #3 : ()
->   %31 = Block - : never
->   %32 = Match %14 [%31 %26] : ()
->   %33 = Block - : ()
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If %12 [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
->   %39 = Drop [$2] : ()
+>   %30 = Block - : never
+>   %31 = Match %14 [%30 %26] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %12 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+>   %38 = Drop [$2] : ()
         n += f.len()
 >   %18 = Read copy [$1] : usize
 >   %19 = Read borrow [$6] : string
@@ -132,6 +130,6 @@ fn fields(line: string) -> usize:
 >   %24 = Prim Add [%18 %23] : usize
 >   %25 = Store [$1] %24 : ()
     n
->   %40 = Read copy [$1] : usize
+>   %39 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %38 keeps [$2]
+>   loop %37 keeps [$2]

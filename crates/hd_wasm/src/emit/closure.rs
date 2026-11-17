@@ -581,6 +581,10 @@ impl Em<'_, '_, '_> {
         // The value in the cell's layout, with the count the cell takes.
         let src = if v == NONE {
             self.zero_src(l)?
+        } else if self.loan_locals.contains_key(&l) {
+            // An immutable frame binding stores a borrowed descriptor;
+            // the ownership proof keeps its source live through every use.
+            Src::Ref(v)
         } else {
             self.consumed(v)?
         };

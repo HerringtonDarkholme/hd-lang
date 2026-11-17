@@ -17,10 +17,10 @@ fn until_long(xs: List[string]) -> usize:
 >     uses $6: %48 -> %14 lend last
 >   local $7 t: string [:= read assigned] value
 >     uses $7: %16 -> %17 lend, %27 lend, %38 lend last
->   %0 = Release %60 Exit local $0 #2 : ()
+>   %0 = Release %59 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %60 = Block %59 : usize
+>   %59 = Block %58 : usize
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -37,15 +37,14 @@ fn until_long(xs: List[string]) -> usize:
 >   %46 = Block - : ()
 >   %47 = Read borrow [%10] : string
 >   %48 = Store [$6] %47 : ()
->   %49 = Release %48 Operation #3 : ()
->   %51 = Block - : never
->   %52 = Match %10 [%51 %46] : ()
->   %53 = Block - : ()
->   %54 = Break L0 - : never
->   %55 = Block - : ()
->   %56 = If %8 [%53 %55] : ()
->   %57 = Block - : ()
->   %58 = Loop %57 - : ()
+>   %50 = Block - : never
+>   %51 = Match %10 [%50 %46] : ()
+>   %52 = Block - : ()
+>   %53 = Break L0 - : never
+>   %54 = Block - : ()
+>   %55 = If %8 [%52 %54] : ()
+>   %56 = Block - : ()
+>   %57 = Loop %56 - : ()
         t := x + "!"
 >   %14 = Read borrow [$6] : string
 >   %15 = Intrinsic StrConcat [%14 "!"] : string
@@ -85,6 +84,6 @@ fn until_long(xs: List[string]) -> usize:
 >   %44 = Prim Add [%37 %42] : usize
 >   %45 = Store [$1] %44 : ()
     n
->   %59 = Read copy [$1] : usize
+>   %58 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %58 keeps [$0]
+>   loop %57 keeps [$0]

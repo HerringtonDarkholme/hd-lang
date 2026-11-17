@@ -89,6 +89,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         })
         .collect();
     let reference_uses = crate::own::derive::reference_uses(b, cx);
+    let reference_roots = crate::own::derive::frame_reference_roots(b, || {});
     let reference_values = reference_values(b);
     let own = cx;
     let cx = Cx {
@@ -98,6 +99,8 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         addressed: &reference_uses.escaping,
         reference_calls: &reference_uses.calls,
         reference_values: &reference_values,
+        reference_roots: &reference_roots,
+        read_through: &reference_uses.read_through,
     };
     decided(b, &mut errs);
     crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
@@ -110,7 +113,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     Empties::new(&cx, own).walk(&mut errs);
     borrow_spans(&cx, own, &mut errs);
     binding_locals(&cx, own, &mut errs);
-    borrowed_wrappers(b, &mut errs);
+    borrowed_wrappers(b, own, &mut errs);
     Balance::new(b, &topo, own).walk(&mut errs);
     copies(b, &mut errs);
     errs
@@ -118,9 +121,10 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
 
 /// A wrapper `Scope` a borrow goes through ([`Body::borrowed_alias`]) has
 /// that borrow's `Break` as its one way out, so its value is that borrow.
-fn borrowed_wrappers(b: &Body, errs: &mut Vec<VerifyError>) {
+fn borrowed_wrappers(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     if !b.forwarded_reads.is_empty() {
-        let roots = b.forwarding_reads(|| {});
+        let constructors = crate::own::derive::constructor_sources(b, cx);
+        let roots = b.forwarding_reads(&constructors, || {});
         for (at, &(value, read)) in b.forwarded_reads.iter().enumerate() {
             if roots.get(value as usize) != Some(&read)
                 || read == NONE
@@ -840,6 +844,8 @@ struct Cx<'a> {
     addressed: &'a [bool],
     reference_calls: &'a [u32],
     reference_values: &'a [u32],
+    reference_roots: &'a [u32],
+    read_through: &'a [bool],
 }
 
 /// The value stored once into each unaddressed local. Multiple stores,
@@ -1248,10 +1254,11 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         return;
     }
     let no_external_write = !crate::own::writes_in(b, 0..b.len(), &|c| own.may_write(c));
-    let mut frame_parameters = vec![false; b.local_ty.len()];
+    let mut frame_slots = vec![false; b.local_ty.len()];
     for &(sub, l, storage) in &b.storage {
-        if sub.idx() == 0 && storage == super::Storage::Slot && lent[l.idx()] {
-            frame_parameters[l.idx()] = true;
+        if sub.idx() == 0 && storage == super::Storage::Slot && (lent[l.idx()] || binding[l.idx()])
+        {
+            frame_slots[l.idx()] = true;
         }
     }
     for i in 0..b.len() {
@@ -1271,22 +1278,26 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         // descriptor. Frame planning proves an address stays inside this
         // invocation, including through local aggregates. In a body with
         // no external writes, an immutable address borrows that storage.
-        // Bindings, mutable/escaping references and absent slots stay rejected.
+        // A binding's immutable address also lends when its complete uses
+        // read through it or end at one call. The borrow walk keeps its
+        // original source live through those uses, including coercions.
         let call = cx.reference_calls[i];
         if b.tags[i] == Tag::Ref
-            && frame_parameters[l.idx()]
+            && frame_slots[l.idx()]
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME | ref_word::MUT)
                 == ref_word::LOCAL | ref_word::FRAME
-            && (no_external_write
-                || (call != NONE
-                    && b.data
-                        .get(call as usize)
-                        .and_then(|[at, _]| b.extra.get(*at as usize..))
-                        .and_then(|words| words.split_first())
-                        .and_then(|(&len, words)| words.get(..len as usize))
-                        .and_then(Callee::from_words)
-                        .is_some_and(|callee| !own.may_write(&callee))))
+            && (binding[l.idx()] && (call != NONE || cx.read_through[i])
+                || !binding[l.idx()]
+                    && (no_external_write
+                        || (call != NONE
+                            && b.data
+                                .get(call as usize)
+                                .and_then(|[at, _]| b.extra.get(*at as usize..))
+                                .and_then(|words| words.split_first())
+                                .and_then(|(&len, words)| words.get(..len as usize))
+                                .and_then(Callee::from_words)
+                                .is_some_and(|callee| !own.may_write(&callee)))))
         {
             continue;
         }
@@ -1661,6 +1672,13 @@ impl Backward for Live<'_> {
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
         let mut x = v;
         for _ in 0..b.len() {
+            if let Some(&local) = self.cx.reference_roots.get(x as usize)
+                && local != NONE
+                && self.holds[local as usize] != NONE
+            {
+                x = self.holds[local as usize];
+                continue;
+            }
             if let Some(r) = b.borrowed_alias(x) {
                 x = r;
                 continue;
@@ -2351,7 +2369,7 @@ mod forwarded_read_tests {
         let root = b.close_block(root, None, Ty::NEVER, syn);
         let mut b = b.finish(root, &[]).expect("valid forwarding chain");
         b.data[read.0 as usize][1] = ReadMode::Borrow as u32;
-        b.index_forwarded_reads();
+        b.index_forwarded_reads(&[]);
         (b, second.0, read.0)
     }
 
@@ -2360,7 +2378,7 @@ mod forwarded_read_tests {
         let (b, value, read) = chain();
         assert_eq!(b.forwarded_reads, [(value, read)]);
         let mut errors = vec![];
-        borrowed_wrappers(&b, &mut errors);
+        borrowed_wrappers(&b, &crate::own::tests::Cx, &mut errors);
         assert!(errors.is_empty(), "{errors:?}");
         for rows in [
             vec![(value, value)],
@@ -2372,7 +2390,7 @@ mod forwarded_read_tests {
             let mut malformed = b.clone();
             malformed.forwarded_reads = rows;
             let mut errors = vec![];
-            borrowed_wrappers(&malformed, &mut errors);
+            borrowed_wrappers(&malformed, &crate::own::tests::Cx, &mut errors);
             assert!(
                 errors
                     .iter()
@@ -2407,7 +2425,7 @@ mod forwarded_read_tests {
             Some(map[read as usize])
         );
         let mut errors = vec![];
-        borrowed_wrappers(&b, &mut errors);
+        borrowed_wrappers(&b, &crate::own::tests::Cx, &mut errors);
         assert!(errors.is_empty(), "{errors:?}");
     }
 }

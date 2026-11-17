@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"shown[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32)
     ;; 31 |     value.show()
@@ -107,11 +106,5 @@
     local.get $name.1
     ;; 27 |     label(&w)
     call $label'2
-    ;; 26 |     let w = Wrap { name: name }
-    local.get $name.0
-    if
-      local.get $name.0
-      call $rt:release_ref
-    end
   )
 )

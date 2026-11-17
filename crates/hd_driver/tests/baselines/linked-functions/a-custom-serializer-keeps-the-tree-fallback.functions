@@ -2,6 +2,7 @@
 std/console/println#0 [string]
 std/rt.alloc/class_of#0
 std/json/impl Iterator[(string, Json)] for JsonObjectIter.next#0
+std/format/Display.write#0 [std.json.Json]
 std/rt.alloc/init_classes#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/collections/impl TextRoom.take_text#0
@@ -17,7 +18,6 @@ std/json/encode_fallback#0 [app.main.Odd]
 std/rt.alloc/block_of#0
 app/main/main#0
 std/rt.alloc/full#0
-std/format/Display.write#0 [std.json.Json]
 std/rt.alloc/move_table#0
 std/json/to_json#0 [app.main.Odd]
 std/json/impl TextWriter.finish#0
@@ -47,6 +47,7 @@ std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
 std/rt.cycle/hold_room#0
+std/json/impl Display for Json.to_string#0
 std/json/escape_text#0
 std/rt.alloc/init.init#0
 std/json/line_break#0
@@ -58,7 +59,6 @@ std/collections/collection_capacity_sum#0
 std/collections/impl TextSink for TextRoom.append_text#0
 std/iter/impl[T] Iterator[T] for ListIter[T].next#0 [std.json.ObjectEntry]
 std/collections/impl ByteBuffer for UniqList[u8].take_text#0
-std/json/impl Display for Json.to_string#0
 std/json/impl TextWriter.add_key#0
 std/collections/impl TextSink for TextRoom.append_signed#0
 std/rt.alloc/take#0
@@ -93,7 +93,6 @@ rt:release#2
 rt:release#3
 rt:release#4
 rt:release#5
-rt:release#6
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

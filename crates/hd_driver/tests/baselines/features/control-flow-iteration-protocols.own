@@ -47,10 +47,10 @@ fn user_cursor(words: Words) -> usize:
 >     uses $3: %5 -> %6 lend
 >   local $4 w: string [read assigned] value
 >     uses $4: %20 -> %9 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
+>   %0 = Retain %34 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %35 = Block %34 : usize
+>   %34 = Block %33 : usize
     for w in words:
 >   %2 = Read move [$0] : Words
 >   %3 = Store [$2] %2 : ()
@@ -63,16 +63,15 @@ fn user_cursor(words: Words) -> usize:
 >   %18 = Block - : ()
 >   %19 = Read borrow [%7 as #1 .0] : string
 >   %20 = Store [$4] %19 : ()
->   %21 = Release %20 Operation #3 : ()
->   %27 = Block - : never
->   %28 = Match %7 [%27 %16 %18] : ()
->   %29 = Drop [%7] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %32 = LoanEnd [$3] : ()
->   %33 = Drop [$2] : ()
+>   %26 = Block - : never
+>   %27 = Match %7 [%26 %16 %18] : ()
+>   %28 = Drop [%7] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = LoanEnd [$3] : ()
+>   %32 = Drop [$2] : ()
 >   %4 finds [$2] full
->   %31 finds [$2] full
+>   %30 finds [$2] full
         n += w.len()
 >   %8 = Read copy [$1] : usize
 >   %9 = Read borrow [$4] : string
@@ -83,7 +82,7 @@ fn user_cursor(words: Words) -> usize:
 >   %14 = Prim Add [%8 %13] : usize
 >   %15 = Store [$1] %14 : ()
     n
->   %34 = Read copy [$1] : usize
+>   %33 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 >   summary kept [$0]
@@ -91,7 +90,7 @@ fn user_cursor(words: Words) -> usize:
 fn twice(xs: List[string]) -> usize:
 > app/main/twice
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 consume, %38 consume last
+>     uses $0: entry -> %2 consume, %37 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: &mut ListIter[string] [assigned] value
@@ -100,13 +99,13 @@ fn twice(xs: List[string]) -> usize:
 >     uses $4: %24 -> %13 lend last
 >   local $5 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $6 $iter: &mut ListIter[string] [assigned] value
->     uses $6: %45 -> %46 lend
+>     uses $6: %44 -> %45 lend
 >   local $7 x: string [read assigned] value
->     uses $7: %60 -> %49 lend last
->   %0 = Retain %75 Entry local $0 #0 : ()
+>     uses $7: %59 -> %48 lend last
+>   %0 = Retain %73 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %75 = Block %74 : usize
+>   %73 = Block %72 : usize
     for x in xs.iter():
 >   %2 = Read copy [$0] : List[string]
 >   %3 = NewStruct [%2 0:usize] : ListIter[string]
@@ -123,16 +122,15 @@ fn twice(xs: List[string]) -> usize:
 >   %22 = Block - : ()
 >   %23 = Read borrow [%11 as #1 .0] : string
 >   %24 = Store [$4] %23 : ()
->   %25 = Release %24 Operation #3 : ()
->   %31 = Block - : never
->   %32 = Match %11 [%31 %20 %22] : ()
->   %33 = Drop [%11] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = LoanEnd [$3] : ()
->   %37 = Drop [$2] : ()
+>   %30 = Block - : never
+>   %31 = Match %11 [%30 %20 %22] : ()
+>   %32 = Drop [%11] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
+>   %35 = LoanEnd [$3] : ()
+>   %36 = Drop [$2] : ()
 >   %8 finds [$2] full
->   %35 finds [$2] full
+>   %34 finds [$2] full
         n += x.len()
 >   %12 = Read copy [$1] : usize
 >   %13 = Read borrow [$4] : string
@@ -143,42 +141,41 @@ fn twice(xs: List[string]) -> usize:
 >   %18 = Prim Add [%12 %17] : usize
 >   %19 = Store [$1] %18 : ()
     for x in xs.iter():
->   %38 = Read move [$0] : List[string]
->   %39 = NewStruct [%38 0:usize] : ListIter[string]
->   %40 = Break L3 %39 : never
->   %41 = Block - : ListIter[string]
->   %42 = Scope %41 [] : ListIter[string]
->   %43 = Store [$5] %42 : ()
->   %44 = Ref mut local frame [$5] : &mut ListIter[string]
->   %45 = Store [$6] %44 : ()
->   %46 = Read borrow [$6] : &mut ListIter[string]
->   %47 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%46) : string?
->   %56 = Block - : ()
->   %57 = Break L1 - : never
->   %58 = Block - : ()
->   %59 = Read borrow [%47 as #1 .0] : string
->   %60 = Store [$7] %59 : ()
->   %61 = Release %60 Operation #3 : ()
->   %67 = Block - : never
->   %68 = Match %47 [%67 %56 %58] : ()
->   %69 = Drop [%47] : ()
->   %70 = Block - : ()
->   %71 = Loop %70 - : ()
->   %72 = LoanEnd [$6] : ()
->   %73 = Drop [$5] : ()
->   %44 finds [$5] full
->   %71 finds [$5] full
+>   %37 = Read move [$0] : List[string]
+>   %38 = NewStruct [%37 0:usize] : ListIter[string]
+>   %39 = Break L3 %38 : never
+>   %40 = Block - : ListIter[string]
+>   %41 = Scope %40 [] : ListIter[string]
+>   %42 = Store [$5] %41 : ()
+>   %43 = Ref mut local frame [$5] : &mut ListIter[string]
+>   %44 = Store [$6] %43 : ()
+>   %45 = Read borrow [$6] : &mut ListIter[string]
+>   %46 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%45) : string?
+>   %55 = Block - : ()
+>   %56 = Break L1 - : never
+>   %57 = Block - : ()
+>   %58 = Read borrow [%46 as #1 .0] : string
+>   %59 = Store [$7] %58 : ()
+>   %65 = Block - : never
+>   %66 = Match %46 [%65 %55 %57] : ()
+>   %67 = Drop [%46] : ()
+>   %68 = Block - : ()
+>   %69 = Loop %68 - : ()
+>   %70 = LoanEnd [$6] : ()
+>   %71 = Drop [$5] : ()
+>   %43 finds [$5] full
+>   %69 finds [$5] full
         n += x.len()
->   %48 = Read copy [$1] : usize
->   %49 = Read borrow [$7] : string
->   %50 = Call std/rt.bytes/bytes_len[] (%49) : usize
->   %51 = Break L2 %50 : never
->   %52 = Block - : usize
->   %53 = Scope %52 [] : usize
->   %54 = Prim Add [%48 %53] : usize
->   %55 = Store [$1] %54 : ()
+>   %47 = Read copy [$1] : usize
+>   %48 = Read borrow [$7] : string
+>   %49 = Call std/rt.bytes/bytes_len[] (%48) : usize
+>   %50 = Break L2 %49 : never
+>   %51 = Block - : usize
+>   %52 = Scope %51 [] : usize
+>   %53 = Prim Add [%47 %52] : usize
+>   %54 = Store [$1] %53 : ()
     n
->   %74 = Read copy [$1] : usize
+>   %72 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot, $5 slot
 >   summary kept [$0]

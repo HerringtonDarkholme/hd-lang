@@ -31,16 +31,15 @@ app/main/bump_all
   %21 = Block - : ()
   %22 = Read borrow [%17] : &mut i64
   %23 = Store [$4] %22 : ()
-  %24 = Release %23 Operation #3 : ()
-  %26 = Block - : never
-  %27 = Match %17 [%26 %21] : ()
-  %28 = LoanEnd [%17] : ()
-  %29 = Block - : ()
-  %30 = Break L0 - : never
-  %31 = Block - : ()
-  %32 = If %9 [%29 %31] : ()
-  %33 = Block - : ()
-  %34 = Loop %33 - : ()
-  %35 = Drop [$0] : ()
-  %36 = Block - : ()
+  %25 = Block - : never
+  %26 = Match %17 [%25 %21] : ()
+  %27 = LoanEnd [%17] : ()
+  %28 = Block - : ()
+  %29 = Break L0 - : never
+  %30 = Block - : ()
+  %31 = If %9 [%28 %30] : ()
+  %32 = Block - : ()
+  %33 = Loop %32 - : ()
+  %34 = Drop [$0] : ()
+  %35 = Block - : ()
   exit sub 0 drops [$0]

@@ -8,6 +8,7 @@ app/main/Pair.structure handle 0 1#2
 std/json/impl Iterator[(string, Json)] for JsonObjectIter.next#0
 std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.main.Pair, i64, std.serde.SkipNone[i64]]
 std/hash/hash_bytes_long#0
+std/format/Display.write#0 [std.json.Json]
 std/rt.cycle/scan#0
 std/structure/impl Facts.find#0 [std.serde.Skip]
 std/rt.alloc/init_classes#0
@@ -45,7 +46,6 @@ app/main/main#0
 std/hash/rotate_right#0
 std/collections/impl[T] List[T].pop#0 [string]
 std/rt.alloc/full#0
-std/format/Display.write#0 [std.json.Json]
 std/hash/hash_string#0
 std/rt.alloc/move_table#0
 std/serde/joined_name#0
@@ -107,6 +107,7 @@ std/json/encode#0 [app.main.Pair]
 app/main/Pair.structure member facts 0 0#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
 std/rt.cycle/hold_room#0
+std/json/impl Display for Json.to_string#0
 app/main/Pair.structure handle 0 0#2
 std/json/impl Serializer for TextWriter.end_list#0
 std/json/escape_text#0
@@ -134,7 +135,6 @@ std/collections/impl ByteBuffer for UniqList[u8].take_text#0
 app/main/Pair.structure handle 0 1#1
 std/rt.cycle/visit#0
 std/serde/impl Serialize for i64.serialize#0 [std.json.JsonWriter]
-std/json/impl Display for Json.to_string#0
 std/json/impl TextWriter.add_key#0
 std/serde/skipped#0 [app.main.Pair, i64]
 std/serde/uppercase_name#0
@@ -197,7 +197,6 @@ rt:release#9
 rt:release#10
 rt:release#11
 rt:release#12
-rt:release#13
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

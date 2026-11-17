@@ -168,26 +168,19 @@
     local.get $t0
     local.get $self
   )
-  (func $use_generic (param $l.name.0 i32) (param $l.name.1 i32) (result i32) (local $t0 i32)
+  (func $use_generic (param $l.name.0 i32) (param $l.name.1 i32) (result i32)
     ;; 28 |     generic(l)
     local.get $l.name.0
     local.get $l.name.1
     call $"Describe.headline[Logger]'2"
-    local.set $l.name.1
-    local.tee $t0
-    local.get $l.name.1
-    call $"impl string.len"
-    local.get $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
-    local.set $l.name.1
+    local.set $l.name.0
+    local.tee $l.name.1
     local.get $l.name.0
+    call $"impl string.len"
+    local.get $l.name.1
     if
-      local.get $l.name.0
+      local.get $l.name.1
       call $rt:release_ref
     end
-    local.get $l.name.1
   )
 )
