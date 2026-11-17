@@ -14,46 +14,55 @@ use std::fmt::Write as _;
 use crate::body::Ck;
 
 /// Whether a type mentions an associated type projection, which this
-/// comparison leaves to the bodies.
-fn has_assoc(pool: Types<'_>, t: Ty, depth: u32) -> bool {
-    if depth > hd_base::limits::TYPE_DEPTH {
-        return true;
-    }
-    let d = depth + 1;
-    match pool.get(t) {
-        TyData::Assoc { .. } => true,
-        TyData::Ref { inner: i, .. } => has_assoc(pool, i, d),
-        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => pool
-            .list_items(args)
-            .iter()
-            .copied()
-            .any(|a| has_assoc(pool, a, d)),
-        TyData::Tuple { elems, rest } => {
-            pool.list_items(elems)
-                .iter()
-                .copied()
-                .any(|a| has_assoc(pool, a, d))
-                || rest.is_some_and(|r| has_assoc(pool, r, d))
+/// comparison leaves to the bodies: through references, data and trait
+/// value arguments, tuple members and rest, and function parameters,
+/// results and row keys.
+///
+/// Cost: each distinct type once, from an explicit stack with a visited
+/// set, so a tuple doubled through n aliases costs n visits, not its 2^n
+/// parts (an `impl` over `W[D130]` did not check in 15 s), and no native
+/// recursion follows its depth.
+fn has_assoc(pool: Types<'_>, t: Ty) -> bool {
+    let mut seen: hd_base::HashSet<Ty> = hd_base::HashSet::default();
+    let mut stack = vec![t];
+    while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
         }
-        TyData::Fn {
-            params,
-            result,
-            row,
-            ..
-        } => {
-            pool.list_items(params)
-                .iter()
-                .copied()
-                .any(|a| has_assoc(pool, a, d))
-                || has_assoc(pool, result, d)
-                || pool
-                    .row_data(row)
-                    .keys
-                    .into_iter()
-                    .any(|k| has_assoc(pool, k, d))
+        let projection = match pool.get(t) {
+            TyData::Assoc { .. } => true,
+            TyData::Ref { inner, .. } => {
+                stack.push(inner);
+                false
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                stack.extend(pool.list_items(args).iter().copied());
+                false
+            }
+            TyData::Tuple { elems, rest } => {
+                stack.extend(pool.list_items(elems).iter().copied());
+                stack.extend(rest);
+                false
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                stack.extend(pool.list_items(params).iter().copied());
+                stack.push(result);
+                stack.extend(pool.row_data(row).keys);
+                false
+            }
+            // A projection inside another form is the bodies' to compare.
+            _ => false,
+        };
+        if projection {
+            return true;
         }
-        _ => false,
     }
+    false
 }
 
 /// The names of the trait methods that the written implementation `imp`
@@ -348,7 +357,7 @@ impl Ck<'_, '_> {
         // written; it matches anything here.
         let same = |w: Ty, g: Ty| {
             let w = inst(w);
-            has_assoc(pool, w, 0) || w == g || pool.has_poison(w) || pool.has_poison(g)
+            has_assoc(pool, w) || w == g || pool.has_poison(w) || pool.has_poison(g)
         };
         if want.params.len() != got.params.len() {
             return Some("the parameter count");

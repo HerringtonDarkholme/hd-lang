@@ -252,3 +252,31 @@ pub(crate) fn slot_path_node() {
         }
     });
 }
+
+thread_local! {
+    static DECLARATION_TYPE_VISITS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the type nodes the declaration walks visit on this thread: the
+/// variance walk of fields and signatures ([`crate::variance::walk`]) and
+/// the implementation-head and derive searches (`lower::ty_any`); one per
+/// distinct (type, polarity) or type a walk enters. Use the driver's
+/// serial executor to measure a whole build.
+pub fn count_declaration_type_visits<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = DECLARATION_TYPE_VISITS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = DECLARATION_TYPE_VISITS
+        .with(|c| c.replace(previous))
+        .unwrap_or(0);
+    (result, n)
+}
+
+/// One type node a declaration walk visits.
+pub(crate) fn declaration_type_visit() {
+    hd_base::work::add(hd_base::work::Counter::TypeNodes, 1);
+    DECLARATION_TYPE_VISITS.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}

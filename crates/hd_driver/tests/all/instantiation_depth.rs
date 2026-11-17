@@ -282,3 +282,55 @@ fn a_folder_call_cycle_tracks_edits_without_rechecking_unchanged_bodies() {
         assert!(fixed.counters.tir_decoded.is_empty());
     }
 }
+
+/// Declarations over a tuple doubled through `n` aliases: a struct field
+/// of it, a generic alias doubled the same way over a parameter, and an
+/// implementation head that names it. The source grows linearly in `n`.
+fn doubled_declarations(n: usize) -> String {
+    let mut s = String::from("type D0 = ()\ntype G0[T] = T\n");
+    for i in 1..=n {
+        let p = i - 1;
+        let _ = writeln!(
+            s,
+            "type D{i} = (D{p}, D{p})\ntype G{i}[T] = (G{p}[T], G{p}[T])"
+        );
+    }
+    let _ = write!(
+        s,
+        "\nstruct Big:\n    a: D{n}\n\nstruct Wide[T]:\n    a: G{n}[T]\n\nstruct W[T]:\n    x: i32\n\n\
+         trait Tr:\n    fn f(&self) -> i32\n\nimpl Tr for W[D{n}]:\n    fn f(&self) -> i32: self.x\n\n\
+         pub fn main() -> void:\n    _ := +1\n"
+    );
+    s
+}
+
+// Resolve: the variance walk of a field and the implementation-head search
+// visited every part of a type, with no memo: `struct Big: a: D28` over
+// `()` did not check in 60 s, nor did `impl Tr for W[D130]` (hd_check's
+// `conform::has_assoc`). Each now visits a distinct type (and polarity)
+// once. No call of `W[D130]`'s method: `inst_cycles::head_match` is a
+// separate gap.
+#[test]
+fn declarations_over_a_doubling_type_visit_each_type_once() {
+    let store = MemoryStore::default();
+    let visits = |n: usize| {
+        let (out, visits) = hd_resolve::work::count_declaration_type_visits(|| {
+            run_in(
+                &store,
+                Executor::Serial(SerialOrder::Priority),
+                &doubled_declarations(n),
+                &Goal::Analyze,
+            )
+        });
+        assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+        visits
+    };
+    visits(1);
+    let base = visits(1);
+    let (small, large) = (visits(13) - base, visits(130) - base);
+    eprintln!("declaration type visits past depth 1: 13 levels {small}, 130 levels {large}");
+    assert!(
+        small > 0 && large <= 10 * small + 100,
+        "13 levels: {small}, 130 levels: {large}"
+    );
+}

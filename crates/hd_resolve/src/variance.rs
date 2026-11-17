@@ -48,6 +48,12 @@ impl Seen {
 /// Walks `t` at polarity `polarity`, recording each occurrence of a parameter
 /// of `owner` in `seen` by index. `var_of` gives a declaration's declared
 /// parameter variances.
+///
+/// Cost: each (type, polarity) pair once, from an explicit stack, and no
+/// type without a parameter (`InternPool::has_param`): a second visit of a
+/// pair records nothing new, since [`Seen::add`] only sets flags, so a
+/// type doubled through n aliases costs n entries, not its 2^n leaves, and
+/// no native recursion follows its depth.
 pub fn walk(
     pool: &InternPool,
     t: Ty,
@@ -56,85 +62,93 @@ pub fn walk(
     var_of: &dyn Fn(DefId) -> Vec<i8>,
     seen: &mut [Seen],
 ) {
-    let go = |x: Ty, p: i8, seen: &mut [Seen]| walk(pool, x, p, owner, var_of, seen);
-    match pool.get(t) {
-        TyData::Param(ParamRef { owner: o, index }) if o == owner => {
-            if let Some(s) = seen.get_mut(usize::from(index)) {
-                s.add(polarity);
-            }
+    let mut visited = hd_base::HashSet::default();
+    let mut stack = vec![(t, polarity)];
+    while let Some((t, polarity)) = stack.pop() {
+        if !pool.has_param(t) || !visited.insert((t, polarity)) {
+            continue;
         }
-        // Beneath `mut` is invariant (types.polarity.mut).
-        // A reference's operand is invariant too (ref.type.distinct).
-        TyData::Ref { inner: i, .. } => go(i, 0, seen),
-        TyData::Adt { def, args } => {
-            let vs = var_of(def);
-            for (j, a) in pool.list_items(args).iter().copied().enumerate() {
-                go(a, polarity * vs.get(j).copied().unwrap_or(0), seen);
+        crate::work::declaration_type_visit();
+        let mut go = |x: Ty, p: i8| stack.push((x, p));
+        match pool.get(t) {
+            TyData::Param(ParamRef { owner: o, index }) if o == owner => {
+                if let Some(s) = seen.get_mut(usize::from(index)) {
+                    s.add(polarity);
+                }
             }
+            // Beneath `mut` is invariant (types.polarity.mut).
+            // A reference's operand is invariant too (ref.type.distinct).
+            TyData::Ref { inner: i, .. } => go(i, 0),
+            TyData::Adt { def, args } => {
+                let vs = var_of(def);
+                for (j, a) in pool.list_items(args).iter().copied().enumerate() {
+                    go(a, polarity * vs.get(j).copied().unwrap_or(0));
+                }
+            }
+            TyData::Opaque { args, bound, .. } => {
+                for &a in pool.list_items(args) {
+                    go(a, 0);
+                }
+                go(bound, 0);
+            }
+            TyData::Tuple { elems, rest } => {
+                for e in pool.list_items(elems).iter().copied() {
+                    go(e, polarity);
+                }
+                if let Some(r) = rest {
+                    go(r, polarity);
+                }
+            }
+            TyData::Union(members) => {
+                for &member in pool.list_items(members) {
+                    go(member, polarity);
+                }
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                ..
+            } => {
+                for p in pool.list_items(params).iter().copied() {
+                    go(p, -polarity);
+                }
+                go(result, polarity);
+                // The requirement row is invariant (types.variance.function).
+                for k in pool.row_data(row).keys {
+                    go(k, 0);
+                }
+            }
+            // A row is invariant wherever it occurs, as a function type's is
+            // (types.variance.function): a row argument's keys and a
+            // context's.
+            TyData::Row(row) | TyData::Context(row) => {
+                for k in pool.row_data(row).keys {
+                    go(k, 0);
+                }
+            }
+            TyData::TraitValue { args, bindings, .. } => {
+                for a in pool.list_items(args).iter().copied() {
+                    go(a, 0);
+                }
+                for (_, b) in bindings {
+                    go(b, 0);
+                }
+            }
+            TyData::Assoc { self_ty, args, .. } => {
+                go(self_ty, 0);
+                for a in pool.list_items(args).iter().copied() {
+                    go(a, 0);
+                }
+            }
+            // No parameter of `owner` inside.
+            TyData::Param(_)
+            | TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Const(_)
+            | TyData::Infer(_)
+            | TyData::Canon(_) => {}
         }
-        TyData::Opaque { args, bound, .. } => {
-            for &a in pool.list_items(args) {
-                go(a, 0, seen);
-            }
-            go(bound, 0, seen);
-        }
-        TyData::Tuple { elems, rest } => {
-            for e in pool.list_items(elems).iter().copied() {
-                go(e, polarity, seen);
-            }
-            if let Some(r) = rest {
-                go(r, polarity, seen);
-            }
-        }
-        TyData::Union(members) => {
-            for &member in pool.list_items(members) {
-                go(member, polarity, seen);
-            }
-        }
-        TyData::Fn {
-            params,
-            result,
-            row,
-            ..
-        } => {
-            for p in pool.list_items(params).iter().copied() {
-                go(p, -polarity, seen);
-            }
-            go(result, polarity, seen);
-            // The requirement row is invariant (types.variance.function).
-            for k in pool.row_data(row).keys {
-                go(k, 0, seen);
-            }
-        }
-        // A row is invariant wherever it occurs, as a function type's is
-        // (types.variance.function): a row argument's keys and a
-        // context's.
-        TyData::Row(row) | TyData::Context(row) => {
-            for k in pool.row_data(row).keys {
-                go(k, 0, seen);
-            }
-        }
-        TyData::TraitValue { args, bindings, .. } => {
-            for a in pool.list_items(args).iter().copied() {
-                go(a, 0, seen);
-            }
-            for (_, b) in bindings {
-                go(b, 0, seen);
-            }
-        }
-        TyData::Assoc { self_ty, args, .. } => {
-            go(self_ty, 0, seen);
-            for a in pool.list_items(args).iter().copied() {
-                go(a, 0, seen);
-            }
-        }
-        // No parameter of `owner` inside.
-        TyData::Param(_)
-        | TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Const(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_) => {}
     }
 }

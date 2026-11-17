@@ -7559,16 +7559,29 @@ struct ImplHead<'t> {
     self_ty: Ty,
 }
 
-/// Whether `pred` holds of `t` or of any type inside it.
+/// Whether `pred` holds of `t` or of any type inside it: every part, an
+/// opaque type's arguments and bound included, in written order.
+///
+/// Cost: each distinct type once, from an explicit stack. `pred` tests a
+/// type's data, and a caller's side effect only collects what it finds,
+/// the same on a second visit; so a type doubled through n aliases costs
+/// n visits, not its 2^n parts, and no native recursion follows its depth.
 fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> bool {
-    let d = pool.get(t);
-    if pred(d.clone()) {
-        return true;
+    let mut seen: HashSet<Ty> = HashSet::default();
+    let (mut stack, mut kids) = (vec![t], Vec::new());
+    while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        crate::work::declaration_type_visit();
+        if pred(pool.get(t)) {
+            return true;
+        }
+        kids.clear();
+        pool.types().children(t, &mut kids);
+        stack.extend(kids.iter().rev());
     }
-    // Every part, an opaque type's arguments and bound included.
-    let mut kids: Vec<Ty> = Vec::new();
-    pool.types().children(t, &mut kids);
-    kids.into_iter().any(|k| ty_any(pool, k, pred))
+    false
 }
 
 /// `trait.super.acyclic`, `trait.super.cycle-report`: the supertrait graph
