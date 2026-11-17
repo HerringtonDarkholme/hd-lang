@@ -791,8 +791,10 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 st.1.extend(std::iter::repeat_n(Key::None, ls.of(t).slots.len()));
                 true
             }
-            (TyData::Assoc { self_ty, .. }, _) if st.2 && param(self_ty).is_some() => {
-                let p = param(self_ty).expect("a type parameter");
+            (TyData::Assoc { self_ty, .. }, _)
+                if st.2
+                    && let Some(p) = param(self_ty) =>
+            {
                 st.1.extend(std::iter::repeat_n(Key::AllOf(p, d), ls.of(t).slots.len()));
                 true
             }
@@ -1623,7 +1625,7 @@ enum Origin {
 
 /// An instruction's, a local's or a parameter's index as a word.
 fn w(i: usize) -> u32 {
-    u32::try_from(i).expect("an index")
+    hd_tir::ir::u32_of(i)
 }
 
 /// An origin set, sorted.

@@ -719,10 +719,11 @@ impl Gen<'_, '_> {
                 continue;
             }
             'site: for (i, from, (r, sp), kind, holders) in &sites {
-                let (root, path) = if rooted.contains(i) {
-                    resolved.as_ref().expect("resolved loan source")
-                } else {
-                    &place
+                // A rooted loan's source resolves through the binding that
+                // holds it; `resolved` is computed whenever any loan is rooted.
+                let (root, path) = match &resolved {
+                    Some(source) if rooted.contains(i) => source,
+                    _ => &place,
                 };
                 let root = *root;
                 if *r != root

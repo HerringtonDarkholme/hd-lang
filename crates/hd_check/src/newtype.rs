@@ -78,7 +78,7 @@ pub fn derived_newtype_findings<'i>(
                 trait_: *trait_,
                 trait_args: *trait_args,
                 part: base,
-                part_name: None,
+                part_field: None,
                 newtype: Some(*self_ty),
                 def,
                 tm: names.member(*trait_, PathKind::Member, names.text(name)),

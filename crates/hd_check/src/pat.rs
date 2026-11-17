@@ -1205,7 +1205,7 @@ impl Ck<'_, '_> {
         // A pattern: a two-arm (or one-arm) match whose bindings stay in
         // scope after it.
         let mut binds = Vec::new();
-        let outer = self.scopes.last().cloned().unwrap_or_default();
+        let outer = self.scopes.top().clone();
         let before = self.diags.len();
         let saved = self.let_view.replace(annot.is_some());
         let declared = self.declare_pattern(pat, t, &mut binds);
@@ -1243,11 +1243,9 @@ impl Ck<'_, '_> {
             let eb = self.b.open_block();
             // `names.let-else.not-in-else`: the pattern's names are not
             // visible in the `else` block.
-            let inner = self.scopes.pop().unwrap_or_default();
-            self.scopes.push(outer);
+            let inner = std::mem::replace(self.scopes.top_mut(), outer);
             let checked = self.block_value(blk, Some(Ty::VOID));
-            self.scopes.pop();
-            self.scopes.push(inner);
+            *self.scopes.top_mut() = inner;
             let (_, ety) = checked?;
             if ety != Ty::NEVER {
                 self.err(

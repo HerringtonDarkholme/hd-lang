@@ -293,7 +293,7 @@ impl Ck<'_, '_> {
                 // `names.bind.no-redeclare`, `names.scope.duplicate`.
                 let name = (pat.kind() == SyntaxKind::BindingPattern).then(|| self.sym_of(*pat));
                 if let Some(name) = name
-                    && self.scopes.last().is_some_and(|s| s.contains_key(&name))
+                    && self.scopes.top().contains_key(&name)
                 {
                     let msg = format!(
                         "`{}` is already bound in this scope",
@@ -996,7 +996,7 @@ impl Ck<'_, '_> {
             InterpolationBuilder::Local(local) => {
                 let ty = self.b.local_ty(local);
                 let place = crate::refs::Place {
-                    root: crate::refs::Root::Local(local, self.scopes.len() - 1),
+                    root: crate::refs::Root::Local(local, self.scopes.depth()),
                     path: Vec::new(),
                     ty,
                 };
@@ -5175,6 +5175,9 @@ impl Ck<'_, '_> {
             n.kind() == SyntaxKind::ClosureExpr && parts.upto.is_none() && parts.generic.is_none();
         let mut written: Option<Vec<u16>> = None;
         let mut slots = 0;
+        // The scope that declares the closure's own name, around its
+        // parameters' scope.
+        let declaring = self.scopes.depth();
         self.scopes.push(HashMap::default());
         if let Some(pl) = parts.params {
             let upto = parts.upto.unwrap_or(usize::MAX);
@@ -5197,7 +5200,7 @@ impl Ck<'_, '_> {
                     };
                     let sym = self.cx.names.syms.intern(&name);
                     let l = self.b.local(t, sym, local_flags::NOT_YET, p.index());
-                    self.scopes.last_mut().expect("scope").insert(sym, l);
+                    self.scopes.top_mut().insert(sym, l);
                     continue;
                 }
                 let t = match Src::type_child(p) {
@@ -5231,8 +5234,7 @@ impl Ck<'_, '_> {
                 self.check_local_name(sym, p);
                 // `names.fn.params.scope`: value parameters have distinct
                 // names. A default's closure re-binds the earlier ones.
-                if parts.upto.is_none() && self.scopes.last().is_some_and(|s| s.contains_key(&sym))
-                {
+                if parts.upto.is_none() && self.scopes.top().contains_key(&sym) {
                     let msg = format!("`{name}` names an earlier parameter");
                     self.err(Code::DuplicateBinding, p, &msg);
                 }
@@ -5240,7 +5242,7 @@ impl Ck<'_, '_> {
                 let l = self
                     .b
                     .local(t, sym, hd_tir::ir::local_flags::PARAM, p.index());
-                self.scopes.last_mut().expect("scope").insert(sym, l);
+                self.scopes.top_mut().insert(sym, l);
                 // `fn.param.mut`: a `mut` closure parameter is its own
                 // changeable copy.
                 if p.direct_token(&self.cx.src.parse.tokens, TokenKind::KwMut)
@@ -5313,8 +5315,7 @@ impl Ck<'_, '_> {
                 self.local_forms.insert(l, f.clone());
             }
             // The scope around the parameters' is the declaration's.
-            let at = self.scopes.len() - 2;
-            self.scopes[at].insert(name, l);
+            self.scopes.at_mut(declaring).insert(name, l);
             l
         });
         let infer_recursive_row = own.is_some() && written.is_none();
@@ -5368,7 +5369,7 @@ impl Ck<'_, '_> {
             }
             self.subs.push(OpenSub {
                 mark,
-                depth: self.scopes.len() - 1,
+                depth: self.scopes.depth(),
                 writes: None,
             });
             self.rets.push(ret);
@@ -5565,7 +5566,7 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let target = *self.rets.last().expect("ret");
+        let target = *self.rets.top();
         let ret = self.infer.resolve(pool, target);
         let result = self.cx.names.known.result;
         // `expr.try.expected`: the operand's hint is `Result[T, E]` or `T?`,

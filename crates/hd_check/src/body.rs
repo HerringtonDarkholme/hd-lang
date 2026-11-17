@@ -307,7 +307,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub local: &'c hd_types::LocalPool,
     pub b: TirBuilder,
     pub infer: InferTable,
-    pub scopes: Vec<HashMap<Symbol, LocalId>>,
+    pub(crate) scopes: crate::frames::Frames<HashMap<Symbol, LocalId>>,
     pub env: ParamEnv,
     /// Open loops: label and the type of their `break` values.
     pub loops: Vec<(LoopMark, Option<Ty>)>,
@@ -318,7 +318,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// lookup alone ([`crate::value::SolverDecls`]).
     pub inline: crate::value::InlineDecls,
     /// The result type of the body or closure being checked.
-    pub rets: Vec<Ty>,
+    pub(crate) rets: crate::frames::Frames<Ty>,
     /// Opaque result inference is invariant; it never joins or inserts coercions.
     pub strict_rets: Vec<Ty>,
     /// Each opaque result type met, with its bound and the variable
@@ -467,11 +467,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// Checking a module's top-level statements: the module path.
     pub module_init: Option<String>,
     /// The top-level statement being checked.
-    pub init_stmt: usize,
+    pub init_stmt: u32,
     /// The simple bindings the module's top-level statements declare, by
     /// the first statement that does: a read of one from an earlier
     /// statement is a read before initialization.
-    pub later_names: hd_base::HashMap<hd_base::Symbol, usize>,
+    pub later_names: hd_base::HashMap<hd_base::Symbol, u32>,
     /// A REPL input that is one expression: that statement, then its
     /// value and type once checked (`cli.repl.value`).
     pub shown: Option<(hd_base::NodeIdx, Option<(Ref, Ty)>)>,
@@ -761,14 +761,14 @@ pub(crate) fn new_ck<'a, 'c>(
         open_coercions: Vec::new(),
         b: TirBuilder::new(item, kind).with_verification(cx.verify_tir),
         infer: InferTable::default(),
-        scopes: vec![HashMap::default()],
+        scopes: crate::frames::Frames::new(HashMap::default()),
         env: ParamEnv::default(),
         loops: Vec::new(),
         diags,
         fuel: Fuel::new(cx.fuel),
         memo: BodyMemo::default(),
         inline: crate::value::InlineDecls::default(),
-        rets: vec![ret],
+        rets: crate::frames::Frames::new(ret),
         strict_rets: vec![],
         opaque_rets: vec![],
         opaque_annotation: None,
@@ -1505,7 +1505,7 @@ fn fn_body_steps(
         ck.declared_tys.insert(ty);
         ck.header_tys.push(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
-        ck.scopes[0].insert(name, l);
+        ck.scopes.base_mut().insert(name, l);
     }
     if !infer.ret {
         let ret = ck.norm_ty(sig.ret);
@@ -1517,7 +1517,7 @@ fn fn_body_steps(
         let name = cx.names.syms.intern(crate::caller::SITE);
         let l =
             ck.b.local(Ty::STRING, name, local_flags::PARAM, node.index());
-        ck.scopes[0].insert(name, l);
+        ck.scopes.base_mut().insert(name, l);
     }
     ck.mark_mut_params(node);
     let body = Src::child(node, SyntaxKind::Block).expect("selected source body");
@@ -1531,14 +1531,14 @@ fn fn_body_steps(
         let before = ck.opaque_rets.len();
         let ret = ck.open_opaque_return(sig.ret);
         let occurrences = before..ck.opaque_rets.len();
-        ck.rets[0] = ret;
+        *ck.rets.base_mut() = ret;
         let (tail, _) = ck.block_value(body, Some(ret))?;
         ck.check_opaque_occurrences(occurrences, node)?;
         (tail, ret)
     } else {
         let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
         ck.join_site(want, |ck, ret| {
-            ck.rets[0] = ret;
+            *ck.rets.base_mut() = ret;
             let (tail, _) = ck.block_value(body, Some(ret))?;
             ck.finish_tries(ret)?;
             Ok((tail, ret))
@@ -1610,13 +1610,13 @@ fn default_steps(
     let blk = ck.b.open_block();
     for &(n, t) in input.earlier {
         let l = ck.b.local(t, n, local_flags::PARAM, expr.index());
-        ck.scopes[0].insert(n, l);
+        ck.scopes.base_mut().insert(n, l);
     }
     // The parameter itself and the later ones are named but not visible
     // (`fn.default.later-parameter`).
     for &(n, t) in input.later {
         let l = ck.b.local(t, n, local_flags::NOT_YET, expr.index());
-        ck.scopes[0].insert(n, l);
+        ck.scopes.base_mut().insert(n, l);
     }
     let (r, t) = ck.expr(expr, Some(ty))?;
     let r = ck.coerce(r, t, ty, expr, "default", ExpectPosition::General);
@@ -1980,9 +1980,7 @@ impl Ck<'_, '_> {
     /// A local by name, innermost first, with its scope depth.
     pub(crate) fn find_local(&self, s: Symbol) -> Option<(LocalId, usize)> {
         self.scopes
-            .iter()
-            .enumerate()
-            .rev()
+            .iter_rev()
             .find_map(|(d, m)| m.get(&s).map(|l| (*l, d)))
     }
 
@@ -2052,11 +2050,11 @@ impl Ck<'_, '_> {
 
     /// [`Self::note_capture_write`] for a local found by its scope.
     pub(crate) fn note_capture_write_of(&mut self, l: LocalId) {
-        if let Some(depth) = self
+        let depth = self
             .scopes
-            .iter()
-            .rposition(|m| m.values().any(|v| *v == l))
-        {
+            .iter_rev()
+            .find_map(|(d, m)| m.values().any(|v| *v == l).then_some(d));
+        if let Some(depth) = depth {
             self.note_capture_write(l, depth);
         }
     }
@@ -2154,7 +2152,7 @@ impl Ck<'_, '_> {
         self.check_local_name(name, at);
         self.check_prelude_shadow(name, at);
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
-        self.scopes.last_mut().expect("scope").insert(name, l);
+        self.scopes.top_mut().insert(name, l);
         self.user_locals.push((l, at.index()));
         l
     }
@@ -4311,7 +4309,7 @@ impl Ck<'_, '_> {
                     );
                     return Ok(Ty::NEVER);
                 }
-                let ret = *self.rets.last().expect("ret");
+                let ret = *self.rets.top();
                 let r = if let Some(e) = kids.first() {
                     let value_diags = self.diags.mark();
                     let (r, t) = self.expr(*e, Some(ret))?;
@@ -5066,13 +5064,13 @@ impl Ck<'_, '_> {
                 .iter()
                 .find_map(|r| body.local_read(*r))
                 .map_or(0, |l| l.raw() + 1);
-            rows.push([u32::try_from(i).expect("instructions"), read]);
+            rows.push([hd_tir::ir::u32_of(i), read]);
         }
         body.fallback = rows;
     }
 
     fn finish(self, root: Ref) -> StageResult<Body> {
-        let ret = self.rets[0];
+        let ret = *self.rets.base();
         self.finish_with(root, ret, None).map(|(b, ..)| b)
     }
 
@@ -5315,12 +5313,9 @@ impl Ck<'_, '_> {
             if tag != Tag::Call && tag != Tag::Await {
                 continue;
             }
-            let at = self.b.body_mut().data[i][0] as usize + 1;
-            let words = self
-                .b
-                .body_mut()
-                .record(u32::try_from(at - 1).expect("extra"))
-                .to_vec();
+            let rec = self.b.body_mut().data[i][0];
+            let at = rec as usize + 1;
+            let words = self.b.body_mut().record(rec).to_vec();
             let Some(c) = Callee::from_words(&words) else {
                 continue;
             };

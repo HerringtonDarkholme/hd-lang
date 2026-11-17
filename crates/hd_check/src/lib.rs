@@ -16,6 +16,7 @@ pub mod comparison;
 pub mod conflicts;
 mod conform;
 mod dbg;
+mod frames;
 pub use dbg::DbgRef;
 pub mod delegate;
 mod dep_results;

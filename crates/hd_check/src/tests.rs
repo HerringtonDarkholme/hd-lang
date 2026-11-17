@@ -528,7 +528,7 @@ fn check_case(
             (Some(r), t)
         }
     };
-    ck.rets[0] = ret;
+    *ck.rets.base_mut() = ret;
     let root = ck.b.close_block(blk, tail, ret, node.index());
     let row = match ck.rows.first() {
         Some(RowFrame::Profile { used, .. }) => {

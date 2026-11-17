@@ -419,7 +419,7 @@ impl Ck<'_, '_> {
             };
             let mut fresh = false;
             let place = match op {
-                Operand::Place(p) => Some(p),
+                Operand::Place(p) => p,
                 Operand::Value(mut r, mut t) => {
                     let mut found = None;
                     while let Some((inner, _)) = self.ref_of(t) {
@@ -433,20 +433,21 @@ impl Ck<'_, '_> {
                         }
                         (r, t) = self.emit_deref(r, t, src.index());
                     }
-                    if found.is_none() {
+                    if let Some(found) = found {
+                        found
+                    } else {
                         fresh = true;
                         let (l, depth) = self.hold(r, t, operand);
                         self.add_flags(l, CAPTURED_ASSIGNED);
-                        found = Some(Place {
+                        Place {
                             root: Root::Local(l, depth),
                             path: vec![],
                             ty: t,
-                        });
+                        }
                     }
-                    found
                 }
             };
-            let p = place.as_ref().expect("a map source place");
+            let p = &place;
             if !fresh && !self.place_writable(p, operand) {
                 let p = self
                     .b
@@ -455,7 +456,7 @@ impl Ck<'_, '_> {
             }
             self.mut_place_taken(p, src.index(), false);
             let rt = self.ref_ty(self.resolved(p.ty), true, false);
-            (self.make_ref(p, true, rt, src), rt, place)
+            (self.make_ref(p, true, rt, src), rt, Some(place))
         } else {
             let (r, t) = self.expr(operand, None)?;
             let (r, t) = self.deref_index_base(r, t, operand.index());

@@ -541,9 +541,15 @@ impl Ck<'_, '_> {
 
     /// Writes a field path of an already evaluated reference `r`:
     /// `Store [*%r .f ..] v`. The RHS is already evaluated too; only this
-    /// field is replaced.
-    pub(crate) fn store_ref_field(&mut self, r: Ref, path: &[(u32, Ty)], v: Ref, n: NodeRef<'_>) {
-        let ty = path.last().expect("a field path").1;
+    /// field is replaced. `ty` is the stored field's type, the place's.
+    pub(crate) fn store_ref_field(
+        &mut self,
+        r: Ref,
+        path: &[(u32, Ty)],
+        ty: Ty,
+        v: Ref,
+        n: NodeRef<'_>,
+    ) {
         let inner = self.resolved(self.infer.resolve(self.pool(), ty));
         let v = self.retype(v, inner, n.index());
         let fields: Vec<u32> = path.iter().map(|(k, _)| *k).collect();
@@ -596,7 +602,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern("$ref");
         let l = self.b.local(t, sym, local_flags::ASSIGNED, n.index());
         self.b.set(l, v, n.index());
-        (l, self.scopes.len() - 1)
+        (l, self.scopes.depth())
     }
 
     /// The place `e` names (`ref.place.forms`), as `use_` needs it: the

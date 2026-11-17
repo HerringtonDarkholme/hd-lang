@@ -35,7 +35,7 @@ type LetParts<'t> = (
 pub struct Global {
     pub def: DefId,
     pub ty: Ty,
-    pub stmt: usize,
+    pub stmt: u32,
     /// The byte where the statement starts: a body written before it
     /// cannot see the binding (`names.exec.not-before`).
     pub at: u32,
@@ -76,7 +76,7 @@ pub struct InputBinding {
 #[must_use]
 pub fn input_bindings(cx: &BodyCx<'_>) -> Vec<InputBinding> {
     let init = cx.init.borrow();
-    let mut out: Vec<(usize, InputBinding)> = init
+    let mut out: Vec<(u32, InputBinding)> = init
         .globals
         .values()
         .map(|g| (g.stmt, g.binding()))
@@ -205,11 +205,7 @@ pub fn summary(
     keep: &dyn Fn(DefId) -> bool,
 ) -> InitSummary {
     let init = cx.init.borrow();
-    let mut globals: Vec<(DefId, u32)> = init
-        .globals
-        .values()
-        .map(|g| (g.def, u32::try_from(g.stmt).expect("statements")))
-        .collect();
+    let mut globals: Vec<(DefId, u32)> = init.globals.values().map(|g| (g.def, g.stmt)).collect();
     globals.sort_stable_by_cached_key(|(d, s)| (*s, cx.names.path(*d)));
     for s in &mut stmts {
         s.facts.calls.retain(|d| keep(*d));
@@ -271,7 +267,7 @@ pub fn init_segment(body: &Body, item: DefId, insts: std::ops::Range<u32>) -> Bo
         .collect();
     // The record shrinks in place; the words past its new length are
     // never read.
-    b.extra[at] = u32::try_from(kids.len()).expect("record");
+    b.extra[at] = hd_tir::ir::u32_of(kids.len());
     b.extra[at + 1..at + 1 + kids.len()].copy_from_slice(&kids);
     b
 }
@@ -503,7 +499,7 @@ fn poison_bindings(cx: &BodyCx<'_>, module: &str, stmts: &[NodeRef<'_>]) {
             g.ty = Ty::POISON;
         }
     }
-    for (i, s) in stmts.iter().enumerate() {
+    for (i, s) in (0u32..).zip(stmts.iter()) {
         let mut node = match s.kind() {
             SyntaxKind::LetStmt => Some(*s),
             SyntaxKind::ExprStmt => s
@@ -629,7 +625,7 @@ fn init_steps(
     // annotated one has its type before its statement runs, so that read
     // is a read before initialization (`module.init.definite`), not an
     // unknown name.
-    for (i, s) in stmts.iter().enumerate() {
+    for (i, s) in (0u32..).zip(stmts.iter()) {
         ck.declare_annotated(i, *s);
         for name in ck.binding_names(*s) {
             ck.later_names.entry(name).or_insert(i);
@@ -644,10 +640,10 @@ fn init_steps(
         }
     }
     let mut per_stmt = Vec::new();
-    for (i, s) in stmts.iter().enumerate() {
+    for (i, s) in (0u32..).zip(stmts.iter()) {
         ck.init_stmt = i;
         let start = ck.infer.var_count();
-        let first_inst = u32::try_from(ck.b.body_mut().tags.len()).expect("insts");
+        let first_inst = hd_tir::ir::u32_of(ck.b.body_mut().tags.len());
         ck.top_level(*s).map_err(|e| e.at(cx.src.span(*s)))?;
         // A top-level statement is a body of its own: its open literal
         // classes take their defaults at its end
@@ -802,7 +798,7 @@ impl Ck<'_, '_> {
     /// Declares statement `i`'s binding ahead of its statement when it is
     /// a simple `let` with a type annotation that resolves without error;
     /// the statement declares it again when it runs.
-    fn declare_annotated(&mut self, i: usize, s: NodeRef<'_>) {
+    fn declare_annotated(&mut self, i: u32, s: NodeRef<'_>) {
         if s.kind() != SyntaxKind::LetStmt {
             return;
         }
@@ -1205,10 +1201,7 @@ impl Ck<'_, '_> {
                     hd_tir::ir::local_flags::ASSIGNED,
                     e.index(),
                 );
-                self.scopes
-                    .last_mut()
-                    .expect("scope")
-                    .insert(params[k].0, l);
+                self.scopes.top_mut().insert(params[k].0, l);
                 self.set_local(l, *r, e.index());
             }
             // A shared default is requirement-free
@@ -1535,7 +1528,7 @@ pub fn definite_init(
     diags: &mut DiagBuf,
 ) {
     let init = cx.init.borrow();
-    let at: HashMap<DefId, usize> = init.globals.values().map(|g| (g.def, g.stmt)).collect();
+    let at: HashMap<DefId, u32> = init.globals.values().map(|g| (g.def, g.stmt)).collect();
     // The call graph: each body's callees, and each dispatch key named
     // by a body or a statement with the methods it reaches, listed once
     // per key. O(facts + the methods of the keys named).
@@ -1565,7 +1558,7 @@ pub fn definite_init(
     // The latest statement among the bindings each node reads, through
     // its calls: its callees' values pushed to the callers, so a
     // statement is tested without walking the graph again.
-    let mut latest: HashMap<CallNode, usize> = HashMap::default();
+    let mut latest: HashMap<CallNode, u32> = HashMap::default();
     let mut work = Vec::new();
     for (d, f) in &init.facts {
         if let Some(m) = f.reads.iter().filter_map(|g| at.get(g)).max() {
@@ -1582,7 +1575,7 @@ pub fn definite_init(
             }
         }
     }
-    for (i, f) in per_stmt.iter().map(|s| &s.facts).enumerate() {
+    for ((i, f), s) in (0u32..).zip(per_stmt.iter().map(|s| &s.facts)).zip(stmts) {
         let worst = f
             .reads
             .iter()
@@ -1620,14 +1613,12 @@ pub fn definite_init(
                 .segment(hd_base::PathId::from_raw(d.raw()))
                 .to_owned()
         };
-        let mut late: Vec<(usize, String)> = reads
+        let mut late: Vec<(u32, String)> = reads
             .iter()
             .filter_map(|g| at.get(g).filter(|s| **s >= i).map(|s| (*s, seg(g))))
             .collect();
         late.sort_stable();
-        if let Some((_, late)) = late.first()
-            && let Some(s) = stmts.get(i)
-        {
+        if let Some((_, late)) = late.first() {
             let msg = format!("this statement reads `{late}` before its initialization");
             diags.error(
                 Code::TopLevelReadBeforeInitialization,

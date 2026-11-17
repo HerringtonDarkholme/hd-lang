@@ -499,7 +499,7 @@ impl Ck<'_, '_> {
         let fields = place.path.iter().map(|&(k, _)| Proj::Field(k));
         let (root, proj): (PlaceRoot, Vec<Proj>) = match place.root {
             Root::Deref(r, _) => {
-                self.store_ref_field(r, &place.path, v, s);
+                self.store_ref_field(r, &place.path, place.ty, v, s);
                 return;
             }
             // `[%xs [%i] .p .x]`: the field of the list's slot; `[%m [%e]
@@ -558,7 +558,7 @@ impl Ck<'_, '_> {
             .collect();
         for (name, parameter) in marked {
             let sym = self.cx.names.syms.intern(&name);
-            let Some(&l) = self.scopes[0].get(&sym) else {
+            let Some(&l) = self.scopes.base().get(&sym) else {
                 continue;
             };
             self.mut_params.push((l, parameter));

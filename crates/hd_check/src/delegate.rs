@@ -22,10 +22,6 @@ use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 use crate::body::{BodyCx, Ck, ExpectPosition, is_out_of_fuel, new_ck, too_complex};
 use crate::newtype::Conversion;
 
-/// A forwarder's part is an embedded field: [`forwarder_bodies`] makes no
-/// forwarder for any other part.
-const EMBEDDED: &str = "a delegation's part is an embedded field";
-
 /// The bodies of the forwarding methods of the implementation `imp`,
 /// declared at `node`. A part that is not an embedded field of a data
 /// type, or does not implement the trait, has no forwarders; the header
@@ -60,7 +56,10 @@ pub fn forwarder_bodies(
     let Some(ItemData::Struct(fields, _)) = cx.lookup.item(c).map(|i| &i.data) else {
         return Ok(Vec::new());
     };
-    let Some(field) = fields.iter().find(|f| f.embedded && f.name == *by) else {
+    let Some((part_field, field)) = (0u32..)
+        .zip(fields.iter())
+        .find(|(_, f)| f.embedded && f.name == *by)
+    else {
         return Ok(Vec::new());
     };
     let ca = pool.list_items(cargs);
@@ -81,7 +80,6 @@ pub fn forwarder_bodies(
         })
         .map(|t| cx.src.text(t))
         .collect();
-    let part_name = names.text(*by).to_owned();
     let mut out = Vec::new();
     for &(name, def) in methods {
         if written.contains(&names.text(name)) {
@@ -104,7 +102,7 @@ pub fn forwarder_bodies(
             trait_: *trait_,
             trait_args: *trait_args,
             part,
-            part_name: Some(&part_name),
+            part_field: Some(part_field),
             newtype: None,
             def,
             tm,
@@ -118,13 +116,14 @@ pub fn forwarder_bodies(
 
 /// One forwarding method: `def` forwards to the trait method `tm` at the
 /// part's type.
-pub(crate) struct Forwarder<'s> {
+pub(crate) struct Forwarder {
     pub(crate) trait_: DefId,
     pub(crate) trait_args: TyList,
     pub(crate) part: Ty,
-    /// The embedded field a delegation forwards to. `None` for a derived
-    /// newtype, whose part is its base type.
-    pub(crate) part_name: Option<&'s str>,
+    /// The index of the embedded field a delegation forwards to, whose
+    /// type is `part`. `None` for a derived newtype, whose part is its
+    /// base type.
+    pub(crate) part_field: Option<u32>,
     /// The derived newtype's own type, when this forwards for one.
     pub(crate) newtype: Option<Ty>,
     pub(crate) def: DefId,
@@ -140,7 +139,7 @@ pub(crate) enum Forwarded {
     Nothing,
 }
 
-impl Forwarder<'_> {
+impl Forwarder {
     /// Generated methods use the ordinary item-fuel diagnostic and poison
     /// recovery, including the newtype derivation analysis that uses them.
     pub(crate) fn body(
@@ -182,7 +181,7 @@ impl Forwarder<'_> {
         ck.move_to(cx.src.span(node).lo);
         ck.suspends = vec![sig.suspends];
         let ret = ck.norm_ty(sig.ret);
-        ck.rets[0] = ret;
+        *ck.rets.base_mut() = ret;
         let sig_ret = ret;
         let blk = ck.b.open_block();
         let params: Vec<_> = sig
@@ -194,17 +193,17 @@ impl Forwarder<'_> {
             })
             .collect();
         let mut refs = Vec::new();
-        if let Some(part_name) = self.part_name {
+        if let Some(idx) = self.part_field {
             // Only a method with a receiver is forwarded
             // (`trait.by.generated-receiver`).
             let (sl, st) = params[0];
             // The receiver `self.E`, with `self`'s access.
             let sv = ck.b.get(sl, st, at);
-            if let Some((inner, mutable)) = ck.ref_of(st) {
+            if let Some((_, mutable)) = ck.ref_of(st) {
                 // A `&self` or `&mut self` receiver of a struct (never a
                 // counted one, which has no forwarder): a
                 // reference to its embedded part (`trait.by.form`).
-                let (idx, ft) = ck.field_of(inner, part_name).expect(EMBEDDED);
+                let ft = self.part;
                 let place = crate::refs::Place {
                     root: crate::refs::Root::Deref(sv, st),
                     path: vec![(idx, ft)],
@@ -213,8 +212,7 @@ impl Forwarder<'_> {
                 let rt = ck.ref_ty(ft, mutable, false);
                 refs.push(ck.make_ref(&place, mutable, rt, node));
             } else {
-                let (idx, ft) = ck.field_of(st, part_name).expect(EMBEDDED);
-                refs.push(ck.b.field(sv, idx, ft, at));
+                refs.push(ck.b.field(sv, idx, self.part, at));
             }
             for &(l, t) in &params[1..] {
                 refs.push(ck.b.get(l, t, at));

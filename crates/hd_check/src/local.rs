@@ -96,7 +96,7 @@ impl Ck<'_, '_> {
         let name = self.cx.names.text(l.name).to_owned();
         // `names.type-param.no-redeclare.body`, `names.local-type.duplicate`.
         let earlier = self.cx.locals.declared_earlier(&l);
-        let value = self.scopes.last().is_some_and(|m| m.contains_key(&l.name));
+        let value = self.scopes.top().contains_key(&l.name);
         if self.gens.iter().any(|(g, _)| *g == l.name) {
             let msg = format!("`{name}` is a type parameter in scope");
             self.err(Code::DuplicateBinding, s, &msg);
@@ -199,7 +199,7 @@ impl Ck<'_, '_> {
         }
         let params = Src::child(n, SyntaxKind::ParameterList);
         // `names.local-fn.rules`: a local value's duplicate rule.
-        if self.scopes.last().is_some_and(|m| m.contains_key(&name)) {
+        if self.scopes.top().contains_key(&name) {
             let msg = format!("`{}` is already bound in this scope", src.text(t));
             self.err(Code::DuplicateBinding, n, &msg);
         }
@@ -803,8 +803,8 @@ impl Ck<'_, '_> {
     fn note_capture(&mut self, l: LocalId) {
         let Some(depth) = self
             .scopes
-            .iter()
-            .rposition(|m| m.values().any(|v| *v == l))
+            .iter_rev()
+            .find_map(|(d, m)| m.values().any(|v| *v == l).then_some(d))
         else {
             return;
         };

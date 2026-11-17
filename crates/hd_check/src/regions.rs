@@ -278,8 +278,8 @@ fn tarjan(off: &[u32], adj: &[Region]) -> (Vec<u32>, Vec<Region>, Vec<u32>) {
             }
             if low[v] == index[v] {
                 let c = ix(starts.len() - 1);
-                loop {
-                    let x = stack.pop().expect("a region on the stack");
+                // Tarjan's pop: the component is the stack down to `v`.
+                while let Some(x) = stack.pop() {
                     comp[x as usize] = c;
                     order.push(x);
                     if x as usize == v {
