@@ -263,8 +263,14 @@ const entry = (path: string, st: BigIntStats) => {
 // reads `size` bytes, stops at the end of a file that shrank, and reads to
 // the end when the size is 0, as a Linux /proc file reports. Without
 // `size` (the special-file helper) it is readFileSync.
+// Node reads at most 2 GiB - 1 bytes in one call (readFileSync's
+// kIoMaxLength); past it readFileSync rejects from the stat with
+// "File size (N) is greater than 2 GiB", reading nothing, which the
+// wasmtime host matches (core_parity::filesystem_sparse_file_size_bound).
+const IO_MAX_LENGTH = 2 ** 31 - 1;
+
 const readBytes = (path: string, size?: number): Uint8Array => {
-  if (size === undefined || size === 0) {
+  if (size === undefined || size === 0 || size > IO_MAX_LENGTH) {
     return opening(path, () => readFileSync(path));
   }
   const fd = opening(path, () => openSync(path, "r"));
