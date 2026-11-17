@@ -1653,7 +1653,7 @@ struct Run<'a> {
     /// from its parts' entries. Whether it holds a counted leaf, whether
     /// it is a local reference or a counted owning reference, and what
     /// references it may hold.
-    own_types: Mutex<HashMap<Ty, own::TypeFacts>>,
+    own_types: Mutex<own::TypeTable>,
     /// Lazily indexed type edges used to find shared reference fields.
     own_place_parts: Mutex<HashMap<own::PlacePart, Option<Ty>>>,
     own_place_substs: Mutex<own::PlaceSubstitutions>,
@@ -2711,7 +2711,7 @@ fn build_packages_inner(
             static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         },
-        own_types: Mutex::new(HashMap::default()),
+        own_types: Mutex::new(own::TypeTable::default()),
         own_place_parts: Mutex::new(HashMap::default()),
         own_place_substs: Mutex::new(HashMap::default()),
         copy_types: Mutex::new(HashMap::default()),

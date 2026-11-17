@@ -1333,6 +1333,75 @@ fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
     Ok(())
 }
 
+/// The run's layout memo (`Run::own_types`): one [`TypeFacts`] per type,
+/// in a table indexed by the type's id, as Cranelift's `SecondaryMap`
+/// keeps a fact per entity. The ownership passes ask a fact of a value's
+/// type at each instruction they visit, so a question is one index, not a
+/// hash. A body-local type (`Ty::is_local`), which no pool index names,
+/// keeps its entry in a map.
+#[derive(Debug, Default)]
+pub(super) struct TypeTable {
+    global: Vec<Option<TypeFacts>>,
+    local: HashMap<Ty, TypeFacts>,
+}
+
+impl TypeTable {
+    fn get(&self, t: Ty) -> Option<&TypeFacts> {
+        if t.is_local() {
+            self.local.get(&t)
+        } else {
+            self.global.get(index(t))?.as_ref()
+        }
+    }
+
+    fn get_mut(&mut self, t: Ty) -> Option<&mut TypeFacts> {
+        if t.is_local() {
+            self.local.get_mut(&t)
+        } else {
+            self.global.get_mut(index(t))?.as_mut()
+        }
+    }
+
+    /// A part's reference facts, made before the type that holds it
+    /// ([`ref_facts`]); a part without an entry would be a bug, and gets
+    /// the facts that claim least: it may hold any reference.
+    fn part_refs(&self, t: Ty) -> RefFacts {
+        debug_assert!(self.contains(t), "a part's entry is made first");
+        self.get(t).map_or(
+            RefFacts {
+                holds: true,
+                only_counted: false,
+                counted: false,
+            },
+            |f| f.refs,
+        )
+    }
+
+    fn contains(&self, t: Ty) -> bool {
+        self.get(t).is_some()
+    }
+
+    fn insert(&mut self, t: Ty, facts: TypeFacts) {
+        if t.is_local() {
+            self.local.insert(t, facts);
+            return;
+        }
+        let i = index(t);
+        if i >= self.global.len() {
+            // Doubling growth: amortized O(1) per entry.
+            self.global.resize((i + 1).max(2 * self.global.len()), None);
+        }
+        self.global[i] = Some(facts);
+    }
+}
+
+/// A pool type's index in [`TypeTable`].
+fn index(t: Ty) -> usize {
+    // A `u32` id fits `usize` on hd's 32- and 64-bit hosts, as
+    // `hd_base`'s `idx` reads its ids.
+    t.0 as usize
+}
+
 /// One type's entry in the run's layout memo (`Run::own_types`), keyed by
 /// type id: what the ownership passes ask of the type's layout. The
 /// reference facts are filled when the entry is made, from its parts'
@@ -1444,20 +1513,18 @@ fn ref_facts_of(
 /// its direct parts, with no native recursion. A type that doubles at each
 /// level, `(D, D)` over `n` aliases, costs `n` entries, not its `2^n`
 /// leaves.
-fn ref_facts(
-    pool: &hd_types::InternPool,
-    ptr: DefId,
-    t: Ty,
-    memo: &mut HashMap<Ty, TypeFacts>,
-) -> RefFacts {
+fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTable) -> RefFacts {
     crate::work::layout_probe();
-    if let Some(f) = memo.get(&t) {
+    if let Some(f) = memo.get(t) {
         return f.refs;
     }
     let mut stack = vec![(t, false)];
     let mut parts = Vec::new();
+    // The bottom of the stack, `(t, true)`, is popped last, and `t` is no
+    // part of itself: the last entry made is `t`'s.
+    let mut refs = RefFacts::NONE;
     while let Some((u, ready)) = stack.pop() {
-        if memo.contains_key(&u) {
+        if memo.contains(u) {
             continue;
         }
         if !ready {
@@ -1467,16 +1534,17 @@ fn ref_facts(
             stack.extend(
                 parts
                     .iter()
-                    .filter(|p| !memo.contains_key(*p))
+                    .filter(|&&p| !memo.contains(p))
                     .map(|&p| (p, false)),
             );
             continue;
         }
         crate::work::layout_probe();
-        let refs = ref_facts_of(pool, ptr, u, &|p| memo[&p].refs);
+        // Each part's entry is made before `u` is ready.
+        refs = ref_facts_of(pool, ptr, u, &|p| memo.part_refs(p));
         memo.insert(u, TypeFacts { refs, layout: None });
     }
-    memo[&t].refs
+    refs
 }
 
 #[test]
@@ -1502,13 +1570,44 @@ fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
             rest: None,
         })
     };
-    let mut memo = HashMap::default();
+    let mut memo = TypeTable::default();
     let mut only = |t| {
         let f = ref_facts(&pool, ptr, t, &mut memo);
         f.only_counted && f.counted
     };
     assert!(only(pair(Ty::STRING)));
     assert!(!only(pair(callback)));
+}
+
+#[test]
+fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
+    let facts = |holds| TypeFacts {
+        refs: RefFacts {
+            holds,
+            ..RefFacts::NONE
+        },
+        layout: None,
+    };
+    let mut table = TypeTable::default();
+    let (far, near, local) = (Ty(1_000), Ty(3), Ty(Ty::I32.0 | 0x8000_0000));
+    assert!(local.is_local() && !far.is_local());
+    table.insert(far, facts(true));
+    table.insert(near, facts(false));
+    table.insert(local, facts(true));
+    assert!(table.contains(far) && table.contains(near) && table.contains(local));
+    assert!(!table.contains(Ty(999)) && !table.contains(Ty(5_000)));
+    assert_eq!(table.global.len(), 1_001);
+    assert_eq!(table.local.len(), 1);
+    // ruled out: a missing entry; both were inserted above.
+    table.get_mut(near).expect("an entry").layout = Some((true, None));
+    // ruled out: a missing entry; both were inserted above.
+    table.get_mut(local).expect("an entry").layout = Some((false, Some(true)));
+    assert_eq!(table.get(near).and_then(|f| f.layout), Some((true, None)));
+    assert_eq!(
+        table.get(local).and_then(|f| f.layout),
+        Some((false, Some(true)))
+    );
+    assert!(table.get_mut(Ty(7)).is_none());
 }
 
 impl Env<'_> {
@@ -1817,7 +1916,7 @@ impl Env<'_> {
     /// query per distinct type, with constant-time warm lookup.
     fn layout_facts(&self, t: Ty) -> (bool, Option<bool>) {
         crate::work::layout_probe();
-        if let Some(facts) = lock(&self.run.own_types).get(&t).and_then(|f| f.layout) {
+        if let Some(facts) = lock(&self.run.own_types).get(t).and_then(|f| f.layout) {
             return facts;
         }
         // The backend's queries may ask this run's other facts: no lock
@@ -1829,7 +1928,7 @@ impl Env<'_> {
         );
         let mut memo = lock(&self.run.own_types);
         ref_facts(pool, self.run.known.ptr, t, &mut memo);
-        if let Some(entry) = memo.get_mut(&t) {
+        if let Some(entry) = memo.get_mut(t) {
             entry.layout = Some(facts);
         }
         facts
