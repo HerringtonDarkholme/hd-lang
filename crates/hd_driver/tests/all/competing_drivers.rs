@@ -5,7 +5,6 @@
 //! poll runtime both engines run.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -87,7 +86,7 @@ fn drive(mode: &str) -> String {
     let node_mjs = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.ts");
     let script_path = dir.join(format!("scenario-drivers-{mode}.mjs"));
     std::fs::write(&script_path, script(&node_mjs)).expect("write script");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(&script_path)
         .arg(&wasm_path)
         .arg(mode)

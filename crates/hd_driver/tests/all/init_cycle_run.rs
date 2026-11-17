@@ -10,7 +10,6 @@
 //! on V8 (`host/run.ts`).
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_cache::MemoryStore;
 use hd_diag::Code;
@@ -72,7 +71,7 @@ fn node_run(name: &str, wasm: &[u8]) -> std::process::Output {
         &format!("init-cycle-{name}.wasm"),
     );
     std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()

@@ -142,7 +142,7 @@ pub fn main!() -> void $ Console:
         let wasm = out.wasm.expect("typed flat-frame Wasm");
         let path = hd_testkit::Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "flat-all-typed.wasm");
         std::fs::write(&path, &wasm).expect("write Wasm");
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
             .arg(&path)
             .output()

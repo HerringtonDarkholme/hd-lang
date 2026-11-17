@@ -57,7 +57,7 @@ fn cold_trait_temporaries_keep_exact_owners() -> Result<(), Box<dyn std::error::
                 );
                 std::fs::write(&path, wasm)?;
                 // cost: two fixed cases times four pipeline/check modes.
-                let ran = std::process::Command::new("node")
+                let ran = hd_testkit::node::command()
                     .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
                     .arg(&path)
                     .output()?;

@@ -3,12 +3,11 @@
 //! language change that breaks one fails here rather than in the next
 //! daily metrics run (`bench/metrics/check-fixtures.ts`, #831).
 use std::path::Path;
-use std::process::Command;
 
 #[test]
 fn metrics_fixtures_check_with_this_hd() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let output = Command::new("node")
+    let output = hd_testkit::node::command()
         .arg("--experimental-strip-types")
         .arg(repo.join("bench/metrics/check-fixtures.ts"))
         .arg("--hd")

@@ -54,7 +54,7 @@ use std::fmt::Write as _;
 use std::io::{Read as _, Write as _};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
@@ -1349,7 +1349,7 @@ fn ensure_worker(slot: &mut Option<EntryWorker>) -> std::io::Result<()> {
     if slot.is_none() {
         // V8's compile cache keeps the host's compiled modules across
         // worker starts and runs: a start loads in about half the time.
-        let mut child = Command::new("node")
+        let mut child = hd_testkit::node::command()
             .env(
                 "NODE_COMPILE_CACHE",
                 Path::new(env!("CARGO_TARGET_TMPDIR")).join("node-compile-cache"),

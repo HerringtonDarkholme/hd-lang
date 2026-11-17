@@ -219,7 +219,7 @@ console.log(failed.length ? "failed: " + failed.join(", ") : "ok");
         pkg = js_str(&pkg.to_string_lossy()),
         case = js_str(&case.to_string_lossy()),
     );
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args(["--input-type=module", "-e", &script])
         .output()
         .expect("run node");
@@ -258,7 +258,7 @@ console.log(failed.length ? "failed: " + failed.join(", ") : "ok");
 "#,
         core = js_str(&core.to_string_lossy()),
     );
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args(["--input-type=module", "-e", &script])
         .output()
         .expect("run node");

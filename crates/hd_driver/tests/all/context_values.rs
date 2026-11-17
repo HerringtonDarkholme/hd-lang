@@ -5,7 +5,6 @@
 //! and a later one wins (`req.context.order`).
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -37,7 +36,7 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
     let wasm = out.wasm.expect("wasm");
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), &format!("context-{name}.wasm"));
     std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()

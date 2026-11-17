@@ -1,9 +1,6 @@
 //! A real hot-loop count increase must fail the same comparator as CI.
 use super::*;
-use std::{
-    io::Write as _,
-    process::{Command, Stdio},
-};
+use std::{io::Write as _, process::Stdio};
 
 #[test]
 fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
@@ -65,7 +62,7 @@ fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
     ",
         root.to_str().unwrap()
     );
-    let mut child = Command::new("node")
+    let mut child = hd_testkit::node::command()
         .arg("--input-type=module")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

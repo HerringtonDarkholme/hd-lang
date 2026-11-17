@@ -22,7 +22,7 @@ fn lone_run(wasm: &[u8], name: &str) -> String {
     let path =
         std::env::temp_dir().join(format!("hd-stage-lone-{}-{name}.wasm", std::process::id()));
     std::fs::write(&path, wasm).expect("write the program");
-    let ran = std::process::Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()

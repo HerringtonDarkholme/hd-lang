@@ -50,7 +50,7 @@ fn a_pattern_applied_ten_thousand_times_compiles_once() -> Result<(), String> {
             hd_testkit::Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "validate-pattern.wasm");
         std::fs::write(&path, out.wasm.ok_or("no validator module")?).map_err(|e| e.to_string())?;
         // cost: one Node process for each of two fixed pipelines; guest counters measure the work.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
             .arg(&path)
             .output()

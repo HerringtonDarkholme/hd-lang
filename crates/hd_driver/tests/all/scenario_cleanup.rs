@@ -3,7 +3,6 @@
 //! it declares one, and links no such export when it does not.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -96,7 +95,7 @@ host.close();
         ),
     )
     .expect("write script");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(&script_path)
         .arg(&wasm_path)
         .output()

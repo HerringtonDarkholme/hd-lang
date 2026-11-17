@@ -80,7 +80,7 @@ fn node_host_exits_after_main_returns_every_time() {
     let limited = dir.join("limited.json");
     std::fs::write(&limited, "{\"timeLimitMs\":60000}").unwrap();
     for round in 0..40 {
-        let mut command = Command::new("node");
+        let mut command = hd_testkit::node::command();
         command.arg(host()).arg(&wasm);
         if round % 2 == 1 {
             command.arg(&limited);

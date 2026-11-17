@@ -10,7 +10,7 @@
 
 use std::io::{Read as _, Write as _};
 use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, sync_channel};
 use std::sync::{Mutex, PoisonError};
@@ -109,7 +109,7 @@ fn request(
 fn start() -> std::io::Result<Process> {
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/stage-host.ts");
     // cost: one process per test process, plus one per crash or overrun.
-    let mut child = Command::new("node")
+    let mut child = crate::node::command()
         .arg(script)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

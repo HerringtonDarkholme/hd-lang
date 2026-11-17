@@ -1,7 +1,7 @@
 //! A focused runtime test, independent of the aggregate std runner.
 use super::*;
 use std::io::Write as _;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[test]
 fn pending_counts_stop_at_observation_boundaries() {
@@ -117,7 +117,7 @@ fn run_detector(wasm: &[u8], check: &str) {
          assert.equal(result.status,0,errors.join(''));{check}}}finally{{host.close();}}\n",
         core.to_str().expect("core path"),
     );
-    let mut child = Command::new("node")
+    let mut child = hd_testkit::node::command()
         .args(["--input-type=module"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

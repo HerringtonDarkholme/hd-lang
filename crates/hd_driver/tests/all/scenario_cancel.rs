@@ -7,7 +7,6 @@
 //! plain driver.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -107,7 +106,7 @@ fn a_scenario_build_runs_under_the_plain_driver() {
     let wasm = out.wasm.expect("wasm");
     let path = Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "scenario-cancel-run.wasm");
     std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()
@@ -158,7 +157,7 @@ process.stderr.write(\"cancel-ok\\n\");
         ),
     )
     .expect("write script");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(&script_path)
         .arg(&wasm_path)
         .output()

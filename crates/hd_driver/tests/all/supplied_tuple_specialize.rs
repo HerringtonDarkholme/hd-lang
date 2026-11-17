@@ -184,7 +184,7 @@ fn tuple_comparisons_keep_owners_walker_effects_and_unordered_results()
                 hd_testkit::Scratch::unmade(env!("CARGO_TARGET_TMPDIR"), "supplied-tuple.wasm");
             std::fs::write(&path, wasm)?;
             // cost: one Node process for each of four fixed pipeline/check combinations.
-            let ran = std::process::Command::new("node")
+            let ran = hd_testkit::node::command()
                 .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
                 .arg(&path)
                 .output()?;

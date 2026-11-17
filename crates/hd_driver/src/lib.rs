@@ -14403,7 +14403,7 @@ try {
 #[cfg(all(test, feature = "host-artifacts"))]
 fn run_package_host_javascript(out: &Output, body: &str) {
     use std::io::Write as _;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/core.ts");
     let glue = &out.host_artifacts.as_ref().unwrap().javascript;
     let script = format!(
@@ -14424,7 +14424,7 @@ const sink = {{ out: text => output.push(text), err: text => errors.push(text) }
         core.to_str().unwrap(),
         out.wasm.as_ref().unwrap(),
     );
-    let mut child = Command::new("node")
+    let mut child = hd_testkit::node::command()
         .args(["--input-type=module"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

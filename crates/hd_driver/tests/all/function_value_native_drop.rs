@@ -51,7 +51,7 @@ fn native_callback_inputs_transfer_hooks_and_conditional_fields_once() -> Result
         std::fs::write(&path, out.wasm.ok_or("no native Drop wasm")?).map_err(|e| e.to_string())?;
         // Fixed cost: one fixture module and one Node process per mode
         // (four modes total), with no source-sized subprocess fan-out.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
             .arg(&path)
             .output()

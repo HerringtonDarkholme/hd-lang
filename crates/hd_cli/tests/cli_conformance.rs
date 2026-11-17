@@ -785,9 +785,16 @@ fn offline_git(command: &mut Command, remotes: &Path) {
     }
 }
 
+/// PATH for `hd` with the repository's pinned Node first (#2059), set once
+/// at the test's setup; `None` under `wasmtime-only` without such a Node.
+static NODE_PATH: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+
 fn run_hd(dir: &Path, cache: &Path, remotes: &Path, words: &[String]) -> std::io::Result<Ran> {
     let mut command = Command::new(env!("CARGO_BIN_EXE_hd"));
     offline_git(&mut command, remotes);
+    if let Some(Some(path)) = NODE_PATH.get() {
+        command.env("PATH", path);
+    }
     let mut child = command
         .args(words)
         .current_dir(dir)
@@ -1213,6 +1220,15 @@ fn cli_conformance_passes_except_known_failures() {
         }
     };
     let mode = EngineMode::parse(selected.as_deref()).unwrap_or_else(|error| panic!("{error}"));
+    // An older Node fails here, once, naming `.node-version`, not as the
+    // cases that need a newer one (#2059). `wasmtime-only` runs no case on
+    // Node, so it takes the pinned Node when there is one and PATH's else.
+    NODE_PATH.get_or_init(|| match mode {
+        EngineMode::WasmtimeOnly => hd_testkit::node::found()
+            .ok()
+            .map(|_| hd_testkit::node::path_env()),
+        _ => Some(hd_testkit::node::path_env()),
+    });
     let only = std::env::var("HD_CONFORMANCE_ONLY").ok();
     let mut names = case_names();
     if let Some(only) = &only {

@@ -468,7 +468,7 @@ const result = await host.run(instance,'hd.init','hd.poll');
 if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
 "
         );
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .args(["--input-type=module", "-e", &script])
             .output()
             .expect("Node available");
@@ -529,7 +529,7 @@ try {{
 "
         );
         // cost: one Node process for each of three fixed compiler modes.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .args(["--input-type=module", "-e", &script])
             .output()?;
         assert!(

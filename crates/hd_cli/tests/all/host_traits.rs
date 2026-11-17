@@ -940,7 +940,7 @@ fn server_sdk_node_tests(files: &[&str]) {
     // Avoid multiplying CPU-bound fixtures across files inside an already
     // parallel cargo test run: that can starve a healthy cleanup ACK past
     // its unchanged 200 ms host backstop.
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args(["--test", "--test-concurrency=1"])
         .args(files)
         .env("HD_SDK_TEST_HD", env!("CARGO_BIN_EXE_hd"))
@@ -971,7 +971,7 @@ fn a_compiled_root_runs_through_synchronous_host_turns() {
     );
     let built = run(&dir, &["build", "--engine", "node"]);
     assert!(built.status.success(), "{}", text(&built.stderr));
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args(["--test", "host/driver.test.ts"])
         .env("HD_DRIVER_GUEST", dir.join("build/debug/driver.wasm"))
         .current_dir(root)
@@ -991,7 +991,7 @@ fn a_compiled_root_runs_through_synchronous_host_turns() {
 fn node_process_job_owns_descendants_and_preserves_output() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let dir = work("node-process-job");
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args([
             "--test",
             "--test-name-pattern=Process|Windows processLauncher",
@@ -1019,7 +1019,7 @@ fn node_process_job_owns_descendants_and_preserves_output() {
 #[test]
 fn node_stdin_reader_keeps_copy_and_search_work_linear() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let out = Command::new("node")
+    let out = hd_testkit::node::command()
         .args(["--test", "host/node-input.test.ts"])
         .current_dir(root)
         .output()

@@ -5,7 +5,6 @@
 
 use std::ops::Range;
 use std::path::Path;
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -234,7 +233,7 @@ try {{
         wasm = path.to_string_lossy(),
     );
     // cost: one Node process per measured program.
-    let r = Command::new("node")
+    let r = hd_testkit::node::command()
         .args(["--input-type=module", "-e", &script])
         .output()
         .expect("node");

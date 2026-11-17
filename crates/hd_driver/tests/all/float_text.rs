@@ -8,7 +8,7 @@
 
 use std::io::Write as _;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use hd_testkit::Scratch;
 
@@ -157,7 +157,7 @@ for (const line of readFileSync(0, "utf8").split("\n")) {
 }
 process.stdout.write(out.join("\n") + "\n");
 "#;
-    let mut child = Command::new("node")
+    let mut child = hd_testkit::node::command()
         .args(["--input-type=module", "-e", script])
         .arg(&float)
         .stdin(Stdio::piped())
@@ -393,7 +393,7 @@ fn run_tests(name: &str, src: &str) -> Vec<String> {
         &format!("float-text-{name}.wasm"),
     );
     std::fs::write(&path, wasm).expect("write wasm");
-    let result = Command::new("node")
+    let result = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.ts"))
         .arg(&path)
         .arg(runs.join(","))
@@ -648,7 +648,7 @@ for (const line of readFileSync(0, "utf8").split("\n")) {
 }
 process.stdout.write(bad.join("\n") + "\n");
 "#;
-    let mut child = Command::new("node")
+    let mut child = hd_testkit::node::command()
         .args(["--input-type=module", "-e", script])
         .arg(&host)
         .arg(&exact)

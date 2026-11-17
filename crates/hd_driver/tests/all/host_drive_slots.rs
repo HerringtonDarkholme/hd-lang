@@ -403,7 +403,7 @@ try {{
             module_name = interface.module
         );
         // cost: one Node process per fixed build mode, never per accumulated entry.
-        let mut command = std::process::Command::new("node");
+        let mut command = hd_testkit::node::command();
         let ran = command
             .args(["--input-type=module", "-e", &script])
             .output()?;
@@ -599,7 +599,7 @@ try {{
             wasm_path = wasm_path.to_string_lossy()
         );
         // cost: one Node process per five fixed build modes, never accumulated state.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .args(["--input-type=module", "-e", &script])
             .output()?;
         assert!(

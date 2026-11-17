@@ -3,7 +3,6 @@
 //! and also checks that the deriving module is rechecked.
 
 use std::path::Path;
-use std::process::Command;
 
 use hd_testkit::Scratch;
 
@@ -43,7 +42,7 @@ fn run(out: &Output, name: &str) -> String {
         &format!("derive-run-{name}.wasm"),
     );
     std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()

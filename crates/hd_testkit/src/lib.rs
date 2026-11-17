@@ -2,6 +2,7 @@
 //! `hd_testkit` (dev only): the determinism matrix
 //! (`docs/compiler/testing-the-compiler.md` §8.1). It runs one build under
 //! several executors (serial orders and the pool) and compares bytes.
+//! `node` finds the Node the repository pins (`.node-version`).
 //! `known_failures` reads the root `KNOWN_FAILURES.tsv` for the conformance
 //! tiers. `stages` runs the stage fixtures under each crate's
 //! `tests/cases/` (#675).
@@ -13,6 +14,7 @@ use hd_driver::Executor;
 use hd_sched::SerialOrder;
 
 pub mod known_failures;
+pub mod node;
 pub mod stages;
 
 /// The host capability traits of conformance runtime profile `name`

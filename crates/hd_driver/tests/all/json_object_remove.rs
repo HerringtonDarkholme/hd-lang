@@ -118,7 +118,7 @@ pub fn compaction_steps_for_test() -> usize: object_compaction_steps
         std::fs::write(&path, out.wasm.ok_or("no object test module")?)
             .map_err(|e| e.to_string())?;
         // cost: one Node process for each of two fixed pipelines; guest counters measure the work.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
             .arg(&path)
             .output()

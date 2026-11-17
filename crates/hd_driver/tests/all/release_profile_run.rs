@@ -12,7 +12,7 @@
 //! profiles.
 
 use std::path::Path;
-use std::process::{Command, Output as Run};
+use std::process::Output as Run;
 
 use hd_cache::MemoryStore;
 use hd_driver::{BuildProfile, Executor, Goal, Host, NoClock, Output, Packages, build_packages};
@@ -55,7 +55,7 @@ pub(super) fn run_wasm(name: &str, wasm: &[u8]) -> Run {
         &format!("release-profile-{name}.wasm"),
     );
     std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
+    let ran = hd_testkit::node::command()
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
         .arg(&path)
         .output()

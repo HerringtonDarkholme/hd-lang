@@ -138,7 +138,7 @@ fn heap_growth_does_not_rescan_the_occupied_prefix() -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         // cost: one Node process for the fixed generated width cases; scan work
         // is measured inside the guest rather than inferred from wall time.
-        let ran = std::process::Command::new("node")
+        let ran = hd_testkit::node::command()
             .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.ts"))
             .arg(&path)
             .output()

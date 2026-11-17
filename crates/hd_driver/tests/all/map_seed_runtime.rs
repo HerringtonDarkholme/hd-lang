@@ -5,7 +5,7 @@ use hd_sched::SerialOrder;
 use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::ops::Range;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 fn leb(bytes: &mut Vec<u8>, mut value: u32) {
     loop {
@@ -248,7 +248,7 @@ assert.notDeepEqual(run(0n), run(19n));
 console.log('ok');
 "
         );
-        let mut node = Command::new("node")
+        let mut node = hd_testkit::node::command()
             .args(["--input-type=module"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
