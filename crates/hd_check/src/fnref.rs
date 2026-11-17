@@ -438,7 +438,7 @@ impl Ck<'_, '_> {
             && let Some(want) = want
             && let TyData::Fn { params, .. } = pool.get(self.resolved(want))
             && let Some(&receiver) = pool.list_items(params).first()
-            && let Some((tv, _)) = self.dyn_ref_of(receiver)
+            && let Some((tv, writable)) = self.dyn_ref_of(receiver)
             && let TyData::TraitValue {
                 def: from,
                 args: from_args,
@@ -467,7 +467,7 @@ impl Ck<'_, '_> {
                 }
                 *choice = Some((ChoiceKind::TraitValue, tr.raw()));
             }
-            return self.dynamic_member_ref(m, receiver, None, Some(want), n);
+            return self.dynamic_member_ref(m, (receiver, tv, writable), None, Some(want), n);
         }
         self.unbound(m, want, n)
     }
@@ -1130,15 +1130,12 @@ impl Ck<'_, '_> {
     fn dynamic_member_ref(
         &mut self,
         mut m: Member,
-        receiver: Ty,
+        (receiver, tv, writable): (Ty, Ty, bool),
         bound: Option<Ref>,
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let (tv, writable) = self
-            .dyn_ref_of(receiver)
-            .expect("selected dynamic receiver");
         let Owner::Trait { def: trait_, .. } = m.owner else {
             unreachable!("dynamic member callers select Owner::Trait");
         };
@@ -1300,7 +1297,7 @@ impl Ck<'_, '_> {
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
         }
-        if dynamic.is_some()
+        if let Some((tv, writable)) = dynamic
             && matches!(
                 m.owner,
                 Owner::Trait {
@@ -1309,7 +1306,7 @@ impl Ck<'_, '_> {
                 }
             )
         {
-            return self.dynamic_member_ref(m, rt, Some(recv), want, n);
+            return self.dynamic_member_ref(m, (rt, tv, writable), Some(recv), want, n);
         }
         self.note_call(m.def);
         // `fn.ref.bound.address.writable`.
