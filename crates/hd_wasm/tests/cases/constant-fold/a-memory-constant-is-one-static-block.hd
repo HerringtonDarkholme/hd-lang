@@ -1,0 +1,36 @@
+# @dump: wat
+# @build: v8 release
+# expected: `make4`'s 32-value constant is one static data block, copied
+# into the result with one `memory.copy`, as rustc emits a constant aggregate
+# as a static allocation and copies it. Today the release inliner collapses
+# each `make` call into the literal at any size and writes one store per
+# value, so the module doubles per level (#2182).
+type D0 = (i32, i32)
+type D1 = (D0, D0)
+type D2 = (D1, D1)
+type D3 = (D2, D2)
+type D4 = (D3, D3)
+
+fn make0() -> D0:
+    (1, 2)
+
+fn make1() -> D1:
+    (make0(), make0())
+
+fn make2() -> D2:
+    (make1(), make1())
+
+fn make3() -> D3:
+    (make2(), make2())
+
+fn make4() -> D4:
+    (make3(), make3())
+
+fn keep[T](x: T) -> T:
+    x
+
+fn first(v: D4) -> i32:
+    keep(v)._0._0._0._0._0
+
+fn use() -> i32:
+    first(make4())

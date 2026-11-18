@@ -1,0 +1,29 @@
+# @dump: wat
+# expected: `v` stays one frame block, and the interpolation borrows its
+# field at the block's address plus the field's offset, as rustc's
+# `PlaceRef` does. Today a borrow cannot point into the STACK memory, so
+# `v` is kept as 32 scalar locals (#2183).
+type D0 = (i32, i32)
+type D1 = (D0, D0)
+type D2 = (D1, D1)
+type D3 = (D2, D2)
+type D4 = (D3, D3)
+
+fn make0() -> D0:
+    (1, 2)
+
+fn make1() -> D1:
+    (make0(), make0())
+
+fn make2() -> D2:
+    (make1(), make1())
+
+fn make3() -> D3:
+    (make2(), make2())
+
+fn make4() -> D4:
+    (make3(), make3())
+
+fn show() -> string:
+    let v = make4()
+    "${v._0._0._0._0._0}"
