@@ -1112,7 +1112,8 @@ The verifier checks each of these:
     projection and no unopened opaque result in its instruction, local and constant columns or in a
     record's type words, has no generic local function's sub-body, and
     has no trait call chosen through a bound (`Bound`) at a receiver that
-    is not a trait value (`docs/future-work/INSTANCE_TIR.md`, "Verifier"):
+    is not a trait value (instance TIR's verifier,
+    `docs/future-work/BACKEND_NEUTRAL_TIR.md` Appendix D):
     `hd_mono::instantiate` chooses each one at a concrete receiver as an
     `Impl` or `Builtin` call. The driver marks and checks each body it
     owns for an instance before the ownership passes (`verify_instance`).
