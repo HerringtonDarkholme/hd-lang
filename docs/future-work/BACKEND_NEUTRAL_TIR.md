@@ -1,7 +1,7 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
-Status: proposal, 2026-11-18; domain: compiler internals; not accepted.
-Nothing here is accepted behavior. It replaces
+Status: accepted design (owner, 2026-11-18: "accept all your
+recommendations"); domain: compiler internals; nothing built. It replaces
 `docs/future-work/INSTANCE_TIR.md` (accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
@@ -73,27 +73,26 @@ lays out the frame and writes the destructor, which has no TIR body.
 
 ## Open questions
 
-1. Is `Phase::Lowered` the only input of a backend, checked by a verifier?
-   Dev module bytes then change at most steps; behaviour and bench gates
-   replace byte identity. **Recommended: yes.**
-2. May `hd_tir` grow by about 7,400 lines while `hd_wasm` shrinks by about
-   19,900? The loan analysis and the state machine move; they are
-   language logic. **Recommended: yes.**
-3. Does a value of more than 16 scalars live in memory in every position,
-   enums included, so no layout lists leaves? **Recommended: yes**,
-   gated on bench time and size.
-4. Does per-type count and drop glue become TIR shim bodies, deleting the
-   `Walk` recipe IR? **Recommended: yes.**
-5. Do the runtime's bodies (15,994 lines generated as Wasm) stay
-   per-backend for now? **Recommended: yes.** `List` and `Map` stay
-   built-in (owner, 2026-11-12). The runtime's source language is decided
-   when LLVM is scheduled.
-6. One pass order for dev and release: generic folds and inlining once
-   per body, then per-instance optimization in release only?
-   **Recommended: yes**, in the last step, gated on the release bench.
-7. Does the per-instance store (#2106) hold the lowered form in place of
-   the owned form, so a warm build skips lowering too? **Recommended:
-   yes.**
+None are open. The owner decided all seven as recommended on 2026-11-18.
+
+1. `Phase::Lowered` is the only input of a backend, checked by a
+   verifier. Dev module bytes may change at a step; behaviour and bench
+   gates replace byte identity.
+2. `hd_tir` may grow by about 7,400 lines while `hd_wasm` shrinks by about
+   19,900. The loan analysis and the state machine are language logic.
+3. A value of more than 16 scalars lives in memory in every position,
+   enums included, so no layout lists leaves. Gated on bench time and
+   size.
+4. Per-type count and drop glue becomes TIR shim bodies, and the `Walk`
+   recipe IR is deleted.
+5. The runtime's bodies (15,994 lines generated as Wasm) stay per-backend
+   for now. `List` and `Map` stay built-in (owner, 2026-11-12). The
+   runtime's source language is decided when LLVM is scheduled.
+6. Dev and release share one pass order: generic folds and inlining once
+   per body, then per-instance optimization in release only. It lands in
+   the last step, gated on the release bench.
+7. The per-instance store (#2106) holds the lowered form in place of the
+   owned form, so a warm build skips lowering too.
 
 ## Problems it solves
 
@@ -373,7 +372,7 @@ instructions unless stated. Source links are in Appendix B.
 | `emit/susp.rs`, `susp_spill.rs`, `frame_referents.rs`, `susp` rows | states, frame slots, resume branches, the destructor's shape | frame tuple, poll body, destroy body | rustc `StateTransform` | backward liveness, O(blocks × locals / 64); one rewrite, O(n) | 7 |
 | `emit/refs.rs` storage and partial-move branches | how a place is reached per storage kind | one offset fold over the layout | rustc `PlaceRef` | O(projections) | 3 |
 | `emit/dyn_value.rs`, `emit/ctx.rs`, `drive.rs` | vtable slots, hidden row parameters | explicit parameters and a neutral vtable table | Swift lowered function types | not priced; no line claimed | after 8 |
-| `emit/list.rs`, `emit/map.rs`, `map.rs`, `rt.rs`, `task.rs`, `boundary.rs` | nothing about a program; they are the built-ins' and runtime's bodies | stay; named by a runtime table | — | — | question 5 |
+| `emit/list.rs`, `emit/map.rs`, `map.rs`, `rt.rs`, `task.rs`, `boundary.rs` | nothing about a program; they are the built-ins' and runtime's bodies | stay; named by a runtime table | — | — | decision 5 |
 
 **The 154 `Mem::leaves` reads**, by idiom (`rg` at 421bcec83). The
 patterns overlap, so the rows do not sum to 154.
@@ -446,7 +445,7 @@ path it replaces and names its reference implementation.
 | --- | --- | --- |
 | a new tag | 70 lines: `ir.rs` +35, `owned.rs` +32, `slots.rs` +3 (2a5236de0) | +2 (`LoanBegin`, `Access`), −2 (`FlagSet`, `FlagClear`): net 0; `LoanEnd` exists |
 | a new body column | wire +2 to +33, verifier +12 to +96 (3bd6ce84c, f155744f5, e54ccb9f9) | none added; `Await` gains one block word |
-| a column removed | about −21 each (6c1358319: two columns, −42) | 6 leave the owned wire section, with question 7: about −130 |
+| a column removed | about −21 each (6c1358319: two columns, −42) | 6 leave the owned wire section, by decision 7: about −130 |
 | body-copy remap, `hd_mono::instantiate` | `hd_mono/src/instance.rs` +72 in step 4 (96a648c7c) | none: lowering runs after both |
 | cache key | one settings word per pass set | the lowering version and the target |
 | tests | one counted test per pass | each lowering: width 1,000 and depth 20, counting visits |
@@ -502,7 +501,7 @@ backend asks for the scalars of a `Scalars` type only, at most 16. A
 | --- | --- | --- |
 | Compile time per instance | the passes, then the emitter's own loan, guard, storage, flag and suspension analyses | the passes, then six linear lowerings; no emitter analysis |
 | Layout work | per scalar leaf; exponential for a doubling type | per distinct type; one probe per query |
-| Warm dev build, no edit | one key probe per instance | the same; the store holds the lowered form (question 7) |
+| Warm dev build, no edit | one key probe per instance | the same; the store holds the lowered form (decision 7) |
 | Runtime, Wasm size | baseline | bench gate per step: output equal, size within 0.5%, time within 2% |
 | Web compiler gzip (2.6 MB cap) | baseline | smaller: about 8,500 fewer lines linked |
 | Accumulated state | no per-instance work scales with it | the same; the never-lent set stays one link-time pass |
