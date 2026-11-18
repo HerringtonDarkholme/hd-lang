@@ -87,77 +87,219 @@ pub fn sccs_from(
     roots: impl IntoIterator<Item = u32>,
     mut succ: impl FnMut(u32, &mut Vec<u32>),
 ) -> Sccs {
-    let mut index = vec![UNREACHED; n];
-    let mut low = vec![0u32; n];
-    let mut comp = vec![UNREACHED; n];
-    let mut stack: Vec<u32> = Vec::new();
-    // Per open frame: its node, its next successor in `buf`, and where its
-    // successors start there. The top frame's successors end at the
-    // buffer's end.
-    let mut frames: Vec<(u32, usize, usize)> = Vec::new();
-    let mut buf: Vec<u32> = Vec::new();
     let mut out = Sccs {
-        comp: Vec::new(),
+        comp: vec![UNREACHED; n],
         order: Vec::with_capacity(n),
         starts: vec![0],
         cyclic: Vec::new(),
         work: 0,
     };
-    let mut next = 0u32;
-    for root in roots {
-        if index[root as usize] != UNREACHED {
-            continue;
-        }
-        let mut pending = Some(root);
-        loop {
-            if let Some(v) = pending.take() {
-                out.work += 1;
-                (index[v as usize], low[v as usize]) = (next, next);
-                next += 1;
-                stack.push(v);
-                let from = buf.len();
-                succ(v, &mut buf);
-                frames.push((v, from, from));
-            }
-            let Some(&mut (v, ref mut at, from)) = frames.last_mut() else {
-                break;
-            };
-            let vi = v as usize;
-            if *at < buf.len() {
-                let w = buf[*at];
-                *at += 1;
-                out.work += 1;
-                if index[w as usize] == UNREACHED {
-                    pending = Some(w);
-                } else if comp[w as usize] == UNREACHED {
-                    // Entered and in no finished component: on the stack.
-                    low[vi] = low[vi].min(index[w as usize]);
+    out.work = traverse(n, roots, |event| {
+        match event {
+            Event::Enter(v, edges) => succ(v, edges),
+            Event::Component(members, cyclic) => {
+                let c = node(out.cyclic.len());
+                for &m in members {
+                    out.comp[m as usize] = c;
                 }
+                out.order.extend_from_slice(members);
+                out.starts.push(node(out.order.len()));
+                out.cyclic.push(cyclic);
+            }
+            Event::Edge(_, _) | Event::Finish(_) => {}
+        }
+        true
+    });
+    out
+}
+
+/// An online walk's callbacks. Returning false from `Enter` skips a node;
+/// it must not append successors when skipping. Other return values are ignored.
+pub enum Event<'a, N> {
+    /// Append this node's successors, in traversal order, once per entered node.
+    Enter(N, &'a mut Vec<N>),
+    /// An edge, after its child traversal (if any), before the next edge.
+    Edge(N, N),
+    /// A node's DFS postorder position, before its component callback.
+    Finish(N),
+    /// A finished component in discovery order, and whether it is cyclic.
+    /// The parent's walk resumes only after this callback returns.
+    Component(&'a [N], bool),
+}
+
+/// Walk dense nodes `0..n`, sending the same events as [`Online`].
+/// Dense indexing costs O(n) initialization; traversal costs only reached nodes
+/// and edges, plus one probe per root. Returns entered nodes plus followed edges.
+pub fn traverse(
+    n: usize,
+    roots: impl IntoIterator<Item = u32>,
+    mut event: impl FnMut(Event<'_, u32>) -> bool,
+) -> u64 {
+    let mut walk = Walk::new(vec![usize::MAX; n]);
+    for root in roots {
+        walk.visit(root, &mut event);
+    }
+    walk.work
+}
+
+/// Persistent sparse SCC discovery, for lazy graphs and multiple seeds.
+/// Like LLVM's `SCCIterator`, it yields components before resuming parents.
+/// Only reached nodes are indexed; completed nodes persist across visits.
+/// Expected cost: O(seeds + entered nodes + followed edges), plus callbacks;
+/// space O(entered nodes + edges of open frames), with no native recursion.
+pub struct Online<N> {
+    walk: Walk<N, crate::HashMap<N, usize>>,
+}
+
+impl<N: Copy + Eq + std::hash::Hash> Default for Online<N> {
+    fn default() -> Self {
+        Self {
+            walk: Walk::new(crate::HashMap::default()),
+        }
+    }
+}
+
+impl<N: Copy + Eq + std::hash::Hash> Online<N> {
+    /// Visit a seed not already entered, retaining earlier discovery state.
+    pub fn visit(&mut self, root: N, mut event: impl FnMut(Event<'_, N>) -> bool) {
+        self.walk.visit(root, &mut event);
+    }
+
+    /// Nodes entered plus edges followed, cumulative across seeds.
+    #[must_use]
+    pub fn work(&self) -> u64 {
+        self.walk.work
+    }
+}
+
+// Batch graphs keep dense indexing; online graphs pay only for reached names.
+// Both use exactly the same traversal below.
+trait Indices<N> {
+    fn get(&self, node: N) -> Option<usize>;
+    fn insert(&mut self, node: N, index: usize);
+}
+impl Indices<u32> for Vec<usize> {
+    fn get(&self, node: u32) -> Option<usize> {
+        (self[node as usize] != usize::MAX).then_some(self[node as usize])
+    }
+    fn insert(&mut self, node: u32, index: usize) {
+        self[node as usize] = index;
+    }
+}
+impl<N: Eq + std::hash::Hash> Indices<N> for crate::HashMap<N, usize> {
+    fn get(&self, node: N) -> Option<usize> {
+        self.get(&node).copied()
+    }
+    fn insert(&mut self, node: N, index: usize) {
+        self.insert(node, index);
+    }
+}
+
+struct Node<N> {
+    name: N,
+    low: usize,
+    base: usize,
+}
+struct Frame<N> {
+    v: usize,
+    at: usize,
+    from: usize,
+    child: Option<N>,
+}
+struct Walk<N, I> {
+    index: I,
+    nodes: Vec<Node<N>>,
+    stack: Vec<usize>,
+    frames: Vec<Frame<N>>,
+    edges: Vec<N>,
+    members: Vec<N>,
+    work: u64,
+}
+impl<N: Copy + Eq, I: Indices<N>> Walk<N, I> {
+    fn new(index: I) -> Self {
+        Self {
+            index,
+            nodes: Vec::new(),
+            stack: Vec::new(),
+            frames: Vec::new(),
+            edges: Vec::new(),
+            members: Vec::new(),
+            work: 0,
+        }
+    }
+    fn enter(&mut self, name: N, event: &mut impl FnMut(Event<'_, N>) -> bool) -> bool {
+        let from = self.edges.len();
+        if !event(Event::Enter(name, &mut self.edges)) {
+            self.edges.truncate(from);
+            return false;
+        }
+        let v = self.nodes.len();
+        self.index.insert(name, v);
+        self.nodes.push(Node {
+            name,
+            low: v,
+            base: self.stack.len(),
+        });
+        self.stack.push(v);
+        self.frames.push(Frame {
+            v,
+            at: from,
+            from,
+            child: None,
+        });
+        self.work += 1;
+        true
+    }
+    fn visit(&mut self, root: N, event: &mut impl FnMut(Event<'_, N>) -> bool) {
+        if self.index.get(root).is_some() || !self.enter(root, event) {
+            return;
+        }
+        while let Some(frame) = self.frames.last_mut() {
+            let v = frame.v;
+            let name = self.nodes[v].name;
+            if let Some(child) = frame.child.take() {
+                event(Event::Edge(name, child));
+            }
+            if frame.at < self.edges.len() {
+                let child = self.edges[frame.at];
+                frame.at += 1;
+                self.work += 1;
+                if let Some(w) = self.index.get(child) {
+                    if self.nodes[w].low != usize::MAX {
+                        self.nodes[v].low = self.nodes[v].low.min(w);
+                    }
+                } else {
+                    frame.child = Some(child);
+                    if self.enter(child, event) {
+                        continue;
+                    }
+                    if let Some(frame) = self.frames.last_mut() {
+                        frame.child = None;
+                    }
+                }
+                event(Event::Edge(name, child));
                 continue;
             }
-            if low[vi] == index[vi] {
-                // ruled out: Tarjan's invariant keeps `v` on the stack until
-                // its component closes, and it closes here.
-                let at = stack.iter().rposition(|&m| m == v).unwrap_or(0);
-                let c = node(out.cyclic.len());
-                for &m in &stack[at..] {
-                    comp[m as usize] = c;
+            let from = frame.from;
+            let low = self.nodes[v].low;
+            event(Event::Finish(name));
+            if low == v {
+                let base = self.nodes[v].base;
+                self.members.clear();
+                for m in self.stack.drain(base..) {
+                    self.nodes[m].low = usize::MAX;
+                    self.members.push(self.nodes[m].name);
                 }
-                out.cyclic
-                    .push(stack.len() - at > 1 || buf[from..].contains(&v));
-                out.order.extend_from_slice(&stack[at..]);
-                out.starts.push(node(out.order.len()));
-                stack.truncate(at);
+                let cyclic = self.members.len() > 1 || self.edges[from..].contains(&name);
+                event(Event::Component(&self.members, cyclic));
             }
-            frames.pop();
-            buf.truncate(from);
-            if let Some(&(p, ..)) = frames.last() {
-                low[p as usize] = low[p as usize].min(low[vi]);
+            self.frames.pop();
+            self.edges.truncate(from);
+            if let Some(parent) = self.frames.last() {
+                self.nodes[parent.v].low = self.nodes[parent.v].low.min(low);
             }
         }
     }
-    out.comp = comp;
-    out
 }
 
 #[cfg(test)]
@@ -189,6 +331,160 @@ mod tests {
         assert_eq!(groups(&s), [vec![3], vec![2]]);
         assert_eq!(s.comp, [UNREACHED, UNREACHED, 1, 0]);
         assert!(!s.is_empty());
+    }
+
+    #[test]
+    fn online_callbacks_resume_parents_and_retain_seeds() {
+        let mut walk = Online::default();
+        let mut log = Vec::new();
+        let mut finished = crate::HashSet::<u32>::default();
+        let mut run = |root| {
+            walk.visit(root, |event| {
+                match event {
+                    Event::Enter(v, out) => {
+                        log.push(format!("enter {v}"));
+                        if v == 9 {
+                            return false;
+                        }
+                        match v {
+                            0 => out.extend([1, 2, 9]),
+                            1 => out.push(1),
+                            2 => {
+                                assert!(finished.contains(&1));
+                                out.extend([1, 0]);
+                            }
+                            3 => out.push(0),
+                            _ => {}
+                        }
+                    }
+                    Event::Edge(v, w) => log.push(format!("edge {v} {w}")),
+                    Event::Finish(v) => log.push(format!("finish {v}")),
+                    Event::Component(m, cyclic) => {
+                        log.push(format!("component {m:?} {cyclic}"));
+                        finished.extend(m);
+                    }
+                }
+                true
+            });
+        };
+        run(0);
+        run(3);
+        run(0);
+        assert_eq!(
+            log,
+            [
+                "enter 0",
+                "enter 1",
+                "edge 1 1",
+                "finish 1",
+                "component [1] true",
+                "edge 0 1",
+                "enter 2",
+                "edge 2 1",
+                "edge 2 0",
+                "finish 2",
+                "edge 0 2",
+                "enter 9",
+                "edge 0 9",
+                "finish 0",
+                "component [0, 2] true",
+                "enter 3",
+                "edge 3 0",
+                "finish 3",
+                "component [3] false"
+            ]
+        );
+        assert_eq!(walk.work(), 4 + 7);
+    }
+
+    #[test]
+    fn online_and_dense_components_match_every_three_node_graph() {
+        for bits in 0..512 {
+            let edges: Vec<Vec<usize>> = (0..3)
+                .map(|v| (0..3).filter(|w| bits & (1 << (3 * v + w)) != 0).collect())
+                .collect();
+            let dense = sccs_of(&edges);
+            let mut online = Online::default();
+            let mut groups = Vec::new();
+            for root in 0..3 {
+                online.visit(root, |event| {
+                    match event {
+                        Event::Enter(v, out) => out.extend_from_slice(&edges[v]),
+                        Event::Component(m, cyclic) => groups.push((m.to_vec(), cyclic)),
+                        _ => {}
+                    }
+                    true
+                });
+            }
+            let expected: Vec<_> = dense
+                .iter()
+                .enumerate()
+                .map(|(c, m)| (m.iter().map(|&v| v as usize).collect(), dense.cyclic(c)))
+                .collect();
+            assert_eq!(groups, expected, "graph {bits}");
+            // Independent transitive closure checks the partition itself.
+            let mut reach = [[false; 3]; 3];
+            for v in 0..3 {
+                for &w in &edges[v] {
+                    reach[v][w] = true;
+                }
+            }
+            for k in 0..3 {
+                for v in 0..3 {
+                    for w in 0..3 {
+                        reach[v][w] |= reach[v][k] && reach[k][w];
+                    }
+                }
+            }
+            for (v, row) in reach.iter().enumerate() {
+                for (w, other) in reach.iter().enumerate() {
+                    assert_eq!(dense.comp[v] == dense.comp[w], v == w || row[w] && other[v]);
+                }
+            }
+            assert_eq!(online.work(), dense.work);
+        }
+    }
+
+    #[test]
+    fn online_work_is_linear_across_wide_deep_and_repeated_seeds() {
+        std::thread::Builder::new()
+            .stack_size(96 * 1024)
+            .spawn(|| {
+                for (width, depth) in [(1000, 20), (10000, 20), (1, 10000)] {
+                    let n = width * depth;
+                    let mut walk = Online::default();
+                    let mut components = 0;
+                    for root in 0..n {
+                        walk.visit(root, |event| {
+                            match event {
+                                Event::Enter(v, out) => {
+                                    out.push(v / width * width + (v + 1) % width);
+                                    if v + width < n {
+                                        out.push(v + width);
+                                    }
+                                }
+                                Event::Component(m, cyclic) => {
+                                    assert_eq!(m.len(), width);
+                                    assert!(cyclic);
+                                    components += 1;
+                                }
+                                _ => {}
+                            }
+                            true
+                        });
+                    }
+                    assert_eq!(components, depth);
+                    assert_eq!(walk.work(), (3 * n - width) as u64);
+                    let before = walk.work();
+                    for root in 0..n {
+                        walk.visit(root, |_| panic!("cached seed"));
+                    }
+                    assert_eq!(walk.work(), before);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     /// A walk over `n` nodes on a 256 KiB stack.
