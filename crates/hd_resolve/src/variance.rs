@@ -63,10 +63,9 @@ pub fn walk(
     seen: &mut [Seen],
 ) {
     let mut visited = hd_base::HashSet::default();
-    let mut stack = vec![(t, polarity)];
-    while let Some((t, polarity)) = stack.pop() {
+    hd_base::stack::all((t, polarity), |(t, polarity), stack| {
         if !pool.has_param(t) || !visited.insert((t, polarity)) {
-            continue;
+            return true;
         }
         crate::work::declaration_type_visit();
         let mut go = |x: Ty, p: i8| stack.push((x, p));
@@ -150,5 +149,71 @@ pub fn walk(
             | TyData::Infer(_)
             | TyData::Canon(_) => {}
         }
+        true
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn variance_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let owner = DefId::from_raw(1);
+                let param = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+                for depth in [100, 1_000] {
+                    let mut t = param;
+                    for _ in 0..depth {
+                        t = pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[t, t]),
+                            rest: None,
+                        });
+                    }
+                    for polarity in [-1, 0, 1] {
+                        let mut seen = [Seen::default()];
+                        let ((), work) = crate::work::count_declaration_type_visits(|| {
+                            walk(&pool, t, polarity, owner, &|_| Vec::new(), &mut seen);
+                        });
+                        assert_eq!(
+                            seen[0],
+                            Seen {
+                                pos: polarity == 1,
+                                neg: polarity == -1,
+                                inv: polarity == 0
+                            }
+                        );
+                        assert_eq!(work, depth + 1);
+                    }
+                    let both = pool.intern_ty(&TyData::Fn {
+                        params: pool.list(&[t]),
+                        result: t,
+                        row: hd_types::RowId::EMPTY,
+                        suspends: false,
+                        inputs: hd_types::Inputs::Fixed,
+                        deps: hd_types::FnDeps::NONE,
+                    });
+                    let mut seen = [Seen::default()];
+                    let ((), work) = crate::work::count_declaration_type_visits(|| {
+                        walk(&pool, both, 1, owner, &|_| Vec::new(), &mut seen);
+                    });
+                    assert_eq!(
+                        seen[0],
+                        Seen {
+                            pos: true,
+                            neg: true,
+                            inv: false
+                        }
+                    );
+                    assert_eq!(work, 2 * (depth + 1) + 1, "one visit per type and polarity");
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
     }
 }
