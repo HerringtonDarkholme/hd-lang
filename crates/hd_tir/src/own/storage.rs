@@ -270,14 +270,22 @@ fn awaited_slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
 
 /// How many roots of `b` take each local, and whether a closure shares
 /// it. One walk of the body and of its captures.
-fn census(b: &Body, cx: &dyn OwnCx, recursive: &RecursiveBindings) -> (Vec<u32>, Vec<bool>) {
+fn census(
+    b: &Body,
+    cx: &dyn OwnCx,
+    recursive: &RecursiveBindings,
+    mut instruction: impl FnMut(usize),
+) -> (Vec<u32>, Vec<bool>) {
     let (mut refs, mut shared) = (vec![0; b.local_ty.len()], vec![false; b.local_ty.len()]);
-    for l in (0..b.len()).filter_map(|i| root_of(b, cx, i)) {
-        refs[l] += 1;
-    }
-    for ci in (0..b.len()).filter(|&ci| b.tags[ci] == Tag::Closure) {
-        for (l, s) in captures(b, ci, recursive) {
-            shared[l] |= s;
+    for i in 0..b.len() {
+        instruction(i);
+        if let Some(l) = root_of(b, cx, i) {
+            refs[l] += 1;
+        }
+        if b.tags[i] == Tag::Closure {
+            for (l, s) in captures(b, i, recursive) {
+                shared[l] |= s;
+            }
         }
     }
     for &(_, capture) in &b.inlined_shared {
@@ -286,32 +294,60 @@ fn census(b: &Body, cx: &dyn OwnCx, recursive: &RecursiveBindings) -> (Vec<u32>,
     (refs, shared)
 }
 
-/// Writes `b.storage`.
+/// Writes `b.storage` in O(instructions + locals + captures + storage rows),
+/// plus the existing reference-path walks.
+/// Copy marks reset only touched entries, not the whole local universe.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
+    run_with(b, topo, cx, framed, |_| {});
+}
+
+fn run_with(
+    b: &mut Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    framed: bool,
+    mut work: impl FnMut(usize),
+) {
     let n = b.local_ty.len();
     let recursive = RecursiveBindings::new(b);
-    let (refs, shared) = census(b, cx, &recursive);
+    let mut closures = vec![None; b.sub_root.len()];
+    work(n + closures.len());
+    let (refs, shared) = census(b, cx, &recursive, |i| {
+        work(1);
+        if b.tags[i] == Tag::Closure {
+            closures[b.data[i][0] as usize].get_or_insert(i);
+        }
+    });
     let roots: Vec<bool> = refs.iter().map(|&r| r > 0).collect();
-    let cell: Vec<bool> = roots.iter().zip(&shared).map(|(r, s)| *r || *s).collect();
+    let cells: Vec<usize> = (0..n).filter(|&l| roots[l] || shared[l]).collect();
     let mut rows = Vec::new();
-    if cell.iter().any(|&c| c) {
+    if !cells.is_empty() {
         let slot = if framed {
             awaited_slots(b, topo, &roots)
         } else {
             slots(b, topo, &roots)
         };
-        for s in 0..b.sub_root.len() {
+        let mut copy = vec![false; n];
+        let mut touched = Vec::new();
+        for (s, ci) in closures.into_iter().enumerate() {
+            work(1);
             // A closure's copy of a capture is a value of its own.
-            let mut copy = vec![false; n];
             if s != 0
-                && let Some(ci) =
-                    (0..b.len()).find(|&i| b.tags[i] == Tag::Closure && b.data[i][0] as usize == s)
+                && let Some(ci) = ci
             {
                 for (l, shared) in captures(b, ci, &recursive) {
-                    copy[l] |= !shared;
+                    work(1);
+                    if !shared && !copy[l] {
+                        copy[l] = true;
+                        touched.push(l);
+                    }
                 }
             }
-            for l in (0..n).filter(|&l| cell[l] && !copy[l]) {
+            for &l in &cells {
+                work(1);
+                if copy[l] {
+                    continue;
+                }
                 let storage = if s == 0 && slot[l] {
                     Storage::Slot
                 } else {
@@ -319,6 +355,10 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
                 };
                 let (s, l) = (crate::ir::u32_of(s), crate::ir::u32_of(l));
                 rows.push((SubId::from_raw(s), LocalId::from_raw(l), storage));
+            }
+            for l in touched.drain(..) {
+                work(1);
+                copy[l] = false;
             }
         }
     }
@@ -345,7 +385,7 @@ pub fn settle(b: &Body, args: &[(u16, u32)], counted: &[bool], cx: &dyn OwnCx) -
     if args.is_empty() && rows == b.storage {
         return None;
     }
-    let (refs, shared) = census(b, cx, &RecursiveBindings::new(b));
+    let (refs, shared) = census(b, cx, &RecursiveBindings::new(b), |_| {});
     let mut promoted = hd_base::HashMap::<(usize, usize), u32>::default();
     for &(s, i) in args {
         if let Some(l) = root_of(b, cx, i as usize) {
@@ -530,5 +570,62 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn storage_indexes_closures_and_resets_only_copied_captures() {
+        use crate::ir::{TirBuilder, TirSink};
+        let mut costs = Vec::new();
+        for width in [100, 1_000] {
+            let mut tb = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let none = NodeIdx::NONE;
+            let outer = tb.open_block();
+            let locals: Vec<_> = (0..width + 2)
+                .map(|_| tb.local(Ty::I32, Symbol::NONE, local_flags::PARAM, none))
+                .collect();
+            let mut modes = Vec::new();
+            for i in 0..width {
+                let sub = tb.open_sub(&[]);
+                let inner = tb.open_block();
+                let root = tb.close_block(inner, None, Ty::VOID, none);
+                tb.capture(sub, locals[0]);
+                tb.capture(sub, locals[1]);
+                tb.close_sub(sub, root, Ty(43), none);
+                modes.push(if i % 2 == 0 {
+                    CaptureMode::Shared
+                } else {
+                    CaptureMode::Copy
+                });
+                modes.push(CaptureMode::Shared);
+            }
+            let root = tb.close_block(outer, None, Ty::VOID, none);
+            let mut b = tb.finish(root, &modes).unwrap();
+            let topo = Topology::new(&b);
+            let cx = Counting(std::cell::Cell::new(0));
+            let expected: Vec<_> = (0..=width)
+                .flat_map(|s| {
+                    [0, 1].into_iter().filter_map(move |l| {
+                        (s == 0 || s % 2 == 1 || l == 1).then_some((
+                            SubId::from_raw(crate::ir::u32_of(s)),
+                            LocalId::from_raw(l),
+                            Storage::Cell,
+                        ))
+                    })
+                })
+                .collect();
+            for framed in [false, true] {
+                let mut work = 0;
+                run_with(&mut b, &topo, &cx, framed, |n| work += n);
+                assert_eq!(b.storage, expected);
+                assert!(work <= 12 * width + 16, "{width} closures: {work}");
+                if !framed {
+                    costs.push(work);
+                }
+            }
+            b.cap_mode.fill(CaptureMode::Copy);
+            run(&mut b, &topo, &cx, false);
+            assert!(b.storage.is_empty());
+        }
+        assert!(costs[1] <= 10 * costs[0]);
     }
 }
