@@ -12,8 +12,8 @@ handles the Wasm ABI. The decided surface is the
 [owner-confirmed #51 review](https://github.com/HerringtonDarkholme/hd-lang/issues/51#issuecomment-6388965405).
 
 General exported-function embedding and dylib loading are deferred with no
-design. Native provider registration on Wasmtime is the accepted
-[Native Package Host Bindings](../future-work/NATIVE_PACKAGE_HOST_BINDINGS.md),
+design. Native provider registration on Wasmtime is the built native host bindings design (git history at 10e74b76a,
+`NATIVE_PACKAGE_HOST_BINDINGS.md`),
 specified in [Native Package Providers](../../spec/cli/command-line.md#native-package-providers).
 `hd build --engine wasmtime` writes its Rust companion `NAME.host.rs`, and
 `hd_run_wasmtime::native` is the embedder surface it registers through.

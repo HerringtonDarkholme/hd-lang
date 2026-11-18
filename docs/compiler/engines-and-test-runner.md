@@ -233,10 +233,11 @@ bounded function count, still a fresh instance per case. Each extra
 chunk program costs about 35 ms to build, which prices a chunk at about
 2,048 to 4,096 cases: below that, one program stays cheaper, so suites
 of that size keep one program. Splitting needs shared code compiled once
-and linked into every chunk: the relocatable per-instance code of
-instance TIR step 6b (#2127, after #49 point 4). Without it, each chunk
-would collect and compile its own copy of std, which is what "Why one
-program" avoids, so chunking waits for #2127.
+and linked into every chunk: relocatable per-instance code, with each instance's recorded reads
+([Backend-Neutral TIR](../future-work/BACKEND_NEUTRAL_TIR.md); its unit is
+the lowered body, after #49 point 4). Without it, each chunk would
+collect and compile its own copy of std, which is what "Why one program"
+avoids, so chunking waits for that code cache.
 
 ### 19.2 Listing Cases
 

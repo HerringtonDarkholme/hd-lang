@@ -2969,7 +2969,7 @@ impl Env<'_> {
     }
 
     /// The instance body of `node`, whose type arguments are past
-    /// [`MAX_INSTANCE_LEAVES`] (gap: #2102): its generic item's body as
+    /// [`MAX_INSTANCE_LEAVES`] (gap: #2170): its generic item's body as
     /// the passes owned it, its types substituted at the arguments
     /// (`hd_mono::instantiate`, one `subst` per distinct type), so
     /// the emitter lowers it as any instance and substitutes nothing.
@@ -3101,7 +3101,7 @@ impl Env<'_> {
     /// generic form (invariant 24, checked with the passes' output by
     /// `hd_tir::ir::verify_owned`): a generic item's at its type arguments, a non-generic item's own
     /// body with no copy. A generic item's own body, which serves its
-    /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2102), stays checked.
+    /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2170), stays checked.
     /// A facts body that names none of its owner's type parameters is
     /// not one: a generic function's facts body builds its decorators'
     /// values, and collection reaches it with no type arguments

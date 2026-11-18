@@ -1,6 +1,6 @@
 //! The embedder surface for native package host providers
 //! (`cli.host.package.native-registration`,
-//! `docs/future-work/NATIVE_PACKAGE_HOST_BINDINGS.md`).
+//! `docs/future-work/NATIVE_PACKAGE_HOST_BINDINGS.md` at 10e74b76a).
 //!
 //! A module's generated companion `NAME.host.rs` (`hd build --engine
 //! wasmtime`) declares one provider trait per host interface over the types

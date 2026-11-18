@@ -414,7 +414,7 @@ patterns overlap, so the rows do not sum to 154.
 
 | Path | Where | Step |
 | --- | --- | --- |
-| The 4,096-leaf fallback, `gap: #2102` twice | `own.rs`: `MAX_INSTANCE_LEAVES`, `instance_leaves`, `leaf_fallback` | 1 |
+| The 4,096-leaf fallback, `gap: #2170` twice (was #2102) | `own.rs`: `MAX_INSTANCE_LEAVES`, `instance_leaves`, `leaf_fallback` | 1 |
 | Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1 |
 | Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1 |
 | A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1 |

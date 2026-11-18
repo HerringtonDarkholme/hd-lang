@@ -20,8 +20,6 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 ### Application and host
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
-- [Native Package Host Bindings](NATIVE_PACKAGE_HOST_BINDINGS.md): accepted design, built (#2077 to #2083): generated Rust traits, codecs, two-key consent, and Wasmtime registration for package host capabilities (#1822).
-- [JSON Decode](JSON_DECODE.md): accepted design, built (#1809): `decode` reads in one pass with a serde-style key loop (any key order, unknown keys skipped, absent members), no index and no fallback; measured against today's two-pass reader and lane 160's in-order pass (#1809).
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 
 ### Language and library
@@ -52,4 +50,6 @@ the lifetime solver is
 the enum layout decisions are [crates/hd_wasm/DESIGN.md §23.14](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts),
 release summaries are [crates/hd_opt/DESIGN.md §9](../../crates/hd_opt/DESIGN.md#9-release-summaries),
 the REPL and its journal are [docs/compiler/live-execution.md](../compiler/live-execution.md),
-and package host capabilities are [docs/compiler/package-host-capabilities.md](../compiler/package-host-capabilities.md).
+package host capabilities and their native bindings are [docs/compiler/package-host-capabilities.md](../compiler/package-host-capabilities.md),
+and JSON decoding is [spec/std/json.md](../../spec/std/json.md) and [spec/std/serde.md](../../spec/std/serde.md#reading).
+The JSON decode and native host binding designs are in git history at 10e74b76a.
