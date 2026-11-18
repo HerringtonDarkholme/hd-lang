@@ -1109,8 +1109,8 @@ The verifier checks each of these:
     set names locals of the body, sorted, and nothing tier 2 reserves
     occurs.
 24. **An instance body holds no generic form**: a body marked
-    `Phase::Instance` names no type parameter and no unnormalized
-    projection in its instruction, local and constant columns or in a
+    `Phase::Instance` names no type parameter, no unnormalized
+    projection and no unopened opaque result in its instruction, local and constant columns or in a
     record's type words, has no generic local function's sub-body, and
     has no trait call chosen through a bound (`Bound`) at a receiver that
     is not a trait value (`docs/future-work/INSTANCE_TIR.md`, "Verifier"):

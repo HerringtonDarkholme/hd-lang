@@ -2604,19 +2604,11 @@ impl FactEnv for Env<'_> {
             return None;
         }
         let (raw, hash) = self.checked_body(def)?;
-        let pool = &self.run.pool;
-        let mut body = raw.clone();
-        let subst = |ty| hd_mono::subst(pool, self, def, args, ty);
-        let list = |list| {
-            pool.list(
-                &pool
-                    .list_items(list)
-                    .iter()
-                    .map(|&ty| subst(ty))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        hd_tir::ir::map_body_types(&mut body, &subst, &list);
+        // The one builder of an instance's body (`hd_mono::instantiate`),
+        // with the choices collection makes.
+        let body = hd_mono::instantiate(&self.run.pool, self, def, args, raw, &|t, s, a| {
+            InlineEnv::select_choice(self, t, s, a)
+        });
         Some((body, *hash))
     }
 
@@ -3039,6 +3031,11 @@ impl Env<'_> {
             );
             return Ok(());
         }
+        // A generic instance's types were closed as they were substituted;
+        // a non-generic body may still name an opaque result, and the
+        // inliner may have copied one in: each is opened here, once, so
+        // no pass after this one substitutes.
+        hd_mono::close_body(&self.run.pool, self, body);
         body.phase = hd_tir::ir::Phase::Instance;
         let pool = &self.run.pool;
         let errs = hd_tir::ir::verify_instance(body, pool, &|t| hd_mono::shown_type(pool, self, t));
@@ -3384,7 +3381,8 @@ impl Env<'_> {
         let params = hd_tir::own::params(b);
         let mut candidates = 0;
         for (k, &l) in params.iter().enumerate().take(64) {
-            let t = hd_mono::subst(pool, self, def, args, b.local_ty[l as usize]);
+            // An instance body's local types are its own, closed.
+            let t = b.local_ty[l as usize];
             // A counted referent is lent with no count, which needs its
             // local alive over the call.
             let counted = hd_wasm::promotable_referent(pool, self, t).is_none();

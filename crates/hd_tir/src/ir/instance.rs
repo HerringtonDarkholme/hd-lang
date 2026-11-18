@@ -5,9 +5,10 @@
 //! in a function `GenericSpecializer` produced.
 //!
 //! Rejected:
-//! - a type that names a type parameter or an unnormalized projection, in
-//!   the instruction, local or constant columns or in a record's type
-//!   words ([`record_type_words`]);
+//! - a type that names a type parameter, an unnormalized projection or an
+//!   unopened opaque result, in the instruction, local or constant
+//!   columns or in a record's type words ([`record_type_words`]): the
+//!   emitter reads these types as they are and substitutes none;
 //! - a generic local function's sub-body (`sub_flags::GENERIC`):
 //!   `hd_mono::instantiate_locals` makes one plain sub-body per
 //!   instantiation;
@@ -19,7 +20,8 @@
 //!   (reported above).
 //!
 //! Cost: one pass over the columns, the calls and the records. A type's
-//! flags answer "names a parameter" and "names a projection" in O(1).
+//! flags answer "names a parameter", "names a projection" and "names an
+//! opaque result" in O(1).
 
 use hd_types::{InternPool, Ty, TyData, TyList};
 
@@ -124,6 +126,9 @@ impl Open<'_> {
         }
         if types.has_param(t) {
             return Some(format!("`{}` names a type parameter", (self.name)(t)));
+        }
+        if types.has_opaque(t) {
+            return Some(format!("`{}` names an opaque result", (self.name)(t)));
         }
         None
     }
@@ -289,6 +294,23 @@ mod tests {
         let what = found(&body(&pool, t), &pool);
         assert!(
             what.contains(&format!("its type `t{}` names a projection", t.0)),
+            "{what:?}"
+        );
+    }
+
+    #[test]
+    fn an_unopened_opaque_result_is_rejected() {
+        let pool = InternPool::new();
+        let t = pool.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(5),
+            site: 0,
+            borrows: false,
+            args: pool.list(&[]),
+            bound: Ty::I32,
+        });
+        let what = found(&body(&pool, t), &pool);
+        assert!(
+            what.contains(&format!("its type `t{}` names an opaque result", t.0)),
             "{what:?}"
         );
     }

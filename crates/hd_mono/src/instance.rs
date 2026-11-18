@@ -140,6 +140,39 @@ pub fn substitute_body(pool: &InternPool, body: &mut Body, ty: &mut dyn FnMut(Ty
     hd_tir::ir::map_body_types(body, &one, &list);
 }
 
+/// Closes a body that names no type parameter, about to become an
+/// instance body (a non-generic item's own body, a generated one, or a
+/// body the inliner copied callee code into): every opaque result it
+/// records opened and every projection normalized, as [`subst`] closes
+/// a generic instance's types, so no pass after it substitutes
+/// (`docs/future-work/INSTANCE_TIR.md`, "Passes and emission"). Returns
+/// whether anything was open.
+///
+/// Cost: one pass over the type columns and record type words, each an
+/// O(1) flag test; only a body with an open type is mapped
+/// ([`substitute_body`]: one [`subst`] per distinct type).
+pub fn close_body(pool: &InternPool, env: &dyn ProgramEnv, body: &mut Body) -> bool {
+    let open = |t: Ty| pool.has_opaque(t) || pool.has_assoc(t);
+    let mut any = body.ty.iter().chain(&body.local_ty).any(|&t| open(t))
+        || body.consts.iter().any(|&(t, _)| open(t));
+    if !any {
+        let extra = &body.extra;
+        hd_tir::ir::record_type_words(body, &mut |at, word| {
+            any = any
+                || match word {
+                    hd_tir::ir::TypeWord::Ty => open(Ty(extra[at])),
+                    hd_tir::ir::TypeWord::List => {
+                        pool.list_items(TyList(extra[at])).iter().any(|&t| open(t))
+                    }
+                };
+        });
+    }
+    if any {
+        substitute_body(pool, body, &mut |t| crate::close(pool, env, t));
+    }
+    any
+}
+
 #[cfg(test)]
 mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
