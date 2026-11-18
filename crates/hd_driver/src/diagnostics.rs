@@ -180,9 +180,14 @@ pub fn for_input(diags: Vec<Diag>, file: &str) -> Vec<Diag> {
 #[must_use]
 pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
     let d = &out.diags;
+    let input = as_written.and_then(|written| std::path::Path::new(written).file_name()?.to_str());
     let file_of = |span: Span| {
         let file = out.locate(span).0;
-        (!file.is_empty()).then(|| as_written.map_or(file, str::to_owned))
+        (!file.is_empty()).then(|| {
+            as_written
+                .filter(|_| input == Some(file.as_str()))
+                .map_or(file, str::to_owned)
+        })
     };
     d.content_order()
         .into_iter()
@@ -469,5 +474,73 @@ mod tests {
             &NotImplemented::new(Stage::Emit, "x"),
         );
         assert!(!diags.is_internal(1));
+    }
+
+    #[test]
+    fn a_std_instance_invariant_keeps_its_file_in_single_file_diagnostics() {
+        use hd_base::{FileId, Span};
+        use hd_project::MemorySources;
+        let mut sources = MemorySources::default();
+        sources.insert("param.hd", "pub fn main() -> void:\n    pass\n");
+        let store = crate::warm_std_store();
+        let host = crate::Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &crate::NoClock,
+            executor: crate::Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        let mut out = crate::build(&host, "app", &crate::Goal::Analyze);
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        let file = out.files.iter().position(|f| f == "<std>/ops.hd").unwrap();
+        let text = &out.texts[file];
+        let body = text.find("    fn default() -> bool:\n").unwrap();
+        let lo = body + text[body..].find("false").unwrap();
+        let span = Span {
+            file: FileId::from_raw(u32::try_from(file).unwrap()),
+            lo: u32::try_from(lo).unwrap(),
+            hi: u32::try_from(lo + 5).unwrap(),
+        };
+        let finding = VerifyError {
+            invariant: 24,
+            inst: 2,
+            what: "injected std instance finding".into(),
+        };
+        let stop = VerifyError::bug(Stage::Collect, "instance", &[finding]).at(span);
+        report_stop(&mut out.diags, Stage::Collect, &stop);
+        let user = Span {
+            file: FileId::from_raw(
+                u32::try_from(out.files.iter().position(|f| f == "param.hd").unwrap()).unwrap(),
+            ),
+            lo: 0,
+            hi: 3,
+        };
+        out.diags
+            .error(Code::TypeMismatch, user, "injected input finding");
+        out.diags.add_fix(
+            "cross-file edit",
+            hd_diag::FixSafety::Exact,
+            &[(span, "true")],
+        );
+        let reported = super::from_output(&out, Some("scratch/param.hd"));
+        let std = reported
+            .iter()
+            .find(|d| d.message.contains("invariant 24"))
+            .unwrap();
+        assert_eq!(std.file.as_deref(), Some("<std>/ops.hd"));
+        let (_, line, column) = out.locate(span);
+        assert!(line > 2);
+        assert_eq!((std.line, std.column), (Some(line), Some(column)));
+        assert!(std.json().contains("\"file\":\"<std>/ops.hd\""));
+        assert!(
+            std.text()
+                .contains(&format!("<std>/ops.hd:{line}:{column}"))
+        );
+        let input = reported
+            .iter()
+            .find(|d| d.message == "injected input finding")
+            .unwrap();
+        assert_eq!(input.file.as_deref(), Some("scratch/param.hd"));
+        assert_eq!(input.fixes[0].edits[0].file, "<std>/ops.hd");
     }
 }
