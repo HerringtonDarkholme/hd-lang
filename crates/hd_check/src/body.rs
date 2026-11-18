@@ -5634,6 +5634,14 @@ impl hd_types::TyMap for Zonk<'_, '_, '_> {
 
 #[cfg(test)]
 pub(crate) fn with_checker(run: impl FnOnce(&mut Ck<'_, '_>)) {
+    with_checker_items(|_| Vec::new(), run);
+}
+
+#[cfg(test)]
+pub(crate) fn with_checker_items(
+    items: impl FnOnce(hd_resolve::Names<'_>) -> Vec<hd_resolve::Item>,
+    run: impl FnOnce(&mut Ck<'_, '_>),
+) {
     use crate::body::{BodyCx, new_ck};
     use hd_base::{FileId, Fuel};
     use hd_diag::DiagBuf;
@@ -5661,7 +5669,8 @@ pub(crate) fn with_checker(run: impl FnOnce(&mut Ck<'_, '_>)) {
     let item = names.item("app.main", "test");
     let parsed = hd_syntax::parse(b"");
     let index = hd_resolve::iface::IfaceIndex::default();
-    let lookup = Lookup::new(&[], std::iter::empty(), &index);
+    let items = items(names);
+    let lookup = Lookup::new(&items, std::iter::empty(), &index);
     let owners = OwnerMap::default();
     let extra = UniverseImpls::default();
     let impls = ImplView {

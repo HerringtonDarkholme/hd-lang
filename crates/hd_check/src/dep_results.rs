@@ -1732,6 +1732,134 @@ mod line_up_tests {
     }
 }
 
+#[cfg(test)]
+mod projection_lifetime_tests {
+    use super::*;
+    use hd_resolve::{Generic, Item, TraitData};
+    use hd_types::{ParamRef, TyList};
+
+    #[test]
+    fn a_thousand_projection_lifetimes_share_bound_queries_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated projection-chain test.
+            .spawn(|| {
+                for lifetime in [0, 7] {
+                    crate::body::with_checker_items(
+                        |names| {
+                            let p = names.pool.types();
+                            let shelf = names.item("app.main", "Shelf");
+                            let out = names.member(shelf, hd_intern::PathKind::Member, "Out");
+                            let holder = names.item("app.main", "Holder");
+                            let bound = p.intern_ty(&TyData::TraitValue {
+                                def: shelf,
+                                args: p.list(&[hd_resolve::lifetime_arg(p)]),
+                                bindings: Vec::new(),
+                            });
+                            let mut life = Generic::plain(names.syms.intern("a"));
+                            life.lifetime = true;
+                            let mut tr = Item::new(
+                                shelf,
+                                names.syms.intern("Shelf"),
+                                true,
+                                ItemData::Trait(TraitData::default()),
+                            );
+                            tr.generics.push(life);
+                            let associated = Item::new(
+                                out,
+                                names.syms.intern("Out"),
+                                true,
+                                ItemData::AssocType {
+                                    owner: shelf,
+                                    bounds: vec![bound],
+                                    bound_lifetimes: vec![vec![1]],
+                                },
+                            );
+                            let mut t = Generic::plain(names.syms.intern("T"));
+                            t.bounds.push(bound);
+                            t.bound_lifetimes.push(vec![lifetime]);
+                            let mut root = Item::new(
+                                holder,
+                                names.syms.intern("Holder"),
+                                true,
+                                ItemData::Builtin,
+                            );
+                            root.generics.push(t);
+                            vec![tr, associated, root]
+                        },
+                        |ck| {
+                            let p = ck.pool();
+                            let shelf = ck.cx.names.item("app.main", "Shelf");
+                            let assoc =
+                                ck.cx
+                                    .names
+                                    .member(shelf, hd_intern::PathKind::Member, "Out");
+                            let owner = ck.cx.names.item("app.main", "Holder");
+                            let other = ck.cx.names.item("app.main", "Other");
+                            let lifetimed = |_: DefId| false;
+                            let ls = Layouts::new(p, ck.cx.names.known.suspend, &lifetimed);
+                            for depth in [100, 1000] {
+                                let mut root =
+                                    p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+                                for _ in 0..depth {
+                                    root = p.intern_ty(&TyData::Assoc {
+                                        assoc,
+                                        trait_: shelf,
+                                        self_ty: root,
+                                        args: p.list(&[hd_resolve::lifetime_arg(p)]),
+                                    });
+                                }
+                                let wanted = if lifetime == 0 {
+                                    Vec::new()
+                                } else {
+                                    vec![u32::from(lifetime)]
+                                };
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(
+                                        || ck.proj_lifetimes(&ls, root)
+                                    ),
+                                    (wanted, 2 * depth + 1)
+                                );
+                                let mut memo = HashMap::default();
+                                let ids = if lifetime == 0 {
+                                    Vec::new()
+                                } else {
+                                    vec![vec![u32::from(lifetime)]]
+                                };
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(
+                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
+                                    ),
+                                    (ids.clone(), depth + 1)
+                                );
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(
+                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
+                                    ),
+                                    (ids, 0)
+                                );
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(
+                                        || ck.bound_ids_in(&ls, root, other, &mut memo)
+                                    ),
+                                    (Vec::<Vec<u32>>::new(), 1)
+                                );
+                                let scalar = p.intern_ty(&TyData::Tuple {
+                                    elems: TyList::EMPTY,
+                                    rest: None,
+                                });
+                                assert!(ck.proj_lifetimes(&ls, scalar).is_empty());
+                            }
+                        },
+                    );
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
 /// A call's map over the types it instantiates (`ref.generic.call`).
 struct CallSig {
     /// Each parameter's type, its argument's where the two line up, and
@@ -2150,7 +2278,7 @@ impl Ck<'_, '_> {
                             vec![self.trait_value_self_slots(ls, trait_, self_ty)]
                         }
                         (ChoiceKind::Bound, _) => {
-                            bound_ids = self.bound_ids(ls, self_ty, trait_, 0);
+                            bound_ids = self.bound_ids(ls, self_ty, trait_);
                             through_bound = true;
                             Vec::new()
                         }
@@ -3097,29 +3225,38 @@ impl Ck<'_, '_> {
         out
     }
 
-    /// [`Ck::proj_lifetimes`] unsorted. The base is a smaller type, so the
-    /// walk ends.
+    /// [`Ck::proj_lifetimes`] unsorted. Base queries share their completed
+    /// bound answers instead of rewalking the projection chain per level.
     fn proj_lifetimes_into(&self, ls: &Layouts<'_>, proj: Ty, out: &mut Vec<u32>) {
         let pool = ls.pool;
-        let TyData::Assoc {
-            assoc,
-            trait_: owner,
-            self_ty: base,
-            ..
-        } = pool.get(proj)
-        else {
-            return;
-        };
-        out.extend(self.bound_ids(ls, base, owner, 0).concat());
-        self.proj_lifetimes_into(ls, base, out);
-        let Some(ItemData::AssocType { bounds, .. }) =
-            self.cx.lookup.item(assoc).map(|it| &it.data)
-        else {
-            return;
-        };
-        (bounds.iter())
-            .filter_map(|&b| pool.trait_value(b))
-            .for_each(|(tr, _)| out.extend(self.bound_ids(ls, proj, tr, 0).concat()));
+        let mut memo = HashMap::default();
+        hd_base::stack::all((proj, false), |(proj, finish), stack| {
+            let TyData::Assoc {
+                assoc,
+                trait_: owner,
+                self_ty: base,
+                ..
+            } = pool.get(proj)
+            else {
+                return true;
+            };
+            if finish {
+                let Some(ItemData::AssocType { bounds, .. }) =
+                    self.cx.lookup.item(assoc).map(|it| &it.data)
+                else {
+                    return true;
+                };
+                for (tr, _) in bounds.iter().filter_map(|&b| pool.trait_value(b)) {
+                    out.extend(self.bound_ids_in(ls, proj, tr, &mut memo).concat());
+                }
+            } else {
+                hd_types::work::type_node();
+                out.extend(self.bound_ids_in(ls, base, owner, &mut memo).concat());
+                stack.push((proj, true));
+                stack.push((base, false));
+            }
+            true
+        });
     }
 
     /// The lifetimes a value of type `t` holds as a whole where its layout
@@ -3191,24 +3328,94 @@ impl Ck<'_, '_> {
     /// (`ref.lifetime.trait.bound-unnamed`). Through a supertrait, its
     /// written lifetimes name the bound's lifetime arguments and its type
     /// parameters the bound's arguments. Empty where no bound writes one.
-    ///
-    /// `depth` counts the projections it is inside, one type level each:
-    /// it stops at `hd_base::limits::TYPE_DEPTH`, past which a type is
-    /// `type-too-large`.
-    fn bound_ids(&self, ls: &Layouts<'_>, self_ty: Ty, trait_: DefId, depth: u32) -> Vec<Vec<u32>> {
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return Vec::new();
-        }
+    fn bound_ids(&self, ls: &Layouts<'_>, self_ty: Ty, trait_: DefId) -> Vec<Vec<u32>> {
         match ls.pool.get(self_ty) {
             TyData::Param(p) => self.param_bound_ids(ls, p, trait_),
-            TyData::Assoc {
-                assoc,
-                trait_: owner,
-                self_ty: base,
-                args,
-            } => self.assoc_bound_ids(ls, assoc, (owner, base, args), trait_, depth),
+            TyData::Assoc { .. } => self.bound_ids_in(ls, self_ty, trait_, &mut HashMap::default()),
             _ => Vec::new(),
         }
+    }
+
+    fn bound_ids_in(
+        &self,
+        ls: &Layouts<'_>,
+        self_ty: Ty,
+        trait_: DefId,
+        memo: &mut HashMap<(Ty, DefId), Vec<Vec<u32>>>,
+    ) -> Vec<Vec<u32>> {
+        enum Work {
+            Enter(Ty, DefId, usize),
+            Finish {
+                key: (Ty, DefId),
+                assoc: DefId,
+                owner: DefId,
+                args: hd_types::TyList,
+                child: usize,
+                out: usize,
+            },
+        }
+        if let Some(done) = memo.get(&(self_ty, trait_)) {
+            return done.clone();
+        }
+        let mut values = vec![Vec::new()];
+        hd_base::stack::all(Work::Enter(self_ty, trait_, 0), |work, stack| {
+            let (key, out, done) = match work {
+                Work::Enter(ty, trait_, out) => {
+                    if let Some(done) = memo.get(&(ty, trait_)) {
+                        values[out].clone_from(done);
+                        return true;
+                    }
+                    hd_types::work::type_node();
+                    let done = match ls.pool.get(ty) {
+                        TyData::Param(p) => self.param_bound_ids(ls, p, trait_),
+                        TyData::Assoc {
+                            assoc,
+                            trait_: owner,
+                            self_ty: base,
+                            args,
+                        } if matches!(
+                            self.cx.lookup.item(assoc).map(|it| &it.data),
+                            Some(ItemData::AssocType { .. })
+                        ) =>
+                        {
+                            let child = values.len();
+                            values.push(Vec::new());
+                            stack.push(Work::Finish {
+                                key: (ty, trait_),
+                                assoc,
+                                owner,
+                                args,
+                                child,
+                                out,
+                            });
+                            stack.push(Work::Enter(base, owner, child));
+                            return true;
+                        }
+                        _ => Vec::new(),
+                    };
+                    ((ty, trait_), out, done)
+                }
+                Work::Finish {
+                    key,
+                    assoc,
+                    owner,
+                    args,
+                    child,
+                    out,
+                } => {
+                    let ids = std::mem::take(&mut values[child]);
+                    (
+                        key,
+                        out,
+                        self.assoc_bound_ids(ls, assoc, (owner, args), key.1, &ids),
+                    )
+                }
+            };
+            memo.insert(key, done.clone());
+            values[out] = done;
+            true
+        });
+        std::mem::take(&mut values[0])
     }
 
     /// [`Ck::bound_ids`] of type parameter `p`.
@@ -3296,9 +3503,9 @@ impl Ck<'_, '_> {
         &self,
         ls: &Layouts<'_>,
         assoc: DefId,
-        (owner, base, args): (DefId, Ty, hd_types::TyList),
+        (owner, args): (DefId, hd_types::TyList),
         trait_: DefId,
-        depth: u32,
+        ids: &[Vec<u32>],
     ) -> Vec<Vec<u32>> {
         let Some(ItemData::AssocType {
             bounds,
@@ -3308,22 +3515,18 @@ impl Ck<'_, '_> {
         else {
             return Vec::new();
         };
-        let ids = self.bound_ids(ls, base, owner, depth + 1);
         if ids.iter().flatten().all(|&l| l == 0) {
             return Vec::new();
         }
         let Some(it) = self.cx.lookup.item(owner) else {
             return Vec::new();
         };
-        let (args, lifetimes) = (
-            ls.pool.list_items(args),
-            trait_lifetimes(&it.generics, &ids),
-        );
+        let (args, lifetimes) = (ls.pool.list_items(args), trait_lifetimes(&it.generics, ids));
         let none = Vec::new();
         for (k, &b) in bounds.iter().enumerate() {
             let lts = bound_lifetimes.get(k).unwrap_or(&none);
             let Some((def, bids, bargs)) =
-                Self::bound_in(ls, (owner, args), &ids, &lifetimes, b, lts)
+                Self::bound_in(ls, (owner, args), ids, &lifetimes, b, lts)
             else {
                 continue;
             };
@@ -3528,7 +3731,7 @@ impl Ck<'_, '_> {
                 };
                 let lts: Vec<u32> = lts.iter().map(|&l| u32::from(l)).collect();
                 let theirs = arg_ids(ls, pool.list_items(args), &lts);
-                let mine = self.bound_ids(ls, t, tr, 0);
+                let mine = self.bound_ids(ls, t, tr);
                 for (x, y) in theirs.iter().zip(&mine).filter(|(x, y)| x.len() == y.len()) {
                     let pairs = x.iter().zip(y).filter(|(a, b)| **a != 0 && **b != 0);
                     links.extend(pairs.map(|(&a, &b)| (Var::Life(a), Var::Own(b))));
