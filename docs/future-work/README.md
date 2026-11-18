@@ -21,7 +21,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 - [Server Applications](SERVER_APPLICATIONS.md): an ordinary `main!` with worker loops over one state object, one retained instance per adapter, an SDK-owned `HttpServer` capability (#51), lifecycle and draining, limits, grants, and SDK packaging tasks for Cloudflare and Vercel (#806, #266).
 - [Native Package Host Bindings](NATIVE_PACKAGE_HOST_BINDINGS.md): accepted design, built (#2077 to #2083): generated Rust traits, codecs, two-key consent, and Wasmtime registration for package host capabilities (#1822).
-- [JSON Decode](JSON_DECODE.md): accepted design, not built: `decode` reads in one pass with a serde-style key loop (any key order, unknown keys skipped, absent members), no index and no fallback; measured against today's two-pass reader and lane 160's in-order pass (#1809).
+- [JSON Decode](JSON_DECODE.md): accepted design, built (#1809): `decode` reads in one pass with a serde-style key loop (any key order, unknown keys skipped, absent members), no index and no fallback; measured against today's two-pass reader and lane 160's in-order pass (#1809).
 - [Streaming Design](STREAMING_DESIGN.md): one reader and writer shape for HTTP bodies, process pipes, files and `TcpStream`, on plain `Disposable` handles bound with `using` (#350).
 
 ### Language and library
@@ -37,7 +37,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 ### Memory model and performance
 
 - Parallelism and locality: folded into the execution-boundaries record, PR #1139 (`EXECUTION_BOUNDARIES.md` Appendix D), owner 2026-11-13.
-- [Instance TIR](INSTANCE_TIR.md): accepted design, not built: `hd_mono` builds one instance TIR per instance, once, as the unit of ownership, emission and the code cache; the emitter's substitution and the 4,096-leaf fallback go (#1780).
+- [Instance TIR](INSTANCE_TIR.md): accepted design, built through step 6 (#2101, #2103 to #2106, #2125); open: #2102's leaf fallback, step 6b (#2127), step 7 (#1420, #2107): `hd_mono` builds one instance TIR per instance, once, as the unit of ownership, emission and the code cache; the emitter's substitution and the 4,096-leaf fallback go (#1780).
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29, stages 1 to 9 built (the checker's region solver is [crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver)); kept for the parts accepted but not built: view types for `&mut` parameters (#1357) and phantom markers.
 
 No native backend is planned (#188 closed), and no direct TLS streams are planned.

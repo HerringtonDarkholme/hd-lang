@@ -1117,8 +1117,8 @@ The verifier checks each of these:
     `hd_mono::instantiate` chooses each one at a concrete receiver as an
     `Impl` or `Builtin` call. The driver marks and checks each body it
     owns for an instance before the ownership passes (`verify_instance`).
-    Until #2104 a generic local function's own parameters are allowed in a
-    body that has one, and so is a bound's call at a receiver naming them.
+    Since #2104 a generic local function is one plain sub-body per
+    distinct type arguments, so an instance body holds none.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
