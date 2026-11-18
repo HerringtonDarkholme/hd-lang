@@ -3145,7 +3145,12 @@ impl Env<'_> {
         // a non-generic body may still name an opaque result, and the
         // inliner may have copied one in: each is opened here, once, so
         // no pass after this one substitutes.
-        hd_mono::close_body(&self.run.pool, self, body);
+        // A trait call chosen through an opaque result's bound is chosen
+        // again at its opened receiver, as an instance's calls are
+        // (`hd_mono::instantiate`).
+        if hd_mono::close_body(&self.run.pool, self, body) {
+            hd_tir::inline::rechoose(body, &|t, s, a| InlineEnv::select_choice(self, t, s, a));
+        }
         body.phase = hd_tir::ir::Phase::Instance;
         let pool = &self.run.pool;
         let errs = hd_tir::ir::verify_instance(body, pool, &|t| hd_mono::shown_type(pool, self, t));

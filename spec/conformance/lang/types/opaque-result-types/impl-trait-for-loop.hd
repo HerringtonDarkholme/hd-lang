@@ -1,0 +1,27 @@
+# expect-stdout: 6 1 1 x
+fn nums() -> impl Iterable[i32]:
+    [+1, +2, +3]
+
+fn evens() -> impl Iterator[i32]:
+    [+2, +4].iter()
+
+fn words() -> impl Iterable[string]:
+    ["x"]
+
+fn first_or_zero(x: i32?) -> i32:
+    match x:
+        .Some(v) => v
+        .None => +0
+
+pub fn main() -> void $ Console:
+    let mut total: i32 = 0
+    for n in nums():
+        total += n
+    let mut it = nums().iter()
+    let first = first_or_zero(it.next())
+    let mut e = evens()
+    let half = first_or_zero(e.next()) / 2
+    let mut text = ""
+    for w in words():
+        text = text + w
+    println("${total} ${first} ${half} ${text}")

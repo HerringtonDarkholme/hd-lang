@@ -92,6 +92,7 @@ std/http/named-status-codes/http-status-codes.hd	runtime	accept	std/http.md#r-st
 std/http/parsed-urls/http-url-parts.hd	runtime	accept	std/http.md#parsed-urls
 lang/types/opaque-result-types/impl-trait-associated-and-nested.hd	runtime	accept	lang/04-type-system.md#opaque-result-types
 lang/types/opaque-result-types/impl-trait-operator-bound.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.head-only
+lang/types/opaque-result-types/impl-trait-for-loop.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.codegen
 lang/functions/declarations/impl-trait-functions.hd	runtime	accept	lang/07-functions.md#opaque-results
 std/iter/iterator-adapters/impl-trait-iterator-filter.hd	runtime	accept	std/iter.md#iterator-adapters
 lang/traits/trait-implementations/implementation-declarations/impl-trait-method-chains.hd	runtime	accept	lang/09-traits.md#r-trait.opaque.codegen-selected
