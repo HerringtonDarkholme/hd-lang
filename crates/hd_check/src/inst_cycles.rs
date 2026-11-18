@@ -540,7 +540,7 @@ mod tests {
                 let types = pool.types();
                 let owner = DefId::from_raw(1);
                 let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-                for depth in [100, 1_000] {
+                for depth in [13, 130, 100, 1_000] {
                     let mut chain = [p, Ty::I32];
                     for _ in 0..depth {
                         for t in &mut chain {
@@ -561,6 +561,21 @@ mod tests {
                         head_match(types, owner, chain[0], chain[1], &mut out, &mut seen);
                     });
                     assert_eq!(work, 0, "a sibling root shares the memo");
+                    let mut closed_out = [None];
+                    let mut closed_seen = HashSet::default();
+                    let ((), work) = hd_types::work::count_type_nodes(|| {
+                        head_match(
+                            types,
+                            owner,
+                            chain[1],
+                            chain[1],
+                            &mut closed_out,
+                            &mut closed_seen,
+                        );
+                    });
+                    assert_eq!(work, 0, "closed heads have no parameters to bind");
+                    assert_eq!(closed_out, [None]);
+                    assert!(closed_seen.is_empty());
                 }
                 let function = |input, result| {
                     pool.intern_ty(&TyData::Fn {
