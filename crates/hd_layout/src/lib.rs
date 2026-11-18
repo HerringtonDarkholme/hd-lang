@@ -29,7 +29,10 @@
 //! is already one address, as Rust's `&dyn Tr` is a fat pointer.
 
 pub mod facts;
+pub mod layouts;
 pub mod work;
+
+pub use layouts::{Fields, Layout, LayoutId, Layouts, Repr, Tag, Variants, layout, layouts};
 
 use hd_base::limits::VALUE_SIZE;
 use hd_base::{NotImplemented, SliceSort as _, Stage, StageResult};
@@ -346,11 +349,10 @@ pub const INDIRECT: usize = 16;
 /// than [`INDIRECT`] values, which may hold counted references and `Drop`
 /// hooks. Its counts move with its bits; a release walks them from the
 /// address (`emit/indirect.rs` `release_plan`), after its hooks ran on a
-/// heap copy (`rt::HookPlan`). One probe of [`scalars`], which lists no
-/// leaves of a type past [`INDIRECT`].
+/// heap copy (`rt::HookPlan`). One probe of its [`Layout`], which lists
+/// no leaves of a type past [`INDIRECT`].
 pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<bool> {
-    let t = strip(pool, env, t);
-    Ok(inline(pool, env, t) && scalars(pool, env, t)? > INDIRECT)
+    Ok(layout(pool, env, t)?.repr == Repr::Memory)
 }
 
 /// Whether stripped `t` holds its parts inline: a tuple, a union, or a
@@ -363,36 +365,6 @@ fn inline(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
         }
         _ => false,
     }
-}
-
-/// How many scalar values `t` holds ([`Mem::leaves`]' length), saturating
-/// at `INDIRECT + 1`: rustc's `BackendRepr` choice, made from the parts'
-/// counts. A struct or tuple sums its fields'; an enum with a variant past
-/// [`INDIRECT`] is past it, and otherwise lists its values from variants
-/// of at most [`INDIRECT`] each. So a type doubled n times costs O(n)
-/// types, each O(its own fields), where its leaves are 2^n (#2170).
-pub fn scalars(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<usize> {
-    const PAST: usize = INDIRECT + 1;
-    memoized(&SCALARS, pool, env, t, &|u, part| {
-        let sum = |fields: &[Ty]| -> StageResult<usize> {
-            let mut n = 0;
-            for &f in fields {
-                n = (n + part(f)?).min(PAST);
-            }
-            Ok(n)
-        };
-        if inline(pool, env, u) {
-            let Some(vs) = variants(pool, env, u) else {
-                return sum(&value_parts(pool, env, u));
-            };
-            for fields in vs.iter() {
-                if sum(fields)? == PAST {
-                    return Ok(PAST);
-                }
-            }
-        }
-        Ok(mem(pool, env, u)?.leaves.len().min(PAST))
-    })
 }
 
 /// How a value of a [`by_address`] type releases its counts from its
@@ -633,8 +605,6 @@ type VariantTypes = std::rc::Rc<Vec<Vec<Ty>>>;
 
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
-    static SHAPES: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
-    static SCALARS: Memo<StageResult<usize>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
@@ -653,8 +623,7 @@ thread_local! {
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-        shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-        scalars: Option<hd_base::HashMap<Ty, StageResult<usize>>>,
+        layouts: Option<std::rc::Rc<Layouts>>,
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -669,8 +638,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     impl Drop for Reset {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
-            SHAPES.set(self.shapes.take());
-            SCALARS.set(self.scalars.take());
+            layouts::LAYOUTS.set(self.layouts.take());
             WALKS.set(self.walks.take());
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
@@ -686,8 +654,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
 
     let _reset = Reset {
         mems: MEMS.take(),
-        shapes: SHAPES.take(),
-        scalars: SCALARS.take(),
+        layouts: layouts::LAYOUTS.take(),
         walks: WALKS.take(),
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
@@ -700,8 +667,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         members: MEMBERS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
-    SHAPES.set(Some(hd_base::HashMap::default()));
-    SCALARS.set(Some(hd_base::HashMap::default()));
+    layouts::LAYOUTS.set(Some(std::rc::Rc::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
@@ -719,8 +685,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
 /// plans' store and the reference slot plans.
 struct Scope {
     mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-    shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-    scalars: Option<hd_base::HashMap<Ty, StageResult<usize>>>,
+    layouts: Option<std::rc::Rc<Layouts>>,
     walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -739,8 +704,7 @@ impl Scope {
     fn take() -> Self {
         Self {
             mems: MEMS.take(),
-            shapes: SHAPES.take(),
-            scalars: SCALARS.take(),
+            layouts: layouts::LAYOUTS.take(),
             walks: WALKS.take(),
             count_walks: COUNT_WALKS.take(),
             drops: DROPS.take(),
@@ -759,8 +723,7 @@ impl Scope {
     fn fresh() -> Self {
         Self {
             mems: Some(hd_base::HashMap::default()),
-            shapes: Some(hd_base::HashMap::default()),
-            scalars: Some(hd_base::HashMap::default()),
+            layouts: Some(std::rc::Rc::default()),
             walks: Some(hd_base::HashMap::default()),
             count_walks: Some(hd_base::HashMap::default()),
             drops: Some(hd_base::HashMap::default()),
@@ -778,8 +741,7 @@ impl Scope {
     /// Puts the scope in place on the thread.
     fn put(self) {
         MEMS.set(self.mems);
-        SHAPES.set(self.shapes);
-        SCALARS.set(self.scalars);
+        layouts::LAYOUTS.set(self.layouts);
         WALKS.set(self.walks);
         COUNT_WALKS.set(self.count_walks);
         DROPS.set(self.drops);
@@ -858,7 +820,7 @@ fn memoized<T: Clone + 'static>(
     got
 }
 
-/// A concrete type's layout. A type not laid out yet has its [`shape`]
+/// A concrete type's layout. A type not laid out yet has its [`Layout`]
 /// checked first, so a type past [`VALUE_SIZE`] is `type-too-large`
 /// before any of its parts' leaves is copied.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
@@ -866,30 +828,14 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
     if let Some(got) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&u).cloned())) {
         return got;
     }
-    shape(pool, env, u)?;
+    layout(pool, env, u)?;
     memoized(&MEMS, pool, env, u, &|u, part| {
         mem_one(pool, env, u, part, true)
     })
 }
 
-/// `t`'s layout without its leaves: its size, alignment, niche and
-/// whether a value has it, as rustc's `LayoutS` keeps them per type, from
-/// its parts' shapes. The size, the alignment and the niche never read a
-/// leaf, so they are [`mem`]'s, and a type past [`VALUE_SIZE`] is found
-/// here at O(its fields) per distinct type, where [`mem`] copies every
-/// part's leaves first: a tuple doubled 29 times over `i32` laid out 2^28
-/// leaves of its last legal part before its own sum overflowed.
-fn shape(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
-    memoized(&SHAPES, pool, env, t, &|u, part| {
-        mem_one(pool, env, u, part, false).map(|m| Mem {
-            leaves: Vec::new(),
-            ..m
-        })
-    })
-}
-
 /// `t`'s layout from its parts' layouts, which `part` reads; an enum's
-/// kept for [`flat`] when `full`, as no [`shape`] is.
+/// kept for [`flat`] when `full`, as no [`Layout`] is.
 fn mem_one(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -1430,7 +1376,7 @@ pub fn env_mem(
         record(&ms).map_err(|TooLarge| too_large("a closure's captures"))
     };
     // The sum fits before any capture's leaves are copied, as in [`mem`].
-    laid(&|t| shape(pool, env, t))?;
+    laid(&|t| layout(pool, env, t).map(|l| l.part()))?;
     let (m, parts) = laid(&|t| mem(pool, env, t))?;
     let walks = fields
         .iter()
@@ -1695,7 +1641,7 @@ pub fn payload_mem(
         too_large(&format!("({})", shown.join(", ")))
     };
     // The sum fits before any field's leaves are copied, as in [`mem`].
-    payload_mem_by(fields, &|f| shape(pool, env, f), &named)?;
+    payload_mem_by(fields, &|f| layout(pool, env, f).map(|l| l.part()), &named)?;
     payload_mem_by(fields, &|f| mem(pool, env, f), &named)
 }
 
@@ -1974,7 +1920,11 @@ pub fn enum_mem(
         too_large(&format!("an enum of {}", shown.join(" | ")))
     };
     // The size fits before any payload's leaves are copied, as in [`mem`].
-    enum_mem_by(variants, &|f| shape(pool, env, f), &named)?;
+    enum_mem_by(
+        variants,
+        &|f| layout(pool, env, f).map(|l| l.part()),
+        &named,
+    )?;
     enum_mem_by(variants, &|f| mem(pool, env, f), &named)
 }
 
