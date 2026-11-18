@@ -62,11 +62,10 @@ deleted file is never served from the cache (Gleam #4320).
 3. Run Tarjan's algorithm with folders visited in path order, so the SCCs
    and their order are deterministic.
 4. For each SCC with more than one folder, report `folder-cycle` once: the
-   shortest loop found by breadth-first search from the SCC's least
-   folder, the `use` that makes each edge, the tangle size (the SCC's
+   shortest loop through the SCC's least folder in path order, found by
+   one breadth-first search restricted to that SCC, the `use` that makes each edge, the tangle size (the SCC's
    size), and the fix-it that moves the first file `x.hd` on the loop to
    `x/mod.hd` ([Cycle Diagnostic](../../spec/lang/10-modules.md#cycle-diagnostic)).
-   The diagnostic's content is not built yet; see #171.
 5. **Recovery.** The folders of a cyclic SCC are resolved together as if
    they were one folder. Bodies still check, and the cycle is the only
    error. Before scheduling, the driver skims the root package, finds its

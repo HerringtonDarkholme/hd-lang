@@ -718,13 +718,13 @@ use pkg.error.{Error}  # error: folder-cycle
 
 ### Cycle Diagnostic
 
-1. r[module.cycle.diagnostic.loop] The `folder-cycle` diagnostic must show one shortest loop of folders, with the `use` declaration that makes each edge.
+1. r[module.cycle.diagnostic.first-loop] The `folder-cycle` diagnostic must show one shortest loop through the tangle's first folder in path order, with each edge's `use` declaration.
 2. r[module.cycle.diagnostic.size] It must show the size of the tangle: the number of folders that lie on some loop with the shown ones.
 3. r[module.cycle.diagnostic.fix] When a flat module file `x.hd` lies on the loop, it must offer a fix-it that moves that file to `x/mod.hd`, which keeps its module name.
 4. r[module.cycle.diagnostic.fix.none] When no file on the loop is a flat module file, every folder on it is a directory with its own `mod.hd`, and the diagnostic offers no fix-it.
 
 ```text
-folder-cycle: src/shop -> src/cart -> src/shop
+folder-cycle: src/cart -> src/shop -> src/cart
 tangle of 3 folders; move src/cart.hd to src/cart/mod.hd
 ```
 
