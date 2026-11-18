@@ -22,88 +22,107 @@ fn resolve_param(pool: Types<'_>, subst: &[(ParamRef, Ty)], mut t: Ty) -> Ty {
 
 /// Whether the parameter `p` occurs in `t` under `subst`.
 fn mentions_param(pool: Types<'_>, subst: &[(ParamRef, Ty)], t: Ty, p: ParamRef) -> bool {
-    if !pool.has_param(t) {
-        return false;
-    }
-    let t = resolve_param(pool, subst, t);
-    let any = |l: TyList| {
-        pool.list_items(l)
-            .iter()
-            .any(|x| mentions_param(pool, subst, *x, p))
-    };
-    match pool.get(t) {
-        TyData::Param(q) => q == p,
-        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => any(args),
-        TyData::Tuple { elems, rest } => {
-            any(elems) || rest.is_some_and(|r| mentions_param(pool, subst, r, p))
+    !hd_base::stack::all(t, |t, stack| {
+        if !pool.has_param(t) {
+            return true;
         }
-        TyData::Union(members) => any(members),
-        TyData::Ref { inner: x, .. } => mentions_param(pool, subst, x, p),
-        _ => false,
-    }
+        let t = resolve_param(pool, subst, t);
+        match pool.get(t) {
+            TyData::Param(q) => return q != p,
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } | TyData::Union(args) => {
+                stack.extend(pool.list_items(args).iter().rev().copied());
+            }
+            TyData::Tuple { elems, rest } => {
+                stack.extend(rest);
+                stack.extend(pool.list_items(elems).iter().rev().copied());
+            }
+            TyData::Ref { inner, .. } => stack.push(inner),
+            _ => return true,
+        }
+        true
+    })
 }
 
-fn all_coincide(pool: Types<'_>, subst: &mut Vec<(ParamRef, Ty)>, x: TyList, y: TyList) -> bool {
+enum Coincide {
+    Pair(Ty, Ty),
+    Bindings(Vec<(hd_base::DefId, Ty)>, Vec<(hd_base::DefId, Ty)>),
+}
+
+fn all_coincide(pool: Types<'_>, stack: &mut Vec<Coincide>, x: TyList, y: TyList) -> bool {
     let (x, y) = (pool.list_items(x), pool.list_items(y));
-    x.len() == y.len()
-        && x.iter()
-            .zip(y)
-            .all(|(p, q)| can_coincide(pool, subst, *p, *q))
+    if x.len() != y.len() {
+        return false;
+    }
+    stack.extend(x.iter().zip(y).rev().map(|(&a, &b)| Coincide::Pair(a, b)));
+    true
 }
 
 /// Whether some substitution of the type parameters makes `a` and `b` the
 /// same type, binding each parameter at most once.
 fn can_coincide(pool: Types<'_>, subst: &mut Vec<(ParamRef, Ty)>, a: Ty, b: Ty) -> bool {
-    let a = resolve_param(pool, subst, a);
-    let b = resolve_param(pool, subst, b);
-    if a == b {
-        return true;
-    }
-    match (pool.get(a), pool.get(b)) {
-        (TyData::Param(p), _) if !mentions_param(pool, subst, b, p) => {
-            subst.push((p, b));
-            true
+    hd_base::stack::all(Coincide::Pair(a, b), |work, stack| {
+        let (a, b) = match work {
+            Coincide::Pair(a, b) => (a, b),
+            Coincide::Bindings(left, right) => {
+                stack.extend(left.iter().rev().flat_map(|(item, a)| {
+                    right
+                        .iter()
+                        .rev()
+                        .filter(move |(other, _)| other == item)
+                        .map(move |(_, b)| Coincide::Pair(*a, *b))
+                }));
+                return true;
+            }
+        };
+        let a = resolve_param(pool, subst, a);
+        let b = resolve_param(pool, subst, b);
+        if a == b {
+            return true;
         }
-        (_, TyData::Param(q)) if !mentions_param(pool, subst, a, q) => {
-            subst.push((q, a));
-            true
+        match (pool.get(a), pool.get(b)) {
+            (TyData::Param(p), _) if !mentions_param(pool, subst, b, p) => {
+                subst.push((p, b));
+                true
+            }
+            (_, TyData::Param(q)) if !mentions_param(pool, subst, a, q) => {
+                subst.push((q, a));
+                true
+            }
+            (TyData::Adt { def: d1, args: x }, TyData::Adt { def: d2, args: y }) => {
+                d1 == d2 && all_coincide(pool, stack, x, y)
+            }
+            (
+                TyData::TraitValue {
+                    def: d1,
+                    args: x,
+                    bindings: b1,
+                },
+                TyData::TraitValue {
+                    def: d2,
+                    args: y,
+                    bindings: b2,
+                },
+            ) => {
+                if d1 != d2 {
+                    return false;
+                }
+                stack.push(Coincide::Bindings(b1, b2));
+                all_coincide(pool, stack, x, y)
+            }
+            (
+                TyData::Tuple {
+                    elems: x,
+                    rest: None,
+                },
+                TyData::Tuple {
+                    elems: y,
+                    rest: None,
+                },
+            )
+            | (TyData::Union(x), TyData::Union(y)) => all_coincide(pool, stack, x, y),
+            _ => false,
         }
-        (TyData::Adt { def: d1, args: x }, TyData::Adt { def: d2, args: y }) => {
-            d1 == d2 && all_coincide(pool, subst, x, y)
-        }
-        (
-            TyData::TraitValue {
-                def: d1,
-                args: x,
-                bindings: b1,
-            },
-            TyData::TraitValue {
-                def: d2,
-                args: y,
-                bindings: b2,
-            },
-        ) => {
-            d1 == d2
-                && all_coincide(pool, subst, x, y)
-                && b1.iter().all(|(item, t1)| {
-                    b2.iter()
-                        .filter(|(i2, _)| i2 == item)
-                        .all(|(_, t2)| can_coincide(pool, subst, *t1, *t2))
-                })
-        }
-        (
-            TyData::Tuple {
-                elems: x,
-                rest: None,
-            },
-            TyData::Tuple {
-                elems: y,
-                rest: None,
-            },
-        ) => all_coincide(pool, subst, x, y),
-        (TyData::Union(x), TyData::Union(y)) => all_coincide(pool, subst, x, y),
-        _ => false,
-    }
+    })
 }
 
 impl Ck<'_, '_> {
@@ -158,5 +177,39 @@ impl Ck<'_, '_> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn collision_conversions_keep_bindings_and_occurs_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for the generated chains.
+            .spawn(|| {
+                let global = hd_types::InternPool::new();
+                let pool = global.types();
+                let def = hd_base::DefId::from_raw(1);
+                let param = ParamRef {
+                    owner: def,
+                    index: 0,
+                };
+                let ty = pool.intern_ty(&TyData::Param(param));
+                let (mut left, mut right) = (ty, Ty::I32);
+                for _ in 0..1_000 {
+                    left = pool.applied(def, left);
+                    right = pool.applied(def, right);
+                }
+                let mut subst = Vec::new();
+                assert!(can_coincide(pool, &mut subst, left, right));
+                assert_eq!(subst, [(param, Ty::I32)]);
+                assert!(mentions_param(pool, &[], left, param));
+                assert!(!can_coincide(pool, &mut Vec::new(), ty, left));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

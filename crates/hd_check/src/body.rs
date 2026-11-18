@@ -2787,74 +2787,98 @@ impl Ck<'_, '_> {
     /// It walks the types' structure, so it stops at
     /// `hd_base::limits::TYPE_DEPTH`, past which a type is `type-too-large`.
     fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
+        enum Work {
+            Repr(Ty, Ty, u32),
+            Pair(Ty, Ty, bool, u32),
+            Pairs(std::vec::IntoIter<(Ty, Ty, bool)>, bool, u32),
+            AsPair,
+        }
         let pool = self.pool();
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return false;
-        }
-        let got = self.norm_ty(got);
-        let got = self.resolved(self.infer.resolve(pool, got));
-        let want = self.norm_ty(want);
-        let want = self.resolved(self.infer.resolve(pool, want));
-        // `from` meets `to` in a position: equal (`Some(false)`), or
-        // convertible only by a representation change (`Some(true)`)
-        // (`types.variance.repr.excluded`).
-        let pair = |this: &mut Self, from: Ty, to: Ty| -> Option<bool> {
-            if this.can_unify(from, to) {
-                return Some(false);
-            }
-            if this.elem_converts(from, to) {
-                return Some(true);
-            }
-            this.repr_change(from, to, depth + 1).then_some(true)
-        };
-        match (pool.get(got), pool.get(want)) {
-            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                let mut changed = false;
-                for (j, (x, y)) in xs.iter().zip(ys.iter()).enumerate() {
-                    let step = match vs.get(j).copied().unwrap_or(0) {
-                        1 => pair(self, *x, *y),
-                        -1 => pair(self, *y, *x),
-                        _ => self.can_unify(*x, *y).then_some(false),
+        let mut result = Some(false);
+        hd_base::stack::all(Work::Repr(got, want, depth), |work, stack| {
+            match work {
+                Work::Repr(got, want, depth) => {
+                    result = Some(false);
+                    if depth > hd_base::limits::TYPE_DEPTH {
+                        return true;
+                    }
+                    let got = self.norm_ty(got);
+                    let got = self.resolved(self.infer.resolve(pool, got));
+                    let want = self.norm_ty(want);
+                    let want = self.resolved(self.infer.resolve(pool, want));
+                    let mut pairs = Vec::new();
+                    match (pool.get(got), pool.get(want)) {
+                        (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys })
+                            if def == d2 =>
+                        {
+                            let vs = self.declared_variances(def);
+                            for (j, (&x, &y)) in pool
+                                .list_items(xs)
+                                .iter()
+                                .zip(pool.list_items(ys))
+                                .enumerate()
+                            {
+                                pairs.push(match vs.get(j).copied().unwrap_or(0) {
+                                    1 => (x, y, false),
+                                    -1 => (y, x, false),
+                                    _ => (x, y, true),
+                                });
+                            }
+                        }
+                        (
+                            TyData::Fn {
+                                params: xp,
+                                result: xr,
+                                ..
+                            },
+                            TyData::Fn {
+                                params: yp,
+                                result: yr,
+                                ..
+                            },
+                        ) => {
+                            let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
+                            if xp.len() != yp.len() {
+                                return true;
+                            }
+                            pairs.extend(xp.iter().zip(yp).map(|(&x, &y)| (y, x, false)));
+                            pairs.push((xr, yr, false));
+                        }
+                        _ => return true,
+                    }
+                    stack.push(Work::Pairs(pairs.into_iter(), false, depth));
+                }
+                Work::Pair(from, to, invariant, depth) => {
+                    result = if self.can_unify(from, to) {
+                        Some(false)
+                    } else if invariant {
+                        None
+                    } else if self.elem_converts(from, to) {
+                        Some(true)
+                    } else {
+                        stack.push(Work::AsPair);
+                        stack.push(Work::Repr(from, to, depth + 1));
+                        None
                     };
-                    match step {
-                        Some(c) => changed |= c,
-                        None => return false,
+                }
+                Work::AsPair => result = (result == Some(true)).then_some(true),
+                Work::Pairs(mut pairs, changed, depth) => {
+                    if let Some(c) = result {
+                        let changed = changed | c;
+                        if let Some((from, to, invariant)) = pairs.next() {
+                            stack.push(Work::Pairs(pairs, changed, depth));
+                            stack.push(Work::Pair(from, to, invariant, depth));
+                        } else {
+                            result = Some(changed);
+                        }
+                    } else {
+                        result = Some(false);
                     }
                 }
-                changed
             }
-            (
-                TyData::Fn {
-                    params: xp,
-                    result: xr,
-                    ..
-                },
-                TyData::Fn {
-                    params: yp,
-                    result: yr,
-                    ..
-                },
-            ) => {
-                let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
-                if xp.len() != yp.len() {
-                    return false;
-                }
-                let mut changed = false;
-                for (x, y) in xp.iter().zip(yp.iter()) {
-                    match pair(self, *y, *x) {
-                        Some(c) => changed |= c,
-                        None => return false,
-                    }
-                }
-                match pair(self, xr, yr) {
-                    Some(c) => changed | c,
-                    None => false,
-                }
-            }
-            _ => false,
-        }
+            true
+        });
+        result == Some(true)
     }
 
     /// Whether a value of type `from` converts to `to` only by building a
@@ -5719,4 +5743,42 @@ pub(crate) fn with_checker_items(
         &mut diags,
     );
     run(&mut ck);
+}
+
+#[cfg(test)]
+mod representation_conversion_tests {
+    use super::*;
+    #[test]
+    fn representation_conversion_keeps_the_depth_rule_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for generated function-result chains.
+            .spawn(|| {
+                with_checker(|ck| {
+                    let p = ck.pool();
+                    for depth in [20, 1_000] {
+                        let (mut got, mut want) = (Ty::I32, ck.optional(Ty::I32));
+                        let fun = |result| {
+                            p.intern_ty(&TyData::Fn {
+                                params: hd_types::TyList::EMPTY,
+                                result,
+                                row: hd_types::RowId::EMPTY,
+                                suspends: false,
+                                inputs: hd_types::Inputs::Fixed,
+                                deps: hd_types::FnDeps::NONE,
+                            })
+                        };
+                        for _ in 0..depth {
+                            got = fun(got);
+                            want = fun(want);
+                        }
+                        assert!(ck.repr_change(got, want, 0));
+                        assert!(!ck.repr_change(got, want, hd_base::limits::TYPE_DEPTH + 1));
+                    }
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 }
