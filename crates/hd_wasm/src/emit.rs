@@ -1605,7 +1605,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
 
     /// An emitter of `b`, an instance body of `item`, with no function
     /// yet. The emitter lowers instance TIR only
-    /// (`docs/future-work/INSTANCE_TIR.md`, "Passes and emission"): every
+    /// (`docs/future-work/INSTANCE_TIR.md` at 421bcec83, "Passes and emission"): every
     /// type `b` records is its instance's, closed, so it substitutes none.
     fn new(
         input: &'i Input<'a>,

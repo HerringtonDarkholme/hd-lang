@@ -1,5 +1,5 @@
 //! The one builder of a generic instance's body
-//! (`docs/future-work/INSTANCE_TIR.md`, "One builder"): its item's body
+//! (`docs/future-work/INSTANCE_TIR.md` at 421bcec83, "One builder"): its item's body
 //! cloned once, every type it records substituted at the instance's type
 //! arguments, and each trait call chosen through a bound chosen again at
 //! its now concrete receiver, as an impl or builtin call. Swift's
@@ -147,7 +147,7 @@ pub fn substitute_body(pool: &InternPool, body: &mut Body, ty: &mut dyn FnMut(Ty
 /// body the inliner copied callee code into): every opaque result it
 /// records opened and every projection normalized, as [`subst`] closes
 /// a generic instance's types, so no pass after it substitutes
-/// (`docs/future-work/INSTANCE_TIR.md`, "Passes and emission"). Returns
+/// (`docs/future-work/INSTANCE_TIR.md` at 421bcec83, "Passes and emission"). Returns
 /// whether anything was open.
 ///
 /// Cost: one pass over the type columns and record type words, each an

@@ -238,7 +238,7 @@ fn a_private_body_edit_owns_only_its_readers_at_200_types() {
 
 /// An edit to `note`'s body that changes its inferred row, from none to
 /// `Console`, changes `main`'s checked items: its readers are owned again
-/// (all of the program's, until recorded reads, `INSTANCE_TIR.md` step
+/// (all of the program's, until recorded reads, `INSTANCE_TIR.md` at 421bcec83, step
 /// 6b), and the warm module is the cold build's.
 #[test]
 fn an_edit_that_changes_an_inferred_row_owns_its_readers() {

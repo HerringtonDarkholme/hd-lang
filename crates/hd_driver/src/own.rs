@@ -3788,7 +3788,7 @@ impl Run<'_> {
     ///
     /// The root package's key is in it, so a dependency's instance lives
     /// in its client's entries only, never in a build of the dependency
-    /// (Swift's `@inlinable` client copy, `INSTANCE_TIR.md` decision 4).
+    /// (Swift's `@inlinable` client copy, `INSTANCE_TIR.md` at 421bcec83, decision 4).
     /// A compiler-supplied member's instance (`supplied`: its family's
     /// hash and its index there) runs a body generated for its target, the
     /// first argument: the generator is the toolchain's and reads the

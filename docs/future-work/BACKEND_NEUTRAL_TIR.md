@@ -66,10 +66,10 @@ lays out the frame and writes the destructor, which has no TIR body.
 | Tree | Today | End state | Change |
 | --- | --- | --- | --- |
 | `crates/hd_wasm/src` | 72,379 | about 52,500 | −19,900 |
-| `crates/hd_tir/src` | 47,848 | about 55,250 | +7,400 |
+| `crates/hd_tir/src` | 47,848 | about 55,450 | +7,600 |
 | `crates/hd_driver/src/own.rs` | 4,234 | about 3,700 | −550 |
 | new `crates/hd_layout/src`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
-| **All four** | **124,461** | **about 115,900** | **−8,550** |
+| **All four** | **124,461** | **about 116,150** | **−8,330** |
 
 ## Open questions
 
@@ -78,7 +78,7 @@ None are open. The owner decided all seven as recommended on 2026-11-18.
 1. `Phase::Lowered` is the only input of a backend, checked by a
    verifier. Dev module bytes may change at a step; behaviour and bench
    gates replace byte identity.
-2. `hd_tir` may grow by about 7,400 lines while `hd_wasm` shrinks by about
+2. `hd_tir` may grow by about 7,600 lines while `hd_wasm` shrinks by about
    19,900. The loan analysis and the state machine are language logic.
 3. A value of more than 16 scalars lives in memory in every position,
    enums included, so no layout lists leaves. Gated on bench time and
@@ -159,7 +159,7 @@ knowing no hd rule.
 | --- | --- | --- |
 | a type | concrete, with a `LayoutId` | offsets from the layout |
 | a local | a value, or memory when a `Ref` names it | an SSA value or a stack slot |
-| a captured variable | a local of type `*mut (T, flags)`, made by `box` | a pointer |
+| a captured variable | a local of type `*mut (T, flags)`, made by a `Box` instruction (one counted allocation) | a pointer and a runtime allocation |
 | a closure | a boxed tuple of captures and a code pointer | an indirect call, environment first |
 | a drop flag | a `bool` local or field | a branch |
 | a count | `Retain v` or `Release v` on one counted address; an aggregate calls its shim | a runtime call or inline header code |
@@ -195,22 +195,26 @@ counted as deleted. Each step deletes the path it replaces.
 
 | Step | Adds, and deletes | `hd_wasm` | `hd_tir` | Elsewhere | Net |
 | --- | --- | --- | --- | --- | --- |
-| 0 | #2165 and #2166: `local_fns.rs`, the verifier's re-proofs | 0 | −1,000 | 0 | −1,000 |
+| 0 | #2165 and #2166 as targets, measured first: `local_fns.rs` folded onto `ir::copy` and `instantiate`, the verifier's re-proofs | 0 | −1,000 | 0 | −1,000 |
 | 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
-| 2 | scope lowering and cancel blocks; `emit/scope.rs`, `unwind_drops` | −400 | +300 | 0 | −100 |
-| 3 | storage lowering and drop elaboration; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +100 | 0 | −1,450 |
-| 4 | count lowering and shims; `walk_plan`, `Walk`, most of `emit/count.rs` | −2,950 | +700 | 0 | −2,250 |
+| 2 | scope lowering and cancel blocks; `emit/scope.rs`, `unwind_drops`; until step 7 the emitter's destructor lowers each point's cancel block (+150) | −250 | +300 | 0 | +50 |
+| 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
+| 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, most of `emit/count.rs` | −2,950 | +800 | 0 | −2,150 |
 | 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs` | −6,750 | +5,650 | 0 | −1,100 |
 | 6 | index guards as an optimization; `emit/guards.rs`, the list caches | −2,100 | −50 | `hd_opt` +1,550 | −600 |
-| 7 | coroutine lowering; `susp.rs`, `susp_spill.rs`, `frame_referents.rs` | −2,700 | +1,550 | 0 | −1,150 |
+| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs` with step 2's destructor code, `susp_spill.rs`, `frame_referents.rs` | −2,850 | +1,600 | 0 | −1,250 |
 | 8 | `verify_lowered`; read modes in the backend, the dev and release split | −450 | +250 | `own.rs` −50 | −250 |
-| | **Total** | **−19,900** | **+7,400** | **+3,950** | **−8,550** |
+| | **Total** | **−19,900** | **+7,620** | **+3,950** | **−8,330** |
 
-**Where it grows, and why.** No step grows the compiler. Steps 5 and 7
-grow `hd_tir` by 7,200 lines and shrink the whole by 2,250. Step 5 is
-mostly a move: its measured floor is −1,100. Step 7 is the least
-certain, between −700 and −1,500. Both are here because an LLVM backend
-would otherwise rewrite them.
+**Where it grows, and why.** Step 2 grows the compiler by about 50
+lines: until step 7 deletes the emitter's destructor, that destructor
+lowers each point's cancel block, and step 7 deletes that code with it.
+No other step grows. Steps 5 and 7 grow `hd_tir` by 7,250 lines and
+shrink the whole by 2,350. Step 5 moves analysis and rewrites the
+decisions the emitter makes while it emits: measured range −800 to
+−1,450 (Appendix E); the table uses −1,100. Step 7 is the least certain,
+between −800 and −1,600. Both are here because an LLVM backend would
+otherwise rewrite them.
 
 No language rule, intrinsic or syntax is added.
 
@@ -417,7 +421,7 @@ fallback, exact keys first, recorded reads, client-side instances.
 | Step | State | Here |
 | --- | --- | --- |
 | 1, 3, 4b, 5, 6, 7a, 7b | built (#2101, #2103, #2125, #2105, #2106, 92fc1f83b, 5c188e1c4) | kept |
-| 4, generic local functions | built at +955 (96a648c7c) | step 0 reverts it (#2165) |
+| 4, generic local functions | built at +955 (96a648c7c) | step 0 folds it onto `ir::copy` and `instantiate`; the copies stay in the enclosing body (#2165) |
 | 2, layout memo (#2102) | open | step 1 |
 | 7, flags and counts (#1420, #2107) | part built (2a5236de0, 69fa9f72b) | steps 3 and 4 |
 | 6b, recorded reads and a code cache (#2127) | open, after #49 point 4 | unchanged; the unit is the lowered body |
@@ -429,21 +433,22 @@ path it replaces and names its reference implementation.
 
 | Step | Measured deletions | Estimated additions and their method |
 | --- | --- | --- |
-| 0 | `local_fns.rs` 809 | ticket floors: −600 and −400 |
+| 0 | not measured: `local_fns.rs` is 809 lines, and its own parts are the region index, the contexts and the per-context memo; the verifier's re-proofs are uncounted | targets, not measurements: −600 for `local_fns.rs`, −400 for the verifier. A generic local function stays an in-body copy per instantiation; the copy is `ir::copy`'s and the substitution `instantiate`'s, so no substitution returns to a backend. Each lane measures first and stops below half its target. |
 | 1 | memo scopes 257; `hd_wasm/lib.rs` driver wrappers 257; `own.rs` fallback 73; `TypeTable` 229 and about 2,000 of `layout.rs` and 594 of cycle code move | interner and target +150 (one arena and one map); enum and suspending memory locals +200 (the frame-block path in `indirect.rs` is 180); `own/parts.rs` 459 becomes shared move paths, about 350 |
-| 2 | `scope.rs` 358; the hand-picked destructor saves, about 40 | scope lowering and cancel blocks +300 (the emitter's ladder is 308 non-test lines) |
-| 3 | cell functions in `closure.rs` 476; `promote.rs` 286 less about 45 of lowering; `emit/drop_flags.rs` 473; `own/drop_flags.rs` 467; hook guards in `value.rs` 178 | storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467; the analysis exists in `own/storage.rs`); elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays); 55 `is_cell` sites at about 3 lines |
-| 4 | `Walk` and `ReleasePlan` 585; `walk_plan*` 1,664 | shim builder +450 (`ReleasePlan::new`, `walk_one` and `switch_walk_by` total 100; a TIR writer and trace glue around them); count lowering +300; `emit/count.rs` keeps about 500 of 1,203 |
-| 5 | `loan_facts.rs` 335; `ref_slots.rs` 382; cell and frame coupling in `borrow.rs` 274; `Origin*` types in `excl.rs` 243 | the rest of `excl.rs` and `borrow.rs` moves, about 5,500; the backend keeps about 500 (its check and state code is 206 today) |
+| 2 | `scope.rs` 358; the hand-picked destructor saves, about 40 | scope lowering and cancel blocks +300 (the emitter's ladder is 308 non-test lines); temporary, deleted in step 7: the destructor lowers each point's cancel block through ordinary statement lowering, +100 to +200 (`susp.rs`'s cancel path is 93 lines; the destructor's flag saves are 79 in `drop_flags.rs` and its loan cells 58 in `borrow.rs`, deleted in steps 3 and 5) |
+| 3 | cell functions in `closure.rs` 476; `promote.rs` 286 less about 45 of lowering; `emit/drop_flags.rs` 473; `own/drop_flags.rs` 467; hook guards in `value.rs` 178 | storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467; the analysis exists in `own/storage.rs`); elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays); 55 `is_cell` sites at about 3 lines; the `Box` tag +70 (the tag row below) |
+| 4 | `Walk` and `ReleasePlan` 585; `walk_plan*` 1,664 | shim builder +450 (`ReleasePlan::new`, `walk_one` and `switch_walk_by` total 100; a TIR writer and trace glue around them); count lowering +300; `emit/count.rs` keeps about 500 of 1,203; shim keys +100 (the generated-body row below) |
+| 5 | `loan_facts.rs` 335; `ref_slots.rs` 382; cell and frame coupling in `borrow.rs` 274; `Origin*` types in `excl.rs` 243 | split by whether a function touches the Wasm `Func` (non-test lines): `excl.rs` 2,621, all analysis; `borrow.rs` 2,526, analysis 1,322 and emission 1,105. The analysis moves, about 3,700 after `Origin*`; about 600 lines of decisions made while emitting are rewritten as statement insertion at 0.6 to 1.2 times, 360 to 720; moved tests 1,100 to 1,390; two tags 140. So `hd_tir` +5,300 to +5,950, the backend keeps about 500 (its check and state code is 206 today), and the step nets −800 to −1,450 |
 | 6 | emitter-side application in `guards.rs` 376; the file's other 1,572 lines move to `hd_opt` | list caches −150 (7 `Em` fields and their readers) |
-| 7 | `susp.rs` 2,112; `susp_spill.rs` 148; `frame_referents.rs` 259; `suspension_work.rs` 48 | coroutine lowering +1,600 (`susp.rs` has 2,029 non-test lines; rustc's transform is about 2,000) |
+| 7 | `susp.rs` 2,112; `susp_spill.rs` 148; `frame_referents.rs` 259; `suspension_work.rs` 48 | coroutine lowering +1,550 (`susp.rs` has 2,029 non-test lines; rustc's transform is about 2,000); poll and destroy keys +50 |
 | 8 | `generic_inlined` 17 | `verify_lowered` +250 (`ir/instance.rs` is 333); 34 `ReadMode` sites and `body_func`'s analysis calls, about −450 |
 
 **Plumbing, counted.** Past steps missed this by 300 to 450 lines.
 
 | Item | Measured cost | This plan |
 | --- | --- | --- |
-| a new tag | 70 lines: `ir.rs` +35, `owned.rs` +32, `slots.rs` +3 (2a5236de0) | +2 (`LoanBegin`, `Access`), −2 (`FlagSet`, `FlagClear`): net 0; `LoanEnd` exists |
+| a new tag | 70 lines: `ir.rs` +35, `owned.rs` +32, `slots.rs` +3 (2a5236de0) | +3 (`LoanBegin`, `Access`, `Box`), −2 (`FlagSet`, `FlagClear`): net +1, about +70; `LoanEnd`, `Retain` and `Release` exist |
+| a generated body (poll, destroy, shim) | none today: an instance is a `Node`, an item at type arguments | a key: poll and destroy by owner instance and kind, a shim by structural hash; lowering hands them to collection with the owner's body, and the store keeps them in the owner's lowered entry: about +150 (steps 4 and 7) |
 | a new body column | wire +2 to +33, verifier +12 to +96 (3bd6ce84c, f155744f5, e54ccb9f9) | none added; `Await` gains one block word |
 | a column removed | about −21 each (6c1358319: two columns, −42) | 6 leave the owned wire section, by decision 7: about −130 |
 | body-copy remap, `hd_mono::instantiate` | `hd_mono/src/instance.rs` +72 in step 4 (96a648c7c) | none: lowering runs after both |
@@ -502,8 +507,8 @@ backend asks for the scalars of a `Scalars` type only, at most 16. A
 | Compile time per instance | the passes, then the emitter's own loan, guard, storage, flag and suspension analyses | the passes, then six linear lowerings; no emitter analysis |
 | Layout work | per scalar leaf; exponential for a doubling type | per distinct type; one probe per query |
 | Warm dev build, no edit | one key probe per instance | the same; the store holds the lowered form (decision 7) |
-| Runtime, Wasm size | baseline | bench gate per step: output equal, size within 0.5%, time within 2% |
-| Web compiler gzip (2.6 MB cap) | baseline | smaller: about 8,500 fewer lines linked |
+| Runtime, Wasm size | baseline | bench gate per step, measured against 421bcec83 so the caps never compound: output equal, size within 0.5%, time within 2% |
+| Web compiler gzip (2.6 MB cap) | baseline | smaller: about 8,300 fewer lines linked |
 | Accumulated state | no per-instance work scales with it | the same; the never-lent set stays one link-time pass |
 
 **Order of the lowerings.** Scopes run first, so a suite is a block and
@@ -532,10 +537,6 @@ writes the destructor's drops.
   printing lowered TIR. One counted test per lowering.
 - **Rollback.** Each step is its own commits and reverts alone. Steps 2
   to 7 change dev bytes, so each lands with its bench table.
-
-**Left for the first code step.** Nine source files cite
-`docs/future-work/INSTANCE_TIR.md` in comments (`rg -l INSTANCE_TIR
-crates`). This pull request changes no code, so step 0 retargets them.
 
 **How the numbers were taken**, at 421bcec83:
 

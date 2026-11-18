@@ -1,5 +1,5 @@
 //! Generic local functions instantiated in an instance body
-//! (`docs/future-work/INSTANCE_TIR.md`, "One builder", step 4): each
+//! (`docs/future-work/INSTANCE_TIR.md` at 421bcec83, "One builder", step 4): each
 //! generic local function's sub-body (`sub_flags::GENERIC`) is replaced by
 //! one plain sub-body per distinct instantiation, and each `Closure` that
 //! instantiated it now names that sub-body. So no pass after `hd_mono`
