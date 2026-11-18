@@ -84,6 +84,52 @@ fn declared_referent(
     }
 }
 
+/// Final instance-TIR records; boundary annotations do not clone a body's
+/// instruction columns. Sibling sub-bodies share their one TIR plan.
+#[derive(Default)]
+pub struct Settled {
+    pub bodies: HashMap<InstId, std::sync::Arc<Body>>,
+    pub boundaries: HashMap<InstId, std::sync::Arc<hd_tir::own::boundary::Boundary>>,
+}
+
+/// Collection facts selecting the TIR boundary pass, shared with generated
+/// call bodies. Type ownership and loan decisions belong to that TIR pass.
+pub(super) fn boundary_inputs(
+    input: &Input<'_>,
+    b: &Body,
+    item: hd_base::DefId,
+    cold: bool,
+    lends: u64,
+) -> Vec<hd_tir::own::boundary::Input> {
+    let mut closures = vec![None; b.sub_root.len()];
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Closure {
+            closures[b.data[i][0] as usize].get_or_insert(i);
+        }
+    }
+    (0..b.sub_root.len())
+        .map(|sub| {
+            let closure = closures[sub];
+            let suspending = closure.map_or_else(
+                || {
+                    !cold
+                        && input.env.suspends(item)
+                        && !(input.entry.root(item)
+                            && super::susp::plan(b, b.sub_root[sub]).0.is_empty())
+                },
+                |ci| input.own_cx.function_suspends(b.ty[ci]),
+            );
+            hd_tir::own::boundary::Input {
+                sub: hd_tir::ir::u32_of(sub),
+                closure,
+                suspending,
+                by_type: cold || !suspending && (sub != 0 || !input.env.suspends(item)),
+                lends: if sub == 0 { lends } else { 0 },
+            }
+        })
+        .collect()
+}
+
 /// Each instance body whose storage collection's choices change, with
 /// them written (`hd_tir::own::settle`): the arguments a call passes to
 /// its callee's promoted copy (`hd_tir::own::promote`), each local
@@ -92,7 +138,7 @@ fn declared_referent(
 /// an await of no known body takes. The instances of a body's sub-bodies
 /// settle it together, in one walk; an adapter's call body has no `Ref`.
 #[must_use]
-pub fn settled(input: &Input<'_>) -> HashMap<InstId, std::sync::Arc<Body>> {
+pub fn settled(input: &Input<'_>) -> Settled {
     let (pool, env, t) = (input.pool, input.env, &input.collected.table);
     let masks: HashMap<_, _> = (t.key.iter().zip(&t.defaults))
         .map(|(&k, d)| (k, hd_mono::defaults::promoted_mask(d)))
@@ -115,13 +161,14 @@ pub fn settled(input: &Input<'_>) -> HashMap<InstId, std::sync::Arc<Body>> {
         }
         groups[*g].2[usize::from(sub)] = Some(id);
     }
-    let mut out = HashMap::default();
+    let mut out = Settled::default();
     for (b, item, insts) in groups {
         // A suspending entry root with no suspension point is plain.
         let plain = !env.suspends(item)
             || input.entry.root(item) && super::susp::plan(b, b.sub_root[0]).0.is_empty();
         let (mut args, mut ops, mut counted) = (Vec::new(), Vec::new(), Vec::new());
-        for (i, sub) in b.inst_subs().into_iter().enumerate() {
+        let topo = hd_tir::ir::Topology::new(b);
+        for (i, &sub) in topo.sub.iter().enumerate() {
             let (Some(Some(id)), Ok(sub)) = (insts.get(sub as usize), u16::try_from(sub)) else {
                 continue;
             };
@@ -169,17 +216,28 @@ pub fn settled(input: &Input<'_>) -> HashMap<InstId, std::sync::Arc<Body>> {
             }
         }
         let changed = !(args.is_empty() && counted.is_empty());
-        if let Some(b) = changed
+        let changed = changed
             .then(|| hd_tir::own::settle(b, &args, &counted, input.own_cx))
             .flatten()
-        {
-            let b = std::sync::Arc::new(b);
-            out.extend(
-                insts
-                    .into_iter()
-                    .flatten()
-                    .map(|id| (id, std::sync::Arc::clone(&b))),
-            );
+            .map(std::sync::Arc::new);
+        let body = changed.as_deref().unwrap_or(b);
+        let lends = insts.first().copied().flatten().map_or(0, |id| {
+            input.env.lends(item, t.args[id.idx()])
+                | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()])
+        });
+        let inputs = boundary_inputs(input, body, item, false, lends);
+        let boundary = std::sync::Arc::new(hd_tir::own::boundary::plan(
+            body,
+            &topo,
+            input.own_cx,
+            &inputs,
+            &mut crate::work::loan_queries,
+        ));
+        for id in insts.into_iter().flatten() {
+            out.boundaries.insert(id, std::sync::Arc::clone(&boundary));
+            if let Some(body) = &changed {
+                out.bodies.insert(id, std::sync::Arc::clone(body));
+            }
         }
     }
     out

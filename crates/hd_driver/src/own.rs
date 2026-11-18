@@ -457,7 +457,42 @@ impl Env<'_> {
     }
 }
 
+/// One run's shared Copy answers and associated-type normal forms.
+#[derive(Default)]
+pub(super) struct CopyFacts {
+    memo: HashMap<Ty, hd_check::CopyAnswer>,
+    normal: hd_types::solver::ConcreteNorm,
+}
+
 impl OwnCx for Env<'_> {
+    fn copies_collection(&self, ty: Ty) -> bool {
+        if let Some(hit) = lock(&self.run.own_types).get(ty).and_then(|f| f.collection) {
+            return hit;
+        }
+        let answer = hd_wasm::copies_collection_type(&self.run.pool, self, ty);
+        self.ref_facts(ty);
+        if let Some(f) = lock(&self.run.own_types).get_mut(ty) {
+            f.collection = Some(answer);
+        }
+        answer
+    }
+
+    fn cold_parameter_transfers(&self, item: DefId, ty: Ty) -> bool {
+        self.cold_transfers_declared(item, ty)
+    }
+    fn string_slice(&self, callee: &Callee) -> bool {
+        let chosen = self.chosen(callee);
+        let target = match chosen {
+            Callee::Item { def, .. } => Some(def),
+            Callee::TraitMethod { .. } => self.impl_target(&chosen).map(|x| x.0),
+        };
+        target.is_some_and(|def| self.run.names().path(def) == "std/text/impl string.slice")
+    }
+
+    fn parameter_mode(&self, ty: Ty, function: bool) -> hd_tir::own::ParameterMode {
+        self.parameter_mode(ty, function)
+    }
+
     fn temporary_owner_name(&self) -> hd_base::Symbol {
         self.run.syms.intern("$temporary_owner")
     }
@@ -761,8 +796,8 @@ impl OwnCx for Env<'_> {
             return Pass::Lent;
         }
         // A call through a trait value lends its receiver to its slot, which
-        // takes any count its concrete target owns (the backend's
-        // `Em::borrowed_arg`). It lends an argument too, unless the call takes
+        // takes any count its concrete target owns. It lends an argument
+        // too, unless the call takes
         // it (`Em::push_dyn`): an open value (`Em::dyn_takes`), whose type is
         // open in a generic method's slot or at the caller's instance, or a
         // value holding a `Drop` hook, which moves.
@@ -800,8 +835,8 @@ impl OwnCx for Env<'_> {
             return p;
         }
         // A call names its instance, directly or through the impl chosen:
-        // the instance's parameter type decides, as the backend's
-        // `Em::borrowed_arg` reads it (`id(&u.name)` borrows).
+        // the shared instance parameter convention decides
+        // (`id(&u.name)` borrows).
         let instance = match *callee {
             Callee::Item { def, targs } => Some((def, targs)),
             Callee::TraitMethod { .. } => self.impl_target(callee),
@@ -1115,11 +1150,50 @@ impl OwnCx for Env<'_> {
     }
 
     fn copies(&self, ty: Ty) -> Tri {
-        let mut memo = lock(&self.run.copy_types);
-        if let Some(&c) = memo.get(&ty) {
-            return c;
+        let mut query = lock(&self.run.copy_types);
+        let CopyFacts { memo, normal } = &mut *query;
+        let mut answered = Vec::new();
+        let answer = hd_check::copy_answer(
+            self.run.pool.types(),
+            &|d| self.p.items.get(d),
+            ty,
+            &mut |t| {
+                normal
+                    .normalize(self.run.pool.types(), self.impls, t)
+                    .unwrap_or(t)
+            },
+            &mut |t| {
+                memo.get(&t).copied().or_else(|| {
+                    self.run
+                        .memo
+                        .copy_blocker(t)
+                        .filter(|blocker| {
+                            blocker.is_none_or(|t| {
+                                !matches!(self.run.pool.get(t), TyData::Ref { counted: false, .. })
+                            })
+                        })
+                        .map(|blocker| hd_check::CopyAnswer {
+                            blocker,
+                            open: false,
+                        })
+                })
+            },
+            &mut |t, answer| answered.push((t, answer)),
+        );
+        memo.extend(answered);
+        memo.insert(ty, answer);
+        match answer.blocker {
+            None => Tri::Yes,
+            Some(t)
+                if matches!(
+                    self.run.pool.get(t),
+                    TyData::Param(_) | TyData::Assoc { .. }
+                ) =>
+            {
+                Tri::Maybe
+            }
+            Some(_) => Tri::No,
         }
-        self.copy_walk(ty, &mut memo)
     }
 }
 
@@ -1131,121 +1205,6 @@ impl Env<'_> {
     pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
         let mut memo = lock(&self.run.drop_types);
         hd_wasm::holds_drop_type(&self.run.pool, self, t, &mut memo)
-    }
-
-    /// [`OwnCx::copies`] of `t`, as the `Copy` row reads it
-    /// (`ref.copy.structure`): `No` when a part held by value is a type
-    /// declared `!Copy`, else `Maybe` when one is a type parameter declared
-    /// `?Copy`. A reference, a projection and an opaque type copy.
-    ///
-    /// One post-order walk with an explicit stack and no depth cap, over
-    /// the run's `memo`: every type the walk enters, not only `t`, gets
-    /// its answer there, so each type is expanded once per run.
-    /// O(types + parts), one `hd_types::work::type_node` per type
-    /// expanded. The parts form a DAG: `recursive-value-type` rejects a
-    /// type that holds itself by value, through a field, a payload, a
-    /// tuple, a union, an option, a generic argument or a newtype, and a
-    /// reference or a collection is a leaf here.
-    fn copy_walk(&self, t: Ty, memo: &mut HashMap<Ty, Tri>) -> Tri {
-        let meet = |a: Tri, b: Tri| match (a, b) {
-            (Tri::No, _) | (_, Tri::No) => Tri::No,
-            (Tri::Maybe, _) | (_, Tri::Maybe) => Tri::Maybe,
-            _ => Tri::Yes,
-        };
-        // Per open type: the type, its parts, the next part to visit, and
-        // the meet of its own answer and its visited parts' answers.
-        let mut frames: Vec<(Ty, Vec<Ty>, usize, Tri)> = Vec::new();
-        let mut entering = Some(t);
-        loop {
-            if let Some(ty) = entering.take() {
-                hd_types::work::type_node();
-                let (own, parts) = self.copy_step(ty);
-                frames.push((ty, parts, 0, own));
-            }
-            let Some((ty, parts, next, acc)) = frames.last_mut() else {
-                return memo[&t];
-            };
-            if let Some(&part) = parts.get(*next) {
-                *next += 1;
-                match memo.get(&part) {
-                    Some(&c) => *acc = meet(*acc, c),
-                    None => entering = Some(part),
-                }
-                continue;
-            }
-            let (ty, c) = (*ty, *acc);
-            memo.insert(ty, c);
-            frames.pop();
-            if let Some((_, _, _, acc)) = frames.last_mut() {
-                *acc = meet(*acc, c);
-            }
-        }
-    }
-
-    /// One type's own part of [`Self::copy_walk`]'s answer and the types
-    /// it holds by value, substituted at its arguments.
-    fn copy_step(&self, t: Ty) -> (Tri, Vec<Ty>) {
-        let pool = &self.run.pool;
-        match pool.get(t) {
-            TyData::Tuple { elems, rest } => (
-                Tri::Yes,
-                pool.list_items(elems).iter().copied().chain(rest).collect(),
-            ),
-            TyData::Union(ms) => (Tri::Yes, pool.list_items(ms).to_vec()),
-            TyData::Param(p) if !self.param_copies(p) => (Tri::Maybe, Vec::new()),
-            TyData::Adt { def, args } => {
-                let Some(item) = self.p.items.get(def) else {
-                    return (Tri::Yes, Vec::new());
-                };
-                match item.copy_decl() {
-                    hd_types::CopyDecl::Copies => (Tri::Yes, Vec::new()),
-                    hd_types::CopyDecl::NotCopy => (Tri::No, Vec::new()),
-                    hd_types::CopyDecl::Members(ms) => {
-                        let argv = pool.list_items(args);
-                        let parts = ms
-                            .into_iter()
-                            .map(|m| {
-                                pool.subst(m, &|p: hd_types::ParamRef| {
-                                    (p.owner == def)
-                                        .then(|| argv.get(usize::from(p.index)).copied())
-                                        .flatten()
-                                })
-                            })
-                            .collect();
-                        (Tri::Yes, parts)
-                    }
-                }
-            }
-            _ => (Tri::Yes, Vec::new()),
-        }
-    }
-
-    /// Whether type parameter `p` is `Copy`: it has a bound on a trait
-    /// that implies it, as every parameter has unless declared `?Copy`
-    /// (`ref.copy.generic.default`); a trait's `Self` is, unless the trait
-    /// is declared `< ?Copy` (`ref.copy.trait.default`).
-    fn param_copies(&self, p: hd_types::ParamRef) -> bool {
-        let Some(item) = self.p.items.get(p.owner) else {
-            return true;
-        };
-        let in_trait = matches!(item.data, hd_resolve::ItemData::Trait(_));
-        if let hd_resolve::ItemData::Trait(t) = &item.data
-            && p.index == 0
-        {
-            return !t.relaxed_copy;
-        }
-        let generics = item.sig().map_or(&item.generics[..], |s| &s.generics[..]);
-        let at = usize::from(p.index) - usize::from(in_trait);
-        generics.get(at).is_none_or(|g| {
-            g.bounds.iter().any(|&b| {
-                self.run.pool.trait_value(b).is_some_and(|(d, _)| {
-                    self.p
-                        .items
-                        .get(d)
-                        .is_some_and(hd_resolve::Item::requires_copy)
-                })
-            })
-        })
     }
 }
 
@@ -1416,6 +1375,8 @@ pub(super) struct TypeFacts {
     refs: RefFacts,
     /// Whether it holds a counted leaf, and its reference ownership.
     layout: Option<(bool, Option<bool>)>,
+    modes: [Option<hd_tir::own::ParameterMode>; 2],
+    collection: Option<bool>,
 }
 
 /// The references a value of a type may hold, from its own kind and its
@@ -1546,7 +1507,15 @@ fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTabl
         crate::work::layout_probe();
         // Each part's entry is made before `u` is ready.
         refs = ref_facts_of(pool, ptr, u, &|p| memo.part_refs(p));
-        memo.insert(u, TypeFacts { refs, layout: None });
+        memo.insert(
+            u,
+            TypeFacts {
+                refs,
+                layout: None,
+                modes: [None; 2],
+                collection: None,
+            },
+        );
     }
     refs
 }
@@ -1591,6 +1560,8 @@ fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
             ..RefFacts::NONE
         },
         layout: None,
+        modes: [None; 2],
+        collection: None,
     };
     let mut table = TypeTable::default();
     let (far, near, local) = (Ty(1_000), Ty(3), Ty(Ty::I32.0 | 0x8000_0000));
@@ -1766,7 +1737,7 @@ impl Env<'_> {
     /// are owned values too. Instance substitution preserves borrowing for
     /// local `&` references and counting nothing for uncounted values.
     pub(super) fn value_parameter(&self, t: Ty) -> Pass {
-        self.parameter(t, true)
+        self.parameter_mode(t, false).pass()
     }
 
     /// Function values lend Copy inputs and the existing reference-variance
@@ -1774,36 +1745,40 @@ impl Env<'_> {
     /// acquire any count their concrete body owns. Other inputs keep their
     /// ownership transfer, including noncopy resources.
     pub(super) fn function_parameter(&self, t: Ty) -> Pass {
-        match self.parameter(t, false) {
-            Pass::Owned
-                if self.copies(t) == Tri::Yes
-                    || !self.is_open(t)
-                        && hd_wasm::function_input_borrows(&self.run.pool, self, t) =>
-            {
-                Pass::Lent
-            }
-            p => p,
-        }
+        self.parameter_mode(t, true).pass()
     }
 
-    fn parameter(&self, t: Ty, counted_owned: bool) -> Pass {
-        let pool = &self.run.pool;
-        match pool.get(t) {
-            TyData::Ref { counted: false, .. } => Pass::Lent,
-            TyData::Ref { counted: true, .. } => {
-                if counted_owned {
-                    Pass::Owned
-                } else {
-                    Pass::Lent
-                }
-            }
-            _ if self.is_open(t) => Pass::Owned,
-            _ => match self.layout_facts(t) {
-                (true, None) => Pass::Owned,
-                (true, Some(true)) if counted_owned => Pass::Owned,
-                _ => Pass::Lent,
-            },
+    /// One ownership policy for passes and emission; layout supplies facts,
+    /// not another decision. A local reference still lends its reads even
+    /// when its physical representation has no counted leaf.
+    pub(super) fn parameter_mode(&self, t: Ty, function: bool) -> hd_tir::own::ParameterMode {
+        use hd_tir::own::ParameterMode as Mode;
+        let at = usize::from(function);
+        if let Some(hit) = lock(&self.run.own_types).get(t).and_then(|f| f.modes[at]) {
+            return hit;
         }
+        let (counted, reference) = match self.run.pool.get(t) {
+            TyData::Ref { counted, .. } => (counted, Some(counted)),
+            _ if self.is_open(t) => (true, None),
+            _ => self.layout_facts(t),
+        };
+        let answer = if reference == Some(false) || function && reference.is_some() {
+            Mode::Lent
+        } else if !counted {
+            Mode::Uncounted
+        } else if function
+            && (self.copies(t) == Tri::Yes
+                || !self.is_open(t) && hd_wasm::function_input_borrows(&self.run.pool, self, t))
+        {
+            Mode::Lent
+        } else {
+            Mode::Owned
+        };
+        self.ref_facts(t);
+        if let Some(f) = lock(&self.run.own_types).get_mut(t) {
+            f.modes[at] = Some(answer);
+        }
+        answer
     }
 
     /// The selected parameter representation decides the cold entry mode.
@@ -1906,7 +1881,7 @@ impl Env<'_> {
             match pool.get(t) {
                 // Copy-bound arguments may be lent to the constructor.
                 // Only a ?Copy parameter needs a possible ownership transfer.
-                TyData::Param(p) if !self.param_copies(p) => return true,
+                TyData::Param(_) if self.copies(t) != Tri::Yes => return true,
                 TyData::Assoc { .. } | TyData::Opaque { .. } => return true,
                 _ => work.extend(hd_wasm::value_part_types(pool, self, t)),
             }
@@ -3320,17 +3295,17 @@ impl Env<'_> {
         let Some(all) = &self.run.summaries else {
             return false;
         };
+        let lends = |m| {
+            hd_tir::own::ParameterMode::Owned.with_lends(m, k) == hd_tir::own::ParameterMode::Lent
+        };
         if let Some(&m) = lock(&all.assume).get(&node) {
-            return k < 64 && m & (1 << k) != 0;
+            return lends(m);
         }
         let key = (node, hd_tir::ir::u32_of(k));
         let mut read = lock(&all.read);
-        *read.entry(key).or_insert_with(|| {
-            k < 64
-                && lock(&all.lent)
-                    .get(&node)
-                    .is_some_and(|m| m & (1 << k) != 0)
-        })
+        *read
+            .entry(key)
+            .or_insert_with(|| lock(&all.lent).get(&node).copied().is_some_and(lends))
     }
 
     /// Whether emitted glue calls `item` with owned arguments, so it lends

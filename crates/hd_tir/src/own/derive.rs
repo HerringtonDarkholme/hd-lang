@@ -1398,7 +1398,7 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             && !t.v[r].keeps
             && !cx.counted(b.ty[r])
             && cx.copies(b.ty[r]) != Tri::Yes
-            && match_reference_read(b, topo, r, false)
+            && match_reference_read(b, topo, r, |value| t.v[value].borrows)
         {
             t.v[r].borrows = true;
         }
@@ -2372,9 +2372,14 @@ fn frame_lending_roots_with(
 }
 
 /// Whether read `r` is in a match's decision block and reads through that
-/// match's reference scrutinee. With `nested`, follows borrowed decision reads
-/// to recognize their payload reads too.
-pub(super) fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: bool) -> bool {
+/// match's reference scrutinee. The current decision query follows borrowed
+/// parent reads before or after those decisions are written into TIR.
+pub(super) fn match_reference_read(
+    b: &Body,
+    topo: &Topology,
+    r: usize,
+    mut borrows: impl FnMut(usize) -> bool,
+) -> bool {
     let Some(&first) = topo.blk.get(r).filter(|&&block| block != NONE) else {
         return false;
     };
@@ -2405,9 +2410,7 @@ pub(super) fn match_reference_read(b: &Body, topo: &Topology, r: usize, nested: 
         match place.root {
             Root::Value(value) if value == subject => return behind,
             Root::Value(value)
-                if nested
-                    && b.tags.get(value as usize) == Some(&Tag::Read)
-                    && b.data[value as usize][1] == ReadMode::Borrow as u32 =>
+                if b.tags.get(value as usize) == Some(&Tag::Read) && borrows(value as usize) =>
             {
                 word = b.data[value as usize][0];
             }
@@ -2427,7 +2430,9 @@ pub(super) fn flatten_match_reference_reads(b: &mut Body, topo: &Topology) {
     for r in 0..b.len() {
         if b.tags[r] != Tag::Read
             || b.data[r][1] != ReadMode::Borrow as u32
-            || !match_reference_read(b, topo, r, true)
+            || !match_reference_read(b, topo, r, |value| {
+                b.data[value][1] == ReadMode::Borrow as u32
+            })
         {
             continue;
         }

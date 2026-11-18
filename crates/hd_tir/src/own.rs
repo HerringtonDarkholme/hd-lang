@@ -51,6 +51,7 @@ pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
 pub(crate) mod abi;
 pub(crate) mod append_copy;
 pub(crate) mod arguments;
+pub mod boundary;
 pub(crate) mod cache;
 pub(crate) mod call_args;
 pub(crate) mod call_row;
@@ -142,6 +143,36 @@ pub enum Pass {
     Lent,
 }
 
+/// A concrete parameter's count convention, recorded by the TIR context.
+/// An uncounted value differs from a lent reference: the latter also lends
+/// its reads, even though neither convention emits a count operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParameterMode {
+    Uncounted,
+    Owned,
+    Lent,
+}
+
+impl ParameterMode {
+    /// Read the release summary's existing 64-slot lending mask.
+    #[must_use]
+    pub fn with_lends(self, lends: u64, parameter: usize) -> Self {
+        if self == Self::Owned && parameter < 64 && lends & (1 << parameter) != 0 {
+            Self::Lent
+        } else {
+            self
+        }
+    }
+    #[must_use]
+    pub fn pass(self) -> Pass {
+        if self == Self::Owned {
+            Pass::Owned
+        } else {
+            Pass::Lent
+        }
+    }
+}
+
 /// How a compiler-supplied call relates to raw memory. The release write
 /// summary uses this to distinguish a write through an address the body made
 /// from one through an address its caller may reach. Ordinary hd functions
@@ -163,6 +194,20 @@ pub enum CallMemory {
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
 pub trait OwnCx {
+    /// The count convention of one concrete declaration/function-value input.
+    fn parameter_mode(&self, _ty: Ty, _function: bool) -> ParameterMode {
+        ParameterMode::Owned
+    }
+    /// Whether a boundary copy runs collection copy glue for this value.
+    fn copies_collection(&self, ty: Ty) -> bool {
+        self.holds_coll(ty)
+    }
+    fn cold_parameter_transfers(&self, _item: hd_base::DefId, _ty: Ty) -> bool {
+        false
+    }
+    fn string_slice(&self, _callee: &Callee) -> bool {
+        false
+    }
     /// A resolvable internal name for an owner introduced after checking.
     fn temporary_owner_name(&self) -> hd_base::Symbol;
 

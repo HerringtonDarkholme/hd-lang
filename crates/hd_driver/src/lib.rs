@@ -1679,7 +1679,7 @@ struct Run<'a> {
     own_place_substs: Mutex<own::PlaceSubstitutions>,
     /// Whether a value of a type may be copied, per run (`own.rs`,
     /// `OwnCx::copies`).
-    copy_types: Mutex<HashMap<Ty, hd_tir::own::Tri>>,
+    copy_types: Mutex<own::CopyFacts>,
     /// Whether a value of a type holds a `std.rt.Drop` value, per run
     /// (`Env::holds_drop_value`): each type and its parts answered once,
     /// however many bodies ask.
@@ -2738,7 +2738,7 @@ fn build_packages_inner(
         own_types: Mutex::new(own::TypeTable::default()),
         own_place_parts: Mutex::new(HashMap::default()),
         own_place_substs: Mutex::new(HashMap::default()),
-        copy_types: Mutex::new(HashMap::default()),
+        copy_types: Mutex::default(),
         drop_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         own_cold: Mutex::new(HashMap::default()),
@@ -11317,12 +11317,18 @@ impl Run<'_> {
         };
         // Each instance body with its final storage rows, once emission's
         // input exists (`hd_wasm::settled`).
-        let settled = OnceLock::<HashMap<hd_base::InstId, Arc<Body>>>::new();
+        let settled = OnceLock::<hd_wasm::Settled>::new();
         let body = |id| {
             settled
                 .get()
-                .and_then(|s| s.get(&id).map(AsRef::as_ref))
+                .and_then(|s| s.bodies.get(&id).map(AsRef::as_ref))
                 .or_else(|| collected(id))
+        };
+        let boundary = |id| {
+            settled
+                .get()
+                .and_then(|s| s.boundaries.get(&id))
+                .map(Arc::clone)
         };
         let inits = &c.collected.inits;
         let entry = match &c.roots {
@@ -11541,6 +11547,7 @@ impl Run<'_> {
             collected: &c.collected,
             order: &c.order,
             body: &body,
+            boundary: &boundary,
             float_ops,
             entry,
             release: self.build_profile == BuildProfile::Release,
@@ -11555,7 +11562,7 @@ impl Run<'_> {
         };
         // The `own` view shows an item's plain instance's final rows.
         let t = &c.collected.table;
-        for (id, b) in settled.get_or_init(|| hd_wasm::settled(&input)) {
+        for (id, b) in &settled.get_or_init(|| hd_wasm::settled(&input)).bodies {
             if !self.host.render_tir.is_empty()
                 && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
             {
@@ -13238,6 +13245,9 @@ impl ProgramEnv for Env<'_> {
     }
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
         self.cold_transfers_declared(def, ty)
+    }
+    fn parameter_mode(&self, ty: Ty, function: bool) -> hd_tir::own::ParameterMode {
+        self.parameter_mode(ty, function)
     }
     fn function_value_copies(&self, ty: Ty) -> bool {
         hd_tir::own::OwnCx::copies(self, ty) == hd_tir::own::Tri::Yes

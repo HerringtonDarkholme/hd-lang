@@ -1201,7 +1201,6 @@ pub struct Module {
     pub(crate) element_checks: Vec<Option<std::sync::Arc<hd_tir::own::ElementChecks>>>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
-    pub(crate) boundary_counts: Vec<Option<crate::emit::BoundaryCell>>,
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
     /// Per instance, what its worker takes or gives by address, once
     /// (`emit/indirect.rs`).
@@ -1216,7 +1215,6 @@ pub struct Module {
     pub(crate) hook_plans:
         hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::rt::HookPlan>>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
-    pub(crate) loan_uses: Vec<Option<crate::emit::LoanCell>>,
     /// Each suspending instance's frame payload size.
     pub frames: hd_base::HashMap<Hash128, u32>,
     /// Deferred scalar layout for shared frame materialization.
@@ -1346,12 +1344,10 @@ impl Module {
             loan_stores: Vec::default(),
             loan_origins: Vec::default(),
             element_checks: Vec::default(),
-            boundary_counts: Vec::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
             release_plans: hd_base::HashMap::default(),
             hook_plans: hd_base::HashMap::default(),
-            loan_uses: Vec::default(),
             frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
             addressed: hd_base::HashMap::default(),

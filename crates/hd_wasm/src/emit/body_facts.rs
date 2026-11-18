@@ -47,7 +47,13 @@ pub(super) struct UseFacts {
 }
 
 impl BodyFacts {
-    pub(super) fn new(b: &Body, cx: &dyn OwnCx, origins: bool, checked: bool) -> Self {
+    pub(super) fn new(
+        b: &Body,
+        cx: &dyn OwnCx,
+        origins: bool,
+        checked: bool,
+        boundary: &hd_tir::own::boundary::Boundary,
+    ) -> Self {
         let topo = Arc::new(Topology::new(b));
         let mut rows = vec![Vec::new(); b.sub_root.len()];
         let mut closures = vec![None; b.sub_root.len()];
@@ -61,7 +67,7 @@ impl BodyFacts {
                 closures[b.data[i][0] as usize].get_or_insert(i);
             }
         }
-        let recursive = Arc::new(hd_tir::own::RecursiveBindings::new(b));
+        let recursive = Arc::clone(&boundary.recursive);
         let mut storage = vec![Vec::new(); b.sub_root.len()];
         for &(sub, local, kind) in &b.storage {
             storage[sub.idx()].push((local, kind));
@@ -88,24 +94,37 @@ impl BodyFacts {
             root_params: super::param_locals(b).into(),
             transfers: Arc::new(transfers),
             recursive,
-            uses: Arc::new(UseFacts::new(b, &topo, cx, origins, checked)),
+            uses: Arc::new(UseFacts::new(
+                b,
+                &topo,
+                cx,
+                origins,
+                checked,
+                &boundary.consumers,
+            )),
             topo,
         }
     }
 }
 
 impl UseFacts {
-    fn new(b: &Body, topo: &Topology, cx: &dyn OwnCx, origins: bool, checked: bool) -> Self {
+    fn new(
+        b: &Body,
+        topo: &Topology,
+        cx: &dyn OwnCx,
+        origins: bool,
+        checked: bool,
+        consumers: &[u32],
+    ) -> Self {
         use hd_tir::ir::Tag;
         use hd_tir::ir::count::{At, Info};
         let mut facts = Self {
-            consumer: Vec::new(),
+            consumer: consumers.to_vec(),
             copy_reasons: Vec::new(),
             used: Vec::new(),
             value_uses: Vec::new(),
             part_only: Vec::new(),
         };
-        hd_tir::own::consumers(b, topo, cx, &mut facts.consumer);
         let verify = cfg!(not(target_arch = "wasm32")) && checked;
         if origins || verify {
             hd_tir::own::copy_reasons(b, topo, cx, &mut facts.copy_reasons);

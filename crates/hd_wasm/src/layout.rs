@@ -1293,7 +1293,7 @@ pub enum Pass {
 /// How a plain function takes a parameter of type `t`; `counts` is whether
 /// the program counts at all.
 pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
-    parameter_pass(pool, env, counts, t, true)
+    pass_mode(pool, env, counts, t, env.parameter_mode(t, false))
 }
 
 /// Function values borrow Copy inputs through the driver's common query,
@@ -1305,12 +1305,7 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
 /// (`types.variance.no-insertion`). Such an input is borrowed whole, so
 /// its caller releases what it counts, as it does a lone `*T`.
 pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
-    match parameter_pass(pool, env, counts, t, false) {
-        Pass::Owned(_) if holds_thin_ref(pool, env, t) || !env.function_value_transfers(t) => {
-            Pass::Borrowed
-        }
-        p => p,
-    }
+    pass_mode(pool, env, counts, t, env.parameter_mode(t, true))
 }
 
 /// A cheap ownership query, shared per type within the link. Concrete
@@ -1408,20 +1403,24 @@ pub fn holds_thin_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     })
 }
 
-fn parameter_pass(
+/// Physical lowering of TIR's ownership answer; no type or borrowing policy.
+pub(crate) fn pass_mode(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     counts: bool,
     t: Ty,
-    counted_owned: bool,
+    mode: hd_tir::own::ParameterMode,
 ) -> Pass {
     if !counts {
         return Pass::Uncounted;
     }
-    if matches!(kind(pool, env, t), Kind::Ref { whole, .. } if !whole || !counted_owned) {
-        return Pass::Borrowed;
+    match mode {
+        hd_tir::own::ParameterMode::Lent => Pass::Borrowed,
+        hd_tir::own::ParameterMode::Uncounted => Pass::Uncounted,
+        hd_tir::own::ParameterMode::Owned => {
+            count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned)
+        }
     }
-    count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned)
 }
 
 /// The walk of fields laid out in order, as a struct, a tuple or a data

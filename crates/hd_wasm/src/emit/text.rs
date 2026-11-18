@@ -382,16 +382,6 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Whether `slice` is a direct call of `string.slice`.
-    pub(super) fn is_string_slice_call(&self, slice: u32) -> bool {
-        matches!(
-            self.calls.get(&slice),
-            Some(hd_mono::Target::Call(call))
-                if call.kind == hd_mono::TargetKind::Instance
-                    && (self.input.path)(call.item) == "std/text/impl string.slice"
-        )
-    }
-
     /// Equality of two byte ranges, with no whole-string helper call.
     pub(super) fn str_range_eq(&mut self, i: u32, left: u32, right: u32) -> StageResult<()> {
         self.comp(left, 1)?;

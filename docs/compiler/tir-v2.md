@@ -93,14 +93,13 @@ see [As built](#as-built-2026-11-13).
   whole-program link pass in every build (`hd_tir/src/own/pointer.rs`).
   The owner allowed whole-program and cross-function analysis on
   2026-11-12 (docs/audit/review-2026-11-12.md §13, "Owner Answers").
-- **The emitter still decides counts.** TIR has no instantiation: no
-  instance id, type arguments or layout (owner, 2026-11-12). So the
-  emitter decides what depends on them: by layout (how many counted
-  leaves a value has, and whether an argument passes owned,
-  `layout::function_pass`), by instance (counts in a generic local
-  function or an instance over the leaf limit), and by storage (loans,
-  `emit/loan_facts.rs`). The module doc of `hd_wasm/src/emit/count.rs`
-  lists the counts it adds.
+- **Boundary ownership is recorded in TIR.** The driver's type-indexed
+  `ParameterMode` query supplies the declaration and function-value conventions.
+  After collection, `hd_tir::own::boundary::plan` records parameter and capture
+  loans, consumers, and string-slice comparison loans per instance group.
+  Emission reads those records and lowers their concrete count walks; it
+  does not repeat parameter-use, capture-use, or trait-slot ownership analyses.
+  Runtime pointer-loan lowering remains in `emit/borrow.rs`.
 
 Everything else stays: structured control flow, the flat column
 encoding, the wire format and its per-body hash, suspension lowering,
