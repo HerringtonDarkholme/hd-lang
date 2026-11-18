@@ -244,21 +244,6 @@
       if
         local.get $u
         call $rt:drop
-        local.get $u
-        i32.const 0
-        i32.store $heap offset=12
-        local.get $u
-        i32.const 0
-        i32.store $heap offset=16
-        local.get $u
-        i32.const 0
-        i32.store $heap offset=20
-        local.get $u
-        i32.const 0
-        i32.store $heap offset=24
-        local.get $u
-        i32.const 0
-        i32.store $heap offset=28
       end
       i32.const 0
       local.set $u
@@ -267,21 +252,6 @@
     if
       local.get $u
       call $rt:drop
-      local.get $u
-      i32.const 0
-      i32.store $heap offset=12
-      local.get $u
-      i32.const 0
-      i32.store $heap offset=16
-      local.get $u
-      i32.const 0
-      i32.store $heap offset=20
-      local.get $u
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $u
-      i32.const 0
-      i32.store $heap offset=28
     end
     local.get $t4
     local.get $t0

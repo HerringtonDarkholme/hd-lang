@@ -1075,7 +1075,6 @@ impl Em<'_, '_, '_> {
             self.f.op(leaf.load(0));
         }
         self.store_owned(i)?;
-        self.mark_drop_place(p, false);
         if self.needs_drop(pt) {
             for leaf in &leaves {
                 self.f.get(c);

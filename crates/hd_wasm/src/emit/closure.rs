@@ -146,7 +146,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
         let t = self.b.local_ty[l];
         let mut m = mem_of(self.pool(), self.env(), t)?;
-        let flags = self.drop_node_paths(t).len();
+        let flags = self.cell_layout(t).map_or(0, |cell| cell.paths.len());
         if flags != 0 {
             m.align = m.align.max(4);
             m.size = (m.size.next_multiple_of(4) + u32::try_from(flags).expect("flags") * 4)
@@ -178,7 +178,7 @@ impl Em<'_, '_, '_> {
     /// the cell's count of them already covers: a local holding its
     /// address.
     pub(super) fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
-        self.raw_cell(l, src, true)
+        self.raw_cell(l, src, Some(true))
     }
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
@@ -201,7 +201,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
         let z = self.zero_src(l)?;
-        let at = self.raw_cell(l, &z, false)?;
+        let at = self.raw_cell(l, &z, Some(false))?;
         self.f.get(at);
         self.f.set(c);
         self.f.op(I::End);
@@ -307,7 +307,6 @@ impl Em<'_, '_, '_> {
                     .unwrap_or_else(|| Walk::sequence(Vec::new())),
                 drops: self.cell_drop_calls(t),
             });
-            self.mark_drop_place(&Self::local_place(l), false);
         }
         self.f.op(I::End);
         Ok(())
@@ -325,8 +324,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// A new cell for local `l` holding `src`, already in the cell's
-    /// layout; for a slot local, its slot.
-    fn raw_cell(&mut self, l: usize, src: &Src, live: bool) -> StageResult<u32> {
+    /// layout; for a slot local, its slot. Its flag slots start `init`,
+    /// or are left to the `FlagSet` that follows a store.
+    fn raw_cell(&mut self, l: usize, src: &Src, init: Option<bool>) -> StageResult<u32> {
         if let Some(&off) = self.slots.get(&l)
             && let Some(base) = self.frame_base()
         {
@@ -351,7 +351,7 @@ impl Em<'_, '_, '_> {
                 offset: 0,
             };
             self.store_part(at, &m, part, src)?;
-            self.init_cell_drop(at, self.b.local_ty[l], live);
+            self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
         // A local a top-level binding's initializer takes a local
@@ -372,7 +372,7 @@ impl Em<'_, '_, '_> {
         });
         if let Some(key) = key {
             let at = self.static_cell(key, l, src)?;
-            self.init_cell_drop(at, self.b.local_ty[l], live);
+            self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
         let (m, walk) = self.cell_mem(l)?;
@@ -391,7 +391,7 @@ impl Em<'_, '_, '_> {
             offset: 0,
         };
         self.store_part(at, &m, part, src)?;
-        self.init_cell_drop(at, ty, live);
+        self.init_cell_drop(at, ty, init);
         Ok(at)
     }
 
@@ -473,8 +473,9 @@ impl Em<'_, '_, '_> {
             };
             self.store_part(c, &m, all, &zero)?;
         }
+        // The move's `FlagClear` came before it: the release below may
+        // free the cell.
         if !slot {
-            self.init_cell_drop(c, self.b.local_ty[l], false);
             self.f.get(c);
             let reason = self.operation_count(
                 i,
@@ -524,7 +525,11 @@ impl Em<'_, '_, '_> {
             if slot && releases {
                 self.release_slot(l, c)?;
             }
-            let at = self.raw_cell(l, &src, v != NONE)?;
+            // A store the TIR flags track sets the slots after it.
+            let flagged = self
+                .tir_flags()
+                .contains_key(&super::drop_flags::Root::Local(l));
+            let at = self.raw_cell(l, &src, (v == NONE || !flagged).then_some(v != NONE))?;
             if releases && !slot {
                 self.f.get(c);
                 self.release_cell();

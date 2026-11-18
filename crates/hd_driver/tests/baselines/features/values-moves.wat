@@ -98,36 +98,35 @@
     local.get $ys
     i32.const 1
     i32.store $heap offset=28
-    local.get $ys
     ;; 32 |     ys.push(s)
-    local.tee $t1
+    local.get $ys
     i32.load $heap offset=8
-    local.set $t2
-    local.get $t1
+    local.set $t1
+    local.get $ys
     i32.load $heap offset=4
-    local.get $t2
+    local.get $t1
     i32.le_u
     if
+      local.get $ys
       local.get $t1
-      local.get $t2
       i32.const 1
       i32.add
       call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
     end
-    local.get $t1
+    local.get $ys
     i32.load $heap
-    local.get $t2
+    local.get $t1
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t3
+    local.tee $t2
     local.get $s.0
     i32.store $heap
-    local.get $t3
+    local.get $t2
     local.get $s.1
     i32.store $heap offset=4
+    local.get $ys
     local.get $t1
-    local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=8

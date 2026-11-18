@@ -426,34 +426,33 @@
     local.get $items
     i32.const 1
     i32.store $heap offset=28
-    local.get $items
     ;; 52 |     items.push(7)
-    local.tee $shared
+    local.get $items
     i32.const 7
-    local.set $t1
+    local.set $shared
     i32.load $heap offset=8
-    local.set $t2
-    local.get $shared
+    local.set $t1
+    local.get $items
     i32.load $heap offset=4
-    local.get $t2
+    local.get $t1
     i32.le_u
     if
-      local.get $shared
-      local.get $t2
+      local.get $items
+      local.get $t1
       i32.const 1
       i32.add
       call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
     end
-    local.get $shared
+    local.get $items
     i32.load $heap
-    local.get $t2
+    local.get $t1
     i32.const 4
     i32.mul
     i32.add
-    local.get $t1
-    i32.store $heap
     local.get $shared
-    local.get $t2
+    i32.store $heap
+    local.get $items
+    local.get $t1
     i32.const 1
     i32.add
     i32.store $heap offset=8
@@ -515,21 +514,6 @@
     if
       local.get $t2
       call $rt:drop
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=12
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=16
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=20
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $t2
-      i32.const 0
-      i32.store $heap offset=28
     end
     local.get $shared
     local.get $provider0

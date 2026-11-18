@@ -1,9 +1,14 @@
 //! Initialization state for inline Drop hooks. Zero is a valid payload,
 //! so empty owned places need state independent of their value bits.
 //!
-//! A value root's flags are TIR locals (`hd_tir::own::drop_flags`): this
-//! file lowers their `FlagSet` and `FlagClear` statements and guards each
-//! hook by them. A cell keeps one flag per hooked node in its layout.
+//! The flags are TIR statements (`hd_tir::own::drop_flags`). A value
+//! root's flag is a TIR local. A cell's flags are slots after its value,
+//! one per node of its type in path order, which every body sharing the
+//! cell reads, and a hook at node P runs when P's slot holds: a clear
+//! empties the slots at, under and above its path, and a set fills the
+//! slots at and under it, then each node above whose children all hold.
+
+use std::rc::Rc;
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
@@ -18,14 +23,40 @@ use crate::module::{HEAP, mem};
 use crate::op::Op as I;
 use crate::rt::DropCall;
 
-/// A cell's flag: the local of its address, and the flag's offset.
-#[derive(Clone, Copy)]
-pub(super) struct Flag(u32, u32);
-
 /// Per value root, each flagged move path with its TIR flag local, read
 /// from one sub-body's flag statements and sorted by [`path_order`], so the
 /// paths under one path are one range.
 pub(super) type TirFlags = hd_base::HashMap<Root, Vec<(Vec<Proj>, u32)>>;
+
+/// A cell's flag slots after its value: their offset, and one node
+/// path per slot.
+pub(super) struct CellLayout {
+    base: u32,
+    pub(super) paths: Vec<Vec<Proj>>,
+}
+
+impl CellLayout {
+    fn offset(&self, k: usize) -> u32 {
+        self.base + u32::try_from(k).expect("ruled out: a type has under 2^32 nodes") * 4
+    }
+
+    /// The offset of node `path`'s slot: one binary search.
+    fn slot(&self, path: &[Proj]) -> Option<u32> {
+        let k = self.paths.binary_search_by(|p| path_order(p, path));
+        Some(self.offset(k.ok()?))
+    }
+
+    /// The slots at and under `path`: one binary search, then the
+    /// contiguous range of its subtree.
+    fn under(&self, path: &[Proj]) -> std::ops::Range<usize> {
+        let start = self.paths.partition_point(|p| path_order(p, path).is_lt());
+        let len = self.paths[start..]
+            .iter()
+            .take_while(|p| p.starts_with(path))
+            .count();
+        start..start + len
+    }
+}
 
 /// Lexicographic order of paths: a path sorts right before the paths
 /// under it.
@@ -45,12 +76,6 @@ pub(super) enum Root {
     Value(u32),
 }
 
-#[derive(Clone)]
-pub(super) struct State {
-    paths: Vec<Vec<Proj>>,
-    flags: Vec<Flag>,
-}
-
 impl Em<'_, '_, '_> {
     fn drop_root(&self, p: &Place) -> Option<(Root, Ty)> {
         if !p
@@ -67,48 +92,9 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// A cell's flags, one per hooked node of its type.
-    fn drop_state(&mut self, root: Root, ty: Ty) -> Option<State> {
-        let Root::Local(l) = root else {
-            return None;
-        };
-        if !self.is_cell(l) {
-            return None;
-        }
-        if let Some(state) = self.drop_states.get(&root) {
-            return Some(state.clone());
-        }
-        if !matches!(self.kind(ty), Kind::Value)
-            || !crate::layout::holds_drop(self.pool(), self.env(), ty)
-        {
-            return None;
-        }
-        let ty = self.b.local_ty[l];
-        let paths = self.drop_node_paths(ty);
-        if paths.is_empty() {
-            return None;
-        }
-        let c = self.locals.get(&l)?[0];
-        let base = crate::layout::mem(self.pool(), self.env(), ty)
-            .ok()?
-            .size
-            .next_multiple_of(4);
-        let flags = (0..paths.len())
-            .map(|i| {
-                Flag(
-                    c,
-                    base + u32::try_from(i).expect("ruled out: a type has under 2^32 nodes") * 4,
-                )
-            })
-            .collect();
-        let state = State { paths, flags };
-        self.drop_states.insert(root, state.clone());
-        Some(state)
-    }
-
     /// This sub-body's TIR flags, read on first use: one walk of its rows,
     /// then one sort per root, O(S log S) for S flag statements.
-    fn tir_flags(&mut self) -> std::rc::Rc<TirFlags> {
+    pub(super) fn tir_flags(&mut self) -> std::rc::Rc<TirFlags> {
         if let Some(flags) = &self.tir_flags {
             return std::rc::Rc::clone(flags);
         }
@@ -151,17 +137,64 @@ impl Em<'_, '_, '_> {
             }
     }
 
+    /// Local `root`'s cell address local and slots, when it is a cell.
+    fn cell_slots(&self, root: Root) -> Option<(u32, Rc<CellLayout>)> {
+        let Root::Local(l) = root else {
+            return None;
+        };
+        let c = *self.locals.get(&l)?.first()?;
+        self.is_cell(l)
+            .then(|| self.cell_layout(self.b.local_ty[l]))
+            .flatten()
+            .map(|layout| (c, layout))
+    }
+
+    /// A flag statement on the cell at `c`, for node `path` at depth d:
+    /// O(d log N) searches of the type's N nodes, and for a set, one walk
+    /// of each node above it, O(d N), bounded by the type, not the body.
+    fn cell_statement(&mut self, c: u32, cell: &CellLayout, path: &[Proj], set: bool) {
+        for k in cell.under(path) {
+            self.write_slot(c, cell.offset(k), |em| em.f.u32(u32::from(set)));
+        }
+        let above = (0..path.len())
+            .rev()
+            .filter_map(|d| Some((d, cell.slot(&path[..d])?)));
+        for (depth, at) in above {
+            let children: Vec<u32> = (cell.under(&path[..depth]))
+                .filter(|&k| cell.paths[k].len() == depth + 1)
+                .map(|k| cell.offset(k))
+                .collect();
+            self.write_slot(c, at, |em| {
+                em.f.u32(u32::from(set));
+                for &child in children.iter().filter(|_| set) {
+                    em.f.get(c);
+                    em.f.op(I::I32Load(mem(HEAP, u64::from(child), 2)));
+                    em.f.op(I::I32And);
+                }
+            });
+        }
+    }
+
     /// `FlagSet` or `FlagClear` `i`: writes its flag local, when this
-    /// instance reads it.
+    /// instance reads it, or a cell's slots under its path.
     pub(super) fn flag_statement(&mut self, i: u32) -> StageResult<()> {
         let [word, flag] = self.b.data[i as usize];
-        let Some((root, ty)) = self.b.decode_place(word).and_then(|p| self.drop_root(&p)) else {
+        let Some(p) = self.b.decode_place(word) else {
             return Ok(());
         };
-        if self.tir_flagged(root, ty) {
+        let Some((root, ty)) = self.drop_root(&p) else {
+            return Ok(());
+        };
+        let set = u32::from(self.b.tags[i as usize] == Tag::FlagSet);
+        if let Some((c, cell)) = self.cell_slots(root) {
+            // A slot's whole move zeroes its one holder's address.
+            let slot = matches!(root, Root::Local(l) if self.slots.contains_key(&l));
+            if set == 1 || !p.proj.is_empty() || !slot {
+                self.cell_statement(c, &cell, &p.proj, set == 1);
+            }
+        } else if self.tir_flagged(root, ty) {
             let local = self.local(flag)?[0];
-            self.f
-                .u32(u32::from(self.b.tags[i as usize] == Tag::FlagSet));
+            self.f.u32(set);
             self.f.set(local);
         }
         Ok(())
@@ -196,38 +229,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    pub(super) fn mark_drop_place(&mut self, p: &Place, live: bool) {
-        let Some((root, ty)) = self.drop_root(p) else {
-            return;
-        };
-        let Some(state) = self.drop_state(root, ty) else {
-            return;
-        };
-        for (path, &flag) in state.paths.iter().zip(&state.flags) {
-            if path.starts_with(&p.proj) || (!live && p.proj.starts_with(path)) {
-                self.set_drop_flag(flag, live);
-            }
-        }
-        // A parent becomes whole again after every immediate child was
-        // restored. Keep nodes without hooks too: moving such a field
-        // still makes the parent's own Drop hook ineligible.
-        if live {
-            for index in (0..state.paths.len()).rev() {
-                let path = &state.paths[index];
-                if p.proj.starts_with(path) && path.len() < p.proj.len() {
-                    self.f.u32(1);
-                    for (child, &flag) in state.paths.iter().zip(&state.flags) {
-                        if child.len() == path.len() + 1 && child.starts_with(path) {
-                            self.push_drop_flag(flag);
-                            self.f.op(I::I32And);
-                        }
-                    }
-                    self.write_drop_flag(state.flags[index]);
-                }
-            }
-        }
-    }
-
     pub(super) fn release_drop_place(&mut self, ls: &[u32], ty: Ty, p: &Place) -> StageResult<()> {
         let root = self.drop_root(p);
         if let Some((root, _)) = &root {
@@ -240,7 +241,7 @@ impl Em<'_, '_, '_> {
             && matches!(self.kind(rt), Kind::Value)
             && crate::layout::holds_drop(self.pool(), self.env(), rt)
         {
-            let cell = self.drop_state(root, rt);
+            let cell = self.cell_slots(root);
             let tir = self.tir_flags();
             let paths = match (&cell, self.tir_flagged(root, rt)) {
                 (None, true) => tir.get(&root).map_or(&[][..], Vec::as_slice),
@@ -249,14 +250,15 @@ impl Em<'_, '_, '_> {
             for (_, child) in self.drop_paths(ty) {
                 let full: Vec<_> = p.proj.iter().chain(&child).copied().collect();
                 match &cell {
-                    Some(state) => {
-                        let i = state.paths.iter().position(|p| *p == full).ok_or_else(|| {
+                    Some((c, cell)) => {
+                        let at = cell.slot(&full).ok_or_else(|| {
                             hd_base::NotImplemented::bug(
                                 hd_base::Stage::Emit,
                                 "a cell's hook at a node its flags lack",
                             )
                         })?;
-                        self.push_drop_flag(state.flags[i]);
+                        self.f.get(*c);
+                        self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
                     }
                     None => self.push_hook_guard(paths, &full)?,
                 }
@@ -268,7 +270,6 @@ impl Em<'_, '_, '_> {
         if !self.drop_inline_flags(ls, ty, &flags)? {
             self.release_locals(ls, ty)?;
         }
-        self.mark_drop_place(p, false);
         Ok(())
     }
 
@@ -288,12 +289,6 @@ impl Em<'_, '_, '_> {
         })
     }
 
-    pub(super) fn stored_drop(&mut self) {
-        if let Some(p) = self.store_drop_place() {
-            self.mark_drop_place(&p, true);
-        }
-    }
-
     pub(super) fn value_place(value: u32) -> Place {
         Place {
             root: PlaceRoot::Value(Ref(value)),
@@ -301,7 +296,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    pub(super) fn drop_node_paths(&self, ty: Ty) -> Vec<Vec<Proj>> {
+    fn drop_node_paths(&self, ty: Ty) -> Vec<Vec<Proj>> {
         fn add(em: &Em<'_, '_, '_>, ty: Ty, path: &[Proj], out: &mut Vec<Vec<Proj>>) {
             out.push(path.to_vec());
             if !matches!(em.kind(ty), Kind::Value) {
@@ -343,62 +338,68 @@ impl Em<'_, '_, '_> {
         paths
     }
 
-    pub(super) fn cell_drop_calls(&self, ty: Ty) -> Vec<DropCall> {
+    /// The flag slots of a cell holding a `ty`: their offset in the
+    /// cell, and the node path of each in [`path_order`], which is the
+    /// preorder [`Em::drop_node_paths`] walks. None when `ty` has no hook.
+    /// Built once per type and emitter.
+    pub(super) fn cell_layout(&self, ty: Ty) -> Option<Rc<CellLayout>> {
+        if let Some(layout) = self.cell_layouts.borrow().get(&ty) {
+            return layout.clone();
+        }
         let paths = self.drop_node_paths(ty);
-        let base = crate::layout::mem(self.pool(), self.env(), ty)
-            .expect("cell layout")
-            .size
-            .next_multiple_of(4);
-        self.drop_paths(ty)
-            .into_iter()
-            .map(|(mut call, path)| {
-                if let Some(i) = paths.iter().position(|p| *p == path) {
-                    call.guards.push((
-                        Leaf {
-                            offset: base
-                                + u32::try_from(i).expect("ruled out: a type has under 2^32 nodes")
-                                    * 4,
-                            val: Val::I32,
-                            bytes: 4,
-                            signed: false,
-                        },
-                        crate::layout::Is::Eq(1),
-                    ));
-                }
-                call
-            })
-            .collect()
+        let layout = crate::layout::mem(self.pool(), self.env(), ty)
+            .ok()
+            .filter(|_| !paths.is_empty())
+            .map(|m| {
+                Rc::new(CellLayout {
+                    base: m.size.next_multiple_of(4),
+                    paths,
+                })
+            });
+        self.cell_layouts.borrow_mut().insert(ty, layout.clone());
+        layout
     }
 
-    pub(super) fn init_cell_drop(&mut self, at: u32, ty: Ty, live: bool) {
-        let paths = self.drop_node_paths(ty);
-        if paths.is_empty() {
-            return;
+    /// The cell's release glue: each hook guarded by its node's slot.
+    pub(super) fn cell_drop_calls(&self, ty: Ty) -> Vec<DropCall> {
+        let cell = self.cell_layout(ty);
+        let mut calls = self.drop_paths(ty);
+        for (call, path) in &mut calls {
+            if let Some(offset) = cell.as_ref().and_then(|cell| cell.slot(path)) {
+                let leaf = Leaf {
+                    offset,
+                    val: Val::I32,
+                    bytes: 4,
+                    signed: false,
+                };
+                call.guards.push((leaf, crate::layout::Is::Eq(1)));
+            }
         }
-        let base = crate::layout::mem(self.pool(), self.env(), ty)
-            .expect("cell layout")
-            .size
-            .next_multiple_of(4);
-        for i in 0..paths.len() {
-            self.set_drop_flag(
-                Flag(
-                    at,
-                    base + u32::try_from(i).expect("ruled out: a type has under 2^32 nodes") * 4,
-                ),
-                live,
-            );
+        calls.into_iter().map(|(call, _)| call).collect()
+    }
+
+    /// Sets every slot of a new cell at `at`: whole when `init` is
+    /// true, empty when false, and none for `None`.
+    pub(super) fn init_cell_drop(&mut self, at: u32, ty: Ty, init: Option<bool>) {
+        if let Some(live) = init
+            && let Some(cell) = self.cell_layout(ty)
+        {
+            self.cell_statement(at, &cell, &[], live);
         }
+    }
+
+    /// Stores the value `value` pushes into the slot `offset` bytes into
+    /// the cell at `at`.
+    fn write_slot(&mut self, at: u32, offset: u32, value: impl FnOnce(&mut Self)) {
+        self.f.get(at);
+        value(self);
+        self.f.op(I::I32Store(mem(HEAP, u64::from(offset), 2)));
     }
 
     /// Scalar storage the frame destructor reads, selected before compact
-    /// offsets: each cell's address and the TIR flags of `cold`, what a
-    /// cold frame holds; the collector traces a started frame through it.
+    /// offsets: the TIR flags of `cold`, what a cold frame holds; the
+    /// collector traces a started frame through it.
     pub(super) fn select_frame_drop_flags(&mut self, cold: &[usize], selected: &mut [bool]) {
-        for state in self.drop_states.values() {
-            for flag in &state.flags {
-                selected[flag.0 as usize] = true;
-            }
-        }
         let flags = self.tir_flags();
         for paths in cold.iter().filter_map(|&l| flags.get(&Root::Local(l))) {
             for (_, flag) in paths {
@@ -425,18 +426,6 @@ impl Em<'_, '_, '_> {
             }
             local
         };
-        let mut roots: Vec<_> = self.drop_states.keys().copied().collect();
-        roots.sort_stable_by_key(|root| match root {
-            Root::Local(l) => (0, *l as u64),
-            Root::Value(i) => (1, u64::from(*i)),
-        });
-        for root in roots {
-            let mut state = self.drop_states[&root].clone();
-            for flag in &mut state.flags {
-                flag.0 = load(self, flag.0);
-            }
-            self.drop_states.insert(root, state);
-        }
         let mut flags: Vec<usize> = (self.tir_flags().values().flatten())
             .map(|&(_, f)| f as usize)
             .collect();
@@ -471,24 +460,6 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-    }
-
-    fn push_drop_flag(&mut self, Flag(at, offset): Flag) {
-        self.f.get(at);
-        self.f.op(I::I32Load(mem(HEAP, u64::from(offset), 2)));
-    }
-
-    fn write_drop_flag(&mut self, Flag(at, offset): Flag) {
-        let value = self.f.local(Val::I32);
-        self.f.set(value);
-        self.f.get(at);
-        self.f.get(value);
-        self.f.op(I::I32Store(mem(HEAP, u64::from(offset), 2)));
-    }
-
-    fn set_drop_flag(&mut self, flag: Flag, live: bool) {
-        self.f.u32(u32::from(live));
-        self.write_drop_flag(flag);
     }
 
     pub(super) fn local_place(local: usize) -> Place {

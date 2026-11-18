@@ -91,6 +91,40 @@ fn addressed_move() -> usize:
     back := identity(value)
     back.id
 
+# `value` lives in a counted cell, since a reference reads it across
+# the await: its whole move releases the cell.
+fn moved_cell!(take: bool) -> usize:
+    value := Token { id: 1 }
+    _ := read(&value)
+    let job: Suspend[Token] = relayed(Token { id: 2 })
+    other := job!()
+    _ := read(&value)
+    if take:
+        back := identity(value)
+        return back.id + other.id
+    value.id + other.id
+
+# A parameter a reference reads across the await lives in a cell, which
+# a frame never polled still releases.
+fn held_cell!(value: Token) -> usize:
+    _ := read(&value)
+    let job: Suspend[Token] = relayed(Token { id: 2 })
+    other := job!()
+    _ := read(&value)
+    value.id + other.id
+
+# `value` lives in a frame slot, since a reference reads its field.
+fn addressed_field(take: bool, restore: bool) -> usize:
+    let mut value = Pair { left: Token { id: 1 }, right: Token { id: 2 } }
+    _ := read(&value.left)
+    if take:
+        first := identity(value.left)
+        if restore:
+            value.left = Token { id: 3 }
+            return first.id + value.left.id
+        return first.id
+    value.left.id
+
 fn restored_field() -> usize:
     let mut value = Pair { left: Token { id: 0 }, right: Token { id: 0 } }
     first := identity(value.left)
@@ -462,6 +496,30 @@ tests:
         before := drops
         assert_equal(addressed_move(), 0)
         assert_equal(drops, before + 1)
+
+    it("a cell moved whole on one branch drops its payload once"):
+        before := drops
+        assert_equal(moved_cell!(true), 3)
+        assert_equal(drops, before + 2)
+        assert_equal(moved_cell!(false), 3)
+        assert_equal(drops, before + 4)
+
+    it("a parameter's cell drops its payload once, polled or not"):
+        before := drops
+        _ := held_cell(Token { id: 1 })
+        assert_equal(drops, before + 1)
+        let job: Suspend[usize] = held_cell(Token { id: 1 })
+        assert_equal(job!(), 3)
+        assert_equal(drops, before + 3)
+
+    it("a slot's moved field skips its hook and a restored one runs it"):
+        before := drops
+        assert_equal(addressed_field(false, false), 1)
+        assert_equal(drops, before + 2)
+        assert_equal(addressed_field(true, false), 1)
+        assert_equal(drops, before + 4)
+        assert_equal(addressed_field(true, true), 4)
+        assert_equal(drops, before + 7)
 
     it("a moved field can be restored before moving the whole value"):
         before := drops

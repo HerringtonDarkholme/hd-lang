@@ -85,24 +85,6 @@
     if
       local.get $t4
       call $rt:drop
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=12
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=16
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=20
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=28
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=32
     end
     ;; ...
   )

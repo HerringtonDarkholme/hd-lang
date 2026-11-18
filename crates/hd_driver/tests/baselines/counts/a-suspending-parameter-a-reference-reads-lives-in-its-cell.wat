@@ -115,8 +115,6 @@
         i32.const 0
         i32.const 4
         call $room
-        i32.const 0
-        local.set $provider0.vtable
         local.set $t4
         i32.const 32
         i32.const 1
@@ -165,19 +163,19 @@
           i32.load $heap offset=24
           i32.store $heap offset=8
           local.get $provider0
-          local.get $provider0.vtable
+          i32.const 0
           i32.store $heap offset=12
           local.get $provider0
-          local.get $provider0.vtable
+          i32.const 0
           i32.store $heap offset=16
           local.get $provider0
-          local.get $provider0.vtable
+          i32.const 0
           i32.store $heap offset=20
           local.get $provider0
-          local.get $provider0.vtable
+          i32.const 0
           i32.store $heap offset=24
           local.get $provider0
-          local.get $provider0.vtable
+          i32.const 0
           i32.store $heap offset=28
         end
         local.get $provider0
@@ -209,8 +207,6 @@
         local.get $provider1
         local.get $provider1.vtable
         call $"impl[T < ?Copy] Buffer[T].at[i32]"
-        i32.const 0
-        local.set $t4
         local.get $provider0.vtable
         i32.store $heap
         local.get $provider1.vtable
@@ -228,6 +224,21 @@
         local.get $provider0.vtable
         i32.store $heap offset=8
     ;; 14 |     a := sized!(u)
+        local.get $provider0
+        i32.const 0
+        i32.store $heap offset=12
+        local.get $provider0
+        i32.const 0
+        i32.store $heap offset=16
+        local.get $provider0
+        i32.const 0
+        i32.store $heap offset=20
+        local.get $provider0
+        i32.const 0
+        i32.store $heap offset=24
+        local.get $provider0
+        i32.const 0
+        i32.store $heap offset=28
         local.get $provider0
         i32.eqz
         if
@@ -281,21 +292,6 @@
         local.get $t2
         i32.load $heap offset=48
         i32.store $heap offset=8
-        local.get $provider0
-        local.get $t4
-        i32.store $heap offset=12
-        local.get $provider0
-        local.get $t4
-        i32.store $heap offset=16
-        local.get $provider0
-        local.get $t4
-        i32.store $heap offset=20
-        local.get $provider0
-        local.get $t4
-        i32.store $heap offset=24
-        local.get $provider0
-        local.get $t4
-        i32.store $heap offset=28
         local.get $provider0
         if
           local.get $provider0

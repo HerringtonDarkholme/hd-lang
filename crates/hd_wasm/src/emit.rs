@@ -1477,7 +1477,8 @@ struct Em<'i, 'a, 'm> {
     /// with that instruction: their locals are zeroed once it has read
     /// them ([`Em::take`]).
     moving: Vec<(u32, u32)>,
-    drop_states: HashMap<drop_flags::Root, drop_flags::State>,
+    /// Each cell type's flag slots (`drop_flags.rs`), built on first use.
+    cell_layouts: std::cell::RefCell<HashMap<Ty, Option<std::rc::Rc<drop_flags::CellLayout>>>>,
     /// This sub-body's TIR drop flags (`drop_flags.rs`), read on first use.
     tir_flags: Option<std::rc::Rc<drop_flags::TirFlags>>,
     /// The state machine of a suspending body (`susp.rs`).
@@ -1703,7 +1704,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             lends: 0,
             emitting: Vec::new(),
             moving: Vec::new(),
-            drop_states: HashMap::default(),
+            cell_layouts: std::cell::RefCell::default(),
             tir_flags: None,
             susp: None,
             shield: 0,

@@ -91,8 +91,8 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %3 = FlagClear [$0] #10 : ()
 >   %4 = Store [$2] %2 : ()
 >   %5 = FlagSet [$2] #11 : ()
->   %51 = Release %50 Operation local $2 #2 : ()
->   %53 = Block %50 : UniqList[string]
+>   %52 = Release %51 Operation local $2 #2 : ()
+>   %53 = Block %51 : UniqList[string]
     ys.push(s)
 >   %6 = Ref mut local frame [$2] : &mut UniqList[string]
 >   %7 = Store [$3] %6 : ()
@@ -140,9 +140,9 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %49 = LoanEnd [$3] : ()
 >   %6 finds [$2] full
     ys
->   %50 = Read move [$2] : UniqList[string]
->   %52 = FlagClear [$2] #11 : ()
->   %50 finds [$2] full
+>   %50 = FlagClear [$2] #11 : ()
+>   %51 = Read move [$2] : UniqList[string]
+>   %51 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

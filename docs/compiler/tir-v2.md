@@ -266,7 +266,7 @@ These arrive in stage 2. The checker never writes them.
 | `Pin` | a: place of a list | after an `IsUnique` of the same place, marks the header as its buffer's one owner, so element references keep the buffer in place. The pin lasts while element references hold counts of the buffer; their drops end it, so there is no `Unpin` |
 | `LoanEnd` | a: place | ends the pointer loans a whole value or local holds, with no release: the `Drop` of a value that holds only references that can own nothing (`own/plain.rs`) |
 | `Release` | a: a `Store` | follows the store it names and releases what the store replaces, in the store's one walk of its place; a store with none only writes |
-| `FlagSet`, `FlagClear` | a: place, b: local | set and clear the drop flag local b of move path a, a part of a local or a value in place (`own/drop_flags.rs`, #1420). Every init of a path sets the flags at and under it, a move or a repeated drop clears them; a Drop hook runs when its nearest flag and every flag under it hold |
+| `FlagSet`, `FlagClear` | a: place, b: local | set and clear the drop flag local b of move path a, a part of a local or a value in place (`own/drop_flags.rs`, #1420). Every init of a path sets the flags at and under it, a move or a repeated drop clears them; a Drop hook runs when its nearest flag and every flag under it hold. A cell's or frame slot's statement writes the flag slots of its layout instead of b |
 
 **The exit set.** A body has one exit (`Return` branches to it, as
 today). Its `exit_drops` column lists the owned locals that may still

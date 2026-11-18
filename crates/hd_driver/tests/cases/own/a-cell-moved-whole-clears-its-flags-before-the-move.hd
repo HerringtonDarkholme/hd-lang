@@ -1,0 +1,40 @@
+# @dump: own wat
+# @build: std
+# expected: drop flags in cells (#1420). `value` lives in a counted cell,
+# since a reference reads it across the await; its whole move on one
+# branch releases the cell, so its `FlagClear` stands before the
+# `Read move` and writes the cell before it can be freed. Its `Drop`
+# releases the cell, so it clears nothing, and no flag local is read.
+use std.annotation.inline
+use std.rt.Drop
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        self.id = 0
+
+@inline(.Never)
+fn read(value: &Token) -> usize:
+    value.id
+
+@inline(.Never)
+fn take(value: Token) -> usize:
+    value.id
+
+fn relayed!(value: Token) -> Token:
+    value
+
+# subject
+fn moved_cell!(early: bool) -> usize:
+    value := Token { id: 1 }
+    _ := read(&value)
+    other := relayed!(Token { id: 2 })
+    _ := read(&value)
+    if early:
+        return take(value)
+    other.id
+

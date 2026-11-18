@@ -62,15 +62,14 @@ impl[T] HasFacts for T by Structure:
 > app/main/impl[T] HasFacts for T by Structure.has_facts
 >   local $0 self: T [param read captured] place
 >   local $1 reader: Reader[T] [read assigned captured captured-assigned] place
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
         let mut reader = Reader::[T] { found: false }
 >   %1 = NewStruct [0:bool] : Reader[Record]
 >   %2 = Store [$1] %1 : ()
 >   %60 = Block %59 : bool
->   %0 = FlagSet [$0] #2 : ()
->   %2 = NewStruct [0:bool] : Reader[T]
->   %3 = Store [$1] %2 : ()
->   %13 = Block %11 : bool
+>   %1 = NewStruct [0:bool] : Reader[T]
+>   %2 = Store [$1] %1 : ()
+>   %11 = Block %9 : bool
         _ := Structure::walk(&self, &mut reader)
 >   %3 = Ref local frame [$0] : &Record
 >   %4 = Store [$2] %3 : ()
@@ -78,22 +77,21 @@ impl[T] HasFacts for T by Structure:
 >   %56 = Scope %55 [] : Result[(), never]
 >   %57 = LoanEnd [$2] : ()
 >   %58 = Drop [$0] : ()
->   %4 = Ref local frame [$0] : &T
->   %5 = Ref mut local frame [$1] : &mut Reader[T]
->   %6 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%4, %5) : Result[(), never]
->   %7 = Drop [%5] : ()
->   %8 = Drop [%4] : ()
->   %9 = Drop [$0] : ()
->   %10 = FlagClear [$0] #2 : ()
->   %5 finds [$1] full
+>   %3 = Ref local frame [$0] : &T
+>   %4 = Ref mut local frame [$1] : &mut Reader[T]
+>   %5 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%3, %4) : Result[(), never]
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %8 = Drop [$0] : ()
+>   %4 finds [$1] full
         reader.found
 >   %59 = Read copy [$1 .found] : bool
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes
->   %11 = Read copy [$1 .found] : bool
->   %12 = Drop [$1] : ()
->   %11 finds [$1] full
+>   %9 = Read copy [$1 .found] : bool
+>   %10 = Drop [$1] : ()
+>   %9 finds [$1] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [$0] writes

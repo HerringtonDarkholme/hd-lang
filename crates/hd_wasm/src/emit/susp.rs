@@ -1444,7 +1444,6 @@ pub(super) fn finish(
     let results = em.results.clone();
     let name = em.f.name.clone();
     let mut body = std::mem::take(&mut em.f);
-    let body_drop_states = em.drop_states.clone();
 
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
@@ -1584,7 +1583,6 @@ pub(super) fn finish(
         });
     }
     let drop = std::mem::take(&mut em.f);
-    em.drop_states = body_drop_states;
     em.locals.extend(body_flags);
 
     // The cold constructor: a frame in state 0 holding the arguments and

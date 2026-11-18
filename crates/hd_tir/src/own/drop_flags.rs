@@ -1,7 +1,7 @@
-//! Drop flags as TIR locals (#1420, `docs/future-work/INSTANCE_TIR.md`
-//! step 7), for value roots: a local no closure captures and an
-//! instruction's value. A captured local's cell keeps its flags in its
-//! layout, and a frame's in the frame (#1420 part 2).
+//! Drop flags as TIR statements (#1420, `docs/future-work/INSTANCE_TIR.md`
+//! step 7), for a local and an instruction's value. A value root's flag is
+//! a `bool` local; a cell's statement writes the flag slots of the cell's
+//! layout under its path instead, which every body sharing the cell reads.
 //!
 //! Follows rustc's `MoveData` (`rustc_mir_dataflow::move_paths`) and
 //! `ElaborateDrops`, which runs on generic MIR before monomorphization:
@@ -20,6 +20,10 @@
 //! sub-body's entry, a `Store` to the local, an instruction's value where
 //! it is made) sets the flags at and under its place; each `Read move`,
 //! and each `Drop` of a root dropped at more than one site, clears them.
+//! A cell differs in three ways: it is whole when it is made, so a
+//! parameter's gets no entry statement; its `Drop` releases the cell
+//! itself, so it clears nothing; and a whole move releases the cell
+//! too, so its clear goes before the move.
 //!
 //! Cost: one walk of the body, O(N + S) for N instructions and S place
 //! steps, one hash probe per step; then one statement per flagged path
@@ -30,7 +34,7 @@ use hd_types::Ty;
 
 use super::{OwnCx, Tri, splice};
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Root, Storage, Tag, Topology, local_flags, place, u32_of,
+    Body, CaptureMode, NONE, ReadMode, Root, Tag, Topology, local_flags, place, u32_of,
 };
 
 /// The root of a move path: a local, or an instruction's value.
@@ -82,9 +86,15 @@ fn key_of(b: &Body, word: u32) -> Option<Key> {
 impl MovePaths {
     /// The table of `b`'s moves, stores and drops of places that lie in
     /// a root `tracked` admits. `dropped` counts each root's drop sites
-    /// beyond its `Drop` statements (exit and unwind rows).
+    /// beyond its `Drop` statements (exit and unwind rows); a drop of a
+    /// root `cell` admits empties nothing.
     #[must_use]
-    pub fn build(b: &Body, tracked: impl Fn(Key) -> bool, dropped: &HashMap<Key, u32>) -> Self {
+    pub fn build(
+        b: &Body,
+        tracked: impl Fn(Key) -> bool,
+        cell: impl Fn(Key) -> bool,
+        dropped: &HashMap<Key, u32>,
+    ) -> Self {
         let mut out = Self::default();
         let mut drops = HashMap::<Key, u32>::default();
         for i in 0..b.len() {
@@ -99,8 +109,9 @@ impl MovePaths {
             let moved = match b.tags[i] {
                 Tag::Read => b.data[i][1] == ReadMode::Move as u32,
                 Tag::Store => false,
-                Tag::Drop => key_of(b, word)
-                    .is_some_and(|k| drops[&k] + dropped.get(&k).copied().unwrap_or(0) > 1),
+                Tag::Drop => key_of(b, word).is_some_and(|k| {
+                    !cell(k) && drops[&k] + dropped.get(&k).copied().unwrap_or(0) > 1
+                }),
                 _ => continue,
             };
             let Some(key) = key_of(b, word).filter(|&k| tracked(k)) else {
@@ -231,12 +242,12 @@ fn after(b: &Body, topo: &Topology, i: usize) -> (u32, u32) {
     (blk, pos + u32_of(counts))
 }
 
-/// Writes the drop flags of `b`'s value roots (module doc) as edits.
+/// Writes the drop flags of `b`'s locals and values (module doc) as edits.
 pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
-    // A local a closure shares, through a cell, keeps its flags in the
-    // cell (#1420 part 2).
+    // A local a closure shares, or a reference reaches, lives in a cell
+    // or a frame slot, which keeps its flags in its layout.
     let mut cells = vec![false; b.local_ty.len()];
-    for r in b.storage.iter().filter(|r| r.2 == Storage::Cell) {
+    for r in &b.storage {
         cells[r.1.idx()] = true;
     }
     for (l, _) in (b.cap_local.iter().zip(&b.cap_mode))
@@ -255,13 +266,14 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     let paths = {
         let b = &*b;
         let tracked = |k: Key| match k {
-            Key::Local(l) => !cells[l as usize] && cx.holds_drop(b.local_ty[l as usize]) != Tri::No,
+            Key::Local(l) => cx.holds_drop(b.local_ty[l as usize]) != Tri::No,
             Key::Value(v) => cx.holds_drop(b.ty[v as usize]) != Tri::No,
         };
         let memo = std::cell::RefCell::new(&mut hooked);
         MovePaths::build(
             b,
             |k| *memo.borrow_mut().entry(k).or_insert_with(|| tracked(k)),
+            |k| matches!(k, Key::Local(l) if cells[l as usize]),
             &dropped,
         )
     };
@@ -277,11 +289,12 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
         };
         for c in (start..start + len).map(|c| c as usize) {
             let key = Key::Local(b.cap_local[c].raw());
+            // A cell moved into a closure goes with its count, not its value.
             if b.cap_mode[c] == CaptureMode::Move
-                && *hooked.entry(key).or_insert_with(|| {
-                    !cells[b.cap_local[c].idx()]
-                        && cx.holds_drop(b.local_ty[b.cap_local[c].idx()]) != Tri::No
-                })
+                && !cells[b.cap_local[c].idx()]
+                && *hooked
+                    .entry(key)
+                    .or_insert_with(|| cx.holds_drop(b.local_ty[b.cap_local[c].idx()]) != Tri::No)
             {
                 let at = paths.root(key);
                 paths.moved[at as usize] = true;
@@ -356,6 +369,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     }
     for (l, &s) in sub_of.iter().enumerate() {
         if b.local_flags[l] & local_flags::PARAM != 0
+            && !cells[l]
             && let Some(&at) = paths.by_key.get(&Key::Local(u32_of(l)))
         {
             let root = b.sub_root[s];
@@ -379,12 +393,16 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             Tag::Drop => Tag::FlagClear,
             _ => continue,
         };
-        if let Some(at) = paths.find(b, b.data[i][0])
-            && (tag != Tag::FlagClear || b.tags[i] == Tag::Read || paths.moved[at as usize])
-        {
-            let (blk, pos) = after(b, topo, i);
-            put(blk, pos, tag, at, syn);
-        }
+        let Some(at) = paths.find(b, b.data[i][0]) else {
+            continue;
+        };
+        let cell = matches!(paths.key[at as usize], Key::Local(l) if cells[l as usize]);
+        let (blk, pos) = match b.tags[i] {
+            Tag::Drop if cell || !paths.moved[at as usize] => continue,
+            Tag::Read if cell => (topo.blk[i], topo.pos[i]),
+            _ => after(b, topo, i),
+        };
+        put(blk, pos, tag, at, syn);
     }
 }
 
@@ -430,7 +448,7 @@ mod tests {
 
     #[test]
     fn a_moved_field_flags_its_path_and_the_paths_above_it_only() {
-        let paths = MovePaths::build(&body(1), |_| true, &HashMap::default());
+        let paths = MovePaths::build(&body(1), |_| true, |_| false, &HashMap::default());
         // $0, $0 .1, $0 .1 .0, then $1, which nothing moves.
         assert_eq!(paths.key.len(), 4);
         assert_eq!(paths.parent, [NONE, 0, 1, NONE]);
@@ -440,8 +458,8 @@ mod tests {
 
     #[test]
     fn the_table_grows_linearly_with_the_places_named() {
-        let small = MovePaths::build(&body(100), |_| true, &HashMap::default());
-        let large = MovePaths::build(&body(1000), |_| true, &HashMap::default());
+        let small = MovePaths::build(&body(100), |_| true, |_| false, &HashMap::default());
+        let large = MovePaths::build(&body(1000), |_| true, |_| false, &HashMap::default());
         assert_eq!(small.key.len(), 3 * 100 + 1);
         assert_eq!(large.key.len(), 3 * 1000 + 1);
         assert_eq!(large.flagged().iter().filter(|&&f| f).count(), 3 * 1000);

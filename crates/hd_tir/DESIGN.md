@@ -835,7 +835,7 @@ or `REPEAT` when an existing fact already proves uniqueness. The type is `void`.
 | `Drop` | releases the value at the place and leaves it empty; a drop of an empty place does nothing |
 | `IsUnique` | makes the buffer of the list or map at the place its own, copying it when another holder shares it |
 | `Pin` | after an `IsUnique` of the same list place, marks its header as its buffer's one owner while element references hold counts of the buffer |
-| `FlagSet`, `FlagClear` | set and clear the drop flag of a move path (`own/drop_flags.rs`): a is the path, a part of a local or a value in place, and b its `bool` flag local; the statement uses no value. A hook at node P runs when its nearest flagged path and every flagged path under P hold |
+| `FlagSet`, `FlagClear` | set and clear the drop flag of a move path (`own/drop_flags.rs`): a is the path, a part of a local or a value in place, and b its `bool` flag local; the statement uses no value. A hook at node P runs when its nearest flagged path and every flagged path under P hold. On a cell or a frame slot the backend writes the flag slots of its layout instead of b, and a cell's clear for a whole move stands before the move, which may free the cell |
 
 A body's one exit per sub-body drops the locals of its exit set,
 `exit_drops`: rows of a sub-body and a local, sorted, which the passes

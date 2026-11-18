@@ -303,7 +303,7 @@ pub fn main() -> void $ Console:
 >   %77 = Scope %76 [] : UniqList[i32]
 >   %78 = Store [$4] %77 : ()
 >   %79 = FlagSet [$4] #16 : ()
->   %125 = Release %124 Operation local $4 #2 : ()
+>   %126 = Release %125 Operation local $4 #2 : ()
     items.push(7)
 >   %80 = Ref mut local frame [$4] : &mut UniqList[i32]
 >   %81 = Store [$7] %80 : ()
@@ -351,9 +351,9 @@ pub fn main() -> void $ Console:
 >   %123 = LoanEnd [$7] : ()
 >   %80 finds [$4] full
     println(unique(items).len())
->   %124 = Read move [$4] : UniqList[i32]
->   %126 = FlagClear [$4] #16 : ()
->   %127 = Call app/main/unique[] (%124) : UniqList[i32]
+>   %124 = FlagClear [$4] #16 : ()
+>   %125 = Read move [$4] : UniqList[i32]
+>   %127 = Call app/main/unique[] (%125) : UniqList[i32]
 >   %128 = Store [$5] %127 : ()
 >   %129 = Ref local frame [$5] : &UniqList[i32]
 >   %130 = Read copy [*%129 .len] : usize
@@ -363,7 +363,7 @@ pub fn main() -> void $ Console:
 >   %134 = LoanEnd [%129] : ()
 >   %135 = Drop [$5] : ()
 >   %136 = Call std/console/println[usize] (%133) : ()
->   %124 finds [$4] full
+>   %125 finds [$4] full
 >   %129 finds [$5] full
     println(original)
 >   %137 = Read move [$0] : string

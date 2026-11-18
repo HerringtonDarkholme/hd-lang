@@ -536,7 +536,6 @@ impl Em<'_, '_, '_> {
     pub(super) fn replace(&mut self, d: Dst, t: Ty, v: u32) -> StageResult<()> {
         if !self.needs_drop(t) {
             self.write_new(d, &Src::Ref(v))?;
-            self.stored_drop();
             return Ok(());
         }
         let s = self.consumed(v)?;
@@ -546,7 +545,6 @@ impl Em<'_, '_, '_> {
             self.release_old_drop(&old, t)?;
         }
         self.write_new(d, &s)?;
-        self.stored_drop();
         Ok(())
     }
 
@@ -562,7 +560,6 @@ impl Em<'_, '_, '_> {
         if drops {
             self.release_old_drop(old, t)?;
         }
-        self.stored_drop();
         Ok(())
     }
 

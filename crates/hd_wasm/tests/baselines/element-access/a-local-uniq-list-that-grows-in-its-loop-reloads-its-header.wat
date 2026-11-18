@@ -79,21 +79,6 @@
     if
       local.get $xs
       call $rt:drop
-      local.get $xs
-      i32.const 0
-      i32.store $heap offset=12
-      local.get $xs
-      i32.const 0
-      i32.store $heap offset=16
-      local.get $xs
-      i32.const 0
-      i32.store $heap offset=20
-      local.get $xs
-      i32.const 0
-      i32.store $heap offset=24
-      local.get $xs
-      i32.const 0
-      i32.store $heap offset=28
     end
     ;; ...
   )
