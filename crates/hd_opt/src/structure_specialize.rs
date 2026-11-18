@@ -117,7 +117,7 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
         }
         let instance = match supplied {
             Some((copy, hash, _)) => instantiate(env, copy, hash, def, targs),
-            None => instance(env, def, targs),
+            None => instance(env, def, targs, usize::MAX).map(|(copy, hash, _)| (copy, hash)),
         };
         let Some((mut copy, copy_hash)) = instance else {
             continue;
@@ -454,27 +454,17 @@ fn inline_selected_methods_with(
         let Some((def, args)) = env.impl_target(&callee) else {
             continue;
         };
-        let Some((raw, _)) = env.checked_body(def) else {
-            continue;
-        };
-        let Some(cost) = crate::inline::bounded_inline_metadata(raw) else {
-            continue;
-        };
-        let Some(left) = (if shared {
-            Some(0)
-        } else {
-            remaining.checked_sub(cost)
-        }) else {
-            continue;
-        };
-        let Some((mut copy, hash)) = instance(env, def, args) else {
+        let budget = if shared { usize::MAX } else { remaining };
+        let Some((mut copy, hash, left)) = instance(env, def, args, budget) else {
             continue;
         };
         copy.kind = BodyKind::Fn;
         if !fits_call(env, body, call, &mut copy) {
             continue;
         }
-        remaining = left;
+        if !shared {
+            remaining = left;
+        }
         sites.push(Site {
             call,
             copy,
@@ -544,12 +534,21 @@ fn closed(env: &dyn StructureEnv, args: TyList) -> bool {
     })
 }
 
-fn instance(env: &dyn StructureEnv, def: DefId, args: TyList) -> Option<(Body, Hash128)> {
+fn instance(
+    env: &dyn StructureEnv,
+    def: DefId,
+    args: TyList,
+    budget: usize,
+) -> Option<(Body, Hash128, usize)> {
     let (raw, hash) = env.checked_body(def)?;
-    crate::inline::bounded_inline_metadata(raw)?;
+    // Check metadata and the caller's remaining budget before decoding a
+    // fresh copy. Each candidate is queried and priced once.
+    let cost = crate::inline::bounded_inline_metadata(raw)?;
+    let left = budget.checked_sub(cost)?;
     let hash = *hash;
     let copy = env.fresh_body(def)?;
-    instantiate(env, copy, hash, def, args)
+    let (copy, hash) = instantiate(env, copy, hash, def, args)?;
+    Some((copy, hash, left))
 }
 
 fn instantiate(

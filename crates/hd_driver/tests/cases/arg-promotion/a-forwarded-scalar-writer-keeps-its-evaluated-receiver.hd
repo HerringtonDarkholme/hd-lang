@@ -1,0 +1,83 @@
+# @dump: own wat
+# @build: release
+# expected: the one-call forwarder preserves a writer just above the ordinary copy budget.
+use std.annotation.inline
+
+@inline(.Always)
+fn write(state: &mut usize, value: usize) -> void:
+    *state = (
+        value
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+        + 1
+    )
+
+fn forward(state: &mut usize, value: usize) -> void:
+    write(state, value)
+
+# subject
+fn digest(value: usize) -> usize:
+    let mut state: usize = 7
+    forward(&mut state, value)
+    state

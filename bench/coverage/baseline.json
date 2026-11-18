@@ -8,6 +8,7 @@
     "hd_tir": 96.96,
     "hd_mono": 94.31,
     "hd_opt": 96.17,
-    "hd_wasm": 97.33
+    "hd_wasm": 97.33,
+    "hd_layout": 98.03
   }
 }

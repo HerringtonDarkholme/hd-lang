@@ -1,0 +1,208 @@
+# @dump: stdout
+# @build: release checked
+# expected: reference parameters beyond the promotion mask keep ordinary call bindings.
+use std.testing.assert_equal
+
+fn write(
+    r0: &mut i32,
+    r1: &mut i32,
+    r2: &mut i32,
+    r3: &mut i32,
+    r4: &mut i32,
+    r5: &mut i32,
+    r6: &mut i32,
+    r7: &mut i32,
+    r8: &mut i32,
+    r9: &mut i32,
+    r10: &mut i32,
+    r11: &mut i32,
+    r12: &mut i32,
+    r13: &mut i32,
+    r14: &mut i32,
+    r15: &mut i32,
+    r16: &mut i32,
+    r17: &mut i32,
+    r18: &mut i32,
+    r19: &mut i32,
+    r20: &mut i32,
+    r21: &mut i32,
+    r22: &mut i32,
+    r23: &mut i32,
+    r24: &mut i32,
+    r25: &mut i32,
+    r26: &mut i32,
+    r27: &mut i32,
+    r28: &mut i32,
+    r29: &mut i32,
+    r30: &mut i32,
+    r31: &mut i32,
+    r32: &mut i32,
+    r33: &mut i32,
+    r34: &mut i32,
+    r35: &mut i32,
+    r36: &mut i32,
+    r37: &mut i32,
+    r38: &mut i32,
+    r39: &mut i32,
+    r40: &mut i32,
+    r41: &mut i32,
+    r42: &mut i32,
+    r43: &mut i32,
+    r44: &mut i32,
+    r45: &mut i32,
+    r46: &mut i32,
+    r47: &mut i32,
+    r48: &mut i32,
+    r49: &mut i32,
+    r50: &mut i32,
+    r51: &mut i32,
+    r52: &mut i32,
+    r53: &mut i32,
+    r54: &mut i32,
+    r55: &mut i32,
+    r56: &mut i32,
+    r57: &mut i32,
+    r58: &mut i32,
+    r59: &mut i32,
+    r60: &mut i32,
+    r61: &mut i32,
+    r62: &mut i32,
+    r63: &mut i32,
+    r64: &mut i32,
+) -> void:
+    *r64 += 1
+
+pub fn main() -> void:
+    let mut value0 = +7
+    let mut value1 = +7
+    let mut value2 = +7
+    let mut value3 = +7
+    let mut value4 = +7
+    let mut value5 = +7
+    let mut value6 = +7
+    let mut value7 = +7
+    let mut value8 = +7
+    let mut value9 = +7
+    let mut value10 = +7
+    let mut value11 = +7
+    let mut value12 = +7
+    let mut value13 = +7
+    let mut value14 = +7
+    let mut value15 = +7
+    let mut value16 = +7
+    let mut value17 = +7
+    let mut value18 = +7
+    let mut value19 = +7
+    let mut value20 = +7
+    let mut value21 = +7
+    let mut value22 = +7
+    let mut value23 = +7
+    let mut value24 = +7
+    let mut value25 = +7
+    let mut value26 = +7
+    let mut value27 = +7
+    let mut value28 = +7
+    let mut value29 = +7
+    let mut value30 = +7
+    let mut value31 = +7
+    let mut value32 = +7
+    let mut value33 = +7
+    let mut value34 = +7
+    let mut value35 = +7
+    let mut value36 = +7
+    let mut value37 = +7
+    let mut value38 = +7
+    let mut value39 = +7
+    let mut value40 = +7
+    let mut value41 = +7
+    let mut value42 = +7
+    let mut value43 = +7
+    let mut value44 = +7
+    let mut value45 = +7
+    let mut value46 = +7
+    let mut value47 = +7
+    let mut value48 = +7
+    let mut value49 = +7
+    let mut value50 = +7
+    let mut value51 = +7
+    let mut value52 = +7
+    let mut value53 = +7
+    let mut value54 = +7
+    let mut value55 = +7
+    let mut value56 = +7
+    let mut value57 = +7
+    let mut value58 = +7
+    let mut value59 = +7
+    let mut value60 = +7
+    let mut value61 = +7
+    let mut value62 = +7
+    let mut value63 = +7
+    let mut value64 = +7
+    write(
+        &mut value0,
+        &mut value1,
+        &mut value2,
+        &mut value3,
+        &mut value4,
+        &mut value5,
+        &mut value6,
+        &mut value7,
+        &mut value8,
+        &mut value9,
+        &mut value10,
+        &mut value11,
+        &mut value12,
+        &mut value13,
+        &mut value14,
+        &mut value15,
+        &mut value16,
+        &mut value17,
+        &mut value18,
+        &mut value19,
+        &mut value20,
+        &mut value21,
+        &mut value22,
+        &mut value23,
+        &mut value24,
+        &mut value25,
+        &mut value26,
+        &mut value27,
+        &mut value28,
+        &mut value29,
+        &mut value30,
+        &mut value31,
+        &mut value32,
+        &mut value33,
+        &mut value34,
+        &mut value35,
+        &mut value36,
+        &mut value37,
+        &mut value38,
+        &mut value39,
+        &mut value40,
+        &mut value41,
+        &mut value42,
+        &mut value43,
+        &mut value44,
+        &mut value45,
+        &mut value46,
+        &mut value47,
+        &mut value48,
+        &mut value49,
+        &mut value50,
+        &mut value51,
+        &mut value52,
+        &mut value53,
+        &mut value54,
+        &mut value55,
+        &mut value56,
+        &mut value57,
+        &mut value58,
+        &mut value59,
+        &mut value60,
+        &mut value61,
+        &mut value62,
+        &mut value63,
+        &mut value64,
+    )
+    assert_equal(value64, 8)

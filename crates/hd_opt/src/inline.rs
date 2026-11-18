@@ -2331,6 +2331,59 @@ mod tests {
     use super::{bottom_up, keep_parameter_kind};
 
     #[test]
+    fn entry_work_handles_empty_nonblock_and_host_roots() {
+        let mut body = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        assert_eq!(super::entry_work(&body, |_| panic!("no calls")), 0);
+        body.tags = vec![Tag::CallHost, Tag::Block];
+        body.data = vec![[0, 0], [0, 0]];
+        body.ty = vec![Ty::VOID; 2];
+        body.sub_root = vec![0];
+        assert_eq!(super::entry_work(&body, |_| panic!("host call")), 0);
+        body.data[1][0] = body.push_record(&[0]);
+        body.sub_root[0] = 1;
+        assert_eq!(
+            super::entry_work(&body, |_| panic!("host call")),
+            super::AUTO_INLINE_LIMIT
+        );
+    }
+
+    #[test]
+    fn writer_cleanup_does_not_expose_addresses_and_constants_have_no_origin() {
+        use hd_tir::ir::{Callee, Providers, Ref, TirBuilder};
+        let at = hd_base::NodeIdx::NONE;
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = b.open_block();
+        let value = b.const_value(Ty::I32, 7);
+        let arg = b.prim(hd_tir::ir::PrimOp::Add as u32, &[value, value], Ty::I32, at);
+        let call = b.call(
+            &Callee::Item {
+                def: DefId::from_raw(2),
+                targs: hd_types::TyList::EMPTY,
+            },
+            &[arg, value],
+            Providers::None,
+            Ty::VOID,
+            at,
+        );
+        let root = b.close_block(root, None, Ty::VOID, at);
+        let mut body = b.finish(root, &[]).expect("writer arguments");
+        let origins = vec![Some(super::WriterOrigin::Local(0)); body.len()];
+        let call = call.as_inst().unwrap().0 as usize;
+        assert!(super::writer_arguments(&body, call, 1, &origins));
+        assert!(!super::writer_arguments(&body, call, 2, &origins));
+        let before = super::writer_uses(&body);
+        // Cleanup is not an observable read, even when the place's root is
+        // an evaluated value whose ordinary uses the analysis counts.
+        let place = body.push_record(&[place::ROOT_VALUE, arg.0]);
+        body.tags.extend([Tag::Drop, Tag::LoanEnd]);
+        body.data.extend([[place, 0]; 2]);
+        body.ty.extend([Ty::VOID; 2]);
+        let after = super::writer_uses(&body);
+        assert_eq!(&after[..before.len()], before);
+        assert_eq!(Ref(arg.0).as_inst().map(|i| after[i.0 as usize]), Some(1));
+    }
+
+    #[test]
     fn entry_call_work_is_linear_and_does_not_enter_nested_blocks() {
         use hd_tir::ir::{Callee, Providers, TirBuilder};
         let at = hd_base::NodeIdx::NONE;
