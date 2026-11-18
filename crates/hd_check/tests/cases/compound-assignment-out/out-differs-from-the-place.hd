@@ -1,0 +1,36 @@
+# @dump: diagnostics
+# `p op= e` stores as `p = p op e` (`expr.assign.compound.meaning`): an
+# `Add` whose `Out` is not the place's type is a mismatch in every place
+# form, and an `Out` equal to it is accepted.
+use std.ops.Add
+
+struct Box1[T]:
+    value: T
+
+fn local[T < Add[i32, Out = i32]](x: T) -> void:
+    let mut z = x
+    z += 1
+
+fn field[T < Add[i32, Out = i32]](b: Box1[T]) -> void:
+    let mut c = b
+    c.value += 1
+
+fn element[T < Add[i32, Out = i32]](xs: List[T]) -> void:
+    let mut ys = xs
+    ys[0] += 1
+
+fn through[T < Add[i32, Out = i32]](p: &mut T) -> void:
+    *p += 1
+
+fn same[T < Add[i32, Out = T]](x: T) -> T:
+    let mut z = x
+    z += 1
+    z
+
+fn seven() -> impl Add[i32, Out = i32]:
+    let x: i32 = 7
+    x
+
+fn opaque() -> void:
+    let mut z = seven()
+    z += 1

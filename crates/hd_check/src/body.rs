@@ -4868,7 +4868,12 @@ impl Ck<'_, '_> {
         // `expr.assign.compound.ref-read`: a `&T` right side reads its `T`;
         // the place keeps its own type.
         let (r, rt, _) = self.ref_operand(op, (r, rt, false), rhs);
-        self.binary_values(op, (cur, t), (r, rt), at, rhs)
+        let v = self.binary_values(op, (cur, t), (r, rt), at, rhs)?;
+        // `expr.assign.compound.meaning`: the result is stored as
+        // `p = p op e` stores it, so an operator whose `Out` is not the
+        // place's type is a mismatch there.
+        let vt = self.b.ty_of(v);
+        Ok(self.coerce(v, vt, t, at, "assignment", ExpectPosition::General))
     }
 
     /// Resolves every type the body recorded; literal variables with no
