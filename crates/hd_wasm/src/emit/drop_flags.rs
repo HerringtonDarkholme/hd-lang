@@ -390,16 +390,17 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Scalar storage the separate frame destructor reads: each cell's
-    /// address and each TIR flag local. Select these before assigning
-    /// compact offsets.
-    pub(super) fn select_frame_drop_flags(&mut self, selected: &mut [bool]) {
+    /// Scalar storage the frame destructor reads, selected before compact
+    /// offsets: each cell's address and the TIR flags of `cold`, what a
+    /// cold frame holds; the collector traces a started frame through it.
+    pub(super) fn select_frame_drop_flags(&mut self, cold: &[usize], selected: &mut [bool]) {
         for state in self.drop_states.values() {
             for flag in &state.flags {
                 selected[flag.0 as usize] = true;
             }
         }
-        for paths in self.tir_flags().values() {
+        let flags = self.tir_flags();
+        for paths in cold.iter().filter_map(|&l| flags.get(&Root::Local(l))) {
             for (_, flag) in paths {
                 for &local in self.locals.get(&(*flag as usize)).into_iter().flatten() {
                     selected[local as usize] = true;

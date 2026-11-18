@@ -1,0 +1,31 @@
+# @dump: own wat
+# @build: std
+# expected: drop flags (#1420). `item` moves out on one branch and drops
+# at its block's end, before the await, so its flag (#12) and the inlined
+# `push`'s flags are dead there and stay Wasm locals: the body's 40-byte
+# stack area saves none of them.
+# `kept`, a parameter moved after the await, keeps its flag (#14) in the
+# frame: the abandoned-frame destructor, and the cycle collector tracing a
+# started frame through it, skip its hook by that flag.
+use std.collections.UniqList
+use std.rt.Drop
+use std.time.{Clock, ms, sleep}
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        self.name = "dropped"
+
+# subject
+fn wait!(kept: Item, bag: *mut UniqList[Item], ready: bool, early: bool) -> void $ Clock:
+    if ready:
+        item := Item { name: "x" }
+        if early:
+            bag.push(item)
+    sleep!(ms(1))
+    if early:
+        bag.push(kept)

@@ -1400,7 +1400,16 @@ pub(super) fn finish(
     // Hidden cold-constructor and destructor reads are not in the body's
     // CFG. Account for them before assigning offsets, not by reserving a
     // hole for every ephemeral Wasm scratch local.
-    em.select_frame_drop_flags(&mut selected);
+    // What a cold frame holds of the exit set: its parameters and a
+    // closure's captures. The body's other locals are set only once it
+    // runs, and a started frame is never freed (pinned below).
+    let owned: Vec<usize> = em
+        .exit_owners()
+        .iter()
+        .copied()
+        .filter(|local| em.parameter_positions.contains_key(local) || em.captured_local(*local))
+        .collect();
+    em.select_frame_drop_flags(&owned, &mut selected);
     em.select_frame_loan_cells(&mut selected);
     for &local in em.exit_owners().iter().chain(plocals) {
         if (em.parameter_positions.contains_key(&local) || em.captured_local(local))
@@ -1463,16 +1472,7 @@ pub(super) fn finish(
         em.f.op(I::End);
     }
     let body_flags = em.reload_drop_flags(&positions);
-    // What a cold frame holds of the exit set: its parameters and a
-    // closure's captures. The body's other locals are set only once it
-    // runs, and a started frame is never freed (pinned above).
     let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
-    let owned: Vec<usize> = em
-        .exit_owners()
-        .iter()
-        .copied()
-        .filter(|local| em.parameter_positions.contains_key(local) || em.captured_local(*local))
-        .collect();
     for l in owned {
         if !em.loan_locals.contains_key(&l)
             && !em.borrowed.contains(&l)
