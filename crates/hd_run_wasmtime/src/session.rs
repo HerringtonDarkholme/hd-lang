@@ -66,19 +66,9 @@ struct SessionInfo {
 }
 
 fn leb(bytes: &[u8], at: &mut usize) -> Result<usize, String> {
-    let mut value = 0_usize;
-    for shift in (0..35).step_by(7) {
-        let byte = *bytes.get(*at).ok_or("truncated session metadata")?;
-        *at += 1;
-        if shift == 28 && byte > 15 {
-            return Err("session metadata length overflows u32".into());
-        }
-        value |= usize::from(byte & 127) << shift;
-        if byte < 128 {
-            return Ok(value);
-        }
-    }
-    Err("session metadata length overflows u32".into())
+    hd_base::leb::get(bytes, at, 32)
+        .and_then(|v| usize::try_from(v).ok())
+        .ok_or_else(|| "truncated session metadata, or a length over u32".into())
 }
 
 impl SessionInfo {
@@ -223,10 +213,10 @@ fn join_journals(chunks: &[&[u8]]) -> Result<Vec<u8>, String> {
                 let mut payload = Vec::new();
                 let index = methods.len();
                 let known = methods.get(&key).copied();
-                journal::put_uleb(&mut payload, known.unwrap_or(index) as u64);
+                hd_base::leb::put(&mut payload, known.unwrap_or(index) as u64);
                 if known.is_none() {
                     for text in [&key.0, &key.1] {
-                        journal::put_uleb(&mut payload, text.len() as u64);
+                        hd_base::leb::put(&mut payload, text.len() as u64);
                         payload.extend_from_slice(text.as_bytes());
                     }
                     methods.insert(key, index);

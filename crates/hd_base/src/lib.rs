@@ -9,6 +9,7 @@
 
 pub mod append;
 pub mod hash;
+pub mod leb;
 pub mod limits;
 pub mod lines;
 pub mod path;

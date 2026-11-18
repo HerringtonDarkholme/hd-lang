@@ -44,19 +44,7 @@ fn count_sites(data: &[u8]) -> Option<Vec<CountSite>> {
 }
 
 fn leb(bytes: &mut &[u8]) -> Option<usize> {
-    let mut value = 0u32;
-    for shift in (0..35).step_by(7) {
-        let (&byte, rest) = bytes.split_first()?;
-        *bytes = rest;
-        if shift == 28 && byte > 15 {
-            return None;
-        }
-        value |= u32::from(byte & 127) << shift;
-        if byte < 128 {
-            return Some(value as usize);
-        }
-    }
-    None
+    usize::try_from(hd_base::leb::take(bytes, 32)?).ok()
 }
 
 impl Report {

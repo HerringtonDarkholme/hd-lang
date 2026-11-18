@@ -140,18 +140,7 @@ pub(crate) fn instrument(
 /// Resolve the private site's source anchors against this build's sources.
 /// This happens after linking, so cached machine code never freezes line numbers.
 pub fn resolve(wasm: &mut Vec<u8>, line: impl Fn(&str, u32) -> Option<(String, u32)>) {
-    fn leb(bytes: &mut &[u8]) -> Option<usize> {
-        let mut n = 0usize;
-        for shift in (0..35).step_by(7) {
-            let (&b, rest) = bytes.split_first()?;
-            *bytes = rest;
-            n |= usize::from(b & 127) << shift;
-            if b < 128 {
-                return Some(n);
-            }
-        }
-        None
-    }
+    let leb = |bytes: &mut &[u8]| usize::try_from(hd_base::leb::take(bytes, 32)?).ok();
     let Some(mut bytes) = wasm.get(8..) else {
         return;
     };

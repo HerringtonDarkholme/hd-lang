@@ -19,16 +19,9 @@ impl Enc {
     pub fn zz(&mut self, v: i64) -> &mut Self {
         self.leb((v.unsigned_abs() << 1).wrapping_sub(u64::from(v < 0)))
     }
-    pub fn leb(&mut self, mut v: u64) -> &mut Self {
-        loop {
-            let byte = u8::try_from(v & 0x7f).unwrap_or(0);
-            v >>= 7;
-            if v == 0 {
-                self.buf.push(byte);
-                return self;
-            }
-            self.buf.push(byte | 0x80);
-        }
+    pub fn leb(&mut self, v: u64) -> &mut Self {
+        hd_base::leb::put(&mut self.buf, v);
+        self
     }
 
     pub fn bytes(&mut self, b: &[u8]) -> &mut Self {
@@ -77,19 +70,7 @@ impl<'a> Dec<'a> {
     }
 
     pub fn leb(&mut self) -> wasmtime::Result<u64> {
-        let mut value = 0_u64;
-        for shift in (0..70).step_by(7) {
-            let byte = *self.bytes.get(self.at).ok_or_else(decode_error)?;
-            self.at += 1;
-            if shift == 63 && byte > 1 {
-                return Err(decode_error());
-            }
-            value |= u64::from(byte & 127) << shift;
-            if byte & 128 == 0 {
-                return Ok(value);
-            }
-        }
-        Err(decode_error())
+        hd_base::leb::get(self.bytes, &mut self.at, 64).ok_or_else(decode_error)
     }
 
     /// The bytes not read yet.

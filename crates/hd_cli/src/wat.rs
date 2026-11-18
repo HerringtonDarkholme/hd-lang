@@ -127,16 +127,8 @@ fn renamed(wasm: &[u8], names: &[(u32, &str)]) -> Result<Vec<u8>, String> {
 }
 
 /// Appends `n` as unsigned LEB128.
-fn leb(out: &mut Vec<u8>, mut n: usize) {
-    loop {
-        let byte = n.to_le_bytes()[0] & 0x7f;
-        n >>= 7;
-        if n == 0 {
-            out.push(byte);
-            return;
-        }
-        out.push(byte | 0x80);
-    }
+fn leb(out: &mut Vec<u8>, n: usize) {
+    hd_base::leb::put(out, n as u64);
 }
 
 #[cfg(test)]

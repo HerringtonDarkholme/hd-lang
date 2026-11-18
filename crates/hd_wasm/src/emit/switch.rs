@@ -56,7 +56,7 @@ enum Same {
 
 /// The bytes of `v` as an unsigned LEB128.
 fn uleb(v: u64) -> u64 {
-    u64::from((64 - (v | 1).leading_zeros()).div_ceil(7))
+    hd_base::leb::len(v) as u64
 }
 
 /// The bytes of `v` as a signed LEB128.

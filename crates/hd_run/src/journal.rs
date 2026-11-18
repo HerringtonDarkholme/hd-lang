@@ -34,6 +34,8 @@
 //! results stay inline in memory; the blob store of §4.3 comes with
 //! journal files.
 
+use hd_base::leb;
+
 /// Row kinds (§4.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
@@ -108,36 +110,6 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     !c
 }
 
-pub fn put_uleb(out: &mut Vec<u8>, mut v: u64) {
-    loop {
-        let byte = u8::try_from(v & 0x7f).expect("7 bits");
-        v >>= 7;
-        if v == 0 {
-            out.push(byte);
-            return;
-        }
-        out.push(byte | 0x80);
-    }
-}
-
-/// The number of bytes `put_uleb` writes for `v`.
-fn uleb_len(v: u64) -> usize {
-    (64 - v.max(1).leading_zeros() as usize).div_ceil(7)
-}
-
-fn get_uleb(b: &[u8], at: &mut usize) -> Option<u64> {
-    let mut v = 0u64;
-    for shift in (0..64).step_by(7) {
-        let byte = *b.get(*at)?;
-        *at += 1;
-        v |= u64::from(byte & 0x7f) << shift;
-        if byte & 0x80 == 0 {
-            return Some(v);
-        }
-    }
-    None
-}
-
 /// Appends one framed row.
 pub fn append(out: &mut Vec<u8>, row: &Row) {
     append_parts(out, row.kind, row.index, &row.payload);
@@ -146,8 +118,8 @@ pub fn append(out: &mut Vec<u8>, row: &Row) {
 fn append_parts(out: &mut Vec<u8>, kind: RowKind, index: u64, payload: &[u8]) {
     let start = out.len();
     out.push(kind as u8);
-    put_uleb(out, index);
-    put_uleb(out, payload.len() as u64);
+    leb::put(out, index);
+    leb::put(out, payload.len() as u64);
     out.extend_from_slice(payload);
     let crc = crc32(&out[start..]);
     out.extend_from_slice(&crc.to_le_bytes());
@@ -167,8 +139,8 @@ pub fn read(b: &[u8]) -> (Vec<Row>, usize) {
         at += 1;
         let parsed = (|| {
             let kind = *RowKind::ALL.get(k as usize)?;
-            let index = get_uleb(b, &mut at)?;
-            let len = usize::try_from(get_uleb(b, &mut at)?).ok()?;
+            let index = leb::get(b, &mut at, 64)?;
+            let len = usize::try_from(leb::get(b, &mut at, 64)?).ok()?;
             let payload = b.get(at..at + len)?.to_vec();
             at += len;
             let crc = u32::from_le_bytes(b.get(at..at + 4)?.try_into().ok()?);
@@ -248,7 +220,7 @@ impl Request {
 /// in their order among the parameters, and last the exchange buffer bytes
 /// the call reads, as they are.
 pub fn put_int_arg(args: &mut Vec<u8>, v: i64) {
-    put_uleb(args, u64::from_le_bytes(v.to_le_bytes()));
+    leb::put(args, u64::from_le_bytes(v.to_le_bytes()));
 }
 
 /// Appends a float parameter to a call's arguments: its IEEE 754 bits.
@@ -330,23 +302,23 @@ fn decode_row(row: &Row, methods: &mut Vec<(String, String)>) -> Option<Event> {
     let u32_of = |v: u64| u32::try_from(v).ok();
     let event = match row.kind {
         RowKind::Header => Event::Header {
-            format: get_uleb(b, at)?,
+            format: leb::get(b, at, 64)?,
             execution: get_u128(b, at)?,
         },
         RowKind::Input => Event::Input {
-            number: u32_of(get_uleb(b, at)?)?,
+            number: u32_of(leb::get(b, at, 64)?)?,
             source: get_u128(b, at)?,
             module: get_u128(b, at)?,
         },
         RowKind::Call => {
-            let method = usize::try_from(get_uleb(b, at)?).ok()?;
+            let method = usize::try_from(leb::get(b, at, 64)?).ok()?;
             if method == methods.len() {
                 let module = get_text(b, at)?;
                 let name = get_text(b, at)?;
                 methods.push((module, name));
             }
             let (module, name) = methods.get(method)?.clone();
-            let len = get_uleb(b, at)?;
+            let len = leb::get(b, at, 64)?;
             let request = if len <= 8 {
                 Request::Args(get_bytes(b, at, usize::try_from(len).ok()?)?)
             } else {
@@ -365,7 +337,7 @@ fn decode_row(row: &Row, methods: &mut Vec<(String, String)>) -> Option<Event> {
             }
         }
         RowKind::Finish => {
-            let handle = u32_of(get_uleb(b, at)?)?;
+            let handle = u32_of(leb::get(b, at, 64)?)?;
             let (value, result) = get_reply(b, at)?;
             Event::Finish {
                 handle,
@@ -374,17 +346,17 @@ fn decode_row(row: &Row, methods: &mut Vec<(String, String)>) -> Option<Event> {
             }
         }
         RowKind::Wake => Event::Wake {
-            poll: get_uleb(b, at)?,
+            poll: leb::get(b, at, 64)?,
             handles: get_handles(b, at)?,
         },
         RowKind::Block => Event::Block {
             handles: get_handles(b, at)?,
         },
         RowKind::Abort => Event::Abort {
-            handle: u32_of(get_uleb(b, at)?)?,
+            handle: u32_of(leb::get(b, at, 64)?)?,
         },
         RowKind::Cancel => Event::Cancel {
-            poll: get_uleb(b, at)?,
+            poll: leb::get(b, at, 64)?,
         },
         RowKind::End => Event::End(match get_bytes(b, at, 1)?[0] {
             0 => End::Exit(get_bytes(b, at, 1)?[0]),
@@ -409,14 +381,14 @@ fn get_u128(b: &[u8], at: &mut usize) -> Option<u128> {
 }
 
 fn get_text(b: &[u8], at: &mut usize) -> Option<String> {
-    let len = usize::try_from(get_uleb(b, at)?).ok()?;
+    let len = usize::try_from(leb::get(b, at, 64)?).ok()?;
     String::from_utf8(get_bytes(b, at, len)?).ok()
 }
 
 fn get_handles(b: &[u8], at: &mut usize) -> Option<Vec<u32>> {
-    let n = get_uleb(b, at)?;
+    let n = leb::get(b, at, 64)?;
     (0..n)
-        .map(|_| u32::try_from(get_uleb(b, at)?).ok())
+        .map(|_| u32::try_from(leb::get(b, at, 64)?).ok())
         .collect()
 }
 
@@ -425,14 +397,14 @@ fn get_reply(b: &[u8], at: &mut usize) -> Option<(Value, Option<Vec<u8>>)> {
     let low = |v: u64| i32::from_le_bytes(v.to_le_bytes()[..4].try_into().unwrap_or([0; 4]));
     let value = match tag & 3 {
         0 => Value::Void,
-        1 => Value::Int(i64::from_le_bytes(get_uleb(b, at)?.to_le_bytes())),
+        1 => Value::Int(i64::from_le_bytes(leb::get(b, at, 64)?.to_le_bytes())),
         2 => Value::F64(u64::from_le_bytes(get_bytes(b, at, 8)?.try_into().ok()?)),
-        _ => Value::Pair(low(get_uleb(b, at)?), low(get_uleb(b, at)?)),
+        _ => Value::Pair(low(leb::get(b, at, 64)?), low(leb::get(b, at, 64)?)),
     };
     let result = match tag >> 2 {
         0 => None,
         1 => {
-            let len = usize::try_from(get_uleb(b, at)?).ok()?;
+            let len = usize::try_from(leb::get(b, at, 64)?).ok()?;
             Some(get_bytes(b, at, len)?)
         }
         _ => return None,
@@ -445,23 +417,23 @@ fn put_reply(out: &mut Vec<u8>, value: Value, result: Option<&[u8]>) {
     let bits = |v: i32| u64::from(u32::from_le_bytes(v.to_le_bytes()));
     match value {
         Value::Void => {}
-        Value::Int(v) => put_uleb(out, u64::from_le_bytes(v.to_le_bytes())),
+        Value::Int(v) => leb::put(out, u64::from_le_bytes(v.to_le_bytes())),
         Value::F64(bits) => out.extend_from_slice(&bits.to_le_bytes()),
         Value::Pair(status, v) => {
-            put_uleb(out, bits(status));
-            put_uleb(out, bits(v));
+            leb::put(out, bits(status));
+            leb::put(out, bits(v));
         }
     }
     if let Some(bytes) = result {
-        put_uleb(out, bytes.len() as u64);
+        leb::put(out, bytes.len() as u64);
         out.extend_from_slice(bytes);
     }
 }
 
 fn put_handles(out: &mut Vec<u8>, handles: &[u32]) {
-    put_uleb(out, handles.len() as u64);
+    leb::put(out, handles.len() as u64);
     for &h in handles {
-        put_uleb(out, u64::from(h));
+        leb::put(out, u64::from(h));
     }
 }
 
@@ -527,7 +499,7 @@ impl Recorder {
             polls: 0,
             state: State::On,
         };
-        put_uleb(&mut recorder.row, FORMAT);
+        leb::put(&mut recorder.row, FORMAT);
         recorder.row.extend_from_slice(&execution.to_le_bytes());
         recorder.push(RowKind::Header);
         recorder
@@ -582,17 +554,17 @@ impl Recorder {
         let row = &mut self.row;
         match self.sites[site] {
             0 => {
-                put_uleb(row, u64::from(self.methods));
+                leb::put(row, u64::from(self.methods));
                 for text in [module, name] {
-                    put_uleb(row, text.len() as u64);
+                    leb::put(row, text.len() as u64);
                     row.extend_from_slice(text.as_bytes());
                 }
                 self.methods += 1;
                 self.sites[site] = self.methods;
             }
-            n => put_uleb(row, u64::from(n - 1)),
+            n => leb::put(row, u64::from(n - 1)),
         }
-        put_uleb(row, request.len() as u64);
+        leb::put(row, request.len() as u64);
         if request.len() <= 8 {
             row.extend_from_slice(request);
         } else {
@@ -605,7 +577,7 @@ impl Recorder {
     /// A `.finish(handle)` call that returned `value` and `result`.
     pub fn finish(&mut self, handle: u32, value: Value, result: Option<&[u8]>) {
         if self.state == State::On {
-            put_uleb(&mut self.row, u64::from(handle));
+            leb::put(&mut self.row, u64::from(handle));
             put_reply(&mut self.row, value, result);
             self.push(RowKind::Finish);
         }
@@ -622,7 +594,7 @@ impl Recorder {
     /// An `hd:rt` `abort(handle)` call.
     pub fn abort(&mut self, handle: u32) {
         if self.state == State::On {
-            put_uleb(&mut self.row, u64::from(handle));
+            leb::put(&mut self.row, u64::from(handle));
             self.push(RowKind::Abort);
         }
     }
@@ -635,7 +607,7 @@ impl Recorder {
     /// A wake of the input with `handles`, after its polls so far.
     pub fn wake(&mut self, handles: &[u32]) {
         if self.state == State::On {
-            put_uleb(&mut self.row, self.polls);
+            leb::put(&mut self.row, self.polls);
             put_handles(&mut self.row, handles);
             self.push(RowKind::Wake);
         }
@@ -644,7 +616,7 @@ impl Recorder {
     /// The host cancels the input's root, after its polls so far.
     pub fn cancel(&mut self) {
         if self.state == State::On {
-            put_uleb(&mut self.row, self.polls);
+            leb::put(&mut self.row, self.polls);
             self.push(RowKind::Cancel);
         }
     }
@@ -654,7 +626,7 @@ impl Recorder {
     pub fn input(&mut self, number: u32, source: &[u8], module: &[u8]) {
         self.polls = 0;
         if self.state == State::On {
-            put_uleb(&mut self.row, u64::from(number));
+            leb::put(&mut self.row, u64::from(number));
             for bytes in [source, module] {
                 self.row
                     .extend_from_slice(&hd_base::hash128(bytes).0.to_le_bytes());
@@ -683,7 +655,7 @@ impl Recorder {
     /// would pass the cap.
     fn push(&mut self, kind: RowKind) {
         let len = self.row.len();
-        let size = 1 + uleb_len(self.next) + uleb_len(len as u64) + len + 4;
+        let size = 1 + leb::len(self.next) + leb::len(len as u64) + len + 4;
         if self.bytes.len() + size > self.cap {
             self.state = State::Off { told: false };
             self.bytes = Vec::new();

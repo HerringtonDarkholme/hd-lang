@@ -884,8 +884,9 @@ fn strip_custom(wasm: &[u8]) -> (Vec<u8>, Vec<(u64, u64)>) {
     let mut shifts = Vec::new();
     let mut at = 8;
     while at < wasm.len() {
-        let (size, n) = leb(&wasm[at + 1..]);
-        let end = at + 1 + n + size;
+        let mut end = at + 1;
+        let size = hd_base::leb::get(wasm, &mut end, 32).unwrap_or(0);
+        end += usize::try_from(size).unwrap_or(0);
         if wasm[at] != 0 {
             let removed = at - out.len();
             if removed > 0 {
@@ -896,19 +897,6 @@ fn strip_custom(wasm: &[u8]) -> (Vec<u8>, Vec<(u64, u64)>) {
         at = end;
     }
     (out, shifts)
-}
-
-/// An unsigned LEB128 value and its length in bytes.
-fn leb(bytes: &[u8]) -> (usize, usize) {
-    let (mut v, mut shift) = (0usize, 0);
-    for (k, b) in bytes.iter().enumerate() {
-        v |= usize::from(b & 0x7f) << shift;
-        if b & 0x80 == 0 {
-            return (v, k + 1);
-        }
-        shift += 7;
-    }
-    (v, bytes.len())
 }
 
 #[cfg(test)]

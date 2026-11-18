@@ -345,16 +345,8 @@ pub fn positions_section(
     funcs: &[(u32, String, String, Vec<u32>)],
     inlined: &[Inlined],
 ) -> Vec<u8> {
-    fn leb(out: &mut Vec<u8>, mut v: usize) {
-        loop {
-            let b = u8::try_from(v & 0x7f).unwrap_or(0);
-            v >>= 7;
-            if v == 0 {
-                out.push(b);
-                return;
-            }
-            out.push(b | 0x80);
-        }
+    fn leb(out: &mut Vec<u8>, v: usize) {
+        hd_base::leb::put(out, v as u64);
     }
     fn name(out: &mut Vec<u8>, s: &str) {
         leb(out, s.len());
@@ -437,16 +429,8 @@ pub fn positions_section(
 mod tests {
     use super::{Anchored, LineTable};
 
-    fn leb(out: &mut Vec<u8>, mut v: u32) {
-        loop {
-            let b = u8::try_from(v & 0x7f).expect("seven bits");
-            v >>= 7;
-            if v == 0 {
-                out.push(b);
-                return;
-            }
-            out.push(b | 0x80);
-        }
+    fn leb(out: &mut Vec<u8>, v: u32) {
+        hd_base::leb::put(out, v.into());
     }
 
     fn section(m: &mut Vec<u8>, id: u8, body: &[u8]) {

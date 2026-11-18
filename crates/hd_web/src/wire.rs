@@ -275,19 +275,16 @@ impl Reader<'_> {
 
     /// An unsigned LEB128 number of at most 32 bits.
     fn leb(&mut self) -> Result<usize, WireError> {
-        let mut value = 0u32;
-        for shift in [0, 7, 14, 21, 28] {
-            let b = self.byte()?;
-            // The fifth byte carries the top 4 bits and ends the number.
-            if shift == 28 && b > 0x0f {
-                return Err(WireError("number does not fit 32 bits"));
-            }
-            value |= u32::from(b & 0x7f) << shift;
-            if b & 0x80 == 0 {
-                break;
-            }
-        }
-        usize::try_from(value).map_err(|_| WireError("number does not fit 32 bits"))
+        let rest = self.bytes.get(self.at..).unwrap_or_default();
+        // Cut off: fewer than five bytes, each saying it goes on.
+        let cut = rest.len() < 5 && rest.iter().all(|b| b & 0x80 != 0);
+        hd_base::leb::get(self.bytes, &mut self.at, 32)
+            .and_then(|v| usize::try_from(v).ok())
+            .ok_or(WireError(if cut {
+                "request ends early"
+            } else {
+                "number does not fit 32 bits"
+            }))
     }
 
     fn string(&mut self) -> Result<String, WireError> {
@@ -403,16 +400,8 @@ fn opt_num(n: Option<usize>) -> String {
 mod tests {
     use super::*;
 
-    fn leb(out: &mut Vec<u8>, mut n: usize) {
-        loop {
-            let low = u8::try_from(n & 0x7f).unwrap();
-            n >>= 7;
-            if n == 0 {
-                out.push(low);
-                return;
-            }
-            out.push(low | 0x80);
-        }
+    fn leb(out: &mut Vec<u8>, n: usize) {
+        hd_base::leb::put(out, n as u64);
     }
 
     fn string(out: &mut Vec<u8>, s: &str) {
@@ -707,5 +696,14 @@ mod tests {
         assert_eq!(r.status, STATUS_MALFORMED);
         assert_eq!(r.json, "{\"error\":\"request ends early\"}");
         assert!(r.wasm.is_empty());
+    }
+
+    #[test]
+    fn a_number_over_32_bits_answers_an_error() {
+        let r = respond(&mut Session::new(), &[1, 0xff, 0xff, 0xff, 0xff, 0x10]);
+        assert_eq!(r.status, STATUS_MALFORMED);
+        assert_eq!(r.json, "{\"error\":\"number does not fit 32 bits\"}");
+        let r = respond(&mut Session::new(), &[1, 0xff, 0xff]);
+        assert_eq!(r.json, "{\"error\":\"request ends early\"}");
     }
 }
