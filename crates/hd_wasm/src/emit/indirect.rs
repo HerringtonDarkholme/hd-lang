@@ -295,10 +295,12 @@ pub(crate) fn release_plan(
             memo.insert(u, plan);
             continue;
         }
-        let ms = crate::layout::members(pool, env, u)?;
+        // Each field's own layout, at its offset: no leaf list of `u`,
+        // whose fields past `INDIRECT` values list none.
+        let tys = crate::layout::value_parts(pool, env, u);
         if !ready {
             let mut pending = Vec::new();
-            for &f in &ms.tys {
+            for &f in &tys {
                 let f = strip(f);
                 if !memo.contains_key(&f) && by_address(pool, env, f)? {
                     pending.push((f, false));
@@ -310,15 +312,16 @@ pub(crate) fn release_plan(
                 continue;
             }
         }
-        let mem = crate::layout::mem(pool, env, u)?;
+        let layout = crate::layout::layout(pool, env, u)?;
         let mut steps = Vec::new();
-        for (field, (&f, part)) in ms.tys.iter().zip(&ms.parts).enumerate() {
+        for (field, (&f, &offset)) in tys.iter().zip(layout.fields.offsets()).enumerate() {
             let field = u32_of(field);
-            if by_address(pool, env, f)? {
+            let part = crate::layout::layout(pool, env, f)?;
+            if part.repr == crate::layout::Repr::Memory {
                 if let Some(plan) = memo.get(&strip(f)).cloned().flatten() {
                     steps.push(ReleaseStep::Nested {
                         field,
-                        offset: part.offset,
+                        offset,
                         plan,
                     });
                 }
@@ -330,7 +333,7 @@ pub(crate) fn release_plan(
                 };
                 steps.push(ReleaseStep::Inline {
                     field,
-                    leaves: mem.leaves[part.first..part.first + part.count].to_vec(),
+                    leaves: part.leaves_at(offset),
                     walk,
                     colls,
                 });

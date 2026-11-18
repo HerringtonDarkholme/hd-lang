@@ -62,6 +62,17 @@ pub enum Fields {
     },
 }
 
+impl Fields {
+    /// Each field's offset; none for a primitive.
+    #[must_use]
+    pub fn offsets(&self) -> &[u32] {
+        match self {
+            Fields::Primitive => &[],
+            Fields::Record { offsets, .. } => offsets,
+        }
+    }
+}
+
 /// What says a value's variant (rustc's `Variants`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Variants {
@@ -94,6 +105,22 @@ impl Layout {
             },
             niche: self.niche,
             uninhabited: self.uninhabited,
+        }
+    }
+
+    /// The layout's leaves, each `offset` bytes further on: its part of an
+    /// enclosing value's leaves. None for a `Memory` layout.
+    #[must_use]
+    pub fn leaves_at(&self, offset: u32) -> Vec<Leaf> {
+        match &self.repr {
+            Repr::Scalars(leaves) => leaves
+                .iter()
+                .map(|l| Leaf {
+                    offset: l.offset + offset,
+                    ..*l
+                })
+                .collect(),
+            Repr::Memory => Vec::new(),
         }
     }
 
@@ -292,5 +319,17 @@ mod tests {
         assert_eq!(past.scalars as usize, INDIRECT + 1, "saturated");
         assert!(past.part().leaves.is_empty());
         assert_eq!(past.part().size, 4 * 21);
+        assert!(past.leaves_at(8).is_empty());
+        assert_eq!(scalar(1).leaves_at(8)[0].offset, 8);
+    }
+
+    #[test]
+    fn a_primitive_has_no_field_offsets() {
+        assert!(Fields::Primitive.offsets().is_empty());
+        let record = Fields::Record {
+            offsets: vec![0, 8].into(),
+            layouts: vec![LayoutId(0), LayoutId(1)].into(),
+        };
+        assert_eq!(record.offsets(), [0, 8]);
     }
 }
