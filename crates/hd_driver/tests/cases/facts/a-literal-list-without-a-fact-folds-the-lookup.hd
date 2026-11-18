@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: v8 release
-# A fixed literal list with an unrelated fact has no EnumTagging. The lookup
-# folds to None, and the WAT subject retains only the value + 2 arm.
+# A fixed literal list with an unrelated fact has no EnumTagging.
+# expected: a general optimization folds the lookup to None, leaving only value + 2.
 use std.inspect.Inspectable
 use std.serde.{EnumTagging, RenameCase, rename_all}
 use std.structure.Facts
