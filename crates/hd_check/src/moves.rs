@@ -343,18 +343,30 @@ enum Consumed {
     Hidden(LocalId),
 }
 
-/// What [`Ck::moves`] follows a value through.
-struct Uses<'x> {
-    copied: &'x [bool],
-    b: &'x Body,
-    topo: &'x Topology,
+/// What [`Ck::moves`] follows a value through: the facts of one body
+/// that both move checks read, built once per body ([`Ck::move_base`]).
+/// The users and hidden reads wait for a check that follows a value.
+pub(crate) struct Uses {
+    q: CopyQuery,
+    copied: Vec<bool>,
+    topo: Topology,
     /// Each value's users, with the role of each use.
-    users: &'x [Vec<(u32, Role)>],
-    hidden: &'x [bool],
-    hidden_reads: &'x HashMap<LocalId, Vec<u32>>,
+    users: Vec<Vec<(u32, Role)>>,
+    hidden: Vec<bool>,
+    hidden_reads: HashMap<LocalId, Vec<u32>>,
     /// Whether a sub-body's result moves its value: the caller takes it.
     /// Use-after-move needs no such move, since nothing runs after it.
     root_result_moves: bool,
+}
+
+impl Uses {
+    fn follow(&mut self, b: &Body, root_result_moves: bool) {
+        self.root_result_moves = root_result_moves;
+        if self.users.len() != b.len() {
+            self.users = out_of_place::users_of(b);
+            self.hidden_reads = out_of_place::hidden_reads_of(b, &self.hidden);
+        }
+    }
 }
 
 /// The binding a place reaches and the field path to it: a read of
@@ -709,42 +721,43 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// The body's [`Uses`]; `None` for a body with an error, whose
+    /// poison values say nothing about moves.
+    pub(crate) fn move_base(&mut self) -> Option<Uses> {
+        if self.b.body().tags.contains(&Tag::Poison) {
+            return None;
+        }
+        let mut q = self.copy_query();
+        Some(Uses {
+            copied: self.copy_facts(&mut q),
+            q,
+            topo: Topology::new(self.b.body()),
+            users: Vec::new(),
+            hidden: self.hidden_locals(self.b.body()),
+            hidden_reads: HashMap::default(),
+            root_result_moves: false,
+        })
+    }
+
     /// `ref.move`: each use of a binding that is not copied, after its
     /// value moved on some path, is `use-of-moved-value`, reported once
     /// per binding. Returns the reads that move ([`MoveFacts`]).
-    pub(crate) fn check_moves(&mut self, root: Ref) -> MoveFacts {
+    pub(crate) fn check_moves(&mut self, root: Ref, cx: &mut Uses) -> MoveFacts {
         let pool = self.pool();
         let mut facts = MoveFacts::default();
-        // A body with an error has poison values, whose uses say nothing.
-        if self.b.body().tags.contains(&Tag::Poison) {
-            return facts;
-        }
-        let mut q = self.copy_query();
         let held: Vec<bool> = (0..self.b.body().local_ty.len())
             .map(|i| {
                 let ty = self.b.body().local_ty[i];
-                !self.copies_in(&mut q, ty)
+                !self.copies_in(&mut cx.q, ty)
             })
             .collect();
-        let hidden = self.hidden_locals(self.b.body());
-        let tracked = |l: LocalId| held[l.idx()] && !hidden[l.idx()];
-        if !(0..held.len()).any(|l| held[l] && !hidden[l]) {
+        if !(0..held.len()).any(|l| held[l] && !cx.hidden[l]) {
             return facts;
         }
-        let copied = self.copy_facts(&mut q);
         let b = self.b.body();
         let n = b.len();
-        let users = out_of_place::users_of(b);
-        let hidden_reads = out_of_place::hidden_reads_of(b, &hidden);
-        let cx = Uses {
-            copied: &copied,
-            b,
-            topo: &Topology::new(b),
-            users: &users,
-            hidden: &hidden,
-            hidden_reads: &hidden_reads,
-            root_result_moves: false,
-        };
+        cx.follow(b, false);
+        let tracked = |l: LocalId| held[l.idx()] && !cx.hidden[l.idx()];
         // The binding and field path each place reaches.
         let mut acc: Vec<Option<Access>> = Vec::with_capacity(n);
         for i in 0..n {
@@ -774,8 +787,8 @@ impl Ck<'_, '_> {
             .map(|i| {
                 b.tags[i] == Tag::Read
                     && acc[i].is_some()
-                    && !users[i].is_empty()
-                    && users[i].iter().all(|&(u, _)| {
+                    && !cx.users[i].is_empty()
+                    && cx.users[i].iter().all(|&(u, _)| {
                         acc[u as usize].is_some()
                             && b.decode_place(b.data[u as usize][0])
                                 .is_some_and(|p| p.root == PlaceRoot::Value(Ref(w(i))))
@@ -790,12 +803,12 @@ impl Ck<'_, '_> {
         let mut move_bit = vec![NONE; n];
         for i in 0..n {
             let Some(a) = &acc[i] else { continue };
-            let field_copies = !a.path.is_empty() && copied[i];
+            let field_copies = !a.path.is_empty() && cx.copied[i];
             if b.tags[i] != Tag::Read
                 || link[i]
                 || !a.exact
                 || field_copies
-                || !self.moves(&cx, w(i))
+                || !self.moves(cx, w(i))
             {
                 continue;
             }
@@ -812,7 +825,7 @@ impl Ck<'_, '_> {
                 && acc[i].as_ref().is_some_and(|a| a.exact)
                 && !link[i]
                 && is_mut_ref(pool, b.ty[i])
-                && self.reborrows(&cx, w(i))
+                && self.reborrows(cx, w(i))
             {
                 facts.reborrows.insert(w(i));
             }
@@ -837,7 +850,7 @@ impl Ck<'_, '_> {
                 of_local: &of_local,
                 found: &mut found,
             };
-            forward(b, cx.topo, &mut flow, &mut walk, root, st);
+            forward(b, &cx.topo, &mut flow, &mut walk, root, st);
             flow.arena.free(st);
         }
         let mut found: Vec<(LocalId, (u32, u32))> = found.into_iter().collect();
@@ -882,8 +895,8 @@ impl Ck<'_, '_> {
     /// A work stack over the coercions `v` passes through, each value
     /// once: a body's value graph is as deep as its program, so a depth
     /// cap answered "does not reborrow" past it (#1777).
-    fn reborrows(&self, cx: &Uses<'_>, v: u32) -> bool {
-        let (pool, b) = (self.pool(), cx.b);
+    fn reborrows(&self, cx: &Uses, v: u32) -> bool {
+        let (pool, b) = (self.pool(), self.b.body());
         let mut stack: Vec<u32> = Vec::new();
         let mut seen: HashSet<u32> = HashSet::default();
         let mut next = Some(v);
@@ -925,8 +938,8 @@ impl Ck<'_, '_> {
     /// a cycle through a hidden local: a body's value graph is as deep as
     /// its program, so a depth cap answered "does not move" past it, and
     /// a moved value's later use went unreported (#1777).
-    fn moves(&self, cx: &Uses<'_>, v: u32) -> bool {
-        let b = cx.b;
+    fn moves(&self, cx: &Uses, v: u32) -> bool {
+        let b = self.b.body();
         let mut stack: Vec<u32> = Vec::new();
         let mut seen: HashSet<u32> = HashSet::default();
         let mut pass = |u: u32, stack: &mut Vec<u32>| {
@@ -985,8 +998,8 @@ impl Ck<'_, '_> {
     /// store or a construction reborrows where a `&mut` type is expected
     /// (`ref.move.sites`, `ref.move.reborrow.typed`). A store to a whole
     /// hidden local passes the value on to its reads (`Hidden`).
-    fn consume_moves(&self, cx: &Uses<'_>, i: usize, v: u32) -> Consumed {
-        let (pool, b) = (self.pool(), cx.b);
+    fn consume_moves(&self, cx: &Uses, i: usize, v: u32) -> Consumed {
+        let (pool, b) = (self.pool(), self.b.body());
         let tag = b.tags[i];
         let moves = |m: bool| if m { Consumed::Moves } else { Consumed::Stays };
         match tag {

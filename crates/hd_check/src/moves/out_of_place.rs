@@ -10,7 +10,7 @@
 use hd_base::{HashMap, LocalId, SliceSort as _};
 use hd_diag::Code;
 use hd_resolve::ItemData;
-use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Topology, Word, slots};
+use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{Uses, local_of, w};
@@ -144,25 +144,19 @@ impl Ck<'_, '_> {
     /// `ref.move.out-of-place`: each read that moves a value that is not
     /// copied out of a place behind a reference, or out of a binding its
     /// closure captures, is `move-out-of-place`.
-    pub(crate) fn check_moves_out_of_place(&mut self) {
-        if self.b.body().tags.contains(&Tag::Poison) {
-            return;
-        }
-        let mut q = self.copy_query();
-        let copied = self.copy_facts(&mut q);
+    pub(crate) fn check_moves_out_of_place(&mut self, cx: &mut Uses) {
         let b = self.b.body();
-        let topo = Topology::new(b);
         let captures = captures_of(b);
         // The reads of a value that is not copied through a reference or
         // out of a capture, with where from and the place's root.
         let reads: Vec<(u32, From, Root)> = (0..b.len())
-            .filter(|&i| b.tags[i] == Tag::Read && !copied[i])
+            .filter(|&i| b.tags[i] == Tag::Read && !cx.copied[i])
             .filter_map(|i| {
                 let p = b.decode_place(b.data[i][0])?;
                 let root = root_of(b, p.root);
                 let from = match self.behind_ref(b, &p) {
                     Some(kind) => From::Reference(kind),
-                    None if captured(&captures, topo.sub[i], root, &p) => From::Capture,
+                    None if captured(&captures, cx.topo.sub[i], root, &p) => From::Capture,
                     None => return None,
                 };
                 Some((w(i), from, root))
@@ -171,23 +165,12 @@ impl Ck<'_, '_> {
         if reads.is_empty() {
             return;
         }
-        let hidden = self.hidden_locals(b);
-        let users = users_of(b);
-        let hidden_reads = hidden_reads_of(b, &hidden);
-        let cx = Uses {
-            copied: &copied,
-            b,
-            topo: &topo,
-            users: &users,
-            hidden: &hidden,
-            hidden_reads: &hidden_reads,
-            root_result_moves: true,
-        };
+        cx.follow(b, true);
         // One error per reference, as for `use-of-moved-value`.
         let mut seen: Vec<Root> = Vec::new();
         let mut moved: Vec<(u32, From)> = Vec::new();
         for (i, from, root) in reads {
-            if !seen.contains(&root) && self.moves(&cx, i) {
+            if !seen.contains(&root) && self.moves(cx, i) {
                 seen.push(root);
                 moved.push((i, from));
             }
