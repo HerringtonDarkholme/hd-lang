@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# expected: no bounds check: the loop test `i < xs.len()` runs before
+# each read of the local list, and `i = i + 1` is the counter's one step
+# after it, as `for i in 0..xs.len()` proves today.
+# Known: while-counter-keeps-bounds-check.md
+fn total_local(n: usize) -> i64:
+    let mut xs: List[i64] = []
+    for k in 0..n:
+        xs.push(i64(k))
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        s = s + xs[i]
+        i = i + 1
+    s
