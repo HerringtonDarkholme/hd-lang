@@ -244,6 +244,13 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
             err(errs, u32_of(x), what);
         }
     }
+    // The places hoisted `IsUnique`s name, collected once: a change in
+    // their loop reads its place there, away from any `IsUnique`.
+    let hoisted: hd_base::HashSet<Place> = (0..n)
+        .filter(|&x| b.tags[x] == Tag::IsUnique && b.data[x][1] == super::unique_word::HOISTED)
+        .filter_map(|x| b.decode_place(b.data[x][0]))
+        .collect();
+    charge(n);
     for c in 0..n {
         for (_, v) in crate::own::changed(b, c) {
             let r = v as usize;
@@ -270,8 +277,8 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
             } else {
                 b.record(b.data[blk as usize][0])
             };
-            let checked = pos > 0 && unique(list[pos - 1] as usize, &p)
-                || (0..n).any(|x| unique(x, &p) && b.data[x][1] == super::unique_word::HOISTED);
+            charge(1);
+            let checked = pos > 0 && unique(list[pos - 1] as usize, &p) || hoisted.contains(&p);
             if !checked || blk != cb || cp <= pos || !list[pos + 1..cp].iter().all(quiet) {
                 let what =
                     format!("change operand %{r} is no read of its place after its `IsUnique`");
@@ -2443,6 +2450,64 @@ mod deferred_tests {
     use crate::ir::{BodyKind, TirBuilder, TirSink, local_flags, place, unique_word};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
+
+    /// A loop of `pushes` pushes onto a list local whose `IsUnique` is
+    /// hoisted before the loop (`hoisted`), or absent.
+    fn hoisted_pushes(pushes: usize, hoisted: bool) -> Result<Body, String> {
+        use crate::ir::{IntrinsicOp, ReadMode};
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = build.open_block();
+        let local = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+        let word = local.raw() | place::BARE_LOCAL;
+        if hoisted {
+            let w = unique_word::HOISTED;
+            build.emit(Tag::IsUnique, word, w, Ty::VOID, NodeIdx::NONE);
+        }
+        let lp = build.open_loop();
+        let body = build.open_block();
+        for _ in 0..pushes {
+            let mode = ReadMode::Borrow as u32;
+            let list = build.emit(Tag::Read, word, mode, Ty::STRING, NodeIdx::NONE);
+            let value = build.const_value(Ty::I32, 0);
+            let args = build.refs_record(&[list, value]);
+            let push = IntrinsicOp::ListPush as u32;
+            build.emit(Tag::Intrinsic, push, args, Ty::VOID, NodeIdx::NONE);
+        }
+        let body = build.close_block(body, None, Ty::VOID, NodeIdx::NONE);
+        build.close_loop(lp, body, Ty::VOID, NodeIdx::NONE);
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        build
+            .finish_tolerating(root, &[], &[22])
+            .map_err(|e| format!("{e:?}"))
+    }
+
+    /// Each change in a loop finds its hoisted `IsUnique` with one probe
+    /// of the hoisted places, so the work grows with the changes, not
+    /// with changes times instructions; without the check each is
+    /// rejected.
+    #[test]
+    fn a_hoisted_loops_changes_are_checked_in_linear_work() -> Result<(), String> {
+        let mut work = Vec::new();
+        for pushes in [10, 100] {
+            let body = hoisted_pushes(pushes, true)?;
+            let topo = Topology::new(&body);
+            let mut errors = Vec::new();
+            let ((), units) = crate::own::flow::work::measure(|| {
+                change_places(&body, &topo, &mut errors);
+            });
+            assert!(errors.is_empty(), "{errors:?}");
+            work.push((units, body.len()));
+        }
+        // One unit per instruction for the set, one per change.
+        assert_eq!(work[0].0, work[0].1 + 10, "{work:?}");
+        assert_eq!(work[1].0, work[1].1 + 100, "{work:?}");
+        let body = hoisted_pushes(3, false)?;
+        let mut errors = Vec::new();
+        change_places(&body, &Topology::new(&body), &mut errors);
+        let after = "is no read of its place after its `IsUnique`";
+        assert_eq!(errors.iter().filter(|e| e.what.contains(after)).count(), 3);
+        Ok(())
+    }
 
     #[test]
     fn a_deferred_cache_rejects_buffer_growth() -> Result<(), String> {
