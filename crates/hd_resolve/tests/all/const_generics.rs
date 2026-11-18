@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use hd_base::{FileId, Stage};
+use hd_base::FileId;
 use hd_diag::{Code, DiagBuf};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_project::UseRoots;
@@ -67,8 +67,7 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
-        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    let out = build_folder(&cx, &[input], None, &mut diags);
     assert_eq!(
         diags
             .content_order()
@@ -133,8 +132,7 @@ fn resolve_with(
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
-        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    let out = build_folder(&cx, &[input], None, &mut diags);
     let codes = diags
         .content_order()
         .into_iter()
@@ -232,8 +230,7 @@ fn header_const_arguments_classify_bad_names() {
         session: None,
     };
     let mut diags = DiagBuf::default();
-    build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
-        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    build_folder(&cx, &[input], None, &mut diags);
     let order = diags.content_order();
     assert_eq!(
         order
@@ -394,8 +391,7 @@ fn a_named_constant_chain_evaluates_at_any_length_and_a_cycle_names_its_binding(
         session: None,
     };
     let mut diags = DiagBuf::default();
-    let out = build_folder(&cx, &[input], None, Stage::FolderIface, &mut diags)
-        .unwrap_or_else(|gap| panic!("stopped at {}", gap.what));
+    let out = build_folder(&cx, &[input], None, &mut diags);
     let order = diags.content_order();
     assert_eq!(
         order

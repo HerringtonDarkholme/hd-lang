@@ -4595,14 +4595,7 @@ impl Run<'_> {
             world: &world,
         };
         let mut diags = DiagBuf::default();
-        let out = match hd_resolve::build_folder(&cx, &mods, None, Stage::FolderIface, &mut diags) {
-            Ok(o) => o,
-            Err(e) => {
-                self.stage::<()>(Stage::FolderIface, Err(e));
-                let _ = self.iface[fi].set(None);
-                return;
-            }
-        };
+        let out = hd_resolve::build_folder(&cx, &mods, None, &mut diags);
         let reads = self.read_list(fid, &world.reads());
         let key = key_of(&reads);
         let mut anchored = Vec::new();
@@ -5305,9 +5298,7 @@ impl Run<'_> {
         self.lib_scope
             .get_or_init(|| {
                 let lib = self.lib_module()?;
-                let o = self
-                    .lower_module(lib, Stage::ModulePrep, &mut DiagBuf::default())
-                    .ok()??;
+                let o = self.lower_module(lib, &mut DiagBuf::default())?;
                 let private = o
                     .items
                     .into_iter()
@@ -5389,16 +5380,9 @@ impl Run<'_> {
     /// against its folder's frozen interface. Header diagnostics are the
     /// folder interface's and use diagnostics its `HeaderCheck`'s, so
     /// `diags` here is the caller's to drop.
-    fn lower_module(
-        &self,
-        m: usize,
-        stage: Stage,
-        diags: &mut DiagBuf,
-    ) -> StageResult<Option<ModOut>> {
+    fn lower_module(&self, m: usize, diags: &mut DiagBuf) -> Option<ModOut> {
         let module = &self.table.modules[m];
-        let Some(own) = self.iface_of(module.folder) else {
-            return Ok(None);
-        };
+        let own = self.iface_of(module.folder)?;
         let cx = hd_resolve::Cx {
             names: self.names(),
             folder: module.folder.raw(),
@@ -5409,8 +5393,8 @@ impl Run<'_> {
             tests: self.role(m) == "test",
             ..self.mod_in(m)
         }];
-        let out = hd_resolve::lower::build_folder(&cx, &mods, Some(own), stage, diags)?;
-        Ok(out.modules.into_iter().next())
+        let out = hd_resolve::lower::build_folder(&cx, &mods, Some(own), diags);
+        out.modules.into_iter().next()
     }
 
     /// The scope of each module of the root package, as text (`hd doc`
@@ -5422,8 +5406,7 @@ impl Run<'_> {
             if module.package != 0 || !self.parse_of(m).is_ok() {
                 continue;
             }
-            let lowered = self.lower_module(m, Stage::ModulePrep, &mut DiagBuf::default());
-            if let Ok(Some(o)) = lowered {
+            if let Some(o) = self.lower_module(m, &mut DiagBuf::default()) {
                 out.push((module.path.clone(), o.scope.named(&names)));
             }
         }
@@ -6536,9 +6519,9 @@ impl Run<'_> {
         }
         let mut scratch = DiagBuf::default();
         let lowered = self
-            .lower_module(mi, Stage::ModulePrep, &mut scratch)
-            .map(|o| o.map(|o| (o.items, o.blocks)));
-        let Some(Some((items, blocks))) = self.stage(Stage::ModulePrep, lowered) else {
+            .lower_module(mi, &mut scratch)
+            .map(|o| (o.items, o.blocks));
+        let Some(Some((items, blocks))) = self.stage(Stage::ModulePrep, Ok(lowered)) else {
             self.blocked(Stage::Body);
             self.blocked(Stage::ModuleFinish);
             let _ = self.prep[mi].set(None);
@@ -6801,7 +6784,7 @@ impl Run<'_> {
         // (`names.tests.module-items`), each seeing the block's scope.
         let tests = self.role(m) == "test";
         let heads = hd_resolve::heads(&names, &src, &module.path, tests);
-        let Ok(Some(lowered)) = self.lower_module(m, Stage::Body, &mut DiagBuf::default()) else {
+        let Some(lowered) = self.lower_module(m, &mut DiagBuf::default()) else {
             self.blocked(Stage::Body);
             let _ = self.body[m].set(None);
             return;
@@ -8251,11 +8234,7 @@ impl Run<'_> {
     ) -> Option<R> {
         let names = self.names();
         let tmod = self.template_mods[tm]
-            .get_or_init(|| {
-                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
-                    .ok()
-                    .flatten()
-            })
+            .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
         let mut closure = self.module_closure(m);
         for fo in self.closure(self.table.modules[tm].folder) {
@@ -8342,11 +8321,7 @@ impl Run<'_> {
         let names = self.names();
         let tm = self.item_module(template)?.idx();
         let tmod = self.template_mods[tm]
-            .get_or_init(|| {
-                self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
-                    .ok()
-                    .flatten()
-            })
+            .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
         let closure = self.closure(self.table.modules[tm].folder);
         let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure

@@ -4568,9 +4568,11 @@ lang/types/optional-types/fn-reference-optional-invariant.hd	type	reject:type-mi
 lang/types/variance/fn-reference-result-upgrade.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
 lang/types/variance/reference-variance-keeps-function-calls-and-values-intact.hd	runtime	accept	lang/04-type-system.md#r-types.variance.function
 lang/types/transparent-aliases-and-newtypes/alias-same-type.hd	type	accept	lang/04-type-system.md#r-types.alias.same
+lang/types/transparent-aliases-and-newtypes/an-alias-in-a-trait-header-names-its-type.hd	runtime	accept	lang/04-type-system.md#r-types.alias.same
 lang/types/transparent-aliases-and-newtypes/an-enum-alias-names-its-variants.hd	runtime	accept	lang/04-type-system.md#r-types.alias.same
 lang/types/transparent-aliases-and-newtypes/alias-names-row.hd	type	accept	lang/04-type-system.md#r-types.alias.row
 lang/types/transparent-aliases-and-newtypes/alias-cycle-reported-once.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle.reported
+lang/types/transparent-aliases-and-newtypes/an-alias-through-a-trait-default-is-an-alias-cycle.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle
 lang/types/transparent-aliases-and-newtypes/newtype-map-key-without-hash.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.newtype.map-key
 lang/types/transparent-aliases-and-newtypes/a-newtype-that-holds-itself-is-recursive.hd	type	reject:recursive-value-type	lang/04-type-system.md#r-types.newtype.no-recursion
 lang/types/transparent-aliases-and-newtypes/newtypes-that-hold-each-other-are-one-error.hd	type	reject:recursive-value-type	lang/04-type-system.md#r-types.newtype.no-recursion.group

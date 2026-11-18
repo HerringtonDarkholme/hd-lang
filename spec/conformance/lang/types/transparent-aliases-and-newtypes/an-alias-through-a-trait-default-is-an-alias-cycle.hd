@@ -1,0 +1,6 @@
+# test: an alias through a trait default is an alias cycle
+# Rules: types.alias.cycle.
+trait Conv[X = Loop]:
+    fn conv(&self) -> X
+
+type Loop = &dyn Conv # diagnostic: alias-cycle

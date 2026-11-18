@@ -1,0 +1,78 @@
+# test: an alias in a trait header names its type
+# Rules: types.alias.same, names.module.order-free.
+# expect-stdout: 4
+# expect-stdout: 6
+# expect-stdout: 9
+# expect-stdout: 3
+trait Conv[X = Num]:
+    fn conv(&self) -> X
+
+type Num = i64
+type Wide = i64
+type ConvRef = &dyn Conv
+
+trait Get:
+    type Out
+    fn get(&self) -> Self::Out
+
+trait Mid < Get:
+    fn mid(&self) -> i32
+
+trait Top < Mid[Out = Wide]:
+    fn top(&self) -> i32
+
+trait Pair[X] < Conv[X]:
+    fn pair(&self) -> X
+
+trait Twice < Pair[Num]:
+    fn twice(&self) -> i64
+
+struct Holder[T < Conv]:
+    t: T
+
+struct S:
+    v: i64
+
+impl Conv for S:
+    fn conv(&self) -> i64:
+        self.v
+
+impl Get for S:
+    type Out = i64
+    fn get(&self) -> i64:
+        self.v + 5
+
+impl Mid for S:
+    fn mid(&self) -> i32:
+        +1
+
+impl Top for S:
+    fn top(&self) -> i32:
+        +2
+
+impl Pair[i64] for S:
+    fn pair(&self) -> i64:
+        self.v - 1
+
+impl Twice for S:
+    fn twice(&self) -> i64:
+        self.pair()
+
+fn open[T < Conv](h: Holder[T]) -> i64:
+    h.t.conv()
+
+fn show(c: ConvRef) -> i64:
+    c.conv() + 2
+
+fn read[T < Top](t: &T) -> i64:
+    t.get()
+
+fn both[T < Twice](t: &T) -> i64:
+    t.twice()
+
+pub fn main() -> void $ Console:
+    let s = S { v: +4 }
+    println(open(Holder { t: S { v: +4 } }))
+    println(show(&s))
+    println(read(&s))
+    println(both(&s))

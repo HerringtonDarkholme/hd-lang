@@ -13,9 +13,7 @@ use hd_base::{HashMap, HashSet};
 use std::cell::{Cell, OnceCell, RefCell};
 use std::sync::Arc;
 
-use hd_base::{
-    BuildProfile, DefId, NotImplemented, PathId, Span, Stage, StageResult, Symbol, TokenIdx,
-};
+use hd_base::{BuildProfile, DefId, PathId, Span, Symbol, TokenIdx};
 use hd_diag::{Code, DiagBuf};
 
 use hd_intern::PathKind;
@@ -1056,10 +1054,11 @@ struct Resolver<'a, 'b> {
     use_at: Cell<(DefId, u32, u32)>,
     seeds: HashMap<DefId, Item>,
     /// The declared parameters of the traits of the modules being lowered,
-    /// lowered before any other header, so a trait reference fills its
-    /// defaults whatever the declaration order, and a private trait (which
-    /// a frozen interface leaves out) is filled as while it was built.
-    own_traits: HashMap<DefId, Vec<Generic>>,
+    /// recorded by [`lower_aliases`] after the aliases and traits each
+    /// trait's header names, so a trait reference fills its defaults
+    /// whatever the declaration order, and a private trait (which a frozen
+    /// interface leaves out) is filled as while it was built.
+    own_traits: RefCell<HashMap<DefId, Vec<Generic>>>,
     /// The declared parameters of the folder's own aliases and of its data
     /// types, enums and newtypes that declare a default, so a written type
     /// fills its omitted trailing arguments from them (`fill_type_args`).
@@ -1070,11 +1069,11 @@ struct Resolver<'a, 'b> {
     /// marked on their items once each module is lowered.
     not_copy: RefCell<HashSet<DefId>>,
     /// The supertraits of the traits of the modules being lowered, as
-    /// trait-value types over each trait's `Self`, lowered before any
-    /// other header, so a projection or a binding finds the trait that
+    /// trait-value types over each trait's `Self`, recorded with
+    /// `own_traits`, so a projection or a binding finds the trait that
     /// declares its associated type (trait.binding.name-reach) whatever
     /// the declaration order.
-    own_supers: HashMap<DefId, Vec<Ty>>,
+    own_supers: RefCell<HashMap<DefId, Vec<Ty>>>,
     /// The supertrait edges dropped to break the folder's supertrait
     /// cycles, by child trait, in declared order: each cycle is reported
     /// (`trait.super.acyclic`), and the lowered graph keeps no cycle, so
@@ -1276,7 +1275,7 @@ impl Resolver<'_, '_> {
     /// `T < Add` is `T < Add[T]`.
     fn fill_trait_args(&self, tr: DefId, args: TyList, self_ty: Option<Ty>) -> TyList {
         let pool = self.cx.names.pool.types();
-        if let Some(g) = self.own_traits.get(&tr) {
+        if let Some(g) = self.own_traits.borrow().get(&tr) {
             return fill_trait_args(pool, tr, g, args, self_ty);
         }
         match self.item(tr) {
@@ -1290,7 +1289,7 @@ impl Resolver<'_, '_> {
     fn trait_arity(&self, tr: DefId) -> Option<usize> {
         // The parameters a local trait takes from around it have no written
         // argument (`names.local-type.refs`).
-        if let Some(g) = self.own_traits.get(&tr) {
+        if let Some(g) = self.own_traits.borrow().get(&tr) {
             return Some(g.iter().filter(|g| !g.lifetime && !g.outer).count());
         }
         self.item(tr).map(|item| {
@@ -1347,7 +1346,7 @@ impl Resolver<'_, '_> {
 
     /// `f` of the declared parameters of `def`, when they are known.
     fn with_generics<R>(&self, def: DefId, f: impl FnOnce(&[Generic]) -> R) -> Option<R> {
-        if let Some(g) = self.own_traits.get(&def) {
+        if let Some(g) = self.own_traits.borrow().get(&def) {
             return Some(f(g));
         }
         if let Some(g) = self.own_types.borrow().get(&def) {
@@ -1376,7 +1375,7 @@ impl Resolver<'_, '_> {
 
     /// A trait's direct supertraits as trait-value types over its `Self`.
     fn supers_of(&self, tr: DefId) -> Vec<Ty> {
-        if let Some(v) = self.own_supers.get(&tr) {
+        if let Some(v) = self.own_supers.borrow().get(&tr) {
             return v.clone();
         }
         match self.item(tr).map(|i| i.data) {
@@ -2145,7 +2144,6 @@ struct Lower<'a, 'r, 'x> {
     scope: &'a ModuleScope,
     kinds: &'a Kinds,
     diags: &'a mut DiagBuf,
-    unsupported: Option<String>,
     /// The named function whose return annotation is being lowered and
     /// the next opaque occurrence, in source order, and whether its
     /// opaque results borrow from a local reference parameter
@@ -2197,10 +2195,6 @@ struct Lower<'a, 'r, 'x> {
 }
 
 impl Lower<'_, '_, '_> {
-    fn gap(&mut self, what: impl Into<String>) {
-        self.unsupported.get_or_insert_with(|| what.into());
-    }
-
     /// Whether `name` is a parameter, or the `Self`, of a declaration
     /// around this local one ([`Outer`]): one hash probe per use, after one
     /// pass over the enclosing lists.
@@ -3185,8 +3179,9 @@ impl Lower<'_, '_, '_> {
     /// (`req.row.alias.generic.kind`, `req.row.slot.dollar`).
     fn expand_alias(&mut self, def: DefId, args: &[Ty], span: Span) -> Ty {
         let pool = self.names.pool;
+        // `lower_aliases` lowers each alias before the declarations that
+        // name it, so only an alias of a reported `alias-cycle` is missing.
         let Some((rows, body, _)) = self.alias_body(def) else {
-            self.gap("an alias used before its declaration in the same folder");
             return Ty::POISON;
         };
         // A row slot's argument is a row or, once reported where it is
@@ -5871,7 +5866,6 @@ impl Lower<'_, '_, '_> {
             test: None,
         };
         let mark = self.diags.mark();
-        let unsupported = self.unsupported.take();
         let mut gn = Gen::default();
         let generics = self.own_generics(
             Src::child(n, SyntaxKind::GenericParameterList),
@@ -5883,7 +5877,6 @@ impl Lower<'_, '_, '_> {
             let self_ty = self.ty_at(Some(*target), &gn, true);
             Self::poisoned_impl(&h, self_ty, generics, out);
         }
-        self.unsupported = unsupported;
         self.diags.truncate(mark);
     }
 
@@ -7335,6 +7328,27 @@ impl Lower<'_, '_, '_> {
         self.r.own_types.borrow_mut().insert(h.def, generics);
     }
 
+    /// A trait's declared parameters and supertraits, for the references
+    /// lowered after it (`Resolver::own_traits`, `Resolver::own_supers`).
+    /// The main lowering reports their diagnostics and records their
+    /// alias uses.
+    fn record_trait_header(&mut self, h: &Head<'_>) {
+        self.enter(h);
+        self.r.use_at.set((DefId::NONE, 0, 1));
+        let (self_ty, gn, generics) = self.trait_generics(h);
+        self.r
+            .own_traits
+            .borrow_mut()
+            .entry(h.def)
+            .or_insert(generics);
+        let (supers, _) = self.supers(h.node, &gn, self_ty);
+        self.r
+            .own_supers
+            .borrow_mut()
+            .entry(h.def)
+            .or_insert(supers);
+    }
+
     /// `$.Context[$ Row]` (`req.context.row`): a context type indexed by
     /// its row, which expands like any row (`req.row.alias.expand.first`).
     fn context_ty(&mut self, n: NodeRef<'_>, gn: &Gen) -> Ty {
@@ -7384,23 +7398,27 @@ fn declares_params(h: &Head<'_>) -> bool {
 /// order, for its generic parameters alone: a written type counts its
 /// arguments against them (`types.generic.too-long`) and fills the omitted
 /// ones from their defaults (`types.generic.default.written`), so an alias
-/// that names it comes after the aliases its defaults name.
+/// that names it comes after the aliases its defaults name. Every trait
+/// takes part for its header, its parameters and supertraits, which a
+/// written trait reference fills its arguments from and a binding reaches
+/// through (`Lower::record_trait_header`).
 /// An alias that expands to itself is `alias-cycle`, reported once per
 /// cycle, on its declaration that comes first in the source
-/// (`types.alias.cycle.reported`). Returns each module's alias items and
-/// the first unsupported form met.
+/// (`types.alias.cycle.reported`). Returns each module's alias items.
 fn lower_aliases(
     r: &Resolver<'_, '_>,
     mods: &[ModIn<'_>],
     all_heads: &[Vec<Head<'_>>],
     scopes: &mut [ModScopes],
     diags: &mut DiagBuf,
-) -> (Vec<Vec<Item>>, Option<String>) {
+) -> Vec<Vec<Item>> {
     let mut sites: Vec<(usize, &Head<'_>)> = Vec::new();
     for (mi, hs) in all_heads.iter().enumerate() {
         sites.extend(
             hs.iter()
-                .filter(|h| h.kind == HeadKind::Alias || declares_params(h))
+                .filter(|h| {
+                    matches!(h.kind, HeadKind::Alias | HeadKind::Trait) || declares_params(h)
+                })
                 .map(|h| (mi, h)),
         );
     }
@@ -7427,7 +7445,6 @@ fn lower_aliases(
                 scope,
                 kinds: &s.kinds,
                 diags: &mut scratch,
-                unsupported: None,
                 opaque_result: None,
                 result_paths: None,
                 kind_reported: HashSet::default(),
@@ -7443,16 +7460,21 @@ fn lower_aliases(
                 outer_takes_self: false,
                 chains: Vec::new(),
             };
-            let scan = match h.kind {
-                HeadKind::Alias => Some(h.node),
-                _ => Src::child(h.node, SyntaxKind::GenericParameterList),
+            let gl = Src::child(h.node, SyntaxKind::GenericParameterList);
+            let scans = match h.kind {
+                HeadKind::Alias => [Some(h.node), None],
+                HeadKind::Trait => [gl, Src::child(h.node, SyntaxKind::BoundList)],
+                _ => [gl, None],
             };
-            scan.map_or_else(Vec::new, |scan| low.named_in_order((h.node, scan), &index))
+            scans
+                .into_iter()
+                .flatten()
+                .flat_map(|scan| low.named_in_order((h.node, scan), &index))
+                .collect()
         })
         .collect();
     let is_alias = |i: usize| sites[i].1.kind == HeadKind::Alias;
     let mut out: Vec<Vec<Item>> = (0..mods.len()).map(|_| Vec::new()).collect();
-    let mut unsupported = None;
     for comp in components(&edges) {
         let cyclic = comp.iter().any(|&i| is_alias(i))
             && (comp.len() > 1 || edges[comp[0]].contains(&comp[0]));
@@ -7498,7 +7520,6 @@ fn lower_aliases(
                 scope,
                 kinds: &*kinds,
                 diags: if alias { diags } else { &mut dropped },
-                unsupported: None,
                 opaque_result: None,
                 result_paths: None,
                 kind_reported: HashSet::default(),
@@ -7514,19 +7535,15 @@ fn lower_aliases(
                 outer_takes_self: false,
                 chains: Vec::new(),
             };
-            if alias {
-                low.alias_item(h, cyclic, &mut out[mi]);
-                r.use_at.set((DefId::NONE, 0, 1));
-                if unsupported.is_none() {
-                    unsupported = low.unsupported.take();
-                }
-            } else {
-                low.record_defaults(h);
-                r.use_at.set((DefId::NONE, 0, 1));
+            match h.kind {
+                HeadKind::Alias => low.alias_item(h, cyclic, &mut out[mi]),
+                HeadKind::Trait => low.record_trait_header(h),
+                _ => low.record_defaults(h),
             }
+            r.use_at.set((DefId::NONE, 0, 1));
         }
     }
-    (out, unsupported)
+    out
 }
 
 /// The anchor slot of a signature's type after `params` parameters: its
@@ -7612,6 +7629,7 @@ fn supertrait_cycles(
         .iter()
         .map(|(_, h)| {
             r.own_supers
+                .borrow()
                 .get(&h.def)
                 .into_iter()
                 .flatten()
@@ -7663,10 +7681,11 @@ fn cut_supertrait_cycles(r: &mut Resolver<'_, '_>, all_heads: &[Vec<Head<'_>>]) 
         .collect();
     let index: HashMap<DefId, usize> = traits.iter().enumerate().map(|(i, d)| (*d, i)).collect();
     let pool = r.cx.names.pool;
+    let own_supers = r.own_supers.get_mut();
     let edges: Vec<Vec<usize>> = traits
         .iter()
         .map(|d| {
-            r.own_supers
+            own_supers
                 .get(d)
                 .into_iter()
                 .flatten()
@@ -7706,7 +7725,7 @@ fn cut_supertrait_cycles(r: &mut Resolver<'_, '_>, all_heads: &[Vec<Head<'_>>]) 
         }
     }
     for (from, to) in &cut {
-        if let Some(supers) = r.own_supers.get_mut(from) {
+        if let Some(supers) = own_supers.get_mut(from) {
             cut_edges(pool, supers, to);
         }
     }
@@ -8774,10 +8793,10 @@ fn resolver<'a, 'b>(
         alias_uses: RefCell::new(HashMap::default()),
         use_at: Cell::new((DefId::NONE, 0, 1)),
         seeds: HashMap::default(),
-        own_traits: HashMap::default(),
+        own_traits: RefCell::new(HashMap::default()),
         own_types: RefCell::new(HashMap::default()),
         not_copy: RefCell::new(HashSet::default()),
-        own_supers: HashMap::default(),
+        own_supers: RefCell::new(HashMap::default()),
         cut_supers: HashMap::default(),
         inputs: mods
             .iter()
@@ -8990,9 +9009,8 @@ pub fn build_folder(
     cx: &Cx<'_>,
     mods: &[ModIn<'_>],
     frozen: Option<Arc<FolderIface>>,
-    stage: Stage,
     diags: &mut DiagBuf,
-) -> StageResult<FolderOut> {
+) -> FolderOut {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
@@ -9035,14 +9053,8 @@ pub fn build_folder(
     // `pub use` chains while its reads were held: they are read again,
     // recorded, when a lookup needs them.
     r.memo.borrow_mut().clear();
-    r.own_traits = own_trait_generics(&r, mods, &all_heads, &scopes);
-    // Twice: the first round finds each supertrait; the second resolves
-    // the bindings that name a supertrait's supertrait's associated type.
-    r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
-    r.own_supers = own_trait_supers(&r, mods, &all_heads, &scopes);
+    let alias_items = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
     cut_supertrait_cycles(&mut r, &all_heads);
-    let (alias_items, alias_gap) = lower_aliases(&r, mods, &all_heads, &mut scopes, diags);
-    let mut unsupported = alias_gap;
     let mut chain_edges: Vec<(DefId, DefId)> = Vec::new();
     for (((m, hs), s), mut items) in mods.iter().zip(&all_heads).zip(scopes).zip(alias_items) {
         let ModScopes {
@@ -9069,7 +9081,6 @@ pub fn build_folder(
                     scope,
                     kinds: &kinds,
                     diags,
-                    unsupported: None,
                     opaque_result: None,
                     result_paths: None,
                     kind_reported: HashSet::default(),
@@ -9101,9 +9112,6 @@ pub fn build_folder(
                     }
                 }
                 chain_edges.append(&mut low.chains);
-                if unsupported.is_none() {
-                    unsupported = low.unsupported.take();
-                }
             }
         }
         configured_pairs(names, &m.src, hs, &mut items, diags, r.frozen.is_none());
@@ -9224,7 +9232,6 @@ pub fn build_folder(
                 scope: &o.scope,
                 kinds: &o.kinds,
                 diags,
-                unsupported: None,
                 opaque_result: None,
                 result_paths: None,
                 kind_reported: HashSet::default(),
@@ -9342,59 +9349,6 @@ pub fn build_folder(
             if m.tests {
                 reread_uses(&r, &test_use_decls(&m.src, &m.roots), &seen);
             }
-        }
-    }
-    match unsupported {
-        Some(what) => Err(NotImplemented::new(stage, what)),
-        None => Ok(out),
-    }
-}
-
-/// The declared parameters of every trait of `mods`, by trait, so their
-/// headers fill trait-argument defaults in any declaration order.
-/// The main lowering reports their diagnostics, so these are dropped.
-fn own_trait_generics(
-    r: &Resolver<'_, '_>,
-    mods: &[ModIn<'_>],
-    all_heads: &[Vec<Head<'_>>],
-    scopes: &[ModScopes],
-) -> HashMap<DefId, Vec<Generic>> {
-    let mut out = HashMap::default();
-    let mut scratch = DiagBuf::default();
-    for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
-        let locals = local_items(hs);
-        for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
-            let scope = match (h.test, &s.tests) {
-                (Some(_), Some(tests)) => tests,
-                _ => &s.scope,
-            };
-            let mut low = Lower {
-                r,
-                names: r.cx.names,
-                src: m.src,
-                module: &m.path,
-                scope,
-                kinds: &s.kinds,
-                diags: &mut scratch,
-                unsupported: None,
-                opaque_result: None,
-                result_paths: None,
-                kind_reported: HashSet::default(),
-                slots: None,
-                fn_written: Vec::new(),
-                held: None,
-                in_field: false,
-                locals: &locals,
-                at: m.src.span(h.node).lo,
-                outer: Outer::default(),
-                outer_lists: Vec::new(),
-                outer_self: None,
-                outer_takes_self: false,
-                chains: Vec::new(),
-            };
-            low.enter(h);
-            let (_, _, generics) = low.trait_generics(h);
-            out.entry(h.def).or_insert(generics);
         }
     }
     out
@@ -9668,55 +9622,6 @@ struct Taken {
     at: (usize, usize),
     binds: Vec<(DefId, Ty)>,
     forwarders: Vec<Item>,
-}
-
-/// The supertraits of the traits of `mods` (`Resolver::own_supers`).
-fn own_trait_supers(
-    r: &Resolver<'_, '_>,
-    mods: &[ModIn<'_>],
-    all_heads: &[Vec<Head<'_>>],
-    scopes: &[ModScopes],
-) -> HashMap<DefId, Vec<Ty>> {
-    let mut out = HashMap::default();
-    let mut scratch = DiagBuf::default();
-    for ((m, hs), s) in mods.iter().zip(all_heads).zip(scopes) {
-        let locals = local_items(hs);
-        for h in hs.iter().filter(|h| h.kind == HeadKind::Trait) {
-            let scope = match (h.test, &s.tests) {
-                (Some(_), Some(tests)) => tests,
-                _ => &s.scope,
-            };
-            let mut low = Lower {
-                r,
-                names: r.cx.names,
-                src: m.src,
-                module: &m.path,
-                scope,
-                kinds: &s.kinds,
-                diags: &mut scratch,
-                unsupported: None,
-                opaque_result: None,
-                result_paths: None,
-                kind_reported: HashSet::default(),
-                slots: None,
-                fn_written: Vec::new(),
-                held: None,
-                in_field: false,
-                locals: &locals,
-                at: m.src.span(h.node).lo,
-                outer: Outer::default(),
-                outer_lists: Vec::new(),
-                outer_self: None,
-                outer_takes_self: false,
-                chains: Vec::new(),
-            };
-            low.enter(h);
-            let (self_ty, gn, _) = low.trait_generics(h);
-            let (supers, _) = low.supers(h.node, &gn, self_ty);
-            out.entry(h.def).or_insert(supers);
-        }
-    }
-    out
 }
 
 /// One module's scopes while its folder resolves: its own, and with test
