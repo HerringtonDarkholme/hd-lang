@@ -3070,10 +3070,29 @@ impl Env<'_> {
     /// generic item's at its type arguments, a non-generic item's own
     /// body with no copy. A generic item's own body, which serves its
     /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2102), stays checked.
+    /// A facts body that names none of its owner's type parameters is
+    /// not one: a generic function's facts body builds its decorators'
+    /// values, and collection reaches it with no type arguments
+    /// (`facts_of(first)`) as its one instance, so it is marked and
+    /// verified like a non-generic body. A generic data type's structure
+    /// member facts name its parameters and are reached at its arguments.
     /// Cost: one pass over the body; the item's generics once.
     pub(super) fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
         let owner = ProgramEnv::generics_owner(self, body.item);
-        if args == TyList::EMPTY && !ProgramEnv::generic_rows(self, owner).is_empty() {
+        let pool = &self.run.pool;
+        let closed_fact = || {
+            body.kind == hd_tir::BodyKind::Fact
+                && !body
+                    .ty
+                    .iter()
+                    .chain(&body.local_ty)
+                    .chain(body.consts.iter().map(|(t, _)| t))
+                    .any(|&t| pool.has_param(t))
+        };
+        if args == TyList::EMPTY
+            && !ProgramEnv::generic_rows(self, owner).is_empty()
+            && !closed_fact()
+        {
             // ruled out: the generic body that serves past the leaf limit
             // had its local functions instantiated in its own parameters
             // (`Env::fold_and_inline`), whose one failure is a closure word
