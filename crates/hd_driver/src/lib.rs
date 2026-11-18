@@ -3365,7 +3365,7 @@ fn line_col(text: &str, at: u32) -> (usize, usize) {
 }
 
 /// The folder as cycle diagnostics show it: its `mod.hd` directory, or
-/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.loop`).
+/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.first-loop`).
 fn folder_display(table: &ModuleTable, f: usize) -> String {
     let mut files: Vec<&str> = table.folders[f]
         .modules
@@ -3382,80 +3382,121 @@ fn folder_display(table: &ModuleTable, f: usize) -> String {
     table.folders[f].path.clone()
 }
 
-/// The shortest directed loop through `touch`: folder indices from its
-/// least, open (the message closes it). Loops compare by length, then by
-/// folder path order (`module.cycle.diagnostic.loop`).
+/// The shortest directed loop through the tangle's least-path folder,
+/// open (the message closes it). Adjacency is in deterministic folder order
+/// (`module.cycle.diagnostic.first-loop`).
 fn shortest_loop(table: &ModuleTable, adj: &[Vec<usize>], touch: &HashSet<usize>) -> Vec<usize> {
-    let n = adj.len();
-    let path_of = |f: usize| table.folders[f].path.clone();
-    let mut best: Option<Vec<usize>> = None;
-    let better = |cand: &[usize], best: &Option<Vec<usize>>| -> bool {
-        let Some(best) = best else {
-            return true;
-        };
-        if cand.len() != best.len() {
-            return cand.len() < best.len();
-        }
-        cand.iter().map(|f| path_of(*f)).collect::<Vec<_>>()
-            < best.iter().map(|f| path_of(*f)).collect::<Vec<_>>()
-    };
-    for s in 0..n {
-        if !touch.contains(&s) {
-            continue;
-        }
-        // Breadth-first from `s`: the first edge back to `s` closes the
-        // shortest loop through `s`.
-        let mut dist = vec![u32::MAX; n];
-        let mut parent = vec![usize::MAX; n];
-        dist[s] = 0;
-        let mut queue = vec![s];
-        let mut qi = 0;
-        while qi < queue.len() {
-            let u = queue[qi];
-            qi += 1;
-            for &v in &adj[u] {
-                if v == s {
-                    let mut cyc = vec![s];
-                    let mut path = vec![u];
-                    let mut x = u;
-                    while x != s {
-                        x = parent[x];
-                        path.push(x);
-                    }
-                    path.pop();
-                    path.reverse();
-                    cyc.extend(path);
-                    if better(&cyc, &best) {
-                        best = Some(cyc);
-                    }
-                    break;
-                }
-                if dist[v] == u32::MAX {
-                    dist[v] = dist[u] + 1;
-                    parent[v] = u;
-                    queue.push(v);
-                }
-            }
-            if best.as_ref().is_some_and(|b| b.len() == 2 && b[0] == s) {
-                break;
-            }
-        }
-    }
-    // From its least folder, open.
-    let mut out = best.unwrap_or_default();
-    if let Some(at) = out
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, f)| path_of(**f))
-        .map(|(i, _)| i)
-    {
-        out.rotate_left(at);
-    }
-    out
+    shortest_loop_with_work(table, adj, touch, || {})
 }
 
-/// One diagnostic per cycle: its shortest loop through the cycle's
-/// folders, each edge's `use`, the folders on some loop with them, and
+fn shortest_loop_with_work(
+    table: &ModuleTable,
+    adj: &[Vec<usize>],
+    touch: &HashSet<usize>,
+    mut visit: impl FnMut(),
+) -> Vec<usize> {
+    // cost: one tangle scan, then one BFS over its folders and outgoing
+    // edges. The parent map is also the visited set: no package-sized arrays.
+    let Some(&start) = touch.iter().min_by_key(|&&f| {
+        visit();
+        table.folders[f].path.as_str()
+    }) else {
+        return Vec::new();
+    };
+    let mut parent = HashMap::from_iter([(start, None)]);
+    let mut queue = vec![start];
+    let mut at = 0;
+    while at < queue.len() {
+        let from = queue[at];
+        at += 1;
+        visit();
+        for &to in &adj[from] {
+            visit();
+            if !touch.contains(&to) {
+                continue;
+            }
+            if to == start {
+                let mut path = vec![from];
+                let mut from = from;
+                while let Some(&Some(previous)) = parent.get(&from) {
+                    visit();
+                    path.push(previous);
+                    from = previous;
+                }
+                path.reverse();
+                return path;
+            }
+            parent.entry(to).or_insert_with(|| {
+                queue.push(to);
+                Some(from)
+            });
+        }
+    }
+    Vec::new()
+}
+
+#[cfg(test)]
+mod folder_cycle_loop_tests {
+    use super::*;
+
+    fn table(n: usize) -> ModuleTable {
+        let mut table = ModuleTable::default();
+        table.folders = (0..n)
+            .map(|i| hd_project::Folder {
+                id: FolderId::from_raw(u32::try_from(i).unwrap()),
+                path: format!("{i:05}"),
+                modules: Vec::new(),
+                package: 0,
+            })
+            .collect();
+        table
+    }
+
+    #[test]
+    fn the_shortest_loop_goes_through_the_least_path_folder() {
+        let mut table = table(5);
+        for (folder, path) in table.folders.iter_mut().zip(["d", "c", "b", "a", "z"]) {
+            folder.path = path.into();
+        }
+        // b <-> c is globally shorter; the chosen loop must include a.
+        // z is outside the tangle and must never enter the BFS queue.
+        let adj = vec![vec![3], vec![0, 2], vec![1, 4], vec![2], vec![4]];
+        let touch = HashSet::from_iter([0, 1, 2, 3]);
+        assert_eq!(shortest_loop(&table, &adj, &touch), [3, 2, 1, 0]);
+        assert!(shortest_loop(&table, &adj, &HashSet::default()).is_empty());
+        assert!(shortest_loop(&table, &[vec![]], &HashSet::from_iter([0])).is_empty());
+        assert_eq!(
+            shortest_loop(&table, &[vec![0]], &HashSet::from_iter([0])),
+            [0]
+        );
+    }
+
+    #[test]
+    fn loop_search_work_grows_with_the_tangle_not_the_package() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one small-stack thread, with linear generated graphs.
+            .spawn(|| {
+                for (width, total) in [(1_000, 1_001), (10_000, 10_001), (1_000, 10_001)] {
+                    let table = table(total);
+                    let mut adj = vec![Vec::new(); total];
+                    for (i, row) in adj.iter_mut().enumerate().take(width) {
+                        *row = vec![width, (i + 1) % width];
+                    }
+                    let touch = (0..width).collect();
+                    let mut work = 0;
+                    let path = shortest_loop_with_work(&table, &adj, &touch, || work += 1);
+                    assert_eq!(path, (0..width).collect::<Vec<_>>());
+                    assert_eq!(work, 5 * width - 1);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+/// One diagnostic per cycle: its shortest loop through the least folder, each edge's `use`, the folders on some loop with them, and
 /// the fix.
 fn describe_cycles(
     table: &ModuleTable,
