@@ -603,13 +603,25 @@ impl Em<'_, '_, '_> {
                     self.f.global_set(storage(h, first + k, *v));
                 }
             }
-            Dst::Mem(at, base, leaves) => {
-                for (k, l) in leaves.iter().enumerate() {
-                    self.f.get(at);
-                    self.src(s, k)?;
-                    self.f.op(l.store(base));
-                }
-            }
+            Dst::Mem(at, base, leaves) => self.store_src(HEAP, at, base, leaves, s)?,
+        }
+        Ok(())
+    }
+
+    /// Stores each of `leaves` of `s` in memory `memory` at the address in
+    /// local `at`, `base` bytes before the value.
+    pub(super) fn store_src(
+        &mut self,
+        memory: u32,
+        at: u32,
+        base: u32,
+        leaves: &[Leaf],
+        s: &Src,
+    ) -> StageResult<()> {
+        for (k, l) in leaves.iter().enumerate() {
+            self.f.get(at);
+            self.src(s, k)?;
+            self.f.op(l.store_in(memory, base));
         }
         Ok(())
     }

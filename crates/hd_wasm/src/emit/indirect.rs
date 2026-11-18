@@ -696,15 +696,8 @@ impl Em<'_, '_, '_> {
                     } else {
                         None
                     };
-                    for (j, leaf) in mem.leaves.iter().enumerate() {
-                        self.f.get(base);
-                        match &src {
-                            Some(super::value::Src::Locals(ls)) => self.f.get(ls[j]),
-                            Some(super::value::Src::Ref(r)) => self.comp(*r, j)?,
-                            None => self.comp(r, j)?,
-                        }
-                        self.f.op(leaf.store_in(STACK, offs[k]));
-                    }
+                    let src = src.unwrap_or(super::value::Src::Ref(r));
+                    self.store_src(STACK, base, offs[k], &mem.leaves, &src)?;
                     address(&mut self.f, base, offs[k]);
                 }
                 _ => self.push_arg(i, k, r, params[k], Some(lends))?,
@@ -867,11 +860,7 @@ impl Em<'_, '_, '_> {
                 } else {
                     self.retain_ref(r)?
                 };
-                for (j, leaf) in mem.leaves.iter().enumerate() {
-                    self.f.get(base);
-                    self.src(&src, j)?;
-                    self.f.op(leaf.store_in(STACK, off));
-                }
+                self.store_src(STACK, base, off, &mem.leaves, &src)?;
                 if moved {
                     self.settle_value(r);
                 }
@@ -928,11 +917,7 @@ impl Em<'_, '_, '_> {
             } else {
                 self.retain_src(&super::value::Src::Ref(r), ft)?
             };
-            for (j, leaf) in mem.leaves.iter().enumerate() {
-                self.f.get(base);
-                self.src(&src, j)?;
-                self.f.op(leaf.store_in(STACK, off + part.offset));
-            }
+            self.store_src(STACK, base, off + part.offset, &mem.leaves, &src)?;
         }
         self.written.insert(i);
         Ok(())
@@ -975,11 +960,7 @@ impl Em<'_, '_, '_> {
                 (s, moved)
             }
         };
-        for (j, leaf) in mem.leaves.iter().enumerate() {
-            self.f.get(base);
-            self.src(&src, j)?;
-            self.f.op(leaf.store_in(STACK, 0));
-        }
+        self.store_src(STACK, base, 0, &mem.leaves, &src)?;
         if moved {
             self.settle_value(r);
         }
@@ -1372,11 +1353,7 @@ impl Em<'_, '_, '_> {
             self.copy_in(base, off, at, from, mem.size);
             return Ok(true);
         }
-        for (j, leaf) in mem.leaves.iter().enumerate() {
-            self.f.get(base);
-            self.comp(v, j)?;
-            self.f.op(leaf.store_in(STACK, off));
-        }
+        self.store_src(STACK, base, off, &mem.leaves, &super::value::Src::Ref(v))?;
         Ok(true)
     }
 }
