@@ -66,10 +66,10 @@ lays out the frame and writes the destructor, which has no TIR body.
 | Tree | Today | End state | Change |
 | --- | --- | --- | --- |
 | `crates/hd_wasm/src` | 72,379 | about 52,500 | −19,900 |
-| `crates/hd_tir/src` | 47,848 | about 55,450 | +7,600 |
+| `crates/hd_tir/src` | 47,848 | about 55,240, plus step 3b's lifting | +7,390 |
 | `crates/hd_driver/src/own.rs` | 4,234 | about 3,700 | −550 |
 | a new crate, `hd_layout`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
-| **All four** | **124,461** | **about 116,150** | **−8,330** |
+| **All four** | **124,461** | **about 115,900**, plus step 3b's lifting | **−8,560** |
 
 ## Open questions
 
@@ -78,7 +78,7 @@ None are open. The owner decided all seven as recommended on 2026-11-18.
 1. `Phase::Lowered` is the only input of a backend, checked by a
    verifier. Dev module bytes may change at a step; behaviour and bench
    gates replace byte identity.
-2. `hd_tir` may grow by about 7,600 lines while `hd_wasm` shrinks by about
+2. `hd_tir` may grow by about 7,400 lines while `hd_wasm` shrinks by about
    19,900. The loan analysis and the state machine are language logic.
 3. A value of more than 16 scalars lives in memory in every position,
    enums included, so no layout lists leaves. Gated on bench time and
@@ -195,16 +195,17 @@ counted as deleted. Each step deletes the path it replaces.
 
 | Step | Adds, and deletes | `hd_wasm` | `hd_tir` | Elsewhere | Net |
 | --- | --- | --- | --- | --- | --- |
-| 0 | #2165 and #2166 as targets, measured first: `local_fns.rs` folded onto `ir::copy` and `instantiate`, the verifier's re-proofs | 0 | −1,000 | 0 | −1,000 |
+| 0 | #2166: the owned verifier's re-proofs, measured first (lane 204 plans about −420) | 0 | −420 | 0 | −420 |
 | 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
 | 2 | scope lowering and cancel blocks; `emit/scope.rs`, `unwind_drops`; until step 7 the emitter's destructor lowers each point's cancel block (+150) | −250 | +300 | 0 | +50 |
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
+| 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −809, plus the lifting | 0 | priced when step 3 lands |
 | 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, most of `emit/count.rs` | −2,950 | +800 | 0 | −2,150 |
 | 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs` | −6,750 | +5,650 | 0 | −1,100 |
 | 6 | index guards as an optimization; `emit/guards.rs`, the list caches | −2,100 | −50 | `hd_opt` +1,550 | −600 |
 | 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs` with step 2's destructor code, `susp_spill.rs`, `frame_referents.rs` | −2,850 | +1,600 | 0 | −1,250 |
 | 8 | `verify_lowered`; read modes in the backend, the dev and release split | −450 | +250 | `own.rs` −50 | −250 |
-| | **Total** | **−19,900** | **+7,620** | **+3,950** | **−8,330** |
+| | **Total**, before 3b's lifting | **−19,900** | **+7,390** | **+3,950** | **−8,560** |
 
 **Where it grows, and why.** Step 2 grows the compiler by about 50
 lines: until step 7 deletes the emitter's destructor, that destructor
@@ -326,6 +327,25 @@ strong_retain %box                           // lowered SIL: counts are instruct
 hd differs in one place. Swift lowers async functions in LLVM's
 coroutine passes. Wasm has none, so hd follows rustc there.
 
+**Verified on this machine, 2026-11-18** (swiftc 6.4, rustc 1.97.1; the
+probes are short programs compiled with the commands shown).
+
+| Claim | Command | What the output shows |
+| --- | --- | --- |
+| rustc: a drop flag is a `bool` local | `rustc --emit=mir -C opt-level=0` | `let mut _5: bool; _5 = const true; … switchInt(copy _5) -> [0: bb4, otherwise: bb5]` before `drop(_2)` |
+| rustc: a local live across an await is a frame field, its flag too | same | `debug s => (((*_17) as variant#3).1: String)`; `(((*_17) as variant#3).3: bool) = const false`; entry `switchInt` on `discriminant((*_17))` |
+| Swift: a mutated captured variable is a box | `swiftc -emit-silgen` | `alloc_box ${ var Int }, var, name "count"`; `project_box` |
+| Swift: an exclusivity check is an instruction pair | `swiftc -emit-sil` | `begin_access [modify] [dynamic]` … `end_access` |
+| Swift: lowered SIL counts are instructions | `swiftc -emit-sil` | `strong_retain`, `strong_release`, `retain_value`, `release_value` |
+| Swift: async uses LLVM coroutines | `swiftc -emit-irgen` | `llvm.coro.id.async`, `llvm.coro.suspend.async`; `work` split into `…TQ0_` and `…TY1_` |
+| Swift: a generic local function that captures is its own function | `swiftc -emit-silgen` | `// pair #1 <A>(_:) in generic(captured:)`, `sil private … <T> (@in_guaranteed T, @guaranteed String)`: its own SIL function, the capture a parameter. `wrap` in `outer<T>` is `<T><U>`; a mutated capture is `@guaranteed { var Int }`. Calls are direct `function_ref`s. |
+| Rust has no generic capturing local function | `rustc` | a nested `fn` that captures: `error[E0434]: can't capture dynamic environment in a fn item`; a closure called at two types: `error[E0308]` |
+
+So `ir/local_fns.rs`'s copies inside the enclosing body follow neither
+language. Its module doc's claim that Swift does it is wrong. Step 3b
+replaces it with Swift's lifting. Not probed: Swift's `BoundsCheckOpts`
+and `AllocBoxToStack`, cited from source only.
+
 ## Appendix C. Alternatives considered
 
 - **Keep the emitter's analyses and port them to LLVM.** About 19,000
@@ -421,7 +441,7 @@ fallback, exact keys first, recorded reads, client-side instances.
 | Step | State | Here |
 | --- | --- | --- |
 | 1, 3, 4b, 5, 6, 7a, 7b | built (#2101, #2103, #2125, #2105, #2106, 92fc1f83b, 5c188e1c4) | kept |
-| 4, generic local functions | built at +955 (96a648c7c) | step 0 folds it onto `ir::copy` and `instantiate`; the copies stay in the enclosing body (#2165) |
+| 4, generic local functions | built at +955 (96a648c7c) as in-body copies, citing Swift, which does the opposite | step 3b lifts them as Swift does and deletes `local_fns.rs` |
 | 2, layout memo (#2102) | open | step 1 |
 | 7, flags and counts (#1420, #2107) | part built (2a5236de0, 69fa9f72b) | steps 3 and 4 |
 | 6b, recorded reads and a code cache (#2127) | open, after #49 point 4 | unchanged; the unit is the lowered body |
@@ -433,7 +453,8 @@ path it replaces and names its reference implementation.
 
 | Step | Measured deletions | Estimated additions and their method |
 | --- | --- | --- |
-| 0 | not measured: `local_fns.rs` is 809 lines, and its own parts are the region index, the contexts and the per-context memo; the verifier's re-proofs are uncounted | targets, not measurements: −600 for `local_fns.rs`, −400 for the verifier. A generic local function stays an in-body copy per instantiation; the copy is `ir::copy`'s and the substitution `instantiate`'s, so no substitution returns to a backend. Each lane measures first and stops below half its target. |
+| 0 | the owned verifier's re-proofs: lane 204 measured about −420 (seven checks that re-run their pass's own predicate, and `verify_instance` folded in) | none |
+| 3b | `ir/local_fns.rs` 809 (601 code, 208 tests). Folding it onto `ir::copy` measured only about −60 (lane 204), since the copy is already shared | lifting: each generic local function becomes its own body keyed by (enclosing item, sub-body), with the enclosing type parameters plus its own, and its captures as parameters, boxed when mutated (step 3's `Box`). `hd_mono::instantiate` then specializes it like any generic function. Priced by a probe once step 3 lands. |
 | 1 | memo scopes 257; `hd_wasm/lib.rs` driver wrappers 257; `own.rs` fallback 73; `TypeTable` 229 and about 2,000 of `layout.rs` and 594 of cycle code move | interner and target +150 (one arena and one map); enum and suspending memory locals +200 (the frame-block path in `indirect.rs` is 180); `own/parts.rs` 459 becomes shared move paths, about 350 |
 | 2 | `scope.rs` 358; the hand-picked destructor saves, about 40 | scope lowering and cancel blocks +300 (the emitter's ladder is 308 non-test lines); temporary, deleted in step 7: the destructor lowers each point's cancel block through ordinary statement lowering, +100 to +200 (`susp.rs`'s cancel path is 93 lines; the destructor's flag saves are 79 in `drop_flags.rs` and its loan cells 58 in `borrow.rs`, deleted in steps 3 and 5) |
 | 3 | cell functions in `closure.rs` 476; `promote.rs` 286 less about 45 of lowering; `emit/drop_flags.rs` 473; `own/drop_flags.rs` 467; hook guards in `value.rs` 178 | storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467; the analysis exists in `own/storage.rs`); elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays); 55 `is_cell` sites at about 3 lines; the `Box` tag +70 (the tag row below) |
