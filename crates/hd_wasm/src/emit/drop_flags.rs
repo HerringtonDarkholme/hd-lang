@@ -1,7 +1,6 @@
 //! Initialization state for inline Drop hooks. Zero is a valid payload,
 //! so empty owned places need state independent of their value bits.
 
-use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_tir::ir::{Place, PlaceRoot, Proj, Ref, Tag};
 use hd_types::Ty;
@@ -272,48 +271,6 @@ impl Em<'_, '_, '_> {
                 Flag::Memory(at, base + u32::try_from(i).expect("flags") * 4),
                 live,
             );
-        }
-    }
-
-    /// Scalar storage the separate frame destructor reads, including pointers
-    /// to memory-backed flags. Select these before assigning compact offsets.
-    pub(super) fn select_frame_drop_flags(&self, selected: &mut [bool]) {
-        for state in self.drop_states.values() {
-            for flag in &state.flags {
-                let local = match *flag {
-                    Flag::Local(local) | Flag::Memory(local, _) => local,
-                };
-                selected[local as usize] = true;
-            }
-        }
-    }
-
-    /// The task's destructor is a separate function. Rebind the body's
-    /// initialization locals to their saved values before releasing it.
-    pub(super) fn reload_drop_flags(&mut self, positions: &[Option<(u32, Val)>]) {
-        let mut roots: Vec<_> = self.drop_states.keys().copied().collect();
-        roots.sort_stable_by_key(|root| match root {
-            Root::Local(l) => (0, *l as u64),
-            Root::Value(i) => (1, u64::from(*i)),
-        });
-        for root in roots {
-            let mut state = self.drop_states[&root].clone();
-            for flag in &mut state.flags {
-                let old = match *flag {
-                    Flag::Local(l) | Flag::Memory(l, _) => l,
-                };
-                let local = self.f.local(Val::I32);
-                if let Some((offset, _)) = positions.get(old as usize).copied().flatten() {
-                    self.f.get(super::susp::FRAME);
-                    self.f.op(I::I32Load(mem(HEAP, u64::from(offset), 2)));
-                    self.f.set(local);
-                }
-                *flag = match *flag {
-                    Flag::Local(_) => Flag::Local(local),
-                    Flag::Memory(_, offset) => Flag::Memory(local, offset),
-                };
-            }
-            self.drop_states.insert(root, state);
         }
     }
 

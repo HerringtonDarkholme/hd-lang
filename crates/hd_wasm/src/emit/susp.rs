@@ -1400,7 +1400,6 @@ pub(super) fn finish(
     // Hidden cold-constructor and destructor reads are not in the body's
     // CFG. Account for them before assigning offsets, not by reserving a
     // hole for every ephemeral Wasm scratch local.
-    em.select_frame_drop_flags(&mut selected);
     em.select_frame_loan_cells(&mut selected);
     for &local in em.exit_owners().iter().chain(plocals) {
         if (em.parameter_positions.contains_key(&local) || em.captured_local(local))
@@ -1435,7 +1434,6 @@ pub(super) fn finish(
     let results = em.results.clone();
     let name = em.f.name.clone();
     let mut body = std::mem::take(&mut em.f);
-    let body_drop_states = em.drop_states.clone();
 
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
@@ -1462,10 +1460,10 @@ pub(super) fn finish(
         em.f.op(I::End);
         em.f.op(I::End);
     }
-    em.reload_drop_flags(&positions);
     // What a cold frame holds of the exit set: its parameters and a
     // closure's captures. The body's other locals are set only once it
-    // runs, and a started frame is never freed (pinned above).
+    // runs, and a started frame is never freed (pinned above), so each
+    // of them is whole: their drop flags are all 1 and none is read.
     let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
     let owned: Vec<usize> = em
         .exit_owners()
@@ -1511,7 +1509,8 @@ pub(super) fn finish(
             if em.is_cell(l) {
                 em.count_local(l, &loaded, false)
             } else {
-                em.release_drop_place(&loaded, em.b.local_ty[l], &Em::local_place(l))
+                em.assert_cancelled(&super::drop_flags::Root::Local(l));
+                em.release_locals(&loaded, em.b.local_ty[l])
             }
         })?;
     }
@@ -1584,7 +1583,6 @@ pub(super) fn finish(
         });
     }
     let drop = std::mem::take(&mut em.f);
-    em.drop_states = body_drop_states;
 
     // The cold constructor: a frame in state 0 holding the arguments and
     // the providers, with a count of each counted argument. Built once as the instance's own function, and once more, when the
