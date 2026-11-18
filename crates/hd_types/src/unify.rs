@@ -93,6 +93,9 @@ fn holds_of(pool: Types<'_>, t: Ty) -> u8 {
 #[derive(Default, Debug, Clone)]
 struct Closed {
     map: HashMap<Ty, Ty>,
+    /// Immutable descriptors of computed row results, including old results
+    /// revived by rollback. Their type IDs always denote the same row.
+    row_ids: HashMap<Ty, crate::RowId>,
     /// Each open key's result and the trail length it was resolved at.
     open: HashMap<Ty, (Ty, usize)>,
     /// Each kept key, the trail length it was resolved at, and whether
@@ -1135,77 +1138,86 @@ impl Resolve<'_, '_> {
     }
 }
 
-// Rebuild only after every child has been resolved. This mapper reads the
-// finished entries without recording a second copy of their dependencies.
-struct ResolvedChildren<'t, 'p> {
-    table: &'t InferTable,
-    pool: Types<'p>,
+enum ResolveWork {
+    Ty(Ty, usize),
+    Row(crate::RowId, usize),
+    FromRow(usize, usize),
+    FinishTy(Ty, std::ops::Range<usize>, Option<usize>, usize, usize),
+    FinishRow(Ty, crate::RowData, std::ops::Range<usize>, usize, usize),
 }
 
-impl crate::TyMap for ResolvedChildren<'_, '_> {
-    fn ty(&mut self, t: Ty) -> Ty {
-        let t = self.table.shallow(self.pool, t);
-        if !self.pool.has_infer(t) || matches!(self.pool.get(t), TyData::Infer(_)) {
-            return t;
-        }
-        let c = self.table.closed.borrow();
-        c.map
-            .get(&t)
-            .or_else(|| c.open.get(&t).map(|(r, _)| r))
-            .copied()
-            // ruled out: an unfinished child; its finish frame ran before
-            // the parent's and resolution cannot change bindings.
-            .expect("the child has finished resolving")
-    }
+// The frame owns its children's answers and its typed row answer. Rebuilding
+// never guesses a child's cache state or downcasts a type result into a row.
+struct ResolvedChildren<'a> {
+    children: &'a [Ty],
+    next: usize,
+    row: crate::RowId,
+}
 
-    fn row(&mut self, r: crate::RowId) -> crate::RowId {
-        let t = self.ty(self.pool.intern_ty(&TyData::Row(r)));
-        // ruled out: another constructor, since resolution preserves Row.
-        let TyData::Row(r) = self.pool.get(t) else {
-            unreachable!("resolved row")
-        };
-        r
+impl crate::TyMap for ResolvedChildren<'_> {
+    fn ty(&mut self, _: Ty) -> Ty {
+        let t = self.children[self.next];
+        self.next += 1;
+        t
+    }
+    fn row(&mut self, _: crate::RowId) -> crate::RowId {
+        self.row
     }
 }
 
-impl ResolvedChildren<'_, '_> {
-    fn row_keys(&mut self, r: crate::RowId) -> crate::RowId {
-        let mut d = self.pool.row_data(r);
-        d.keys = d
-            .keys
-            .iter()
-            .map(|&k| {
-                crate::work::type_node();
-                crate::TyMap::ty(self, k)
-            })
-            .collect();
-        self.pool.row(&d)
+impl Resolve<'_, '_> {
+    fn keep(&mut self, t: Ty, r: Ty, mark: usize) {
+        let stamp = self.table.trail.len();
+        let mut c = self.table.closed.borrow_mut();
+        if self.pool.has_infer(r) {
+            c.depend(self.deps.drain(mark..), t, stamp);
+            c.open.insert(t, (r, stamp));
+            c.log.push((stamp, t, true));
+            self.deps.push(Dep::Ty(t));
+        } else {
+            self.deps.truncate(mark);
+            c.map.insert(t, r);
+            c.log.push((stamp, t, false));
+        }
     }
-}
 
-impl crate::TyMap for Resolve<'_, '_> {
-    fn ty(&mut self, t: Ty) -> Ty {
-        enum Work {
-            Enter(Ty),
-            Finish(Ty, usize),
+    fn known_row(&mut self, row: crate::RowId) -> Option<crate::RowId> {
+        let t = self.pool.intern_ty(&TyData::Row(row));
+        if !self.pool.has_infer(t) {
+            return Some(row);
         }
-        let t = self.table.shallow(self.pool, t);
-        if let Some(known) = self.known(t) {
-            return known;
+        let mark = self.deps.len();
+        let found = self
+            .known(t)
+            .and_then(|ty| self.table.closed.borrow().row_ids.get(&ty).copied());
+        if found.is_none() {
+            self.deps.truncate(mark);
         }
+        found
+    }
 
+    fn run(&mut self, first: ResolveWork) -> (Ty, crate::RowId) {
+        let mut types = vec![Ty::POISON];
+        let mut rows = vec![crate::RowId::EMPTY];
         let mut children = Vec::new();
-        hd_base::stack::all(Work::Enter(t), |work, stack| {
+        hd_base::stack::all(first, |work, stack| {
             match work {
-                Work::Enter(t) => {
+                ResolveWork::Ty(t, out) => {
                     let t = self.table.shallow(self.pool, t);
-                    if self.known(t).is_some() {
+                    if let Some(r) = self.known(t) {
+                        types[out] = r;
                         return true;
                     }
-                    crate::work::resolve_node();
-                    stack.push(Work::Finish(t, self.deps.len()));
+                    let mark = self.deps.len();
                     children.clear();
-                    match self.pool.get(t) {
+                    let row = match self.pool.get(t) {
+                        TyData::Row(row) => {
+                            let slot = rows.len();
+                            rows.push(row);
+                            stack.push(ResolveWork::FromRow(slot, out));
+                            stack.push(ResolveWork::Row(row, slot));
+                            return true;
+                        }
                         TyData::Fn {
                             params,
                             result,
@@ -1214,57 +1226,112 @@ impl crate::TyMap for Resolve<'_, '_> {
                         } => {
                             children.extend_from_slice(self.pool.list_items(params));
                             children.push(result);
-                            children.push(self.pool.intern_ty(&TyData::Row(row)));
+                            Some(row)
                         }
-                        TyData::Context(row) => {
-                            children.push(self.pool.intern_ty(&TyData::Row(row)));
+                        TyData::Context(row) => Some(row),
+                        _ => {
+                            self.pool.children(t, &mut children);
+                            None
                         }
-                        _ => self.pool.children(t, &mut children),
+                    };
+                    crate::work::resolve_node();
+                    let row_slot = row.map(|row| {
+                        let slot = rows.len();
+                        rows.push(row);
+                        slot
+                    });
+                    let first = types.len();
+                    types.resize(first + children.len(), Ty::POISON);
+                    stack.push(ResolveWork::FinishTy(
+                        t,
+                        first..types.len(),
+                        row_slot,
+                        mark,
+                        out,
+                    ));
+                    if let Some(row) = row {
+                        stack.push(ResolveWork::Row(row, rows.len() - 1));
                     }
-                    stack.extend(children.iter().rev().map(|&c| Work::Enter(c)));
+                    stack.extend(
+                        children
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &child)| ResolveWork::Ty(child, first + i)),
+                    );
                 }
-                Work::Finish(t, mark) => {
-                    let mut ready = ResolvedChildren {
-                        table: self.table,
-                        pool: self.pool,
-                    };
-                    let r = if let TyData::Row(row) = self.pool.get(t) {
-                        self.pool.intern_ty(&TyData::Row(ready.row_keys(row)))
-                    } else {
-                        self.pool.map_children(t, &mut ready)
-                    };
-                    let stamp = self.table.trail.len();
-                    let mut c = self.table.closed.borrow_mut();
-                    if self.pool.has_infer(r) {
-                        c.depend(self.deps.drain(mark..), t, stamp);
-                        c.open.insert(t, (r, stamp));
-                        c.log.push((stamp, t, true));
-                        self.deps.push(Dep::Ty(t));
-                    } else {
-                        self.deps.truncate(mark);
-                        c.map.insert(t, r);
-                        c.log.push((stamp, t, false));
+                ResolveWork::Row(row, out) => {
+                    if let Some(found) = self.known_row(row) {
+                        rows[out] = found;
+                        return true;
                     }
+                    let t = self.pool.intern_ty(&TyData::Row(row));
+                    let mark = self.deps.len();
+                    crate::work::resolve_node();
+                    let data = self.pool.row_data(row);
+                    let first = types.len();
+                    types.resize(first + data.keys.len(), Ty::POISON);
+                    stack.push(ResolveWork::FinishRow(
+                        t,
+                        data.clone(),
+                        first..types.len(),
+                        mark,
+                        out,
+                    ));
+                    stack.extend(
+                        data.keys
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &key)| ResolveWork::Ty(key, first + i)),
+                    );
+                }
+                ResolveWork::FromRow(row, out) => {
+                    types[out] = self.pool.intern_ty(&TyData::Row(rows[row]));
+                }
+                ResolveWork::FinishTy(t, parts, row, mark, out) => {
+                    let result = self.pool.map_children(
+                        t,
+                        &mut ResolvedChildren {
+                            children: &types[parts],
+                            next: 0,
+                            row: row.map_or(crate::RowId::EMPTY, |i| rows[i]),
+                        },
+                    );
+                    self.keep(t, result, mark);
+                    types[out] = result;
+                }
+                ResolveWork::FinishRow(t, mut data, parts, mark, out) => {
+                    for _ in &data.keys {
+                        crate::work::type_node();
+                    }
+                    data.keys = types[parts].to_vec();
+                    let row = self.pool.row(&data);
+                    let result = self.pool.intern_ty(&TyData::Row(row));
+                    self.table.closed.borrow_mut().row_ids.insert(result, row);
+                    self.keep(t, result, mark);
+                    rows[out] = row;
                 }
             }
             true
         });
-        crate::TyMap::ty(
-            &mut ResolvedChildren {
-                table: self.table,
-                pool: self.pool,
-            },
-            t,
-        )
+        (types[0], rows[0])
     }
+}
 
+impl crate::TyMap for Resolve<'_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        let t = self.table.shallow(self.pool, t);
+        if let Some(r) = self.known(t) {
+            return r;
+        }
+        self.run(ResolveWork::Ty(t, 0)).0
+    }
     fn row(&mut self, r: crate::RowId) -> crate::RowId {
-        let t = self.ty(self.pool.intern_ty(&TyData::Row(r)));
-        // ruled out: another constructor, since resolution preserves Row.
-        let TyData::Row(r) = self.pool.get(t) else {
-            unreachable!("resolved row")
-        };
-        r
+        if let Some(row) = self.known_row(r) {
+            return row;
+        }
+        self.run(ResolveWork::Row(r, 0)).1
     }
 }
 

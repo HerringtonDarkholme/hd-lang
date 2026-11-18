@@ -269,7 +269,7 @@ impl Forwarder {
             newtype,
             base: self.part,
         });
-        if let Some(conv) = &conv {
+        let result_conversion = if let Some(conv) = conv {
             for (index, (&(l, t), &(name, want))) in params.iter().zip(&tsig.params).enumerate() {
                 let want = ck.normalize_deep(inst(want))?;
                 // `&self`, `&mut self` and a `&Self` parameter, as `Eq.eq`'s
@@ -285,16 +285,19 @@ impl Forwarder {
                     refs.push(ck.retype(v, want, at));
                     continue;
                 }
-                if !conv.can(&ck, t, want) {
+                let Some(plan) = conv.can(&ck, t, want) else {
                     return Ok(Forwarded::Position(self.position_message(&ck, t)));
-                }
+                };
                 let v = ck.b.get(l, t, at);
-                refs.push(conv.apply(&mut ck, v, (t, want), node));
+                refs.push(Conversion::apply(&mut ck, v, plan, node));
             }
-            if !conv.can(&ck, ret, sig_ret) {
+            let Some(plan) = conv.can(&ck, ret, sig_ret) else {
                 return Ok(Forwarded::Position(self.position_message(&ck, sig_ret)));
-            }
-        }
+            };
+            Some(plan)
+        } else {
+            None
+        };
         targs.extend(&own);
         let callee = Callee::TraitMethod {
             trait_,
@@ -312,8 +315,8 @@ impl Forwarder {
             "a forwarded result",
             ExpectPosition::General,
         );
-        let (r, ret) = match &conv {
-            Some(conv) => (conv.apply(&mut ck, r, (ret, sig_ret), node), sig_ret),
+        let (r, ret) = match result_conversion {
+            Some(plan) => (Conversion::apply(&mut ck, r, plan, node), sig_ret),
             None => (r, ret),
         };
         let root = ck.b.close_block(blk, Some(r), ret, at);

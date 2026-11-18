@@ -106,8 +106,34 @@ pub(crate) struct Conversion {
     pub base: Ty,
 }
 
+pub(crate) struct ConversionPlan {
+    layers: Vec<ConversionLayer>,
+    leaf: ConversionLeaf,
+}
+
+#[derive(Clone, Copy)]
+enum ConversionLeaf {
+    Same(Ty, Ty),
+    Wrap(Ty, Ty),
+    Unwrap(Ty, Ty),
+}
+
+enum ConversionLayer {
+    Variant {
+        from: Ty,
+        to: Ty,
+        element: Ty,
+        other: Option<Ty>,
+    },
+    List {
+        from: Ty,
+        to: Ty,
+        element: Ty,
+    },
+}
+
 enum ConvertWork {
-    Enter(Ref, (Ty, Ty)),
+    Enter(Ref, std::vec::IntoIter<ConversionLayer>),
     Variant(BlockMark, Ref, Ty, Option<Ty>),
     List(ListConversion),
 }
@@ -146,34 +172,64 @@ impl Conversion {
         }
     }
 
-    /// Whether a value of `from` converts to `to`.
-    pub(crate) fn can(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> bool {
+    /// A checked conversion shape. Only its validated layers can reach apply.
+    pub(crate) fn can(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> Option<ConversionPlan> {
         let pool = ck.pool();
         let known = ck.cx.names.known;
-        let (from, to) = (ck.resolved(from), ck.resolved(to));
-        if from == to || self.is_wrap(from, to) || self.is_unwrap(from, to) {
+        let leaf_at = |from, to, f, t| {
+            if f == t {
+                Some(ConversionLeaf::Same(from, to))
+            } else if self.is_wrap(f, t) {
+                Some(ConversionLeaf::Wrap(from, to))
+            } else if self.is_unwrap(f, t) {
+                Some(ConversionLeaf::Unwrap(from, to))
+            } else {
+                None
+            }
+        };
+        let (f, t) = (ck.resolved(from), ck.resolved(to));
+        if let Some(leaf) = leaf_at(from, to, f, t) {
             hd_types::work::type_node();
-            return true;
+            return Some(ConversionPlan {
+                layers: Vec::new(),
+                leaf,
+            });
         }
-        hd_base::stack::all((from, to), |(from, to), stack| {
+        let mut layers = Vec::new();
+        let mut leaf = ConversionLeaf::Same(from, to);
+        let fits = hd_base::stack::all((from, to), |(from, to), stack| {
             hd_types::work::type_node();
-            let (from, to) = (ck.resolved(from), ck.resolved(to));
-            if from == to || self.is_wrap(from, to) || self.is_unwrap(from, to) {
+            let (f, t) = (ck.resolved(from), ck.resolved(to));
+            if let Some(done) = leaf_at(from, to, f, t) {
+                leaf = done;
                 return true;
             }
-            match (pool.get(from), pool.get(to)) {
+            match (pool.get(f), pool.get(t)) {
                 (TyData::Adt { def: d, args: a }, TyData::Adt { def: e, args: b }) if d == e => {
                     let (a, b) = (pool.list_items(a), pool.list_items(b));
-                    if d == known.list || d == known.option || (d == known.result && a[1] == b[1]) {
-                        stack.push((a[0], b[0]));
-                        true
+                    if d == known.option || (d == known.result && a[1] == b[1]) {
+                        layers.push(ConversionLayer::Variant {
+                            from,
+                            to,
+                            element: a[0],
+                            other: (d == known.result).then(|| a[1]),
+                        });
+                    } else if d == known.list {
+                        layers.push(ConversionLayer::List {
+                            from,
+                            to,
+                            element: a[0],
+                        });
                     } else {
-                        false
+                        return false;
                     }
+                    stack.push((a[0], b[0]));
+                    true
                 }
                 _ => false,
             }
-        })
+        });
+        fits.then_some(ConversionPlan { layers, leaf })
     }
 
     fn is_wrap(&self, from: Ty, to: Ty) -> bool {
@@ -184,26 +240,74 @@ impl Conversion {
         from == self.newtype && to == self.base
     }
 
-    /// The value `r` of type `from` as type `to`, when `can` holds.
+    /// Apply the checked shape; no invalid constructor state is representable.
     pub(crate) fn apply(
-        &self,
         ck: &mut Ck<'_, '_>,
         r: Ref,
-        (from, to): (Ty, Ty),
+        plan: ConversionPlan,
         node: NodeRef<'_>,
     ) -> Ref {
-        let (f, t) = (ck.resolved(from), ck.resolved(to));
-        if f == t || self.is_wrap(f, t) || self.is_unwrap(f, t) {
-            hd_types::work::type_node();
-            return self.apply_step(ck, r, (from, to), node, &mut Vec::new());
-        }
+        let ConversionPlan { layers, leaf } = plan;
         let at = node.index();
+        if layers.is_empty() {
+            hd_types::work::type_node();
+            return Self::apply_leaf(ck, r, leaf, node);
+        }
         let mut converted = r;
-        hd_base::stack::all(ConvertWork::Enter(r, (from, to)), |work, stack| {
+        hd_base::stack::all(ConvertWork::Enter(r, layers.into_iter()), |work, stack| {
             converted = match work {
-                ConvertWork::Enter(r, pair) => {
+                ConvertWork::Enter(input, mut layers) => {
                     hd_types::work::type_node();
-                    self.apply_step(ck, r, pair, node, stack)
+                    match layers.next() {
+                        Some(ConversionLayer::Variant {
+                            from,
+                            to,
+                            element,
+                            other,
+                        }) => {
+                            let (f, t) = (ck.resolved(from), ck.resolved(to));
+                            if f == t {
+                                ck.coerce(
+                                    input,
+                                    from,
+                                    to,
+                                    node,
+                                    "a forwarded value",
+                                    ExpectPosition::General,
+                                )
+                            } else {
+                                let block = ck.b.open_block();
+                                let element = ck.resolved(element);
+                                let other = other.map(|t| ck.resolved(t));
+                                let value =
+                                    ck.b.payload(input, u32::from(other.is_none()), 0, element, at);
+                                stack.push(ConvertWork::Variant(block, input, t, other));
+                                stack.push(ConvertWork::Enter(value, layers));
+                                value
+                            }
+                        }
+                        Some(ConversionLayer::List { from, to, element }) => {
+                            let (f, t) = (ck.resolved(from), ck.resolved(to));
+                            if f == t {
+                                ck.coerce(
+                                    input,
+                                    from,
+                                    to,
+                                    node,
+                                    "a forwarded value",
+                                    ExpectPosition::General,
+                                )
+                            } else {
+                                let element = ck.resolved(element);
+                                let (value, frame) =
+                                    Self::start_list(ck, input, (f, t), element, node);
+                                stack.push(ConvertWork::List(frame));
+                                stack.push(ConvertWork::Enter(value, layers));
+                                value
+                            }
+                        }
+                        None => Self::apply_leaf(ck, input, leaf, node),
+                    }
                 }
                 ConvertWork::Variant(block, input, ty, other) => {
                     let tag = u32::from(other.is_none());
@@ -229,70 +333,54 @@ impl Conversion {
         converted
     }
 
-    fn apply_step(
-        &self,
-        ck: &mut Ck<'_, '_>,
-        r: Ref,
-        (from, to): (Ty, Ty),
-        node: NodeRef<'_>,
-        stack: &mut Vec<ConvertWork>,
-    ) -> Ref {
-        let pool = ck.pool();
+    fn apply_leaf(ck: &mut Ck<'_, '_>, r: Ref, leaf: ConversionLeaf, node: NodeRef<'_>) -> Ref {
         let at = node.index();
-        let (f, t) = (ck.resolved(from), ck.resolved(to));
-        if f == t {
-            return ck.coerce(
+        match leaf {
+            ConversionLeaf::Same(from, to) => ck.coerce(
                 r,
                 from,
                 to,
                 node,
                 "a forwarded value",
                 ExpectPosition::General,
-            );
-        }
-        if self.is_unwrap(f, t) {
-            return ck.b.field(r, 0, to, at);
-        }
-        if self.is_wrap(f, t) {
-            // The newtype's value, as its constructor builds it.
-            let rec = ck.b.refs_record(&[r]);
-            let made = ck.b.emit(Tag::NewStruct, NONE, rec, t, at);
-            return ck.coerce(
-                made,
-                t,
-                to,
-                node,
-                "a wrapped value",
-                ExpectPosition::General,
-            );
-        }
-        let known = ck.cx.names.known;
-        match (pool.get(f), pool.get(t)) {
-            (TyData::Adt { def, args: a }, TyData::Adt { def: to, args: b })
-                if (def == known.option && to == known.option) || def == known.result =>
-            {
-                let (a, b) = (pool.list_items(a), pool.list_items(b));
-                let block = ck.b.open_block();
-                let tag = u32::from(def == known.option);
-                let value = ck.b.payload(r, tag, 0, a[0], at);
-                stack.push(ConvertWork::Variant(
-                    block,
-                    r,
+            ),
+            ConversionLeaf::Unwrap(from, to) => {
+                if ck.resolved(from) == ck.resolved(to) {
+                    ck.coerce(
+                        r,
+                        from,
+                        to,
+                        node,
+                        "a forwarded value",
+                        ExpectPosition::General,
+                    )
+                } else {
+                    ck.b.field(r, 0, to, at)
+                }
+            }
+            ConversionLeaf::Wrap(from, to) => {
+                if ck.resolved(from) == ck.resolved(to) {
+                    return ck.coerce(
+                        r,
+                        from,
+                        to,
+                        node,
+                        "a forwarded value",
+                        ExpectPosition::General,
+                    );
+                }
+                let t = ck.resolved(to);
+                let rec = ck.b.refs_record(&[r]);
+                let made = ck.b.emit(Tag::NewStruct, NONE, rec, t, at);
+                ck.coerce(
+                    made,
                     t,
-                    (def == known.result).then(|| a[1]),
-                ));
-                stack.push(ConvertWork::Enter(value, (a[0], b[0])));
-                value
+                    to,
+                    node,
+                    "a wrapped value",
+                    ExpectPosition::General,
+                )
             }
-            (TyData::Adt { def, args: a }, TyData::Adt { args: b, .. }) if def == known.list => {
-                let (a, b) = (pool.list_items(a)[0], pool.list_items(b)[0]);
-                let (value, frame) = Self::start_list(ck, r, (f, t), a, node);
-                stack.push(ConvertWork::List(frame));
-                stack.push(ConvertWork::Enter(value, (a, b)));
-                value
-            }
-            // ruled out: another conversion kind; Forwarder::body checked can.
-            _ => unreachable!("Forwarder::body checked Conversion::can"),
         }
     }
 
@@ -451,7 +539,7 @@ mod tests {
                             {
                                 let (answer, work) =
                                     hd_types::work::count_type_nodes(|| conv.can(ck, from, to));
-                                assert_eq!(answer, expected);
+                                assert_eq!(answer.is_some(), expected);
                                 assert_eq!(work, u64::try_from(depth + 1).unwrap());
                             }
                         }
@@ -464,11 +552,14 @@ mod tests {
                             args: p.list(&[x, e]),
                         })
                     };
-                    assert!(!conv.can(
-                        ck,
-                        result(conv.base, Ty::I32),
-                        result(conv.newtype, Ty::BOOL)
-                    ));
+                    assert!(
+                        conv.can(
+                            ck,
+                            result(conv.base, Ty::I32),
+                            result(conv.newtype, Ty::BOOL)
+                        )
+                        .is_none()
+                    );
                     for data in [
                         TyData::Tuple {
                             elems: p.list(&[conv.newtype]),
@@ -481,13 +572,50 @@ mod tests {
                             counted: false,
                         },
                     ] {
-                        assert!(!conv.can(ck, p.intern_ty(&data), Ty::I32));
+                        assert!(conv.can(ck, p.intern_ty(&data), Ty::I32).is_none());
                     }
                 });
             })
             .unwrap()
             .join()
             .unwrap();
+    }
+
+    #[test]
+    fn checked_conversions_can_become_identity_after_inference() {
+        for depth in [0, 20] {
+            for wrap in [false, true] {
+                with_checker(|ck| {
+                    let p = ck.pool();
+                    let var = ck.infer.fresh(p, hd_types::VarKind::General);
+                    let conv = if wrap {
+                        Conversion {
+                            base: var,
+                            newtype: Ty::I32,
+                        }
+                    } else {
+                        Conversion {
+                            base: Ty::I32,
+                            newtype: var,
+                        }
+                    };
+                    let from = nest(ck, var, depth, 0);
+                    let to = nest(ck, Ty::I32, depth, 0);
+                    let plan = conv.can(ck, from, to).unwrap();
+                    ck.infer.unify(p, var, Ty::I32).unwrap();
+                    let node = ck.cx.src.parse.tree.root();
+                    let root = ck.b.open_block();
+                    let name = ck.cx.names.syms.intern("input");
+                    let local = ck.b.local(from, name, local_flags::PARAM, node.index());
+                    let input = ck.b.get(local, from, node.index());
+                    let output = Conversion::apply(ck, input, plan, node);
+                    assert_eq!(output, input);
+                    ck.b.close_block(root, Some(output), to, node.index());
+                    assert_eq!(ck.b.body().tags.len(), 2);
+                    assert_eq!(ck.b.body().tags[1], Tag::Block);
+                });
+            }
+        }
     }
 
     #[test]
@@ -513,8 +641,9 @@ mod tests {
                                 let sym = ck.cx.names.syms.intern("input");
                                 let local = ck.b.local(from, sym, local_flags::PARAM, node.index());
                                 let input = ck.b.get(local, from, node.index());
+                                let plan = conv.can(ck, from, to).unwrap();
                                 let (out, work) = hd_types::work::count_type_nodes(|| {
-                                    conv.apply(ck, input, (from, to), node)
+                                    Conversion::apply(ck, input, plan, node)
                                 });
                                 assert_eq!(work, u64::try_from(depth + 1).unwrap());
                                 ck.b.close_block(root, Some(out), to, node.index());
