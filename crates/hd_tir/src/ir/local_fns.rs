@@ -41,8 +41,7 @@ use hd_base::{HashMap, Range32, SubId};
 use hd_types::{InternPool, Ty, TyList};
 
 use super::{
-    Body, NONE, Remap, SideRows, Tag, Topology, copy_rows, local_words, push_record, sub_flags,
-    u32_of,
+    Body, NONE, Remap, SideRows, Tag, Topology, copy_rows, local_words, sub_flags, u32_of,
 };
 
 /// The types of one context: `t` with the generic local functions' own
@@ -581,7 +580,7 @@ impl Tables<'_> {
                             .ok_or_else(|| format!("local {l} outside its scope"))?,
                     );
                 }
-                let at = push_record(out, &words);
+                let at = out.push_record(&words);
                 out.sub_params[n] = Range32 {
                     start: at,
                     len: u32_of(words.len()),

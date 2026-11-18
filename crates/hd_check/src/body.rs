@@ -14,7 +14,7 @@ use std::fmt::Write as _;
 
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{Item, ItemData, Lookup, LookupDecls, ModuleScope, Names, Src};
+use hd_resolve::{Item, ItemData, Lookup, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
@@ -128,17 +128,7 @@ impl BodyCx<'_> {
         &self,
         local: &'m mut crate::value::InlineDecls,
     ) -> crate::value::SolverDecls<'_, 'm> {
-        crate::value::SolverDecls {
-            decls: LookupDecls {
-                lookup: self.lookup,
-                pool: self.names.pool,
-                sealed: self.names.known.sealed(),
-                paths: self.names.paths,
-                syms: self.names.syms,
-            },
-            global: self.global,
-            local: std::cell::RefCell::new(local),
-        }
+        crate::value::SolverDecls::new(self.lookup, self.names, self.global, local)
     }
 
     /// The table an impl row of a solver answer lives in.
@@ -3704,6 +3694,10 @@ impl Ck<'_, '_> {
         let Some(body) = Src::child(w, SyntaxKind::Block) else {
             return false;
         };
+        self.infinite_while(cond, body)
+    }
+
+    pub(crate) fn infinite_while(&self, cond: NodeRef<'_>, body: NodeRef<'_>) -> bool {
         let mut lit = cond;
         while lit.kind() == SyntaxKind::ParenExpr {
             let Some(inner) = lit.children().next() else {

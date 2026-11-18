@@ -271,7 +271,7 @@ impl Em<'_, '_, '_> {
             // runs, outermost first, then the base's, then the base's
             // parts' (module.rt.drop.glue). The layers are walked only
             // when one of them or the base holds a `Drop` value, in
-            // O(layers), as `strip` below is.
+            // O(layers), as `strip_newtype` below is.
             let glue = |layer: Ty, out: &mut Vec<(DropCall, Vec<hd_tir::ir::Proj>)>| {
                 if (root || matches!(em.kind(layer), Kind::Value))
                     && let Some(&key) = em.input.collected.drop_glue.get(&layer)
@@ -291,7 +291,7 @@ impl Em<'_, '_, '_> {
                     glue(layer, out);
                 });
             }
-            let t = crate::layout::strip(em.pool(), em.env(), t);
+            let t = crate::layout::strip_newtype(em.pool(), em.env(), t);
             glue(t, out);
             if let Some(variants) = em.try_variant_tys(t)
                 && let Ok(Some(flat)) = em.flat(t)
@@ -330,7 +330,7 @@ impl Em<'_, '_, '_> {
             }
             let (fields, parts) = match em.kind(t) {
                 Kind::Value => {
-                    let stripped = crate::layout::strip(em.pool(), em.env(), t);
+                    let stripped = crate::layout::strip_newtype(em.pool(), em.env(), t);
                     let fields = match em.pool().get(stripped) {
                         TyData::Tuple { .. } => crate::layout::tuple_members(em.pool(), stripped),
                         TyData::Adt { def, .. } if !em.env().is_enum(def) => em.struct_fields(t),
@@ -701,7 +701,7 @@ impl Em<'_, '_, '_> {
     /// The field types of struct type `t`, substituted.
     pub(super) fn struct_fields(&self, t: Ty) -> Vec<Ty> {
         let (pool, env) = (self.pool(), self.env());
-        let TyData::Adt { def, args } = pool.get(crate::layout::strip(pool, env, t)) else {
+        let TyData::Adt { def, args } = pool.get(crate::layout::strip_newtype(pool, env, t)) else {
             return Vec::new();
         };
         env.data_fields(def)

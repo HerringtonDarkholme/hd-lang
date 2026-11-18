@@ -317,7 +317,7 @@ impl Em<'_, '_, '_> {
                 for (f, field) in crate::layout::value_parts(
                     em.pool(),
                     em.env(),
-                    crate::layout::strip(em.pool(), em.env(), ty),
+                    crate::layout::strip_newtype(em.pool(), em.env(), ty),
                 )
                 .into_iter()
                 .enumerate()

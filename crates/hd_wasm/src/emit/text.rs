@@ -17,7 +17,7 @@ use crate::rt::{Helper, PrimArg};
 impl Em<'_, '_, '_> {
     /// Whether `t` is `string`, through newtypes and `mut`.
     fn is_string(&self, t: Ty) -> bool {
-        crate::layout::strip(self.pool(), self.env(), t) == Ty::STRING
+        crate::layout::strip_newtype(self.pool(), self.env(), t) == Ty::STRING
     }
 
     /// An interpolation or a concatenation of string parts: one part is

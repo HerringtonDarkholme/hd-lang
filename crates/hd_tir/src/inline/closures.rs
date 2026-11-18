@@ -788,7 +788,7 @@ fn erase_definitions(
             continue;
         }
         let root = body.sub_root[sub];
-        body.data[root as usize] = [super::push_record(body, &[]), NONE];
+        body.data[root as usize] = [body.push_record(&[]), NONE];
         body.ty[root as usize] = hd_types::Ty::NEVER;
         let trap = edits.insert(
             root,
@@ -1210,8 +1210,8 @@ mod tests {
             for i in 0..body.len() {
                 if body.tags[i] == Tag::CallValue {
                     let literal = body.data[i][0];
-                    let callee = super::super::push_record(&mut body, &[0, 2, 0]);
-                    let args = super::super::push_record(&mut body, &[literal, 0, 0, 0]);
+                    let callee = body.push_record(&[0, 2, 0]);
+                    let args = body.push_record(&[literal, 0, 0, 0]);
                     body.tags[i] = Tag::Call;
                     body.data[i] = [callee, args];
                 }

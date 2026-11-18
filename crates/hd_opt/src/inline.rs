@@ -607,7 +607,7 @@ impl dyn InlineEnv + '_ {
             // CallValue and Call use the same argument/footer record.
             // Keep the checker's provider evidence, not a second trailer.
             let args = body.data[i][1];
-            let callee = push_record(body, &[0, d, targs]);
+            let callee = body.push_record(&[0, d, targs]);
             body.tags[i] = Tag::Call;
             body.data[i] = [callee, args];
             changed = true;
@@ -1853,14 +1853,6 @@ fn bounded_inline_metadata_with(body: &Body, mut visit: impl FnMut()) -> Option<
     Some(16 * AUTO_INLINE_LIMIT - remaining)
 }
 
-/// Appends a record of `words` to `body`'s `extra`; its offset.
-fn push_record(body: &mut Body, words: &[u32]) -> u32 {
-    let at = u32::try_from(body.extra.len()).expect("extra");
-    body.extra.push(u32::try_from(words.len()).expect("record"));
-    body.extra.extend_from_slice(words);
-    at
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum WriterOrigin {
     Local(u32),
@@ -2816,7 +2808,7 @@ mod tests {
             words.extend(std::iter::repeat_n(place::PROJ_FIELD, depth));
             body.extra.push(super::index_word(words.len()));
             body.extra.extend(words);
-            let identity = super::push_record(&mut body, &[hd_tir::ir::Coercion::Identity as u32]);
+            let identity = body.push_record(&[hd_tir::ir::Coercion::Identity as u32]);
             for i in 0..width {
                 body.tags.push(Tag::Ref);
                 body.data.push([0, hd_tir::ir::ref_word::MUT]);

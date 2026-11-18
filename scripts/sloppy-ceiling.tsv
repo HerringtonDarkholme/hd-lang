@@ -14,7 +14,7 @@ sloppy-expect	hd_check	26
 sloppy-expect	hd_driver	5
 sloppy-expect	hd_layout	7
 sloppy-expect	hd_mono	5
-sloppy-expect	hd_opt	15
+sloppy-expect	hd_opt	9
 sloppy-expect	hd_resolve	12
 sloppy-expect	hd_syntax	5
 sloppy-expect	hd_tir	62

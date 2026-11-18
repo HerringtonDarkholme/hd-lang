@@ -1780,7 +1780,7 @@ impl Em<'_, '_, '_> {
     fn tuple(&self, t: Ty) -> bool {
         matches!(
             self.pool()
-                .get(crate::layout::strip(self.pool(), self.env(), t)),
+                .get(crate::layout::strip_newtype(self.pool(), self.env(), t)),
             TyData::Tuple { .. }
         )
     }
@@ -2926,7 +2926,7 @@ impl Em<'_, '_, '_> {
                 }
                 let tys = crate::layout::tuple_members(
                     self.pool(),
-                    crate::layout::strip(self.pool(), self.env(), self.ty(i)),
+                    crate::layout::strip_newtype(self.pool(), self.env(), self.ty(i)),
                 );
                 let srcs: Vec<value::Src> = members.into_iter().map(value::Src::Ref).collect();
                 // Construction consumes its parts (§23.25).

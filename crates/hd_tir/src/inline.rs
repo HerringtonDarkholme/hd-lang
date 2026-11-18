@@ -15,7 +15,7 @@ use hd_types::{Ty, TyList};
 
 use crate::ir::{
     Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Remap, Role, SideRows, Tag, Through,
-    Word, copy_rows, grow, local_flags, place, push_frame, push_record, renumber, slots, u32_of,
+    Word, copy_rows, grow, local_flags, place, push_frame, renumber, slots, u32_of,
 };
 use crate::own::splice::permute_columns;
 
@@ -365,7 +365,7 @@ fn inline_bound_calls(
             }
             list.push(x);
         }
-        b.data[outer][0] = push_record(b, &list);
+        b.data[outer][0] = b.push_record(&list);
     }
     let mut order = Vec::with_capacity(b.len());
     for i in 0..n {
@@ -594,7 +594,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let [members, tail] = out.data[root];
     let mut list = out.record(members).to_vec();
     list.push(root_at - 1);
-    let rec = push_record(out, &list);
+    let rec = out.push_record(&list);
     let cleanup_root = if environment.is_empty() {
         root_at
     } else {
@@ -604,15 +604,12 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let cleanup_members: Vec<u32> = (0..u32_of(environment.len()))
         .map(|i| cleanup_start + i)
         .collect();
-    let cleanup_record = push_record(out, &cleanup_members);
-    let cleanups = push_record(
-        out,
-        &if environment.is_empty() {
-            Vec::new()
-        } else {
-            vec![cleanup_root]
-        },
-    );
+    let cleanup_record = out.push_record(&cleanup_members);
+    let cleanups = out.push_record(&if environment.is_empty() {
+        Vec::new()
+    } else {
+        vec![cleanup_root]
+    });
     // The copy's own instructions name the callee's as their anchors
     // ([`Body::inlined`]), so a panic in the copy reports the callee's
     // frame, then the call's; one without a position keeps none, as in
@@ -771,12 +768,13 @@ fn substitute_refs(
                 if body.tags[i] != Tag::Read {
                     return Err("a reader that changes its reference binding".to_owned());
                 }
-                let identity = push_record(body, &[crate::ir::Coercion::Identity as u32, NONE]);
+                let identity = body.push_record(&[crate::ir::Coercion::Identity as u32, NONE]);
                 body.tags[i] = Tag::Coerce;
                 body.data[i] = [argument, identity];
             } else {
                 place.root = crate::ir::PlaceRoot::Value(crate::ir::Ref(argument));
-                body.data[i][x] = push_record(body, &place.words().expect("a value-rooted place"));
+                // ruled out: only a bare local lacks words; this root is a value.
+                body.data[i][x] = body.push_record(&place.words().expect("a value-rooted place"));
             }
         }
     }
@@ -789,8 +787,8 @@ mod tests {
     use hd_types::{Ty, TyList};
 
     use super::{
-        Chosen, Site, copyable, inlinable, inline_calls, known_call, leaf, plain_call, push_record,
-        rechoose, u32_of,
+        Chosen, Site, copyable, inlinable, inline_calls, known_call, leaf, plain_call, rechoose,
+        u32_of,
     };
     use crate::ir::{
         Body, BodyKind, Callee, ChoiceKind, IntrinsicOp, Op, Place, PlaceRoot, Proj, Providers,
@@ -1305,19 +1303,19 @@ mod tests {
             .expect("callee has an if");
         let arms = switch.record(switch.data[at][1]);
         let (yes, no) = (arms[0], arms[1]);
-        let cases = push_record(&mut switch, &[1, yes, no]);
+        let cases = switch.push_record(&[1, yes, no]);
         switch.tags[at] = Tag::SwitchInt;
         switch.data[at][1] = cases;
         copies(switch, Tag::SwitchInt);
 
         let mut dynamic = callee();
-        let record = push_record(&mut dynamic, &[8, 0, 0, Ref::konst(0).0, 0, 0, 0]);
+        let record = dynamic.push_record(&[8, 0, 0, Ref::konst(0).0, 0, 0, 0]);
         dynamic.tags[0] = Tag::CallDyn;
         dynamic.data[0] = [Ref::konst(0).0, record];
         copies(dynamic, Tag::CallDyn);
 
         let mut host = callee();
-        let record = push_record(&mut host, &[Ref::konst(0).0]);
+        let record = host.push_record(&[Ref::konst(0).0]);
         host.tags[0] = Tag::CallHost;
         host.data[0] = [Ref::konst(0).0, record];
         copies(host, Tag::CallHost);

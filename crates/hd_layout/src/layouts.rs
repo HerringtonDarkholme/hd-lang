@@ -156,7 +156,7 @@ impl Layouts {
     /// `t`'s layout: one probe once laid out, else O(the fields of each
     /// type it holds by value that is not laid out yet).
     pub fn of(&self, pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<LayoutId> {
-        let u = crate::strip(pool, env, t);
+        let u = crate::strip_newtype(pool, env, t);
         if let Some(got) = self.by_ty.borrow().get(&u) {
             return got.clone();
         }

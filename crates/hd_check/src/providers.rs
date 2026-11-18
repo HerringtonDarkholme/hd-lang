@@ -404,13 +404,6 @@ pub(crate) fn finalize(cx: &BodyCx<'_>, b: &mut Body) -> StageResult<()> {
     Ok(())
 }
 
-fn record(b: &mut Body, words: &[u32]) -> u32 {
-    let at = u32_of(b.extra.len());
-    b.extra.push(u32_of(words.len()));
-    b.extra.extend_from_slice(words);
-    at
-}
-
 fn project(
     cx: &BodyCx<'_>,
     b: &mut Body,
@@ -453,9 +446,9 @@ fn project(
         });
         value
     };
-    let get = record(b, &[supplier.0]);
+    let get = b.push_record(&[supplier.0]);
     let provider = push(Tag::ProviderGet, [get, NONE], supplier);
-    let as_ref = record(b, &[Coercion::ProviderAsRef as u32, NONE]);
+    let as_ref = b.push_record(&[Coercion::ProviderAsRef as u32, NONE]);
     let reference = push(Tag::Coerce, [provider, as_ref], source);
     let local = u32_of(b.local_ty.len());
     b.local_ty.push(source);
@@ -463,13 +456,13 @@ fn project(
     b.local_syn.push(b.syn[call]);
     b.local_flags.push(0);
     push(Tag::Store, [place::BARE_LOCAL | local, reference], Ty::VOID);
-    let place = record(b, &[place::ROOT_LOCAL, local, place::PROJ_DEREF]);
+    let place = b.push_record(&[place::ROOT_LOCAL, local, place::PROJ_DEREF]);
     let value = push(Tag::Read, [place, ReadMode::Use as u32], supplier);
-    let widening = record(b, &[Coercion::Supertrait as u32, NONE]);
+    let widening = b.push_record(&[Coercion::Supertrait as u32, NONE]);
     let value = push(Tag::Coerce, [value, widening], key);
-    let empty = record(b, &[]);
+    let empty = b.push_record(&[]);
     let block = push(Tag::Block, [empty, value], key);
     let reference = push(Tag::RefDyn, [block, NONE], target);
-    let as_provider = record(b, &[Coercion::RefAsProvider as u32, NONE]);
+    let as_provider = b.push_record(&[Coercion::RefAsProvider as u32, NONE]);
     push(Tag::Coerce, [reference, as_provider], key)
 }

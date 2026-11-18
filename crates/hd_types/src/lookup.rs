@@ -172,10 +172,7 @@ impl RefTable {
 
     /// [`crate::solver::ImplTable::has_rows_at`] of this table.
     fn has_rows_at(&self, codes: [Option<u64>; 3]) -> bool {
-        codes
-            .into_iter()
-            .flatten()
-            .any(|c| self.traits_by_key.contains_key(&c))
+        crate::solver::has_rows_at(&self.traits_by_key, codes)
     }
 
     /// [`crate::solver::ImplTable::traits_named`] of this table.

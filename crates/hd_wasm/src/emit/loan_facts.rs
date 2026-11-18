@@ -170,7 +170,7 @@ impl Context for Facts<'_, '_> {
     }
 
     fn strip(&self, ty: Ty) -> Ty {
-        layout::strip(self.input.pool, self.input.env, ty)
+        layout::strip_newtype(self.input.pool, self.input.env, ty)
     }
 
     fn place_crossings(&self, id: InstId, p: &Place) -> Option<Vec<(usize, Ty)>> {

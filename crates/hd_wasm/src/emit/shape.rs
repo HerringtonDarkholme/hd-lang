@@ -418,12 +418,6 @@ mod tests {
     /// and a write through that reference, then a read of the local.
     fn reference_body() -> Body {
         use hd_tir::ir::Place;
-        fn record(b: &mut Body, words: &[u32]) -> u32 {
-            let at = u32::try_from(b.extra.len()).unwrap();
-            b.extra.push(u32::try_from(words.len()).unwrap());
-            b.extra.extend_from_slice(words);
-            at
-        }
         fn inst(b: &mut Body, tag: Tag, a: u32, w: u32) -> u32 {
             let i = u32::try_from(b.tags.len()).unwrap();
             b.tags.push(tag);
@@ -434,7 +428,7 @@ mod tests {
         }
         fn place(b: &mut Body, p: &Place) -> u32 {
             match (p.words(), p.root) {
-                (Some(words), _) => record(b, &words),
+                (Some(words), _) => b.push_record(&words),
                 (None, PlaceRoot::Local(l)) => l.raw() | hd_tir::ir::place::BARE_LOCAL,
                 (None, _) => unreachable!("only a bare local has no record"),
             }
@@ -445,7 +439,7 @@ mod tests {
         b.local_syn.push(hd_base::NodeIdx::NONE);
         b.local_flags.push(hd_tir::ir::local_flags::ASSIGNED);
         let local = Place::local(hd_base::LocalId::from_raw(0));
-        let none = record(&mut b, &[]);
+        let none = b.push_record(&[]);
         let value = inst(&mut b, Tag::NewTuple, NONE, none);
         let mut list = vec![value];
         let at = place(&mut b, &local);
@@ -459,7 +453,7 @@ mod tests {
         let read = inst(&mut b, Tag::Read, at, 0);
         list.extend([r, read, inst(&mut b, Tag::Store, at, value)]);
         list.push(inst(&mut b, Tag::Read, hd_tir::ir::place::BARE_LOCAL, 0));
-        let list = record(&mut b, &list);
+        let list = b.push_record(&list);
         let root = inst(&mut b, Tag::Block, list, NONE);
         b.sub_root.push(root);
         b.sub_parent.push(hd_base::SubId::NONE);

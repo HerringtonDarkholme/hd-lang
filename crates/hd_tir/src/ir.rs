@@ -22,7 +22,7 @@ mod slots;
 mod topo;
 mod view;
 pub(crate) use copy::{
-    Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, push_record, renumber,
+    Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, renumber,
 };
 pub use local_fns::{LocalTypes, instantiate_local_functions};
 pub use owned::verify_owned;

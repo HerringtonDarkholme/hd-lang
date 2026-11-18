@@ -369,7 +369,7 @@ fn of_at(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
-    let s = layout::strip(pool, env, t);
+    let s = layout::strip_newtype(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
     if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
@@ -410,7 +410,7 @@ fn of_at(
             }
         }
         TyData::Ref { inner, counted, .. } => {
-            let referent = layout::strip(pool, env, inner);
+            let referent = layout::strip_newtype(pool, env, inner);
             let TyData::TraitValue { def, args, .. } = pool.get(referent) else {
                 // ruled out: module.boundary.not-safe.error (hd_check
                 // header::crossing_fault) rejects a local reference to data.
@@ -447,7 +447,7 @@ fn of_at(
                 // bodies, so a program with a list links the allocator.
 
                 if matches!(
-                    pool.get(layout::strip(pool, env, e)),
+                    pool.get(layout::strip_newtype(pool, env, e)),
                     TyData::Prim(Prim::U8)
                 ) {
                     LTy::Bytes
@@ -952,7 +952,7 @@ pub fn host_slot(
 /// Whether `ty`, a host method's result, is `never`
 /// (`module.boundary.never-result`).
 fn never(input: &Input<'_>, ty: Ty) -> bool {
-    layout::strip(input.pool, input.env, ty) == Ty::NEVER
+    layout::strip_newtype(input.pool, input.env, ty) == Ty::NEVER
 }
 
 /// The row codec of a profile or package host method's result `ret`: none
@@ -1338,7 +1338,7 @@ fn argument_drops(
                 guards,
             });
         }
-        let ty = layout::strip(pool, env, ty);
+        let ty = layout::strip_newtype(pool, env, ty);
         if let Some(variants) = layout::variants(pool, env, ty) {
             let flat = crate::emit::required(
                 layout::flat(pool, env, ty)?,
@@ -2888,7 +2888,7 @@ fn package_value(
 ) -> StageResult<hd_host_abi::schema::Value> {
     use hd_host_abi::schema::Value;
     let (pool, env) = (input.pool, input.env);
-    let s = layout::strip(pool, env, t);
+    let s = layout::strip_newtype(pool, env, t);
     if let TyData::Adt { def, .. } = pool.get(s)
         && env.has_private_field(def)
     {
@@ -2929,7 +2929,7 @@ fn package_value(
             let items = pool.list_items(args);
             debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
             let elem = items[0];
-            if pool.get(layout::strip(pool, env, elem)) == TyData::Prim(Prim::U8) {
+            if pool.get(layout::strip_newtype(pool, env, elem)) == TyData::Prim(Prim::U8) {
                 Value::Bytes
             } else {
                 Value::List(Box::new(package_value(input, elem, path)?))
@@ -3031,7 +3031,7 @@ fn package_value(
 /// ruled out, for each length check: `hd_driver`'s `enum_variants` and
 /// `enum_variant_names`, and its `data_fields` and `data_field_names`,
 /// read one declaration, so they agree. A newtype, the one data type with
-/// fields but no field names, is its base here (`layout::strip`).
+/// fields but no field names, is its base here (`layout::strip_newtype`).
 fn package_data(
     input: &Input<'_>,
     def: DefId,
@@ -3146,13 +3146,6 @@ mod discarded_tests {
         }
     }
 
-    fn record(b: &mut Body, words: &[u32]) -> u32 {
-        let at = u32::try_from(b.extra.len()).expect("record");
-        b.extra.push(u32::try_from(words.len()).expect("length"));
-        b.extra.extend_from_slice(words);
-        at
-    }
-
     fn inst(b: &mut Body, tag: Tag, a: u32, w: u32) -> u32 {
         let i = u32::try_from(b.len()).expect("instruction");
         b.tags.push(tag);
@@ -3165,7 +3158,7 @@ mod discarded_tests {
     fn place(b: &mut Body, text: &str) -> u32 {
         let p: Place = text.parse().expect("place");
         match (p.words(), p.root) {
-            (Some(words), _) => record(b, &words),
+            (Some(words), _) => b.push_record(&words),
             (None, PlaceRoot::Local(l)) => l.raw() | hd_tir::ir::place::BARE_LOCAL,
             _ => unreachable!("place words"),
         }
@@ -3182,10 +3175,7 @@ mod discarded_tests {
     }
 
     fn finish(b: &mut Body, tail: u32) {
-        let list = record(
-            b,
-            &(0..u32::try_from(b.len()).expect("body")).collect::<Vec<_>>(),
-        );
+        let list = b.push_record(&(0..u32::try_from(b.len()).expect("body")).collect::<Vec<_>>());
         let root = inst(b, Tag::Block, list, tail);
         b.sub_root.push(root);
     }
@@ -3197,7 +3187,7 @@ mod discarded_tests {
         inst(&mut b, Tag::Store, destination, 0);
         let source = place(&mut b, "[$0 as .0 .0]");
         let read = inst(&mut b, Tag::Read, source, 0);
-        let branches = record(&mut b, &[0, NONE, NONE]);
+        let branches = b.push_record(&[0, NONE, NONE]);
         inst(&mut b, Tag::SwitchTag, read, branches);
         inst(&mut b, Tag::Drop, destination, NONE);
         finish(&mut b, NONE);
@@ -3217,7 +3207,7 @@ mod discarded_tests {
                     inst(&mut b, Tag::Return, 0, NONE);
                 }
                 Tag::Call => {
-                    let args = record(&mut b, &[0, 0, 0, 0]);
+                    let args = b.push_record(&[0, 0, 0, 0]);
                     inst(&mut b, Tag::Call, NONE, args);
                 }
                 _ => unreachable!(),
@@ -3266,7 +3256,7 @@ mod discarded_tests {
             targs: TyList::EMPTY,
             choice: (hd_tir::ir::ChoiceKind::TraitValue, 0),
         };
-        let row = record(&mut b, &callee.words());
+        let row = b.push_record(&callee.words());
         for tag in [Tag::Call, Tag::Await] {
             let call = inst(&mut b, tag, row, NONE);
             assert_eq!(dynamic_method(&b, call), Some(method));

@@ -11,7 +11,7 @@
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, FixSafety};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{ChoiceKind, NONE, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{ChoiceKind, NONE, Ref, Tag, local_flags};
 use hd_types::{Ty, TyData};
 
 use crate::body::Ck;
@@ -235,14 +235,14 @@ impl Ck<'_, '_> {
             let (r, t) = self.expr(base, None)?;
             return Ok(Some(
                 self.pass_reference_receiver(r, t, name, base)?
-                    .unwrap_or_else(|| self.poisoned(base)),
+                    .unwrap_or_else(|| self.poison(base)),
             ));
         }
         if counted {
             // `fn.method.counted-self.place`: no counted reference to a place.
             self.counted_self_on_value(base, name, false);
             self.expr(base, None)?;
-            return Ok(Some(self.poisoned(base)));
+            return Ok(Some(self.poison(base)));
         }
         Ok(Some(self.address_of_place(base, name, mutable, part)?))
     }
@@ -268,7 +268,7 @@ impl Ck<'_, '_> {
             crate::refs::PlaceUse::Ref
         };
         let Some(op) = self.place_of(base, None, use_)? else {
-            return Ok(self.poisoned(base));
+            return Ok(self.poison(base));
         };
         let op = if part.is_empty() {
             op
@@ -280,7 +280,7 @@ impl Ck<'_, '_> {
                 if mutable && !self.receiver_writable(&p, base, name) {
                     // The receiver is still read, so its binding is used.
                     self.read_place(&p, base);
-                    return Ok(self.poisoned(base));
+                    return Ok(self.poison(base));
                 }
                 if mutable
                     && self.cx.source_facts.is_some()
@@ -292,11 +292,11 @@ impl Ck<'_, '_> {
             }
             Operand::Value(v, t) => {
                 if matches!(self.resolved(t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
-                    return Ok(self.poisoned(base));
+                    return Ok(self.poison(base));
                 }
                 if mutable {
                     self.not_a_place_receiver(name, base);
-                    return Ok(self.poisoned(base));
+                    return Ok(self.poison(base));
                 }
                 self.new_object_place(v, t, base)
             }
@@ -380,7 +380,7 @@ impl Ck<'_, '_> {
         };
         if mutable && !rm {
             self.read_only_receiver(name, t, base);
-            return Ok(Some(self.poisoned(base)));
+            return Ok(Some(self.poison(base)));
         }
         let counted = self.ref_counted(t).unwrap_or(true);
         // `fn.method.counted-self.local-receiver`: a `*self` call through
@@ -499,13 +499,6 @@ impl Ck<'_, '_> {
     /// the call took (`auto_address`) for a receiver of type `rt`.
     pub(crate) fn addressed(&mut self, recv: Ref, rt: Ty) -> bool {
         recv.0 != NONE && self.ref_of(rt).is_none() && self.ref_of(self.b.ty_of(recv)).is_some()
-    }
-
-    fn poisoned(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
-        (
-            self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
-            Ty::POISON,
-        )
     }
 
     /// A new object holding `v`, as `&e` on a value makes one.

@@ -115,14 +115,7 @@ impl OwnCx for View<'_, '_> {
         self.env.is_open(ty) || OwnCx::counted(self.env, ty)
     }
     fn holds_drop(&self, ty: Ty) -> Tri {
-        let ty = self.ty(ty);
-        if self.env.is_open(ty) {
-            Tri::Maybe
-        } else if self.env.holds_drop_value(ty) {
-            Tri::Yes
-        } else {
-            Tri::No
-        }
+        OwnCx::holds_drop(self.env, self.ty(ty))
     }
     fn own_drop(&self, ty: Ty) -> Tri {
         OwnCx::own_drop(self.env, self.ty(ty))

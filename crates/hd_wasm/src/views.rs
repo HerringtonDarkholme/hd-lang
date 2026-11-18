@@ -142,7 +142,7 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
         prefix: &str,
         base: u32,
     ) -> StageResult<Vec<(Ty, String, u32)>> {
-        let TyData::Adt { def, args } = pool.get(layout::strip(pool, env, ty)) else {
+        let TyData::Adt { def, args } = pool.get(layout::strip_newtype(pool, env, ty)) else {
             return Ok(Vec::new());
         };
         if !env.is_struct(def) || env.std_kind(def) != hd_mono::layout::StdKind::Other {
@@ -310,7 +310,7 @@ pub(crate) struct CountOrigin {
 /// Name the counted parts through the same value paths used by WAT locals.
 pub(crate) fn count_subject(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> String {
     let name = printed_type_name(pool, env, ty);
-    let aggregate = match pool.get(layout::strip(pool, env, ty)) {
+    let aggregate = match pool.get(layout::strip_newtype(pool, env, ty)) {
         TyData::Tuple { .. } => true,
         TyData::Adt { def, .. } => {
             env.is_struct(def) && env.std_kind(def) == hd_mono::layout::StdKind::Other

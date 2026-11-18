@@ -60,8 +60,8 @@ use hd_types::{InternPool, Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use super::excl::{Bind, Held, call_args, call_info, direct_value};
-use crate::layout::{Kind, coll_kind, kind, ref_mutable, strip, variants};
+use super::excl::{Bind, Held, call_args, call_info};
+use crate::layout::{Kind, coll_kind, kind, ref_mutable, strip_newtype, variants};
 use crate::module::{HEAP, LOAN_EXCL, LOAN_SHARED, LOAN_STATE, Module, Val, mem};
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -687,7 +687,7 @@ fn walk_crossings(
         let next = match steps[k] {
             Proj::Field(f) => field_ty(pool, env, ty, f),
             Proj::Elem(_) => {
-                let TyData::Adt { args, .. } = pool.get(strip(pool, env, ty)) else {
+                let TyData::Adt { args, .. } = pool.get(strip_newtype(pool, env, ty)) else {
                     break;
                 };
                 let items = pool.list_items(args);
@@ -749,7 +749,7 @@ pub(super) fn dyn_receiver(
     else {
         return None;
     };
-    match pool.get(strip(pool, env, target)) {
+    match pool.get(strip_newtype(pool, env, target)) {
         TyData::TraitValue { def, .. } => Some(def),
         _ => None,
     }
@@ -931,7 +931,9 @@ pub(super) fn pointer_locals(
         if !thin_local(b.local_ty[l]) {
             continue;
         }
-        let pointer = direct_value(b, b.data[i][1]).is_some_and(|v| whole_ptr(b.ty[v]));
+        let pointer = b
+            .direct_value(b.data[i][1])
+            .is_some_and(|v| whole_ptr(b.ty[v]));
         let e = ok.entry(l).or_insert(true);
         *e &= pointer;
     }
@@ -989,7 +991,7 @@ pub(crate) fn lent_receiver_reads(
         let Some(&a) = call_args(b, i).first() else {
             continue;
         };
-        let Some(v) = direct_value(b, a).filter(|&v| b.tags[v] == Tag::Read) else {
+        let Some(v) = b.direct_value(a).filter(|&v| b.tags[v] == Tag::Read) else {
             continue;
         };
         let lent = pointer_lent(input.pool, input.env, None, b.ty[v], 0, Some(mutable)).is_some()
@@ -1151,7 +1153,10 @@ impl Em<'_, '_, '_> {
             }
             match bind {
                 Bind::Begin(a) => {
-                    let Some(v) = direct_value(self.b, a).filter(|&v| self.b.tags[v] == Tag::Ref)
+                    let Some(v) = self
+                        .b
+                        .direct_value(a)
+                        .filter(|&v| self.b.tags[v] == Tag::Ref)
                     else {
                         continue;
                     };
@@ -1179,7 +1184,7 @@ impl Em<'_, '_, '_> {
                         .find(|x| x.1 == a)
                         .map(|x| x.0 as usize);
                     let (Some(c), Some(v), Some(s)) =
-                        (call, direct_value(self.b, a), direct_value(self.b, stored))
+                        (call, self.b.direct_value(a), self.b.direct_value(stored))
                     else {
                         continue;
                     };
@@ -1230,7 +1235,7 @@ impl Em<'_, '_, '_> {
             };
             let params = call_params(self.input, self.m, self.calls.get(&call));
             for (k, a) in call_args(self.b, i).into_iter().enumerate() {
-                let Some(v) = direct_value(self.b, a) else {
+                let Some(v) = self.b.direct_value(a) else {
                     continue;
                 };
                 let v = u32::try_from(v).expect("insts");
@@ -2010,7 +2015,7 @@ impl Em<'_, '_, '_> {
         for (held, bind) in binds {
             match bind {
                 Bind::Begin(a) => {
-                    let Some(v) = direct_value(self.b, a) else {
+                    let Some(v) = self.b.direct_value(a) else {
                         continue;
                     };
                     let v = u32::try_from(v).expect("insts");
@@ -2134,7 +2139,7 @@ impl Em<'_, '_, '_> {
     /// the callee's reference reaches one more object (`hd_tir::own::pointer`).
     /// The last of them takes the result's kind; the others are shared.
     fn borrow_result(&mut self, i: u32, held: Held, a: u32, parents: bool) {
-        let Some(v) = direct_value(self.b, a) else {
+        let Some(v) = self.b.direct_value(a) else {
             return;
         };
         let v = u32::try_from(v).expect("insts");
@@ -2453,7 +2458,7 @@ impl Em<'_, '_, '_> {
         let dyn_recv = dyn_receiver(self.pool(), self.env(), self.b, i as usize);
         let (target, lent) = match (self.kind(self.ty(i)), dyn_recv) {
             (_, Some(tr)) => (
-                strip(self.pool(), self.env(), self.ty(i)),
+                strip_newtype(self.pool(), self.env(), self.ty(i)),
                 self.lent_dyn(tr),
             ),
             (Kind::Ref { target, .. }, None) => (target, self.lent_of(target)),

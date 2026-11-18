@@ -12,8 +12,8 @@ use hd_types::{InternPool, Ty, TyData};
 
 use crate::Input;
 use crate::layout::{
-    Kind, flat, kind, mem as mem_of, payload_mem, ref_mutable, strip, tuple_members, value_parts,
-    variants,
+    Kind, flat, kind, mem as mem_of, payload_mem, ref_mutable, strip_newtype, tuple_members,
+    value_parts, variants,
 };
 use crate::module::Module;
 use std::rc::Rc;
@@ -299,7 +299,7 @@ fn loan_place(pool: &InternPool, env: &dyn ProgramEnv, root: Ty, p: &Place) -> O
 }
 
 /// The struct field indices `steps` name, when they are all fields.
-fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
+pub(super) fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
     steps
         .iter()
         .map(|s| match s {
@@ -312,7 +312,7 @@ fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
 /// The loan argument `a` of a call takes: a `Ref`'s place inside a
 /// counted object, or the whole object a counted reference refers to.
 fn arg_loan(pool: &InternPool, env: &dyn ProgramEnv, b: &Body, a: u32) -> Option<Loan> {
-    let v = direct_value(b, a)?;
+    let v = b.direct_value(a)?;
     let excl = ref_mutable(pool, env, *b.ty.get(a as usize)?);
     if b.tags[v] == Tag::Ref {
         let (_, (object, path, guards)) = ref_loan_place(pool, env, b, v)?;
@@ -354,15 +354,6 @@ fn ref_loan_place(
     };
     let place = loan_place(pool, env, root, &p)?;
     Some((p, place))
-}
-
-/// The instruction behind representation-preserving coercions of `a`.
-pub(super) fn direct_value(b: &Body, a: u32) -> Option<usize> {
-    let mut v = Ref(a).as_inst()?.0 as usize;
-    while b.same_value_coercion(v) {
-        v = Ref(b.data[v][0]).as_inst()?.0 as usize;
-    }
-    Some(v)
 }
 
 /// The values passed as arguments by call instruction `i`.
@@ -419,7 +410,7 @@ pub(super) fn call_info(
 /// positions; a nullable `Option[&T]` uses its payload's sole slot.
 fn ref_slots(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<(usize, Ty)> {
     use super::ref_slots::{Shape, for_type};
-    for_type(strip(pool, env, t), |t| {
+    for_type(strip_newtype(pool, env, t), |t| {
         if matches!(
             kind(pool, env, t),
             Kind::Ref {
@@ -439,7 +430,7 @@ fn ref_slots(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<(usize, Ty)>
             });
             return positions.map_or_else(
                 || Shape::Fields(Vec::new()),
-                |slots| Shape::Mapped(strip(pool, env, inner), slots),
+                |slots| Shape::Mapped(strip_newtype(pool, env, inner), slots),
             );
         }
         if !matches!(kind(pool, env, t), Kind::Value) || variants(pool, env, t).is_some() {
@@ -453,7 +444,7 @@ fn ref_slots(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<(usize, Ty)>
             fields
                 .into_iter()
                 .zip(parts)
-                .map(|(field, part)| (part.first, strip(pool, env, field)))
+                .map(|(field, part)| (part.first, strip_newtype(pool, env, field)))
                 .collect(),
         )
     })
@@ -472,7 +463,7 @@ fn projection_slots(
     let mut slots: Vec<usize> = (0..mem_of(pool, env, ty).ok()?.leaves.len()).collect();
     let mut k = 0;
     while k < proj.len() {
-        ty = strip(pool, env, ty);
+        ty = strip_newtype(pool, env, ty);
         if !matches!(kind(pool, env, ty), Kind::Value) {
             return None;
         }
@@ -1424,7 +1415,7 @@ fn loan_fragment(
     let mut variant = None;
     let mut path = Vec::with_capacity(fragment.path.len());
     for step in &fragment.path {
-        ty = strip(pool, env, ty);
+        ty = strip_newtype(pool, env, ty);
         match *step {
             hd_tir::ir::LoanField::Variant(index) => {
                 variant = Some(index);
@@ -1712,7 +1703,7 @@ impl OriginContext<'_> {
                     let t = *b.ty.get(a as usize)?;
                     if ref_slots(self.pool, self.env, t).is_empty()
                         || matches!(
-                            kind(self.pool, self.env, strip(self.pool, self.env, t)),
+                            kind(self.pool, self.env, strip_newtype(self.pool, self.env, t)),
                             Kind::Ref { .. }
                         )
                     {

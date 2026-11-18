@@ -16,7 +16,7 @@ use hd_tir::ir::{Providers, Tag, count::Part};
 use hd_types::{Ty, TyData, TyList};
 
 use super::Em;
-use crate::layout::strip;
+use crate::layout::strip_newtype;
 use crate::module::{Func, HEAP, Val, mem};
 use crate::rt::{CTX_DATA, CTX_ENTRY, CTX_VTABLE, Helper};
 
@@ -157,7 +157,8 @@ impl Em<'_, '_, '_> {
     /// row, and whether it lists the open row, whose keys only the
     /// context names.
     pub(super) fn fn_row(&self, t: Ty) -> (Vec<Ty>, bool) {
-        let TyData::Fn { row, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
+        let TyData::Fn { row, .. } = self.pool().get(strip_newtype(self.pool(), self.env(), t))
+        else {
             unreachable!("a closure's or a called value's type is a function");
         };
         // ruled out: mono::subst replaces owned row parameters with concrete keys
@@ -180,7 +181,8 @@ impl Em<'_, '_, '_> {
     /// order of a `$.Context` value's entries.
     fn context_keys(&self, t: Ty) -> Vec<Ty> {
         // A `ContextNew`'s type, or a spread key, is a context.
-        let TyData::Context(row) = self.pool().get(strip(self.pool(), self.env(), t)) else {
+        let TyData::Context(row) = self.pool().get(strip_newtype(self.pool(), self.env(), t))
+        else {
             unreachable!("a context type");
         };
         let env = self.env();

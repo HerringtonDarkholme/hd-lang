@@ -770,10 +770,7 @@ impl ImplTable {
     /// take ([`key_codes`]): one probe per key code.
     #[must_use]
     pub fn has_rows_at(&self, codes: [Option<u64>; 3]) -> bool {
-        codes
-            .into_iter()
-            .flatten()
-            .any(|c| self.traits_by_key.contains_key(&c))
+        has_rows_at(&self.traits_by_key, codes)
     }
 
     /// Appends the traits with a row at `codes` ([`key_codes`]): one probe
@@ -4030,6 +4027,11 @@ fn project_concrete(
         }));
     }
     None
+}
+
+/// One probe per present key code, shared by owned and folder-backed tables.
+pub(crate) fn has_rows_at(rows: &HashMap<u64, Vec<DefId>>, codes: [Option<u64>; 3]) -> bool {
+    codes.into_iter().flatten().any(|c| rows.contains_key(&c))
 }
 
 #[cfg(test)]

@@ -19,7 +19,7 @@ use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{LeafOps as _, Mem, Part, Walk, env_mem, mem as mem_of, strip};
+use crate::layout::{LeafOps as _, Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
 
@@ -94,7 +94,7 @@ pub(super) fn closure_of(input: &crate::Input<'_>, b: &Body, ci: usize) -> (usiz
     let t = b.ty[ci];
     let TyData::Fn {
         suspends, result, ..
-    } = pool.get(strip(pool, env, t))
+    } = pool.get(strip_newtype(pool, env, t))
     else {
         unreachable!("a closure's type is a function")
     };
@@ -711,7 +711,7 @@ impl Em<'_, '_, '_> {
         // returns the frame that the call's `Suspend[T]` holds.
         let TyData::Fn {
             params, suspends, ..
-        } = self.pool().get(strip(self.pool(), self.env(), ft))
+        } = self.pool().get(strip_newtype(self.pool(), self.env(), ft))
         else {
             unreachable!("checking calls only a function value");
         };
@@ -738,7 +738,7 @@ impl Em<'_, '_, '_> {
             self.comp(callee, 0)?;
             self.f.call_indirect(ps, results);
         }
-        let ty = match self.pool().get(strip(self.pool(), self.env(), ft)) {
+        let ty = match self.pool().get(strip_newtype(self.pool(), self.env(), ft)) {
             TyData::Fn { result, .. } if !suspends => result,
             _ => self.ty(i),
         };

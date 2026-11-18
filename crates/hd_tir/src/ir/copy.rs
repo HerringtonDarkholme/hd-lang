@@ -67,12 +67,26 @@ pub(crate) trait Remap {
     }
 }
 
-/// Appends a record of `words`; its length word's position.
-pub(crate) fn push_record(b: &mut Body, words: &[u32]) -> u32 {
-    let at = u32_of(b.extra.len());
-    b.extra.push(u32_of(words.len()));
-    b.extra.extend_from_slice(words);
-    at
+impl Body {
+    /// The instruction behind representation-preserving coercions of `a`.
+    #[must_use]
+    #[inline]
+    pub fn direct_value(&self, a: u32) -> Option<usize> {
+        let mut v = Ref(a).as_inst()?.0 as usize;
+        while self.same_value_coercion(v) {
+            v = Ref(self.data[v][0]).as_inst()?.0 as usize;
+        }
+        Some(v)
+    }
+
+    /// Appends a record of `words`; returns its length word's position.
+    #[inline]
+    pub fn push_record(&mut self, words: &[u32]) -> u32 {
+        let at = u32_of(self.extra.len());
+        self.extra.push(u32_of(words.len()));
+        self.extra.extend_from_slice(words);
+        at
+    }
 }
 
 /// Appends an inlined frame of `callee`, called at anchor `call`, whose
@@ -147,7 +161,7 @@ pub(crate) fn copy_rows(
         map.at(w).unwrap_or_else(|| {
             *records
                 .entry(w)
-                .or_insert_with(|| push_record(out, src.record(w)))
+                .or_insert_with(|| out.push_record(src.record(w)))
         })
     };
     for &(i, n) in rows {
@@ -208,7 +222,7 @@ pub(crate) fn copy_rows(
                             },
                         );
                     }
-                    push_record(out, &[first, count])
+                    out.push_record(&[first, count])
                 }
                 Op::Record if tag == Tag::Block => {
                     let mut members = Vec::new();
@@ -224,7 +238,7 @@ pub(crate) fn copy_rows(
                             out.extra[at + 1..=at + members.len()].copy_from_slice(&members);
                             u32_of(at)
                         }
-                        _ => push_record(out, &members),
+                        _ => out.push_record(&members),
                     };
                     for p in at as usize..=at as usize + members.len() {
                         done.first(p);
@@ -492,7 +506,7 @@ impl SideRows {
             for &w in scopes {
                 words.push(kept(w).ok_or_else(|| bad("scope", w))?);
             }
-            let at = push_record(out, &words);
+            let at = out.push_record(&words);
             out.susp.push(SuspRow {
                 inst,
                 scopes: Range32 {

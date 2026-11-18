@@ -23,7 +23,7 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
 /// or a scalar holds none in place.
 #[must_use]
 pub fn value_part_types(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<Ty> {
-    crate::value_parts(pool, env, crate::strip(pool, env, ty))
+    crate::value_parts(pool, env, crate::strip_newtype(pool, env, ty))
 }
 
 /// Whether `ty` needs ownership tracking: a counted leaf or a Drop hook.
@@ -93,21 +93,15 @@ pub fn reference_ownership(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> O
 /// the ownership passes' `OwnCx::lends` treats as no consumer.
 #[must_use]
 pub fn lending_types(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
-    matches!(
-        kind(pool, env, from),
-        Kind::Ref {
-            whole: true,
-            fat: false,
-            ..
-        }
-    ) && matches!(
-        kind(pool, env, to),
-        Kind::Ref {
-            whole: false,
-            fat: false,
-            ..
-        }
-    )
+    thin_counted_reference_type(pool, env, from)
+        && matches!(
+            kind(pool, env, to),
+            Kind::Ref {
+                whole: false,
+                fat: false,
+                ..
+            }
+        )
 }
 
 /// The parts of a value of `ty`, which names no parameter, laid out in
@@ -142,7 +136,7 @@ pub fn in_place_parts(
     if !matches!(kind(pool, env, t), Kind::Value) {
         return false;
     }
-    let s = crate::strip(pool, env, t);
+    let s = crate::strip_newtype(pool, env, t);
     if let TyData::Tuple { .. } = pool.get(s) {
         out.extend(crate::tuple_members(pool, s));
         return variant.is_none();
@@ -247,7 +241,7 @@ fn small_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> 
 
 /// The type a reference type `t` refers to, as declared: newtypes kept.
 fn declared_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    let t = crate::strip(pool, env, t);
+    let t = crate::strip_newtype(pool, env, t);
     match pool.get(t) {
         TyData::Ref { inner, .. } => Some(inner),
         _ => None,

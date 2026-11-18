@@ -91,7 +91,7 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
                 let input = u32::try_from(body.consts.len()).expect("constants");
                 body.consts
                     .push((Ty::BOOL, u64::from(!facts.types.is_empty())));
-                let not_input = push_record(body, &[Ref::konst(input).0]);
+                let not_input = body.push_record(&[Ref::konst(input).0]);
                 body.tags[call] = Tag::Prim;
                 body.data[call] = [hd_tir::ir::PrimOp::Not as u32, not_input];
                 dependencies.push(facts.digest);
@@ -112,7 +112,7 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
         if facts.types.contains(&lookup.key) {
             continue;
         }
-        let empty = push_record(body, &[]);
+        let empty = body.push_record(&[]);
         body.tags[call] = Tag::NewVariant;
         body.data[call] = [0, empty];
         dependencies.push(facts.digest);
@@ -385,12 +385,4 @@ fn literal_list(body: &Body, stores: &[StoredValue], value: u32, depth: u8) -> O
         }
         _ => None,
     }
-}
-
-fn push_record(body: &mut Body, words: &[u32]) -> u32 {
-    let at = u32::try_from(body.extra.len()).expect("records");
-    body.extra
-        .push(u32::try_from(words.len()).expect("record length"));
-    body.extra.extend_from_slice(words);
-    at
 }

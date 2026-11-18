@@ -471,7 +471,7 @@ impl OwnCx for Env<'_> {
         // Each newtype layer down to `strip`'s base, then the base: one
         // `strip_newtype` step each, as `hd_layout::newtype_layers`.
         let pool = &self.run.pool;
-        let base = hd_layout::strip(pool, self, ty);
+        let base = hd_layout::strip_newtype(pool, self, ty);
         let mut layer = ty;
         loop {
             let TyData::Adt { def, args } = pool.get(layer) else {
@@ -843,7 +843,7 @@ impl OwnCx for Env<'_> {
         let pool = &self.run.pool;
         let TyData::Fn {
             params, suspends, ..
-        } = pool.get(hd_layout::strip(pool, self, fn_ty))
+        } = pool.get(hd_layout::strip_newtype(pool, self, fn_ty))
         else {
             return Pass::Lent;
         };
@@ -868,7 +868,8 @@ impl OwnCx for Env<'_> {
 
     fn function_lends_counts(&self, fn_ty: Ty, k: usize, n: usize) -> bool {
         let pool = &self.run.pool;
-        let TyData::Fn { params, .. } = pool.get(hd_layout::strip(pool, self, fn_ty)) else {
+        let TyData::Fn { params, .. } = pool.get(hd_layout::strip_newtype(pool, self, fn_ty))
+        else {
             return false;
         };
         let params = pool.list_items(params);
@@ -1050,7 +1051,7 @@ impl OwnCx for Env<'_> {
             && let TyData::Adt { def, .. } =
                 self.run
                     .pool
-                    .get(hd_layout::strip(&self.run.pool, self, ty))
+                    .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
             && self.has_drop(def)
         {
             out.clear();
@@ -1063,7 +1064,7 @@ impl OwnCx for Env<'_> {
         out.clear();
         if self.is_open(ty)
             || matches!(
-                self.run.pool.get(hd_layout::strip(&self.run.pool, self, ty)),
+                self.run.pool.get(hd_layout::strip_newtype(&self.run.pool, self, ty)),
                 TyData::Adt { def, .. } if self.has_drop(def)
             )
         {
@@ -1089,7 +1090,8 @@ impl OwnCx for Env<'_> {
 
     fn holds_coll(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        self.is_open(ty) || hd_mono::holds_coll(pool, self, hd_layout::strip(pool, self, ty))
+        self.is_open(ty)
+            || hd_mono::holds_coll(pool, self, hd_layout::strip_newtype(pool, self, ty))
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
@@ -1746,7 +1748,7 @@ impl Env<'_> {
             return hit;
         }
         let mode = self.classify_parameter(t, true);
-        let physical = hd_layout::strip(&self.run.pool, self, t);
+        let physical = hd_layout::strip_newtype(&self.run.pool, self, t);
         let answer = FunctionInput {
             mode,
             transfer: !matches!(self.run.pool.get(physical), TyData::Ref { .. })
@@ -1870,7 +1872,7 @@ impl Env<'_> {
         let mut seen = hd_base::HashSet::default();
         let mut work = vec![t];
         while let Some(t) = work.pop() {
-            let t = hd_layout::strip(pool, self, t);
+            let t = hd_layout::strip_newtype(pool, self, t);
             if !seen.insert(t) {
                 continue;
             }

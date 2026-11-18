@@ -1068,6 +1068,7 @@ mod packed {
     use super::cost;
     use super::{
         Collected, EntryKind, IndexedEntry, LockFile, USE_MARK_AGE, is_real_dir, parse_key,
+        unix_now,
     };
 
     /// The namespace of this format. The index is sharded by key (#1932),
@@ -1360,13 +1361,6 @@ mod packed {
 
     fn invalid(why: &'static str) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidData, why)
-    }
-
-    fn now() -> u64 {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
     }
 
     fn unique() -> u128 {
@@ -2872,7 +2866,7 @@ mod packed {
             let mut bytes = vec![0; usize::try_from(loc.len).ok()?];
             opened.file.seek(SeekFrom::Start(loc.offset)).ok()?;
             opened.file.read_exact(&mut bytes).ok()?;
-            let at = now();
+            let at = unix_now();
             if at.saturating_sub(loc.used) > USE_MARK_AGE.as_secs() {
                 state.touched.insert((kind as u16, key.0), at);
             }
@@ -2919,7 +2913,7 @@ mod packed {
             let mut guard = self.state();
             let state = Self::snapshot(&mut guard);
             let k = (kind as u16, key.0);
-            let at = now();
+            let at = unix_now();
             if self
                 .locate(state, k)
                 .is_some_and(|l| at.saturating_sub(l.used) > USE_MARK_AGE.as_secs())
@@ -3031,7 +3025,7 @@ mod packed {
             let mut offset = 0_u64;
             let mut rows = BTreeMap::<u8, Entries>::new();
             let mut frames = Frames::with_capacity(batch.len());
-            let at = now();
+            let at = unix_now();
             for (kind, key, bytes) in batch {
                 lease.file.write_all(bytes)?;
                 let len = u64::try_from(bytes.len()).map_err(io::Error::other)?;
@@ -3261,7 +3255,7 @@ mod packed {
             let path = self.root.join("stalls");
             let line = format!(
                 "{} pid {} waited {} ms for {what} with no progress and went on without it\n",
-                now(),
+                unix_now(),
                 std::process::id(),
                 waited.as_millis()
             );
@@ -4666,7 +4660,7 @@ mod packed {
                                 pack: id,
                                 offset: 0,
                                 len: 4000,
-                                used: now(),
+                                used: unix_now(),
                             },
                         );
                         shard.track(id, 8000 + tail.len() as u64);
@@ -4697,7 +4691,7 @@ mod packed {
                                 pack: id,
                                 offset: 4000,
                                 len: 4000,
-                                used: now(),
+                                used: unix_now(),
                             },
                         );
                         Ok(())
@@ -5088,7 +5082,7 @@ mod packed {
             let root = scratch("recent");
             let store = Store::new(&root);
             store.publish(&[item(1, b"value")]).unwrap();
-            ages(&store, &[(1, now() - 60)]);
+            ages(&store, &[(1, unix_now() - 60)]);
             store.open_shard(0).unwrap().fold().unwrap();
             let before = index_files(&store);
             assert!(store.get(EntryKind::Check, &Hash128(1)).is_some());
@@ -5286,7 +5280,7 @@ mod packed {
                 let store = Store::new(&root);
                 {
                     let mut shard = store.open_shard(0).unwrap();
-                    let at = now() - 2 * 3600;
+                    let at = unix_now() - 2 * 3600;
                     for (key, loc) in shard.all().unwrap() {
                         shard.set(key, Location { used: at, ..loc });
                     }

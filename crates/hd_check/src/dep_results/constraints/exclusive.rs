@@ -438,7 +438,9 @@ pub(super) fn reborrow(s: &Inputs<'_>, i: u32) -> bool {
         Tag::Read => s.reborrows.contains(&i),
         Tag::Coerce if b.row_adaptation(iu).is_none() => {
             let v = b.data[iu][0] as usize;
-            b.ty.get(v).is_some() && b.tags[v] == Tag::Read && local_mut(s.pool, b.ty[v])
+            b.ty.get(v).is_some()
+                && b.tags[v] == Tag::Read
+                && crate::moves::is_mut_ref(s.pool, b.ty[v])
         }
         _ => false,
     };
@@ -470,16 +472,6 @@ fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
         && b.decode_place(b.data[v as usize][0]).is_some_and(|p| {
             matches!(p.root, PlaceRoot::Local(l) if l.raw() == root) && p.proj.is_empty()
         })
-}
-
-/// Whether `t`, under any `mut`, is a `&mut`, not a counted `*mut`.
-fn local_mut(pool: Types<'_>, t: Ty) -> bool {
-    match pool.get(t) {
-        TyData::Ref {
-            mutable, counted, ..
-        } => mutable && !counted,
-        _ => false,
-    }
 }
 
 /// Whether two key values are one key: one constant, or reads of one

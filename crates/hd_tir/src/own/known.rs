@@ -286,7 +286,7 @@ pub(crate) fn cancel_blocks(b: &mut Body) {
             continue;
         }
         if empty == NONE {
-            empty = crate::ir::push_record(b, &[]);
+            empty = b.push_record(&[]);
         }
         b.cancel.push((u32_of(i), u32_of(b.len())));
         b.tags.push(Tag::Block);

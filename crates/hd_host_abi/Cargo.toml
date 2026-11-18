@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dev-dependencies]
-hd_base = { path = "../hd_base" }
 # Reads std's declarations for the ABI model (`tests/abi_model.rs`).
 hd_syntax = { path = "../hd_syntax" }
 # The pinned Node (`hd_testkit::node`) for the JavaScript adapter test.
@@ -18,8 +17,8 @@ workspace = true
 [features]
 # The Rust companion generator (`native_rust`): native CLI builds enable
 # it; `hd_web` leaves it off so it never enters the web compiler.
-native-rust = ["dep:hd_base"]
+native-rust = []
 
 [dependencies]
-# The generator's fixed-seed hash maps (`native_rust`).
-hd_base = { path = "../hd_base", optional = true }
+# Contract integer encoding and the generator's fixed-seed hash maps.
+hd_base = { path = "../hd_base" }

@@ -15,7 +15,7 @@ use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
-use crate::layout::{coll_kind, payload_mem, strip};
+use crate::layout::{coll_kind, payload_mem, strip_newtype};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
@@ -52,9 +52,9 @@ impl Em<'_, '_, '_> {
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
     pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
-        // ruled out: the driver roots std runtime items before collecting map operations.
-        // A map operation's operand is a `Map[K, V]`.
-        let (_, args) = (self.pool().adt(strip(self.pool(), self.env(), t))).expect("a map");
+        // ruled out: collected map operands are Map[K, V]; the driver roots std runtime items.
+        let (_, args) =
+            (self.pool().adt(strip_newtype(self.pool(), self.env(), t))).expect("a map");
         let (kt, vt) = (
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],

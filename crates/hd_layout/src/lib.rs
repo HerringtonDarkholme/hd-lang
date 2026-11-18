@@ -36,7 +36,8 @@ pub use layouts::{Fields, Layout, LayoutId, Layouts, Repr, Tag, Variants, layout
 
 use hd_base::limits::VALUE_SIZE;
 use hd_base::{NotImplemented, SliceSort as _, Stage, StageResult};
-use hd_mono::layout::{StdKind, strip_newtype};
+use hd_mono::layout::StdKind;
+pub use hd_mono::layout::strip_newtype;
 use hd_mono::{ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
@@ -227,11 +228,11 @@ pub enum Kind {
 
 /// Which kind `t` is.
 pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     let (def, args) = match pool.get(t) {
         TyData::Ref { inner, counted, .. } => {
             return Kind::Ref {
-                target: strip(pool, env, inner),
+                target: strip_newtype(pool, env, inner),
                 fat: fat(pool, env, inner),
                 whole: counted,
             };
@@ -257,7 +258,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
 /// is the value itself.
 fn fat(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
     matches!(
-        pool.get(strip(pool, env, target)),
+        pool.get(strip_newtype(pool, env, target)),
         TyData::TraitValue { .. }
     )
 }
@@ -265,19 +266,14 @@ fn fat(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
 /// Whether reference type `t` is `&mut` or `*mut`.
 pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     matches!(
-        pool.get(strip(pool, env, t)),
+        pool.get(strip_newtype(pool, env, t)),
         TyData::Ref { mutable: true, .. }
     )
 }
 
-/// `t` with newtypes erased: what its layout reads.
-pub fn strip(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Ty {
-    strip_newtype(pool, env, t)
-}
-
 /// The kind of `t`, once stripped, when it is a list or a map.
 pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKind> {
-    match pool.get(strip(pool, env, t)) {
+    match pool.get(strip_newtype(pool, env, t)) {
         TyData::Adt { def, .. } => {
             Some(env.std_kind(def)).filter(|k| matches!(k, StdKind::List | StdKind::Map))
         }
@@ -489,7 +485,7 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
         1 => return vec![String::new()],
         _ => {}
     }
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     let fields: Option<(Vec<String>, Vec<Ty>)> = match pool.get(t) {
         TyData::Tuple { .. } => {
             let members = tuple_members(pool, t);
@@ -570,14 +566,14 @@ fn by_parts<T: Clone>(
     done: &mut hd_base::HashMap<Ty, T>,
     one: &PartFn<'_, T>,
 ) -> T {
-    let mut stack = vec![(strip(pool, env, t), false)];
+    let mut stack = vec![(strip_newtype(pool, env, t), false)];
     while let Some((u, ready)) = stack.pop() {
         if done.contains_key(&u) {
             continue;
         }
         let parts: Vec<Ty> = value_parts(pool, env, u)
             .into_iter()
-            .map(|p| strip(pool, env, p))
+            .map(|p| strip_newtype(pool, env, p))
             .filter(|p| !done.contains_key(p))
             .collect();
         if !ready && !parts.is_empty() {
@@ -587,13 +583,13 @@ fn by_parts<T: Clone>(
         }
         crate::work::layout_parts(1);
         let got = one(u, &|p| {
-            done.get(&strip(pool, env, p))
+            done.get(&strip_newtype(pool, env, p))
                 .cloned()
                 .expect("a part computed first")
         });
         done.insert(u, got);
     }
-    done.get(&strip(pool, env, t))
+    done.get(&strip_newtype(pool, env, t))
         .cloned()
         .expect("the type computed")
 }
@@ -824,7 +820,7 @@ fn memoized<T: Clone + 'static>(
 /// checked first, so a type past [`VALUE_SIZE`] is `type-too-large`
 /// before any of its parts' leaves is copied.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
-    let u = strip(pool, env, t);
+    let u = strip_newtype(pool, env, t);
     if let Some(got) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&u).cloned())) {
         return got;
     }
@@ -843,7 +839,7 @@ fn mem_one(
     part: &dyn Fn(Ty) -> StageResult<Mem>,
     full: bool,
 ) -> StageResult<Mem> {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     let named = || too_large(&hd_mono::shown_type(pool, env, t));
     Ok(match pool.get(t) {
         TyData::Prim(p) => match p {
@@ -1195,7 +1191,7 @@ fn walk_one(
     part: &dyn Fn(Ty) -> Option<Walk>,
     counting: bool,
 ) -> Option<Walk> {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Fn { .. } => Some(Walk::Known(1)),
@@ -1263,7 +1259,7 @@ pub struct FunctionInputWalks {
 
 pub fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> FunctionInputWalks {
     let input = env.function_input(t);
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     if !input.transfer {
         return FunctionInputWalks {
             transfer: false,
@@ -1290,7 +1286,7 @@ pub fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Functio
             }
         }),
         borrowed: memoized(&INPUT_BORROWED, pool, env, t, &|t, part| match pool
-            .get(strip(pool, env, t))
+            .get(strip_newtype(pool, env, t))
         {
             TyData::Ref { .. } => match kind(pool, env, t) {
                 Kind::Ref {
@@ -1661,7 +1657,7 @@ pub fn members(
     env: &dyn ProgramEnv,
     t: Ty,
 ) -> StageResult<std::rc::Rc<Members>> {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     crate::work::member_layouts(1);
     if let Some(got) = MEMBERS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t).cloned())) {
         return got;
@@ -1935,7 +1931,7 @@ pub fn flat(
     env: &dyn ProgramEnv,
     t: Ty,
 ) -> StageResult<Option<std::rc::Rc<Flat>>> {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     if let Some(got) = FLATS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&t)).cloned()) {
         return got.map(Some);
     }
@@ -2326,13 +2322,13 @@ fn drops_by_parts(
 }
 
 /// Visits the newtype layers of `t` outermost first, `t` itself when it
-/// is one, and stops at the base [`strip`] returns, which it does not
+/// is one, and stops at the base [`strip_newtype`] returns, which it does not
 /// visit. Each step is `strip_newtype`'s, so the walk ends where it does,
 /// a cyclic newtype's bound included: O(layers) per call.
 pub fn newtype_layers(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, visit: &mut dyn FnMut(Ty)) {
-    let base = strip(pool, env, t);
+    let base = strip_newtype(pool, env, t);
     let mut layer = t;
-    // A layer short of `strip`'s base is a newtype `Adt`, since
+    // A layer short of `strip_newtype`'s base is a newtype `Adt`, since
     // `strip_newtype` took a step from it, so the guard's last two
     // conditions hold whenever the first does.
     while layer != base
@@ -2354,7 +2350,7 @@ pub fn newtype_layers(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, visit: &mu
 /// any other type. Within a link, materialize each stripped type once and
 /// share its payload storage; cache non-enums too. Each warm query is O(1).
 pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<VariantTypes> {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     cached_variants(t, || match pool.get(t) {
         TyData::Union(members) => Some(union_variants(pool, members)),
         TyData::Adt { def, args } => env.enum_variants(def, args),

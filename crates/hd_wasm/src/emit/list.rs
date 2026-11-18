@@ -21,7 +21,7 @@ use wasm_encoder::BlockType;
 use super::Em;
 use super::shape::Through;
 use super::value::{Dst, Src};
-use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip};
+use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip_newtype};
 use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
 
@@ -94,7 +94,7 @@ impl Em<'_, '_, '_> {
     /// count is not one and copies it through the ordinary copy-on-write
     /// path.
     fn static_scalar_list(&self, et: Ty, elem: &Elem, items: &[u32]) -> Option<Vec<u8>> {
-        let prim = match self.pool().get(strip(self.pool(), self.env(), et)) {
+        let prim = match self.pool().get(strip_newtype(self.pool(), self.env(), et)) {
             TyData::Prim(prim) if prim != Prim::String => prim,
             _ => return None,
         };
@@ -1214,7 +1214,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
         // ruled out: the driver roots std runtime items before collecting list operations.
         // ruled out: list intrinsic signatures and checked projections supply List[T].
-        let (def, args) = self.pool().adt_parts(strip(self.pool(), self.env(), t));
+        let (def, args) = self
+            .pool()
+            .adt_parts(strip_newtype(self.pool(), self.env(), t));
         debug_assert_eq!(self.env().std_kind(def), StdKind::List);
         let items = self.pool().list_items(args);
         // ruled out: the seeded List[T] has one completed generic argument.

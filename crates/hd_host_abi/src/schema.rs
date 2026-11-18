@@ -417,18 +417,8 @@ impl Writer {
     fn len(&mut self, n: usize) {
         self.number(u32::try_from(n).expect("Wasm contract length"));
     }
-    fn number(&mut self, mut n: u32) {
-        loop {
-            let mut b = (n & 127) as u8;
-            n >>= 7;
-            if n != 0 {
-                b |= 128;
-            }
-            self.0.push(b);
-            if n == 0 {
-                break;
-            }
-        }
+    fn number(&mut self, n: u32) {
+        hd_base::leb::put(&mut self.0, u64::from(n));
     }
     fn string(&mut self, s: &str) {
         self.len(s.len());
@@ -537,18 +527,16 @@ impl<'a> Reader<'a> {
         }
     }
     fn number(&mut self) -> Result<u32, &'static str> {
-        let mut n = 0_u32;
-        for shift in (0..35).step_by(7) {
-            let b = self.byte()?;
-            if shift == 28 && b > 15 {
-                return Err("oversized package host contract length");
-            }
-            n |= u32::from(b & 127) << shift;
-            if b < 128 {
-                return Ok(n);
-            }
-        }
-        Err("invalid package host contract length")
+        let start = self.at;
+        hd_base::leb::get(self.bytes, &mut self.at, u32::BITS)
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or_else(|| {
+                if self.at - start == (u32::BITS as usize).div_ceil(7) {
+                    "oversized package host contract length"
+                } else {
+                    "truncated package host contract"
+                }
+            })
     }
     fn string(&mut self) -> Result<String, &'static str> {
         let n = self.len()?;
@@ -843,6 +831,54 @@ pub(crate) mod tests {
                 },
             ],
         }
+    }
+
+    #[test]
+    fn contract_numbers_keep_their_wire_bytes_and_32_bit_errors() {
+        for (value, bytes) in [
+            (0, vec![0]),
+            (127, vec![127]),
+            (128, vec![128, 1]),
+            (16_384, vec![128, 128, 1]),
+            (u32::MAX, vec![255, 255, 255, 255, 15]),
+        ] {
+            let mut writer = super::Writer(Vec::new());
+            writer.number(value);
+            assert_eq!(writer.0, bytes);
+            let mut reader = super::Reader {
+                bytes: &bytes,
+                at: 0,
+            };
+            assert_eq!(reader.number(), Ok(value));
+            assert_eq!(reader.at, bytes.len());
+        }
+        for (bytes, error) in [
+            (
+                vec![128, 128, 128, 128, 16],
+                "oversized package host contract length",
+            ),
+            (
+                vec![128, 128, 128, 128, 128, 0],
+                "oversized package host contract length",
+            ),
+            (vec![128, 128, 128, 128], "truncated package host contract"),
+        ] {
+            let mut reader = super::Reader {
+                bytes: &bytes,
+                at: 0,
+            };
+            assert_eq!(reader.number(), Err(error));
+            assert_eq!(reader.at, bytes.len().min(5));
+        }
+        let mut reader = super::Reader {
+            bytes: &[128, 0],
+            at: 0,
+        };
+        assert_eq!(
+            reader.number(),
+            Ok(0),
+            "the preexisting padded representation stays accepted"
+        );
     }
 
     #[test]

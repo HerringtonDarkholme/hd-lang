@@ -1006,7 +1006,7 @@ impl Em<'_, '_, '_> {
         // Checking types `join!` the tuple of its children's results.
         let tys = crate::layout::tuple_members(
             self.pool(),
-            crate::layout::strip(self.pool(), self.env(), self.ty(i)),
+            crate::layout::strip_newtype(self.pool(), self.env(), self.ty(i)),
         );
         let (done, gone, ready, s) = (
             self.f.local(Val::I32),

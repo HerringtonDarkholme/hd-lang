@@ -494,12 +494,12 @@ impl Ck<'_, '_> {
             PlaceUse::Ref
         };
         let Some(op) = self.place_of(e, want_inner, use_)? else {
-            return Ok(self.ref_poison(n));
+            return Ok(self.poison(n));
         };
         let place = match op {
             Operand::Place(p) => {
                 if mutable && !self.place_writable(&p, e) {
-                    return Ok(self.ref_poison(n));
+                    return Ok(self.poison(n));
                 }
                 if mutable
                     && self.cx.source_facts.is_some()
@@ -511,7 +511,7 @@ impl Ck<'_, '_> {
             }
             Operand::Value(v, t) => {
                 if matches!(self.infer.resolve(pool, t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
-                    return Ok(self.ref_poison(n));
+                    return Ok(self.poison(n));
                 }
                 // `ref.static.literal`: `&` of a constant literal refers to
                 // the constant, which the backend places in static data
@@ -593,13 +593,6 @@ impl Ck<'_, '_> {
         let inner = self.resolved(t);
         let rt = self.ref_ty(inner, mutable, counted);
         (self.make_ref(&place, mutable, rt, n), rt)
-    }
-
-    fn ref_poison(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
-        (
-            self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
-            Ty::POISON,
-        )
     }
 
     /// Binds `v` of type `t` to a new local the body cannot name; returns
@@ -1263,11 +1256,11 @@ impl Ck<'_, '_> {
                 n,
                 "a trait value referent cannot be read as a bare value",
             );
-            return Ok(self.ref_poison(n));
+            return Ok(self.poison(n));
         }
         let Some(_) = self.ref_of(t) else {
             self.not_a_reference(t, e);
-            return Ok(self.ref_poison(n));
+            return Ok(self.poison(n));
         };
         let (v, vt) = self.emit_deref(r, t, n.index());
         Ok((v, vt))

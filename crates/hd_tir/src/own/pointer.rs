@@ -4,7 +4,7 @@
 //! The context supplies program facts; this pass alone computes source-deduplicated
 //! accesses, transitive call effects, trait payload types and kept loan sites.
 
-use crate::ir::{Body, Place, PlaceRoot, Proj, Ref, Tag};
+use crate::ir::{Body, Place, PlaceRoot, Proj, Tag};
 use hd_base::{DefId, HashMap, HashSet, InstId, NodeIdx, SliceSort as _};
 use hd_types::{Ty, TyList};
 
@@ -310,7 +310,7 @@ fn accesses(
         if let Some(receiver) = cx.receiver(id, i) {
             let params = cx.params(id, iu);
             for (k, a) in call_args(b, i).into_iter().enumerate() {
-                let Some(v) = direct_value(b, a) else {
+                let Some(v) = b.direct_value(a) else {
                     continue;
                 };
                 if b.tags[v] != Tag::Read {
@@ -440,7 +440,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
             let Binding::Reference(a) = bind else {
                 continue;
             };
-            let Some(v) = direct_value(b, a).filter(|&v| b.tags[v] == Tag::Ref) else {
+            let Some(v) = b.direct_value(a).filter(|&v| b.tags[v] == Tag::Ref) else {
                 continue;
             };
             let vu = u32::try_from(v).expect("insts");
@@ -460,7 +460,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
             let iu = u32::try_from(i).expect("insts");
             let call = b.held_args.iter().find(|x| x.1 == a).map(|x| x.0 as usize);
             let (Some(c), Some(v), Some(s)) =
-                (call, direct_value(b, a), direct_value(b, b.data[i][1]))
+                (call, b.direct_value(a), b.direct_value(b.data[i][1]))
             else {
                 continue;
             };
@@ -549,7 +549,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
             // the indexed range instead of rebuilding the callee union.
             let call_end = iu + 1;
             for (k, a) in call_args(b, i).into_iter().enumerate() {
-                let Some(v) = direct_value(b, a) else {
+                let Some(v) = b.direct_value(a) else {
                     continue;
                 };
                 let vu = u32::try_from(v).expect("insts");
@@ -737,15 +737,6 @@ fn returned_inner(cx: &impl Context, callee: InstId, k: usize) -> Vec<Ty> {
         }
     }
     out
-}
-
-/// The instruction behind representation-preserving coercions.
-fn direct_value(b: &Body, a: u32) -> Option<usize> {
-    let mut v = Ref(a).as_inst()?.0 as usize;
-    while b.same_value_coercion(v) {
-        v = Ref(b.data[v][0]).as_inst()?.0 as usize;
-    }
-    Some(v)
 }
 
 fn call_args(b: &Body, i: usize) -> Vec<u32> {

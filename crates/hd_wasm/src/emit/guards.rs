@@ -543,7 +543,7 @@ impl Em<'_, '_, '_> {
             (leaves, if made { Some(self.cell_of(c)?) } else { None })
         } else if root & BOX != 0 {
             let (holder, holder_path, box_ty) = self.headers.boxes[(root & !BOX) as usize];
-            let target = pool.ref_inner(crate::layout::strip(pool, env, box_ty));
+            let target = pool.ref_inner(crate::layout::strip_newtype(pool, env, box_ty));
             let m = crate::layout::mem(pool, env, target)?;
             let (_, part) = self.fold_path(target, &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
@@ -551,7 +551,7 @@ impl Em<'_, '_, '_> {
             (leaves, self.root_load(holder, holder_path, Val::I32)?)
         } else {
             let ref_ty = self.b.local_ty[root as usize];
-            let target = pool.ref_inner(crate::layout::strip(pool, env, ref_ty));
+            let target = pool.ref_inner(crate::layout::strip_newtype(pool, env, ref_ty));
             let m = crate::layout::mem(pool, env, target)?;
             let (_, part) = self.fold_path(target, &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
@@ -861,7 +861,7 @@ impl Proof<'_, '_, '_, '_> {
         let em = self.em;
         let (pool, env) = (em.pool(), em.env());
         matches!(
-            pool.get(crate::layout::strip(pool, env, ty)),
+            pool.get(crate::layout::strip_newtype(pool, env, ty)),
             hd_types::TyData::Ref { mutable: false, .. }
         ) && matches!(em.ref_target(ty), Some((_, false)))
     }
@@ -1196,7 +1196,7 @@ impl Proof<'_, '_, '_, '_> {
                 } else if em.tuple(ty) {
                     crate::layout::tuple_members(
                         em.pool(),
-                        crate::layout::strip(em.pool(), em.env(), ty),
+                        crate::layout::strip_newtype(em.pool(), em.env(), ty),
                     )
                 } else {
                     em.struct_fields(ty)

@@ -832,6 +832,27 @@ pub(crate) struct SolverDecls<'d, 'm> {
     pub(crate) local: std::cell::RefCell<&'m mut InlineDecls>,
 }
 
+impl<'d, 'm> SolverDecls<'d, 'm> {
+    pub(crate) fn new(
+        lookup: &'d hd_resolve::Lookup<'d>,
+        names: hd_resolve::Names<'d>,
+        global: &'d hd_types::solver::GlobalMemo,
+        local: &'m mut InlineDecls,
+    ) -> Self {
+        Self {
+            decls: hd_resolve::LookupDecls {
+                lookup,
+                pool: names.pool,
+                sealed: names.known.sealed(),
+                paths: names.paths,
+                syms: names.syms,
+            },
+            global,
+            local: std::cell::RefCell::new(local),
+        }
+    }
+}
+
 impl hd_types::solver::Declarations for SolverDecls<'_, '_> {
     fn sealed(&self) -> &hd_types::solver::SealedTraits {
         self.decls.sealed()

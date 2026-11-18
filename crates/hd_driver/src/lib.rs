@@ -12815,7 +12815,7 @@ impl LayoutEnv for Env<'_> {
 /// The backend's layout as the mutation scan reads it (`hd_opt::whole`).
 impl hd_opt::whole::ObjectLayout for Env<'_> {
     fn strip(&self, t: Ty) -> Ty {
-        hd_layout::strip(&self.run.pool, self, t)
+        hd_layout::strip_newtype(&self.run.pool, self, t)
     }
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty> {
         let TyData::Ref {
@@ -12826,7 +12826,11 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         else {
             return None;
         };
-        Some(hd_layout::strip(&self.run.pool, self, self.low(inner)))
+        Some(hd_layout::strip_newtype(
+            &self.run.pool,
+            self,
+            self.low(inner),
+        ))
     }
 }
 

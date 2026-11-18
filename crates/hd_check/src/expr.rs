@@ -3965,15 +3965,7 @@ impl Ck<'_, '_> {
         let result = els.map(|(_, t)| t);
         // `flow.while.infinite`: `while true`, or `while (true)`, without
         // a `break` never completes.
-        let mut lit = cond;
-        while lit.kind() == SyntaxKind::ParenExpr
-            && let Some(inner) = lit.children().next()
-        {
-            lit = inner;
-        }
-        let infinite = lit.kind() == SyntaxKind::LiteralExpr
-            && self.cx.src.tkind(self.cx.src.first(lit)) == Some(TokenKind::KwTrue)
-            && !Self::has_break(body);
+        let infinite = self.infinite_while(cond, body);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let (c, ct) = self.expr(cond, Some(Ty::BOOL))?;

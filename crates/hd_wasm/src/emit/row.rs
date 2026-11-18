@@ -1,6 +1,6 @@
 //! Function-row adapters consume checked evidence, never ambient providers.
 use super::{Em, Instruction as I, Sym, Target, Val};
-use crate::layout::strip;
+use crate::layout::strip_newtype;
 use crate::module::{HEAP, mem};
 use crate::rt::{Helper, RowAdapter, RowEntry};
 use hd_base::StageResult;
@@ -38,7 +38,9 @@ impl Em<'_, '_, '_> {
             result,
             suspends,
             ..
-        } = self.pool().get(strip(self.pool(), self.env(), source_ty))
+        } = self
+            .pool()
+            .get(strip_newtype(self.pool(), self.env(), source_ty))
         else {
             return Err(hd_base::NotImplemented::bug(
                 hd_base::Stage::Emit,

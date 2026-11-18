@@ -45,7 +45,7 @@ fn w(i: usize) -> u32 {
 
 /// Whether `t`, under any `mut`, is `&mut`: a local reference, since a
 /// `*mut` is copied (`ref.move.mut`).
-fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
+pub(crate) fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
     match pool.get(t) {
         TyData::Ref {
             mutable, counted, ..

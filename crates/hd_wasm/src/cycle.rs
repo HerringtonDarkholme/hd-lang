@@ -36,7 +36,7 @@ use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
 use hd_types::{InternPool, Ty, TyData};
 
-use crate::layout::{Kind, kind, strip, tuple_members, value_parts, variants};
+use crate::layout::{Kind, kind, strip_newtype, tuple_members, value_parts, variants};
 
 thread_local! {
     /// The link's closed-world set of types whose existing objects may be
@@ -56,7 +56,7 @@ struct Analysis {
 }
 
 fn facts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Facts {
-    let t = strip(pool, env, t);
+    let t = strip_newtype(pool, env, t);
     let classify = |ty, ranks: &mut Ranks| {
         let (parts, value_open, object_open) = match holds(pool, env, ty) {
             Holds::Parts(parts) => (parts, false, false),
@@ -64,7 +64,10 @@ fn facts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Facts {
             Holds::Open => (vec![], true, true),
         };
         Shape {
-            parts: parts.into_iter().map(|t| strip(pool, env, t)).collect(),
+            parts: parts
+                .into_iter()
+                .map(|t| strip_newtype(pool, env, t))
+                .collect(),
             value_open,
             object_open,
             rank: ranks.get(pool, ty),
@@ -101,7 +104,7 @@ pub(crate) fn mutation_targets(targets: Option<HashSet<Ty>>) -> impl Drop {
 }
 
 fn writable(pool: &InternPool, env: &dyn ProgramEnv, target: Ty) -> bool {
-    let target = strip(pool, env, target);
+    let target = strip_newtype(pool, env, target);
     MUTATION_TARGETS.with(|targets| {
         targets
             .borrow()

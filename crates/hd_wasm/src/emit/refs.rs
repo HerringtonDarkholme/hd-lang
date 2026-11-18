@@ -18,6 +18,7 @@ use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Ref, Tag};
 use hd_types::{Ty, TyData};
 
 use super::Em;
+use super::excl::fields;
 use super::value::{Dst, Src};
 use crate::layout::{Kind, Leaf, LeafOps as _, Part, Walk, mem as mem_of, walk};
 use crate::module::{EMPTY, HEAP, Val, mem};
@@ -174,8 +175,8 @@ impl Em<'_, '_, '_> {
     fn checked_ref_target(&self, t: Ty) -> Referent {
         let (pool, env) = (self.pool(), self.env());
         // ruled out: checked Deref typing preserves the reference constructor.
-        let target = pool.ref_inner(crate::layout::strip(pool, env, t));
-        let target = crate::layout::strip(pool, env, target);
+        let target = pool.ref_inner(crate::layout::strip_newtype(pool, env, t));
+        let target = crate::layout::strip_newtype(pool, env, target);
         let fat = matches!(pool.get(target), TyData::TraitValue { .. });
         (target, fat)
     }
@@ -1724,7 +1725,7 @@ impl Em<'_, '_, '_> {
         let (pool, env) = (self.pool(), self.env());
         // ruled out: callers use last_through's successful thin Ref step;
         // erasing newtypes preserves its declared reference constructor.
-        Ok(pool.ref_inner(crate::layout::strip(pool, env, ty)))
+        Ok(pool.ref_inner(crate::layout::strip_newtype(pool, env, ty)))
     }
 }
 
@@ -1736,17 +1737,6 @@ fn place_field(step: Option<&Proj>) -> u32 {
         // with Field; counted_ref splits only at Elem/Deref or the end.
         _ => super::required(None, "a checked place suffix must name its Field"),
     }
-}
-
-/// The struct field indices `steps` name, when they are all fields.
-fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
-    steps
-        .iter()
-        .map(|s| match s {
-            Proj::Field(f) => Some(*f),
-            _ => None,
-        })
-        .collect()
 }
 
 /// Whether walk `arm` counts the address in value `k`.

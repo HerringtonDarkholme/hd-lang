@@ -277,8 +277,8 @@ pub(crate) fn release_plan(
     memo: &mut HashMap<hd_types::Ty, Option<std::sync::Arc<ReleasePlan>>>,
     t: hd_types::Ty,
 ) -> hd_base::StageResult<Option<std::sync::Arc<ReleasePlan>>> {
-    let strip = |u| crate::layout::strip(pool, env, u);
-    let t = strip(t);
+    let strip_newtype = |u| crate::layout::strip_newtype(pool, env, u);
+    let t = strip_newtype(t);
     let mut stack = vec![(t, false)];
     while let Some((u, ready)) = stack.pop() {
         if memo.contains_key(&u) {
@@ -307,7 +307,7 @@ pub(crate) fn release_plan(
         if !ready {
             let mut pending = Vec::new();
             for &f in &tys {
-                let f = strip(f);
+                let f = strip_newtype(f);
                 if !memo.contains_key(&f) && by_address(pool, env, f)? {
                     pending.push((f, false));
                 }
@@ -324,7 +324,7 @@ pub(crate) fn release_plan(
             let field = u32_of(field);
             let part = crate::layout::layout(pool, env, f)?;
             if part.repr == crate::layout::Repr::Memory {
-                if let Some(plan) = memo.get(&strip(f)).cloned().flatten() {
+                if let Some(plan) = memo.get(&strip_newtype(f)).cloned().flatten() {
                     steps.push(ReleaseStep::Nested {
                         field,
                         offset,
@@ -1445,7 +1445,7 @@ impl Em<'_, '_, '_> {
                 }
             };
             crate::layout::newtype_layers(pool, env, u, &mut glue);
-            glue(crate::layout::strip(pool, env, u));
+            glue(crate::layout::strip_newtype(pool, env, u));
             let mut fields = Vec::new();
             for (field, (&f, part)) in ms.tys.iter().zip(&ms.parts).enumerate() {
                 if !matches!(self.kind(f), crate::layout::Kind::Value)

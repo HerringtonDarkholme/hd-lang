@@ -238,7 +238,7 @@ impl Em<'_, '_, '_> {
     /// follows its concrete flattened parameters, so Copy fields stay with
     /// the caller while adjacent unique fields transfer to their callees.
     fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, Option<Walk>)>> {
-        let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip(
+        let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip_newtype(
             self.pool(),
             self.env(),
             self.ty_of(callee),

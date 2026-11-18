@@ -164,7 +164,7 @@ fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
         ..
     } = input
         .pool
-        .get(crate::layout::strip(input.pool, input.env, ty))
+        .get(crate::layout::strip_newtype(input.pool, input.env, ty))
     else {
         return true;
     };
@@ -173,7 +173,7 @@ fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
     }
     match input
         .pool
-        .get(crate::layout::strip(input.pool, input.env, ret))
+        .get(crate::layout::strip_newtype(input.pool, input.env, ret))
     {
         TyData::Prim(_) | TyData::Tuple { .. } => false,
         TyData::Adt { def, .. } => def == input.env.suspend_def(),

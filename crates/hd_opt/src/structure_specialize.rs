@@ -238,7 +238,7 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
                 .words() else {
                     continue;
                 };
-                let place = push_record(body, &words);
+                let place = body.push_record(&words);
                 body.tags[call] = Tag::Ref;
                 body.data[call] = [place, 0];
             }
@@ -255,7 +255,7 @@ fn fold_handle_accessors(env: &dyn StructureEnv, body: &mut Body) {
                 // Preserve the proved constant as an ordinary identity,
                 // which the existing decision folder can propagate. A
                 // manufactured equality hides this fact from that folder.
-                let identity = push_record(body, &[Coercion::Identity as u32, NONE]);
+                let identity = body.push_record(&[Coercion::Identity as u32, NONE]);
                 body.tags[call] = Tag::Coerce;
                 body.data[call] = [value, identity];
             }
@@ -375,14 +375,6 @@ fn single_variant(env: &dyn StructureEnv, target: Ty) -> bool {
         TyData::Adt { def, args } => env.enum_variants(def, args).is_none(),
         _ => false,
     }
-}
-
-fn push_record(body: &mut Body, words: &[u32]) -> u32 {
-    let at = u32::try_from(body.extra.len()).expect("records");
-    body.extra
-        .push(u32::try_from(words.len()).expect("record length"));
-    body.extra.extend_from_slice(words);
-    at
 }
 
 /// Copies the selected concrete walker methods into one specialized walk.

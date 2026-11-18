@@ -93,7 +93,7 @@ fn split_raw(raw: &str, out: &mut Vec<Raw>) {
 }
 
 impl Ck<'_, '_> {
-    fn poison(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
+    pub(crate) fn poison(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
         (
             self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
             Ty::POISON,

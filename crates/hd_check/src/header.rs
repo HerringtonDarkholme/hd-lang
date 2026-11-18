@@ -16,7 +16,7 @@
 
 use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
-use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, LookupDecls, Names};
+use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, Names};
 use hd_types::solver::{
     Answer, BodyMemo, EnvKey, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver,
     TraitRef,
@@ -54,17 +54,7 @@ impl HeaderCx<'_> {
         &self,
         local: &'m mut crate::value::InlineDecls,
     ) -> crate::value::SolverDecls<'_, 'm> {
-        crate::value::SolverDecls {
-            decls: LookupDecls {
-                lookup: self.lookup,
-                pool: self.names.pool,
-                sealed: self.names.known.sealed(),
-                paths: self.names.paths,
-                syms: self.names.syms,
-            },
-            global: self.global,
-            local: std::cell::RefCell::new(local),
-        }
+        crate::value::SolverDecls::new(self.lookup, self.names, self.global, local)
     }
 }
 
