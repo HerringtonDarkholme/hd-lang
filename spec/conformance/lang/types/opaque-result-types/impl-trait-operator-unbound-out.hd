@@ -1,0 +1,8 @@
+use std.ops.Add
+
+fn seven() -> impl Add[i32]:
+    let x: i32 = 7
+    x
+
+pub fn main() -> void $ Console:
+    println(seven() + 1) # diagnostic: unsatisfied-trait-bound

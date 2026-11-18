@@ -1,0 +1,29 @@
+# expect-stdout: 8 9 10 11 7 3.5 8 2 5 9
+use std.ops.Add
+
+fn seven() -> impl Add[i32, Out = i32]:
+    let x: i32 = 7
+    x
+
+fn same[T < Add[T, Out = T]](x: T) -> impl Add[T, Out = T]:
+    x
+
+fn plus_one[T < Add[i32, Out = i32]](x: T) -> i32:
+    x + 1
+
+fn plus[R, T < Add[R, Out = R]](x: T, r: R) -> R:
+    x + r
+
+pub fn main() -> void $ Console:
+    let two: i32 = 2
+    let a = seven() + 1
+    let b = seven() + two
+    let c = seven().add(3)
+    let d = Add::add(seven(), 4)
+    let e = same(two) + 5
+    let f = same(1.5) + 2.0
+    let g = plus_one(seven())
+    let h = plus_one(same(1))
+    let i = plus(same(2), 3)
+    let j = same(4) + 5
+    println("${a} ${b} ${c} ${d} ${e} ${f} ${g} ${h} ${i} ${j}")

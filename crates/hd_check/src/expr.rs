@@ -1821,11 +1821,12 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let t = self.resolved(at);
-        // A parameter or trait value has bounds, not implementations; its
-        // clauses answer the call as they do without a literal.
+        // A parameter, opaque result or trait value has bounds, not
+        // implementations; its clauses answer the call as they do without
+        // a literal.
         if matches!(
             pool.get(self.infer.resolve(pool, t)),
-            TyData::Param(_) | TyData::TraitValue { .. }
+            TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. }
         ) {
             return Ok(None);
         }
@@ -1875,10 +1876,11 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         let t = self.resolved(at);
-        // A parameter or trait value has bounds, not implementations.
+        // A parameter, opaque result or trait value has bounds, not
+        // implementations.
         if matches!(
             pool.get(self.infer.resolve(pool, t)),
-            TyData::Param(_) | TyData::TraitValue { .. }
+            TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. }
         ) {
             return Ok(());
         }

@@ -3326,10 +3326,13 @@ impl Search<'_, '_> {
                 return Ok(self.leaf(key, root, holds));
             }
             TyData::Infer(v) => return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] })),
+            // Bounds, not impl rows, answer these: the checker reads a
+            // parameter's or an opaque result's clauses and a trait value's
+            // own arguments before it asks (`instantiation_args`).
             TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. } => {
-                return Err(NotImplemented::new(
+                return Err(NotImplemented::bug(
                     Stage::Body,
-                    "Instantiations of a parameter or a trait value (the checker reads its clauses)",
+                    "an Instantiations goal on a parameter, opaque result or trait value, whose bounds the checker reads",
                 ));
             }
             // Impl heads match the rest below.

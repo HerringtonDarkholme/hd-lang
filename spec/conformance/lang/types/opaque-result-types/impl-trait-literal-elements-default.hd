@@ -1,0 +1,2 @@
+fn nums() -> impl Iterable[i32]: # diagnostic: unsatisfied-trait-bound
+    [1, 2, 3]

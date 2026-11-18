@@ -1153,7 +1153,11 @@ impl Ck<'_, '_> {
             return Ok(Some(vec![args.to_vec()]));
         }
         match pool.get(s) {
-            TyData::Param(_) => {
+            // An opaque result answers by its declared bound, a clause on
+            // it as on a parameter (`add_opaque_bounds`), never by the
+            // impls of its hidden type.
+            TyData::Param(_) | TyData::Opaque { .. } => {
+                self.add_opaque_bounds(s);
                 return Ok(Some(
                     self.env
                         .clauses_of(s)
@@ -1179,7 +1183,6 @@ impl Ck<'_, '_> {
             | TyData::Union(_)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
-            | TyData::Opaque { .. }
             | TyData::Assoc { .. }
             | TyData::Const(_)
             | TyData::Infer(_)
