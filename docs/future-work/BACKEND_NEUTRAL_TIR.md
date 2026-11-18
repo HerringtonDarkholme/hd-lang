@@ -199,7 +199,8 @@ counted as deleted. Each step deletes the path it replaces.
 | --- | --- | --- | --- | --- | --- |
 | 0 | #2166: the owned verifier's re-proofs (lane 204, done) | 0 | −365 | 0 | −365 |
 | 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
-| 2 | scope lowering and cancel blocks; `emit/scope.rs`, `unwind_drops`; until step 7 the emitter's destructor lowers each point's cancel block (+150) | −250 | +300 | 0 | +50 |
+| 2a | cancel blocks: the TIR builder gives each await a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go | about −35 | | 0 | about −35 |
+| 2b | after step 5: scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` goes whole, its ladder also served step 5's argument-loan scopes | | | 0 | about 0 |
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
 | 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −809, plus the lifting | 0 | priced when step 3 lands |
 | 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, most of `emit/count.rs` | −2,950 | +800 | 0 | −2,150 |
@@ -209,10 +210,11 @@ counted as deleted. Each step deletes the path it replaces.
 | 8 | `verify_lowered`; read modes in the backend, the dev and release split | −450 | +250 | `own.rs` −50 | −250 |
 | | **Total**, before 3b's lifting | **−19,900** | **+7,445** | **+3,950** | **−8,505** |
 
-**Where it grows, and why.** Step 2 grows the compiler by about 50
-lines: until step 7 deletes the emitter's destructor, that destructor
-lowers each point's cancel block, and step 7 deletes that code with it.
-No other step grows. Steps 5 and 7 grow `hd_tir` by 7,250 lines and
+**Where it grows, and why.** No step grows the compiler. Step 2 is split
+(lane 209, 2026-11-18): as first planned it measured about +330. The
+emitter's scope ladder also runs step 5's loan cleanup, and a started
+frame is cancelled in its poll body, not in the destructor. So 2a builds
+the cancel blocks now, and 2b lowers scopes after step 5. Steps 5 and 7 grow `hd_tir` by 7,250 lines and
 shrink the whole by 2,350. Step 5 moves analysis and rewrites the
 decisions the emitter makes while it emits: measured range −800 to
 −1,450 (Appendix E); the table uses −1,100. Step 7 is the least certain,
@@ -498,7 +500,8 @@ path it replaces and names its reference implementation.
 | 0 | the owned verifier's re-proofs: −365 net (lane 204: the checks that re-run their pass's own predicate, and `verify_instance` folded in; `counts::verify` stays while about 30 tests use it) | none |
 | 3b | `ir/local_fns.rs` 809 (601 code, 208 tests). Folding it onto `ir::copy` measured only about −60 (lane 204), since the copy is already shared | lifting: each generic local function becomes its own body keyed by (enclosing item, sub-body), with the enclosing type parameters plus its own, and its captures as parameters, boxed when mutated (step 3's `Box`). `hd_mono::instantiate` then specializes it like any generic function. Priced by a probe once step 3 lands. |
 | 1 | memo scopes 257; `hd_wasm/lib.rs` driver wrappers 257; `own.rs` fallback 73; `TypeTable` 229 and about 2,000 of `layout.rs` and 594 of cycle code move | interner and target +150 (one arena and one map); enum and suspending memory locals +200 (the frame-block path in `indirect.rs` is 180); `own/parts.rs` 459 becomes shared move paths, about 350 |
-| 2 | `scope.rs` 358; the hand-picked destructor saves, about 40 | scope lowering and cancel blocks +300 (the emitter's ladder is 308 non-test lines); temporary, deleted in step 7: the destructor lowers each point's cancel block through ordinary statement lowering, +100 to +200 (`susp.rs`'s cancel path is 93 lines; the destructor's flag saves are 79 in `drop_flags.rs` and its loan cells 58 in `borrow.rs`, deleted in steps 3 and 5) |
+| 2a | `unwind_drops` and `release_unwound` (lane 209 measured) | each await's cancel block, built with the body as rustc's MIR builder does (`yield(..) -> [resume: bbN, drop: bbM]`, checked with `rustc --emit=mir`), filled by `own::known` |
+| 2b | `emit/scope.rs` 358, after step 5 moves the argument-loan cleanup scopes it also runs (`borrow.rs` `cleanup_flags`, `cleanup_loans`) | scope lowering to flag locals and blocks; rustc has no exit-code local, its drop tree gives each exit its own path |
 | 3 | cell functions in `closure.rs` 476; `promote.rs` 286 less about 45 of lowering; `emit/drop_flags.rs` 473; `own/drop_flags.rs` 467; hook guards in `value.rs` 178 | storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467; the analysis exists in `own/storage.rs`); elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays); 55 `is_cell` sites at about 3 lines; the `Box` tag +70 (the tag row below) |
 | 4 | `Walk` and `ReleasePlan` 585; `walk_plan*` 1,664 | shim builder +450 (`ReleasePlan::new`, `walk_one` and `switch_walk_by` total 100; a TIR writer and trace glue around them); count lowering +300; `emit/count.rs` keeps about 500 of 1,203; shim keys +100 (the generated-body row below) |
 | 5 | `loan_facts.rs` 335; `ref_slots.rs` 382; cell and frame coupling in `borrow.rs` 274; `Origin*` types in `excl.rs` 243 | split by whether a function touches the Wasm `Func` (non-test lines): `excl.rs` 2,621, all analysis; `borrow.rs` 2,526, analysis 1,322 and emission 1,105. The analysis moves, about 3,700 after `Origin*`; about 600 lines of decisions made while emitting are rewritten as statement insertion at 0.6 to 1.2 times, 360 to 720; moved tests 1,100 to 1,390; two tags 140. So `hd_tir` +5,300 to +5,950, the backend keeps about 500 (its check and state code is 206 today), and the step nets −800 to −1,450 |
