@@ -1,5 +1,5 @@
 //! Native package provider preflight and linking (`host/package.rs`):
-//! `cli.host.package.native-unregistered`, `native-cli`, `native-reachable`,
+//! `cli.host.package.native-provider-missing`, `native-cli`, `native-reachable`,
 //! `native-mismatch`, `native-preflight`, `native-two-keys`,
 //! `manifest-consent`, `no-flag-consent`, `duplicate`. Every refusal case's
 //! module has a trapping start function, so a guest start is visible as a
@@ -45,7 +45,14 @@ fn method(name: &str, params: Vec<Value>, result: Value, suspends: bool) -> Meth
     Method {
         name: name.into(),
         member: name.into(),
-        params,
+        params: params
+            .into_iter()
+            .enumerate()
+            .map(|(n, value)| hd_host_abi::schema::Field {
+                name: format!("p{n}"),
+                value,
+            })
+            .collect(),
         result,
         suspends,
     }
@@ -383,7 +390,7 @@ fn a_root_trait_with_no_source_path_has_no_consent_to_find() {
 #[test]
 fn manifest_consent_without_a_registration_is_refused_as_unregistered() {
     // Consent selects nothing native: with it and no provider, the run is
-    // refused by `native-unregistered`, with or without a registry.
+    // refused by `native-provider-missing`, with or without a registry.
     let contract = server(sdk());
     let unregistered = format!("no native provider registered for package host trait {SERVER:?}");
     assert_eq!(

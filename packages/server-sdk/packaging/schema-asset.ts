@@ -22,7 +22,7 @@ function freeze(value) {
 const validMetadata = (snapshot) =>
   snapshot?.format === 1 &&
   validHdLangVersion(snapshot.hdLangVersion) &&
-  snapshot.packageHostABI === 1 &&
+  snapshot.packageHostABI === 2 &&
   hex.test(snapshot.fingerprint ?? "") &&
   schemaFingerprint(snapshot) === snapshot.fingerprint;
 const validPayload = (snapshot) =>

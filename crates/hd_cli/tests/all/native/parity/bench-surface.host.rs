@@ -3,18 +3,19 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 5, 97, 112, 112, 108, 121, 5, 97, 112, 112,
-    108, 121, 1, 1, 8, 12, 3, 4, 84, 101, 120, 116, 2, 2, 105, 100, 3, 32, 0, 4, 116, 101, 120, 116, 6, 4, 77, 111, 118, 101, 3, 2,
-    105, 100, 3, 32, 0, 1, 120, 5, 1, 121, 5, 5, 83, 116, 121, 108, 101, 3, 2, 105, 100, 3, 32, 0, 5, 99, 111, 108, 111, 114, 9, 6,
-    4, 98, 111, 108, 100, 1, 0, 10, 110, 101, 120, 116, 95, 101, 118, 101, 110, 116, 10, 110, 101, 120, 116, 95, 101, 118, 101, 110, 116, 1, 0, 12,
-    2, 5, 67, 108, 105, 99, 107, 1, 2, 105, 100, 3, 32, 0, 3, 75, 101, 121, 1, 4, 99, 111, 100, 101, 3, 32, 0,
+    108, 121, 1, 1, 8, 99, 111, 109, 109, 97, 110, 100, 115, 8, 12, 7, 67, 111, 109, 109, 97, 110, 100, 3, 4, 84, 101, 120, 116, 2, 2, 105,
+    100, 3, 32, 0, 4, 116, 101, 120, 116, 6, 4, 77, 111, 118, 101, 3, 2, 105, 100, 3, 32, 0, 1, 120, 5, 1, 121, 5, 5, 83, 116, 121,
+    108, 101, 3, 2, 105, 100, 3, 32, 0, 5, 99, 111, 108, 111, 114, 9, 6, 4, 98, 111, 108, 100, 1, 0, 10, 110, 101, 120, 116, 95, 101, 118,
+    101, 110, 116, 10, 110, 101, 120, 116, 95, 101, 118, 101, 110, 116, 1, 0, 12, 7, 85, 105, 69, 118, 101, 110, 116, 2, 5, 67, 108, 105, 99, 107,
+    1, 2, 105, 100, 3, 32, 0, 3, 75, 101, 121, 1, 4, 99, 111, 100, 101, 3, 32, 0,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SurfaceApplyArg0Item {
+pub enum Command {
     Text {
         id: u32,
         text: String,
@@ -32,7 +33,7 @@ pub enum SurfaceApplyArg0Item {
 }
 
 #[allow(dead_code)]
-impl SurfaceApplyArg0Item {
+impl Command {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Text { id: f0, text: f1 } => {
@@ -66,7 +67,7 @@ impl SurfaceApplyArg0Item {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SurfaceNextEventResult {
+pub enum UiEvent {
     Click {
         id: u32,
     },
@@ -76,7 +77,7 @@ pub enum SurfaceNextEventResult {
 }
 
 #[allow(dead_code)]
-impl SurfaceNextEventResult {
+impl UiEvent {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Click { id: f0 } => {
@@ -101,8 +102,8 @@ impl SurfaceNextEventResult {
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn apply(&mut self, arg0: Vec<SurfaceApplyArg0Item>, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<()>;
-    fn next_event(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<SurfaceNextEventResult>;
+    fn apply(&mut self, commands: Vec<Command>, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<()>;
+    fn next_event(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<UiEvent>;
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its
@@ -114,15 +115,15 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
     match method {
         0 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceApplyArg0Item::wire_decode(d)?); } x };
+            let arg0 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(Command::wire_decode(d)?); } x };
             d.finish()?;
             hd_run_wasmtime::native::wire::answer(provider.apply(arg0, hd_run_wasmtime::native::CallContext::new()), |(): (), _: &mut hd_run_wasmtime::native::Handles| Ok(Vec::new()), handles)
         }
         1 => {
-            hd_run_wasmtime::native::wire::answer(provider.next_event(hd_run_wasmtime::native::CallContext::new()), |value: SurfaceNextEventResult, handles: &mut hd_run_wasmtime::native::Handles| {
+            hd_run_wasmtime::native::wire::answer(provider.next_event(hd_run_wasmtime::native::CallContext::new()), |value: UiEvent, handles: &mut hd_run_wasmtime::native::Handles| {
                 let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
                 let e = &mut enc;
-                SurfaceNextEventResult::wire_encode(value, e)?;
+                UiEvent::wire_encode(value, e)?;
                 Ok(enc.into_bytes())
             }, handles)
         }

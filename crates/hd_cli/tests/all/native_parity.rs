@@ -360,17 +360,17 @@ fn a_block_on_call_completes_ready_settled_or_later() {
 
 struct Counted;
 
-fn total(e: &counted::SurfaceEvalArg0) -> i32 {
+fn total(e: &counted::Expr) -> i32 {
     match e {
-        counted::SurfaceEvalArg0::Num { n } => *n,
-        counted::SurfaceEvalArg0::Add { a, b } => total(a) + total(b),
+        counted::Expr::Num { n } => *n,
+        counted::Expr::Add { a, b } => total(a) + total(b),
     }
 }
 
-fn result_of(e: &counted::SurfaceTwiceArg0) -> counted::SurfaceTwiceResult {
+fn result_of(e: &counted::Expr2) -> counted::Expr3 {
     match e {
-        counted::SurfaceTwiceArg0::Num { n } => counted::SurfaceTwiceResult::Num { n: *n },
-        counted::SurfaceTwiceArg0::Add { a, b } => counted::SurfaceTwiceResult::Add {
+        counted::Expr2::Num { n } => counted::Expr3::Num { n: *n },
+        counted::Expr2::Add { a, b } => counted::Expr3::Add {
             a: Box::new(result_of(a)),
             b: Box::new(result_of(b)),
         },
@@ -378,13 +378,13 @@ fn result_of(e: &counted::SurfaceTwiceArg0) -> counted::SurfaceTwiceResult {
 }
 
 impl counted::Surface for Counted {
-    fn eval(&mut self, e: &counted::SurfaceEvalArg0) -> HostResult<i32> {
+    fn eval(&mut self, e: &counted::Expr) -> HostResult<i32> {
         Ok(total(e))
     }
 
-    fn twice(&mut self, e: &counted::SurfaceTwiceArg0) -> HostResult<counted::SurfaceTwiceResult> {
+    fn twice(&mut self, e: &counted::Expr2) -> HostResult<counted::Expr3> {
         let one = result_of(e);
-        Ok(counted::SurfaceTwiceResult::Add {
+        Ok(counted::Expr3::Add {
             a: Box::new(one.clone()),
             b: Box::new(one),
         })
@@ -403,7 +403,7 @@ fn a_counted_reference_crosses_as_its_tree_both_ways() {
 struct NeverCalled;
 
 impl counted_cycle::Surface for NeverCalled {
-    fn size(&mut self, _: &counted_cycle::SurfaceSizeArg0) -> HostResult<i32> {
+    fn size(&mut self, _: &counted_cycle::Node) -> HostResult<i32> {
         panic!("the guest's encoder meets the cycle before the call")
     }
 }
@@ -432,13 +432,11 @@ impl event_handle::Events for Events {
     fn next(
         &mut self,
         _: CallContext<'_>,
-    ) -> NativeCall<
-        Result<Option<event_handle::EventsNextResultOk>, event_handle::EventsNextResultErr>,
-    > {
+    ) -> NativeCall<Result<Option<event_handle::Event>, event_handle::EventError>> {
         NativeCall::Ready(Ok(if self.closed {
-            Err(event_handle::EventsNextResultErr::Closed)
+            Err(event_handle::EventError::Closed)
         } else {
-            Ok(Some(event_handle::EventsNextResultOk::Click { tag: 7 }))
+            Ok(Some(event_handle::Event::Click { tag: 7 }))
         }))
     }
 
@@ -476,19 +474,17 @@ struct Fieldless;
 impl fieldless::Surface for Fieldless {
     fn render(
         &mut self,
-        alone: fieldless::SurfaceRenderArg0,
-        wrap: fieldless::SurfaceRenderArg1,
-        pick: fieldless::SurfaceRenderArg2,
-        many: Vec<fieldless::SurfaceRenderArg0>,
+        alone: fieldless::Empty,
+        wrap: fieldless::Wrap,
+        pick: fieldless::Pick,
+        many: Vec<fieldless::Empty>,
     ) -> HostResult<(
-        fieldless::SurfaceRenderArg0,
-        fieldless::SurfaceRenderArg1,
-        fieldless::SurfaceRenderArg2,
-        Vec<fieldless::SurfaceRenderArg0>,
+        fieldless::Empty,
+        fieldless::Wrap,
+        fieldless::Pick,
+        Vec<fieldless::Empty>,
     )> {
-        use fieldless::{
-            SurfaceRenderArg0 as Empty, SurfaceRenderArg1 as Wrap, SurfaceRenderArg2 as Pick,
-        };
+        use fieldless::{Empty, Pick, Wrap};
         assert_eq!(alone, Empty {});
         let wrapped = |before, after: &str| Wrap {
             before,
@@ -650,7 +646,7 @@ fn private_values_cross_as_their_serde_tree() {
     );
 }
 
-/// `wait("cancel")` never completes until it is aborted; any other kind
+/// `wait("cancel")` drops its completion and waits until aborted; any other kind
 /// delivers after a millisecond. `aborts` counts the abort hooks run.
 struct Source(std::rc::Rc<std::cell::Cell<u32>>);
 
@@ -661,8 +657,9 @@ impl readiness::Source for Source {
         }
         let aborted = std::rc::Rc::clone(&self.0);
         let (call, completion) = native::pending(move || aborted.set(aborted.get() + 1));
-        // Its completion is held until the call ends, and never sent.
-        std::mem::forget(completion);
+        // cli.host.package.native-completion-dropped: dropping the sender
+        // leaves the call waiting, just like the Node provider's unresolved Promise.
+        drop(completion);
         NativeCall::Pending(call)
     }
 
@@ -682,21 +679,18 @@ fn a_timed_out_call_is_aborted_once_and_a_later_one_delivers() {
 
 struct Recursive;
 
-fn tree_of(t: &recursive::SurfaceRenderArg0) -> recursive::SurfaceRenderResult {
+fn tree_of(t: &recursive::Tree) -> recursive::Tree2 {
     match t {
-        recursive::SurfaceRenderArg0::Leaf => recursive::SurfaceRenderResult::Leaf,
-        recursive::SurfaceRenderArg0::Node { kids } => recursive::SurfaceRenderResult::Node {
+        recursive::Tree::Leaf => recursive::Tree2::Leaf,
+        recursive::Tree::Node { kids } => recursive::Tree2::Node {
             kids: kids.iter().map(tree_of).collect(),
         },
     }
 }
 
 impl recursive::Surface for Recursive {
-    fn render(
-        &mut self,
-        t: &recursive::SurfaceRenderArg0,
-    ) -> HostResult<recursive::SurfaceRenderResult> {
-        use recursive::SurfaceRenderResult as T;
+    fn render(&mut self, t: &recursive::Tree) -> HostResult<recursive::Tree2> {
+        use recursive::Tree2 as T;
         let mut tree = tree_of(t);
         for _ in 0..39 {
             tree = T::Node { kids: vec![tree] };
@@ -921,17 +915,13 @@ const SURFACE_JS: &str = "export default {
 struct Renderer;
 
 impl bench::Surface for Renderer {
-    fn apply(
-        &mut self,
-        commands: Vec<bench::SurfaceApplyArg0Item>,
-        _: CallContext<'_>,
-    ) -> NativeCall<()> {
+    fn apply(&mut self, commands: Vec<bench::Command>, _: CallContext<'_>) -> NativeCall<()> {
         assert_eq!(commands.len(), 3, "three commands");
         NativeCall::Ready(Ok(()))
     }
 
-    fn next_event(&mut self, _: CallContext<'_>) -> NativeCall<bench::SurfaceNextEventResult> {
-        settled(bench::SurfaceNextEventResult::Click { id: 1 })
+    fn next_event(&mut self, _: CallContext<'_>) -> NativeCall<bench::UiEvent> {
+        settled(bench::UiEvent::Click { id: 1 })
     }
 }
 
@@ -965,6 +955,36 @@ fn an_hdru_shaped_surface_answers_ready_and_pending_calls_alike() {
     snapshot("bench-surface", &built.contract);
     let run = same(&built, surface_providers);
     assert_eq!(run.stdout, "3 2\n");
+    // module.host.package.contract-source-names and cli.host.package.native-source-names:
+    // changing only declaration names must invalidate the contract metadata too.
+    let source = built.root.join("src/main.hd");
+    let renamed = std::fs::read_to_string(&source)
+        .unwrap()
+        .replace("Command", "Action")
+        .replace("UiEvent", "Input")
+        .replace("commands", "batch");
+    std::fs::write(source, renamed).unwrap();
+    let renamed = self::built(built.root, "bench_surface");
+    let surface = renamed
+        .contract
+        .interfaces
+        .iter()
+        .find(|i| i.identity.trait_path == "main.Surface")
+        .unwrap();
+    let apply = surface
+        .methods
+        .iter()
+        .find(|m| m.member == "apply")
+        .unwrap();
+    assert_eq!(apply.params[0].name, "batch");
+    assert!(
+        matches!(&apply.params[0].value, hd_host_abi::schema::Value::List(item)
+        if matches!(item.as_ref(), hd_host_abi::schema::Value::Enum(name, _) if name == "Action"))
+    );
+    let rust = hd_host_abi::native_rust::generate(&renamed.contract).unwrap();
+    assert!(rust.contains("pub enum Action {"));
+    assert!(rust.contains("pub enum Input {"));
+    assert!(rust.contains("fn apply(&mut self, batch: Vec<Action>"));
 }
 
 fn median(mut samples: Vec<f64>) -> f64 {

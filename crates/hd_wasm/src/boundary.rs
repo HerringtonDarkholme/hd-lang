@@ -2873,6 +2873,7 @@ pub fn package_method(
     arguments: Option<TyList>,
 ) -> StageResult<hd_host_abi::schema::Method> {
     let (params, ret) = signature(input.pool, input.env, method, arguments);
+    let parameter_names = input.env.parameter_names(method).unwrap_or_default();
     let path = (input.path)(method);
     Ok(hd_host_abi::schema::Method {
         name: package_wire_name(
@@ -2884,7 +2885,16 @@ pub fn package_method(
         member: path.rsplit(['.', '/']).next().unwrap_or("").to_owned(),
         params: params
             .into_iter()
-            .map(|t| package_value(input, t, &mut Binders::new()))
+            .enumerate()
+            .map(|(index, t)| {
+                Ok(hd_host_abi::schema::Field {
+                    name: parameter_names
+                        .get(index + 1)
+                        .cloned()
+                        .unwrap_or_else(|| "_".into()),
+                    value: package_value(input, t, &mut Binders::new())?,
+                })
+            })
             .collect::<StageResult<_>>()?,
         result: if never(input, ret) {
             hd_host_abi::schema::Value::Never
@@ -3003,6 +3013,7 @@ fn package_value(
         // with its one positional payload `0`, as a nominal enum with one
         // single-payload variant per case would (`types.union.representation`).
         TyData::Union(members) => Value::Enum(
+            String::new(),
             pool.list_items(members)
                 .iter()
                 .enumerate()
@@ -3088,13 +3099,14 @@ fn package_data(
                                 .collect::<StageResult<_>>()?,
                         });
                     }
-                    Value::Enum(out)
+                    Value::Enum(input.env.source_type_name(def), out)
                 }
             } else {
                 let types = env.data_fields(def).unwrap_or_default();
                 let names = env.data_field_names(def).unwrap_or_default();
                 debug_assert_eq!(names.len(), types.len(), "a struct's field names");
                 Value::Record(
+                    input.env.source_type_name(def),
                     names
                         .into_iter()
                         .zip(types)

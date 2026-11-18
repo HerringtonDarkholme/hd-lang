@@ -1,10 +1,10 @@
 //! Owned signatures for package host adapters. The custom section contains
-//! data, never executable JavaScript. Its encoding is toolchain ABI v1.
+//! data, never executable JavaScript. Its encoding is toolchain ABI v2.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const SECTION: &str = "hd.capabilities";
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 const MAX_DEPTH: usize = 32;
 
 /// The exact selected package, version, and package-relative trait name.
@@ -46,8 +46,8 @@ pub enum Value {
     List(Box<Self>),
     Option(Box<Self>),
     Tuple(Vec<Self>),
-    Record(Vec<Field>),
-    Enum(Vec<Variant>),
+    Record(String, Vec<Field>),
+    Enum(String, Vec<Variant>),
     Result(Box<Self>, Box<Self>),
     /// `Map[K, V]`: its entry count, then each key and value in the
     /// order the map holds them.
@@ -87,7 +87,7 @@ pub struct Method {
     pub name: String,
     /// The plain JavaScript method name, independent of import qualification.
     pub member: String,
-    pub params: Vec<Value>,
+    pub params: Vec<Field>,
     pub result: Value,
     pub suspends: bool,
 }
@@ -193,7 +193,7 @@ impl Contract {
                 w.string(&m.name);
                 w.string(&m.member);
                 w.0.push(u8::from(m.suspends));
-                w.values(&m.params);
+                w.fields(&m.params);
                 w.value(&m.result);
             }
         }
@@ -226,7 +226,7 @@ impl Contract {
                     name: r.string()?,
                     member: r.string()?,
                     suspends: r.boolean()?,
-                    params: r.values(0)?,
+                    params: r.named_values(0)?,
                     result: r.value(0)?,
                 });
             }
@@ -295,7 +295,7 @@ impl Contract {
                     }
                 }
                 let result = (m.result != Value::Never).then_some(&m.result);
-                for v in m.params.iter().chain(result) {
+                for v in m.params.iter().map(|p| &p.value).chain(result) {
                     self.validate_value(v, 0, &mut Binders::default())?;
                 }
             }
@@ -319,7 +319,7 @@ impl Contract {
         if matches!(
             v,
             Value::List(_) | Value::Option(_) | Value::Result(..) | Value::Map(..)
-        ) || matches!(v, Value::Enum(vs) if vs.len() > 1)
+        ) || matches!(v, Value::Enum(_, vs) if vs.len() > 1)
         {
             binders.guard = binders.ids.len();
         }
@@ -357,8 +357,8 @@ impl Contract {
                     self.validate_value(t, depth + 1, binders)?;
                 }
             }
-            Value::Record(fs) => self.validate_fields(fs, depth + 1, binders)?,
-            Value::Enum(vs) => {
+            Value::Record(_, fs) => self.validate_fields(fs, depth + 1, binders)?,
+            Value::Enum(_, vs) => {
                 let mut names = BTreeSet::new();
                 for variant in vs {
                     if variant.name.is_empty() || !names.insert(&variant.name) {
@@ -368,7 +368,8 @@ impl Contract {
                 }
             }
             Value::Rec(id, body) => {
-                if binders.ids.contains(id) || !matches!(**body, Value::Record(_) | Value::Enum(_))
+                if binders.ids.contains(id)
+                    || !matches!(**body, Value::Record(_, _) | Value::Enum(_, _))
                 {
                     return Err("invalid package host recursive type");
                 }
@@ -459,8 +460,8 @@ impl Writer {
             Value::List(_) => 8,
             Value::Option(_) => 9,
             Value::Tuple(_) => 10,
-            Value::Record(_) => 11,
-            Value::Enum(_) => 12,
+            Value::Record(_, _) => 11,
+            Value::Enum(_, _) => 12,
             Value::Result(..) => 13,
             Value::Json => 14,
             Value::Handle(_) => 15,
@@ -473,8 +474,12 @@ impl Writer {
             Value::Int { bits, signed } => self.0.extend_from_slice(&[*bits, u8::from(*signed)]),
             Value::List(t) | Value::Option(t) => self.value(t),
             Value::Tuple(ts) => self.values(ts),
-            Value::Record(fs) => self.fields(fs),
-            Value::Enum(vs) => {
+            Value::Record(name, fs) => {
+                self.string(name);
+                self.fields(fs);
+            }
+            Value::Enum(name, vs) => {
+                self.string(name);
                 self.len(vs.len());
                 for variant in vs {
                     self.string(&variant.name);
@@ -554,11 +559,14 @@ impl<'a> Reader<'a> {
         (0..self.len()?).map(|_| self.value(depth)).collect()
     }
     fn fields(&mut self, depth: usize) -> Result<Vec<Field>, &'static str> {
+        self.named_values(depth + 1)
+    }
+    fn named_values(&mut self, depth: usize) -> Result<Vec<Field>, &'static str> {
         (0..self.len()?)
             .map(|_| {
                 Ok(Field {
                     name: self.string()?,
-                    value: self.value(depth + 1)?,
+                    value: self.value(depth)?,
                 })
             })
             .collect()
@@ -582,8 +590,9 @@ impl<'a> Reader<'a> {
             8 => Value::List(Box::new(self.value(depth + 1)?)),
             9 => Value::Option(Box::new(self.value(depth + 1)?)),
             10 => Value::Tuple(self.values(depth + 1)?),
-            11 => Value::Record(self.fields(depth)?),
+            11 => Value::Record(self.string()?, self.fields(depth)?),
             12 => Value::Enum(
+                self.string()?,
                 (0..self.len()?)
                     .map(|_| {
                         Ok(Variant {
@@ -658,21 +667,35 @@ pub(crate) mod tests {
         assert_eq!(local.to_string(), "local:7269fb96/main.Server");
     }
 
+    fn params(values: Vec<Value>) -> Vec<Field> {
+        values
+            .into_iter()
+            .enumerate()
+            .map(|(n, value)| Field {
+                name: format!("p{n}"),
+                value,
+            })
+            .collect()
+    }
+
     /// `enum Tree: Leaf | Node(kids: List[kid])`.
     fn tree(kid: Value) -> Value {
-        Value::Enum(vec![
-            Variant {
-                name: "Leaf".into(),
-                fields: vec![],
-            },
-            Variant {
-                name: "Node".into(),
-                fields: vec![Field {
-                    name: "kids".into(),
-                    value: Value::List(Box::new(kid)),
-                }],
-            },
-        ])
+        Value::Enum(
+            "Sample".into(),
+            vec![
+                Variant {
+                    name: "Leaf".into(),
+                    fields: vec![],
+                },
+                Variant {
+                    name: "Node".into(),
+                    fields: vec![Field {
+                        name: "kids".into(),
+                        value: Value::List(Box::new(kid)),
+                    }],
+                },
+            ],
+        )
     }
 
     #[test]
@@ -704,20 +727,26 @@ pub(crate) mod tests {
             // finite value.
             Value::Rec(
                 0,
-                Box::new(Value::Record(vec![Field {
-                    name: "next".into(),
-                    value: Value::Ref(0),
-                }])),
-            ),
-            Value::Rec(
-                0,
-                Box::new(Value::Enum(vec![Variant {
-                    name: "Only".into(),
-                    fields: vec![Field {
+                Box::new(Value::Record(
+                    "Sample".into(),
+                    vec![Field {
                         name: "next".into(),
                         value: Value::Ref(0),
                     }],
-                }])),
+                )),
+            ),
+            Value::Rec(
+                0,
+                Box::new(Value::Enum(
+                    "Sample".into(),
+                    vec![Variant {
+                        name: "Only".into(),
+                        fields: vec![Field {
+                            name: "next".into(),
+                            value: Value::Ref(0),
+                        }],
+                    }],
+                )),
             ),
         ];
         for v in refused {
@@ -742,7 +771,7 @@ pub(crate) mod tests {
                     methods: vec![Method {
                         name: "draw".into(),
                         member: "draw".into(),
-                        params: vec![
+                        params: params(vec![
                             Value::Bool,
                             Value::Char,
                             Value::Int {
@@ -766,22 +795,28 @@ pub(crate) mod tests {
                                     signed: false,
                                 },
                             ]),
-                            Value::Record(vec![Field {
-                                name: "text".into(),
-                                value: Value::String,
-                            }]),
-                            Value::Enum(vec![Variant {
-                                name: "Click".into(),
-                                fields: vec![Field {
-                                    name: "node".into(),
-                                    value: Value::Int {
-                                        bits: 64,
-                                        signed: false,
-                                    },
+                            Value::Record(
+                                "Sample".into(),
+                                vec![Field {
+                                    name: "text".into(),
+                                    value: Value::String,
                                 }],
-                            }]),
+                            ),
+                            Value::Enum(
+                                "Sample".into(),
+                                vec![Variant {
+                                    name: "Click".into(),
+                                    fields: vec![Field {
+                                        name: "node".into(),
+                                        value: Value::Int {
+                                            bits: 64,
+                                            signed: false,
+                                        },
+                                    }],
+                                }],
+                            ),
                             Value::Rec(0, Box::new(tree(Value::Ref(0)))),
-                        ],
+                        ]),
                         result: Value::Result(
                             Box::new(Value::Handle("hd:pkg:events".into())),
                             Box::new(Value::String),
@@ -821,6 +856,31 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn source_names_round_trip_and_cost_one_length_prefix_plus_utf8() {
+        let mut c = sample();
+        let m = &mut c.interfaces[0].methods[0];
+        m.params = vec![Field {
+            name: String::new(),
+            value: Value::Record(String::new(), vec![]),
+        }];
+        m.result = Value::Enum(String::new(), vec![]);
+        let unnamed = c.encode().len();
+        c.interfaces[0].methods[0].params[0].name = "commands".into();
+        c.interfaces[0].methods[0].params[0].value = Value::Record("Command".into(), vec![]);
+        c.interfaces[0].methods[0].result = Value::Enum("UiEvent".into(), vec![]);
+        let named = c.encode();
+        // Compared with v1, each occurrence also adds the one-byte prefix
+        // already present in `unnamed`: +9 for commands, +8 per type.
+        assert_eq!(named.len() - unnamed, 8 + 7 + 7);
+        assert_eq!(Contract::decode(&named).unwrap(), c);
+        let long_name = "界".repeat(43); // 129 UTF-8 bytes: a two-byte ULEB length.
+        c.interfaces[0].methods[0].params[0].name = long_name;
+        assert_eq!(c.encode().len() - named.len(), 129 - 8 + 1);
+        assert_eq!(Contract::decode(&c.encode()).unwrap(), c);
+        assert!(Contract::decode(&[1, 0, 0, 0, 0]).is_err());
+    }
+
+    #[test]
     fn hostile_contract_bytes_never_partially_decode() {
         let bytes = sample().encode();
         for len in 0..bytes.len() {
@@ -835,9 +895,9 @@ pub(crate) mod tests {
         let mut bad = bytes;
         bad.push(0);
         assert!(Contract::decode(&bad).is_err());
-        let noncanonical = [1, 0, 0, 0, 128, 0];
+        let noncanonical = [2, 0, 0, 0, 128, 0];
         assert!(Contract::decode(&noncanonical).is_err());
-        let huge = [1, 0, 0, 0, 255, 255, 255, 255, 15];
+        let huge = [2, 0, 0, 0, 255, 255, 255, 255, 15];
         assert!(Contract::decode(&huge).is_err());
     }
 
@@ -853,10 +913,10 @@ pub(crate) mod tests {
         c.interfaces.pop();
         assert!(c.validate().is_err());
         let mut c = sample();
-        c.interfaces[0].methods[0].params = vec![Value::Int {
+        c.interfaces[0].methods[0].params = params(vec![Value::Int {
             bits: 7,
             signed: false,
-        }];
+        }]);
         assert!(Contract::decode(&c.encode()).is_err());
         let mut c = sample();
         let m = c.interfaces[0].methods[0].clone();
@@ -871,10 +931,10 @@ pub(crate) mod tests {
             v = Value::List(Box::new(v));
         }
         let mut c = sample();
-        c.interfaces[0].methods[0].params = vec![v.clone()];
+        c.interfaces[0].methods[0].params = params(vec![v.clone()]);
         c.interfaces[0].methods[0].result = v.clone();
         assert_eq!(Contract::decode(&c.encode()).unwrap(), c);
-        c.interfaces[0].methods[0].params = vec![Value::List(Box::new(v))];
+        c.interfaces[0].methods[0].params = params(vec![Value::List(Box::new(v))]);
         assert!(c.validate().is_err());
         assert!(Contract::decode(&c.encode()).is_err());
     }

@@ -240,7 +240,7 @@ test("a malformed returned handle rolls back allocation", () => {
 test("malformed contract metadata is rejected by the canonical data reader", () => {
   for (const bytes of [
     new Uint8Array(),
-    new Uint8Array([2, 0, 0, 0, 0]),
+    new Uint8Array([1, 0, 0, 0, 0]),
     actual.subarray(0, actual.length - 1),
     new Uint8Array([...actual, 0]),
   ]) {
@@ -261,11 +261,11 @@ test("companion metadata pairing is pure and rejects malformed or mismatched hea
   checkCompanionPairing(companion, actual);
   checkCompanionPairing(companion.replaceAll("\n", "\r\n"), actual);
   for (const source of [
-    companion.replace("abiVersion = 1", "abiVersion = 2"),
-    companion.replace("Uint8Array([1,", "Uint8Array([2,"),
-    companion.replace("Uint8Array([1,", "Uint8Array([256,"),
+    companion.replace("abiVersion = 2", "abiVersion = 3"),
+    companion.replace("Uint8Array([2,", "Uint8Array([3,"),
+    companion.replace("Uint8Array([2,", "Uint8Array([256,"),
     "export const contract=alert(1);",
-    companion.replace("Uint8Array([1,", "Uint8Array([1,,"),
+    companion.replace("Uint8Array([2,", "Uint8Array([2,,"),
   ]) {
     assert.throws(() => checkCompanionPairing(source, actual));
   }

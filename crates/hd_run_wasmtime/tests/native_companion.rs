@@ -68,7 +68,11 @@ fn method(name: &str, params: Vec<Value>, result: Value, suspends: bool) -> Meth
     Method {
         name: name.into(),
         member: name.into(),
-        params,
+        params: params
+            .into_iter()
+            .enumerate()
+            .map(|(n, value)| field(&format!("p{n}"), value))
+            .collect(),
         result,
         suspends,
     }
@@ -96,36 +100,45 @@ fn interface(trait_path: &str, module: &str, handle: bool, methods: Vec<Method>)
 /// and `next_event!(&mut self) -> UiEvent`, an enum with named payload
 /// fields.
 fn surface_contract() -> Contract {
-    let style = Value::Record(vec![
-        field("fg", Value::Option(Box::new(int(32, false)))),
-        field("bold", Value::Bool),
-    ]);
-    let command = Value::Enum(vec![
-        variant(
-            "Text",
-            vec![field("node", int(64, false)), field("text", Value::String)],
-        ),
-        variant(
-            "Style",
-            vec![field("node", int(64, false)), field("style", style)],
-        ),
-        variant("Remove", vec![field("node", int(64, false))]),
-    ]);
-    let event = Value::Enum(vec![
-        variant(
-            "Key",
-            vec![field("code", Value::String), field("ctrl", Value::Bool)],
-        ),
-        variant(
-            "Resize",
-            vec![
-                field("width", int(16, false)),
-                field("height", int(16, false)),
-            ],
-        ),
-        variant("Click", vec![field("node", int(64, false))]),
-        variant("Quit", vec![]),
-    ]);
+    let style = Value::Record(
+        String::new(),
+        vec![
+            field("fg", Value::Option(Box::new(int(32, false)))),
+            field("bold", Value::Bool),
+        ],
+    );
+    let command = Value::Enum(
+        String::new(),
+        vec![
+            variant(
+                "Text",
+                vec![field("node", int(64, false)), field("text", Value::String)],
+            ),
+            variant(
+                "Style",
+                vec![field("node", int(64, false)), field("style", style)],
+            ),
+            variant("Remove", vec![field("node", int(64, false))]),
+        ],
+    );
+    let event = Value::Enum(
+        String::new(),
+        vec![
+            variant(
+                "Key",
+                vec![field("code", Value::String), field("ctrl", Value::Bool)],
+            ),
+            variant(
+                "Resize",
+                vec![
+                    field("width", int(16, false)),
+                    field("height", int(16, false)),
+                ],
+            ),
+            variant("Click", vec![field("node", int(64, false))]),
+            variant("Quit", vec![]),
+        ],
+    );
     Contract {
         interfaces: vec![interface(
             "surface.Surface",
@@ -148,19 +161,27 @@ fn surface_contract() -> Contract {
 /// a shared record shape, recursion through a list and an option, a
 /// handle-holding record, and a `never` result.
 fn forms_contract() -> Contract {
-    let point = || Value::Record(vec![field("x", Value::F64), field("y", Value::F64)]);
+    let point = || {
+        Value::Record(
+            String::new(),
+            vec![field("x", Value::F64), field("y", Value::F64)],
+        )
+    };
     let tree = Value::Rec(
         0,
-        Box::new(Value::Enum(vec![
-            variant("Leaf", vec![]),
-            variant(
-                "Node",
-                vec![
-                    field("kids", Value::List(Box::new(Value::Ref(0)))),
-                    field("parent", Value::Option(Box::new(Value::Ref(0)))),
-                ],
-            ),
-        ])),
+        Box::new(Value::Enum(
+            String::new(),
+            vec![
+                variant("Leaf", vec![]),
+                variant(
+                    "Node",
+                    vec![
+                        field("kids", Value::List(Box::new(Value::Ref(0)))),
+                        field("parent", Value::Option(Box::new(Value::Ref(0)))),
+                    ],
+                ),
+            ],
+        )),
     );
     let all = vec![
         Value::Void,
@@ -182,28 +203,46 @@ fn forms_contract() -> Contract {
         Value::Tuple(vec![Value::Void, int(32, false)]),
         Value::Map(Box::new(Value::String), Box::new(point())),
         Value::Result(Box::new(point()), Box::new(Value::String)),
-        Value::Record(vec![
-            field("type", Value::String),
-            field("self", Value::Bool),
-            field("at", point()),
-        ]),
-        Value::Enum(vec![
-            variant("Self", vec![]),
-            variant("Moved", vec![field("match", point())]),
-        ]),
+        Value::Record(
+            String::new(),
+            vec![
+                field("type", Value::String),
+                field("self", Value::Bool),
+                field("at", point()),
+            ],
+        ),
+        Value::Enum(
+            String::new(),
+            vec![
+                variant("Self", vec![]),
+                variant("Moved", vec![field("match", point())]),
+            ],
+        ),
         tree,
         // An anonymous union `i32 | string`: each case's one payload is
         // its field `0`.
-        Value::Enum(vec![
-            variant("_0", vec![field("0", int(32, true))]),
-            variant("_1", vec![field("0", Value::String)]),
-        ]),
-        Value::Record(vec![field("events", Value::Handle("hd:pkg:events".into()))]),
+        Value::Enum(
+            String::new(),
+            vec![
+                variant("_0", vec![field("0", int(32, true))]),
+                variant("_1", vec![field("0", Value::String)]),
+            ],
+        ),
+        Value::Record(
+            String::new(),
+            vec![field("events", Value::Handle("hd:pkg:events".into()))],
+        ),
         // The same handle record again, inside another: both derive nothing.
-        Value::Record(vec![field(
-            "inner",
-            Value::Record(vec![field("events", Value::Handle("hd:pkg:events".into()))]),
-        )]),
+        Value::Record(
+            String::new(),
+            vec![field(
+                "inner",
+                Value::Record(
+                    String::new(),
+                    vec![field("events", Value::Handle("hd:pkg:events".into()))],
+                ),
+            )],
+        ),
     ];
     Contract {
         interfaces: vec![
@@ -251,19 +290,27 @@ fn forms_contract() -> Contract {
 /// argument bytes. Two records of one Rust shape (`data: Vec<u8>`) differ
 /// only in encoding: bytes, and a list of `u8`.
 fn values_contract() -> Contract {
-    let point = || Value::Record(vec![field("x", Value::F64), field("y", Value::F64)]);
+    let point = || {
+        Value::Record(
+            String::new(),
+            vec![field("x", Value::F64), field("y", Value::F64)],
+        )
+    };
     let tree = Value::Rec(
         0,
-        Box::new(Value::Enum(vec![
-            variant("Leaf", vec![field("value", int(32, true))]),
-            variant(
-                "Node",
-                vec![
-                    field("kids", Value::List(Box::new(Value::Ref(0)))),
-                    field("parent", Value::Option(Box::new(Value::Ref(0)))),
-                ],
-            ),
-        ])),
+        Box::new(Value::Enum(
+            String::new(),
+            vec![
+                variant("Leaf", vec![field("value", int(32, true))]),
+                variant(
+                    "Node",
+                    vec![
+                        field("kids", Value::List(Box::new(Value::Ref(0)))),
+                        field("parent", Value::Option(Box::new(Value::Ref(0)))),
+                    ],
+                ),
+            ],
+        )),
     );
     let forms = vec![
         ("unit", Value::Void),
@@ -296,41 +343,62 @@ fn values_contract() -> Contract {
         ),
         (
             "person",
-            Value::Record(vec![
-                field("name", Value::String),
-                field("at", point()),
-                field("trail", Value::List(Box::new(point()))),
-            ]),
+            Value::Record(
+                String::new(),
+                vec![
+                    field("name", Value::String),
+                    field("at", point()),
+                    field("trail", Value::List(Box::new(point()))),
+                ],
+            ),
         ),
         (
             "event",
-            Value::Enum(vec![
-                variant("Quit", vec![]),
-                variant(
-                    "Resize",
-                    vec![
-                        field("width", int(32, false)),
-                        field("height", int(32, false)),
-                    ],
-                ),
-            ]),
+            Value::Enum(
+                String::new(),
+                vec![
+                    variant("Quit", vec![]),
+                    variant(
+                        "Resize",
+                        vec![
+                            field("width", int(32, false)),
+                            field("height", int(32, false)),
+                        ],
+                    ),
+                ],
+            ),
         ),
         (
             "only",
-            Value::Enum(vec![variant("Ping", vec![field("id", int(8, false))])]),
+            Value::Enum(
+                String::new(),
+                vec![variant("Ping", vec![field("id", int(8, false))])],
+            ),
         ),
         ("tree", tree),
         ("private", Value::Json),
-        ("bin", Value::Record(vec![field("data", Value::Bytes)])),
+        (
+            "bin",
+            Value::Record(String::new(), vec![field("data", Value::Bytes)]),
+        ),
         (
             "nums",
-            Value::Record(vec![field("data", Value::List(Box::new(int(8, false))))]),
+            Value::Record(
+                String::new(),
+                vec![field("data", Value::List(Box::new(int(8, false))))],
+            ),
         ),
         // An enum without variants has no value, so only `None` crosses.
-        ("nothing", Value::Option(Box::new(Value::Enum(vec![])))),
-        ("empty", Value::Record(vec![])),
+        (
+            "nothing",
+            Value::Option(Box::new(Value::Enum(String::new(), vec![]))),
+        ),
+        ("empty", Value::Record(String::new(), vec![])),
     ];
-    let record = Value::Record(forms.iter().map(|(n, v)| field(n, v.clone())).collect());
+    let record = Value::Record(
+        String::new(),
+        forms.iter().map(|(n, v)| field(n, v.clone())).collect(),
+    );
     let params = forms.into_iter().map(|(_, v)| v).collect();
     Contract {
         interfaces: vec![interface(
@@ -358,57 +426,63 @@ fn values_contract() -> Contract {
 fn deep_contract() -> Contract {
     let node = Value::Rec(
         0,
-        Box::new(Value::Enum(vec![
-            variant("End", vec![]),
-            variant("Next", vec![field("next", Value::Ref(0))]),
-            variant(
-                "Many",
-                vec![field("items", Value::List(Box::new(Value::Ref(0))))],
-            ),
-            variant(
-                "Maybe",
-                vec![field("at", Value::Option(Box::new(Value::Ref(0))))],
-            ),
-            variant(
-                "Pair",
-                vec![field(
-                    "pair",
-                    Value::Tuple(vec![Value::Ref(0), int(32, true)]),
-                )],
-            ),
-            variant(
-                "Keyed",
-                vec![field(
-                    "map",
-                    Value::Map(Box::new(Value::String), Box::new(Value::Ref(0))),
-                )],
-            ),
-            variant(
-                "Either",
-                vec![field(
-                    "either",
-                    Value::Result(Box::new(Value::Ref(0)), Box::new(Value::String)),
-                )],
-            ),
-            variant(
-                "Inner",
-                vec![field(
-                    "inner",
-                    Value::Rec(
-                        1,
-                        Box::new(Value::Record(vec![
-                            field("up", Value::Option(Box::new(Value::Ref(0)))),
-                            field("kids", Value::List(Box::new(Value::Ref(1)))),
-                            field("tag", int(32, true)),
-                        ])),
-                    ),
-                )],
-            ),
-            variant(
-                "Bad",
-                vec![field("bad", Value::Json), field("rest", Value::Ref(0))],
-            ),
-        ])),
+        Box::new(Value::Enum(
+            String::new(),
+            vec![
+                variant("End", vec![]),
+                variant("Next", vec![field("next", Value::Ref(0))]),
+                variant(
+                    "Many",
+                    vec![field("items", Value::List(Box::new(Value::Ref(0))))],
+                ),
+                variant(
+                    "Maybe",
+                    vec![field("at", Value::Option(Box::new(Value::Ref(0))))],
+                ),
+                variant(
+                    "Pair",
+                    vec![field(
+                        "pair",
+                        Value::Tuple(vec![Value::Ref(0), int(32, true)]),
+                    )],
+                ),
+                variant(
+                    "Keyed",
+                    vec![field(
+                        "map",
+                        Value::Map(Box::new(Value::String), Box::new(Value::Ref(0))),
+                    )],
+                ),
+                variant(
+                    "Either",
+                    vec![field(
+                        "either",
+                        Value::Result(Box::new(Value::Ref(0)), Box::new(Value::String)),
+                    )],
+                ),
+                variant(
+                    "Inner",
+                    vec![field(
+                        "inner",
+                        Value::Rec(
+                            1,
+                            Box::new(Value::Record(
+                                String::new(),
+                                vec![
+                                    field("up", Value::Option(Box::new(Value::Ref(0)))),
+                                    field("kids", Value::List(Box::new(Value::Ref(1)))),
+                                    field("tag", int(32, true)),
+                                ],
+                            )),
+                        ),
+                    )],
+                ),
+                variant(
+                    "Bad",
+                    vec![field("bad", Value::Json), field("rest", Value::Ref(0))],
+                ),
+            ],
+        )),
     );
     Contract {
         interfaces: vec![interface(
@@ -433,15 +507,24 @@ fn deep_contract() -> Contract {
                         Value::Result(Box::new(int(32, true)), Box::new(chain_type())),
                         Value::Map(Box::new(chain_type()), Box::new(chain_type())),
                         Value::Tuple(vec![chain_type(), int(32, true)]),
-                        Value::Record(vec![field("node", chain_type()), field("n", int(32, true))]),
-                        Value::Enum(vec![
-                            variant("Empty", vec![]),
-                            variant(
-                                "Full",
-                                vec![field("node", chain_type()), field("n", int(32, true))],
-                            ),
-                        ]),
-                        Value::Enum(vec![variant("Only", vec![field("node", chain_type())])]),
+                        Value::Record(
+                            String::new(),
+                            vec![field("node", chain_type()), field("n", int(32, true))],
+                        ),
+                        Value::Enum(
+                            String::new(),
+                            vec![
+                                variant("Empty", vec![]),
+                                variant(
+                                    "Full",
+                                    vec![field("node", chain_type()), field("n", int(32, true))],
+                                ),
+                            ],
+                        ),
+                        Value::Enum(
+                            String::new(),
+                            vec![variant("Only", vec![field("node", chain_type())])],
+                        ),
                     ],
                     int(32, false),
                     false,
@@ -456,10 +539,13 @@ fn deep_contract() -> Contract {
 fn chain_type() -> Value {
     Value::Rec(
         2,
-        Box::new(Value::Enum(vec![
-            variant("End", vec![]),
-            variant("Next", vec![field("next", Value::Ref(2))]),
-        ])),
+        Box::new(Value::Enum(
+            String::new(),
+            vec![
+                variant("End", vec![]),
+                variant("Next", vec![field("next", Value::Ref(2))]),
+            ],
+        )),
     )
 }
 
@@ -489,13 +575,16 @@ fn handles_contract() -> Contract {
                         vec![],
                         Value::Rec(
                             3,
-                            Box::new(Value::Enum(vec![
-                                variant("Leaf", vec![field("file", file())]),
-                                variant(
-                                    "Node",
-                                    vec![field("kids", Value::List(Box::new(Value::Ref(3))))],
-                                ),
-                            ])),
+                            Box::new(Value::Enum(
+                                String::new(),
+                                vec![
+                                    variant("Leaf", vec![field("file", file())]),
+                                    variant(
+                                        "Node",
+                                        vec![field("kids", Value::List(Box::new(Value::Ref(3))))],
+                                    ),
+                                ],
+                            )),
                         ),
                         false,
                     ),
@@ -567,7 +656,7 @@ fn a_module_without_package_host_traits_has_no_companion() {
         ""
     );
     let mut bad = surface_contract();
-    bad.interfaces[0].methods[0].params = vec![Value::Ref(9)];
+    bad.interfaces[0].methods[0].params = vec![field("value", Value::Ref(9))];
     assert!(hd_host_abi::native_rust::generate(&bad).is_err());
     // A trait path's last segment names the Rust trait.
     let mut nameless = surface_contract();

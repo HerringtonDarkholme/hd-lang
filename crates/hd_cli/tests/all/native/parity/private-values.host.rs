@@ -3,17 +3,18 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 11, 109, 97, 105, 110, 46, 83, 101, 114, 118, 101, 114, 39, 104, 100, 58, 112, 107, 103,
     58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     49, 1, 15, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 101, 114, 118, 101, 114, 0, 2, 6, 115, 101, 99, 114, 101, 116, 6, 115, 101, 99, 114,
-    101, 116, 0, 1, 14, 14, 6, 99, 117, 115, 116, 111, 109, 6, 99, 117, 115, 116, 111, 109, 0, 1, 14, 14,
+    101, 116, 0, 1, 5, 118, 97, 108, 117, 101, 14, 14, 6, 99, 117, 115, 116, 111, 109, 6, 99, 117, 115, 116, 111, 109, 0, 1, 5, 118, 97, 108,
+    117, 101, 14, 14,
 ];
 
 /// `local:00000000000000000000000000000000/main.Server`.
 pub trait Server {
-    fn secret(&mut self, arg0: hd_run_wasmtime::native::Serde) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Serde>;
-    fn custom(&mut self, arg0: hd_run_wasmtime::native::Serde) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Serde>;
+    fn secret(&mut self, value: hd_run_wasmtime::native::Serde) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Serde>;
+    fn custom(&mut self, value: hd_run_wasmtime::native::Serde) -> hd_run_wasmtime::native::HostResult<hd_run_wasmtime::native::Serde>;
 }
 
 /// Calls the method at index `method` of the registered `Server` with its

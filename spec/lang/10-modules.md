@@ -2607,6 +2607,7 @@ pub trait Surface:
 17. r[module.host.package.not-generic] A host capability trait, whether `@host` or a runtime profile's, declares no type parameters, and neither does a program trait whose values a host method returns as host handles. The error is reported at the trait's type parameter list. Error: `boundary-not-safe`.
 18. r[module.host.package.no-assoc] Such a trait declares no associated type, and neither does any of its supertraits: the host binds no projection. The error is reported at the trait. Error: `boundary-not-safe`.
 19. r[module.host.package.one-instance] Such a trait's supertraits reach each trait at one argument list at most, as in `Base[i32]` but not also `Base[string]`: a provider has one member per method name. The error is reported at the trait. Error: `boundary-not-safe`.
+20. r[module.host.package.contract-source-names] The package host contract records source names for structurally represented structs, enums and method parameters.
 
 > **Why.** The invoker binds one provider for a host trait, and one host
 > object behind a handle. No instance of a generic trait would choose it.
@@ -2629,6 +2630,7 @@ A native package provider sees each hd boundary value as an owned Rust value:
 | Structural integer or float | The Rust scalar of the same width |
 | `string`, bytes | `String`, `Vec<u8>` |
 | List, tuple, public record | `Vec<T>`, tuple, named struct |
+| `Map[K, V]` | `Vec<(K, V)>`, in the map's order |
 | Enum | Rust enum with the same variant and payload field names |
 | Optional, result | `Option<T>`, `Result<T, E>` |
 | Private-field type | Typed Serde tree |

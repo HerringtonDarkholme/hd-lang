@@ -3,72 +3,72 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 4, 101, 118, 97, 108, 4, 101, 118, 97, 108,
-    0, 1, 16, 0, 12, 2, 3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100, 2, 1, 97, 17, 0, 1, 98, 17, 0, 3, 32, 1,
-    5, 116, 119, 105, 99, 101, 5, 116, 119, 105, 99, 101, 0, 1, 16, 0, 12, 2, 3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100,
-    2, 1, 97, 17, 0, 1, 98, 17, 0, 16, 0, 12, 2, 3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100, 2, 1, 97, 17, 0,
-    1, 98, 17, 0,
+    0, 1, 1, 101, 16, 0, 12, 4, 69, 120, 112, 114, 2, 3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100, 2, 1, 97, 17, 0,
+    1, 98, 17, 0, 3, 32, 1, 5, 116, 119, 105, 99, 101, 5, 116, 119, 105, 99, 101, 0, 1, 1, 101, 16, 0, 12, 4, 69, 120, 112, 114, 2,
+    3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100, 2, 1, 97, 17, 0, 1, 98, 17, 0, 16, 0, 12, 4, 69, 120, 112, 114, 2,
+    3, 78, 117, 109, 1, 1, 110, 3, 32, 1, 3, 65, 100, 100, 2, 1, 97, 17, 0, 1, 98, 17, 0,
 ];
 
-pub enum SurfaceEvalArg0 {
+pub enum Expr {
     Num {
         n: i32,
     },
     Add {
-        a: Box<SurfaceEvalArg0>,
-        b: Box<SurfaceEvalArg0>,
+        a: Box<Expr>,
+        b: Box<Expr>,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceEvalArg0 {
+impl Expr {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        SurfaceEvalArg0Wire::encode(self, e)
+        ExprWire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        SurfaceEvalArg0Wire::decode(d)
+        ExprWire::decode(d)
     }
 
     /// Drops this value one level at a time, in constant native stack,
     /// where dropping it in place would recurse once per nesting level.
     pub fn dismantle(self) {
-        SurfaceEvalArg0Wire::dismantle(vec![SurfaceEvalArg0Wire::P0(self)]);
+        ExprWire::dismantle(vec![ExprWire::P0(self)]);
     }
 }
 
-/// A value of `SurfaceEvalArg0`'s recursive group at one position of its codec.
+/// A value of `Expr`'s recursive group at one position of its codec.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceEvalArg0Wire {
-    P0(SurfaceEvalArg0),
+enum ExprWire {
+    P0(Expr),
     P1(i32),
-    P2(Box<SurfaceEvalArg0>),
-    P3(Box<SurfaceEvalArg0>),
+    P2(Box<Expr>),
+    P3(Box<Expr>),
 }
 
-/// A step of `SurfaceEvalArg0`'s decoder, or of a clone of one of its group's values.
+/// A step of `Expr`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceEvalArg0WireOp<'a> {
+enum ExprWireOp<'a> {
     D0,
-    C0(&'a SurfaceEvalArg0),
+    C0(&'a Expr),
     D1,
     C1(&'a i32),
     B0v0,
     D2,
-    C2(&'a Box<SurfaceEvalArg0>),
+    C2(&'a Box<Expr>),
     W2,
     D3,
-    C3(&'a Box<SurfaceEvalArg0>),
+    C3(&'a Box<Expr>),
     W3,
     B0v1,
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceEvalArg0Wire {
-    fn encode(root: SurfaceEvalArg0, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+impl ExprWire {
+    fn encode(root: Expr, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let mut stack = vec![Self::P0(root)];
         let written = Self::encode_all(&mut stack, e);
         Self::dismantle(stack);
@@ -79,17 +79,17 @@ impl SurfaceEvalArg0Wire {
         while let Some(item) = stack.pop() {
             match item {
                 Self::P1(x) => { e.signed(i64::from(x)); }
-                Self::P0(SurfaceEvalArg0::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P0(Expr::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
                 Self::P2(x) => stack.push(Self::P0(*x)),
                 Self::P3(x) => stack.push(Self::P0(*x)),
-                Self::P0(SurfaceEvalArg0::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
+                Self::P0(Expr::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
             }
         }
         Ok(())
     }
 
-    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceEvalArg0> {
-        let mut ops = vec![SurfaceEvalArg0WireOp::D0];
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Expr> {
+        let mut ops = vec![ExprWireOp::D0];
         let mut vals = Vec::new();
         if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
             Self::dismantle_ops(ops, &mut vals);
@@ -100,29 +100,29 @@ impl SurfaceEvalArg0Wire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceEvalArg0WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<ExprWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
-                SurfaceEvalArg0WireOp::C1(x) => vals.push(Self::P1(x.clone())),
-                SurfaceEvalArg0WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
-                SurfaceEvalArg0WireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceEvalArg0::Num { n: f0 })); }
-                SurfaceEvalArg0WireOp::C0(SurfaceEvalArg0::Num { n: f0 }) => { ops.push(SurfaceEvalArg0WireOp::B0v0); ops.push(SurfaceEvalArg0WireOp::C1(f0)); }
-                SurfaceEvalArg0WireOp::D2 => { ops.push(SurfaceEvalArg0WireOp::W2); ops.push(SurfaceEvalArg0WireOp::D0); }
-                SurfaceEvalArg0WireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
-                SurfaceEvalArg0WireOp::C2(x) => { ops.push(SurfaceEvalArg0WireOp::W2); ops.push(SurfaceEvalArg0WireOp::C0(&**x)); }
-                SurfaceEvalArg0WireOp::D3 => { ops.push(SurfaceEvalArg0WireOp::W3); ops.push(SurfaceEvalArg0WireOp::D0); }
-                SurfaceEvalArg0WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
-                SurfaceEvalArg0WireOp::C3(x) => { ops.push(SurfaceEvalArg0WireOp::W3); ops.push(SurfaceEvalArg0WireOp::C0(&**x)); }
-                SurfaceEvalArg0WireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceEvalArg0::Add { a: f0, b: f1 })); }
-                SurfaceEvalArg0WireOp::C0(SurfaceEvalArg0::Add { a: f0, b: f1 }) => { ops.push(SurfaceEvalArg0WireOp::B0v1); ops.push(SurfaceEvalArg0WireOp::C3(f1)); ops.push(SurfaceEvalArg0WireOp::C2(f0)); }
-                SurfaceEvalArg0WireOp::D0 => match d.tag(2)? { 0 => { ops.push(SurfaceEvalArg0WireOp::B0v0); ops.push(SurfaceEvalArg0WireOp::D1); } _ => { ops.push(SurfaceEvalArg0WireOp::B0v1); ops.push(SurfaceEvalArg0WireOp::D3); ops.push(SurfaceEvalArg0WireOp::D2); } },
+                ExprWireOp::C1(x) => vals.push(Self::P1(x.clone())),
+                ExprWireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                ExprWireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr::Num { n: f0 })); }
+                ExprWireOp::C0(Expr::Num { n: f0 }) => { ops.push(ExprWireOp::B0v0); ops.push(ExprWireOp::C1(f0)); }
+                ExprWireOp::D2 => { ops.push(ExprWireOp::W2); ops.push(ExprWireOp::D0); }
+                ExprWireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
+                ExprWireOp::C2(x) => { ops.push(ExprWireOp::W2); ops.push(ExprWireOp::C0(&**x)); }
+                ExprWireOp::D3 => { ops.push(ExprWireOp::W3); ops.push(ExprWireOp::D0); }
+                ExprWireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                ExprWireOp::C3(x) => { ops.push(ExprWireOp::W3); ops.push(ExprWireOp::C0(&**x)); }
+                ExprWireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr::Add { a: f0, b: f1 })); }
+                ExprWireOp::C0(Expr::Add { a: f0, b: f1 }) => { ops.push(ExprWireOp::B0v1); ops.push(ExprWireOp::C3(f1)); ops.push(ExprWireOp::C2(f0)); }
+                ExprWireOp::D0 => match d.tag(2)? { 0 => { ops.push(ExprWireOp::B0v0); ops.push(ExprWireOp::D1); } _ => { ops.push(ExprWireOp::B0v1); ops.push(ExprWireOp::D3); ops.push(ExprWireOp::D2); } },
             }
         }
         Ok(())
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceEvalArg0WireOp<'_>>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<ExprWireOp<'_>>, items: &mut Vec<Self>) {
         let _ = (ops, items);
     }
 
@@ -131,10 +131,10 @@ impl SurfaceEvalArg0Wire {
     fn dismantle(mut items: Vec<Self>) {
         while let Some(item) = items.pop() {
             match item {
-                Self::P0(SurfaceEvalArg0::Num { .. }) => { }
+                Self::P0(Expr::Num { .. }) => { }
                 Self::P2(x) => items.push(Self::P0(*x)),
                 Self::P3(x) => items.push(Self::P0(*x)),
-                Self::P0(SurfaceEvalArg0::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
+                Self::P0(Expr::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
                 _ => {}
             }
         }
@@ -142,10 +142,10 @@ impl SurfaceEvalArg0Wire {
 }
 
 #[allow(dead_code)]
-impl SurfaceEvalArg0Wire {
+impl ExprWire {
     /// The value `op` reads, built bottom-up through the decoder's own
     /// build ops: a clone reads no bytes.
-    fn clone_of(op: SurfaceEvalArg0WireOp<'_>) -> Self {
+    fn clone_of(op: ExprWireOp<'_>) -> Self {
         let mut ops = vec![op];
         let mut vals = Vec::new();
         let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
@@ -154,26 +154,26 @@ impl SurfaceEvalArg0Wire {
     }
 }
 
-/// Two values of `SurfaceEvalArg0`'s recursive group at one position, compared one
+/// Two values of `Expr`'s recursive group at one position, compared one
 /// position at a time.
 #[allow(dead_code)]
-enum SurfaceEvalArg0WirePair<'a> {
-    P0(&'a SurfaceEvalArg0, &'a SurfaceEvalArg0),
+enum ExprWirePair<'a> {
+    P0(&'a Expr, &'a Expr),
     P1(&'a i32, &'a i32),
-    P2(&'a Box<SurfaceEvalArg0>, &'a Box<SurfaceEvalArg0>),
-    P3(&'a Box<SurfaceEvalArg0>, &'a Box<SurfaceEvalArg0>),
+    P2(&'a Box<Expr>, &'a Box<Expr>),
+    P3(&'a Box<Expr>, &'a Box<Expr>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceEvalArg0WirePair<'_> {
+impl ExprWirePair<'_> {
     fn all(mut stack: Vec<Self>) -> bool {
         while let Some(pair) = stack.pop() {
             match pair {
                 Self::P1(a, b) => if a != b { return false; },
-                Self::P0(SurfaceEvalArg0::Num { n: a0 }, SurfaceEvalArg0::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(Expr::Num { n: a0 }, Expr::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
                 Self::P2(a, b) => stack.push(Self::P0(&**a, &**b)),
                 Self::P3(a, b) => stack.push(Self::P0(&**a, &**b)),
-                Self::P0(SurfaceEvalArg0::Add { a: a0, b: a1 }, SurfaceEvalArg0::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
+                Self::P0(Expr::Add { a: a0, b: a1 }, Expr::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
                 Self::P0(..) => return false,
             }
         }
@@ -181,105 +181,105 @@ impl SurfaceEvalArg0WirePair<'_> {
     }
 }
 
-/// A value of `SurfaceEvalArg0`'s recursive group at one position of its `Debug`,
+/// A value of `Expr`'s recursive group at one position of its `Debug`,
 /// or a map entry's pair of positions.
 #[allow(dead_code)]
-enum SurfaceEvalArg0WireShow<'a> {
-    P0(&'a SurfaceEvalArg0),
+enum ExprWireShow<'a> {
+    P0(&'a Expr),
     P1(&'a i32),
-    P2(&'a Box<SurfaceEvalArg0>),
-    P3(&'a Box<SurfaceEvalArg0>),
+    P2(&'a Box<Expr>),
+    P3(&'a Box<Expr>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceEvalArg0WireShow<'_> {
+impl ExprWireShow<'_> {
     fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::P1(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
-            Self::P0(SurfaceEvalArg0::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
+            Self::P0(Expr::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
             Self::P2(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
             Self::P3(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
-            Self::P0(SurfaceEvalArg0::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
+            Self::P0(Expr::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
         }
     }
 }
 
 #[allow(irrefutable_let_patterns)]
-impl Clone for SurfaceEvalArg0 {
+impl Clone for Expr {
     fn clone(&self) -> Self {
-        let SurfaceEvalArg0Wire::P0(value) = SurfaceEvalArg0Wire::clone_of(SurfaceEvalArg0WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        let ExprWire::P0(value) = ExprWire::clone_of(ExprWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
         value
     }
 }
 
-impl PartialEq for SurfaceEvalArg0 {
+impl PartialEq for Expr {
     fn eq(&self, other: &Self) -> bool {
-        SurfaceEvalArg0WirePair::all(vec![SurfaceEvalArg0WirePair::P0(self, other)])
+        ExprWirePair::all(vec![ExprWirePair::P0(self, other)])
     }
 }
 
-impl std::fmt::Debug for SurfaceEvalArg0 {
+impl std::fmt::Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        hd_run_wasmtime::native::wire::Show::run(f, SurfaceEvalArg0WireShow::P0(self), SurfaceEvalArg0WireShow::show)
+        hd_run_wasmtime::native::wire::Show::run(f, ExprWireShow::P0(self), ExprWireShow::show)
     }
 }
 
-pub enum SurfaceTwiceArg0 {
+pub enum Expr2 {
     Num {
         n: i32,
     },
     Add {
-        a: Box<SurfaceTwiceArg0>,
-        b: Box<SurfaceTwiceArg0>,
+        a: Box<Expr2>,
+        b: Box<Expr2>,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceTwiceArg0 {
+impl Expr2 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        SurfaceTwiceArg0Wire::encode(self, e)
+        Expr2Wire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        SurfaceTwiceArg0Wire::decode(d)
+        Expr2Wire::decode(d)
     }
 
     /// Drops this value one level at a time, in constant native stack,
     /// where dropping it in place would recurse once per nesting level.
     pub fn dismantle(self) {
-        SurfaceTwiceArg0Wire::dismantle(vec![SurfaceTwiceArg0Wire::P0(self)]);
+        Expr2Wire::dismantle(vec![Expr2Wire::P0(self)]);
     }
 }
 
-/// A value of `SurfaceTwiceArg0`'s recursive group at one position of its codec.
+/// A value of `Expr2`'s recursive group at one position of its codec.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceTwiceArg0Wire {
-    P0(SurfaceTwiceArg0),
+enum Expr2Wire {
+    P0(Expr2),
     P1(i32),
-    P2(Box<SurfaceTwiceArg0>),
-    P3(Box<SurfaceTwiceArg0>),
+    P2(Box<Expr2>),
+    P3(Box<Expr2>),
 }
 
-/// A step of `SurfaceTwiceArg0`'s decoder, or of a clone of one of its group's values.
+/// A step of `Expr2`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceTwiceArg0WireOp<'a> {
+enum Expr2WireOp<'a> {
     D0,
-    C0(&'a SurfaceTwiceArg0),
+    C0(&'a Expr2),
     D1,
     C1(&'a i32),
     B0v0,
     D2,
-    C2(&'a Box<SurfaceTwiceArg0>),
+    C2(&'a Box<Expr2>),
     W2,
     D3,
-    C3(&'a Box<SurfaceTwiceArg0>),
+    C3(&'a Box<Expr2>),
     W3,
     B0v1,
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceArg0Wire {
-    fn encode(root: SurfaceTwiceArg0, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+impl Expr2Wire {
+    fn encode(root: Expr2, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let mut stack = vec![Self::P0(root)];
         let written = Self::encode_all(&mut stack, e);
         Self::dismantle(stack);
@@ -290,17 +290,17 @@ impl SurfaceTwiceArg0Wire {
         while let Some(item) = stack.pop() {
             match item {
                 Self::P1(x) => { e.signed(i64::from(x)); }
-                Self::P0(SurfaceTwiceArg0::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P0(Expr2::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
                 Self::P2(x) => stack.push(Self::P0(*x)),
                 Self::P3(x) => stack.push(Self::P0(*x)),
-                Self::P0(SurfaceTwiceArg0::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
+                Self::P0(Expr2::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
             }
         }
         Ok(())
     }
 
-    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceTwiceArg0> {
-        let mut ops = vec![SurfaceTwiceArg0WireOp::D0];
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Expr2> {
+        let mut ops = vec![Expr2WireOp::D0];
         let mut vals = Vec::new();
         if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
             Self::dismantle_ops(ops, &mut vals);
@@ -311,29 +311,29 @@ impl SurfaceTwiceArg0Wire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceTwiceArg0WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<Expr2WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
-                SurfaceTwiceArg0WireOp::C1(x) => vals.push(Self::P1(x.clone())),
-                SurfaceTwiceArg0WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
-                SurfaceTwiceArg0WireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceTwiceArg0::Num { n: f0 })); }
-                SurfaceTwiceArg0WireOp::C0(SurfaceTwiceArg0::Num { n: f0 }) => { ops.push(SurfaceTwiceArg0WireOp::B0v0); ops.push(SurfaceTwiceArg0WireOp::C1(f0)); }
-                SurfaceTwiceArg0WireOp::D2 => { ops.push(SurfaceTwiceArg0WireOp::W2); ops.push(SurfaceTwiceArg0WireOp::D0); }
-                SurfaceTwiceArg0WireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
-                SurfaceTwiceArg0WireOp::C2(x) => { ops.push(SurfaceTwiceArg0WireOp::W2); ops.push(SurfaceTwiceArg0WireOp::C0(&**x)); }
-                SurfaceTwiceArg0WireOp::D3 => { ops.push(SurfaceTwiceArg0WireOp::W3); ops.push(SurfaceTwiceArg0WireOp::D0); }
-                SurfaceTwiceArg0WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
-                SurfaceTwiceArg0WireOp::C3(x) => { ops.push(SurfaceTwiceArg0WireOp::W3); ops.push(SurfaceTwiceArg0WireOp::C0(&**x)); }
-                SurfaceTwiceArg0WireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceTwiceArg0::Add { a: f0, b: f1 })); }
-                SurfaceTwiceArg0WireOp::C0(SurfaceTwiceArg0::Add { a: f0, b: f1 }) => { ops.push(SurfaceTwiceArg0WireOp::B0v1); ops.push(SurfaceTwiceArg0WireOp::C3(f1)); ops.push(SurfaceTwiceArg0WireOp::C2(f0)); }
-                SurfaceTwiceArg0WireOp::D0 => match d.tag(2)? { 0 => { ops.push(SurfaceTwiceArg0WireOp::B0v0); ops.push(SurfaceTwiceArg0WireOp::D1); } _ => { ops.push(SurfaceTwiceArg0WireOp::B0v1); ops.push(SurfaceTwiceArg0WireOp::D3); ops.push(SurfaceTwiceArg0WireOp::D2); } },
+                Expr2WireOp::C1(x) => vals.push(Self::P1(x.clone())),
+                Expr2WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                Expr2WireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr2::Num { n: f0 })); }
+                Expr2WireOp::C0(Expr2::Num { n: f0 }) => { ops.push(Expr2WireOp::B0v0); ops.push(Expr2WireOp::C1(f0)); }
+                Expr2WireOp::D2 => { ops.push(Expr2WireOp::W2); ops.push(Expr2WireOp::D0); }
+                Expr2WireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
+                Expr2WireOp::C2(x) => { ops.push(Expr2WireOp::W2); ops.push(Expr2WireOp::C0(&**x)); }
+                Expr2WireOp::D3 => { ops.push(Expr2WireOp::W3); ops.push(Expr2WireOp::D0); }
+                Expr2WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                Expr2WireOp::C3(x) => { ops.push(Expr2WireOp::W3); ops.push(Expr2WireOp::C0(&**x)); }
+                Expr2WireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr2::Add { a: f0, b: f1 })); }
+                Expr2WireOp::C0(Expr2::Add { a: f0, b: f1 }) => { ops.push(Expr2WireOp::B0v1); ops.push(Expr2WireOp::C3(f1)); ops.push(Expr2WireOp::C2(f0)); }
+                Expr2WireOp::D0 => match d.tag(2)? { 0 => { ops.push(Expr2WireOp::B0v0); ops.push(Expr2WireOp::D1); } _ => { ops.push(Expr2WireOp::B0v1); ops.push(Expr2WireOp::D3); ops.push(Expr2WireOp::D2); } },
             }
         }
         Ok(())
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceTwiceArg0WireOp<'_>>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<Expr2WireOp<'_>>, items: &mut Vec<Self>) {
         let _ = (ops, items);
     }
 
@@ -342,10 +342,10 @@ impl SurfaceTwiceArg0Wire {
     fn dismantle(mut items: Vec<Self>) {
         while let Some(item) = items.pop() {
             match item {
-                Self::P0(SurfaceTwiceArg0::Num { .. }) => { }
+                Self::P0(Expr2::Num { .. }) => { }
                 Self::P2(x) => items.push(Self::P0(*x)),
                 Self::P3(x) => items.push(Self::P0(*x)),
-                Self::P0(SurfaceTwiceArg0::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
+                Self::P0(Expr2::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
                 _ => {}
             }
         }
@@ -353,10 +353,10 @@ impl SurfaceTwiceArg0Wire {
 }
 
 #[allow(dead_code)]
-impl SurfaceTwiceArg0Wire {
+impl Expr2Wire {
     /// The value `op` reads, built bottom-up through the decoder's own
     /// build ops: a clone reads no bytes.
-    fn clone_of(op: SurfaceTwiceArg0WireOp<'_>) -> Self {
+    fn clone_of(op: Expr2WireOp<'_>) -> Self {
         let mut ops = vec![op];
         let mut vals = Vec::new();
         let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
@@ -365,26 +365,26 @@ impl SurfaceTwiceArg0Wire {
     }
 }
 
-/// Two values of `SurfaceTwiceArg0`'s recursive group at one position, compared one
+/// Two values of `Expr2`'s recursive group at one position, compared one
 /// position at a time.
 #[allow(dead_code)]
-enum SurfaceTwiceArg0WirePair<'a> {
-    P0(&'a SurfaceTwiceArg0, &'a SurfaceTwiceArg0),
+enum Expr2WirePair<'a> {
+    P0(&'a Expr2, &'a Expr2),
     P1(&'a i32, &'a i32),
-    P2(&'a Box<SurfaceTwiceArg0>, &'a Box<SurfaceTwiceArg0>),
-    P3(&'a Box<SurfaceTwiceArg0>, &'a Box<SurfaceTwiceArg0>),
+    P2(&'a Box<Expr2>, &'a Box<Expr2>),
+    P3(&'a Box<Expr2>, &'a Box<Expr2>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceArg0WirePair<'_> {
+impl Expr2WirePair<'_> {
     fn all(mut stack: Vec<Self>) -> bool {
         while let Some(pair) = stack.pop() {
             match pair {
                 Self::P1(a, b) => if a != b { return false; },
-                Self::P0(SurfaceTwiceArg0::Num { n: a0 }, SurfaceTwiceArg0::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(Expr2::Num { n: a0 }, Expr2::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
                 Self::P2(a, b) => stack.push(Self::P0(&**a, &**b)),
                 Self::P3(a, b) => stack.push(Self::P0(&**a, &**b)),
-                Self::P0(SurfaceTwiceArg0::Add { a: a0, b: a1 }, SurfaceTwiceArg0::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
+                Self::P0(Expr2::Add { a: a0, b: a1 }, Expr2::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
                 Self::P0(..) => return false,
             }
         }
@@ -392,105 +392,105 @@ impl SurfaceTwiceArg0WirePair<'_> {
     }
 }
 
-/// A value of `SurfaceTwiceArg0`'s recursive group at one position of its `Debug`,
+/// A value of `Expr2`'s recursive group at one position of its `Debug`,
 /// or a map entry's pair of positions.
 #[allow(dead_code)]
-enum SurfaceTwiceArg0WireShow<'a> {
-    P0(&'a SurfaceTwiceArg0),
+enum Expr2WireShow<'a> {
+    P0(&'a Expr2),
     P1(&'a i32),
-    P2(&'a Box<SurfaceTwiceArg0>),
-    P3(&'a Box<SurfaceTwiceArg0>),
+    P2(&'a Box<Expr2>),
+    P3(&'a Box<Expr2>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceArg0WireShow<'_> {
+impl Expr2WireShow<'_> {
     fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::P1(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
-            Self::P0(SurfaceTwiceArg0::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
+            Self::P0(Expr2::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
             Self::P2(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
             Self::P3(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
-            Self::P0(SurfaceTwiceArg0::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
+            Self::P0(Expr2::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
         }
     }
 }
 
 #[allow(irrefutable_let_patterns)]
-impl Clone for SurfaceTwiceArg0 {
+impl Clone for Expr2 {
     fn clone(&self) -> Self {
-        let SurfaceTwiceArg0Wire::P0(value) = SurfaceTwiceArg0Wire::clone_of(SurfaceTwiceArg0WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        let Expr2Wire::P0(value) = Expr2Wire::clone_of(Expr2WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
         value
     }
 }
 
-impl PartialEq for SurfaceTwiceArg0 {
+impl PartialEq for Expr2 {
     fn eq(&self, other: &Self) -> bool {
-        SurfaceTwiceArg0WirePair::all(vec![SurfaceTwiceArg0WirePair::P0(self, other)])
+        Expr2WirePair::all(vec![Expr2WirePair::P0(self, other)])
     }
 }
 
-impl std::fmt::Debug for SurfaceTwiceArg0 {
+impl std::fmt::Debug for Expr2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        hd_run_wasmtime::native::wire::Show::run(f, SurfaceTwiceArg0WireShow::P0(self), SurfaceTwiceArg0WireShow::show)
+        hd_run_wasmtime::native::wire::Show::run(f, Expr2WireShow::P0(self), Expr2WireShow::show)
     }
 }
 
-pub enum SurfaceTwiceResult {
+pub enum Expr3 {
     Num {
         n: i32,
     },
     Add {
-        a: Box<SurfaceTwiceResult>,
-        b: Box<SurfaceTwiceResult>,
+        a: Box<Expr3>,
+        b: Box<Expr3>,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceTwiceResult {
+impl Expr3 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        SurfaceTwiceResultWire::encode(self, e)
+        Expr3Wire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        SurfaceTwiceResultWire::decode(d)
+        Expr3Wire::decode(d)
     }
 
     /// Drops this value one level at a time, in constant native stack,
     /// where dropping it in place would recurse once per nesting level.
     pub fn dismantle(self) {
-        SurfaceTwiceResultWire::dismantle(vec![SurfaceTwiceResultWire::P0(self)]);
+        Expr3Wire::dismantle(vec![Expr3Wire::P0(self)]);
     }
 }
 
-/// A value of `SurfaceTwiceResult`'s recursive group at one position of its codec.
+/// A value of `Expr3`'s recursive group at one position of its codec.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceTwiceResultWire {
-    P0(SurfaceTwiceResult),
+enum Expr3Wire {
+    P0(Expr3),
     P1(i32),
-    P2(Box<SurfaceTwiceResult>),
-    P3(Box<SurfaceTwiceResult>),
+    P2(Box<Expr3>),
+    P3(Box<Expr3>),
 }
 
-/// A step of `SurfaceTwiceResult`'s decoder, or of a clone of one of its group's values.
+/// A step of `Expr3`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceTwiceResultWireOp<'a> {
+enum Expr3WireOp<'a> {
     D0,
-    C0(&'a SurfaceTwiceResult),
+    C0(&'a Expr3),
     D1,
     C1(&'a i32),
     B0v0,
     D2,
-    C2(&'a Box<SurfaceTwiceResult>),
+    C2(&'a Box<Expr3>),
     W2,
     D3,
-    C3(&'a Box<SurfaceTwiceResult>),
+    C3(&'a Box<Expr3>),
     W3,
     B0v1,
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceResultWire {
-    fn encode(root: SurfaceTwiceResult, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+impl Expr3Wire {
+    fn encode(root: Expr3, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let mut stack = vec![Self::P0(root)];
         let written = Self::encode_all(&mut stack, e);
         Self::dismantle(stack);
@@ -501,17 +501,17 @@ impl SurfaceTwiceResultWire {
         while let Some(item) = stack.pop() {
             match item {
                 Self::P1(x) => { e.signed(i64::from(x)); }
-                Self::P0(SurfaceTwiceResult::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
+                Self::P0(Expr3::Num { n: f0 }) => { e.tag(0); stack.push(Self::P1(f0)); }
                 Self::P2(x) => stack.push(Self::P0(*x)),
                 Self::P3(x) => stack.push(Self::P0(*x)),
-                Self::P0(SurfaceTwiceResult::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
+                Self::P0(Expr3::Add { a: f0, b: f1 }) => { e.tag(1); stack.push(Self::P3(f1)); stack.push(Self::P2(f0)); }
             }
         }
         Ok(())
     }
 
-    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceTwiceResult> {
-        let mut ops = vec![SurfaceTwiceResultWireOp::D0];
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Expr3> {
+        let mut ops = vec![Expr3WireOp::D0];
         let mut vals = Vec::new();
         if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
             Self::dismantle_ops(ops, &mut vals);
@@ -522,29 +522,29 @@ impl SurfaceTwiceResultWire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceTwiceResultWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<Expr3WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
-                SurfaceTwiceResultWireOp::C1(x) => vals.push(Self::P1(x.clone())),
-                SurfaceTwiceResultWireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
-                SurfaceTwiceResultWireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceTwiceResult::Num { n: f0 })); }
-                SurfaceTwiceResultWireOp::C0(SurfaceTwiceResult::Num { n: f0 }) => { ops.push(SurfaceTwiceResultWireOp::B0v0); ops.push(SurfaceTwiceResultWireOp::C1(f0)); }
-                SurfaceTwiceResultWireOp::D2 => { ops.push(SurfaceTwiceResultWireOp::W2); ops.push(SurfaceTwiceResultWireOp::D0); }
-                SurfaceTwiceResultWireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
-                SurfaceTwiceResultWireOp::C2(x) => { ops.push(SurfaceTwiceResultWireOp::W2); ops.push(SurfaceTwiceResultWireOp::C0(&**x)); }
-                SurfaceTwiceResultWireOp::D3 => { ops.push(SurfaceTwiceResultWireOp::W3); ops.push(SurfaceTwiceResultWireOp::D0); }
-                SurfaceTwiceResultWireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
-                SurfaceTwiceResultWireOp::C3(x) => { ops.push(SurfaceTwiceResultWireOp::W3); ops.push(SurfaceTwiceResultWireOp::C0(&**x)); }
-                SurfaceTwiceResultWireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceTwiceResult::Add { a: f0, b: f1 })); }
-                SurfaceTwiceResultWireOp::C0(SurfaceTwiceResult::Add { a: f0, b: f1 }) => { ops.push(SurfaceTwiceResultWireOp::B0v1); ops.push(SurfaceTwiceResultWireOp::C3(f1)); ops.push(SurfaceTwiceResultWireOp::C2(f0)); }
-                SurfaceTwiceResultWireOp::D0 => match d.tag(2)? { 0 => { ops.push(SurfaceTwiceResultWireOp::B0v0); ops.push(SurfaceTwiceResultWireOp::D1); } _ => { ops.push(SurfaceTwiceResultWireOp::B0v1); ops.push(SurfaceTwiceResultWireOp::D3); ops.push(SurfaceTwiceResultWireOp::D2); } },
+                Expr3WireOp::C1(x) => vals.push(Self::P1(x.clone())),
+                Expr3WireOp::D1 => vals.push(Self::P1(d.signed::<i32>()?)),
+                Expr3WireOp::B0v0 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr3::Num { n: f0 })); }
+                Expr3WireOp::C0(Expr3::Num { n: f0 }) => { ops.push(Expr3WireOp::B0v0); ops.push(Expr3WireOp::C1(f0)); }
+                Expr3WireOp::D2 => { ops.push(Expr3WireOp::W2); ops.push(Expr3WireOp::D0); }
+                Expr3WireOp::W2 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P2(Box::new(x))); }
+                Expr3WireOp::C2(x) => { ops.push(Expr3WireOp::W2); ops.push(Expr3WireOp::C0(&**x)); }
+                Expr3WireOp::D3 => { ops.push(Expr3WireOp::W3); ops.push(Expr3WireOp::D0); }
+                Expr3WireOp::W3 => { let Some(Self::P0(x)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P3(Box::new(x))); }
+                Expr3WireOp::C3(x) => { ops.push(Expr3WireOp::W3); ops.push(Expr3WireOp::C0(&**x)); }
+                Expr3WireOp::B0v1 => { let Some(Self::P3(f1)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; let Some(Self::P2(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Expr3::Add { a: f0, b: f1 })); }
+                Expr3WireOp::C0(Expr3::Add { a: f0, b: f1 }) => { ops.push(Expr3WireOp::B0v1); ops.push(Expr3WireOp::C3(f1)); ops.push(Expr3WireOp::C2(f0)); }
+                Expr3WireOp::D0 => match d.tag(2)? { 0 => { ops.push(Expr3WireOp::B0v0); ops.push(Expr3WireOp::D1); } _ => { ops.push(Expr3WireOp::B0v1); ops.push(Expr3WireOp::D3); ops.push(Expr3WireOp::D2); } },
             }
         }
         Ok(())
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceTwiceResultWireOp<'_>>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<Expr3WireOp<'_>>, items: &mut Vec<Self>) {
         let _ = (ops, items);
     }
 
@@ -553,10 +553,10 @@ impl SurfaceTwiceResultWire {
     fn dismantle(mut items: Vec<Self>) {
         while let Some(item) = items.pop() {
             match item {
-                Self::P0(SurfaceTwiceResult::Num { .. }) => { }
+                Self::P0(Expr3::Num { .. }) => { }
                 Self::P2(x) => items.push(Self::P0(*x)),
                 Self::P3(x) => items.push(Self::P0(*x)),
-                Self::P0(SurfaceTwiceResult::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
+                Self::P0(Expr3::Add { a: f0, b: f1, .. }) => { items.push(Self::P2(f0)); items.push(Self::P3(f1)); }
                 _ => {}
             }
         }
@@ -564,10 +564,10 @@ impl SurfaceTwiceResultWire {
 }
 
 #[allow(dead_code)]
-impl SurfaceTwiceResultWire {
+impl Expr3Wire {
     /// The value `op` reads, built bottom-up through the decoder's own
     /// build ops: a clone reads no bytes.
-    fn clone_of(op: SurfaceTwiceResultWireOp<'_>) -> Self {
+    fn clone_of(op: Expr3WireOp<'_>) -> Self {
         let mut ops = vec![op];
         let mut vals = Vec::new();
         let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
@@ -576,26 +576,26 @@ impl SurfaceTwiceResultWire {
     }
 }
 
-/// Two values of `SurfaceTwiceResult`'s recursive group at one position, compared one
+/// Two values of `Expr3`'s recursive group at one position, compared one
 /// position at a time.
 #[allow(dead_code)]
-enum SurfaceTwiceResultWirePair<'a> {
-    P0(&'a SurfaceTwiceResult, &'a SurfaceTwiceResult),
+enum Expr3WirePair<'a> {
+    P0(&'a Expr3, &'a Expr3),
     P1(&'a i32, &'a i32),
-    P2(&'a Box<SurfaceTwiceResult>, &'a Box<SurfaceTwiceResult>),
-    P3(&'a Box<SurfaceTwiceResult>, &'a Box<SurfaceTwiceResult>),
+    P2(&'a Box<Expr3>, &'a Box<Expr3>),
+    P3(&'a Box<Expr3>, &'a Box<Expr3>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceResultWirePair<'_> {
+impl Expr3WirePair<'_> {
     fn all(mut stack: Vec<Self>) -> bool {
         while let Some(pair) = stack.pop() {
             match pair {
                 Self::P1(a, b) => if a != b { return false; },
-                Self::P0(SurfaceTwiceResult::Num { n: a0 }, SurfaceTwiceResult::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(Expr3::Num { n: a0 }, Expr3::Num { n: b0 }) => { stack.push(Self::P1(a0, b0)); }
                 Self::P2(a, b) => stack.push(Self::P0(&**a, &**b)),
                 Self::P3(a, b) => stack.push(Self::P0(&**a, &**b)),
-                Self::P0(SurfaceTwiceResult::Add { a: a0, b: a1 }, SurfaceTwiceResult::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
+                Self::P0(Expr3::Add { a: a0, b: a1 }, Expr3::Add { a: b0, b: b1 }) => { stack.push(Self::P3(a1, b1)); stack.push(Self::P2(a0, b0)); }
                 Self::P0(..) => return false,
             }
         }
@@ -603,53 +603,53 @@ impl SurfaceTwiceResultWirePair<'_> {
     }
 }
 
-/// A value of `SurfaceTwiceResult`'s recursive group at one position of its `Debug`,
+/// A value of `Expr3`'s recursive group at one position of its `Debug`,
 /// or a map entry's pair of positions.
 #[allow(dead_code)]
-enum SurfaceTwiceResultWireShow<'a> {
-    P0(&'a SurfaceTwiceResult),
+enum Expr3WireShow<'a> {
+    P0(&'a Expr3),
     P1(&'a i32),
-    P2(&'a Box<SurfaceTwiceResult>),
-    P3(&'a Box<SurfaceTwiceResult>),
+    P2(&'a Box<Expr3>),
+    P3(&'a Box<Expr3>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceTwiceResultWireShow<'_> {
+impl Expr3WireShow<'_> {
     fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::P1(x) => hd_run_wasmtime::native::wire::show_leaf(f, x, depth),
-            Self::P0(SurfaceTwiceResult::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
+            Self::P0(Expr3::Num { n: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Num {", "}", [("n: ", Self::P1(f0))]),
             Self::P2(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
             Self::P3(x) => { stack.push(hd_run_wasmtime::native::wire::Show::At(Self::P0(&**x), depth)); Ok(()) }
-            Self::P0(SurfaceTwiceResult::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
+            Self::P0(Expr3::Add { a: f0, b: f1 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Add {", "}", [("a: ", Self::P2(f0)), ("b: ", Self::P3(f1))]),
         }
     }
 }
 
 #[allow(irrefutable_let_patterns)]
-impl Clone for SurfaceTwiceResult {
+impl Clone for Expr3 {
     fn clone(&self) -> Self {
-        let SurfaceTwiceResultWire::P0(value) = SurfaceTwiceResultWire::clone_of(SurfaceTwiceResultWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        let Expr3Wire::P0(value) = Expr3Wire::clone_of(Expr3WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
         value
     }
 }
 
-impl PartialEq for SurfaceTwiceResult {
+impl PartialEq for Expr3 {
     fn eq(&self, other: &Self) -> bool {
-        SurfaceTwiceResultWirePair::all(vec![SurfaceTwiceResultWirePair::P0(self, other)])
+        Expr3WirePair::all(vec![Expr3WirePair::P0(self, other)])
     }
 }
 
-impl std::fmt::Debug for SurfaceTwiceResult {
+impl std::fmt::Debug for Expr3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        hd_run_wasmtime::native::wire::Show::run(f, SurfaceTwiceResultWireShow::P0(self), SurfaceTwiceResultWireShow::show)
+        hd_run_wasmtime::native::wire::Show::run(f, Expr3WireShow::P0(self), Expr3WireShow::show)
     }
 }
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn eval(&mut self, arg0: &SurfaceEvalArg0) -> hd_run_wasmtime::native::HostResult<i32>;
-    fn twice(&mut self, arg0: &SurfaceTwiceArg0) -> hd_run_wasmtime::native::HostResult<SurfaceTwiceResult>;
+    fn eval(&mut self, e: &Expr) -> hd_run_wasmtime::native::HostResult<i32>;
+    fn twice(&mut self, e: &Expr2) -> hd_run_wasmtime::native::HostResult<Expr3>;
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its
@@ -661,7 +661,7 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
     match method {
         0 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = hd_run_wasmtime::native::wire::Lent::new(SurfaceEvalArg0::wire_decode(d)?, |x: SurfaceEvalArg0| { SurfaceEvalArg0::dismantle(x); });
+            let arg0 = hd_run_wasmtime::native::wire::Lent::new(Expr::wire_decode(d)?, |x: Expr| { Expr::dismantle(x); });
             d.finish()?;
             let value = provider.eval(&arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
@@ -671,12 +671,12 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
         }
         1 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = hd_run_wasmtime::native::wire::Lent::new(SurfaceTwiceArg0::wire_decode(d)?, |x: SurfaceTwiceArg0| { SurfaceTwiceArg0::dismantle(x); });
+            let arg0 = hd_run_wasmtime::native::wire::Lent::new(Expr2::wire_decode(d)?, |x: Expr2| { Expr2::dismantle(x); });
             d.finish()?;
             let value = provider.twice(&arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
-            SurfaceTwiceResult::wire_encode(value, e)?;
+            Expr3::wire_encode(value, e)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),

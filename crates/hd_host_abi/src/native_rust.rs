@@ -245,17 +245,7 @@ impl Gen {
     /// Each base resumes from its last suffix, so `k` uses of one base
     /// probe `O(k)` names in all, not `O(k^2)`.
     fn fresh(&mut self, base: &str) -> String {
-        if self.used.insert(base.to_owned()) {
-            return base.to_owned();
-        }
-        let next = self.suffix.entry(base.to_owned()).or_insert(1);
-        loop {
-            *next += 1;
-            let name = format!("{base}{next}");
-            if self.used.insert(name.clone()) {
-                return name;
-            }
-        }
+        fresh_name(&mut self.used, &mut self.suffix, base)
     }
 
     /// The provider trait of `i` into `out`, and its dispatch into
@@ -278,22 +268,37 @@ impl Gen {
                 .params
                 .iter()
                 .enumerate()
-                .map(|(n, p)| self.ty(p, &format!("{base}Arg{n}"), false))
+                .map(|(n, p)| self.ty(&p.value, &format!("{base}Arg{n}"), false))
                 .collect();
             let result = self.ty(&m.result, &format!("{base}Result"), false);
             let member = ident(&snake(&m.member));
+            let mut used = HashSet::default();
+            let mut suffix = HashMap::default();
+            let names: Vec<_> = m
+                .params
+                .iter()
+                .map(|p| {
+                    if p.name.is_empty() || p.name == "_" {
+                        "_".to_owned()
+                    } else {
+                        fresh_name(&mut used, &mut suffix, &ident(&snake(&p.name)))
+                    }
+                })
+                .collect();
+            let context = fresh_name(&mut used, &mut suffix, "cx");
             let _ = write!(out, "    fn {member}(&mut self");
             // A recursive argument is lent: the engine takes it apart
             // after the call, so a depth the guest chose never reaches a
             // provider's drop.
             for (n, p) in params.iter().enumerate() {
                 let lent = if p.drop.is_some() { "&" } else { "" };
-                let _ = write!(out, ", arg{n}: {lent}{}", p.rust);
+                let parameter = &names[n];
+                let _ = write!(out, ", {parameter}: {lent}{}", p.rust);
             }
             if m.suspends {
                 let _ = writeln!(
                     out,
-                    ", cx: {NATIVE}::CallContext<'_>) -> {NATIVE}::NativeCall<{}>;",
+                    ", {context}: {NATIVE}::CallContext<'_>) -> {NATIVE}::NativeCall<{}>;",
                     result.rust
                 );
             } else {
@@ -335,7 +340,13 @@ impl Gen {
         result: &Ty,
     ) -> String {
         let mut arm = format!("        {index} => {{\n");
-        if matches!(m.params[..], [Value::String]) {
+        if matches!(
+            m.params[..],
+            [Field {
+                value: Value::String,
+                ..
+            }]
+        ) {
             let _ = writeln!(arm, "            let arg0 = {WIRE}::text(args);");
         } else if !params.is_empty() {
             let _ = writeln!(arm, "            let d = &mut {WIRE}::Decoder::new(args);");
@@ -421,7 +432,17 @@ impl Gen {
     /// holds it (`in_list`). Inside a recursive group each node's is kept
     /// for the group's codec.
     fn ty(&mut self, v: &Value, hint: &str, in_list: bool) -> Ty {
-        let t = self.ty_of(v, hint, in_list);
+        let nominal = match v {
+            Value::Rec(_, body) => body.as_ref(),
+            _ => v,
+        };
+        let source = match nominal {
+            Value::Record(name, _) | Value::Enum(name, _) if !name.is_empty() => {
+                Some(name.as_str())
+            }
+            _ => None,
+        };
+        let t = self.ty_of(v, &ident(source.unwrap_or(hint)), in_list);
         if !self.recs.is_empty() {
             self.group.insert(addr(v), t.clone());
         }
@@ -650,7 +671,7 @@ impl Gen {
                     &name,
                     &b.text,
                     None,
-                    matches!(**body, Value::Enum(_)),
+                    matches!(**body, Value::Enum(_, _)),
                     b.plain,
                     "",
                 );
@@ -698,7 +719,7 @@ impl Gen {
                 let drop = format!("{name}::dismantle({V});");
                 Self::named(name).dropping(Some(drop))
             }
-            Value::Record(_) | Value::Enum(_) => {
+            Value::Record(_, _) | Value::Enum(_, _) => {
                 let b = self.body(v, hint);
                 let held = b.dismantle.is_some();
                 let name = if let Some(name) = self.interned.get(&b.key) {
@@ -719,7 +740,7 @@ impl Gen {
                         &name,
                         &b.text,
                         codec.as_deref(),
-                        matches!(v, Value::Enum(_)),
+                        matches!(v, Value::Enum(_, _)),
                         b.plain,
                         derives,
                     );
@@ -750,7 +771,7 @@ impl Gen {
         let mut drops = String::new();
         let mut held = 0;
         let (key, text, enc, dec) = match v {
-            Value::Record(fs) => {
+            Value::Record(_, fs) => {
                 let fields = self.fields(fs, hint);
                 if fields.iter().any(|(_, t)| t.drop.is_some()) {
                     let (pattern, held) = Self::held(&fields);
@@ -780,7 +801,7 @@ impl Gen {
                     dec,
                 )
             }
-            Value::Enum(vs) => {
+            Value::Enum(_, vs) => {
                 let mut body = String::new();
                 let mut encs = String::new();
                 // Each variant's value, decoded after its tag.
@@ -863,16 +884,20 @@ impl Gen {
         let dismantle = (!drops.is_empty()).then(|| {
             let body = match v {
                 // The variants holding no group value drop in place.
-                Value::Enum(vs) if held < vs.len() => {
+                Value::Enum(_, vs) if held < vs.len() => {
                     format!("        match self {{\n{drops}            _ => {{}}\n        }}\n")
                 }
-                Value::Enum(_) => format!("        match self {{\n{drops}        }}\n"),
+                Value::Enum(_, _) => format!("        match self {{\n{drops}        }}\n"),
                 _ => drops,
             };
             format!("\n    fn wire_dismantle(self) {{\n{body}    }}\n")
         });
+        let source = match v {
+            Value::Record(name, _) | Value::Enum(name, _) => name.as_str(),
+            _ => "",
+        };
         Body {
-            key: format!("{key}{dec}"),
+            key: format!("{}:{source}{key}{dec}", source.len()),
             text,
             codec,
             plain,
@@ -1001,8 +1026,8 @@ fn mark(v: &Value, spine: &mut HashSet<usize>) -> bool {
         Value::List(t) | Value::Option(t) => mark(t, spine),
         Value::Map(a, b) | Value::Result(a, b) => mark(a, spine) | mark(b, spine),
         Value::Tuple(ts) => ts.iter().fold(false, |r, t| mark(t, spine) | r),
-        Value::Record(fs) => fs.iter().fold(false, |r, f| mark(&f.value, spine) | r),
-        Value::Enum(vs) => vs
+        Value::Record(_, fs) => fs.iter().fold(false, |r, f| mark(&f.value, spine) | r),
+        Value::Enum(_, vs) => vs
             .iter()
             .flat_map(|var| &var.fields)
             .fold(false, |r, f| mark(&f.value, spine) | r),
@@ -1215,7 +1240,7 @@ impl Machine<'_> {
                 self.show_arm(&format!("Self::P{k}(x) => {{ stack.push({WIRE}::Show::At(Self::P{t}(&**x), depth)); Ok(()) }}"));
                 k
             }
-            Value::Record(fs) => {
+            Value::Record(_, fs) => {
                 self.name(&rust, k);
                 let cs = self.children(fs.iter().map(|f| &f.value));
                 let names: Vec<String> = fs.iter().map(|f| ident(&snake(&f.name))).collect();
@@ -1230,7 +1255,7 @@ impl Machine<'_> {
                 self.build(k, "(", &format!("{comma})"), &[], &cs, &values, None);
                 k
             }
-            Value::Enum(vs) => {
+            Value::Enum(_, vs) => {
                 self.name(&rust, k);
                 let mut arms = Vec::with_capacity(vs.len());
                 for (n, var) in vs.iter().enumerate() {
@@ -1862,6 +1887,25 @@ fn finished(drop: Option<&str>, x: &str) -> String {
     }
 }
 
+/// The same collision policy for generated types and each method's parameter scope.
+fn fresh_name(
+    used: &mut HashSet<String>,
+    suffix: &mut HashMap<String, usize>,
+    base: &str,
+) -> String {
+    if used.insert(base.to_owned()) {
+        return base.to_owned();
+    }
+    let next = suffix.entry(base.to_owned()).or_insert(1);
+    loop {
+        *next += 1;
+        let name = format!("{base}{next}");
+        if used.insert(name.clone()) {
+            return name;
+        }
+    }
+}
+
 /// `next_event` -> `NextEvent`, `screen` -> `Screen`.
 fn camel(s: &str) -> String {
     let mut out = String::new();
@@ -1921,4 +1965,36 @@ fn ident(s: &str) -> String {
 /// A Rust string literal of `s`.
 fn quoted(s: &str) -> String {
     format!("{s:?}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_names_keep_distinct_types_and_escape_colliding_parameters() {
+        let mut c = crate::schema::tests::sample();
+        let m = &mut c.interfaces[0].methods[0];
+        m.params = vec![
+            Field {
+                name: "commands".into(),
+                value: Value::Record("Command".into(), vec![]),
+            },
+            Field {
+                name: "other".into(),
+                value: Value::Record("Other".into(), vec![]),
+            },
+        ];
+        m.params
+            .extend(["camelCase", "camel_case", "cx", "type"].map(|name| Field {
+                name: name.into(),
+                value: Value::Bool,
+            }));
+        m.result = Value::Enum("UiEvent".into(), vec![]);
+        let rust = generate(&c).unwrap();
+        assert!(rust.contains("pub struct Command {"));
+        assert!(rust.contains("pub struct Other {"));
+        assert!(rust.contains("pub enum UiEvent {"));
+        assert!(rust.contains("commands: Command, other: Other, camel_case: bool, camel_case2: bool, cx: bool, r#type: bool, cx2:"));
+    }
 }

@@ -247,9 +247,11 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
       return [tag, vector(() => value(depth + 1))];
     }
     if (tag === 11) {
+      string(); // Native source type name; JS validates the wire fields.
       return [tag, fields(depth)];
     }
     if (tag === 12) {
+      string(); // Native source type name; JS validates the wire variants.
       return [tag, vector<[string, ContractField[]]>(() => [string(), fields(depth)])];
     }
     if ([13, 18].includes(tag)) {
@@ -266,7 +268,7 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
     }
     return fail("unknown contract value tag");
   };
-  if ([byte(), byte(), byte(), byte()].join(",") !== "1,0,0,0") {
+  if ([byte(), byte(), byte(), byte()].join(",") !== "2,0,0,0") {
     fail("unsupported ABI version");
   }
   const interfaces = vector<ContractInterface>(() => ({
@@ -278,7 +280,10 @@ export function readPackageContract(bytes: Uint8Array): ContractInterface[] {
       name: string(),
       member: string(),
       wait: boolean() ? ("may" as const) : ("never" as const),
-      params: vector(() => value()),
+      params: vector(() => {
+        string(); // Source parameter name belongs to the native companion.
+        return value();
+      }),
       result: value(),
     })),
   }));

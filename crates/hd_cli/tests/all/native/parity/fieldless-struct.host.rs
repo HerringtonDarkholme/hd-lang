@@ -3,22 +3,25 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 1, 6, 114, 101, 110, 100, 101, 114, 6, 114, 101,
-    110, 100, 101, 114, 0, 4, 11, 0, 11, 3, 6, 98, 101, 102, 111, 114, 101, 3, 32, 1, 1, 101, 11, 0, 5, 97, 102, 116, 101, 114, 6, 12,
-    2, 7, 78, 111, 116, 104, 105, 110, 103, 0, 3, 79, 110, 101, 2, 1, 101, 11, 0, 1, 110, 3, 32, 1, 8, 11, 0, 10, 4, 11, 0, 11,
-    3, 6, 98, 101, 102, 111, 114, 101, 3, 32, 1, 1, 101, 11, 0, 5, 97, 102, 116, 101, 114, 6, 12, 2, 7, 78, 111, 116, 104, 105, 110, 103,
-    0, 3, 79, 110, 101, 2, 1, 101, 11, 0, 1, 110, 3, 32, 1, 8, 11, 0,
+    110, 100, 101, 114, 0, 4, 5, 97, 108, 111, 110, 101, 11, 5, 69, 109, 112, 116, 121, 0, 4, 119, 114, 97, 112, 11, 4, 87, 114, 97, 112, 3,
+    6, 98, 101, 102, 111, 114, 101, 3, 32, 1, 1, 101, 11, 5, 69, 109, 112, 116, 121, 0, 5, 97, 102, 116, 101, 114, 6, 4, 112, 105, 99, 107,
+    12, 4, 80, 105, 99, 107, 2, 7, 78, 111, 116, 104, 105, 110, 103, 0, 3, 79, 110, 101, 2, 1, 101, 11, 5, 69, 109, 112, 116, 121, 0, 1,
+    110, 3, 32, 1, 4, 109, 97, 110, 121, 8, 11, 5, 69, 109, 112, 116, 121, 0, 10, 4, 11, 5, 69, 109, 112, 116, 121, 0, 11, 4, 87, 114,
+    97, 112, 3, 6, 98, 101, 102, 111, 114, 101, 3, 32, 1, 1, 101, 11, 5, 69, 109, 112, 116, 121, 0, 5, 97, 102, 116, 101, 114, 6, 12, 4,
+    80, 105, 99, 107, 2, 7, 78, 111, 116, 104, 105, 110, 103, 0, 3, 79, 110, 101, 2, 1, 101, 11, 5, 69, 109, 112, 116, 121, 0, 1, 110, 3,
+    32, 1, 8, 11, 5, 69, 109, 112, 116, 121, 0,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurfaceRenderArg0 {
+pub struct Empty {
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg0 {
+impl Empty {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let _ = e;
         Ok(())
@@ -31,44 +34,44 @@ impl SurfaceRenderArg0 {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurfaceRenderArg1 {
+pub struct Wrap {
     pub before: i32,
-    pub e: SurfaceRenderArg0,
+    pub e: Empty,
     pub after: String,
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg1 {
+impl Wrap {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { before: f0, e: f1, after: f2 } = self;
         e.signed(i64::from(f0));
-        SurfaceRenderArg0::wire_encode(f1, e)?;
+        Empty::wire_encode(f1, e)?;
         e.string(&f2);
         Ok(())
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        Ok(Self { before: d.signed::<i32>()?, e: SurfaceRenderArg0::wire_decode(d)?, after: d.string()? })
+        Ok(Self { before: d.signed::<i32>()?, e: Empty::wire_decode(d)?, after: d.string()? })
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SurfaceRenderArg2 {
+pub enum Pick {
     Nothing,
     One {
-        e: SurfaceRenderArg0,
+        e: Empty,
         n: i32,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg2 {
+impl Pick {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Nothing => e.tag(0),
             Self::One { e: f0, n: f1 } => {
                 e.tag(1);
-                SurfaceRenderArg0::wire_encode(f0, e)?;
+                Empty::wire_encode(f0, e)?;
                 e.signed(i64::from(f1));
             }
         }
@@ -78,14 +81,14 @@ impl SurfaceRenderArg2 {
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
         Ok(match d.tag(2)? {
             0 => Self::Nothing,
-            _ => Self::One { e: SurfaceRenderArg0::wire_decode(d)?, n: d.signed::<i32>()? },
+            _ => Self::One { e: Empty::wire_decode(d)?, n: d.signed::<i32>()? },
         })
     }
 }
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn render(&mut self, arg0: SurfaceRenderArg0, arg1: SurfaceRenderArg1, arg2: SurfaceRenderArg2, arg3: Vec<SurfaceRenderArg0>) -> hd_run_wasmtime::native::HostResult<(SurfaceRenderArg0, SurfaceRenderArg1, SurfaceRenderArg2, Vec<SurfaceRenderArg0>)>;
+    fn render(&mut self, alone: Empty, wrap: Wrap, pick: Pick, many: Vec<Empty>) -> hd_run_wasmtime::native::HostResult<(Empty, Wrap, Pick, Vec<Empty>)>;
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its
@@ -97,15 +100,15 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
     match method {
         0 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = SurfaceRenderArg0::wire_decode(d)?;
-            let arg1 = SurfaceRenderArg1::wire_decode(d)?;
-            let arg2 = SurfaceRenderArg2::wire_decode(d)?;
-            let arg3 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(SurfaceRenderArg0::wire_decode(d)?); } x };
+            let arg0 = Empty::wire_decode(d)?;
+            let arg1 = Wrap::wire_decode(d)?;
+            let arg2 = Pick::wire_decode(d)?;
+            let arg3 = { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(Empty::wire_decode(d)?); } x };
             d.finish()?;
             let value = provider.render(arg0, arg1, arg2, arg3).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
-            { let (t0, t1, t2, t3) = value; SurfaceRenderArg0::wire_encode(t0, e)?; SurfaceRenderArg1::wire_encode(t1, e)?; SurfaceRenderArg2::wire_encode(t2, e)?; { e.count(t3.len()); for x in t3 { SurfaceRenderArg0::wire_encode(x, e)?; } } }
+            { let (t0, t1, t2, t3) = value; Empty::wire_encode(t0, e)?; Wrap::wire_encode(t1, e)?; Pick::wire_encode(t2, e)?; { e.count(t3.len()); for x in t3 { Empty::wire_encode(x, e)?; } } }
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),

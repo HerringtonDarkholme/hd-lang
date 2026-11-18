@@ -3,13 +3,13 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 3, 103, 101, 116, 3, 103, 101, 116, 0, 1,
-    1, 12, 2, 2, 95, 48, 1, 1, 48, 3, 32, 1, 2, 95, 49, 1, 1, 48, 6, 6, 114, 101, 110, 100, 101, 114, 6, 114, 101, 110, 100, 101,
-    114, 0, 1, 12, 3, 2, 95, 48, 1, 1, 48, 3, 64, 1, 2, 95, 49, 1, 1, 48, 11, 2, 1, 120, 3, 32, 1, 1, 121, 3, 32, 1,
-    2, 95, 50, 1, 1, 48, 8, 6, 6,
+    4, 102, 108, 105, 112, 1, 12, 0, 2, 2, 95, 48, 1, 1, 48, 3, 32, 1, 2, 95, 49, 1, 1, 48, 6, 6, 114, 101, 110, 100, 101, 114,
+    6, 114, 101, 110, 100, 101, 114, 0, 1, 5, 118, 97, 108, 117, 101, 12, 0, 3, 2, 95, 48, 1, 1, 48, 3, 64, 1, 2, 95, 49, 1, 1,
+    48, 11, 5, 80, 111, 105, 110, 116, 2, 1, 120, 3, 32, 1, 1, 121, 3, 32, 1, 2, 95, 50, 1, 1, 48, 8, 6, 6,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,13 +47,13 @@ impl SurfaceGetResult {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct SurfaceRenderArg010 {
+pub struct Point {
     pub x: i32,
     pub y: i32,
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg010 {
+impl Point {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let Self { x: f0, y: f1 } = self;
         e.signed(i64::from(f0));
@@ -72,7 +72,7 @@ pub enum SurfaceRenderArg0 {
         _0: i64,
     },
     _1 {
-        _0: SurfaceRenderArg010,
+        _0: Point,
     },
     _2 {
         _0: Vec<String>,
@@ -89,7 +89,7 @@ impl SurfaceRenderArg0 {
             }
             Self::_1 { _0: f0 } => {
                 e.tag(1);
-                SurfaceRenderArg010::wire_encode(f0, e)?;
+                Point::wire_encode(f0, e)?;
             }
             Self::_2 { _0: f0 } => {
                 e.tag(2);
@@ -102,7 +102,7 @@ impl SurfaceRenderArg0 {
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
         Ok(match d.tag(3)? {
             0 => Self::_0 { _0: d.signed::<i64>()? },
-            1 => Self::_1 { _0: SurfaceRenderArg010::wire_decode(d)? },
+            1 => Self::_1 { _0: Point::wire_decode(d)? },
             _ => Self::_2 { _0: { let n = d.list_len()?; let mut x = Vec::with_capacity(d.capacity(n)); for _ in 0..n { x.push(d.string()?); } x } },
         })
     }
@@ -110,8 +110,8 @@ impl SurfaceRenderArg0 {
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn get(&mut self, arg0: bool) -> hd_run_wasmtime::native::HostResult<SurfaceGetResult>;
-    fn render(&mut self, arg0: SurfaceRenderArg0) -> hd_run_wasmtime::native::HostResult<String>;
+    fn get(&mut self, flip: bool) -> hd_run_wasmtime::native::HostResult<SurfaceGetResult>;
+    fn render(&mut self, value: SurfaceRenderArg0) -> hd_run_wasmtime::native::HostResult<String>;
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its

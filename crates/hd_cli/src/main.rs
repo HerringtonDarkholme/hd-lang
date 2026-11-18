@@ -906,7 +906,13 @@ fn execute_with(
     // module loads: the run never changes engine afterwards.
     let engine = match choice.for_module(contract) {
         Ok(engine) => engine,
-        Err(e) => return rep.fail(&e),
+        Err(e) => {
+            rep.diag(&report::Diag::error(
+                Some(hd_diag::Code::NativeProviderMissing),
+                &e,
+            ));
+            return rep.finish(HD_FAILURE);
+        }
     };
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {

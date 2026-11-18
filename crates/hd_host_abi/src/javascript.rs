@@ -61,7 +61,7 @@ pub fn generate(contract: &Contract) -> Result<String, &'static str> {
                 if n != 0 {
                     out.push(',');
                 }
-                codec(&mut out, p);
+                codec(&mut out, &p.value);
             }
             out.push_str("], result: ");
             codec(&mut out, &m.result);
@@ -122,12 +122,12 @@ fn codec(out: &mut String, v: &Value) {
             }
             out.push_str("])");
         }
-        Value::Record(fs) => {
+        Value::Record(_, fs) => {
             out.push_str("runtime.record(");
             fields(out, fs);
             out.push(')');
         }
-        Value::Enum(vs) => {
+        Value::Enum(_, vs) => {
             out.push_str("runtime.enumeration([");
             for (n, v) in vs.iter().enumerate() {
                 if n != 0 {
@@ -215,17 +215,17 @@ for (const bad of [[], new Map(), new Map([['missing', implementation]])]) {{
 let called = 0;
 const runtime = new Proxy({{
   bind(bytes, interfaces, providers) {{
-    if (abiVersion !== 1 || bytes.length !== contract.length) throw Error('wrong ABI');
+    if (abiVersion !== 2 || bytes.length !== contract.length) throw Error('wrong ABI');
     if (interfaces[0].methods[0].name !== {}) throw Error('name changed');
     if (interfaces[0].methods[0].wait !== 'may' || interfaces[1].methods[0].wait !== 'never') throw Error('wait changed');
     if (interfaces[0].methods[0].params.length !== 14) throw Error('parameters changed');
     if (interfaces[0].methods[0].params[2] !== 'int:64,true') throw Error('integer type changed');
     if (interfaces[0].methods[0].params[11] !== 'record:text,str') throw Error('record fields lost');
-    if (bytes[0] !== 1 || providers.length !== 1) throw Error('contract or provider count changed');
+    if (bytes[0] !== 2 || providers.length !== 1) throw Error('contract or provider count changed');
     const provider = providers[0];
     if (provider.implementation !== implementation || provider.identity !== exports.interfaces[0].identity) throw Error('plain provider identity lost');
     if (!Object.isFrozen(provider) || !Object.isFrozen(provider.identity)) throw Error('mutable identity');
-    if (provider.contract[0] !== 1) throw Error('exported bytes altered registration');
+    if (provider.contract[0] !== 2) throw Error('exported bytes altered registration');
     called++;
     return interfaces;
   }}

@@ -3,60 +3,61 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 1, 6, 114, 101, 110, 100, 101, 114, 6, 114, 101,
-    110, 100, 101, 114, 0, 1, 16, 0, 12, 2, 4, 76, 101, 97, 102, 0, 4, 78, 111, 100, 101, 1, 4, 107, 105, 100, 115, 8, 17, 0, 16, 0,
-    12, 2, 4, 76, 101, 97, 102, 0, 4, 78, 111, 100, 101, 1, 4, 107, 105, 100, 115, 8, 17, 0,
+    110, 100, 101, 114, 0, 1, 1, 116, 16, 0, 12, 4, 84, 114, 101, 101, 2, 4, 76, 101, 97, 102, 0, 4, 78, 111, 100, 101, 1, 4, 107, 105,
+    100, 115, 8, 17, 0, 16, 0, 12, 4, 84, 114, 101, 101, 2, 4, 76, 101, 97, 102, 0, 4, 78, 111, 100, 101, 1, 4, 107, 105, 100, 115, 8,
+    17, 0,
 ];
 
-pub enum SurfaceRenderArg0 {
+pub enum Tree {
     Leaf,
     Node {
-        kids: Vec<SurfaceRenderArg0>,
+        kids: Vec<Tree>,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg0 {
+impl Tree {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        SurfaceRenderArg0Wire::encode(self, e)
+        TreeWire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        SurfaceRenderArg0Wire::decode(d)
+        TreeWire::decode(d)
     }
 
     /// Drops this value one level at a time, in constant native stack,
     /// where dropping it in place would recurse once per nesting level.
     pub fn dismantle(self) {
-        SurfaceRenderArg0Wire::dismantle(vec![SurfaceRenderArg0Wire::P0(self)]);
+        TreeWire::dismantle(vec![TreeWire::P0(self)]);
     }
 }
 
-/// A value of `SurfaceRenderArg0`'s recursive group at one position of its codec.
+/// A value of `Tree`'s recursive group at one position of its codec.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceRenderArg0Wire {
-    P0(SurfaceRenderArg0),
-    P1(Vec<SurfaceRenderArg0>),
+enum TreeWire {
+    P0(Tree),
+    P1(Vec<Tree>),
 }
 
-/// A step of `SurfaceRenderArg0`'s decoder, or of a clone of one of its group's values.
+/// A step of `Tree`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceRenderArg0WireOp<'a> {
+enum TreeWireOp<'a> {
     D0,
-    C0(&'a SurfaceRenderArg0),
+    C0(&'a Tree),
     D1,
-    C1(&'a Vec<SurfaceRenderArg0>),
-    L1(Vec<SurfaceRenderArg0>, usize),
-    K1(Vec<SurfaceRenderArg0>, std::slice::Iter<'a, SurfaceRenderArg0>),
+    C1(&'a Vec<Tree>),
+    L1(Vec<Tree>, usize),
+    K1(Vec<Tree>, std::slice::Iter<'a, Tree>),
     B0v1,
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderArg0Wire {
-    fn encode(root: SurfaceRenderArg0, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+impl TreeWire {
+    fn encode(root: Tree, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let mut stack = vec![Self::P0(root)];
         let written = Self::encode_all(&mut stack, e);
         Self::dismantle(stack);
@@ -66,16 +67,16 @@ impl SurfaceRenderArg0Wire {
     fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(item) = stack.pop() {
             match item {
-                Self::P0(SurfaceRenderArg0::Leaf) => e.tag(0),
+                Self::P0(Tree::Leaf) => e.tag(0),
                 Self::P1(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
-                Self::P0(SurfaceRenderArg0::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+                Self::P0(Tree::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
             }
         }
         Ok(())
     }
 
-    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceRenderArg0> {
-        let mut ops = vec![SurfaceRenderArg0WireOp::D0];
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Tree> {
+        let mut ops = vec![TreeWireOp::D0];
         let mut vals = Vec::new();
         if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
             Self::dismantle_ops(ops, &mut vals);
@@ -86,27 +87,27 @@ impl SurfaceRenderArg0Wire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceRenderArg0WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<TreeWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
-                SurfaceRenderArg0WireOp::C0(SurfaceRenderArg0::Leaf) => vals.push(Self::P0(SurfaceRenderArg0::Leaf)),
-                SurfaceRenderArg0WireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderArg0WireOp::L1(x, n)); ops.push(SurfaceRenderArg0WireOp::D0); } }
-                SurfaceRenderArg0WireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderArg0WireOp::L1(x, n - 1)); ops.push(SurfaceRenderArg0WireOp::D0); } }
-                SurfaceRenderArg0WireOp::C1(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(SurfaceRenderArg0WireOp::K1(x, it)); ops.push(SurfaceRenderArg0WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
-                SurfaceRenderArg0WireOp::K1(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(SurfaceRenderArg0WireOp::K1(x, it)); ops.push(SurfaceRenderArg0WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
-                SurfaceRenderArg0WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceRenderArg0::Node { kids: f0 })); }
-                SurfaceRenderArg0WireOp::C0(SurfaceRenderArg0::Node { kids: f0 }) => { ops.push(SurfaceRenderArg0WireOp::B0v1); ops.push(SurfaceRenderArg0WireOp::C1(f0)); }
-                SurfaceRenderArg0WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceRenderArg0::Leaf)); } _ => { ops.push(SurfaceRenderArg0WireOp::B0v1); ops.push(SurfaceRenderArg0WireOp::D1); } },
+                TreeWireOp::C0(Tree::Leaf) => vals.push(Self::P0(Tree::Leaf)),
+                TreeWireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(TreeWireOp::L1(x, n)); ops.push(TreeWireOp::D0); } }
+                TreeWireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(TreeWireOp::L1(x, n - 1)); ops.push(TreeWireOp::D0); } }
+                TreeWireOp::C1(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(TreeWireOp::K1(x, it)); ops.push(TreeWireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
+                TreeWireOp::K1(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(TreeWireOp::K1(x, it)); ops.push(TreeWireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
+                TreeWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Tree::Node { kids: f0 })); }
+                TreeWireOp::C0(Tree::Node { kids: f0 }) => { ops.push(TreeWireOp::B0v1); ops.push(TreeWireOp::C1(f0)); }
+                TreeWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(Tree::Leaf)); } _ => { ops.push(TreeWireOp::B0v1); ops.push(TreeWireOp::D1); } },
             }
         }
         Ok(())
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceRenderArg0WireOp<'_>>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<TreeWireOp<'_>>, items: &mut Vec<Self>) {
         for op in ops {
             match op {
-                SurfaceRenderArg0WireOp::L1(x, _) => items.push(Self::P1(x)),
+                TreeWireOp::L1(x, _) => items.push(Self::P1(x)),
                 _ => {}
             }
         }
@@ -118,7 +119,7 @@ impl SurfaceRenderArg0Wire {
         while let Some(item) = items.pop() {
             match item {
                 Self::P1(x) => items.extend(x.into_iter().map(Self::P0)),
-                Self::P0(SurfaceRenderArg0::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
+                Self::P0(Tree::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
                 _ => {}
             }
         }
@@ -126,10 +127,10 @@ impl SurfaceRenderArg0Wire {
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderArg0Wire {
+impl TreeWire {
     /// The value `op` reads, built bottom-up through the decoder's own
     /// build ops: a clone reads no bytes.
-    fn clone_of(op: SurfaceRenderArg0WireOp<'_>) -> Self {
+    fn clone_of(op: TreeWireOp<'_>) -> Self {
         let mut ops = vec![op];
         let mut vals = Vec::new();
         let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
@@ -138,22 +139,22 @@ impl SurfaceRenderArg0Wire {
     }
 }
 
-/// Two values of `SurfaceRenderArg0`'s recursive group at one position, compared one
+/// Two values of `Tree`'s recursive group at one position, compared one
 /// position at a time.
 #[allow(dead_code)]
-enum SurfaceRenderArg0WirePair<'a> {
-    P0(&'a SurfaceRenderArg0, &'a SurfaceRenderArg0),
-    P1(&'a Vec<SurfaceRenderArg0>, &'a Vec<SurfaceRenderArg0>),
+enum TreeWirePair<'a> {
+    P0(&'a Tree, &'a Tree),
+    P1(&'a Vec<Tree>, &'a Vec<Tree>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderArg0WirePair<'_> {
+impl TreeWirePair<'_> {
     fn all(mut stack: Vec<Self>) -> bool {
         while let Some(pair) = stack.pop() {
             match pair {
-                Self::P0(SurfaceRenderArg0::Leaf, SurfaceRenderArg0::Leaf) => {}
+                Self::P0(Tree::Leaf, Tree::Leaf) => {}
                 Self::P1(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P0(a, b))); }
-                Self::P0(SurfaceRenderArg0::Node { kids: a0 }, SurfaceRenderArg0::Node { kids: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(Tree::Node { kids: a0 }, Tree::Node { kids: b0 }) => { stack.push(Self::P1(a0, b0)); }
                 Self::P0(..) => return false,
             }
         }
@@ -161,91 +162,91 @@ impl SurfaceRenderArg0WirePair<'_> {
     }
 }
 
-/// A value of `SurfaceRenderArg0`'s recursive group at one position of its `Debug`,
+/// A value of `Tree`'s recursive group at one position of its `Debug`,
 /// or a map entry's pair of positions.
 #[allow(dead_code)]
-enum SurfaceRenderArg0WireShow<'a> {
-    P0(&'a SurfaceRenderArg0),
-    P1(&'a Vec<SurfaceRenderArg0>),
+enum TreeWireShow<'a> {
+    P0(&'a Tree),
+    P1(&'a Vec<Tree>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderArg0WireShow<'_> {
+impl TreeWireShow<'_> {
     fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::P0(SurfaceRenderArg0::Leaf) => f.write_str("Leaf"),
+            Self::P0(Tree::Leaf) => f.write_str("Leaf"),
             Self::P1(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P0(y)))),
-            Self::P0(SurfaceRenderArg0::Node { kids: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Node {", "}", [("kids: ", Self::P1(f0))]),
+            Self::P0(Tree::Node { kids: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Node {", "}", [("kids: ", Self::P1(f0))]),
         }
     }
 }
 
 #[allow(irrefutable_let_patterns)]
-impl Clone for SurfaceRenderArg0 {
+impl Clone for Tree {
     fn clone(&self) -> Self {
-        let SurfaceRenderArg0Wire::P0(value) = SurfaceRenderArg0Wire::clone_of(SurfaceRenderArg0WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        let TreeWire::P0(value) = TreeWire::clone_of(TreeWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
         value
     }
 }
 
-impl PartialEq for SurfaceRenderArg0 {
+impl PartialEq for Tree {
     fn eq(&self, other: &Self) -> bool {
-        SurfaceRenderArg0WirePair::all(vec![SurfaceRenderArg0WirePair::P0(self, other)])
+        TreeWirePair::all(vec![TreeWirePair::P0(self, other)])
     }
 }
 
-impl std::fmt::Debug for SurfaceRenderArg0 {
+impl std::fmt::Debug for Tree {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        hd_run_wasmtime::native::wire::Show::run(f, SurfaceRenderArg0WireShow::P0(self), SurfaceRenderArg0WireShow::show)
+        hd_run_wasmtime::native::wire::Show::run(f, TreeWireShow::P0(self), TreeWireShow::show)
     }
 }
 
-pub enum SurfaceRenderResult {
+pub enum Tree2 {
     Leaf,
     Node {
-        kids: Vec<SurfaceRenderResult>,
+        kids: Vec<Tree2>,
     },
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderResult {
+impl Tree2 {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
-        SurfaceRenderResultWire::encode(self, e)
+        Tree2Wire::encode(self, e)
     }
 
     fn wire_decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Self> {
-        SurfaceRenderResultWire::decode(d)
+        Tree2Wire::decode(d)
     }
 
     /// Drops this value one level at a time, in constant native stack,
     /// where dropping it in place would recurse once per nesting level.
     pub fn dismantle(self) {
-        SurfaceRenderResultWire::dismantle(vec![SurfaceRenderResultWire::P0(self)]);
+        Tree2Wire::dismantle(vec![Tree2Wire::P0(self)]);
     }
 }
 
-/// A value of `SurfaceRenderResult`'s recursive group at one position of its codec.
+/// A value of `Tree2`'s recursive group at one position of its codec.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceRenderResultWire {
-    P0(SurfaceRenderResult),
-    P1(Vec<SurfaceRenderResult>),
+enum Tree2Wire {
+    P0(Tree2),
+    P1(Vec<Tree2>),
 }
 
-/// A step of `SurfaceRenderResult`'s decoder, or of a clone of one of its group's values.
+/// A step of `Tree2`'s decoder, or of a clone of one of its group's values.
 #[allow(dead_code, clippy::large_enum_variant)]
-enum SurfaceRenderResultWireOp<'a> {
+enum Tree2WireOp<'a> {
     D0,
-    C0(&'a SurfaceRenderResult),
+    C0(&'a Tree2),
     D1,
-    C1(&'a Vec<SurfaceRenderResult>),
-    L1(Vec<SurfaceRenderResult>, usize),
-    K1(Vec<SurfaceRenderResult>, std::slice::Iter<'a, SurfaceRenderResult>),
+    C1(&'a Vec<Tree2>),
+    L1(Vec<Tree2>, usize),
+    K1(Vec<Tree2>, std::slice::Iter<'a, Tree2>),
     B0v1,
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderResultWire {
-    fn encode(root: SurfaceRenderResult, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
+impl Tree2Wire {
+    fn encode(root: Tree2, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         let mut stack = vec![Self::P0(root)];
         let written = Self::encode_all(&mut stack, e);
         Self::dismantle(stack);
@@ -255,16 +256,16 @@ impl SurfaceRenderResultWire {
     fn encode_all(stack: &mut Vec<Self>, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(item) = stack.pop() {
             match item {
-                Self::P0(SurfaceRenderResult::Leaf) => e.tag(0),
+                Self::P0(Tree2::Leaf) => e.tag(0),
                 Self::P1(x) => { e.count(x.len()); stack.extend(x.into_iter().rev().map(Self::P0)); }
-                Self::P0(SurfaceRenderResult::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
+                Self::P0(Tree2::Node { kids: f0 }) => { e.tag(1); stack.push(Self::P1(f0)); }
             }
         }
         Ok(())
     }
 
-    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<SurfaceRenderResult> {
-        let mut ops = vec![SurfaceRenderResultWireOp::D0];
+    fn decode(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>) -> hd_run_wasmtime::native::HostResult<Tree2> {
+        let mut ops = vec![Tree2WireOp::D0];
         let mut vals = Vec::new();
         if let Err(error) = Self::decode_all(d, &mut ops, &mut vals) {
             Self::dismantle_ops(ops, &mut vals);
@@ -275,27 +276,27 @@ impl SurfaceRenderResultWire {
         Ok(root)
     }
 
-    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<SurfaceRenderResultWireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
+    fn decode_all(d: &mut hd_run_wasmtime::native::wire::Decoder<'_>, ops: &mut Vec<Tree2WireOp<'_>>, vals: &mut Vec<Self>) -> hd_run_wasmtime::native::HostResult<()> {
         while let Some(op) = ops.pop() {
             match op {
-                SurfaceRenderResultWireOp::C0(SurfaceRenderResult::Leaf) => vals.push(Self::P0(SurfaceRenderResult::Leaf)),
-                SurfaceRenderResultWireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderResultWireOp::L1(x, n)); ops.push(SurfaceRenderResultWireOp::D0); } }
-                SurfaceRenderResultWireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(SurfaceRenderResultWireOp::L1(x, n - 1)); ops.push(SurfaceRenderResultWireOp::D0); } }
-                SurfaceRenderResultWireOp::C1(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(SurfaceRenderResultWireOp::K1(x, it)); ops.push(SurfaceRenderResultWireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
-                SurfaceRenderResultWireOp::K1(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(SurfaceRenderResultWireOp::K1(x, it)); ops.push(SurfaceRenderResultWireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
-                SurfaceRenderResultWireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(SurfaceRenderResult::Node { kids: f0 })); }
-                SurfaceRenderResultWireOp::C0(SurfaceRenderResult::Node { kids: f0 }) => { ops.push(SurfaceRenderResultWireOp::B0v1); ops.push(SurfaceRenderResultWireOp::C1(f0)); }
-                SurfaceRenderResultWireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(SurfaceRenderResult::Leaf)); } _ => { ops.push(SurfaceRenderResultWireOp::B0v1); ops.push(SurfaceRenderResultWireOp::D1); } },
+                Tree2WireOp::C0(Tree2::Leaf) => vals.push(Self::P0(Tree2::Leaf)),
+                Tree2WireOp::D1 => { let n = d.list_len()?; let x = Vec::with_capacity(d.capacity(n)); if n == 0 { vals.push(Self::P1(x)); } else { ops.push(Tree2WireOp::L1(x, n)); ops.push(Tree2WireOp::D0); } }
+                Tree2WireOp::L1(mut x, n) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if n == 1 { vals.push(Self::P1(x)); } else { ops.push(Tree2WireOp::L1(x, n - 1)); ops.push(Tree2WireOp::D0); } }
+                Tree2WireOp::C1(x) => { let mut it = x.iter(); let x = Vec::with_capacity(x.len()); if let Some(y) = it.next() { ops.push(Tree2WireOp::K1(x, it)); ops.push(Tree2WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
+                Tree2WireOp::K1(mut x, mut it) => { let Some(Self::P0(y)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; x.push(y); if let Some(y) = it.next() { ops.push(Tree2WireOp::K1(x, it)); ops.push(Tree2WireOp::C0(y)); } else { vals.push(Self::P1(x)); } }
+                Tree2WireOp::B0v1 => { let Some(Self::P1(f0)) = vals.pop() else { unreachable!("ruled out: each op pops what its own children pushed") }; vals.push(Self::P0(Tree2::Node { kids: f0 })); }
+                Tree2WireOp::C0(Tree2::Node { kids: f0 }) => { ops.push(Tree2WireOp::B0v1); ops.push(Tree2WireOp::C1(f0)); }
+                Tree2WireOp::D0 => match d.tag(2)? { 0 => { vals.push(Self::P0(Tree2::Leaf)); } _ => { ops.push(Tree2WireOp::B0v1); ops.push(Tree2WireOp::D1); } },
             }
         }
         Ok(())
     }
 
     /// The partial lists and maps a failed decode leaves in its ops.
-    fn dismantle_ops(ops: Vec<SurfaceRenderResultWireOp<'_>>, items: &mut Vec<Self>) {
+    fn dismantle_ops(ops: Vec<Tree2WireOp<'_>>, items: &mut Vec<Self>) {
         for op in ops {
             match op {
-                SurfaceRenderResultWireOp::L1(x, _) => items.push(Self::P1(x)),
+                Tree2WireOp::L1(x, _) => items.push(Self::P1(x)),
                 _ => {}
             }
         }
@@ -307,7 +308,7 @@ impl SurfaceRenderResultWire {
         while let Some(item) = items.pop() {
             match item {
                 Self::P1(x) => items.extend(x.into_iter().map(Self::P0)),
-                Self::P0(SurfaceRenderResult::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
+                Self::P0(Tree2::Node { kids: f0, .. }) => { items.push(Self::P1(f0)); }
                 _ => {}
             }
         }
@@ -315,10 +316,10 @@ impl SurfaceRenderResultWire {
 }
 
 #[allow(dead_code)]
-impl SurfaceRenderResultWire {
+impl Tree2Wire {
     /// The value `op` reads, built bottom-up through the decoder's own
     /// build ops: a clone reads no bytes.
-    fn clone_of(op: SurfaceRenderResultWireOp<'_>) -> Self {
+    fn clone_of(op: Tree2WireOp<'_>) -> Self {
         let mut ops = vec![op];
         let mut vals = Vec::new();
         let Ok(()) = Self::decode_all(&mut hd_run_wasmtime::native::wire::Decoder::new(&[]), &mut ops, &mut vals) else { unreachable!("ruled out: a clone reads no bytes") };
@@ -327,22 +328,22 @@ impl SurfaceRenderResultWire {
     }
 }
 
-/// Two values of `SurfaceRenderResult`'s recursive group at one position, compared one
+/// Two values of `Tree2`'s recursive group at one position, compared one
 /// position at a time.
 #[allow(dead_code)]
-enum SurfaceRenderResultWirePair<'a> {
-    P0(&'a SurfaceRenderResult, &'a SurfaceRenderResult),
-    P1(&'a Vec<SurfaceRenderResult>, &'a Vec<SurfaceRenderResult>),
+enum Tree2WirePair<'a> {
+    P0(&'a Tree2, &'a Tree2),
+    P1(&'a Vec<Tree2>, &'a Vec<Tree2>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderResultWirePair<'_> {
+impl Tree2WirePair<'_> {
     fn all(mut stack: Vec<Self>) -> bool {
         while let Some(pair) = stack.pop() {
             match pair {
-                Self::P0(SurfaceRenderResult::Leaf, SurfaceRenderResult::Leaf) => {}
+                Self::P0(Tree2::Leaf, Tree2::Leaf) => {}
                 Self::P1(a, b) => { if a.len() != b.len() { return false; } stack.extend(a.iter().zip(b).rev().map(|(a, b)| Self::P0(a, b))); }
-                Self::P0(SurfaceRenderResult::Node { kids: a0 }, SurfaceRenderResult::Node { kids: b0 }) => { stack.push(Self::P1(a0, b0)); }
+                Self::P0(Tree2::Node { kids: a0 }, Tree2::Node { kids: b0 }) => { stack.push(Self::P1(a0, b0)); }
                 Self::P0(..) => return false,
             }
         }
@@ -350,48 +351,48 @@ impl SurfaceRenderResultWirePair<'_> {
     }
 }
 
-/// A value of `SurfaceRenderResult`'s recursive group at one position of its `Debug`,
+/// A value of `Tree2`'s recursive group at one position of its `Debug`,
 /// or a map entry's pair of positions.
 #[allow(dead_code)]
-enum SurfaceRenderResultWireShow<'a> {
-    P0(&'a SurfaceRenderResult),
-    P1(&'a Vec<SurfaceRenderResult>),
+enum Tree2WireShow<'a> {
+    P0(&'a Tree2),
+    P1(&'a Vec<Tree2>),
 }
 
 #[allow(dead_code, unreachable_patterns, clippy::match_single_binding)]
-impl SurfaceRenderResultWireShow<'_> {
+impl Tree2WireShow<'_> {
     fn show(self, depth: usize, stack: &mut Vec<hd_run_wasmtime::native::wire::Show<Self>>, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::P0(SurfaceRenderResult::Leaf) => f.write_str("Leaf"),
+            Self::P0(Tree2::Leaf) => f.write_str("Leaf"),
             Self::P1(x) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "[", "]", x.iter().map(|y| ("", Self::P0(y)))),
-            Self::P0(SurfaceRenderResult::Node { kids: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Node {", "}", [("kids: ", Self::P1(f0))]),
+            Self::P0(Tree2::Node { kids: f0 }) => hd_run_wasmtime::native::wire::Show::open(stack, f, depth, "Node {", "}", [("kids: ", Self::P1(f0))]),
         }
     }
 }
 
 #[allow(irrefutable_let_patterns)]
-impl Clone for SurfaceRenderResult {
+impl Clone for Tree2 {
     fn clone(&self) -> Self {
-        let SurfaceRenderResultWire::P0(value) = SurfaceRenderResultWire::clone_of(SurfaceRenderResultWireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
+        let Tree2Wire::P0(value) = Tree2Wire::clone_of(Tree2WireOp::C0(self)) else { unreachable!("ruled out: a clone builds the position it reads") };
         value
     }
 }
 
-impl PartialEq for SurfaceRenderResult {
+impl PartialEq for Tree2 {
     fn eq(&self, other: &Self) -> bool {
-        SurfaceRenderResultWirePair::all(vec![SurfaceRenderResultWirePair::P0(self, other)])
+        Tree2WirePair::all(vec![Tree2WirePair::P0(self, other)])
     }
 }
 
-impl std::fmt::Debug for SurfaceRenderResult {
+impl std::fmt::Debug for Tree2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        hd_run_wasmtime::native::wire::Show::run(f, SurfaceRenderResultWireShow::P0(self), SurfaceRenderResultWireShow::show)
+        hd_run_wasmtime::native::wire::Show::run(f, Tree2WireShow::P0(self), Tree2WireShow::show)
     }
 }
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn render(&mut self, arg0: &SurfaceRenderArg0) -> hd_run_wasmtime::native::HostResult<SurfaceRenderResult>;
+    fn render(&mut self, t: &Tree) -> hd_run_wasmtime::native::HostResult<Tree2>;
 }
 
 /// Calls the method at index `method` of the registered `Surface` with its
@@ -403,12 +404,12 @@ pub fn dispatch_Surface(provider: &mut dyn std::any::Any, method: usize, args: &
     match method {
         0 => {
             let d = &mut hd_run_wasmtime::native::wire::Decoder::new(args);
-            let arg0 = hd_run_wasmtime::native::wire::Lent::new(SurfaceRenderArg0::wire_decode(d)?, |x: SurfaceRenderArg0| { SurfaceRenderArg0::dismantle(x); });
+            let arg0 = hd_run_wasmtime::native::wire::Lent::new(Tree::wire_decode(d)?, |x: Tree| { Tree::dismantle(x); });
             d.finish()?;
             let value = provider.render(&arg0).map_err(hd_run_wasmtime::native::Failure::Threw)?;
             let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
             let e = &mut enc;
-            SurfaceRenderResult::wire_encode(value, e)?;
+            Tree2::wire_encode(value, e)?;
             Ok(hd_run_wasmtime::native::Answer::Ready(enc.into_bytes()))
         }
         _ => Err(hd_run_wasmtime::native::wire::unknown_method(method).into()),

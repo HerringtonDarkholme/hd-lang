@@ -122,6 +122,13 @@ The native provider is linked into the trusted embedder and retains the
 process's ambient authority. Hd grants constrain guest access and provider
 selection; they do not sandbox Rust code.
 
+The owner’s follow-up decisions are applied in the spec: native startup reports
+[`native-provider-missing`](../../spec/cli/command-line.md#r-cli.host.package.native-provider-missing),
+the contract retains source type and parameter names for the
+[generated Rust API](../../spec/cli/command-line.md#r-cli.host.package.native-source-names),
+and a [dropped completion](../../spec/cli/command-line.md#r-cli.host.package.native-completion-dropped)
+leaves its guest waiting, as on Node. The Native Value Table also includes maps.
+
 ### Native Value Mapping
 
 | hd boundary value | Generated Rust value |
@@ -289,7 +296,7 @@ application state.
 
 [`cli.host.package.provider-hosts`](../../spec/cli/command-line.md#r-cli.host.package.provider-hosts)
 allows package providers on JavaScript hosts and as registered native providers.
-[`cli.host.package.native-unregistered`](../../spec/cli/command-line.md#r-cli.host.package.native-unregistered)
+[`cli.host.package.native-provider-missing`](../../spec/cli/command-line.md#r-cli.host.package.native-provider-missing)
 requires Wasmtime to refuse an unregistered trait before guest initialization.
 
 `hd_run_wasmtime::WasmtimeEngine::load` indexes `hd.capabilities` once;

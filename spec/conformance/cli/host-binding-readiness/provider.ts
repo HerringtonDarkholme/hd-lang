@@ -16,13 +16,13 @@ export default {
   wait(kind: string, context: PendingContext) {
     let ready = false;
     let notify: (() => void) | undefined;
-    const timer = setTimeout(
-      () => {
-        ready = true;
-        notify?.();
-      },
-      kind === "cancel" ? 5000 : 1,
-    );
+    const timer =
+      kind === "cancel"
+        ? undefined
+        : setTimeout(() => {
+            ready = true;
+            notify?.();
+          }, 1);
     return context.pending(
       () => ready,
       () => "computed",

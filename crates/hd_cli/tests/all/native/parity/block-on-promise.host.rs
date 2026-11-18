@@ -3,16 +3,16 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 1, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 101, 114, 118, 105, 99, 101, 39, 104, 100, 58, 112, 107,
     103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 49, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 101, 114, 118, 105, 99, 101, 0, 1, 4, 119, 97, 105, 116, 4, 119, 97, 105, 116,
-    1, 1, 6, 3, 32, 0,
+    1, 1, 4, 107, 105, 110, 100, 6, 3, 32, 0,
 ];
 
 /// `local:00000000000000000000000000000000/main.Service`.
 pub trait Service {
-    fn wait(&mut self, arg0: String, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<u32>;
+    fn wait(&mut self, kind: String, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<u32>;
 }
 
 /// Calls the method at index `method` of the registered `Service` with its

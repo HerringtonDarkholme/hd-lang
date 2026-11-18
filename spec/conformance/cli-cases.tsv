@@ -297,7 +297,7 @@ host-binding-event-handle	cli.host.package.generated,cli.host.package.completion
 host-binding-missing	cli.cap.table.required-package,cli.cap.table.required-flags,cli.cap.table.required-entry-message,cli.host.package.missing,cli.host.package.consent-preflight,cli.host.package.no-fallback
 host-binding-missing-file	cli.host.package.provider-containment
 host-binding-node	cli.host.package.entry,cli.host.package.provider-hosts,cli.host.package.manifest-consent,cli.host.package.no-flag-consent,cli.host.package.generated,cli.host.package.companion,cli.host.package.completion-forms
-host-binding-wasmtime-refused	cli.host.package.native-unregistered,cli.host.package.native-cli,cli.host.package.native-cli-explicit,cli.host.package.no-fallback,cli.host.package.provider-hosts,cli.cap.order.deny
+host-binding-wasmtime-refused	cli.host.package.native-provider-missing,cli.host.package.native-cli,cli.host.package.native-cli-explicit,cli.host.package.no-fallback,cli.host.package.provider-hosts,cli.cap.order.deny
 host-binding-default-node	cli.host.package.native-cli-node,cli.host.package.native-cli-startup,cli.host.package.no-fallback,cli.engine.select,cli.cap.order.deny
 host-binding-native-companion	cli.host.package.native-companion,cli.host.package.companion
 host-binding-outside-package	cli.host.package.provider-containment,cli.host.declaration.provider-relative
@@ -313,7 +313,7 @@ host-binding-never-exits	cli.host.package.value-conversion
 host-binding-never-returns	cli.host.package.value-conversion
 host-binding-not-safe	cli.host.package.generated
 host-binding-recursive-cycle	cli.host.package.generated,cli.host.package.contract
-host-binding-readiness	cli.host.package.completion-forms,cli.host.package.context-pending-notify,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal,cli.host.package.poll-subscribe,cli.host.package.poll-notify,cli.host.package.poll-notify-consume,cli.host.package.poll-notify-again,cli.host.package.poll-unsubscribe,cli.host.package.poll-notify-late,cli.host.package.poll-legacy-sweep,cli.host.package.poll-legacy-cost,cli.host.package.poll-notify-cost,cli.host.package.poll-subscribe-ready
+host-binding-readiness	cli.host.package.pending-uncompleted,cli.host.package.completion-forms,cli.host.package.context-pending-notify,cli.host.package.poll-result,cli.host.package.poll-delivery,cli.host.package.poll-abort,cli.host.package.poll-abort-signal,cli.host.package.poll-subscribe,cli.host.package.poll-notify,cli.host.package.poll-notify-consume,cli.host.package.poll-notify-again,cli.host.package.poll-unsubscribe,cli.host.package.poll-notify-late,cli.host.package.poll-legacy-sweep,cli.host.package.poll-legacy-cost,cli.host.package.poll-notify-cost,cli.host.package.poll-subscribe-ready
 host-context-console	cli.host.package.context-console,cli.host.package.context-console-allows,cli.host.package.context-console-readonly
 host-context-http	cli.host.package.context-http,cli.host.package.context-http-coverage,cli.host.package.context-http-helpers,cli.host.package.context-http-readonly
 host-declaration-duplicate	cli.host.declaration.map-unique

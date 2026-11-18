@@ -3,29 +3,30 @@
 
 /// The module's checked package host contract (`hd.capabilities`).
 pub const CONTRACT: &[u8] = &[
-    1, 0, 0, 0, 2, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    2, 0, 0, 0, 2, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
     48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 11, 109, 97, 105, 110, 46, 69, 118, 101, 110, 116, 115, 39, 104, 100, 58, 112, 107, 103,
     58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
-    49, 0, 1, 2, 4, 110, 101, 120, 116, 4, 110, 101, 120, 116, 1, 0, 13, 9, 12, 1, 5, 67, 108, 105, 99, 107, 1, 3, 116, 97, 103, 3,
-    32, 0, 12, 1, 6, 67, 108, 111, 115, 101, 100, 0, 38, 115, 116, 100, 64, 97, 98, 105, 58, 49, 47, 111, 112, 115, 46, 65, 115, 121, 110, 99,
-    68, 105, 115, 112, 111, 115, 97, 98, 108, 101, 58, 58, 100, 105, 115, 112, 111, 115, 101, 7, 100, 105, 115, 112, 111, 115, 101, 1, 0, 0, 38, 108,
-    111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
-    48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 39, 104, 100, 58, 112, 107, 103, 58, 48, 48, 48, 48, 48,
-    48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 50, 1, 16, 112, 107, 103,
-    46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2, 6, 114, 101, 110, 100, 101, 114, 6, 114, 101, 110, 100, 101, 114, 1, 1, 8,
-    6, 3, 32, 0, 6, 101, 118, 101, 110, 116, 115, 6, 101, 118, 101, 110, 116, 115, 1, 0, 15, 39, 104, 100, 58, 112, 107, 103, 58, 48, 48, 48,
-    48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 49,
+    49, 0, 1, 2, 4, 110, 101, 120, 116, 4, 110, 101, 120, 116, 1, 0, 13, 9, 12, 5, 69, 118, 101, 110, 116, 1, 5, 67, 108, 105, 99, 107,
+    1, 3, 116, 97, 103, 3, 32, 0, 12, 10, 69, 118, 101, 110, 116, 69, 114, 114, 111, 114, 1, 6, 67, 108, 111, 115, 101, 100, 0, 38, 115, 116,
+    100, 64, 97, 98, 105, 58, 50, 47, 111, 112, 115, 46, 65, 115, 121, 110, 99, 68, 105, 115, 112, 111, 115, 97, 98, 108, 101, 58, 58, 100, 105, 115,
+    112, 111, 115, 101, 7, 100, 105, 115, 112, 111, 115, 101, 1, 0, 0, 38, 108, 111, 99, 97, 108, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 0, 12, 109, 97, 105, 110, 46, 83, 117, 114,
+    102, 97, 99, 101, 39, 104, 100, 58, 112, 107, 103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 50, 1, 16, 112, 107, 103, 46, 109, 97, 105, 110, 46, 83, 117, 114, 102, 97, 99, 101, 0, 2,
+    6, 114, 101, 110, 100, 101, 114, 6, 114, 101, 110, 100, 101, 114, 1, 1, 8, 99, 111, 109, 109, 97, 110, 100, 115, 8, 6, 3, 32, 0, 6, 101,
+    118, 101, 110, 116, 115, 6, 101, 118, 101, 110, 116, 115, 1, 0, 15, 39, 104, 100, 58, 112, 107, 103, 58, 48, 48, 48, 48, 48, 48, 48, 48, 48,
+    48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 49,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum EventsNextResultOk {
+pub enum Event {
     Click {
         tag: u32,
     },
 }
 
 #[allow(dead_code)]
-impl EventsNextResultOk {
+impl Event {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Click { tag: f0 } => {
@@ -43,12 +44,12 @@ impl EventsNextResultOk {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum EventsNextResultErr {
+pub enum EventError {
     Closed,
 }
 
 #[allow(dead_code)]
-impl EventsNextResultErr {
+impl EventError {
     fn wire_encode(self, e: &mut hd_run_wasmtime::native::wire::Encoder<'_>) -> hd_run_wasmtime::native::HostResult<()> {
         match self {
             Self::Closed => e.tag(0),
@@ -64,13 +65,13 @@ impl EventsNextResultErr {
 
 /// `local:00000000000000000000000000000000/main.Events`, a host handle trait.
 pub trait Events {
-    fn next(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Result<Option<EventsNextResultOk>, EventsNextResultErr>>;
+    fn next(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Result<Option<Event>, EventError>>;
     fn dispose(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<()>;
 }
 
 /// `local:00000000000000000000000000000000/main.Surface`.
 pub trait Surface {
-    fn render(&mut self, arg0: Vec<String>, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<u32>;
+    fn render(&mut self, commands: Vec<String>, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<u32>;
     fn events(&mut self, cx: hd_run_wasmtime::native::CallContext<'_>) -> hd_run_wasmtime::native::NativeCall<Box<dyn Events>>;
 }
 
@@ -82,10 +83,10 @@ pub fn dispatch_Events(provider: &mut dyn std::any::Any, method: usize, _args: &
     let provider = hd_run_wasmtime::native::wire::provider::<Box<dyn Events>>(provider)?;
     match method {
         0 => {
-            hd_run_wasmtime::native::wire::answer(provider.next(hd_run_wasmtime::native::CallContext::new()), |value: Result<Option<EventsNextResultOk>, EventsNextResultErr>, handles: &mut hd_run_wasmtime::native::Handles| {
+            hd_run_wasmtime::native::wire::answer(provider.next(hd_run_wasmtime::native::CallContext::new()), |value: Result<Option<Event>, EventError>, handles: &mut hd_run_wasmtime::native::Handles| {
                 let mut enc = hd_run_wasmtime::native::wire::Encoder::new(handles);
                 let e = &mut enc;
-                match value { Ok(x) => { e.tag(0); match x { None => e.tag(0), Some(x) => { e.tag(1); EventsNextResultOk::wire_encode(x, e)?; } } } Err(x) => { e.tag(1); EventsNextResultErr::wire_encode(x, e)?; } }
+                match value { Ok(x) => { e.tag(0); match x { None => e.tag(0), Some(x) => { e.tag(1); Event::wire_encode(x, e)?; } } } Err(x) => { e.tag(1); EventError::wire_encode(x, e)?; } }
                 Ok(enc.into_bytes())
             }, handles)
         }

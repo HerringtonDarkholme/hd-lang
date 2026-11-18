@@ -2298,7 +2298,7 @@ hd run --engine node
 
 1. r[cli.host.package.entry] A package-declared host trait named by `main` belongs to that program's selected runtime profile.
 2. r[cli.host.package.provider-hosts] Package host providers run on JavaScript hosts, and on Wasmtime as [native providers](#native-package-providers) that an embedder registers.
-3. r[cli.host.package.native-unregistered] Wasmtime refuses a required package host trait with no registered native provider before guest initialization, naming the package, version and trait.
+3. r[cli.host.package.native-provider-missing] Wasmtime refuses a required package host trait with no registered native provider before guest initialization, naming the package, version and trait. Error: `native-provider-missing`.
 4. r[cli.host.package.no-fallback] A host unable to supply a package capability must not substitute another engine or provider.
 5. r[cli.host.package.manifest-consent] Loading a required package provider needs an explicit `true` entry for its source trait path in the app's `[capabilities]` table.
 6. r[cli.host.package.no-flag-consent] A `--cap` flag cannot replace missing manifest consent for a package provider.
@@ -2379,7 +2379,7 @@ hd build --engine wasmtime
 4. r[cli.host.package.native-wasm-identity] Writing the Rust companion leaves `NAME.wasm` byte-identical to the module a JavaScript-engine build writes.
 5. r[cli.host.package.native-registration] An embedder passes its native providers, by value, in one registry when it instantiates the module.
 6. r[cli.host.package.native-no-discovery] An implementation never discovers or loads a dynamic library for a package host trait.
-7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-unregistered`](#r-cli.host.package.native-unregistered). Its message says that a native provider needs a Rust program that embeds the Wasmtime host.
+7. r[cli.host.package.native-cli] The `hd` command registers no native provider, so on Wasmtime it refuses every module requiring a package host trait, by [`cli.host.package.native-provider-missing`](#r-cli.host.package.native-provider-missing). Its message says that a native provider needs a Rust program that embeds the Wasmtime host.
 8. r[cli.host.package.native-cli-node] Without an `--engine` flag, `hd run` and `hd FILE.wasm` run a module requiring a package host trait on Node, whichever engine `HD_ENGINE` or the default names.
 9. r[cli.host.package.native-cli-startup] That choice is made from the module's package host contract before the module loads, and the run never changes engine afterwards, by [`cli.host.package.no-fallback`](#r-cli.host.package.no-fallback).
 10. r[cli.host.package.native-cli-explicit] `hd --engine wasmtime` still refuses such a module, by [`cli.host.package.native-cli`](#r-cli.host.package.native-cli).
@@ -2395,6 +2395,9 @@ hd build --engine wasmtime
 20. r[cli.host.package.native-handle-release] Releasing the last hd reference to a returned native handle drops its Rust value without calling a provider method.
 21. r[cli.host.package.native-handle-check] A handle argument that its instance never issued, already released, or issued for another handle trait calls no provider method. Boundary failure: `host-contract`.
 22. r[cli.host.package.native-call-failure] A native codec failure or provider failure during a call is a host-contract failure. Boundary failure: `host-contract`.
+23. r[cli.host.package.pending-uncompleted] A package provider that does not complete a suspending call leaves the guest waiting on Node and Wasmtime.
+24. r[cli.host.package.native-completion-dropped] Dropping a native pending call's completion sender without completing it does not complete the call.
+25. r[cli.host.package.native-source-names] Generated Rust type and parameter names derive from their source names, with Rust identifier escaping and disambiguation when needed.
 
 > **Why.** A native provider is linked into the trusted embedder and keeps the
 > process's authority. Registration selects native code and grants the guest

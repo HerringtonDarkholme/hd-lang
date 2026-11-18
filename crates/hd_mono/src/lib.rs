@@ -105,6 +105,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn ret(&self, def: DefId) -> Option<Ty>;
     /// The declared parameter types (`self` first for a method).
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
+    /// Source parameter names (`self` first), when declaration metadata exists.
+    fn parameter_names(&self, _def: DefId) -> Option<Vec<String>> {
+        None
+    }
+
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
     /// Whether the selected parameter representation uses the owned cold ABI.
@@ -204,6 +209,15 @@ pub trait ProgramEnv: LayoutEnv {
     /// a prelude name as written, any other declaration by its absolute
     /// qualified name.
     fn type_name(&self, def: DefId) -> String;
+    /// The source declaration name, without its package or module path.
+    fn source_type_name(&self, def: DefId) -> String {
+        self.type_name(def)
+            .rsplit(['.', '/'])
+            .next()
+            .unwrap_or("")
+            .to_owned()
+    }
+
     /// The same declaration as it prints (trait.typeid.name.*): a package
     /// root by its manifest name, a single-file program's by nothing.
     fn printed_name(&self, def: DefId) -> String;

@@ -104,7 +104,7 @@ impl WasmtimeEngine {
     /// module's contract to the registration of its nominal identity before
     /// anything is linked or the guest starts, and refuses a missing,
     /// mismatched, duplicate or unrequired registration naming the trait
-    /// (`native-unregistered`, `native-mismatch`, `duplicate`). A
+    /// (`native-provider-missing`, `native-mismatch`, `duplicate`). A
     /// registered trait runs only when `setup.grants.consent`, the app
     /// manifest's consent, grants it (`native-two-keys`): `hd` fills it from
     /// `hd.toml`, and an embedder from its own manifest with

@@ -112,16 +112,16 @@ test("package codecs own their data and preserve names including __proto__", () 
 });
 
 test("package contract reader rejects truncated, noncanonical and unknown versions", () => {
-  const empty = new Uint8Array([1, 0, 0, 0, 0]);
+  const empty = new Uint8Array([2, 0, 0, 0, 0]);
   assert.deepEqual(readPackageContract(empty), []);
   for (let count = 0; count < empty.length; count++) {
     assert.throws(() => readPackageContract(empty.subarray(0, count)), HostContract);
   }
   for (const bytes of [
-    [2, 0, 0, 0, 0],
-    [1, 0, 0, 0, 128, 0],
-    [1, 0, 0, 0, 0, 0],
-    [1, 0, 0, 0, 255, 255, 255, 255, 15],
+    [1, 0, 0, 0, 0],
+    [2, 0, 0, 0, 128, 0],
+    [2, 0, 0, 0, 0, 0],
+    [2, 0, 0, 0, 255, 255, 255, 255, 15],
   ]) {
     assert.throws(() => readPackageContract(new Uint8Array(bytes)), HostContract);
   }
@@ -196,7 +196,7 @@ function operationHost(
     .leb(suspends ? 1 : 0)
     .leb(0)
     .leb(6);
-  const contract = new Uint8Array([1, 0, 0, 0, ...error.done()]);
+  const contract = new Uint8Array([2, 0, 0, 0, ...error.done()]);
   const custom = new Uint8Array([...new Enc().str("hd.capabilities").done(), ...contract]);
   const memory = new Enc().leb(1).leb(0).leb(1).done();
   const exported = new Enc()

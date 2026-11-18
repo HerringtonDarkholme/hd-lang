@@ -13208,6 +13208,22 @@ impl ProgramEnv for Env<'_> {
         }
         None
     }
+    fn parameter_names(&self, def: DefId) -> Option<Vec<String>> {
+        self.sig(def).map(|s| {
+            s.params
+                .iter()
+                .map(|(name, _)| {
+                    let text = self.run.names().text(*name).to_owned();
+                    if text.is_empty() {
+                        "_".to_owned()
+                    } else {
+                        text
+                    }
+                })
+                .collect()
+        })
+    }
+
     fn params(&self, def: DefId) -> Option<Vec<Ty>> {
         if let Some(b) = self.default_body(def) {
             return Some(
@@ -13458,6 +13474,9 @@ impl ProgramEnv for Env<'_> {
         // that shares its name with an earlier one keeps its own module
         // root here (`module.package.identity-part`).
         format!("{}.{name}", module.replace('-', "_"))
+    }
+    fn source_type_name(&self, def: DefId) -> String {
+        self.run.names().display_name(def).to_owned()
     }
     fn printed_name(&self, def: DefId) -> String {
         let names = self.run.names();
@@ -14315,11 +14334,12 @@ pub fn main!() -> void $ Console + Server:
             ]
         );
         assert!(
-            matches!(&interface.methods[0].params[0], hd_host_abi::schema::Value::Record(fields) if fields[0].name == "text" && fields[1].name == "count")
+            matches!(&interface.methods[0].params[0].value, hd_host_abi::schema::Value::Record(name, fields) if name == "Message" && fields[0].name == "text" && fields[1].name == "count")
         );
         assert!(
-            matches!(&interface.methods[3].result, hd_host_abi::schema::Value::Result(_,error) if matches!(error.as_ref(), hd_host_abi::schema::Value::Enum(variants) if variants[0].name == "Broken" && variants[0].fields[0].name == "reason"))
+            matches!(&interface.methods[3].result, hd_host_abi::schema::Value::Result(_,error) if matches!(error.as_ref(), hd_host_abi::schema::Value::Enum(name, variants) if name == "Problem" && variants[0].name == "Broken" && variants[0].fields[0].name == "reason"))
         );
+        assert_eq!(interface.methods[0].params[0].name, "message");
         assert!(artifacts.javascript.contains("runtime.record"));
         let cached = build_packages(&host, "app", &packages, &goal);
         assert!(!cached.diags.has_errors(), "{}", cached.render());
@@ -14487,7 +14507,8 @@ pub fn main!() -> void $ Console + Server:
             .find(|m| m.member == "echo")
             .unwrap();
         assert!(echo.name.ends_with("/main.Base::echo"));
-        assert_eq!(echo.params, [hd_host_abi::schema::Value::String]);
+        assert_eq!(echo.params.len(), 1);
+        assert_eq!(echo.params[0].value, hd_host_abi::schema::Value::String);
         let handle = contract.interfaces.iter().find(|i| i.handle).unwrap();
         assert!(
             handle
