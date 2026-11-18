@@ -98,8 +98,9 @@ impl BodyCx<'_> {
 /// The facts body-unit passes write for one body.
 #[derive(Default)]
 pub struct BodyFacts {
-    /// `FactId::ValueFlow`.
-    pub value_flow: Option<ValueFlow>,
+    /// `FactId::ValueFlow`, populated before either reader by the validated
+    /// pipeline (see `a_body_fact_reader_runs_only_where_its_writer_ran`).
+    pub value_flow: ValueFlow,
     /// `FactId::KnownCallees`: per `CallValue`, its callee's source.
     pub known_callees: Vec<(u32, Source)>,
     /// `FactId::ClosureSpec`.
@@ -171,7 +172,7 @@ fn charge_body(body: &Body, fuel: &mut Fuel) -> StageResult<()> {
 /// `value_flow`: the body's data flow (`ValueFlow`).
 fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
     charge_body(cx.body, fuel)?;
-    facts.value_flow = Some(ValueFlow::new(cx.body));
+    facts.value_flow = ValueFlow::new(cx.body);
     Ok(())
 }
 
@@ -180,11 +181,7 @@ fn value_flow(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageR
 /// (`ValueFlow::made`) has that instruction as its callee's source.
 /// Collection makes the call direct where that instruction is a closure.
 fn devirt_known(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
-    // No pipeline reaches this without the fact: test
-    // `a_body_fact_reader_runs_only_where_its_writer_ran`.
-    let Some(flow) = &facts.value_flow else {
-        return Ok(());
-    };
+    let flow = &facts.value_flow;
     charge_body(cx.body, fuel)?;
     let body = cx.body;
     for i in 0..body.len() {
@@ -217,11 +214,7 @@ fn devirt_known(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> Stag
 /// - Per `CallValue` of a parameter, `Source::Param`, which is direct in an
 ///   instance specialized on it.
 fn closure_spec(cx: &BodyCx<'_>, facts: &mut BodyFacts, fuel: &mut Fuel) -> StageResult<()> {
-    // No pipeline reaches this without the fact: test
-    // `a_body_fact_reader_runs_only_where_its_writer_ran`.
-    let Some(flow) = &facts.value_flow else {
-        return Ok(());
-    };
+    let flow = &facts.value_flow;
     charge_body(cx.body, fuel)?;
     let (body, env, def) = (cx.body, cx.env, cx.def);
     let n = flow.param_count();

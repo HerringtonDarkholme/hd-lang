@@ -6,6 +6,7 @@ use hd_tir::ir::{Body, Tag};
 
 /// What `devirt_known` and `closure_spec` read of a body's data flow
 /// (options A1 and A2 of `crates/hd_opt/DESIGN.md` (known closure calls)).
+#[derive(Default)]
 pub struct ValueFlow {
     /// Per local: how many `Store`s write it or a field of it, and the last
     /// one's value (`u32::MAX` for a field's).
