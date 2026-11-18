@@ -26,7 +26,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{Enc, Is, Pass, Test, num, vals};
+use crate::layout::{Enc, Is, IsOps as _, LeafOps as _, Pass, Test, num, vals};
 use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 
@@ -55,7 +55,7 @@ mod list;
 mod loan;
 mod map;
 mod promote;
-pub use promote::{Settled, lent_referent, promotable_referent, rooted_referent, settled};
+pub use promote::{Settled, settled};
 pub(crate) mod ref_slots;
 mod refs;
 mod row;
@@ -467,7 +467,7 @@ fn body_func<'a>(
     let frame_counts = suspending
         && plocals
             .iter()
-            .any(|&local| crate::frame_referent_type(em.pool(), em.env(), b.local_ty[local]));
+            .any(|&local| crate::layout::holds_local_ref(em.pool(), em.env(), b.local_ty[local]));
     em.counting = em.counts_anything() || frame_counts || once.is_some() || reentry.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_stable();

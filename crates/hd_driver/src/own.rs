@@ -197,7 +197,7 @@ pub(super) struct Summaries {
 /// instance to get a body of its own ([`Env::inlined_instance`]); past it
 /// the item's generic body serves. The passes' reference and count facts
 /// cost one memo entry per distinct type (`Run::own_types`), but the
-/// backend's layout, which the passes also ask (`hd_wasm` `Mem::leaves`,
+/// layout, which the passes also ask (`hd_layout` `Mem::leaves`,
 /// `vals`, `in_place_parts`), holds one entry per part held by value, and
 /// a type that doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
 /// exponentially many: owning its instances would not end before
@@ -469,7 +469,7 @@ impl OwnCx for Env<'_> {
         if let Some(hit) = lock(&self.run.own_types).get(ty).and_then(|f| f.collection) {
             return hit;
         }
-        let answer = hd_wasm::copies_collection_type(&self.run.pool, self, ty);
+        let answer = hd_layout::facts::copies_collection_type(&self.run.pool, self, ty);
         self.ref_facts(ty);
         if let Some(f) = lock(&self.run.own_types).get_mut(ty) {
             f.collection = Some(answer);
@@ -513,9 +513,9 @@ impl OwnCx for Env<'_> {
 
     fn own_drop(&self, ty: Ty) -> Tri {
         // Each newtype layer down to `strip`'s base, then the base: one
-        // `strip_newtype` step each, as `hd_wasm::layout::newtype_layers`.
+        // `strip_newtype` step each, as `hd_layout::newtype_layers`.
         let pool = &self.run.pool;
-        let base = hd_wasm::strip_type(pool, self, ty);
+        let base = hd_layout::strip(pool, self, ty);
         let mut layer = ty;
         loop {
             let TyData::Adt { def, args } = pool.get(layer) else {
@@ -672,15 +672,15 @@ impl OwnCx for Env<'_> {
     }
 
     fn may_frame_referent(&self, ty: Ty) -> bool {
-        self.is_open(ty) || hd_wasm::frame_referent_type(&self.run.pool, self, ty)
+        self.is_open(ty) || hd_layout::holds_local_ref(&self.run.pool, self, ty)
     }
 
     fn single_counted_address(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm::single_counted_address_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_layout::facts::single_counted_address_type(&self.run.pool, self, ty)
     }
 
     fn thin_counted_reference(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm::thin_counted_reference_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_layout::facts::thin_counted_reference_type(&self.run.pool, self, ty)
     }
 
     fn shared_place(&self, b: &Body, word: u32) -> bool {
@@ -748,7 +748,7 @@ impl OwnCx for Env<'_> {
 
     fn reference_target(&self, ty: Ty) -> Option<Ty> {
         (!self.is_open(ty))
-            .then(|| hd_wasm::reference_target_type(&self.run.pool, self, ty))
+            .then(|| hd_layout::facts::reference_target_type(&self.run.pool, self, ty))
             .flatten()
     }
 
@@ -759,7 +759,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn plain_reference(&self, ty: Ty) -> bool {
-        !self.is_open(ty) && hd_wasm::plain_reference_type(&self.run.pool, self, ty)
+        !self.is_open(ty) && hd_layout::facts::plain_reference_type(&self.run.pool, self, ty)
     }
 
     fn plain_result(&self, callee: &Callee) -> bool {
@@ -887,7 +887,7 @@ impl OwnCx for Env<'_> {
         let pool = &self.run.pool;
         let TyData::Fn {
             params, suspends, ..
-        } = pool.get(hd_wasm::strip_type(pool, self, fn_ty))
+        } = pool.get(hd_layout::strip(pool, self, fn_ty))
         else {
             return Pass::Lent;
         };
@@ -912,7 +912,7 @@ impl OwnCx for Env<'_> {
 
     fn function_lends_counts(&self, fn_ty: Ty, k: usize, n: usize) -> bool {
         let pool = &self.run.pool;
-        let TyData::Fn { params, .. } = pool.get(hd_wasm::strip_type(pool, self, fn_ty)) else {
+        let TyData::Fn { params, .. } = pool.get(hd_layout::strip(pool, self, fn_ty)) else {
             return false;
         };
         let params = pool.list_items(params);
@@ -1094,26 +1094,26 @@ impl OwnCx for Env<'_> {
             && let TyData::Adt { def, .. } =
                 self.run
                     .pool
-                    .get(hd_wasm::strip_type(&self.run.pool, self, ty))
+                    .get(hd_layout::strip(&self.run.pool, self, ty))
             && self.has_drop(def)
         {
             out.clear();
             return false;
         }
-        hd_wasm::in_place_parts(&self.run.pool, self, ty, variant, out)
+        hd_layout::facts::in_place_parts(&self.run.pool, self, ty, variant, out)
     }
 
     fn empty_variants(&self, ty: Ty, out: &mut Vec<bool>) -> bool {
         out.clear();
         if self.is_open(ty)
             || matches!(
-                self.run.pool.get(hd_wasm::strip_type(&self.run.pool, self, ty)),
+                self.run.pool.get(hd_layout::strip(&self.run.pool, self, ty)),
                 TyData::Adt { def, .. } if self.has_drop(def)
             )
         {
             return true;
         }
-        hd_wasm::in_place_empty_variants(&self.run.pool, self, ty, out, |field| {
+        hd_layout::facts::in_place_empty_variants(&self.run.pool, self, ty, out, |field| {
             self.counted(field)
         });
         true
@@ -1133,7 +1133,7 @@ impl OwnCx for Env<'_> {
 
     fn holds_coll(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
-        self.is_open(ty) || hd_mono::holds_coll(pool, self, hd_wasm::strip_type(pool, self, ty))
+        self.is_open(ty) || hd_mono::holds_coll(pool, self, hd_layout::strip(pool, self, ty))
     }
 
     fn holds_ref(&self, ty: Ty) -> bool {
@@ -1147,7 +1147,7 @@ impl OwnCx for Env<'_> {
     fn lends(&self, from: Ty, to: Ty) -> bool {
         !self.is_open(from)
             && !self.is_open(to)
-            && hd_wasm::lending_types(&self.run.pool, self, from, to)
+            && hd_layout::facts::lending_types(&self.run.pool, self, from, to)
     }
 
     fn counted_refs_only(&self, ty: Ty) -> bool {
@@ -1207,12 +1207,12 @@ impl OwnCx for Env<'_> {
 
 impl Env<'_> {
     /// Whether a value of `t` holds a `std.rt.Drop` value
-    /// ([`hd_wasm::holds_drop_type`]), over the run's memo: the growing
+    /// ([`hd_layout::holds_drop_in`]), over the run's memo: the growing
     /// types of many bodies (`W^i` in the instance for level `i` of a
     /// generic nest) cost each new type once, not its depth (#1912).
     pub(crate) fn holds_drop_value(&self, t: Ty) -> bool {
         let mut memo = lock(&self.run.drop_types);
-        hd_wasm::holds_drop_type(&self.run.pool, self, t, &mut memo)
+        hd_layout::holds_drop_in(&self.run.pool, self, t, &mut memo)
     }
 }
 
@@ -1752,7 +1752,7 @@ impl Env<'_> {
     }
 
     /// Function values lend Copy inputs and the existing reference-variance
-    /// inputs (`hd_wasm::function_input_borrows`). Adapters and closure entry
+    /// inputs (`hd_layout::holds_thin_ref`). Adapters and closure entry
     /// acquire any count their concrete body owns. Other inputs keep their
     /// ownership transfer, including noncopy resources.
     pub(super) fn function_parameter(&self, t: Ty) -> Pass {
@@ -1790,7 +1790,7 @@ impl Env<'_> {
             return hit;
         }
         let mode = self.classify_parameter(t, true);
-        let physical = hd_wasm::strip_type(&self.run.pool, self, t);
+        let physical = hd_layout::strip(&self.run.pool, self, t);
         let answer = FunctionInput {
             mode,
             transfer: !matches!(self.run.pool.get(physical), TyData::Ref { .. })
@@ -1816,7 +1816,7 @@ impl Env<'_> {
             Mode::Uncounted
         } else if function
             && (self.copies(t) == Tri::Yes
-                || !self.is_open(t) && hd_wasm::function_input_borrows(&self.run.pool, self, t))
+                || !self.is_open(t) && hd_layout::holds_thin_ref(&self.run.pool, self, t))
         {
             Mode::Lent
         } else {
@@ -1903,7 +1903,7 @@ impl Env<'_> {
     /// The borrowed cold convention still transfers inline Drop
     /// values. An open value parameter may become one at instantiation.
     /// The walk follows the types `t` holds by value, as the backend lays
-    /// them out (`hd_wasm::value_part_types`): tuple and union
+    /// them out (`hd_layout::facts::value_part_types`): tuple and union
     /// members, struct fields, and every value enum's payloads, `Option`'s
     /// as any other's. A self-recursive enum's cell, a list or a map is a
     /// counted object the frame retains by its count.
@@ -1914,7 +1914,7 @@ impl Env<'_> {
         let mut seen = hd_base::HashSet::default();
         let mut work = vec![t];
         while let Some(t) = work.pop() {
-            let t = hd_wasm::strip_type(pool, self, t);
+            let t = hd_layout::strip(pool, self, t);
             if !seen.insert(t) {
                 continue;
             }
@@ -1926,7 +1926,7 @@ impl Env<'_> {
                 // Only a ?Copy parameter needs a possible ownership transfer.
                 TyData::Param(_) if self.copies(t) != Tri::Yes => return true,
                 TyData::Assoc { .. } | TyData::Opaque { .. } => return true,
-                _ => work.extend(hd_wasm::value_part_types(pool, self, t)),
+                _ => work.extend(hd_layout::facts::value_part_types(pool, self, t)),
             }
         }
         false
@@ -1945,8 +1945,8 @@ impl Env<'_> {
         // is held across them.
         let pool = &self.run.pool;
         let facts = (
-            hd_wasm::counted_type(pool, self, t),
-            hd_wasm::reference_ownership(pool, self, t),
+            hd_layout::facts::counted_type(pool, self, t),
+            hd_layout::facts::reference_ownership(pool, self, t),
         );
         let mut memo = lock(&self.run.own_types);
         ref_facts(pool, self.run.known.ptr, t, &mut memo);
@@ -1991,7 +1991,7 @@ impl Env<'_> {
             .flatten();
         // Each type's layout once per run on this thread, not once per
         // body or per query of it.
-        let (refused, summary) = hd_wasm::with_layout_cache(self.run.layout_key, || {
+        let (refused, summary) = hd_layout::cached_for_run(self.run.layout_key, || {
             let refused = hd_tir::own::run(&mut body, self, &mut scratch);
             let summary = (summarize && refused.is_ok())
                 .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
@@ -2370,7 +2370,7 @@ impl InlineEnv for Env<'_> {
         // argument reads that value out of the caller's place, and another
         // use of the place can make the ownership passes keep that read as
         // a copy. Keep such a reader's reference instead.
-        hd_wasm::lent_referent(&self.run.pool, self, t)
+        hd_layout::facts::lent_referent(&self.run.pool, self, t)
             .filter(|&referent| self.copies(referent) == Tri::Yes)
     }
 
@@ -2378,14 +2378,15 @@ impl InlineEnv for Env<'_> {
     /// that is not `Copy`, whose by-value binding the passes could only
     /// keep by borrowing, which a later copy in the same body may refuse.
     fn rooted_referent(&self, t: Ty) -> Option<Ty> {
-        hd_wasm::rooted_referent(&self.run.pool, self, t).or_else(|| {
-            hd_wasm::lent_referent(&self.run.pool, self, t).filter(|&r| self.copies(r) == Tri::No)
+        hd_layout::facts::rooted_referent(&self.run.pool, self, t).or_else(|| {
+            hd_layout::facts::lent_referent(&self.run.pool, self, t)
+                .filter(|&r| self.copies(r) == Tri::No)
         })
     }
 
     fn counted_referent(&self, t: Ty) -> bool {
-        hd_wasm::lent_referent(&self.run.pool, self, t).is_some()
-            && hd_wasm::promotable_referent(&self.run.pool, self, t).is_none()
+        hd_layout::facts::lent_referent(&self.run.pool, self, t).is_some()
+            && hd_layout::facts::promotable_referent(&self.run.pool, self, t).is_none()
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
@@ -3341,7 +3342,7 @@ impl Env<'_> {
             body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
-        let kept = hd_wasm::with_layout_cache(self.run.layout_key, || {
+        let kept = hd_layout::cached_for_run(self.run.layout_key, || {
             hd_tir::own::run(&mut body, self, &mut scratch).ok()?;
             hd_tir::own::summary(&body, self, &scratch, None).map(|s| s.kept)
         });
@@ -3415,7 +3416,7 @@ impl Env<'_> {
 
     /// Release (#1151): `def`'s promoted copy at `args` and the parameters
     /// it takes by value: each `&T` parameter whose referent at `args`
-    /// is small (`hd_wasm::lent_referent`; a counted one is lent
+    /// is small (`hd_layout::facts::lent_referent`; a counted one is lent
     /// with no count)
     /// and that the owned body only reads through
     /// (`hd_tir::own::promote::read_only_params`). With `exclusive`, the
@@ -3477,8 +3478,9 @@ impl Env<'_> {
             let t = b.local_ty[l as usize];
             // A counted referent is lent with no count, which needs its
             // local alive over the call.
-            let counted = hd_wasm::promotable_referent(pool, self, t).is_none();
-            if hd_wasm::lent_referent(pool, self, t).is_some() && (!counted || held & (1 << k) != 0)
+            let counted = hd_layout::facts::promotable_referent(pool, self, t).is_none();
+            if hd_layout::facts::lent_referent(pool, self, t).is_some()
+                && (!counted || held & (1 << k) != 0)
             {
                 candidates |= 1 << k;
             }

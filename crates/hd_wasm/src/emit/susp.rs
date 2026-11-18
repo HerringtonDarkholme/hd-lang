@@ -19,6 +19,7 @@ use wasm_encoder::BlockType;
 
 use super::scope::Exit;
 use super::{Ctl, Em};
+use crate::layout::{IsOps as _, LeafOps as _};
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
 

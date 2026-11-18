@@ -6,83 +6,10 @@
 use hd_base::{HashMap, InstId};
 use hd_mono::{Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Ref, Tag};
-use hd_types::Ty;
 
 use super::Em;
 use crate::Input;
-use crate::layout::{Kind, kind};
 use crate::module::Module;
-
-/// The referent of `t` when a reference of type `t` may be passed by
-/// value (§23.40): a thin, read-only reference to a value held in
-/// locals with no counted leaf and at most four Wasm values, such as a
-/// number, a `bool`, a `char`, or a small struct or tuple of them.
-#[must_use]
-pub fn promotable_referent(
-    pool: &hd_types::InternPool,
-    env: &dyn hd_mono::ProgramEnv,
-    t: Ty,
-) -> Option<Ty> {
-    lent_referent(pool, env, t).filter(|&target| crate::layout::walk(pool, env, target).is_none())
-}
-
-/// [`promotable_referent`], counted parts allowed: the referent of a
-/// reference a promoted copy may take by value, lent with no count
-/// (§23.40), such as a `string` or a small struct holding one.
-#[must_use]
-pub fn lent_referent(
-    pool: &hd_types::InternPool,
-    env: &dyn hd_mono::ProgramEnv,
-    t: Ty,
-) -> Option<Ty> {
-    small_referent(pool, env, t).filter(|&r| !crate::layout::holds_drop(pool, env, r))
-}
-
-/// The small referent of `t`, as [`lent_referent`] gives it, that holds
-/// a value with a `std.rt.Drop` (a `Buffer`, a `UniqList`): a value no
-/// copy may take but where nothing can drop it while the copy reads it,
-/// through its caller's reference parameter (`hd_opt::inline`).
-#[must_use]
-pub fn rooted_referent(
-    pool: &hd_types::InternPool,
-    env: &dyn hd_mono::ProgramEnv,
-    t: Ty,
-) -> Option<Ty> {
-    small_referent(pool, env, t).filter(|&r| crate::layout::holds_drop(pool, env, r))
-}
-
-fn small_referent(pool: &hd_types::InternPool, env: &dyn hd_mono::ProgramEnv, t: Ty) -> Option<Ty> {
-    let Kind::Ref {
-        target, fat: false, ..
-    } = kind(pool, env, t)
-    else {
-        return None;
-    };
-    if crate::layout::ref_mutable(pool, env, t) || !matches!(kind(pool, env, target), Kind::Value) {
-        return None;
-    }
-    let n = crate::layout::vals(pool, env, target).ok()?.len();
-    if !(1..=4).contains(&n) {
-        return None;
-    }
-    // The layout's target has its newtypes erased; the promoted value keeps
-    // the declared referent, so a path through it steps into a newtype's
-    // one field, as `i32(*m)` with `m: &Meters` does.
-    Some(declared_referent(pool, env, t).unwrap_or(target))
-}
-
-/// The type a reference type `t` refers to, as declared: newtypes kept.
-fn declared_referent(
-    pool: &hd_types::InternPool,
-    env: &dyn hd_mono::ProgramEnv,
-    t: Ty,
-) -> Option<Ty> {
-    let t = crate::layout::strip(pool, env, t);
-    match pool.get(t) {
-        hd_types::TyData::Ref { inner, .. } => Some(inner),
-        _ => None,
-    }
-}
 
 /// Final instance-TIR records; boundary annotations do not clone a body's
 /// instruction columns. Sibling sub-bodies share their one TIR plan.
@@ -211,7 +138,8 @@ pub fn settled(input: &Input<'_>) -> Settled {
                     compares
                         && matches!(ct.kind, TargetKind::Builtin { .. })
                         && hd_tir::own::promote::promotable_ref(b, a as usize, i)
-                        && promotable_referent(pool, env, b.ty[a as usize]).is_some()
+                        && hd_layout::facts::promotable_referent(pool, env, b.ty[a as usize])
+                            .is_some()
                 }));
             }
         }

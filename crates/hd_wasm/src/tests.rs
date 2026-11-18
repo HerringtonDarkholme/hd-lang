@@ -310,6 +310,25 @@ fn string_area() -> Elem {
     }
 }
 
+/// `Shape: Circle(f64); Rect(f64, f64); Tri(i32, i32, i32); Empty`:
+/// `Rect` puts its first `f64`'s halves in `Tri`'s `i32`s at 8 and 12,
+/// so the values store in any order.
+#[test]
+fn a_variant_writes_the_bytes_it_shares_with_another() {
+    let f64m = crate::layout::Mem::one(Val::F64, 8, false);
+    let i32m = crate::layout::Mem::one(Val::I32, 4, false);
+    let shape = crate::layout::flat_of(&[
+        vec![f64m.clone()],
+        vec![f64m.clone(), f64m],
+        vec![i32m.clone(), i32m.clone(), i32m],
+        vec![],
+    ])
+    // ruled out: past the value-size limit; six scalars fit.
+    .expect("fits");
+    let rect = crate::layout::variant_steps(&shape, 1);
+    assert!(rect[2].is_some() && rect[4].is_some() && rect[1].is_none());
+}
+
 /// A record of every kind of boundary type the codecs build.
 fn every_boundary_type() -> LTy {
     let string = crate::layout::Mem::string();

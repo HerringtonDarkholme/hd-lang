@@ -4,6 +4,7 @@
 //! rewrites share the same compaction.
 
 use super::{Func, I, Ins, Remap};
+use crate::module::WasmVal as _;
 use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 

@@ -2842,7 +2842,7 @@ is worth deciding only if they are hot.
     returned from the copies and pins before they did any work.
 
     The passes now run with the backend's layout cache in place
-    (`hd_wasm::with_layout_cache`, a link's when they run inside
+    (`hd_layout::cached_for_run`, a link's when they run inside
     one, else the run's on each thread, which the run's bodies share
     since #2030): `OwnCx::counted` walked each new type's layout from scratch
     outside a link, so a chain of 1,500 types held by value cost its cube

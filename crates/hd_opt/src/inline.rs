@@ -130,13 +130,13 @@ pub trait InlineEnv: ProgramEnv {
         targs: TyList,
     ) -> Option<hd_tir::inline::Chosen>;
     /// The referent of a reference of type `t` that an inlined copy may
-    /// take by value (`hd_wasm::lent_referent`, counted parts
+    /// take by value (`hd_layout::facts::lent_referent`, counted parts
     /// allowed), in every build (#1151, #1167). The environment also
     /// proves that the referent may be copied: its small layout alone
     /// does not prove that. `None` keeps a reader's reference instead.
     fn lent_referent(&self, t: Ty) -> Option<Ty>;
     /// The referent of a reference of type `t` that holds a value with a
-    /// `std.rt.Drop` (`hd_wasm::rooted_referent`): an inlined copy
+    /// `std.rt.Drop` (`hd_layout::facts::rooted_referent`): an inlined copy
     /// never takes it by value; it keeps the reference in release, and in
     /// dev the call stays a call.
     fn rooted_referent(&self, t: Ty) -> Option<Ty>;

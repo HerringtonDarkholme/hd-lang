@@ -17,7 +17,7 @@ use hd_mono::{CallTarget, Target};
 use hd_types::Ty;
 
 use crate::Input;
-use crate::layout::{Leaf, Pass, Walk};
+use crate::layout::{Leaf, LeafOps as _, Pass, Walk};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
 use crate::rt::{Helper, own_arg, retain_call, walk_code};
 

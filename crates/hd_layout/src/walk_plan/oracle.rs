@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 // Test-only reference for the former owned-tree semantics.
-use crate::layout::Discr;
+use crate::Discr;
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Walk {
     /// Value `k` is an address in a counted object, or in static data: a

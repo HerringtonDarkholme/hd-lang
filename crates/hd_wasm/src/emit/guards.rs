@@ -90,6 +90,7 @@ use hd_tir::ir::{NONE, PrimOp, Proj, ReadMode, Ref, Root, Tag, local_flags};
 use hd_types::Ty;
 
 use super::Em;
+use crate::layout::LeafOps as _;
 use crate::module::Val;
 
 /// The longest chain of local stores, coercions and breaks a value is

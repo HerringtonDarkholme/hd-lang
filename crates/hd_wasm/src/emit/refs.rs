@@ -19,7 +19,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, Leaf, Part, Walk, mem as mem_of, walk};
+use crate::layout::{Kind, Leaf, LeafOps as _, Part, Walk, mem as mem_of, walk};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, LIST_ELEMS, LIST_LEN, RefLayout};
 
@@ -486,7 +486,7 @@ impl Em<'_, '_, '_> {
             return Ok(false);
         };
         let mut fields = Vec::new();
-        if !crate::in_place_parts(self.pool(), self.env(), t, variant, &mut fields) {
+        if !hd_layout::facts::in_place_parts(self.pool(), self.env(), t, variant, &mut fields) {
             return Ok(false);
         }
         let step = |f: u32| match variant {

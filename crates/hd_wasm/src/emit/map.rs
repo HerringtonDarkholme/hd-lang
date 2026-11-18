@@ -15,7 +15,7 @@ use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
-use crate::layout::{coll_kind, payload_mem, strip};
+use crate::layout::{LeafOps as _, coll_kind, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;

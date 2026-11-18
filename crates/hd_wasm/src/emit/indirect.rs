@@ -84,7 +84,7 @@ use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
-use crate::layout::{Mem, ReleasePlan, ReleaseStep, by_address};
+use crate::layout::{LeafOps as _, Mem, ReleasePlan, ReleaseStep, by_address};
 use crate::module::{Func, Global, Module, Part, STACK, Sym, Val};
 use crate::op::Op as I;
 use crate::rt::{DropCall, HookPlan, HookStep};

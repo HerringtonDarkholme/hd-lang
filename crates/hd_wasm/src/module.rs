@@ -323,28 +323,15 @@ impl Import {
     }
 }
 
-/// A Wasm value type of this backend: scalars only, since every reference
-/// is an `i32` address.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Val {
-    I32,
-    I64,
-    F32,
-    F64,
+pub use hd_layout::Val;
+
+/// A scalar class's Wasm value type.
+pub trait WasmVal {
+    fn wasm(self) -> ValType;
 }
 
-impl Val {
-    pub(crate) const fn index(self) -> usize {
-        match self {
-            Self::I32 => 0,
-            Self::I64 => 1,
-            Self::F32 => 2,
-            Self::F64 => 3,
-        }
-    }
-
-    #[must_use]
-    pub const fn wasm(self) -> ValType {
+impl WasmVal for Val {
+    fn wasm(self) -> ValType {
         match self {
             Val::I32 => ValType::I32,
             Val::I64 => ValType::I64,

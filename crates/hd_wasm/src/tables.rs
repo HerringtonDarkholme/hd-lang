@@ -269,7 +269,7 @@ pub(crate) fn lower(f: &mut Func, mut allocate: impl FnMut(&[u8], u32) -> u32) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::module::{Module, Sym};
+    use crate::module::{Module, Sym, WasmVal as _};
     use hd_base::Hash128;
     use std::io::Write as _;
     use std::process::Stdio;

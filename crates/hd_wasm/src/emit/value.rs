@@ -11,8 +11,8 @@ use std::rc::Rc;
 
 use super::Em;
 use crate::layout::{
-    Discr, Enc, Flat, Is, Kind, Leaf, Mem, Part, Step, Test, Walk, kind, payload_mem,
-    variant_steps, variants, walk,
+    Discr, Enc, Flat, Is, IsOps as _, Kind, Leaf, LeafOps as _, Mem, Part, Step, Test, Walk, kind,
+    payload_mem, variant_steps, variants, walk,
 };
 use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{DropCall, Helper};
@@ -261,7 +261,7 @@ impl Em<'_, '_, '_> {
             // fields are not walked (#1912). The link's memo answers each
             // type once, so a part nested `n` deep costs one probe, not
             // the `n` levels below it.
-            crate::work::member_layouts(1);
+            hd_layout::work::member_layouts(1);
             let holds = crate::layout::holds_drop(em.pool(), em.env(), t);
             if !root && !holds {
                 return;

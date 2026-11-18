@@ -35,6 +35,7 @@ use hd_check::init::InputBinding;
 use hd_check::structure::FactBodies;
 use hd_diag::{Code, DiagBuf, Severity};
 use hd_intern::{PathTable, ShardedInterner};
+pub use hd_layout::Niche;
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, HostItems, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
@@ -49,7 +50,6 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
-pub use hd_wasm::Niche;
 pub use hd_wasm::views::{CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout};
 pub use hd_wasm::{FunctionOrigins, InstructionOrigin, StaticData};
 
@@ -1668,7 +1668,7 @@ struct Run<'a> {
     /// Checked-body verification policy captured for this run.
     verify_tir: bool,
     /// The run's key for the layout cache its bodies share on each
-    /// thread outside a link (`hd_wasm::with_layout_cache`): unique per
+    /// thread outside a link (`hd_layout::cached_for_run`): unique per
     /// run in the process, so no body reads another run's layouts.
     layout_key: u64,
     /// The run's layout memo, keyed by type id (`own::TypeFacts`): the
@@ -12815,7 +12815,7 @@ impl LayoutEnv for Env<'_> {
 /// The backend's layout as the mutation scan reads it (`hd_opt::whole`).
 impl hd_opt::whole::ObjectLayout for Env<'_> {
     fn strip(&self, t: Ty) -> Ty {
-        hd_wasm::object_layout::strip(&self.run.pool, self, t)
+        hd_layout::strip(&self.run.pool, self, t)
     }
     fn mutable_counted_ref_target(&self, t: Ty) -> Option<Ty> {
         let TyData::Ref {
@@ -12826,11 +12826,7 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
         else {
             return None;
         };
-        Some(hd_wasm::object_layout::strip(
-            &self.run.pool,
-            self,
-            self.low(inner),
-        ))
+        Some(hd_layout::strip(&self.run.pool, self, self.low(inner)))
     }
 }
 
@@ -13054,7 +13050,7 @@ impl ProgramEnv for Env<'_> {
         })
     }
     fn shared_reference_layout(&self, ty: Ty) -> bool {
-        hd_wasm::shared_reference_layout(&self.run.pool, self, ty)
+        hd_layout::facts::shared_reference_layout(&self.run.pool, self, ty)
     }
 
     fn body(&self, def: DefId) -> Option<&Body> {

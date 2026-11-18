@@ -10,7 +10,7 @@ use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 
 use crate::boundary::LTy;
-use crate::layout::{Leaf, Walk};
+use crate::layout::{Leaf, LeafOps as _, Walk};
 use crate::module::{BUF, Func, Global, HEADER, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::rt::{Elem, HostCounts};

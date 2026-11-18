@@ -186,7 +186,7 @@ what the spec names as intrinsic or what only it can build.
 | --- | --- |
 | this record | `crates/hd_wasm/DESIGN.md` §23 |
 | the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm` |
-| `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) |
+| `layout/mod.rs` | the Wasm loads, stores and discriminant tests of a type's linear layout; the layout itself (its values, size, alignment and field offsets, §23.3) is the crate `hd_layout`'s |
 | `emit.rs` | one instance's TIR body to one Wasm function |
 | `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and iterative release glue |
 | `task.rs` | frame constructors, waker nodes, polling and cancellation kernels (§23.21) |
@@ -594,7 +594,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 
 ### 23.14 Inline Aggregate Layouts
 
-Aggregate layouts come from `layout.rs` (§23.3); `emit/value.rs`
+Aggregate layouts come from `hd_layout` (§23.3); `emit/value.rs`
 lowers their instructions.
 
 - **One walk, two forms.** `layout::mem` gives a type's values as leaves,

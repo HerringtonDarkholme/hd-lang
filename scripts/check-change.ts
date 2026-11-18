@@ -50,6 +50,7 @@ const CORE = [
   "hd_tir",
   "hd_mono",
   "hd_opt",
+  "hd_layout",
   "hd_wasm",
   "hd_driver",
   "hd_structure",
@@ -265,7 +266,7 @@ const changes = git("diff", "--name-status", `${base}...${head}`)
     return { status: parts[0], path: parts.at(-1) ?? "" };
   });
 const emitter =
-  /^crates\/(hd_wasm\/src|hd_tir\/src\/own|hd_tir\/src\/inline|hd_opt\/src|hd_mono\/src)|^lib\/std\//;
+  /^crates\/(hd_wasm\/src|hd_layout\/src|hd_tir\/src\/own|hd_tir\/src\/inline|hd_opt\/src|hd_mono\/src)|^lib\/std\//;
 const emits = changes.some(
   (change) => change.status !== "D" && emitter.test(change.path) && !change.path.endsWith(".md"),
 );

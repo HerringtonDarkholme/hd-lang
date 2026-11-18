@@ -78,6 +78,7 @@ const CORE = [
   "hd_tir",
   "hd_mono",
   "hd_opt",
+  "hd_layout",
   "hd_wasm",
 ] as const;
 type Crate = (typeof CORE)[number];

@@ -730,8 +730,8 @@ impl Root {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::{Enc, Leaf};
-    use crate::module::Val;
+    use crate::Val;
+    use crate::{Enc, Leaf};
 
     fn discr(value: u32) -> Discr {
         Discr {
@@ -760,7 +760,7 @@ mod tests {
     }
     #[test]
     fn scalar_cache_scopes_do_no_arena_work_at_tenfold_growth() {
-        use crate::layout::Walk;
+        use crate::Walk;
         for width in [100, 1000] {
             let ((), work) =
                 crate::work::count_walk_plans(|| {
@@ -976,7 +976,7 @@ mod tests {
     }
     #[test]
     fn public_keys_and_indices_survive_cache_scopes_and_normalization() {
-        use crate::layout::{Walk, WalkKind};
+        use crate::{Walk, WalkKind};
         fn tree(root: &Walk) -> super::oracle::Walk {
             use super::oracle::Walk as Tree;
             match root.kind() {

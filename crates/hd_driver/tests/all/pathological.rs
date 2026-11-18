@@ -2829,7 +2829,7 @@ fn wide_struct_reads_cost_one_probe_per_field() {
         };
         let build = |n: usize| {
             let (out, work) =
-                hd_wasm::work::count_member_layouts(|| compile(&wide_struct(n), &goal));
+                hd_layout::work::count_member_layouts(|| compile(&wide_struct(n), &goal));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
             work
         };
@@ -2864,7 +2864,7 @@ fn enum_arm_payload_layout_work_is_linear() {
         };
         let build = |n| {
             let (out, work) =
-                hd_wasm::work::count_member_layouts(|| compile(&enum_payload_arms(n), &goal));
+                hd_layout::work::count_member_layouts(|| compile(&enum_payload_arms(n), &goal));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
             work
         };
@@ -3245,7 +3245,7 @@ fn a_by_value_struct_chain_is_laid_out_once_per_run() {
         };
         let build = |n: usize| {
             let (out, work) =
-                hd_wasm::work::count_layout_parts(|| compile(&by_value_struct_chain(n), &goal));
+                hd_layout::work::count_layout_parts(|| compile(&by_value_struct_chain(n), &goal));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
             work
         };
@@ -3355,7 +3355,7 @@ fn a_type_past_the_value_size_limit_stops_without_its_leaves() {
             entry: "main".into(),
         };
         let build = |n: usize| {
-            hd_wasm::work::count_layout_parts(|| compile(&list_of_doubled_i32(n), &goal))
+            hd_layout::work::count_layout_parts(|| compile(&list_of_doubled_i32(n), &goal))
         };
         // The first build lays out std's types too; depth 1 is then the
         // program's other layouts, which the depth adds to.
@@ -4382,7 +4382,7 @@ fn drop_call_walks_skip_parts_without_a_drop_value() {
         for (name, generate) in shapes {
             let work = |k: usize| {
                 let (out, work) =
-                    hd_wasm::work::count_member_layouts(|| compile(&generate(k), &goal));
+                    hd_layout::work::count_member_layouts(|| compile(&generate(k), &goal));
                 assert!(!out.diags.has_errors(), "{name} {k}: {}", out.render());
                 work
             };
@@ -4627,7 +4627,7 @@ fn generic_nest_builds_walk_each_level_once() {
         ];
         for (name, generate) in shapes {
             let work = |n: usize| {
-                let ((out, looks), nodes) = hd_wasm::work::count_member_layouts(|| {
+                let ((out, looks), nodes) = hd_layout::work::count_member_layouts(|| {
                     hd_wasm::work::count_static_looks(|| compile(&generate(n), &goal))
                 });
                 assert!(!out.diags.has_errors(), "{name} {n}: {}", out.render());
@@ -4668,7 +4668,7 @@ fn newtype_nest_drop_walks_are_linear() {
         };
         let work = |n: usize| {
             let (out, nodes) =
-                hd_wasm::work::count_member_layouts(|| compile(&newtype_nest(n), &goal));
+                hd_layout::work::count_member_layouts(|| compile(&newtype_nest(n), &goal));
             assert!(!out.diags.has_errors(), "{n}: {}", out.render());
             nodes
         };

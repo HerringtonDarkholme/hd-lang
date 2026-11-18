@@ -237,7 +237,7 @@ counted range loops need not construct one.
 
 A newtype uses its underlying layout, with no wrapper allocation.
 Nominal identity remains distinct. See the layout walk in
-[layout.rs](../../crates/hd_wasm/src/layout.rs)
+[hd_layout](../../crates/hd_layout/src/lib.rs)
 and the [collection rules](../../crates/hd_mono/DESIGN.md#132-collection).
 
 ### `TypeId`

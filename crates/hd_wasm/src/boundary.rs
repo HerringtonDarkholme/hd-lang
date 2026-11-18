@@ -27,7 +27,7 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{self, Leaf, Walk};
+use crate::layout::{self, IsOps as _, Leaf, LeafOps as _, Walk};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};

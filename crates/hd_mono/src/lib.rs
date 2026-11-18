@@ -190,7 +190,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// The names of `def`'s data fields, in [`ProgramEnv::data_fields`]'
     /// order, for development tools that name a value's parts
-    /// (`hd_wasm::layout::value_paths`); `None` when unknown.
+    /// (`hd_layout::value_paths`); `None` when unknown.
     fn data_field_names(&self, _def: DefId) -> Option<Vec<String>>;
     /// Variant and payload field names in `LayoutEnv::enum_variants` order,
     /// for generated host interfaces. `None` when names are unavailable.

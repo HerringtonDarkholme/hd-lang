@@ -19,7 +19,7 @@ use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
+use crate::layout::{LeafOps as _, Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
 

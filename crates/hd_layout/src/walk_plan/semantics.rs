@@ -41,7 +41,7 @@ impl Signature {
         }
     }
 }
-pub(in crate::layout) fn hash_scalar<H: Hasher>(tag: u64, index: Option<u32>, state: &mut H) {
+pub(crate) fn hash_scalar<H: Hasher>(tag: u64, index: Option<u32>, state: &mut H) {
     let mut sig = Signature::literal(tag);
     if let Some(index) = index {
         sig = sig.then(Signature::index(index));
@@ -348,8 +348,8 @@ mod tests {
     use super::super::Arena;
     use super::super::oracle::Walk;
     use super::*;
-    use crate::layout::{Discr, Enc, Leaf};
-    use crate::module::Val;
+    use crate::Val;
+    use crate::{Discr, Enc, Leaf};
 
     fn discr(value: u32) -> Discr {
         Discr {

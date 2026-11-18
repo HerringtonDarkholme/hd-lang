@@ -12,7 +12,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Leaf, Part, mem as mem_of, walk};
+use crate::layout::{Leaf, LeafOps as _, Part, mem as mem_of, walk};
 use crate::module::{HEAP, Ins, Val, mem};
 use crate::rt::{Helper, RefRead, TypeIdParts};
 

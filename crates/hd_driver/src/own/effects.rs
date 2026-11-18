@@ -329,14 +329,14 @@ impl Env<'_> {
 
     pub(super) fn borrowed_equation(&self, node: Node) -> Option<BodyEffects> {
         self.borrowed_effect(node, |body, index| {
-            hd_wasm::with_layout_cache(self.run.layout_key, || {
+            hd_layout::cached_for_run(self.run.layout_key, || {
                 equation(self, body, index, Some(node))
             })
         })
     }
 
     pub(super) fn conditional_equation(&self, body: &Body) -> BodyEffects {
-        hd_wasm::with_layout_cache(self.run.layout_key, || {
+        hd_layout::cached_for_run(self.run.layout_key, || {
             equation(self, body, &EffectIndex::new(body), None)
         })
     }

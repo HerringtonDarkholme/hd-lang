@@ -8,13 +8,13 @@ use hd_base::{DefId, Hash128, HashSet, StageResult};
 use hd_types::{Ty, TyList};
 use wasm_encoder::BlockType;
 
-use crate::layout::{Addr, Is, Leaf, Walk};
+use crate::layout::{Addr, Is, IsOps as _, Leaf, LeafOps as _, Walk};
 use crate::map::{self, KeyOps};
 #[cfg(feature = "checked-report")]
 use crate::module::DescriptorKey;
 use crate::module::{
     BUF, CYCLIC, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, LOAN_EXCL, LOAN_SHARED,
-    LOAN_STATE, Module, Sym, Val, mem,
+    LOAN_STATE, Module, Sym, Val, WasmVal as _, mem,
 };
 use crate::{Entry, Input};
 

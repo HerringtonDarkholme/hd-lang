@@ -48,6 +48,7 @@ hd_structure = { path = "../hd_structure" }
 hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
+hd_layout = { path = "../hd_layout" }
 hd_wasm = { path = "../hd_wasm" }
 
 [build-dependencies]

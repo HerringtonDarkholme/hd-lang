@@ -184,22 +184,6 @@ thread_local! {
     static CACHE: std::cell::RefCell<Option<Plans<Ty>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// A plan cache scope taken off its thread, to put back later
-/// (`layout::cached_for_run`).
-pub(crate) struct Saved(Option<Plans<Ty>>);
-
-impl Saved {
-    pub(crate) fn take() -> Self {
-        Self(CACHE.take())
-    }
-    pub(crate) fn fresh() -> Self {
-        Self(Some(Plans::default()))
-    }
-    pub(crate) fn put(self) {
-        CACHE.set(self.0);
-    }
-}
-
 /// Share plans for exactly one layout/link scope, restoring an outer scope
 /// even on unwind. No type IDs or plans survive their pool's link lifetime.
 pub(crate) fn cached<R>(link: impl FnOnce() -> R) -> R {
