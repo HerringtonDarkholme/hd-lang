@@ -1,3 +1,4 @@
+# expect-stdout: 7
 use std.ops.Index
 use std.ops.IndexSet
 
@@ -31,4 +32,7 @@ fn cells() -> impl IndexSet[(i32, i32), i32]:
 fn cell() -> i32:
     let mut c = cells()
     c[(1, 2)] = 5
-    grid()[(1, 2)] + row()[3]
+    grid()[(1, 0)] + row()[3]
+
+pub fn main() -> void $ Console:
+    println(cell())

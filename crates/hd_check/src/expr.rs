@@ -1821,13 +1821,11 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let t = self.resolved(at);
-        // A parameter, opaque result or trait value has bounds, not
-        // implementations; its clauses answer the call as they do without
-        // a literal.
-        if matches!(
-            pool.get(self.infer.resolve(pool, t)),
-            TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. }
-        ) {
+        // A receiver with bounds, not implementations: its clauses on `tr`
+        // are the candidates, and the solver's bound answers the call once
+        // the literal has its type.
+        if let Some(keys) = self.bound_keys(tr, t) {
+            self.narrow_keys(&keys, ct, &[ct]);
             return Ok(None);
         }
         let goal = hd_types::solver::Goal::Instantiations {
@@ -1859,11 +1857,10 @@ impl Ck<'_, '_> {
     /// elements (`expr.index.trait.choice`, `trait.resolve.literal-arg`),
     /// made element by element, so the key's type is known before the
     /// chosen implementation's `Out` is projected
-    /// (`expr.index.trait.shared-place`). A single implementation whose key
-    /// fits gives the literals their types by context. Signed literals,
-    /// written as `i32` values, narrow the candidates next. The other
-    /// literals take their default type only to break a remaining tie.
-    /// `tr` is `Index` or `IndexSet`, whose first argument is the key.
+    /// (`expr.index.trait.shared-place`). The candidates are the
+    /// receiver's implementations of `tr`, or a parameter's or opaque
+    /// result's clauses on it. `tr` is `Index`, `IndexMut` or `IndexSet`,
+    /// whose first argument is the key.
     pub(crate) fn tuple_key_choice(&mut self, tr: DefId, at: Ty, kt: Ty) -> StageResult<()> {
         let pool = self.pool();
         let key = self.infer.resolve(pool, self.resolved(kt));
@@ -1876,29 +1873,64 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         let t = self.resolved(at);
-        // A parameter, opaque result or trait value has bounds, not
-        // implementations.
-        if matches!(
-            pool.get(self.infer.resolve(pool, t)),
-            TyData::Param(_) | TyData::Opaque { .. } | TyData::TraitValue { .. }
-        ) {
-            return Ok(());
+        let keys = if let Some(keys) = self.bound_keys(tr, t) {
+            keys
+        } else {
+            let goal = hd_types::solver::Goal::Instantiations {
+                self_ty: t,
+                trait_: tr,
+                mut_: false,
+            };
+            let Answer::Candidates(cands) = self.solve_goal(&goal)? else {
+                return Ok(());
+            };
+            cands.iter().filter_map(|c| self.candidate_key(c)).collect()
+        };
+        self.narrow_keys(&keys, key, &lits);
+        Ok(())
+    }
+
+    /// The keys, first trait arguments, of the clauses on `tr` that bound
+    /// a parameter or opaque result `t`, read from the environment's
+    /// index by self type (`expr.index.trait.choice`). A trait value's one
+    /// candidate is its own trait, which the solver answers, so it has
+    /// none to narrow. None for any other receiver, whose candidates are
+    /// implementations.
+    fn bound_keys(&self, tr: DefId, t: Ty) -> Option<Vec<Ty>> {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        match pool.get(t) {
+            TyData::Param(_) | TyData::Opaque { .. } => {}
+            TyData::TraitValue { .. } => return Some(Vec::new()),
+            _ => return None,
         }
-        let goal = hd_types::solver::Goal::Instantiations {
-            self_ty: t,
-            trait_: tr,
-            mut_: false,
-        };
-        let Answer::Candidates(cands) = self.solve_goal(&goal)? else {
-            return Ok(());
-        };
-        let all: Vec<usize> = (0..cands.len()).collect();
-        let mut fits = self.fitting_keys(&cands, &all, key);
+        let env = &self.env;
+        Some(
+            env.clauses_of(t)
+                .iter()
+                .map(|&i| i as usize)
+                .filter(|&i| env.clause_trait()[i] == tr)
+                .filter_map(|i| pool.list_items(env.clause_args()[i]).first().copied())
+                .collect(),
+        )
+    }
+
+    /// Narrows the candidate `keys` for a key of type `key` with the open
+    /// literals `lits` (`trait.resolve.literal-arg`). A single key that
+    /// fits gives the literals their types by context. Signed literals,
+    /// written as `i32` values, narrow the candidates next. The other
+    /// literals take their default type only to break a remaining tie.
+    /// Each round tries every key once, so the work is three passes over
+    /// the keys.
+    fn narrow_keys(&mut self, keys: &[Ty], key: Ty, lits: &[Ty]) {
+        let pool = self.pool();
+        let all: Vec<usize> = (0..keys.len()).collect();
+        let mut fits = self.fitting_keys(keys, &all, key);
         for signed in [true, false] {
             if fits.len() < 2 {
                 break;
             }
-            for &l in &lits {
+            for &l in lits {
                 let Some(k) = self.infer.kind_of(pool, l) else {
                     continue;
                 };
@@ -1910,14 +1942,11 @@ impl Ck<'_, '_> {
                     let _ = self.infer.unify(pool, l, d);
                 }
             }
-            fits = self.fitting_keys(&cands, &fits, key);
+            fits = self.fitting_keys(keys, &fits, key);
         }
-        if let [one] = fits[..]
-            && let Some(k) = self.candidate_key(&cands[one])
-        {
-            let _ = self.infer.unify(pool, k, key);
+        if let [one] = fits[..] {
+            let _ = self.infer.unify(pool, keys[one], key);
         }
-        Ok(())
     }
 
     /// The open literal classes among a tuple's elements, nested tuples
@@ -1961,21 +1990,14 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The candidates among `which` whose key unifies with `key`, each
-    /// tried without a trace left behind.
-    fn fitting_keys(
-        &mut self,
-        cands: &[hd_types::solver::Candidate],
-        which: &[usize],
-        key: Ty,
-    ) -> Vec<usize> {
+    /// The keys among `which` that unify with `key`, each tried without a
+    /// trace left behind.
+    fn fitting_keys(&mut self, keys: &[Ty], which: &[usize], key: Ty) -> Vec<usize> {
         let pool = self.pool();
         let mut fits = Vec::new();
         for &i in which {
             let mark = self.infer.trial_mark();
-            let fit = self
-                .candidate_key(&cands[i])
-                .is_some_and(|k| self.infer.unify(pool, k, key).is_ok());
+            let fit = self.infer.unify(pool, keys[i], key).is_ok();
             self.infer.rollback_trial(mark);
             if fit {
                 fits.push(i);

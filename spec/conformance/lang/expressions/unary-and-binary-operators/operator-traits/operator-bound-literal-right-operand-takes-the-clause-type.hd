@@ -1,0 +1,28 @@
+# test: operator bound literal right operand takes the clause type
+# Rules: expr.op.left-dispatch, trait.resolve.literal-arg.
+# expect-stdout: 6
+# expect-stdout: -95
+use std.ops.Add
+
+struct Money:
+    cents: i64
+
+impl Add[i64] for Money:
+    type Out = i64
+    fn add(self, r: i64) -> i64:
+        self.cents + r
+
+impl Add[i32] for Money:
+    type Out = i64
+    fn add(self, r: i32) -> i64:
+        self.cents + i64(r) * 100
+
+fn one[T < Add[i64, Out = i64]](x: T) -> i64:
+    x + 1
+
+fn signed[T < Add[i32, Out = i64] & Add[i64]](x: T) -> i64:
+    x + -1
+
+pub fn main() -> void $ Console:
+    println(one(Money { cents: +5 }))
+    println(signed(Money { cents: +5 }))

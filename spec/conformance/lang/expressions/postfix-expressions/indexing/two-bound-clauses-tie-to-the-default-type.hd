@@ -1,0 +1,39 @@
+# test: two bound clauses tie to the default type
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+# expect-stdout: 3
+# expect-stdout: 30
+use std.ops.Index
+
+struct Grid:
+    cells: List[i32]
+
+impl Index[(i32, i32)] for Grid:
+    type Out = i32
+    fn index(&self, k: (i32, i32)) -> &i32:
+        &self.cells[usize(k._0 * 2 + k._1)]
+
+impl Index[(i64, i64)] for Grid:
+    type Out = i32
+    fn index(&self, k: (i64, i64)) -> &i32:
+        &self.cells[0]
+
+impl Index[i32] for Grid:
+    type Out = i32
+    fn index(&self, k: i32) -> &i32:
+        &self.cells[usize(k)]
+
+impl Index[i64] for Grid:
+    type Out = i32
+    fn index(&self, k: i64) -> &i32:
+        &self.cells[0]
+
+fn pair[T < Index[(i32, i32), Out = i32] & Index[(i64, i64)]](g: &T) -> i32:
+    g[(+1, +0)]
+
+fn one[T < Index[i32, Out = i32] & Index[i64]](g: &T) -> i32:
+    g[+3] * 10 - 10
+
+pub fn main() -> void $ Console:
+    let g = Grid { cells: [+1, +2, +3, +4] }
+    println(pair(&g))
+    println(one(&g))

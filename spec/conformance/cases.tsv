@@ -261,7 +261,7 @@ lang/types/opaque-result-types/impl-trait-generic-identities.hd	type	reject:type
 lang/types/opaque-result-types/impl-trait-hidden-member.hd	type	reject:unknown-method	lang/04-type-system.md#r-types.opaque.no-leakage
 lang/types/opaque-result-types/impl-trait-hidden-trait.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.opaque.no-leakage
 lang/types/opaque-result-types/impl-trait-operator-unbound-out.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.opaque.head-only
-lang/types/opaque-result-types/impl-trait-index-bounds.hd	type	accept	lang/04-type-system.md#r-types.opaque.head-only
+lang/types/opaque-result-types/impl-trait-index-bounds.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.head-only
 lang/types/opaque-result-types/impl-trait-literal-elements-default.hd	type	reject:unsatisfied-trait-bound	lang/04-type-system.md#r-types.literal.local.class.open
 lang/traits/trait-implementations/implementation-declarations/impl-trait-method-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.opaque.impl-bound
 lang/traits/dynamic-trait-values/impl-trait-method-dyn-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.dyn.bound.reference
@@ -2600,6 +2600,8 @@ lang/expressions/unary-and-binary-operators/operator-traits/operator-power-user.
 lang/expressions/unary-and-binary-operators/operator-traits/operator-generic-primitive.hd	type	accept	lang/05-expressions.md#primitive-implementations
 lang/expressions/unary-and-binary-operators/operator-traits/operator-generic-primitive-run.hd	runtime	accept	lang/05-expressions.md#r-expr.op.std.intrinsic-method
 lang/expressions/unary-and-binary-operators/operator-traits/operator-left-primitive-a-literal-right-operand-selects-the-fitting-instantiation.hd	runtime	accept	lang/05-expressions.md#r-expr.op.left-dispatch
+lang/expressions/unary-and-binary-operators/operator-traits/operator-bound-literal-right-operand-takes-the-clause-type.hd	runtime	accept	lang/05-expressions.md#r-expr.op.left-dispatch
+lang/expressions/unary-and-binary-operators/operator-traits/operator-bound-tie-without-a-default-clause-is-an-error.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg.no-apply
 lang/expressions/unary-and-binary-operators/operator-traits/operator-left-primitive-bare-literal-fits-the-default-width-implementation.hd	runtime	accept	lang/04-type-system.md#r-types.literal.local.default
 lang/expressions/unary-and-binary-operators/operator-traits/operator-left-primitive-converted-left-operand-selects-the-left-types-implementation.hd	runtime	accept	lang/05-expressions.md#r-expr.op.left-dispatch
 lang/expressions/unary-and-binary-operators/operator-traits/operator-left-primitive-literal-right-operand-runs.hd	runtime	accept	lang/05-expressions.md#r-expr.op.left-dispatch.example
@@ -5321,6 +5323,11 @@ lang/expressions/postfix-expressions/indexing/a-typed-key-without-an-implementat
 lang/expressions/postfix-expressions/indexing/a-default-type-without-an-implementation-is-an-error.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.trait.choice
 lang/expressions/postfix-expressions/indexing/a-tuple-key-reads-as-out.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
 lang/expressions/postfix-expressions/indexing/a-tuple-key-stores-through-index-set.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
+lang/expressions/postfix-expressions/indexing/a-bound-tuple-key-takes-the-clause-key.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
+lang/expressions/postfix-expressions/indexing/an-opaque-tuple-key-takes-the-clause-key.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
+lang/expressions/postfix-expressions/indexing/two-bound-clauses-tie-to-the-default-type.hd	runtime	accept	lang/09-traits.md#r-trait.resolve.literal-arg
+lang/expressions/postfix-expressions/indexing/a-bound-tie-without-a-default-clause-is-an-error.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg
+lang/expressions/postfix-expressions/indexing/a-bound-scalar-tie-without-a-default-clause-is-an-error.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.resolve.literal-arg
 lang/expressions/postfix-expressions/indexing/a-tie-falls-back-to-the-default-type.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
 lang/expressions/postfix-expressions/indexing/a-single-implementation-types-the-literals.hd	runtime	accept	lang/05-expressions.md#r-expr.index.trait.choice
 lang/expressions/postfix-expressions/indexing/a-default-without-an-implementation-is-an-error.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.trait.choice

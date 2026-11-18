@@ -1,0 +1,6 @@
+# test: a bound tie without a default clause is an error
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+use std.ops.Index
+
+fn pair[T < Index[(i32, i32), Out = i32] & Index[(i64, i64)]](g: &T) -> void:
+    _ := g[(1, 0)] # diagnostic: type-mismatch

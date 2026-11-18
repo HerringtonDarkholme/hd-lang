@@ -1,0 +1,6 @@
+# test: operator bound tie without a default clause is an error
+# Rules: expr.op.left-dispatch, trait.resolve.literal-arg.no-apply.
+use std.ops.Add
+
+fn two[T < Add[i32, Out = i64] & Add[i64]](x: T) -> i64:
+    x + 1 # diagnostic: type-mismatch
