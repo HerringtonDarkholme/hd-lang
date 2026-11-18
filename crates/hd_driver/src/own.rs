@@ -193,50 +193,6 @@ pub(super) struct Summaries {
     promoted: std::sync::Mutex<HashMap<PromotedKey, Option<Exclusive>>>,
 }
 
-/// The most parts by value an instance's type arguments may hold for the
-/// instance to get a body of its own ([`Env::inlined_instance`]); past it
-/// the item's generic body serves. The passes' reference and count facts
-/// cost one memo entry per distinct type (`Run::own_types`), but the
-/// layout, which the passes also ask (`hd_layout` `Mem::leaves`,
-/// `vals`, `in_place_parts`), holds one entry per part held by value, and
-/// a type that doubles at each level (`Pair[Pair[A, A], Pair[A, A]]`) has
-/// exponentially many: owning its instances would not end before
-/// collection reaches the depth limit (`instantiation-too-deep`).
-const MAX_INSTANCE_LEAVES: u64 = 1 << 12;
-
-/// How many parts the types of `args` hold: each type, and each of its
-/// type arguments and members once per occurrence, as a value holds them.
-/// Each distinct type is computed once, so this costs the number of
-/// distinct types, not of parts.
-fn instance_leaves(pool: &hd_types::InternPool, args: TyList) -> u64 {
-    fn leaves(pool: &hd_types::InternPool, t: Ty, memo: &mut HashMap<Ty, u64>) -> u64 {
-        if let Some(&n) = memo.get(&t) {
-            return n;
-        }
-        let sum = |ts: &[Ty], memo: &mut HashMap<Ty, u64>| {
-            ts.iter()
-                .fold(1u64, |n, &u| n.saturating_add(leaves(pool, u, memo)))
-        };
-        let n = match pool.get(t) {
-            TyData::Tuple { elems, rest } => {
-                let mut ts = pool.list_items(elems).to_vec();
-                ts.extend(rest);
-                sum(&ts, memo)
-            }
-            TyData::Adt { args, .. } => sum(pool.list_items(args), memo),
-            TyData::Union(ms) => sum(pool.list_items(ms), memo),
-            TyData::Ref { inner, .. } => sum(&[inner], memo),
-            _ => 1,
-        };
-        memo.insert(t, n);
-        n
-    }
-    let mut memo = HashMap::default();
-    pool.list_items(args)
-        .iter()
-        .fold(0u64, |n, &t| n.saturating_add(leaves(pool, t, &mut memo)))
-}
-
 /// An instance the summaries describe: an item and its type arguments as
 /// collection keys them (`hd_mono::rowless`). A non-generic item's, and
 /// a generic item's own body's, has none.
@@ -2906,12 +2862,8 @@ impl Env<'_> {
     /// one instance's. In dev, a generic instance substitutes its item's
     /// body after the folds and the inliner ([`Env::generic_inlined`]):
     /// they run once per generic body, so a trait call the instance
-    /// chooses as an impl call stays a call. `None`, so the item's generic
-    /// body serves, for type arguments past [`MAX_INSTANCE_LEAVES`].
+    /// chooses as an impl call stays a call.
     pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
-        if args != TyList::EMPTY && instance_leaves(&self.run.pool, args) > MAX_INSTANCE_LEAVES {
-            return None;
-        }
         let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with
@@ -2967,33 +2919,6 @@ impl Env<'_> {
         };
         let hash = self.fold_and_inline(&mut body, hash);
         Some((body, hash))
-    }
-
-    /// The instance body of `node`, whose type arguments are past
-    /// [`MAX_INSTANCE_LEAVES`] (gap: #2170): its generic item's body as
-    /// the passes owned it, its types substituted at the arguments
-    /// (`hd_mono::instantiate`, one `subst` per distinct type), so
-    /// the emitter lowers it as any instance and substitutes nothing.
-    /// Its counts are the generic body's and its bound calls stay bound,
-    /// chosen by collection's call targets, so it is marked but not
-    /// verified. A supplied method's or factory's generated body is owned
-    /// here as the generic body. `None` for any other node, and for an
-    /// item with no body. Cost: one copy of the body per such instance.
-    pub(super) fn leaf_fallback(&self, (def, args): Node) -> Option<std::sync::Arc<Body>> {
-        if instance_leaves(&self.run.pool, args) <= MAX_INSTANCE_LEAVES {
-            return None;
-        }
-        let generic = match self.supplied_member((def, args)) {
-            Some((family, at)) => Cow::Owned(self.owned_generated(family.bodies[at].clone()).ok()?),
-            None => Cow::Borrowed(&self.run.body_of(self.p, def)?.0),
-        };
-        // This body is already owned: retain its bound calls and their
-        // established count decisions. Generic locals were instantiated
-        // before ownership; the selector deliberately rechooses nothing.
-        let mut body =
-            hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|_, _, _| None);
-        body.phase = hd_tir::ir::Phase::Instance;
-        Some(std::sync::Arc::new(body))
     }
 
     /// Generic instance `node`'s body after the passes
@@ -3101,8 +3026,7 @@ impl Env<'_> {
     /// instance body (`hd_tir::ir::Phase::Instance`), which holds no
     /// generic form (invariant 24, checked with the passes' output by
     /// `hd_tir::ir::verify_owned`): a generic item's at its type arguments, a non-generic item's own
-    /// body with no copy. A generic item's own body, which serves its
-    /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2170), stays checked.
+    /// body with no copy. A generic item's own body stays checked.
     /// A facts body that names none of its owner's type parameters is
     /// not one: a generic function's facts body builds its decorators'
     /// values, and collection reaches it with no type arguments
@@ -3126,8 +3050,8 @@ impl Env<'_> {
             && !ProgramEnv::generic_rows(self, owner).is_empty()
             && !closed_fact()
         {
-            // ruled out: the generic body that serves past the leaf limit
-            // had its local functions instantiated in its own parameters
+            // ruled out: a generic item's own body had its local functions
+            // instantiated in its own parameters
             // (`Env::fold_and_inline`), whose one failure is a closure word
             // outside its context, which the checker never writes (tried:
             // nested, recursive, capturing and twice-instantiated local
@@ -3373,8 +3297,7 @@ impl Env<'_> {
     }
 
     /// The selected signature's concrete layout, not the generic source
-    /// signature, decides Copy/Drop eligibility. Wide instances that reuse
-    /// an open generic body keep that body's existing result convention.
+    /// signature, decides Copy/Drop eligibility.
     pub(super) fn return_loan_layout(&self, item: DefId, args: TyList) -> Option<u8> {
         let node = self.node(item, args);
         let cell = lock(&self.run.own_return_layouts)
@@ -3388,10 +3311,6 @@ impl Env<'_> {
             }
             let signature = self.sig(item)?;
             let declared = self.param_ty(signature, usize::from(parameter));
-            if self.is_open(declared) && instance_leaves(&self.run.pool, args) > MAX_INSTANCE_LEAVES
-            {
-                return None;
-            }
             let ty = hd_mono::subst(&self.run.pool, self, item, args, declared);
             let ret = hd_mono::subst(&self.run.pool, self, item, args, self.low(signature.ret));
             (self.counted(ret)

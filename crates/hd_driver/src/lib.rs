@@ -13086,10 +13086,7 @@ impl ProgramEnv for Env<'_> {
             return Ok(None);
         }
         let node = self.node(def, args);
-        match self.owned_instance(node)? {
-            Some(owned) => Ok(Some(owned)),
-            None => Ok(self.leaf_fallback(node)),
-        }
+        self.owned_instance(node)
     }
     fn opaque_result(
         &self,

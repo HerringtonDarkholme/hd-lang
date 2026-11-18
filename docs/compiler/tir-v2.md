@@ -83,9 +83,9 @@ count packets; see [As built](#as-built-2026-11-13).
 - **Per instance, not per generic body.** The driver clones a body per
   instance, substitutes its types and chooses impls before the passes
   (`hd_driver/src/own.rs`, `Env::inlined_instance`), so `OwnCx::counted`
-  answers `bool` on concrete types. An item's generic body serves only
-  past 4,096 type leaves (`MAX_INSTANCE_LEAVES`) and for a generic local
-  function, which stays generic inside its body until emission.
+  answers `bool` on concrete types, at any size of type arguments. An
+  item's generic body serves only for a generic local function, which
+  stays generic inside its body until emission.
 - **`OwnCx` has about 45 methods**, not three. They include release
   summaries of callees, promoted arguments and exclusive copies, so the
   passes read facts of other bodies.

@@ -1,0 +1,17 @@
+# @dump: stdout
+# @build: dev | release
+# Every instance owns its body at its own types, whatever its type
+# arguments hold (#2170): a value over 16 scalars is one address, so the
+# passes' and the emitter's work does not grow with its scalars.
+# `twice` doubles its tuple 13 times (8,192 values), and comparing two
+# such tuples runs the compiler-supplied walk at the widest one, so a
+# source item and a supplied body are both owned as instances.
+# expected: both builds print `true` then `false`.
+fn twice[T](x: T) -> (T, T):
+    (x, x)
+
+pub fn main() -> void $ Console:
+    a := twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(1)))))))))))))
+    b := twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(2)))))))))))))
+    println("${a == a}")
+    println("${a == b}")
