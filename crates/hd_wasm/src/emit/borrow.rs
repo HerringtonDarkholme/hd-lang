@@ -60,7 +60,7 @@ use hd_types::{InternPool, Ty, TyData};
 use wasm_encoder::BlockType;
 
 use super::Em;
-use super::excl::{Bind, Held, binds, call_args, call_info, direct_value};
+use super::excl::{Bind, Held, call_args, call_info, direct_value};
 use crate::layout::{Kind, coll_kind, kind, ref_mutable, strip, variants};
 use crate::module::{HEAP, LOAN_EXCL, LOAN_SHARED, LOAN_STATE, Module, Val, mem};
 use crate::op::Op as I;
@@ -493,21 +493,17 @@ fn cleanup_owners(b: &Body, topo: &hd_tir::ir::Topology, mut visit: impl FnMut()
     out
 }
 
-/// Immutable storage and capture facts shared by sibling emitters.
+/// Immutable frame and lifetime facts shared by sibling emitters.
 pub(super) struct BorrowFacts {
-    storage_roots: std::sync::Arc<StorageRoots>,
-    shared: std::sync::Arc<hd_base::HashSet<usize>>,
     frames: std::sync::Arc<[u32]>,
     cleanup_owners: std::sync::OnceLock<std::sync::Arc<[u32]>>,
     lifetime: std::sync::OnceLock<super::excl::LifetimeFacts>,
 }
 
 impl BorrowFacts {
-    fn new(b: &Body, recursive: &hd_tir::own::RecursiveBindings) -> Self {
-        crate::work::use_facts(b.len() + b.local_ty.len() + b.cap_local.len());
+    fn new(b: &Body) -> Self {
+        crate::work::use_facts(b.len());
         Self {
-            storage_roots: std::sync::Arc::new(StorageRoots::new(b)),
-            shared: std::sync::Arc::new(super::closure::shared_locals_with(b, recursive)),
             frames: frames_of(b).into(),
             cleanup_owners: std::sync::OnceLock::default(),
             lifetime: std::sync::OnceLock::default(),
@@ -584,7 +580,7 @@ pub(super) struct Borrows {
     frames: std::sync::Arc<[u32]>,
     /// The local references that hold only `*T` values
     /// ([`pointer_locals`]).
-    pointers: hd_base::HashSet<usize>,
+    pointers: std::sync::Arc<hd_base::HashSet<usize>>,
     /// The locals a match binds from a part of a call's result, by the
     /// value the match decides on: their loans end with the match, or
     /// when that value is dropped, as such a binding borrows it and has no
@@ -1101,19 +1097,18 @@ impl Em<'_, '_, '_> {
             return;
         }
         // collect_loans indexed every emitted instance's own sub-body.
-        let sites = std::sync::Arc::clone(&self.m.loan_stores[self.inst.idx()]);
+        let holder = std::sync::Arc::clone(&self.m.loan_holders[self.inst.idx()]);
         // ruled out: loan preparation indexes every emitted body's topology.
         let origin_index = std::sync::Arc::clone(&self.m.loan_origins[self.inst.idx()]);
-        let mut carried_graph = super::excl::OriginGraph::default();
-        let found = binds(self.pool(), self.env(), self.b, &origin_index, &sites);
+        let found = &holder.bindings;
         let facts = std::sync::Arc::clone(&self.borrow_facts);
-        let immutable = facts.get_or_init(|| BorrowFacts::new(self.b, &self.recursive_bindings));
+        let immutable = facts.get_or_init(|| BorrowFacts::new(self.b));
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
-            storage_roots: std::sync::Arc::clone(&immutable.storage_roots),
-            shared: std::sync::Arc::clone(&immutable.shared),
+            storage_roots: std::sync::Arc::clone(&holder.storage),
+            shared: std::sync::Arc::clone(&holder.shared),
             frames: std::sync::Arc::clone(&immutable.frames),
-            pointers: pointer_locals(self.pool(), self.env(), self.b, &sites),
+            pointers: std::sync::Arc::clone(&holder.pointers),
             ..Borrows::default()
         };
         // A closure inherits its creator's own-loan cells for captured
@@ -1135,11 +1130,11 @@ impl Em<'_, '_, '_> {
                 self.env(),
                 (self.b, &self.topo),
                 &origin_index,
-                &found,
+                found,
                 (lifetime, &self.rows),
             );
         }
-        for (i, held, bind, _) in found {
+        for &(i, held, bind) in found {
             if self.is_cell(held.local) {
                 continue;
             }
@@ -1284,15 +1279,7 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 if !matches!(self.b.tags[v as usize], Tag::Ref | Tag::Closure) {
-                    let carried = super::excl::carried_refs(
-                        self.pool(),
-                        self.env(),
-                        self.b,
-                        &origin_index,
-                        &mut carried_graph,
-                        v as usize,
-                    );
-                    for r in carried {
+                    for &r in holder.carried.get(&(v as usize)).into_iter().flatten() {
                         let origins = self.m.kept_origins.get_or_init(|| {
                             self.m.kept.iter().map(|&(inst, r, _)| (inst, r)).collect()
                         });
