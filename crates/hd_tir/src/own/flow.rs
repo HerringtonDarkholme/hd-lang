@@ -4,8 +4,17 @@
 //! forward for known-null and the verifier's read-after-move and
 //! one-consumer walks.
 
-use super::{Operand, Role, fill, operands};
+use super::{Operand, Role, operands};
 use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
+
+/// Scalar fact visits and copied/cleared flow words in counted verifier tests.
+#[inline]
+pub(crate) fn charge(amount: usize) {
+    #[cfg(test)]
+    work::add(amount);
+    #[cfg(not(test))]
+    let _ = amount;
+}
 
 /// Bitset states of `words` words each in one growable arena, by start
 /// offset, allocated and freed last in, first out.
@@ -24,6 +33,7 @@ impl BitArena {
 
     /// A new state of all zeros, or a copy of state `from`.
     pub fn alloc(&mut self, from: Option<usize>) -> usize {
+        charge(self.words);
         let at = self.cells.len();
         match from {
             Some(f) => self.cells.extend_from_within(f..f + self.words),
@@ -38,11 +48,13 @@ impl BitArena {
     }
 
     pub fn copy(&mut self, to: usize, from: usize) {
+        charge(self.words);
         self.cells.copy_within(from..from + self.words, to);
     }
 
     /// Empties state `at`.
     pub fn clear(&mut self, at: usize) {
+        charge(self.words);
         self.cells[at..at + self.words].fill(0);
     }
 
@@ -56,6 +68,7 @@ impl BitArena {
 
     /// `to |= from`; whether `to` grew.
     pub fn union(&mut self, to: usize, from: usize) -> bool {
+        charge(self.words);
         let mut grew = false;
         for k in 0..self.words {
             let v = self.cells[from + k];
@@ -77,6 +90,7 @@ impl BitArena {
     }
 
     pub fn set(&mut self, at: usize, bit: u32, on: bool) {
+        charge(1);
         let w = &mut self.cells[at + (bit / 64) as usize];
         if on {
             *w |= 1 << (bit % 64);
@@ -87,6 +101,7 @@ impl BitArena {
 
     #[must_use]
     pub fn get(&self, at: usize, bit: u32) -> bool {
+        charge(1);
         self.cells[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
     }
 
@@ -103,10 +118,12 @@ impl BitArena {
 
 /// Bit `bit` of a state's words.
 pub(crate) fn get_bit(row: &[u64], bit: usize) -> bool {
+    charge(1);
     row[bit / 64] & (1 << (bit % 64)) != 0
 }
 
 pub(crate) fn set_bit(row: &mut [u64], bit: usize, on: bool) {
+    charge(1);
     if on {
         row[bit / 64] |= 1 << (bit % 64);
     } else {
@@ -135,13 +152,26 @@ pub struct Flow {
     /// walk began.
     scopes: Vec<u32>,
     depth: Vec<u32>,
+    touched: Vec<usize>,
+    marked: Vec<bool>,
     ops: Vec<Operand>,
 }
 
 impl Flow {
     fn reset(&mut self, b: &Body) {
-        fill(&mut self.jumps, b.label_inst.len(), [(NONE, false); 2]);
-        fill(&mut self.depth, b.label_inst.len(), 0);
+        // Reset only targets opened by the previous walk, including
+        // their depth on malformed cross-sub-body jumps. A label is
+        // recorded once even if a loop opens it on many iterations.
+        for label in self.touched.drain(..) {
+            charge(1);
+            self.jumps[label] = [(NONE, false); 2];
+            self.depth[label] = 0;
+            self.marked[label] = false;
+        }
+        charge(b.label_inst.len().saturating_sub(self.jumps.len()));
+        self.jumps.resize(b.label_inst.len(), [(NONE, false); 2]);
+        self.depth.resize(b.label_inst.len(), 0);
+        self.marked.resize(b.label_inst.len(), false);
         self.arms.clear();
         self.hit.clear();
         self.scopes.clear();
@@ -154,6 +184,10 @@ impl Flow {
         let label = topo.label_of[x as usize] as usize;
         if label >= self.jumps.len() {
             return [(NONE, false); 2];
+        }
+        if !self.marked[label] {
+            self.marked[label] = true;
+            self.touched.push(label);
         }
         self.depth[label] = u32_of(self.scopes.len());
         let at = u32_of(self.arena.alloc(from));
@@ -225,6 +259,7 @@ impl<A: Backward> Walk<'_, A> {
     /// Block `blk` backward: state `live`, what holds after the block,
     /// becomes what holds at its start.
     fn block(&mut self, blk: u32, live: usize) {
+        charge(1);
         let b = self.b;
         if b.tags.get(blk as usize) != Some(&Tag::Block) {
             return;
@@ -249,6 +284,7 @@ impl<A: Backward> Walk<'_, A> {
 
     /// Instruction `x` backward over state `live`.
     fn inst(&mut self, x: u32, live: usize) {
+        charge(1);
         let b = self.b;
         self.a.stmt(b, x, &mut self.s.arena, live);
         let [p, w] = b.data[x as usize];
@@ -440,6 +476,7 @@ struct Ahead<'a, A> {
 impl<A: Forward> Ahead<'_, A> {
     /// Block `blk` forward over `st`; false when no path falls out of it.
     fn block(&mut self, blk: u32, st: usize) -> bool {
+        charge(1);
         let b = self.b;
         if b.tags.get(blk as usize) != Some(&Tag::Block) {
             return true;
@@ -476,6 +513,7 @@ impl<A: Forward> Ahead<'_, A> {
 
     /// Instruction `x` forward over `st`; false when it never completes.
     fn inst(&mut self, x: u32, st: usize) -> bool {
+        charge(1);
         let b = self.b;
         let [p, w] = b.data[x as usize];
         let falls = match b.tags[x as usize] {
@@ -684,5 +722,24 @@ impl<A: Forward> Ahead<'_, A> {
         }
         self.s.arena.free(from);
         falls
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod work {
+    use std::cell::Cell;
+    thread_local! { static COUNT: Cell<Option<usize>> = const { Cell::new(None) }; }
+    pub(super) fn add(amount: usize) {
+        COUNT.with(|count| {
+            if let Some(n) = count.get() {
+                count.set(Some(n + amount));
+            }
+        });
+    }
+    pub(crate) fn measure<T>(run: impl FnOnce() -> T) -> (T, usize) {
+        COUNT.with(|count| count.set(Some(0)));
+        let result = run();
+        let work = COUNT.with(|count| count.replace(None).unwrap_or(0));
+        (result, work)
     }
 }

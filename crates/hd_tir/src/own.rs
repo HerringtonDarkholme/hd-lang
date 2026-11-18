@@ -1990,6 +1990,7 @@ pub(crate) mod tests {
             true
         }
         fn counted(&self, ty: Ty) -> bool {
+            super::flow::charge(1);
             ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN
         }
         fn plain_reference(&self, ty: Ty) -> bool {
