@@ -1181,9 +1181,6 @@ pub struct Module {
     pub(crate) loan_holders: Vec<std::sync::Arc<crate::emit::HolderFacts>>,
     /// Immutable origin-query topology, shared by instances of each body.
     pub(crate) loan_origins: Vec<std::sync::Arc<crate::emit::OriginIndex>>,
-    /// Straight-line element checks, indexed by instance. An owned body
-    /// contributes one proof, shared by its sub-bodies and instances.
-    pub(crate) element_checks: Vec<Option<std::sync::Arc<hd_tir::own::ElementChecks>>>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
@@ -1328,7 +1325,6 @@ impl Module {
             inst_of: hd_base::HashMap::default(),
             loan_holders: Vec::default(),
             loan_origins: Vec::default(),
-            element_checks: Vec::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
             release_plans: hd_base::HashMap::default(),

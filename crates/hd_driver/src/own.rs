@@ -1959,6 +1959,9 @@ impl Env<'_> {
         let relies = scratch.relies();
         let uncopied = scratch.uncopied().to_vec();
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
+        if refused.is_ok() {
+            hd_opt::prove::run(&mut body);
+        }
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
             return Err(NotImplemented::bug(

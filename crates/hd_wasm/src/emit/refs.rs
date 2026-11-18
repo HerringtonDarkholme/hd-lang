@@ -1614,16 +1614,10 @@ impl Em<'_, '_, '_> {
             }
             let (et, e) = self.elem(ty)?;
             let b = self.at_i32(&at);
-            // The first element of a list, which a loop's range proof may
-            // cover.
-            let repeated = k == 0
-                && self
-                    .m
-                    .element_checks
-                    .get(self.inst.idx())
-                    .and_then(Option::as_deref)
-                    .is_some_and(|checks| checks.repeats_bounds(i as usize));
-            let proven = lead == Some(k) && (repeated || self.proven_list_indices.contains(&i));
+            // An element `hd_opt::prove` cleared, or the first element of
+            // a list, which a loop's range proof may cover.
+            let proven = lead == Some(k)
+                && (self.b.elem_unchecked(i as usize, k) || self.proven_list_indices.contains(&i));
             let ix = if proven {
                 let x = self.f.local(Val::I32);
                 self.comp(ix.0, 0)?;

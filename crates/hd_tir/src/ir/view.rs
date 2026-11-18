@@ -5,7 +5,7 @@
 use hd_base::DefId;
 use hd_types::Ty;
 
-use super::{Body, NONE, Proj, Ref, place};
+use super::{Body, NONE, Proj, Ref, Tag, place};
 
 /// The step codes [`PlaceView::push_steps`] writes: a field's index, a
 /// variant's index with `VARIANT` set, and `DEREF` and `ELEM`.
@@ -177,5 +177,50 @@ impl PlaceView {
             });
         }
         (derefs, elem)
+    }
+}
+
+impl Body {
+    /// The `extra` offset of step `k`'s word in the place `Read`, `Store`
+    /// or `Ref` `i` names, when that step is an element; one walk of the
+    /// record's words.
+    fn elem_word(&self, i: usize, k: usize) -> Option<usize> {
+        if !matches!(self.tags.get(i), Some(Tag::Read | Tag::Store | Tag::Ref)) {
+            return None;
+        }
+        let v = self.view(self.data[i][0]);
+        let mut at = v.from as usize;
+        for _ in 0..k {
+            let w = *self.extra.get(at)?;
+            at += if w & place::PROJ_KIND == place::PROJ_ELEM {
+                2
+            } else {
+                1
+            };
+        }
+        (at < v.to as usize && self.extra[at] & place::PROJ_KIND == place::PROJ_ELEM).then_some(at)
+    }
+
+    /// Whether step `k` of the place instruction `i` names is an element
+    /// whose bounds check a proof removed ([`place::ELEM_UNCHECKED`]).
+    #[must_use]
+    pub fn elem_unchecked(&self, i: usize, k: usize) -> bool {
+        self.elem_word(i, k)
+            .is_some_and(|at| self.extra[at] & place::ELEM_UNCHECKED != 0)
+    }
+
+    /// Marks step `k` of instruction `i`'s place, an element, unchecked.
+    /// The record may be shared, so `i` gets a copy with the bit set: the
+    /// record's length in new words.
+    pub fn uncheck_elem(&mut self, i: usize, k: usize) {
+        let Some(at) = self.elem_word(i, k) else {
+            return;
+        };
+        let word = self.data[i][0] as usize;
+        let n = self.extra[word] as usize;
+        let copy = self.extra.len();
+        self.extra.extend_from_within(word..=word + n);
+        self.extra[copy + (at - word)] |= place::ELEM_UNCHECKED;
+        self.data[i][0] = super::u32_of(copy);
     }
 }

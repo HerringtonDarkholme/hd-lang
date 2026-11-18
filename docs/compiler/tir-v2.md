@@ -193,7 +193,7 @@ A place names where a value lives. It is a **root** and zero or more
 | --- | --- | --- |
 | dereference | `*` before the root or after a projection | the place a reference value refers to |
 | field | `.x` | a struct field or tuple element, by declaration index; embedded fields are explicit steps |
-| element | `[%5]` | a slot of a list's buffer at the index value `%5`, bounds-checked; in stages 1 and 2 the projected value is the list header |
+| element | `[%5]` | a slot of a list's buffer at the index value `%5`, bounds-checked unless `hd_opt::prove` set the record word's `ELEM_UNCHECKED` bit (the text form does not show it); in stages 1 and 2 the projected value is the list header |
 | variant | `as .Circle` | stage 2: the payload of an enum value known to be that variant, before its fields |
 
 Examples, with the source they come from:

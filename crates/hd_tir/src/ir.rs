@@ -555,8 +555,14 @@ pub mod place {
     pub const PROJ_FIELD: u32 = 0;
     /// A dereference; no payload.
     pub const PROJ_DEREF: u32 = 1 << 30;
-    /// A list element; no payload, and the next word is the index `Ref`.
+    /// A list element, and the next word is the index `Ref`. Its one
+    /// payload bit is [`ELEM_UNCHECKED`].
     pub const PROJ_ELEM: u32 = 2 << 30;
+    /// An element's payload bit: a proof removed its bounds check
+    /// (`hd_opt::prove`), so the backend writes none. Places compare
+    /// equal without it ([`super::Body::decode_place`] drops it), as Go's
+    /// `IsInBounds` is a value apart from the address it guards.
+    pub const ELEM_UNCHECKED: u32 = 1;
     /// An enum variant's payload, by variant declaration index (stage 2).
     pub const PROJ_VARIANT: u32 = 3 << 30;
 }
@@ -586,7 +592,8 @@ pub enum Proj {
     Field(u32),
     /// The place a reference value refers to: `*`.
     Deref,
-    /// A slot of a list's buffer at an index value, bounds-checked: `[%n]`.
+    /// A slot of a list's buffer at an index value, bounds-checked unless
+    /// a proof set its record word's [`place::ELEM_UNCHECKED`]: `[%n]`.
     /// In stages 1 and 2 the projected value is the list header.
     Elem(Ref),
     /// The payload of an enum value known to be that variant, by
@@ -1737,7 +1744,7 @@ impl Body {
             proj.push(match (w & PROJ_KIND, w & PROJ_INDEX) {
                 (PROJ_FIELD, k) => Proj::Field(k),
                 (PROJ_DEREF, 0) => Proj::Deref,
-                (PROJ_ELEM, 0) => {
+                (PROJ_ELEM, 0 | place::ELEM_UNCHECKED) => {
                     let [index, more @ ..] = rest else {
                         return None;
                     };
@@ -3929,6 +3936,33 @@ mod tests {
         ] {
             assert!(bad.parse::<Place>().is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn an_unchecked_element_marks_one_access_and_decodes_as_its_place() {
+        use super::{Place, Tag, place};
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let p: Place = "[**$2 .0 * [%c0]]".parse().expect("place");
+        let word = b.place(&p);
+        let body = b.body_mut();
+        body.local_ty = vec![hd_types::Ty::VOID; 3];
+        // A `Read` and a `Store` share the record; a `Call` names no place.
+        for tag in [Tag::Read, Tag::Store, Tag::Call] {
+            body.tags.push(tag);
+            body.data.push([word, 0]);
+        }
+        let len = body.extra.len();
+        body.uncheck_elem(0, 3); // a dereference, not an element
+        body.uncheck_elem(2, 4); // not a place
+        assert_eq!(body.extra.len(), len);
+        body.uncheck_elem(0, 4);
+        assert!(body.elem_unchecked(0, 4));
+        assert!(!body.elem_unchecked(1, 4), "the shared record is copied");
+        assert!(!body.elem_unchecked(0, 5), "past the last step");
+        assert!(!body.elem_unchecked(2, 4));
+        assert_eq!(body.decode_place(body.data[0][0]).as_ref(), Some(&p));
+        let at = body.data[0][0] as usize;
+        assert_eq!(body.extra[at + 7], place::PROJ_ELEM | place::ELEM_UNCHECKED);
     }
 
     #[test]
