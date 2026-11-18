@@ -44,11 +44,12 @@ const FIXTURE = join(
 );
 
 // #852 removes the printer from ordinary compilation. The compiler's gzip
-// cap is the owner's 2.5 MB ceiling (2026-11-09, at 2,001,095, over the
-// earlier 2 MB): it fails the build. Bringing the size back down is #1558,
-// triaged once #1490's `unsupported` count is zero. The WAT printer's cap
-// keeps a modest margin above 147,828 gzip bytes.
-const GZIP_LIMIT = 2_500_000;
+// cap is the owner's ceiling: 2.5 MB on 2026-11-09 (at 2,001,095, over the
+// earlier 2 MB), raised to 2.6 MB on 2026-11-17 (at 2,504,071 with #1771's
+// ranked fix-its; owner: "Raise ceiling to 2.6 MB"). It fails the build.
+// Bringing the size back down is #1558. The WAT printer's cap keeps a modest
+// margin above 147,828 gzip bytes.
+const GZIP_LIMIT = 2_600_000;
 const WAT_GZIP_LIMIT = 160_000;
 const RAW_FLOOR = 2e6;
 
