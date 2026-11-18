@@ -741,36 +741,43 @@ fn edge_row(cx: &BodyCx<'_>, pool: Types<'_>, callee: &RowData, e: &RowEdge) -> 
     d
 }
 
-/// The nesting depth of a row key's type, counted to just past `limit`.
+/// The nesting depth of a row key's type, counted to just past
+/// `MAX_KEY_DEPTH`. A type reached at a shallower depth adds no larger
+/// answer. Each type can be revisited at most `MAX_KEY_DEPTH + 1` times;
+/// the first depth past the existing limit finishes the query.
 pub(crate) fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
     if at > MAX_KEY_DEPTH {
         return at;
     }
-    let parts: Vec<Ty> = match pool.get(t) {
-        TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
-        TyData::Tuple { elems, rest } => {
-            let mut p = pool.list_items(elems).to_vec();
-            p.extend(rest);
-            p
+    let mut deepest = HashMap::default();
+    let mut parts = Vec::new();
+    let mut max = at;
+    hd_base::stack::all((t, at), |(t, at), stack| {
+        if deepest.get(&t).is_some_and(|&seen| seen >= at) {
+            return true;
         }
-        TyData::Ref { inner: i, .. } => vec![i],
-        TyData::Fn { params, result, .. } => {
-            let mut p = pool.list_items(params).to_vec();
-            p.push(result);
-            p
+        deepest.insert(t, at);
+        hd_types::work::type_node();
+        max = max.max(at + 1);
+        if max > MAX_KEY_DEPTH {
+            return false;
         }
-        TyData::TraitValue { args, bindings, .. } => {
-            let mut p = pool.list_items(args).to_vec();
-            p.extend(bindings.into_iter().map(|(_, b)| b));
-            p
+        parts.clear();
+        match pool.get(t) {
+            TyData::Fn { params, result, .. } => {
+                parts.extend_from_slice(pool.list_items(params));
+                parts.push(result);
+            }
+            TyData::Adt { .. }
+            | TyData::Tuple { .. }
+            | TyData::Ref { .. }
+            | TyData::TraitValue { .. } => pool.children(t, &mut parts),
+            _ => return true,
         }
-        _ => Vec::new(),
-    };
-    parts
-        .into_iter()
-        .map(|p| depth(pool, p, at + 1))
-        .max()
-        .unwrap_or(at + 1)
+        stack.extend(parts.iter().rev().map(|&t| (t, at + 1)));
+        true
+    });
+    max
 }
 
 /// Registers the module's private callables whose result type or row is
@@ -1590,6 +1597,137 @@ pub fn reads_structure(cx: &BodyCx<'_>, imp: DefId) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn row_key_depth_at_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = hd_types::InternPool::new();
+                let types = pool.types();
+                for nesting in [10, 20, 100, 1_000] {
+                    let mut t = Ty::I32;
+                    for _ in 0..nesting {
+                        t = pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[t, t]),
+                            rest: None,
+                        });
+                    }
+                    let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, t, 0));
+                    let expected = (nesting + 1).min(MAX_KEY_DEPTH + 1);
+                    assert_eq!(answer, expected);
+                    assert_eq!(work, u64::from(expected));
+                }
+                let mut shared = Ty::I32;
+                for _ in 1..20 {
+                    shared = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&[shared, shared]),
+                        rest: None,
+                    });
+                }
+                for width in [100, 1_000] {
+                    let branches: Vec<_> = (0..width)
+                        .map(|i| {
+                            pool.intern_ty(&TyData::Adt {
+                                def: DefId::from_raw(i),
+                                args: pool.list(&[shared]),
+                            })
+                        })
+                        .collect();
+                    let root = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&branches),
+                        rest: None,
+                    });
+                    let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, root, 0));
+                    assert_eq!(answer, 22);
+                    assert_eq!(
+                        work,
+                        u64::from(width) + 21,
+                        "shared depth-20 parts are walked once"
+                    );
+                }
+                let tuple = |ts: &[Ty]| {
+                    pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(ts),
+                        rest: None,
+                    })
+                };
+                let reference = |inner| {
+                    pool.intern_ty(&TyData::Ref {
+                        inner,
+                        mutable: false,
+                        counted: false,
+                    })
+                };
+                let shared = tuple(&[Ty::I32]);
+                assert_eq!(
+                    depth(types, tuple(&[shared, reference(shared)]), 0),
+                    4,
+                    "a later deeper visit must extend the answer"
+                );
+                for at in [
+                    0,
+                    MAX_KEY_DEPTH - 1,
+                    MAX_KEY_DEPTH,
+                    MAX_KEY_DEPTH + 1,
+                    1_000,
+                ] {
+                    assert_eq!(
+                        depth(types, Ty::I32, at),
+                        if at > MAX_KEY_DEPTH { at } else { at + 1 }
+                    );
+                }
+                let owner = DefId::from_raw(1);
+                let adt = pool.intern_ty(&TyData::Adt {
+                    def: owner,
+                    args: pool.list(&[shared]),
+                });
+                let value = pool.intern_ty(&TyData::TraitValue {
+                    def: owner,
+                    args: pool.list(&[Ty::I32]),
+                    bindings: vec![(owner, shared)],
+                });
+                let function = pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&[shared]),
+                    result: Ty::I32,
+                    row: pool.row(&RowData {
+                        keys: vec![adt],
+                        params: vec![],
+                    }),
+                    suspends: false,
+                    inputs: hd_types::Inputs::Fixed,
+                    deps: hd_types::FnDeps::NONE,
+                });
+                for t in [adt, value, function] {
+                    assert_eq!(depth(types, t, 0), 3);
+                }
+                let opaque = pool.intern_ty(&TyData::Opaque {
+                    owner,
+                    site: 0,
+                    borrows: false,
+                    args: pool.list(&[shared]),
+                    bound: shared,
+                });
+                let projection = pool.intern_ty(&TyData::Assoc {
+                    trait_: owner,
+                    assoc: owner,
+                    self_ty: shared,
+                    args: pool.list(&[shared]),
+                });
+                let union = pool.intern_ty(&TyData::Union(pool.list(&[shared, Ty::BOOL])));
+                for t in [opaque, projection, union] {
+                    assert_eq!(
+                        depth(types, t, 0),
+                        1,
+                        "the existing row-key boundary stays a leaf"
+                    );
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
 
     #[test]
     fn an_empty_row_solution_keeps_the_initial_approximation() {
