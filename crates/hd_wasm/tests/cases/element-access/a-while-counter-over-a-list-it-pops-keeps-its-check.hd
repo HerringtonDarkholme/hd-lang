@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# A loop that pops the list it counts over keeps the check: the length
+# the test read is gone by the read after the pop.
+fn total(xs: &mut List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        if s > 10:
+            _ := xs.pop()
+        s = s + xs[i]
+        i = i + 1
+    s

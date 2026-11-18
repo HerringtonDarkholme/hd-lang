@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# No bounds check (#2186): the loop test `i < xs.len()` reads the length
+# on each pass, before the read, and `i = i + 1` is the counter's one
+# step after it; nothing in the loop changes the list.
+fn total(xs: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        s = s + xs[i]
+        i = i + 1
+    s

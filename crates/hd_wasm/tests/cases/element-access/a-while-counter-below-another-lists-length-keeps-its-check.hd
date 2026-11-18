@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# The length of one list bounds no read of another: the read of `xs`
+# keeps its check under a test on `ys.len()`.
+fn total(xs: &List[i64], ys: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < ys.len():
+        s = s + xs[i]
+        i = i + 1
+    s

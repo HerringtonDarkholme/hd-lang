@@ -345,7 +345,8 @@ impl Em<'_, '_, '_> {
         *budget -= 1;
         let [a, w] = self.b.data[i as usize];
         if self.tracked(self.ty(i)) {
-            return false;
+            // The list a test measures (`while i < xs.len()`, #2186).
+            return self.b.tags[i as usize] == Tag::Read && self.list_root(i).is_some();
         }
         match self.b.tags[i as usize] {
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => !self.is_cell(l.idx()),
@@ -358,6 +359,7 @@ impl Em<'_, '_, '_> {
                 true
             }
             Tag::Prim | Tag::Coerce => true,
+            Tag::Intrinsic => IntrinsicOp::from_u32(a) == Some(IntrinsicOp::ListLen),
             Tag::And | Tag::Or => self.scalar_loop_test(w, budget),
             Tag::Block => self
                 .rec(a)
@@ -433,31 +435,33 @@ impl Em<'_, '_, '_> {
     /// This is a body-local proof; no callee summaries or unchecked TIR.
     fn range_indices(&self, loop_inst: u32, test: u32) -> Vec<u32> {
         let cond = self.b.data[test as usize][0];
-        if Ref(cond).as_inst().is_none()
-            || self.b.tags[cond as usize] != Tag::Prim
-            || self.b.data[cond as usize][0] != PrimOp::Lt as u32
+        // Where an `&&` test holds, so does its first operand (`while i <
+        // xs.len() && ..`): one step per `&&` of the test.
+        let mut lt = cond;
+        while Ref(lt).as_inst().is_some() && self.b.tags[lt as usize] == Tag::And {
+            lt = self.b.data[lt as usize][0];
+        }
+        if Ref(lt).as_inst().is_none()
+            || self.b.tags[lt as usize] != Tag::Prim
+            || self.b.data[lt as usize][0] != PrimOp::Lt as u32
         {
             return Vec::new();
         }
-        let args = self.b.record(self.b.data[cond as usize][1]);
+        let args = self.b.record(self.b.data[lt as usize][1]);
         let [cur, end] = args else { return Vec::new() };
-        let (Some(current), Some(bound)) = (
-            super::shape::read_local(self.b, *cur),
-            super::shape::read_local(self.b, *end),
-        ) else {
+        let Some(current) = super::shape::read_local(self.b, *cur) else {
             return Vec::new();
         };
+        let bound = super::shape::read_local(self.b, *end);
         if self.ty_of(*cur) != Ty::prim(hd_types::Prim::Usize)
             || self.ty_of(*end) != Ty::prim(hd_types::Prim::Usize)
         {
             return Vec::new();
         }
-        if self.is_cell(current)
-            || self.is_cell(bound)
-            || [current, bound]
-                .iter()
-                .any(|l| self.b.local_flags[*l] & hd_tir::ir::local_flags::CAPTURED_ASSIGNED != 0)
-        {
+        if [Some(current), bound].into_iter().flatten().any(|l| {
+            self.is_cell(l)
+                || self.b.local_flags[l] & hd_tir::ir::local_flags::CAPTURED_ASSIGNED != 0
+        }) {
             return Vec::new();
         }
         let sets = self.local_sets();
@@ -488,20 +492,29 @@ impl Em<'_, '_, '_> {
         {
             return Vec::new();
         }
-        let [(bound_set, value)] = sets[bound].as_slice() else {
-            return Vec::new();
+        // The bound: a local set once before the loop from a length read
+        // (`for i in 0..n`), or a length the test reads on each iteration
+        // (`while i < xs.len()`, #2186), which the loop keeps as the list's.
+        let len = match bound {
+            Some(bound) => {
+                let [(bound_set, value)] = sets[bound].as_slice() else {
+                    return Vec::new();
+                };
+                if !self.dominates(*bound_set, loop_inst) {
+                    return Vec::new();
+                }
+                self.range_source(*value, sets)
+            }
+            None => self.range_source(*end, sets),
         };
-        if !self.dominates(*bound_set, loop_inst) {
-            return Vec::new();
-        }
-        let len = self.range_source(*value, sets);
         let Some(li) = Ref(len).as_inst() else {
             return Vec::new();
         };
         let [op, rec] = self.b.data[li.0 as usize];
+        let before = self.dominates(len, loop_inst);
         if self.b.tags[li.0 as usize] != Tag::Intrinsic
             || op != IntrinsicOp::ListLen as u32
-            || !self.dominates(len, loop_inst)
+            || !(before || bound.is_none() && self.dominates(len, lt))
         {
             return Vec::new();
         }
@@ -519,16 +532,18 @@ impl Em<'_, '_, '_> {
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
         // loop does. Include nested statements of that prelude.
-        let (blk, start) = (
-            self.topo.blk[len as usize],
-            self.topo.pos[len as usize] as usize,
-        );
-        let Some(finish) = self.position_in(blk, loop_inst) else {
-            return Vec::new();
-        };
-        let prelude = self.statements(blk, start + 1, finish);
-        if !self.list_loop_safe(root, &prelude, &aliases) {
-            return Vec::new();
+        if before {
+            let (blk, start) = (
+                self.topo.blk[len as usize],
+                self.topo.pos[len as usize] as usize,
+            );
+            let Some(finish) = self.position_in(blk, loop_inst) else {
+                return Vec::new();
+            };
+            let prelude = self.statements(blk, start + 1, finish);
+            if !self.list_loop_safe(root, &prelude, &aliases) {
+                return Vec::new();
+            }
         }
         body.iter()
             .copied()

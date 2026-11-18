@@ -1,0 +1,49 @@
+# @dump: stdout
+# @build: checked
+# A `while` counter below the length (#2186) reads each element once, of
+# a borrowed list, of a local list, and under a second condition; a pop
+# in the loop shortens the list the test measures on its next pass.
+fn total(xs: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    while i < xs.len():
+        s = s + xs[i]
+        i = i + 1
+    s
+
+fn total_local(n: usize) -> i64:
+    let mut xs: List[i64] = []
+    for k in 0..n:
+        xs.push(i64(k))
+    let s = 0i64
+    let i = 0usize
+    while i < xs.len():
+        s = s + xs[i]
+        i = i + 1
+    s
+
+fn bounded(xs: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    while i < xs.len() && s < 5:
+        s = s + xs[i]
+        i = i + 1
+    s
+
+fn popped(xs: &mut List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    while i < xs.len():
+        if i == 2:
+            _ := xs.pop()
+        s = s + xs[i]
+        i = i + 1
+    s
+
+pub fn main() -> void $ Console:
+    let mut xs: List[i64] = [1, 2, 3, 4, 5]
+    println(total(&xs))
+    println(total_local(5))
+    println(bounded(&xs))
+    println(popped(&mut xs))
+    println(xs.len())
