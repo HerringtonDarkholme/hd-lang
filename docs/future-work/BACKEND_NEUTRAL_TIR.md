@@ -113,8 +113,10 @@ hold it as they hold any local, so those three jobs have no code.
 **3. Layout is flattened, and it is the backend's.** `Mem` keeps one
 `Leaf` per scalar, read at 154 places in 19 files (`rg -o '\.leaves\b'`).
 A type that doubles per level has exponentially many, so instances past
-4,096 leaves are owned as generic code (`MAX_INSTANCE_LEAVES`). The
-driver's passes call 21 layout functions of `hd_wasm`.
+4,096 leaves were owned as generic code (`MAX_INSTANCE_LEAVES`, deleted in
+3c229234e once a value over 16 scalars stayed an address). The driver's
+passes called 21 layout functions of `hd_wasm`; since 377945c23 they read
+`hd_layout`.
 
 ```text
 type D0 = (i32, i32)
@@ -454,7 +456,7 @@ patterns overlap, so the rows do not sum to 154.
 
 | Path | Where | Step |
 | --- | --- | --- |
-| The 4,096-leaf fallback, `gap: #2170` twice (was #2102) | `own.rs`: `MAX_INSTANCE_LEAVES`, `instance_leaves`, `leaf_fallback` | 1 |
+| The 4,096-leaf fallback | deleted in 3c229234e | 1, done |
 | Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1 |
 | Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1 |
 | A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1 |
