@@ -2215,6 +2215,55 @@ impl InlineEnv for Env<'_> {
         self.declared_may_write(callee)
     }
 
+    fn retained_call_cost(&self, callee: &Callee) -> usize {
+        let def = match *callee {
+            Callee::Item { def, .. } => def,
+            Callee::TraitMethod {
+                method,
+                self_ty,
+                choice: (ChoiceKind::Impl, owner),
+                ..
+            } => {
+                let receiver = match self.run.pool.get(self_ty) {
+                    TyData::Ref { inner, .. } => inner,
+                    _ => self_ty,
+                };
+                if hd_mono::is_trait_value(&self.run.pool, receiver) {
+                    return 0;
+                }
+                let Some(item) = self.p.items.get(method) else {
+                    return 0;
+                };
+                let names = self.run.names();
+                // Use the existing member-path index, not impl_target's
+                // method scan and generic-argument unification. A missing
+                // member uses the trait's default declaration.
+                names
+                    .paths
+                    .find(
+                        hd_base::PathId::from_raw(owner),
+                        hd_intern::PathKind::Member,
+                        names.text(item.name),
+                    )
+                    .map(|path| DefId::from_raw(path.raw()))
+                    .filter(|&def| self.p.items.get(def).is_some())
+                    .unwrap_or(method)
+            }
+            Callee::TraitMethod { .. } => return 0,
+        };
+        // A retained runtime/cold boundary dominates a small automatic
+        // copy's budget. Explicit Always still overrides this price.
+        if self.inline_hint(def) == InlineHint::Never
+            || self
+                .intrinsic(def)
+                .is_some_and(|key| hd_wasm::intrinsic_boundary(&key).is_some())
+        {
+            hd_opt::inline::AUTO_INLINE_LIMIT
+        } else {
+            0
+        }
+    }
+
     fn memo(&self) -> Option<&hd_opt::inline::Memo> {
         self.run.summaries.as_ref().map(|all| &all.inline)
     }

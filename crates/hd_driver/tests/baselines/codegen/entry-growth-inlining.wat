@@ -2,26 +2,76 @@
 (module
   (import "fixture" "reserve_pages" (func $reserve_pages (param i32) (result i32)))
   (import "fixture" "preferred_pages" (func $preferred_pages (param i32) (result i32)))
+  (import "fixture" "cold_entry" (func $cold_entry (param i32) (result i32)))
+  (import "fixture" "method_entry" (func $method_entry (param i32) (result i32)))
+  (import "fixture" "generic_entry[std.rt_tests.stage_case.Worker]" (func $"generic_entry[std.rt_tests.stage_case.Worker]" (param i32 i32) (result i32)))
+  (import "fixture" "host_entry" (func $host_entry (param f64) (result i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:prim/format_f64" (func $rt:prim/format_f64 (param f64) (result i32 i32)))
+  (import "fixture" "locals" (global $locals (mut i32)))
+  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 3 funcref))
-  (func $exercise (param $count i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 34 |     reserve_pages(count) + preferred_pages(count) + forced_pages(count) + conditional_pages(count)
+  (import "fixture" "table0" (table $table0 6 funcref))
+  (func $exercise (param $count i32) (param $number f64) (result i32) (local $worker i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+    ;; 74 |     worker := Worker { amount: 1 }
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $worker
+    i32.const 1
+    i32.store $heap
+    ;; 76 |         reserve_pages(count)
     local.get $count
     call $reserve_pages
+    ;; 77 |         + preferred_pages(count)
     local.get $count
     call $preferred_pages
+    ;; 76 |         reserve_pages(count)
     i32.add
-    local.set $t0
+    local.set $t1
+    ;; 78 |         + forced_pages(count)
     local.get $count
     memory.grow $heap
-    local.tee $t1
+    local.tee $t2
     i32.const -1
     i32.ne
-    local.set $t2
+    local.set $t3
     block
       block
         block
-          local.get $t2
+          local.get $t3
           i32.eqz
           br_if 1
           br 0
@@ -31,28 +81,32 @@
       end
       i32.const 65 ;; &"growth failed"
       i32.const 13
-      i32.const 0
+      i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $t0
+    ;; 76 |         reserve_pages(count)
     local.get $t1
+    ;; 78 |         + forced_pages(count)
+    local.get $t2
+    ;; 76 |         reserve_pages(count)
     i32.add
-    local.set $t0
+    local.set $t1
+    ;; 79 |         + conditional_pages(count)
     block
       local.get $count
       i32.eqz
       br_if 0
       local.get $count
       memory.grow $heap
-      local.tee $t3
+      local.tee $t4
       i32.const -1
       i32.ne
-      local.set $count
+      local.set $t2
       block
         block
           block
-            local.get $count
+            local.get $t2
             i32.eqz
             br_if 1
             br 0
@@ -62,13 +116,65 @@
         end
         i32.const 65 ;; &"growth failed"
         i32.const 13
-        i32.const 0
+        i32.const 1
         call_indirect $table0 (param i32 i32)
         unreachable
       end
     end
-    local.get $t0
-    local.get $t3
+    ;; 76 |         reserve_pages(count)
+    local.get $t1
+    ;; 79 |         + conditional_pages(count)
+    local.get $t4
+    ;; 76 |         reserve_pages(count)
     i32.add
+    ;; 83 |         + cold_entry(count)
+    local.get $count
+    call $cold_entry
+    ;; 82 |         memory
+    i32.add
+    ;; 84 |         + method_entry(count)
+    local.get $count
+    call $method_entry
+    ;; 82 |         memory
+    i32.add
+    ;; 85 |         + generic_entry(&worker, count)
+    local.get $worker
+    local.get $count
+    call $"generic_entry[std.rt_tests.stage_case.Worker]"
+    ;; 82 |         memory
+    i32.add
+    local.set $count
+    ;; 86 |         + host_entry(number).len()
+    local.get $number
+    call $host_entry
+    local.set $t4
+    local.tee $worker
+    if
+      local.get $worker
+      call $rt:release_ref
+    end
+    ;; 82 |         memory
+    local.get $count
+    local.get $t4
+    i32.add
+    local.set $count
+    ;; 87 |         + forced_host(number).len()
+    local.get $number
+    call $rt:prim/format_f64
+    local.set $t4
+    local.tee $worker
+    if
+      local.get $worker
+      call $rt:release_ref
+    end
+    ;; 82 |         memory
+    local.get $count
+    local.get $t4
+    i32.add
+    ;; 74 |     worker := Worker { amount: 1 }
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
 )

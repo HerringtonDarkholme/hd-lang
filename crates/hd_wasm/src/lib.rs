@@ -48,6 +48,24 @@ pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::{DISPATCH_ARMS, Helper};
 
+/// An intrinsic's lowering crosses a runtime boundary instead of being
+/// ordinary local Wasm work. Shared by emission and inline costing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum IntrinsicBoundary {
+    Host,
+    Vm,
+}
+
+#[must_use]
+pub fn intrinsic_boundary(key: &str) -> Option<IntrinsicBoundary> {
+    match key {
+        "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper"
+        | "parse_f64" | "snapshot_update" => Some(IntrinsicBoundary::Host),
+        "mem_grow" => Some(IntrinsicBoundary::Vm),
+        _ => None,
+    }
+}
+
 /// A1's shared owned-address class on this backend. Boxed values have
 /// the class's owned parameter convention. References keep concrete keys,
 /// including when their layout is one address: local references borrow,

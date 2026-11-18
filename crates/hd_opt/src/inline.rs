@@ -148,6 +148,9 @@ pub trait InlineEnv: ProgramEnv {
     /// only reads its arguments does not (`OwnCx::may_write` without the
     /// release summaries, which the inliner may run before).
     fn call_may_write(&self, callee: &Callee) -> bool;
+    /// Target cost of a call boundary which an inline copy cannot remove,
+    /// in the same units as the automatic body budgets.
+    fn retained_call_cost(&self, callee: &Callee) -> usize;
     /// Whether the pipeline holds `const_fold` (#1518): a copy whose only
     /// effect is one known result is copied as that result
     /// (`hd_mono::defaults::collapse`), whatever its size.
@@ -1241,7 +1244,10 @@ impl dyn InlineEnv + '_ {
         if copy.len() > limit && self.result_holds_local(def, targs, copy) {
             return false;
         }
-        hd_tir::inline::inlinable(copy, limit)
+        // Price the chosen instance as well as the raw declaration:
+        // rechoose exposes impl identities for the indexed cost query,
+        // without another generic-argument unification.
+        priced_inline(copy, limit, |callee| self.retained_call_cost(callee))
     }
 
     fn result_holds_local(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
@@ -1406,29 +1412,22 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
+        // LLVM InlineCost separately charges lowered calls which survive
+        // the copy. A target runtime transition or a cold callee consumes
+        // the automatic budget; a prior fast path stops the entry census.
+        let fits = |limit| priced_inline(body, limit, |callee| self.retained_call_cost(callee));
         let body_fits = match hint {
             InlineHint::Default => {
-                hd_tir::inline::inlinable(body, INLINE_LIMIT)
+                fits(INLINE_LIMIT)
                     || (release
                         && (self.declares_local_reference(def) || body.len() <= AUTO_INLINE_LIMIT)
-                        && hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT))
+                        && fits(AUTO_INLINE_LIMIT))
             }
-            InlineHint::Auto => hd_tir::inline::inlinable(body, AUTO_INLINE_LIMIT),
+            InlineHint::Auto => fits(AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(body),
             InlineHint::Never => false,
         };
-        // Memory growth enters the VM even when its TIR is small. Keep
-        // an entry-path growth helper as a call: copying its result/error
-        // handling into hot callers does not remove that VM transition.
-        // Explicit Always retains its contract; a conditional fast path
-        // before growth retains ordinary eligibility.
-        if !body_fits
-            || (hint != InlineHint::Always
-                && entry_calls(body, |callee| {
-                    self.intrinsic(callee).as_deref() == Some("mem_grow")
-                }))
-            || self.calls(body, def)
-        {
+        if !body_fits || self.calls(body, def) {
             return None;
         }
         Some((self.fresh_body(def)?, *hash))
@@ -1760,25 +1759,35 @@ impl dyn InlineEnv + '_ {
     }
 }
 
-/// Whether the root's straight-line prefix calls `matches`. Do not enter
-/// child blocks or continue past a control transfer: growth after an early
-/// return or inside a branch is not an entry-path operation. This reads at
-/// most the candidate's root rows, with no allocation or native recursion;
-/// release preparation memoizes both admitted and rejected instances.
-fn entry_calls(body: &Body, mut matches: impl FnMut(DefId) -> bool) -> bool {
-    let Some(&root) = body.sub_root.first() else {
+/// Reject an oversized candidate before querying its call costs. Failed
+/// automatic candidates must not scan an arbitrary root per call site.
+fn priced_inline(body: &Body, limit: usize, cost: impl FnMut(&Callee) -> usize) -> bool {
+    if !hd_tir::inline::inlinable(body, limit) {
         return false;
+    }
+    let retained = entry_work(body, cost);
+    retained <= limit && (retained == 0 || hd_tir::inline::inlinable(body, limit - retained))
+}
+
+/// Non-removable work on the root's straight-line entry prefix. Nested
+/// blocks and instructions past a control transfer have an unproved
+/// frequency, so keep their ordinary size cost. Each root row is visited
+/// once without allocation or recursion; preparation memoizes the result.
+fn entry_work(body: &Body, mut cost: impl FnMut(&Callee) -> usize) -> usize {
+    let Some(&root) = body.sub_root.first() else {
+        return 0;
     };
     let root = root as usize;
     if body.tags[root] != Tag::Block {
-        return false;
+        return 0;
     }
+    let mut work = 0usize;
     for &row in body.record(body.data[root][0]) {
         let i = row as usize;
-        if let Some(Callee::Item { def, .. }) = hd_tir::inline::known_call(body, i)
-            && matches(def)
-        {
-            return true;
+        if let Some(callee) = hd_tir::inline::known_call(body, i) {
+            work = work.saturating_add(cost(&callee));
+        } else if body.tags[i] == Tag::CallHost {
+            work = work.saturating_add(AUTO_INLINE_LIMIT);
         }
         let (a, b) = body.tags[i].operands();
         if body.ty[i] == Ty::NEVER
@@ -1787,10 +1796,10 @@ fn entry_calls(body: &Body, mut matches: impl FnMut(DefId) -> bool) -> bool {
                 .iter()
                 .any(|op| matches!(op, hd_tir::ir::Op::Block | hd_tir::ir::Op::Blocks))
         {
-            return false;
+            break;
         }
     }
-    false
+    work
 }
 
 /// Constant-time vector-length checks and at most K string rows, before any
@@ -2346,12 +2355,25 @@ mod tests {
             let root = b.close_block(root, None, Ty::VOID, at);
             let body = b.finish(root, &[]).expect("straight-line calls");
             let mut visits = 0;
-            assert!(!super::entry_calls(&body, |_| {
-                visits += 1;
-                false
-            }));
+            assert_eq!(
+                super::entry_work(&body, |_| {
+                    visits += 1;
+                    2
+                }),
+                2 * width
+            );
             assert_eq!(visits, width);
-            assert!(super::entry_calls(&body, |def| def == DefId::from_raw(2)));
+            assert_eq!(super::entry_work(&body, |_| 3), 3 * width);
+            let mut prices = 0;
+            assert!(!super::priced_inline(
+                &body,
+                super::AUTO_INLINE_LIMIT,
+                |_| {
+                    prices += 1;
+                    2
+                }
+            ));
+            assert_eq!(prices, 0, "reject large bodies before target queries");
         }
         for depth in [1, 20] {
             let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
@@ -2366,10 +2388,13 @@ mod tests {
             let root = b.close_block(root, None, Ty::VOID, at);
             let body = b.finish(root, &[]).expect("nested calls");
             let mut visits = 0;
-            assert!(!super::entry_calls(&body, |_| {
-                visits += 1;
-                true
-            }));
+            assert_eq!(
+                super::entry_work(&body, |_| {
+                    visits += 1;
+                    2
+                }),
+                0
+            );
             assert_eq!(visits, 0);
         }
     }

@@ -4188,8 +4188,9 @@ impl Em<'_, '_, '_> {
                 });
                 self.store(i)
             }
-            "format_f64" | "format_f32" | "format_f64_fixed" | "string_lower" | "string_upper"
-            | "parse_f64" | "snapshot_update" => self.host_prim(i, key, args),
+            key if crate::intrinsic_boundary(key) == Some(crate::IntrinsicBoundary::Host) => {
+                self.host_prim(i, key, args)
+            }
             key if key.starts_with("mem_") => self.memory(i, key, args),
             // ruled out: every other key is lowered before emission.
             // Checking lowers each call and function value of `box`,

@@ -51,6 +51,7 @@ std/json/impl Display for Json.to_string#0
 std/json/escape_text#0
 std/rt.alloc/init.init#0
 std/json/line_break#0
+std/format/impl Display for f64.to_string#0
 std/json/impl Serializer for TextWriter.int#0
 std/json/encode#0 [app.main.Odd]
 std/text/impl StringBuilder.build#0

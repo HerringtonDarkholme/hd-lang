@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: release std
-# expected: entry-path growth helpers remain calls; conditional fast paths and Always keep their existing eligibility
-use std.annotation.inline
+# expected: entry-path growth, cold and host wrappers remain calls; conditional fast paths and Always still inline
+use std.annotation.{inline, cold}
 use std.rt.memory.grow
 
 fn reserve_pages(count: usize) -> usize:
@@ -29,6 +29,60 @@ fn conditional_pages(count: usize) -> usize:
         .Some(first) => first
         .None => panic("growth failed")
 
+@cold
+fn delayed(count: usize) -> usize:
+    count + 1
+
+@inline(.Auto)
+fn cold_entry(count: usize) -> usize:
+    delayed(count) + 1
+
+@intrinsic("format_f64")
+fn host_number(number: f64) -> string:
+    panic("intrinsic")
+
+@inline(.Auto)
+fn host_entry(number: f64) -> string:
+    host_number(number)
+
+@inline(.Always)
+fn forced_host(number: f64) -> string:
+    host_number(number)
+
+trait ColdWork:
+    fn evaluate(&self, count: usize) -> usize
+
+struct Worker:
+    amount: usize
+
+impl ColdWork for Worker:
+    @cold
+    fn evaluate(&self, count: usize) -> usize:
+        self.amount + count
+
+@inline(.Auto)
+fn method_entry(count: usize) -> usize:
+    worker := Worker { amount: 1 }
+    worker.evaluate(count)
+
+@inline(.Auto)
+fn generic_entry[T < ColdWork](worker: &T, count: usize) -> usize:
+    worker.evaluate(count)
+
 # subject
-pub fn exercise(count: usize) -> usize:
-    reserve_pages(count) + preferred_pages(count) + forced_pages(count) + conditional_pages(count)
+pub fn exercise(count: usize, number: f64) -> usize:
+    worker := Worker { amount: 1 }
+    memory := (
+        reserve_pages(count)
+        + preferred_pages(count)
+        + forced_pages(count)
+        + conditional_pages(count)
+    )
+    (
+        memory
+        + cold_entry(count)
+        + method_entry(count)
+        + generic_entry(&worker, count)
+        + host_entry(number).len()
+        + forced_host(number).len()
+    )

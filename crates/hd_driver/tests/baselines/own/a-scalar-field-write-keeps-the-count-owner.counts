@@ -412,7 +412,6 @@ pub fn main() -> void $ Console:
 >   release string (last use)
     println(mutable_call(text))
 >   retain string (stored)
->   release string (last use)
     println(heap(text))
 >   retain string (stored)
 >   release *mut app.main.Record (last use)

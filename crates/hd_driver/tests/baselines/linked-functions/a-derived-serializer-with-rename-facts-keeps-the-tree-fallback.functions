@@ -119,6 +119,7 @@ std/json/line_break#0
 std/rt.bytes/concat_all#0
 std/collections/impl[T] List[T].pop#0 [std.json.Json]
 std/rt.cycle/collection_due#0
+std/format/impl Display for f64.to_string#0
 app/main/derive Serialize for Pair.serialize#0 [std.json.JsonWriter]
 std/json/impl Serializer for TextWriter.int#0
 std/json/impl Serializer for JsonWriter.end_variant#0
