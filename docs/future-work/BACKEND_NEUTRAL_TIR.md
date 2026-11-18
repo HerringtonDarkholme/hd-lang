@@ -346,6 +346,46 @@ language. Its module doc's claim that Swift does it is wrong. Step 3b
 replaces it with Swift's lifting. Not probed: Swift's `BoundsCheckOpts`
 and `AllocBoxToStack`, cited from source only.
 
+**Layout and value representation, measured 2026-11-18.** The probe is a
+tuple or struct that doubles per level (`D0 = (i32, i32)`,
+`Dn = (Dn-1, Dn-1)`). One `make` function per level builds it, and a
+generic `keep` returns it. Depth 13 holds 8,192 `i32`s and depth 20 about
+two million. All times are wall-clock builds on this machine.
+
+| Compiler | Depth 13 | Depth 20 | How a large value is represented |
+| --- | --- | --- | --- |
+| Go 1.27, std cached | 1.2 s | 2.1 s | `ssa.CanSSA` (`cmd/compile/internal/ssa/value.go`): a type stays in registers only with at most `MaxStruct = 4` fields, recursively, and at most 4 pointer words; anything else lives in a stack slot and is copied by one `Move`. `types.CalcSize` runs once per type. |
+| rustc 1.97 `-O0` | 1.2 s | 7.8 s | one interned layout per type; a large value is memory, copied by `memcpy` |
+| Zig 0.17 Debug, LLVM | 2.2 s | 3.2 s | aggregates by reference through LLVM `-O0`; the self-hosted backend (`-fno-llvm`) times out at depth 20 |
+| MoonBit 2026-10-23 | 1.1 s | 1.1 s | every struct is a heap box (`moonbit.gc.malloc(8)` in `make2`), so compilation costs a constant per type but each value allocates |
+| rustc `-O3`, Zig ReleaseFast | 2.2 s, 8.5 s | over 120 s | LLVM's optimizer splits aggregates back into scalars |
+| swiftc 6.4 `-Onone` | 18.0 s | over 120 s | IRGen splits a value it keeps in registers into a flat element list; function signatures go by address above 32 bytes |
+| hd at 026826749, dev, release | 8.4 s, 2.2 s | over 120 s | a flat leaf list per type; dev Wasm at depth 13 is 1.4 MB, with about 115,000 scalar loads against 13 `memory.copy` |
+
+The rules step 1 follows, from that table:
+
+1. **One layout per type**, built from its parts' layouts, never flattened
+   (rustc `layout_of`, Go `CalcSize`).
+2. **A register-or-memory rule** (Go `CanSSA`): a value lives in Wasm
+   locals only if it has at most K fields, recursively, and at most W
+   scalars. Otherwise it is `Memory`: in linear memory, passed by address,
+   with results through a destination pointer. Go uses 4 fields and 4
+   words, Swift 4 words and rustc's ABI 2 scalars; hd uses 16 scalars. K
+   and W are chosen on the release bench, at 4, 8 and 16.
+3. **One block copy** for a `Memory` value: one `memory.copy` of its size,
+   never a loop over its scalars (Go `Move`, rustc `memcpy`).
+4. **Build in place** (Zig result locations, rustc `sret`): an aggregate
+   whose layout is `Memory` is built in its destination, each field at its
+   offset, with no temporary and no copy after.
+5. **No scalar splitting past the rule.** The release optimizer replaces
+   an aggregate by its scalars only under rule 2. Splitting without that
+   bound is what sends LLVM's `-O3` past 120 s.
+6. **No boxing.** MoonBit's heap box compiles fast but allocates per
+   value, which hd's value semantics and runtime goals rule out.
+
+The target: the depth 20 probe builds in under 10 s in dev and in release,
+and its Wasm grows linearly with the source.
+
 ## Appendix C. Alternatives considered
 
 - **Keep the emitter's analyses and port them to LLVM.** About 19,000
