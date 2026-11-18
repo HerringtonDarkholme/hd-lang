@@ -73,55 +73,45 @@ impl Ck<'_, '_> {
     }
 
     pub(crate) fn strict_opaque_return(&self, ty: Ty) -> bool {
-        if self.strict_rets.is_empty() {
-            return false;
-        }
-        if self.strict_opaque_slot(ty) {
-            return true;
-        }
         let pool = self.pool();
-        if !pool.has_infer(ty) {
+        if self.strict_rets.is_empty() || !pool.has_infer(ty) {
             return false;
         }
-        let list = |args| {
-            pool.list_items(args)
-                .iter()
-                .any(|&t| self.strict_opaque_return(t))
-        };
-        match pool.get(ty) {
-            TyData::Adt { args, .. } => list(args),
-            TyData::Tuple { elems, rest } => {
-                list(elems) || rest.is_some_and(|t| self.strict_opaque_return(t))
-            }
-            TyData::Ref { inner: t, .. } => self.strict_opaque_return(t),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                list(params)
-                    || self.strict_opaque_return(result)
-                    || pool
-                        .row_data(row)
-                        .keys
-                        .into_iter()
-                        .any(|t| self.strict_opaque_return(t))
-            }
-            TyData::TraitValue { args, bindings, .. } => {
-                list(args)
-                    || bindings
-                        .into_iter()
-                        .any(|(_, t)| self.strict_opaque_return(t))
-            }
-            TyData::Assoc { self_ty, args, .. } => self.strict_opaque_return(self_ty) || list(args),
-            TyData::Row(row) | TyData::Context(row) => pool
-                .row_data(row)
-                .keys
-                .into_iter()
-                .any(|t| self.strict_opaque_return(t)),
-            _ => false,
+        if matches!(pool.get(ty), TyData::Infer(_)) {
+            return self.strict_opaque_slot(ty);
         }
+        let mut slots = self.strict_rets.iter().filter_map(|&slot| {
+            hd_types::work::type_node();
+            self.infer.class_of(pool, slot)
+        });
+        let mut classes = hd_base::HashSet::default();
+        let mut seen = hd_base::HashSet::default();
+        !hd_base::stack::all(ty, |ty, stack| {
+            if !pool.has_infer(ty) || !seen.insert(ty) {
+                return true;
+            }
+            hd_types::work::type_node();
+            if let Some(class) = self.infer.class_of(pool, ty) {
+                if classes.contains(&class) {
+                    return false;
+                }
+                // Index lazily: an early match still reads only the slots
+                // before it, and a false query reads each slot at most once.
+                for candidate in slots.by_ref() {
+                    if candidate == class {
+                        return false;
+                    }
+                    classes.insert(candidate);
+                }
+            }
+            let start = stack.len();
+            match pool.get(ty) {
+                TyData::Opaque { .. } | TyData::Union(_) => return true,
+                _ => pool.children(ty, stack),
+            }
+            stack[start..].reverse();
+            true
+        })
     }
 
     /// Keep the chosen hidden types invariant inside ordinary outer
@@ -292,5 +282,241 @@ impl hd_types::TyMap for OpaqueMap<'_, '_, '_> {
     }
     fn row(&mut self, r: hd_types::RowId) -> hd_types::RowId {
         self.ck.opaque_return_row(r, self.mode)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::body::{BodyCx, new_ck};
+    use hd_base::{FileId, Fuel};
+    use hd_diag::DiagBuf;
+    use hd_intern::{PathTable, ShardedInterner};
+    use hd_resolve::{KnownItems, Locals, Lookup, ModuleScope, Names, Src};
+    use hd_types::lookup::{FolderSlots, Unseen};
+    use hd_types::solver::{
+        GlobalMemo, ImplUniverseId, ImplView, OwnerMap, TableSolver, UniverseImpls,
+    };
+    use hd_types::{InternPool, LocalPool, RowId};
+    use std::cell::{OnceCell, RefCell};
+    use std::sync::Arc;
+
+    fn with_checker(run: impl FnOnce(&mut Ck<'_, '_>)) {
+        let pool = InternPool::new();
+        let local = LocalPool::new();
+        let paths = PathTable::new();
+        let syms = ShardedInterner::default();
+        let known = KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let item = names.item("app.main", "test");
+        let parsed = hd_syntax::parse(b"");
+        let index = hd_resolve::iface::IfaceIndex::default();
+        let lookup = Lookup::new(&[], std::iter::empty(), &index);
+        let owners = OwnerMap::default();
+        let extra = UniverseImpls::default();
+        let impls = ImplView {
+            paths: &paths,
+            owners: &owners,
+            own: None,
+            folders: FolderSlots::default(),
+            universe: ImplUniverseId(0),
+            extra: &extra,
+            arity: &|_| 0,
+            hidden: Unseen::default(),
+            plans: None,
+        };
+        let global = GlobalMemo::default();
+        let scope = ModuleScope::default();
+        let locals = Locals::new(vec![]);
+        let cx = BodyCx {
+            names,
+            src: Src {
+                parse: &parsed,
+                text: "",
+                file: FileId::from_raw(0),
+            },
+            scope: &scope,
+            lookup: &lookup,
+            impls: &impls,
+            global: &global,
+            solver: &TableSolver,
+            methods: Arc::default(),
+            init: RefCell::default(),
+            results: RefCell::default(),
+            dbg_refs: RefCell::default(),
+            source_facts: None,
+            locals: &locals,
+            enclosing: OnceCell::default(),
+            instantiations: RefCell::default(),
+            traits_in_scope: Arc::default(),
+            file_name: "test.hd",
+            tests: None,
+            session: &[],
+            fuel: Fuel::BODY_DEFAULT,
+            verify_tir: false,
+        };
+        let mut diags = DiagBuf::default();
+        let mut ck = new_ck(
+            &cx,
+            &local,
+            item,
+            item,
+            hd_tir::BodyKind::Fn,
+            (Ty::VOID, RowId::EMPTY),
+            &mut diags,
+        );
+        run(&mut ck);
+    }
+
+    #[test]
+    fn strict_returns_at_depth_1000_fit_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                with_checker(|ck| {
+                    let pool = ck.pool();
+                    let strict = ck.infer.fresh(pool, VarKind::General);
+                    let other = ck.infer.fresh(pool, VarKind::General);
+                    ck.strict_rets.push(strict);
+                    for depth in [100, 1_000] {
+                        let mut chain = [strict, other];
+                        for _ in 0..depth {
+                            for t in &mut chain {
+                                *t = pool.intern_ty(&TyData::Tuple {
+                                    elems: pool.list(&[*t, *t]),
+                                    rest: None,
+                                });
+                            }
+                        }
+                        for (t, expected) in [(chain[0], true), (chain[1], false)] {
+                            let (answer, work) =
+                                hd_types::work::count_type_nodes(|| ck.strict_opaque_return(t));
+                            assert_eq!(answer, expected);
+                            assert_eq!(work, depth + 2, "one graph walk and one strict-slot read");
+                        }
+                    }
+                    let owner = ck.cx.names.item("app.main", "Shape");
+                    let row = pool.row(&hd_types::RowData {
+                        keys: vec![strict],
+                        params: vec![],
+                    });
+                    for t in [
+                        pool.intern_ty(&TyData::Adt {
+                            def: owner,
+                            args: pool.list(&[strict]),
+                        }),
+                        pool.intern_ty(&TyData::Tuple {
+                            elems: hd_types::TyList::EMPTY,
+                            rest: Some(strict),
+                        }),
+                        pool.intern_ty(&TyData::Ref {
+                            inner: strict,
+                            mutable: false,
+                            counted: false,
+                        }),
+                        pool.intern_ty(&TyData::Fn {
+                            params: hd_types::TyList::EMPTY,
+                            result: Ty::I32,
+                            row,
+                            suspends: false,
+                            inputs: hd_types::Inputs::Fixed,
+                            deps: hd_types::FnDeps::NONE,
+                        }),
+                        pool.intern_ty(&TyData::TraitValue {
+                            def: owner,
+                            args: hd_types::TyList::EMPTY,
+                            bindings: vec![(owner, strict)],
+                        }),
+                        pool.intern_ty(&TyData::Assoc {
+                            assoc: owner,
+                            trait_: owner,
+                            self_ty: strict,
+                            args: hd_types::TyList::EMPTY,
+                        }),
+                        pool.intern_ty(&TyData::Row(row)),
+                        pool.intern_ty(&TyData::Context(row)),
+                    ] {
+                        assert!(
+                            ck.strict_opaque_return(t),
+                            "the original holder forms are traversed"
+                        );
+                    }
+                    let opaque = pool.intern_ty(&TyData::Opaque {
+                        owner,
+                        site: 0,
+                        args: pool.list(&[strict]),
+                        bound: strict,
+                        borrows: false,
+                    });
+                    let union = pool.intern_ty(&TyData::Union(pool.list(&[strict, Ty::BOOL])));
+                    for t in [opaque, union] {
+                        assert!(
+                            !ck.strict_opaque_return(t),
+                            "the original opaque/union boundaries stay leaves"
+                        );
+                    }
+                    let root = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&[other]),
+                        rest: None,
+                    });
+                    assert!(!ck.strict_opaque_return(root));
+                    let mark = ck.infer.snapshot();
+                    ck.infer.unify(pool, strict, other).unwrap();
+                    assert!(ck.strict_opaque_return(root));
+                    ck.infer.rollback(mark);
+                    assert!(!ck.strict_opaque_return(root));
+                    ck.infer.unify(pool, strict, other).unwrap();
+                    assert!(
+                        ck.strict_opaque_return(root),
+                        "a new query sees merged classes"
+                    );
+                    ck.infer.unify(pool, other, Ty::I32).unwrap();
+                    assert!(
+                        ck.strict_opaque_return(root),
+                        "a solved occurrence stays strict"
+                    );
+                });
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
+    #[test]
+    fn strict_return_slot_index_is_lazy_and_linear() {
+        for width in [100, 1_000] {
+            with_checker(|ck| {
+                let pool = ck.pool();
+                for _ in 0..width {
+                    let slot = ck.infer.fresh(pool, VarKind::General);
+                    ck.strict_rets.push(slot);
+                }
+                let others: Vec<_> = (0..width)
+                    .map(|_| ck.infer.fresh(pool, VarKind::General))
+                    .collect();
+                let root = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&others),
+                    rest: None,
+                });
+                let (answer, work) =
+                    hd_types::work::count_type_nodes(|| ck.strict_opaque_return(root));
+                assert!(!answer);
+                assert_eq!(work, 2 * width + 1);
+                let first = pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(&[ck.strict_rets[0]]),
+                    rest: None,
+                });
+                let (answer, work) =
+                    hd_types::work::count_type_nodes(|| ck.strict_opaque_return(first));
+                assert!(answer);
+                assert_eq!(work, 3, "the first match does not index unrelated slots");
+            });
+        }
     }
 }
