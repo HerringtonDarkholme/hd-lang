@@ -37,11 +37,13 @@ impl Joiner:
     fn tagged[T](&self, value: T) -> T:
 > app/main/impl Joiner.tagged
 >   local $1 value: T [param read] value
->     uses $1: entry -> %1 consume last
->   %0 = Retain %2 Entry local $1 #0 : ()
+>     uses $1: entry -> %2 consume last
+>   %1 = Retain %4 Entry local $1 #0 : ()
         value
->   %1 = Read move [$1] : T
->   %2 = Block %1 : T
+>   %0 = FlagSet [$1] #2 : ()
+>   %2 = Read move [$1] : T
+>   %3 = FlagClear [$1] #2 : ()
+>   %4 = Block %2 : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] returns $1
 

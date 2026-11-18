@@ -646,7 +646,6 @@ impl Em<'_, '_, '_> {
                 self.release_local(l)?;
                 continue;
             }
-            self.mark_drop_root(super::drop_flags::Root::Local(l), t, false);
             if self.needs_drop(t) {
                 for x in self.local(u32::try_from(l).expect("locals"))? {
                     self.f.zero(x);

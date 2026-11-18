@@ -156,11 +156,12 @@ tags! {
     Ref: Place, Meta;
     // ownership (`docs/compiler/tir-v2.md`, "Ownership statements"): the
     // ownership passes write these after decoding, never the checker; a
-    // is a place word. `FlagSet` and `FlagClear` are reserved for tier 2.
+    // is a place word. `FlagSet` and `FlagClear` set and clear the drop
+    // flag local in b of the move path in a (`own::drop_flags`).
     Drop: Place, None;
     IsUnique: Place, Meta;
-    FlagSet: Place, None;
-    FlagClear: Place, None;
+    FlagSet: Place, Meta;
+    FlagClear: Place, Meta;
     // providers
     With: Record, Block;
     ContextNew: Record, None;
@@ -4487,10 +4488,38 @@ mod tests {
         assert!(verify_owned(&after, &Counts).is_empty());
     }
 
-    /// Invariant 23: nothing tier 2 reserves, a decided mode for every
-    /// read, and an exit set in order.
+    /// Invariant 23: a drop flag statement names one move path, a part of
+    /// a local in place, for each `bool` flag local.
     #[test]
-    fn verifier_rejects_tier_two_and_undecided_ownership() {
+    fn verifier_takes_one_move_path_per_drop_flag() {
+        use super::verify_owned;
+        let flag = |b: &mut TirBuilder, tag, place: &str, local: LocalId, n| {
+            let word = b.place(&place.parse().expect("place"));
+            b.emit(tag, word, local.raw(), Ty::VOID, n);
+        };
+        let body = owned_body(|b, n| {
+            let f = b.local(Ty::BOOL, Symbol::from_raw(2), 0, n);
+            let g = b.local(Ty::BOOL, Symbol::from_raw(3), 0, n);
+            let w = b.place(&"[$0 .1]".parse().expect("place"));
+            b.emit(Tag::FlagSet, w, f.raw(), Ty::VOID, n);
+            b.emit(Tag::FlagClear, w, f.raw(), Ty::VOID, n);
+            // Another word of the same path is a second path for `f`.
+            flag(b, Tag::FlagClear, "[$0 .1]", f, n);
+            // Through a dereference no move path goes.
+            flag(b, Tag::FlagSet, "[*$1]", g, n);
+            // `$1` is no `bool` local.
+            flag(b, Tag::FlagSet, "[$0]", LocalId::from_raw(1), n);
+        });
+        assert_eq!(
+            findings(&verify_owned(&body, &Counts)),
+            [(23, 2), (23, 3), (23, 4)]
+        );
+    }
+
+    /// Invariant 23: a decided mode for every read, a `bool` local for
+    /// every flag statement, and an exit set in order.
+    #[test]
+    fn verifier_rejects_undecided_ownership() {
         use super::{ReadMode, verify_owned};
         let mut body = owned_body(|b, n| {
             read(b, "[$0]", ReadMode::Use, n);

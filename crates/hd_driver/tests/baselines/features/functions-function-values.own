@@ -69,11 +69,13 @@ fn named_value(s: string) -> usize:
 fn ident[T](x: T) -> T:
 > app/main/ident
 >   local $0 x: T [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume last
+>   %1 = Retain %4 Entry local $0 #0 : ()
     x
->   %1 = Read move [$0] : T
->   %2 = Block %1 : T
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Read move [$0] : T
+>   %3 = FlagClear [$0] #1 : ()
+>   %4 = Block %2 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 

@@ -58,7 +58,9 @@
 //!   of an `IsUnique` rooted at a value, reads no such place through
 //!   other reads, so the buffer a check or a change leaves reaches the
 //!   place it replaced ([`change_places`]);
-//! - nothing tier 2 reserves: no `FlagSet` or `FlagClear`.
+//! - each `FlagSet` and `FlagClear` names a `bool` flag local and one
+//!   move path for it, a part of a local or a value in place
+//!   ([`flag_statement`]).
 //!
 //! A census groups facts and sparse part keys by sub-body. The walks use
 //! dense instruction tables and bitsets sized to that sub-body's moves,
@@ -739,8 +741,35 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     }
 }
 
-/// The modes, the exit set and the tier-2 reservations.
+/// A drop flag statement (`own::drop_flags`): b is a `bool` local, and a
+/// is a part of a local or an instruction's value in place (fields and
+/// variants), the same place word in every statement of that local, so
+/// one flag stands for one move path.
+fn flag_statement(b: &Body, i: usize, paths: &mut Vec<u32>, errs: &mut Vec<VerifyError>) {
+    let [word, flag] = b.data[i];
+    let p = b.view(word);
+    let what = if b.local_ty.get(flag as usize) != Some(&hd_types::Ty::BOOL) {
+        format!(
+            "a `{}` of flag ${flag}, which is no `bool` local",
+            b.tags[i].name()
+        )
+    } else if !matches!(p.root, Root::Local(_) | Root::Value(_)) || !p.in_place(b) {
+        format!("a `{}` of a place no move path names", b.tags[i].name())
+    } else {
+        paths.resize(b.local_ty.len(), NONE);
+        let first = &mut paths[flag as usize];
+        if *first == NONE || *first == word {
+            *first = word;
+            return;
+        }
+        format!("flag ${flag} stands for two move paths")
+    };
+    err(errs, u32_of(i), what);
+}
+
+/// The modes, the exit set and the drop flag statements.
 fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
+    let mut flag_paths = Vec::new();
     for (i, (&tag, &[_, w])) in b.tags.iter().zip(&b.data).enumerate() {
         match tag {
             Tag::Read => match ReadMode::from_u32(w) {
@@ -750,9 +779,7 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
                 None => err(errs, u32_of(i), format!("a `Read` of unknown mode {w}")),
                 Some(_) => {}
             },
-            Tag::FlagSet | Tag::FlagClear => {
-                err(errs, u32_of(i), format!("`{}` is tier 2's", tag.name()));
-            }
+            Tag::FlagSet | Tag::FlagClear => flag_statement(b, i, &mut flag_paths, errs),
             _ => {}
         }
     }

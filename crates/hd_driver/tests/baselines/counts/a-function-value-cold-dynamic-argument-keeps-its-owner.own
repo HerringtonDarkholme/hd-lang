@@ -18,21 +18,23 @@ impl[T] Echo[T] for Echoer:
 >   local $0 self: &Echoer [param] value
 >     uses $0: none
 >   local $1 value: T [param read] value
->     uses $1: entry -> %11 consume last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
->   %2 = Retain %12 Cold local $1 #0 : ()
->   %3 = Retain %12 Entry local $1 #0 : ()
->   %4 = Retain %12 Cold referent $0 #8 : ()
->   %5 = Release %12 FrameDrop referent $0 #2 : ()
->   %6 = Release %12 Exit referent $0 #8 : ()
->   %7 = Retain %12 Cold referent $1 #8 : ()
->   %8 = Release %12 FrameDrop referent $1 #2 : ()
->   %9 = Release %12 Exit referent $1 #8 : ()
+>     uses $1: entry -> %12 consume last
+>   %1 = Retain %14 Cold local $0 #0 : ()
+>   %2 = Retain %14 Entry local $0 #0 : ()
+>   %3 = Retain %14 Cold local $1 #0 : ()
+>   %4 = Retain %14 Entry local $1 #0 : ()
+>   %5 = Retain %14 Cold referent $0 #8 : ()
+>   %6 = Release %14 FrameDrop referent $0 #2 : ()
+>   %7 = Release %14 Exit referent $0 #8 : ()
+>   %8 = Retain %14 Cold referent $1 #8 : ()
+>   %9 = Release %14 FrameDrop referent $1 #2 : ()
+>   %10 = Release %14 Exit referent $1 #8 : ()
         value
->   %10 = Drop [$0] : ()
->   %11 = Read move [$1] : T
->   %12 = Block %11 : T
+>   %0 = FlagSet [$1] #2 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Read move [$1] : T
+>   %13 = FlagClear [$1] #2 : ()
+>   %14 = Block %12 : T
 >   exit sub 0 drops [$0 $1]
 >   summary none
 

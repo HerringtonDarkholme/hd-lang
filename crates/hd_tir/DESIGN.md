@@ -835,7 +835,7 @@ or `REPEAT` when an existing fact already proves uniqueness. The type is `void`.
 | `Drop` | releases the value at the place and leaves it empty; a drop of an empty place does nothing |
 | `IsUnique` | makes the buffer of the list or map at the place its own, copying it when another holder shares it |
 | `Pin` | after an `IsUnique` of the same list place, marks its header as its buffer's one owner while element references hold counts of the buffer |
-| `FlagSet`, `FlagClear` | tier 2 only (reserved; invariant 23 rejects them): set and clear a borrow flag next to a pin |
+| `FlagSet`, `FlagClear` | set and clear the drop flag of a move path (`own/drop_flags.rs`): a is the path, a part of a local or a value in place, and b its `bool` flag local; the statement uses no value. A hook at node P runs when its nearest flagged path and every flagged path under P hold |
 
 A body's one exit per sub-body drops the locals of its exit set,
 `exit_drops`: rows of a sub-body and a local, sorted, which the passes
@@ -847,8 +847,7 @@ local that may hold a value at a suspension point. `stable_lists`, which
 the hoisting pass writes, holds rows of a loop and a place of a list
 whose header and buffer nothing in the loop replaces, sorted; the
 backend keeps the buffer's address and length in locals for that loop.
-The unused `live` and reserved `regions` columns were removed (#2141);
-guarded-drop statements `FlagSet` and `FlagClear` remain.
+The unused `live` and reserved `regions` columns were removed (#2141).
 
 **Providers**
 
@@ -1106,8 +1105,8 @@ The verifier checks each of these:
     of a place follows its `move` on any path without a `Store` in
     between; no `borrow` value is live across a write to an overlapping
     place or a suspension point. Every `Read` has a decided mode, the exit
-    set names locals of the body, sorted, and nothing tier 2 reserves
-    occurs.
+    set names locals of the body, sorted, and each `FlagSet` and
+    `FlagClear` names one in-place move path for its `bool` flag local.
 24. **An instance body holds no generic form**: a body marked
     `Phase::Instance` names no type parameter, no unnormalized
     projection and no unopened opaque result in its instruction, local and constant columns or in a

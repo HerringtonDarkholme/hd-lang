@@ -1,0 +1,41 @@
+# @dump: own wat
+# @build: std
+# Drop flags are TIR locals (#1420): `pair.left` moves out on one branch
+# only, so its path and its root `pair` get a `bool` flag local each.
+# Every init sets them (`FlagSet`), the move clears the field's
+# (`FlagClear`), and the root's drop runs `Pair`'s hook only when both
+# hold and `Item`'s hook at `.left` only when the field's holds.
+# `keep` moves nothing and drops once, so it has no flag.
+# Rule: module.rt.drop.glue.
+use std.rt.Drop
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        self.name = "dropped"
+
+struct Pair:
+    left: Item
+    right: Item
+
+impl !Copy for Pair
+
+impl Drop for Pair:
+    fn drop(&mut self) -> void:
+        self.right.name = "gone"
+
+fn take(item: Item) -> void:
+    pass
+
+# subject
+fn split(pair: Pair, early: bool) -> void:
+    if early:
+        take(pair.left)
+
+# subject
+fn keep(pair: Pair) -> void:
+    pass

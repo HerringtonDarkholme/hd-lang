@@ -598,11 +598,6 @@ fn body_func<'a>(
             }
         }
     }
-    for &l in &plocals {
-        if !em.is_cell(l) && !em.borrowed.contains(&l) && !em.mem_locals.contains_key(&l) {
-            em.mark_drop_root(drop_flags::Root::Local(l), b.local_ty[l], true);
-        }
-    }
     if suspending {
         em.f.op(Instruction::End);
         // A frame owns its reference parameters
@@ -1483,6 +1478,8 @@ struct Em<'i, 'a, 'm> {
     /// them ([`Em::take`]).
     moving: Vec<(u32, u32)>,
     drop_states: HashMap<drop_flags::Root, drop_flags::State>,
+    /// This sub-body's TIR drop flags (`drop_flags.rs`), read on first use.
+    tir_flags: Option<std::rc::Rc<drop_flags::TirFlags>>,
     /// The state machine of a suspending body (`susp.rs`).
     susp: Option<susp::Susp>,
     /// How many `using` dispose suites that wait the instruction being
@@ -1707,6 +1704,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             emitting: Vec::new(),
             moving: Vec::new(),
             drop_states: HashMap::default(),
+            tir_flags: None,
             susp: None,
             shield: 0,
             cancel_from: NONE,
@@ -2639,6 +2637,7 @@ impl Em<'_, '_, '_> {
                     self.own_drop(i)?;
                 }
             }
+            Tag::FlagSet | Tag::FlagClear => self.flag_statement(i)?,
             Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
             // Places (`emit/refs.rs`).

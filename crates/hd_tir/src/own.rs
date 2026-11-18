@@ -57,6 +57,7 @@ pub(crate) mod context;
 pub(crate) mod copy_struct;
 pub(crate) mod counts;
 pub(crate) mod derive;
+pub mod drop_flags;
 pub mod flow;
 pub(crate) mod frame;
 pub(crate) mod join_results;
@@ -1165,6 +1166,10 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
     scratch.topo.build(b);
+    scratch.splice.clear();
+    drop_flags::run(b, cx, &scratch.topo, &mut scratch.splice);
+    splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+    scratch.topo.build(b);
     // Resident backend slots no longer require per-point serialized rows.
     // Keep the wire column readable for older artifacts and diagnostics.
     uncopied(b, cx, &mut scratch.uncopied);
@@ -2015,6 +2020,8 @@ pub(crate) mod tests {
     /// A non-copyable value with no counted fields or drop hook.
     const UNCOUNTED: Ty = Ty(1_000_003);
     const LOCAL_REF: Ty = Ty(1_000_004);
+    /// A counted non-copyable value with a `Drop` hook.
+    pub(crate) const HOOKED: Ty = Ty(1_000_005);
 
     /// `string` and `LIST` are counted; callee 9 takes its argument as a value
     /// parameter, callee 8 by reference.
@@ -2024,6 +2031,14 @@ pub(crate) mod tests {
         fn temporary_owner_name(&self) -> hd_base::Symbol {
             hd_base::Symbol::NONE
         }
+        /// Only `HOOKED` holds a `Drop` hook.
+        fn holds_drop(&self, ty: Ty) -> super::Tri {
+            if ty == HOOKED {
+                super::Tri::Yes
+            } else {
+                super::Tri::No
+            }
+        }
 
         // The default answers that a body suspends: these bodies have no
         // point, and run plain only as an entry root.
@@ -2032,7 +2047,7 @@ pub(crate) mod tests {
         }
         fn counted(&self, ty: Ty) -> bool {
             super::flow::charge(1);
-            ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN
+            ty == Ty::STRING || ty == LIST || ty == UNIQ || ty == OPEN || ty == HOOKED
         }
         fn plain_reference(&self, ty: Ty) -> bool {
             ty == LOCAL_REF
@@ -2063,7 +2078,7 @@ pub(crate) mod tests {
         }
         fn copies(&self, ty: Ty) -> Tri {
             match ty {
-                UNIQ | UNCOUNTED => Tri::No,
+                UNIQ | UNCOUNTED | HOOKED => Tri::No,
                 OPEN => Tri::Maybe,
                 _ => Tri::Yes,
             }
@@ -3094,6 +3109,108 @@ pub(crate) mod tests {
         );
         assert!(!text.contains("Drop [$0]"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
+    }
+
+    /// Drop flags (#1420): `n` hooked locals, each moved on one branch,
+    /// and one moved nowhere. Each moved local gets one flag local, set
+    /// at its store, cleared at its move and after its drop, which its
+    /// exit row repeats; the unmoved one, dropped once, gets none. The
+    /// statements grow linearly with `n`.
+    fn flagged_branches(n: usize) -> Body {
+        let at = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let still = b.local(HOOKED, Symbol::from_raw(0), 0, at);
+        let s = call(&mut b, 7, &[], HOOKED);
+        b.set(still, s, at);
+        for _ in 0..n {
+            let x = b.local(HOOKED, Symbol::from_raw(0), 0, at);
+            let s = call(&mut b, 7, &[], HOOKED);
+            b.set(x, s, at);
+            let c = call(&mut b, 6, &[], Ty::BOOL);
+            let then = b.open_block();
+            let r = b.get(x, HOOKED, at);
+            call(&mut b, 9, &[r], Ty::VOID);
+            let then = b.close_block(then, None, Ty::VOID, at);
+            let arms = b.refs_record(&[then]);
+            b.emit(Tag::If, c.0, arms, Ty::VOID, at);
+        }
+        let root = b.close_block(blk, None, Ty::VOID, at);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+        let errs = verify_owned(&body, &Cx);
+        assert!(errs.is_empty(), "{errs:?}\n{}", show(&body));
+        body
+    }
+
+    #[test]
+    fn a_hooked_local_moved_on_one_branch_has_a_flag_local() {
+        let body = flagged_branches(1);
+        let flags: Vec<_> = (0..body.len())
+            .filter(|&i| matches!(body.tags[i], Tag::FlagSet | Tag::FlagClear))
+            .map(|i| {
+                (
+                    body.tags[i],
+                    body.view(body.data[i][0]).local(),
+                    body.data[i][1],
+                )
+            })
+            .collect();
+        // `$1` moves; its flag is `$2`, a `bool` local the pass made.
+        assert_eq!(
+            flags,
+            [
+                (Tag::FlagSet, Some(1), 2),
+                (Tag::FlagClear, Some(1), 2),
+                (Tag::FlagClear, Some(1), 2),
+            ],
+            "{}",
+            show(&body)
+        );
+        assert_eq!(body.local_ty[2], Ty::BOOL);
+        assert_eq!(body.local_ty.len(), 3);
+    }
+
+    /// Drop flags (#1420): a call lent `n` counted temporaries, whose `n`
+    /// drops follow it, then a hooked local's move.
+    fn flagged_after_counts(n: usize) -> Body {
+        let at = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(HOOKED, Symbol::from_raw(0), 0, at);
+        let s = call(&mut b, 7, &[], HOOKED);
+        b.set(x, s, at);
+        let strings: Vec<_> = (0..n).map(|_| call(&mut b, 7, &[], Ty::STRING)).collect();
+        call(&mut b, 8, &strings, Ty::VOID);
+        let r = b.get(x, HOOKED, at);
+        call(&mut b, 9, &[r], Ty::VOID);
+        let root = b.close_block(blk, None, Ty::VOID, at);
+        b.finish(root, &[]).expect("verifies")
+    }
+
+    #[test]
+    fn the_flag_pass_works_linearly_past_a_run_of_drops() {
+        let work = |n| {
+            let mut body = flagged_after_counts(n);
+            let ((), work) = super::flow::work::measure(|| {
+                run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+            });
+            work
+        };
+        let (small, large) = (work(3), work(30));
+        assert!(large <= 10 * small + 10, "{small} -> {large}");
+    }
+
+    #[test]
+    fn drop_flag_statements_grow_linearly_with_the_moves() {
+        let count = |n| {
+            let b = flagged_branches(n);
+            (0..b.len())
+                .filter(|&i| matches!(b.tags[i], Tag::FlagSet | Tag::FlagClear))
+                .count()
+        };
+        assert_eq!(count(10), 3 * 10);
+        assert_eq!(count(100), 3 * 100);
     }
 
     /// Known-null at a suspension point: its unwind set lists the values

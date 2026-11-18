@@ -420,7 +420,6 @@ impl Em<'_, '_, '_> {
             self.f.get(ls[k]);
         }
         self.store_owned(i)?;
-        self.mark_drop_place(&p, false);
         if self.needs_drop(pt) {
             self.zero_part(t, &ls, &slots)?;
             for (slot, value) in self.niche_repairs(t, &p.proj, &self.zeroed(t, &slots)?)? {

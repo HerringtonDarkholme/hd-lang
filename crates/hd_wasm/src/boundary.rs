@@ -1105,14 +1105,7 @@ fn tags_only(body: &Body, root: u32) -> bool {
             .any(|v| tracked(&values, v));
             let place = matches!(
                 tag,
-                Tag::Read
-                    | Tag::Store
-                    | Tag::Ref
-                    | Tag::Drop
-                    | Tag::LoanEnd
-                    | Tag::IsUnique
-                    | Tag::FlagSet
-                    | Tag::FlagClear
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique
             )
             .then(|| body.decode_place(body.data[i][0]))
             .flatten();

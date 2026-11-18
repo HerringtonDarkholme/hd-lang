@@ -196,14 +196,7 @@ fn compute_params(
         let tag = b.tags[i];
         if !matches!(
             tag,
-            Tag::Read
-                | Tag::Store
-                | Tag::Ref
-                | Tag::Drop
-                | Tag::IsUnique
-                | Tag::FlagSet
-                | Tag::FlagClear
-                | Tag::LoanEnd
+            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::LoanEnd
         ) {
             continue;
         }
@@ -1184,14 +1177,7 @@ impl Em<'_, '_, '_> {
             let tag = b.tags[i];
             if !matches!(
                 tag,
-                Tag::Read
-                    | Tag::Store
-                    | Tag::Ref
-                    | Tag::Drop
-                    | Tag::IsUnique
-                    | Tag::FlagSet
-                    | Tag::FlagClear
-                    | Tag::LoanEnd
+                Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique | Tag::LoanEnd
             ) {
                 continue;
             }

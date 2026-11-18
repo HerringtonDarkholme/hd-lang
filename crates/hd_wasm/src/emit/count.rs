@@ -668,7 +668,6 @@ impl Em<'_, '_, '_> {
         if !stated && !owned && self.tracked(t) && !self.loans.contains(&i) {
             self.retain_locals(&ls, t)?;
         }
-        self.mark_drop_root(super::drop_flags::Root::Value(i), t, true);
         Ok(())
     }
 
@@ -715,7 +714,6 @@ impl Em<'_, '_, '_> {
             for l in self.vals.get(&r).cloned().unwrap_or_default() {
                 self.f.zero(l);
             }
-            self.mark_drop_root(super::drop_flags::Root::Value(r), self.ty_of(r), false);
         }
     }
 
@@ -1162,7 +1160,6 @@ impl Em<'_, '_, '_> {
         match mode {
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
-                self.mark_drop_root(super::drop_flags::Root::Local(l), self.b.local_ty[l], false);
                 if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);

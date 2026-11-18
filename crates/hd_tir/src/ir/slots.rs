@@ -102,6 +102,9 @@ fn layout(tag: Tag) -> [Layout; 2] {
     match tag {
         Tag::Block => [L::Each(Word::Inst), L::One(Word::Value(Role::Tail))],
         Tag::Drop | Tag::LoanEnd => [L::Place(Role::Dropped), b],
+        // A drop flag statement writes its flag local, not its path's
+        // root: it uses no value.
+        Tag::FlagSet | Tag::FlagClear => [L::Opaque, b],
         Tag::Store | Tag::Break => [a, L::One(consume)],
         Tag::Return => [L::One(consume), b],
         Tag::Call | Tag::Await | Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => {

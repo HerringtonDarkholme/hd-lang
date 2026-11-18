@@ -660,7 +660,7 @@ pub(crate) fn repeats(b: &Body, topo: &Topology, i: usize) -> bool {
             Tag::Retain
                 if crate::ir::count::Info::read(b, m)
                     .is_some_and(|c| c.at == crate::ir::count::At::Operation) => {}
-            Tag::Release => {}
+            Tag::Release | Tag::FlagSet | Tag::FlagClear => {}
             Tag::IsUnique if names_all => return true,
             Tag::Read | Tag::Store | Tag::Drop | Tag::IsUnique if !names_all => {}
             Tag::Prim | Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => {}
@@ -726,6 +726,8 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
                 continue;
             }
             Tag::Release
+            | Tag::FlagSet
+            | Tag::FlagClear
             | Tag::Prim
             | Tag::NewStruct
             | Tag::NewTuple

@@ -58,31 +58,35 @@ fn take![T < 'static](value: T) -> T $ Clock:
 @cold
 > std/rt_tests.stage_case/stack
 >   local $0 value: T [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %8 = Release %7 Operation local $0 #2 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
+>   %9 = Release %8 Operation local $0 #2 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
->   %1 = Ref local frame [$0] : &T
->   %2 = Coerce %1 [Weaken -] : &T
->   %3 = Ref local frame [$0] : &T
->   %4 = Call std/rt_tests.stage_case/same[T] (%2, %3) : bool
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %9 = Block %7 : T
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Ref local frame [$0] : &T
+>   %3 = Coerce %2 [Weaken -] : &T
+>   %4 = Ref local frame [$0] : &T
+>   %5 = Call std/rt_tests.stage_case/same[T] (%3, %4) : bool
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %11 = Block %8 : T
     value
->   %7 = Read move [$0] : T
+>   %8 = Read move [$0] : T
+>   %10 = FlagClear [$0] #1 : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
 @cold
 > std/rt_tests.stage_case/direct
 >   local $0 value: T [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume last
+>   %1 = Retain %4 Entry local $0 #0 : ()
 fn direct[T](value: T) -> T:
     value
->   %1 = Read move [$0] : T
->   %2 = Block %1 : T
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Read move [$0] : T
+>   %3 = FlagClear [$0] #1 : ()
+>   %4 = Block %2 : T
 >   exit sub 0 drops [$0]
 
 pub fn main!() -> void $ Console + Clock:

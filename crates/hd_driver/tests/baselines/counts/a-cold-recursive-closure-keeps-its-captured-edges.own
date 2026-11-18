@@ -55,19 +55,22 @@ fn make(value: string) -> fn!(usize) -> string:
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %6 consume, %8 consume last
->   %5 = Retain %10 Entry local $0 #0 : ()
+>     uses $0: entry -> %7 consume, %10 consume last
+>   %6 = Retain %13 Entry local $0 #0 : ()
     fn!() -> T: value
->   %0 = Retain %7 Cold row #0 : ()
->   %1 = Retain %7 Materialize row #0 : ()
->   %2 = Release %7 FrameDrop row #2 : ()
->   %3 = Retain %7 Cold captures #0 : ()
->   %4 = Retain %7 Entry captures #0 : ()
->   %6 = Read move [$0] : T
->   %7 = Block %6 : T
->   %8 = Closure #1 : fn!() -> T
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Block %8 : fn!() -> T
+>   %0 = Retain %9 Cold row #0 : ()
+>   %1 = Retain %9 Materialize row #0 : ()
+>   %2 = Release %9 FrameDrop row #2 : ()
+>   %3 = Retain %9 Cold captures #0 : ()
+>   %4 = Retain %9 Entry captures #0 : ()
+>   %5 = FlagSet [$0] #1 : ()
+>   %7 = Read move [$0] : T
+>   %8 = FlagClear [$0] #1 : ()
+>   %9 = Block %7 : T
+>   %10 = Closure #1 : fn!() -> T
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = FlagClear [$0] #1 : ()
+>   %13 = Block %10 : fn!() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

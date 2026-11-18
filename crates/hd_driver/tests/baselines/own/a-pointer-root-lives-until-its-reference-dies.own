@@ -12,79 +12,81 @@ fn probe(items: UniqList[string]) -> string:
     p := box(Outer { items: items })
 > app/main/probe
 >   local $0 items: UniqList[string] [param read] value
->     uses $0: entry -> %0 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 $ref: Outer [read assigned captured captured-assigned] place
 >   local $2 p: *mut Outer [:= read assigned] value
->     uses $2: %4 -> %5 lend last
+>     uses $2: %6 -> %7 lend last
 >   local $3 r: &string [:= read assigned] value
->     uses $3: %47 -> %49 lend last
+>     uses $3: %49 -> %51 lend last
 >   local $5 self: &string? [read] value
->     uses $5: %25 -> %27 lend last
+>     uses $5: %27 -> %29 lend last
 >   local $6 message: string [read] value
->     uses $6: %26 -> %30 lend last
+>     uses $6: %28 -> %32 lend last
 >   local $7 value: &string [read assigned] value
->     uses $7: %34 -> %28 consume last
+>     uses $7: %36 -> %30 consume last
 >   local $8 self: &UniqList[string] [read] value
->     uses $8: %6 -> %9 lend, %13 lend last
+>     uses $8: %8 -> %11 lend, %15 lend last
 >   local $9 index: usize [read] value
->     uses $9: %7 -> %8 lend, %14 lend last
->   %0 = Read move [$0] : UniqList[string]
->   %1 = NewStruct [%0] : Outer
->   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : *mut Outer
->   %4 = Store [$2] %3 : ()
->   %56 = Block %51 : string
->   %3 finds [$1] full
+>     uses $9: %9 -> %10 lend, %16 lend last
+>   %0 = FlagSet [$0] #10 : ()
+>   %1 = Read move [$0] : UniqList[string]
+>   %2 = FlagClear [$0] #10 : ()
+>   %3 = NewStruct [%1] : Outer
+>   %4 = Store [$1] %3 : ()
+>   %5 = Ref take mut [$1] : *mut Outer
+>   %6 = Store [$2] %5 : ()
+>   %58 = Block %53 : string
+>   %5 finds [$1] full
     r := p.items.get_ref(0).expect("slot")
->   %5 = Ref local [*$2 .items] : &UniqList[string]
->   %6 = Store [$8] %5 : ()
->   %7 = Store [$9] 0:usize : ()
->   %8 = Read copy [$9] : usize
->   %9 = Read copy [*$8 .len] : usize
->   %10 = Prim Ge [%8 %9] : bool
->   %11 = NewVariant #0 [] : &string?
->   %12 = Block %11 : &string?
->   %13 = Ref local [*$8 .buffer] : &Buffer[string]
->   %14 = Read copy [$9] : usize
->   %15 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%13, %14) : Ptr[string]
->   %16 = LoanEnd [%13] : ()
->   %17 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%15) : &string
->   %18 = NewVariant #1 [%17] : &string?
->   %19 = Block %18 : &string?
->   %20 = If %10 [%12 %19] : &string?
->   %21 = Break L1 %20 : never
->   %22 = Block - : &string?
->   %23 = Scope %22 [] : &string?
->   %24 = LoanEnd [$8] : ()
->   %25 = Store [$5] %23 : ()
->   %26 = Store [$6] "slot" : ()
->   %27 = Read borrow [$5] : &string?
->   %28 = Read copy [$7] : &string
->   %29 = Block %28 : &string
->   %30 = Read borrow [$6] : string
->   %31 = Call std/core/panic[] (%30) : never
->   %32 = Block - : never
->   %33 = Read borrow [%27 as #1 .0] : &string
->   %34 = Store [$7] %33 : ()
->   %36 = Block - : never
->   %39 = SwitchTag %27 [#1 %36 %38] : never
->   %40 = Block - : never
->   %41 = Match %27 [%40 %29 %32] : &string
->   %42 = Break L0 %41 : never
->   %43 = Block - : &string
->   %44 = Scope %43 [] : &string
->   %45 = Drop [$6] : ()
->   %46 = LoanEnd [$5] : ()
->   %47 = Store [$3] %44 : ()
+>   %7 = Ref local [*$2 .items] : &UniqList[string]
+>   %8 = Store [$8] %7 : ()
+>   %9 = Store [$9] 0:usize : ()
+>   %10 = Read copy [$9] : usize
+>   %11 = Read copy [*$8 .len] : usize
+>   %12 = Prim Ge [%10 %11] : bool
+>   %13 = NewVariant #0 [] : &string?
+>   %14 = Block %13 : &string?
+>   %15 = Ref local [*$8 .buffer] : &Buffer[string]
+>   %16 = Read copy [$9] : usize
+>   %17 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%15, %16) : Ptr[string]
+>   %18 = LoanEnd [%15] : ()
+>   %19 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%17) : &string
+>   %20 = NewVariant #1 [%19] : &string?
+>   %21 = Block %20 : &string?
+>   %22 = If %12 [%14 %21] : &string?
+>   %23 = Break L1 %22 : never
+>   %24 = Block - : &string?
+>   %25 = Scope %24 [] : &string?
+>   %26 = LoanEnd [$8] : ()
+>   %27 = Store [$5] %25 : ()
+>   %28 = Store [$6] "slot" : ()
+>   %29 = Read borrow [$5] : &string?
+>   %30 = Read copy [$7] : &string
+>   %31 = Block %30 : &string
+>   %32 = Read borrow [$6] : string
+>   %33 = Call std/core/panic[] (%32) : never
+>   %34 = Block - : never
+>   %35 = Read borrow [%29 as #1 .0] : &string
+>   %36 = Store [$7] %35 : ()
+>   %38 = Block - : never
+>   %41 = SwitchTag %29 [#1 %38 %40] : never
+>   %42 = Block - : never
+>   %43 = Match %29 [%42 %31 %34] : &string
+>   %44 = Break L0 %43 : never
+>   %45 = Block - : &string
+>   %46 = Scope %45 [] : &string
+>   %47 = Drop [$6] : ()
+>   %48 = LoanEnd [$5] : ()
+>   %49 = Store [$3] %46 : ()
     junk := "j".repeat(4)
->   %48 = Call std/text/impl string.repeat[] ("j", 4:usize) : string
+>   %50 = Call std/text/impl string.repeat[] ("j", 4:usize) : string
     *r + junk
->   %49 = Read copy [*$3] : string
->   %50 = Drop [$3] : ()
->   %51 = Intrinsic StrConcat [%49 %48] : string
->   %52 = Release %51 Operation operand 0 #2 : ()
->   %53 = Drop [%49] : ()
->   %54 = Drop [%48] : ()
->   %55 = Drop [$2] : ()
+>   %51 = Read copy [*$3] : string
+>   %52 = Drop [$3] : ()
+>   %53 = Intrinsic StrConcat [%51 %50] : string
+>   %54 = Release %53 Operation operand 0 #2 : ()
+>   %55 = Drop [%51] : ()
+>   %56 = Drop [%50] : ()
+>   %57 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell

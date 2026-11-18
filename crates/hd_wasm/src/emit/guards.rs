@@ -960,9 +960,7 @@ impl Proof<'_, '_, '_, '_> {
             | Tag::Hook
             | Tag::Drop
             | Tag::IsUnique
-            | Tag::MakeUnique
-            | Tag::FlagSet
-            | Tag::FlagClear => true,
+            | Tag::MakeUnique => true,
             _ => false,
         }
     }

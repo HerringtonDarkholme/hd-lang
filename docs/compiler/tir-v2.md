@@ -266,7 +266,7 @@ These arrive in stage 2. The checker never writes them.
 | `Pin` | a: place of a list | after an `IsUnique` of the same place, marks the header as its buffer's one owner, so element references keep the buffer in place. The pin lasts while element references hold counts of the buffer; their drops end it, so there is no `Unpin` |
 | `LoanEnd` | a: place | ends the pointer loans a whole value or local holds, with no release: the `Drop` of a value that holds only references that can own nothing (`own/plain.rs`) |
 | `Release` | a: a `Store` | follows the store it names and releases what the store replaces, in the store's one walk of its place; a store with none only writes |
-| `FlagSet`, `FlagClear` | a: place | tier 2 only (reserved): set and clear a borrow flag next to a pin |
+| `FlagSet`, `FlagClear` | a: place, b: local | set and clear the drop flag local b of move path a, a part of a local or a value in place (`own/drop_flags.rs`, #1420). Every init of a path sets the flags at and under it, a move or a repeated drop clears them; a Drop hook runs when its nearest flag and every flag under it hold |
 
 **The exit set.** A body has one exit (`Return` branches to it, as
 today). Its `exit_drops` column lists the owned locals that may still
@@ -289,7 +289,7 @@ Tags by stage. "Gone" means no producer and no tag.
 | plain writes | `LocalSet`, `GlobalSet`, `FieldSet` gone: `Store` | same | same |
 | references | `RefPlace`, `RefRead`, `RefWrite` gone; `RefDyn` and `RefIdentity` lose their closure-form blocks | same | same |
 | data | `CopyData` stays only for copy-update literals, renamed `CopyStruct` (and `NewData` `NewStruct`) | `CopyStruct` gone: `NewStruct` of field reads | same |
-| ownership | none | `Drop`, `IsUnique`, `Pin`; `FlagSet` and `FlagClear` reserved | same |
+| ownership | none | `Drop`, `IsUnique`, `Pin`, `FlagSet`, `FlagClear` | same |
 | loops | `ForRange`, `ForList`, `ForMap` gone (no producer today) | same | one `for` lowering through `Iterable` |
 | intrinsics | 22: `ListSet` and `ListFieldSet` gone | 17: `ValueCopy`, `ListPin`, `ListUnpin`, `ListIndex`, `ListIndexMut` gone | memory primitives only |
 
@@ -395,7 +395,7 @@ now built. The IR reserved what the study would need, for the #667 claim:
 | scoped references `&{a, self.x} T` with no counts | `borrow` reads and `Ref` of a place, with a region in the `regions` column |
 | NonCopyable values, moved and released at scope end | `move` reads and `Drop`; a read of a NonCopyable place is a `move` by its type (see [the checker's marks](#should-the-checker-mark-move-copy-and-borrow)) |
 | static exclusivity from locals | the overlap test on places, the same one the borrow pass uses |
-| borrow flags for borrows through global references | `FlagSet` and `FlagClear` next to `Pin` |
+| borrow flags for borrows through global references | a flag local next to `Pin`, as the drop flags are (`FlagSet`, `FlagClear`) |
 | non-escaping locals and closure environments in the frame (#702) | the frame-slot root |
 | facts from signatures, never bodies | the passes already read only callee signatures |
 | one compile per declaration, lifetimes erased | the passes run per generic body; places resolve per instance |

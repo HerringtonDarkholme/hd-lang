@@ -1462,7 +1462,7 @@ pub(super) fn finish(
         em.f.op(I::End);
         em.f.op(I::End);
     }
-    em.reload_drop_flags(&positions);
+    let body_flags = em.reload_drop_flags(&positions);
     // What a cold frame holds of the exit set: its parameters and a
     // closure's captures. The body's other locals are set only once it
     // runs, and a started frame is never freed (pinned above).
@@ -1585,6 +1585,7 @@ pub(super) fn finish(
     }
     let drop = std::mem::take(&mut em.f);
     em.drop_states = body_drop_states;
+    em.locals.extend(body_flags);
 
     // The cold constructor: a frame in state 0 holding the arguments and
     // the providers, with a count of each counted argument. Built once as the instance's own function, and once more, when the

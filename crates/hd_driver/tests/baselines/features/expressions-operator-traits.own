@@ -79,53 +79,59 @@ fn neg_tag(a: Tag) -> Tag:
 fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 > app/main/sum
 >   local $0 items: List[T] [param read] value
->     uses $0: entry -> %4 lend, %12 lend
+>     uses $0: entry -> %7 lend, %15 lend
 >   local $1 zero: T [param read] value
->     uses $1: entry -> %2 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 total: T [read assigned mutated] place
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
->     uses $6: %6 -> %9 lend
+>     uses $6: %9 -> %12 lend
 >   local $7 item: T [read assigned] value
->     uses $7: %23 -> %17 consume last
->   %0 = Release %34 Exit local $0 #2 : ()
->   %1 = Retain %34 Entry local $1 #0 : ()
+>     uses $7: %28 -> %21 consume last
+>   %1 = Release %40 Exit local $0 #2 : ()
+>   %2 = Retain %40 Entry local $1 #0 : ()
     let total = zero
->   %2 = Read move [$1] : T
->   %3 = Store [$2] %2 : ()
->   %34 = Block %33 : T
+>   %0 = FlagSet [$1] #8 : ()
+>   %3 = Read move [$1] : T
+>   %4 = FlagClear [$1] #8 : ()
+>   %5 = Store [$2] %3 : ()
+>   %6 = FlagSet [$2] #9 : ()
+>   %40 = Block %38 : T
     for item in items:
->   %4 = Read borrow [$0] : List[T]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Store [$6] %5 : ()
->   %7 = Store [$5] 0:usize : ()
->   %8 = Read copy [$5] : usize
->   %9 = Read copy [$6] : usize
->   %10 = Prim Lt [%8 %9] : bool
+>   %7 = Read borrow [$0] : List[T]
+>   %8 = Intrinsic ListLen [%7] : usize
+>   %9 = Store [$6] %8 : ()
+>   %10 = Store [$5] 0:usize : ()
 >   %11 = Read copy [$5] : usize
->   %12 = Read borrow [$0 [%11]] : T
->   %13 = Read copy [$5] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$5] %14 : ()
->   %21 = Block - : ()
->   %22 = Read borrow [%12] : T
->   %23 = Store [$7] %22 : ()
->   %25 = Block - : never
->   %26 = Match %12 [%25 %21] : ()
->   %27 = Block - : ()
->   %28 = Break L0 - : never
->   %29 = Block - : ()
->   %30 = If %10 [%27 %29] : ()
->   %31 = Block - : ()
->   %32 = Loop %31 - : ()
+>   %12 = Read copy [$6] : usize
+>   %13 = Prim Lt [%11 %12] : bool
+>   %14 = Read copy [$5] : usize
+>   %15 = Read borrow [$0 [%14]] : T
+>   %16 = Read copy [$5] : usize
+>   %17 = Prim Add [%16 1:usize] : usize
+>   %18 = Store [$5] %17 : ()
+>   %26 = Block - : ()
+>   %27 = Read borrow [%15] : T
+>   %28 = Store [$7] %27 : ()
+>   %30 = Block - : never
+>   %31 = Match %15 [%30 %26] : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %13 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
         total = total + item
->   %16 = Read move [$2] : T
->   %17 = Read copy [$7] : T
->   %18 = Call std/ops/Add.add for T [T] via Bound (%16, %17) : T
->   %19 = Store [$2] %18 : ()
->   %20 = Release %19 Operation #3 : ()
+>   %19 = Read move [$2] : T
+>   %20 = FlagClear [$2] #9 : ()
+>   %21 = Read copy [$7] : T
+>   %22 = Call std/ops/Add.add for T [T] via Bound (%19, %21) : T
+>   %23 = Store [$2] %22 : ()
+>   %24 = Release %23 Operation #3 : ()
+>   %25 = FlagSet [$2] #9 : ()
     total
->   %33 = Read move [$2] : T
+>   %38 = Read move [$2] : T
+>   %39 = FlagClear [$2] #9 : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
