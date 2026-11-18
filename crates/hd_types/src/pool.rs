@@ -1960,8 +1960,6 @@ impl<'a> Types<'a> {
     pub fn has_param(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_PARAM != 0
     }
-    /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
-    /// outside the base of an associated-type projection.
     /// Appends `t`'s child types to `out` in written order, as
     /// [`Self::map_children`] visits them, with a row's keys in the row's
     /// place. A leaf appends nothing. Cost: one pass over the children.
@@ -2122,51 +2120,36 @@ impl<'a> Types<'a> {
         self.intern_ty(&data)
     }
 
+    /// Whether a type names `Self` of `trait_` (parameter 0 of the trait),
+    /// outside the base of an associated-type projection. Each distinct
+    /// parameter-holding node and its child edges are visited once; the
+    /// explicit stack keeps native stack use constant at any type depth.
     #[must_use]
     pub fn names_trait_self(self, t: Ty, trait_: DefId) -> bool {
         if !self.has_param(t) {
             return false;
         }
-        let list = |l: TyList| {
-            self.list_items(l)
-                .iter()
-                .any(|e| self.names_trait_self(*e, trait_))
-        };
+        let mut seen = hd_base::HashSet::default();
         let is_self = |p: ParamRef| p.owner == trait_ && p.index == 0;
-        match self.get(t) {
-            TyData::Param(p) => is_self(p),
-            TyData::Adt { args, .. } => list(args),
-            TyData::Opaque { args, bound, .. } => {
-                list(args) || self.names_trait_self(bound, trait_)
+        !hd_base::stack::all(t, |t, stack| {
+            if !self.has_param(t) || !seen.insert(t) {
+                return true;
             }
-            TyData::Tuple { elems, rest } => {
-                list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
+            crate::work::type_node();
+            if let TyData::Param(p) = self.get(t) {
+                return !is_self(p);
             }
-            TyData::Union(members) => list(members),
-            TyData::Ref { inner: i, .. } => self.names_trait_self(i, trait_),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                list(params)
-                    || self.names_trait_self(result, trait_)
-                    || self.row_names_trait_self(row, trait_)
+            let start = stack.len();
+            match self.get(t) {
+                TyData::Assoc { self_ty, args, .. } if matches!(self.get(self_ty), TyData::Param(p) if is_self(p)) =>
+                {
+                    stack.extend_from_slice(self.list_items(args));
+                }
+                _ => self.children(t, stack),
             }
-            TyData::Row(r) | TyData::Context(r) => self.row_names_trait_self(r, trait_),
-            TyData::TraitValue { args, bindings, .. } => {
-                list(args)
-                    || bindings
-                        .iter()
-                        .any(|(_, b)| self.names_trait_self(*b, trait_))
-            }
-            TyData::Assoc { self_ty, args, .. } => {
-                let base_is_self = matches!(self.get(self_ty), TyData::Param(p) if is_self(p));
-                (!base_is_self && self.names_trait_self(self_ty, trait_)) || list(args)
-            }
-            _ => false,
-        }
+            stack[start..].reverse();
+            true
+        })
     }
     /// [`Self::names_trait_self`] over a row's keys.
     #[must_use]
@@ -3609,6 +3592,53 @@ mod tests {
                 let map = types.instance_deps((&[deep.0], t, open), (&[deep.1], r));
                 let (ins, outs) = types.deps_of(map).expect("a map");
                 assert_eq!((ins.len(), outs.len()), (n, 1));
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
+    #[test]
+    fn trait_self_queries_at_depth_1000_fit_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let owner = DefId::from_raw(1);
+                let param = |owner| pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+                let this = param(owner);
+                let other = param(DefId::from_raw(2));
+                let projection = |args| {
+                    pool.intern_ty(&TyData::Assoc {
+                        assoc: DefId::from_raw(3),
+                        trait_: owner,
+                        self_ty: this,
+                        args,
+                    })
+                };
+                let hidden = projection(TyList::EMPTY);
+                let named = projection(pool.list(&[this]));
+                for depth in [100, 1_000] {
+                    for (leaf, expected) in
+                        [(this, true), (other, false), (hidden, false), (named, true)]
+                    {
+                        let mut t = leaf;
+                        for _ in 0..depth {
+                            // Doubling the same child checks graph sharing too:
+                            // the recursive search took 2^depth false paths.
+                            t = pool.intern_ty(&TyData::Tuple {
+                                elems: pool.list(&[t, t]),
+                                rest: None,
+                            });
+                        }
+                        let (found, work) =
+                            crate::work::count_type_nodes(|| types.names_trait_self(t, owner));
+                        assert_eq!(found, expected);
+                        assert_eq!(work, depth + if leaf == named { 2 } else { 1 });
+                    }
+                }
             })
             .expect("thread")
             .join()
