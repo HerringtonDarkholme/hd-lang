@@ -11370,6 +11370,10 @@ impl Run<'_> {
                     groups,
                 } => hd_wasm::Entry::Tests {
                     cases: cases.clone(),
+                    case_items: {
+                        hd_wasm::work::entry_roots(cases.len());
+                        cases.iter().map(|case| case.0).collect()
+                    },
                     units: units.clone(),
                     graph: test_graph_words(groups, deps),
                     unit_offsets: u32_of(
