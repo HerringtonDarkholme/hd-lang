@@ -49,7 +49,7 @@ DESCRIBE = {
     "ir-ref-drop": "a Drop of a reference type: the link folds it in a view-free module, so it predicts no time or size (#1399 20a: byte-identical with it gone); it matters only to #1360 and #1448",
     "ir-copy-only-lends": "a counted Read copy whose only uses lend it, then a Drop: one retain and one release",
     "ir-store-then-read": "a Store to a local straight before a Read of it: TIR shape only. On 2026-11-12, 133 of its 171 files dump WAT and only 3 of those show a set-then-get there, so it predicts no Wasm time or size",
-    "ir-unused-read": "a counted Read that nothing uses",
+    "ir-unused-read": "a counted Read that nothing uses in the dump: a `.own` dump can print a slice of the body, so a use outside it is unseen (2026-11-17: own/a-local-replaced-inside-the-span-copies %4 is read by the index the slice omits). A lead to read in full, never a count",
     "ir-conservative": "a count the compiler could not name a reason for",
     "ir-exit-unlowered": "a stated parameter exit release with no release in the function's counts: describes TIR text, emits nothing, so it predicts no time or size",
 }
