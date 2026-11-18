@@ -30,8 +30,6 @@ pub(crate) struct BodyFacts {
     pub(super) rows: Vec<Arc<[usize]>>,
     pub(super) break_counts: Arc<[u32]>,
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
-    pub(super) shared: hd_base::HashSet<usize>,
-    pub(super) refs: HashMap<usize, Vec<usize>>,
     pub(super) cell_stores: HashMap<usize, u32>,
     pub(super) closures: Vec<Option<usize>>,
     pub(super) root_params: Arc<[usize]>,
@@ -64,13 +62,6 @@ impl BodyFacts {
             }
         }
         let recursive = Arc::new(hd_tir::own::RecursiveBindings::new(b));
-        let shared = super::closure::shared_locals_with(b, &recursive);
-        let mut refs: HashMap<usize, Vec<usize>> = HashMap::default();
-        for i in 0..b.len() {
-            if let Some(l) = super::shape::ref_local(b, i) {
-                refs.entry(l).or_default().push(i);
-            }
-        }
         let mut storage = vec![Vec::new(); b.sub_root.len()];
         for &(sub, local, kind) in &b.storage {
             storage[sub.idx()].push((local, kind));
@@ -93,8 +84,6 @@ impl BodyFacts {
             break_counts: break_counts.into(),
             closures,
             storage,
-            shared,
-            refs,
             cell_stores,
             root_params: super::param_locals(b).into(),
             transfers: Arc::new(transfers),

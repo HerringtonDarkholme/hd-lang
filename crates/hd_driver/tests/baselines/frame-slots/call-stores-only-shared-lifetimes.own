@@ -44,7 +44,7 @@ fn non_storing(xs: List[string]) -> usize:
 >   %14 = Block %13 : usize
     size := push_len(&mut out, &xs)
 >   %3 = Ref mut local frame [$1] : &mut List[&string]
->   %4 = Ref local frame [$0] : &List[string]
+>   %4 = Ref local frame promoted [$0] : &List[string]
 >   %5 = Call app/main/push_len[] (%3, %4) : usize
 >   %6 = LoanEnd [%4] : ()
 >   %7 = LoanEnd [%3] : ()
@@ -57,7 +57,7 @@ fn non_storing(xs: List[string]) -> usize:
 >   %13 = Prim Add [%5 %11] : usize
 >   %9 finds [$1] full
 >   exit sub 0 drops [$0]
->   storage sub 0: $0 slot, $1 slot
+>   storage sub 0: $1 slot
 >   summary kept [$0] writes
 
 @inline(.Never)

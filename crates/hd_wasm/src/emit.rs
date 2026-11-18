@@ -55,7 +55,7 @@ mod list;
 mod loan;
 mod map;
 mod promote;
-pub use promote::{lent_referent, promotable_referent, rooted_referent};
+pub use promote::{lent_referent, promotable_referent, rooted_referent, settled};
 mod parameter_uses;
 pub(crate) mod ref_slots;
 mod refs;
@@ -251,28 +251,18 @@ fn body_func<'a>(
         }
         Some((_, suspends, _)) => suspends,
     };
-    // Promoted arguments (§23.40): a call that takes a local's value
-    // where its declaration takes a reference. A plain function picks
-    // its own for primitive comparisons in the optimized pipeline.
-    let pick = input.promote_args && sub == 0 && !suspending && own.cold.is_none();
-    let promoted = promote::promoted_refs(input, m, b, targets, pick, &facts.rows[sub as usize]);
-    // Where each local lives (`Body::storage`).
-    let (stored, mut slots) = closure::stored_locals(input, b, (sub, facts), &promoted);
+    // Where each local lives: the final rows (`promote::settled`).
+    let rows = &facts.storage[usize::from(sub)];
+    let slot = |&(l, k): &(hd_base::LocalId, _)| (k == hd_tir::ir::Storage::Slot).then(|| l.idx());
+    let slots: Vec<usize> = rows.iter().filter_map(slot).collect();
     // A root with a suspension point keeps its slots in its frame object
-    // (#1707): none in the plain function that only makes its cold call,
-    // and none for a local an await of no known body takes, which counts
-    // it.
+    // (#1707).
     let framed_slots = suspending && sub == 0 && !plan.0.is_empty();
-    if own.cold.is_some() {
-        slots.clear();
-    } else if framed_slots {
-        closure::keep_awaited_slots(b, targets, &mut slots);
-    }
-    let cells = stored
+    let cells = rows
         .iter()
-        .map(|&l| {
+        .map(|&(l, _)| {
             crate::work::use_facts(1);
-            (l, facts.cell_stores[&l])
+            (l.idx(), facts.cell_stores[&l.idx()])
         })
         .collect();
     let loan_uses = inst
@@ -289,7 +279,7 @@ fn body_func<'a>(
         (sub, inst, loan_uses, facts),
     );
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
-    em.type_promoted(promoted);
+    em.type_promoted();
     em.plan_slots(&slots, framed_slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
     if sub == 0 {
@@ -1568,9 +1558,6 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
-    /// The promoted arguments (§23.40, `promote.rs`): `Ref`s that read
-    /// their place's value, typed as its referent.
-    promoted: hd_base::HashSet<u32>,
     /// A handle body's once-cell key: its cells live in static data, as
     /// the body runs once per instance ([`closure::Em::raw_cell`]).
     static_cells: Option<Hash128>,
@@ -1780,7 +1767,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             entry_cells: hd_base::HashSet::default(),
             param_vals: HashMap::default(),
             slots: HashMap::default(),
-            promoted: hd_base::HashSet::default(),
             static_cells: None,
             frame: None,
             susp_slots: 0,
@@ -2609,8 +2595,8 @@ impl Em<'_, '_, '_> {
         {
             // A header leader resolves to a dereferenced field load,
             // which starts in a fresh local; forwarding reads preserve it.
-            // TIR promotion removes that Deref; backend promoted_refs
-            // accepts only in-place Ref operands. Neither makes a header
+            // TIR promotion removes that Deref; `promote::settled`
+            // marks only in-place Ref operands. Neither makes a header
             // key (guards::Proof::key_uncached) alias an incoming parameter.
             let ty = self.f.locals[l as usize - self.f.params.len()];
             let kept = self.f.local(ty);

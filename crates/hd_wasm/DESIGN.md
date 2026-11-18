@@ -2755,7 +2755,7 @@ frame on the **local stack** instead.
   cancellation too. An await of a trait value's method builds a cold
   frame that counts the reference, which would count the caller's frame
   through the page table, so its locals keep their cells
-  (`closure::keep_awaited_slots`). A body called directly runs with no
+  (`hd_tir::own::settle`, before emission). A body called directly runs with no
   frame until it suspends, so its first slot store makes the frame
   (`Em::own_frame`). The invocation owns that frame until a suspension or
   a cancellation hands it out, when the frame takes its count of the
@@ -2876,11 +2876,12 @@ dev builds keep the address at a call; the inliner's by-value binding
   every piece of glue (vtable slots, map key operations,
   host codecs) call the plain instance, which keeps the address; the link
   drops it when nothing calls it.
-- **The caller.** `promoted_refs` finds each such argument: a `Ref`
-  passed to a parameter the callee instance's mark
-  (`defaults::promoted(mask)`) takes by value. It is typed as its referent,
-  emitted as a read of its place, and left out of `ref_roots`, so a local
-  only such `Ref`s lend lives in Wasm locals. A plain function also reads
+- **The caller.** Before emission, `promote::settled` finds each such
+  argument: a `Ref` passed to a parameter the callee instance's mark
+  (`defaults::promoted(mask)`) takes by value. `hd_tir::own::settle`
+  marks it `ref_word::PROMOTED` and drops the storage row of a local only
+  such `Ref`s lend, so it lives in Wasm locals. The emitter types it as
+  its referent and emits it as a read of its place. A plain function also reads
   the value for the primitive comparisons it lowers itself (`eq`, `cmp`,
   `partial_cmp` on a promotable referent), which load the referent
   anyway.

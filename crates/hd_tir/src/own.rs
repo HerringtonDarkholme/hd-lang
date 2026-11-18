@@ -106,6 +106,7 @@ mod storage;
 mod temporaries;
 pub use storage::RecursiveBindings;
 pub use storage::captures as closure_captures;
+pub use storage::settle;
 pub mod values;
 
 #[cfg(not(target_arch = "wasm32"))]

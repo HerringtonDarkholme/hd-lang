@@ -3,8 +3,8 @@
 //! read of its place, of the referent's type, and its local needs no
 //! memory for it.
 
-use hd_base::{HashMap, HashSet};
-use hd_mono::{Target, TargetKind};
+use hd_base::{HashMap, InstId};
+use hd_mono::{Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Ref, Tag};
 use hd_types::Ty;
 
@@ -84,63 +84,102 @@ fn declared_referent(
     }
 }
 
-/// The `Ref`s of body `b` (instance `item` at `args`, with call targets
-/// `targets`) that are promoted arguments: each argument a direct call
-/// passes to a parameter its callee's promoted copy takes by value
-/// (collection chose that copy, `hd_tir::own::promote`),
-/// and, where `own` holds, each read-only reference to a local that a
-/// primitive comparison only reads (`eq`, `cmp`, `partial_cmp`).
-pub(super) fn promoted_refs(
-    input: &Input<'_>,
-    m: &Module,
-    b: &Body,
-    targets: &HashMap<u32, Target>,
-    own: bool,
-    rows: &[usize],
-) -> HashSet<u32> {
-    let (pool, env) = (input.pool, input.env);
-    let mut out = HashSet::default();
-    for i in rows.iter().copied().filter(|&i| b.tags[i] == Tag::Call) {
-        let Some(Target::Call(ct)) = targets.get(&u32::try_from(i).expect("insts")) else {
+/// Each instance body whose storage collection's choices change, with
+/// them written (`hd_tir::own::settle`): the arguments a call passes to
+/// its callee's promoted copy (`hd_tir::own::promote`), each local
+/// reference a primitive comparison (`eq`, `cmp`, `partial_cmp`) only
+/// reads in a plain root of the optimized pipeline, and the root's locals
+/// an await of no known body takes. The instances of a body's sub-bodies
+/// settle it together, in one walk; an adapter's call body has no `Ref`.
+#[must_use]
+pub fn settled(input: &Input<'_>) -> HashMap<InstId, std::sync::Arc<Body>> {
+    let (pool, env, t) = (input.pool, input.env, &input.collected.table);
+    let masks: HashMap<_, _> = (t.key.iter().zip(&t.defaults))
+        .map(|(&k, d)| (k, hd_mono::defaults::promoted_mask(d)))
+        .filter(|&(_, m)| m != 0)
+        .collect();
+    // A second instance of one sub-body starts a group of its own.
+    let mut groups = Vec::<(&Body, hd_base::DefId, Vec<Option<InstId>>)>::new();
+    let mut at = HashMap::<*const Body, usize>::default();
+    for &id in input.order {
+        let (Sub::Body(sub), Some(b)) = (t.sub[id.idx()], (input.body)(id)) else {
             continue;
         };
-        let operands = b.call_args(i);
-        let arg_ty = |a: usize| b.ty[a];
-        match &ct.kind {
-            TargetKind::Instance => {
-                let Some(&id) = m.inst_of.get(&ct.key) else {
-                    continue;
-                };
-                let mask =
-                    hd_mono::defaults::promoted_mask(&input.collected.table.defaults[id.idx()]);
-                for (k, &w) in operands.iter().enumerate().take(64) {
-                    if mask & (1 << k) == 0 {
-                        continue;
-                    }
-                    // ruled out: collection's promoted_target installs this
-                    // mask only after promoted_call proves a local Ref. Its
-                    // operand word is therefore an instruction ID, not a constant.
-                    out.insert(w);
+        let g = at.entry(std::ptr::from_ref(b)).or_insert(usize::MAX);
+        if groups
+            .get(*g)
+            .is_none_or(|(_, _, s)| s[usize::from(sub)].is_some())
+        {
+            *g = groups.len();
+            groups.push((b, t.item[id.idx()], vec![None; b.sub_root.len()]));
+        }
+        groups[*g].2[usize::from(sub)] = Some(id);
+    }
+    let mut out = HashMap::default();
+    for (b, item, insts) in groups {
+        // A suspending entry root with no suspension point is plain.
+        let plain = !env.suspends(item)
+            || input.entry.root(item) && super::susp::plan(b, b.sub_root[0]).0.is_empty();
+        let (mut args, mut ops, mut counted) = (Vec::new(), Vec::new(), Vec::new());
+        for (i, sub) in b.inst_subs().into_iter().enumerate() {
+            let (Some(Some(id)), Ok(sub)) = (insts.get(sub as usize), u16::try_from(sub)) else {
+                continue;
+            };
+            let target = match input.collected.calls[id.idx()].get(&hd_tir::ir::u32_of(i)) {
+                Some(Target::Call(ct)) => Some(ct),
+                _ => None,
+            };
+            let instance = target.filter(|ct| ct.kind == TargetKind::Instance);
+            if b.tags[i] == Tag::Await && sub == 0 && instance.is_none() {
+                hd_tir::own::operands(b, i, &mut ops);
+                counted.resize(b.local_ty.len(), false);
+                for l in ops
+                    .iter()
+                    .filter_map(|op| super::shape::ref_local(b, op.value as usize))
+                {
+                    counted[l] = true;
                 }
-            }
-            TargetKind::Builtin { .. } if own => {
+            } else if b.tags[i] == Tag::Call
+                && let Some(ct) = instance
+            {
+                // ruled out: collection's promoted_target installs this mask
+                // only after promoted_call proves a local Ref. Its operand
+                // word is therefore an instruction ID, not a constant.
+                let mask = masks.get(&ct.key).copied().unwrap_or(0);
+                let ks = b.call_args(i).iter().take(64).enumerate();
+                args.extend(
+                    ks.filter(|&(k, _)| mask & (1 << k) != 0)
+                        .map(|(_, &w)| (sub, w)),
+                );
+            } else if b.tags[i] == Tag::Call
+                && let Some(ct) = target.filter(|_| input.promote_args && sub == 0 && plain)
+            {
                 let path = (input.path)(ct.item);
-                let name = path.rsplit(['.', '/']).next().unwrap_or("");
-                if !matches!(name, "eq" | "cmp" | "partial_cmp") {
-                    continue;
-                }
-                for &w in operands {
-                    let Some(a) = Ref(w).as_inst() else {
-                        continue;
-                    };
-                    if hd_tir::own::promote::promotable_ref(b, a.0 as usize, i)
-                        && promotable_referent(pool, env, arg_ty(a.0 as usize)).is_some()
-                    {
-                        out.insert(a.0);
-                    }
-                }
+                let compares = matches!(
+                    path.rsplit(['.', '/']).next(),
+                    Some("eq" | "cmp" | "partial_cmp")
+                );
+                let refs = b.call_args(i).iter().filter_map(|&w| Ref(w).as_inst());
+                args.extend(refs.map(|a| (sub, a.0)).filter(|&(_, a)| {
+                    compares
+                        && matches!(ct.kind, TargetKind::Builtin { .. })
+                        && hd_tir::own::promote::promotable_ref(b, a as usize, i)
+                        && promotable_referent(pool, env, b.ty[a as usize]).is_some()
+                }));
             }
-            _ => {}
+        }
+        let changed = !(args.is_empty() && counted.is_empty());
+        if let Some(b) = changed
+            .then(|| hd_tir::own::settle(b, &args, &counted, input.own_cx))
+            .flatten()
+        {
+            let b = std::sync::Arc::new(b);
+            out.extend(
+                insts
+                    .into_iter()
+                    .flatten()
+                    .map(|id| (id, std::sync::Arc::clone(&b))),
+            );
         }
     }
     out
@@ -157,17 +196,27 @@ pub(super) fn promoted_params(input: &Input<'_>, m: &Module, key: hd_base::Hash1
 }
 
 impl Em<'_, '_, '_> {
-    /// Types each promoted argument ([`promoted_refs`]) as its referent.
+    /// Whether `Ref` `i` is a promoted argument (`ref_word::PROMOTED`): a
+    /// read of its place's value, typed as its referent.
+    pub(super) fn promoted(&self, i: u32) -> bool {
+        let i = i as usize;
+        self.b.tags[i] == Tag::Ref && self.b.data[i][1] & hd_tir::ir::ref_word::PROMOTED != 0
+    }
+
+    /// Types each promoted argument of this sub-body as its referent.
     /// A counted one is a loan: its read takes no count, and its `Drop`
     /// releases none, as the callee only borrows it. One that takes its
     /// local's count (`ref_word::TAKES`) moves the value out of the local
     /// instead ([`Em::place_ref`]), and its `Drop`, after the call,
     /// releases it.
-    pub(super) fn type_promoted(&mut self, promoted: HashSet<u32>) {
-        for &a in &promoted {
+    pub(super) fn type_promoted(&mut self) {
+        let rows = std::sync::Arc::clone(&self.rows);
+        for a in rows.iter().map(|&a| hd_tir::ir::u32_of(a)) {
             // ruled out: promoted copies select only lent_referent types;
             // primitive comparisons use promotable_referent. Both are thin.
-            if let Some((target, false)) = self.ref_target(self.ty(a)) {
+            if self.promoted(a)
+                && let Some((target, false)) = self.ref_target(self.ty(a))
+            {
                 self.retyped.insert(a, target);
                 let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
                 if self.tracked(target) && !takes {
@@ -175,6 +224,5 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        self.promoted = promoted;
     }
 }

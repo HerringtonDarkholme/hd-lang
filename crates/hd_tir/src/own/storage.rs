@@ -8,33 +8,35 @@
 //! a suspension frame, a slot is a slot of that frame (#1707,
 //! [`awaited_slots`]).
 //!
-//! Three inputs arrive after the passes, so the emitter applies them where
-//! it reads the rows: a promoted argument (`emit/promote.rs`) reads its
-//! local's value, so a local only promoted references reach keeps Wasm
-//! locals unless a closure shares it; a build with no runtime, or a
-//! cold constructor, has no slots, so a slot row is a cell there; and a
-//! suspension frame slot whose `Await` calls no known body (a trait
-//! value's method) is a cell, as that await counts its arguments.
+//! Collection's choices then reach each instance body's rows before
+//! emission ([`settle`], `docs/future-work/INSTANCE_TIR.md` step 7a): a
+//! promoted argument reads its local's value, and a frame slot whose
+//! `Await` calls no known body is a cell, as that await counts its
+//! arguments. A build with no runtime has no slots; the emitter reads it.
 
 use super::OwnCx;
 use crate::ir::{Body, CaptureMode, Proj, Root, Storage, Tag, Topology, ref_word};
 use hd_base::{LocalId, SubId};
 
-/// Whether `Ref` `i` of `b` is a thin reference to its local's own storage
-/// or a field path of it, a root of a cell or a slot.
-fn root_of(b: &Body, cx: &dyn OwnCx, i: usize) -> Option<usize> {
-    if b.tags[i] != Tag::Ref {
-        return None;
-    }
-    let p = b.view(b.data[i][0]);
+/// The local `Ref` `i` of `b` takes a reference to the storage of, or to
+/// a field path of.
+fn field_ref(b: &Body, i: usize) -> Option<usize> {
+    let p = (b.tags[i] == Tag::Ref).then(|| b.view(b.data[i][0]))?;
     let Root::Local(l) = p.root else {
         return None;
     };
-    let fields = p.steps(b).all(|s| matches!(s, Proj::Field(_)));
-    let thin = !cx
-        .reference_target(b.ty[i])
-        .is_some_and(|t| cx.trait_value(t));
-    (fields && thin).then_some(l as usize)
+    p.steps(b)
+        .all(|s| matches!(s, Proj::Field(_)))
+        .then_some(l as usize)
+}
+
+/// [`field_ref`] of a thin reference, a root of a cell or a slot.
+fn root_of(b: &Body, cx: &dyn OwnCx, i: usize) -> Option<usize> {
+    let thin = |_: &usize| {
+        !cx.reference_target(b.ty[i])
+            .is_some_and(|t| cx.trait_value(t))
+    };
+    field_ref(b, i).filter(thin)
 }
 
 /// Immutable recursive names are reconstructed function values, including
@@ -266,25 +268,31 @@ fn awaited_slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
     out
 }
 
+/// How many roots of `b` take each local, and whether a closure shares
+/// it. One walk of the body and of its captures.
+fn census(b: &Body, cx: &dyn OwnCx, recursive: &RecursiveBindings) -> (Vec<u32>, Vec<bool>) {
+    let (mut refs, mut shared) = (vec![0; b.local_ty.len()], vec![false; b.local_ty.len()]);
+    for l in (0..b.len()).filter_map(|i| root_of(b, cx, i)) {
+        refs[l] += 1;
+    }
+    for ci in (0..b.len()).filter(|&ci| b.tags[ci] == Tag::Closure) {
+        for (l, s) in captures(b, ci, recursive) {
+            shared[l] |= s;
+        }
+    }
+    for &(_, capture) in &b.inlined_shared {
+        shared[b.cap_local[capture as usize].idx()] = true;
+    }
+    (refs, shared)
+}
+
 /// Writes `b.storage`.
 pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
     let n = b.local_ty.len();
     let recursive = RecursiveBindings::new(b);
-    let mut cell = vec![false; n];
-    for i in 0..b.len() {
-        if let Some(l) = root_of(b, cx, i) {
-            cell[l] = true;
-        }
-    }
-    let roots = cell.clone();
-    for ci in (0..b.len()).filter(|&ci| b.tags[ci] == Tag::Closure) {
-        for (l, shared) in captures(b, ci, &recursive) {
-            cell[l] |= shared;
-        }
-    }
-    for &(_, capture) in &b.inlined_shared {
-        cell[b.cap_local[capture as usize].idx()] = true;
-    }
+    let (refs, shared) = census(b, cx, &recursive);
+    let roots: Vec<bool> = refs.iter().map(|&r| r > 0).collect();
+    let cell: Vec<bool> = roots.iter().zip(&shared).map(|(r, s)| *r || *s).collect();
     let mut rows = Vec::new();
     if cell.iter().any(|&c| c) {
         let slot = if framed {
@@ -315,6 +323,45 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, framed: bool) {
         }
     }
     b.storage = rows;
+}
+
+/// `b`'s final rows (`docs/future-work/INSTANCE_TIR.md` step 7a), from
+/// collection's choices for the instances that emit its sub-bodies:
+/// `args`, each sub-body's `Ref`s passed by value (§23.40), and `counted`,
+/// the root's locals an await of no known body takes. A local that only
+/// promoted references of a sub-body reach, and that no closure shares,
+/// keeps Wasm locals there; a counted local's slot is a cell. The body
+/// with those rows and its promoted `Ref`s marked, or `None` when nothing
+/// changes. One walk of the body when an argument is promoted, as rustc's
+/// `non_ssa_locals` picks each local's backing before codegen.
+pub fn settle(b: &Body, args: &[(u16, u32)], counted: &[bool], cx: &dyn OwnCx) -> Option<Body> {
+    let mut rows = b.storage.clone();
+    for r in rows
+        .iter_mut()
+        .filter(|r| r.0.idx() == 0 && counted.get(r.1.idx()) == Some(&true))
+    {
+        r.2 = Storage::Cell;
+    }
+    if args.is_empty() && rows == b.storage {
+        return None;
+    }
+    let (refs, shared) = census(b, cx, &RecursiveBindings::new(b));
+    let mut promoted = hd_base::HashMap::<(usize, usize), u32>::default();
+    for &(s, i) in args {
+        if let Some(l) = root_of(b, cx, i as usize) {
+            *promoted.entry((usize::from(s), l)).or_default() += 1;
+        }
+    }
+    rows.retain(|&(s, l, _)| {
+        let p = promoted.get(&(s.idx(), l.idx())).copied().unwrap_or(0);
+        p == 0 || shared[l.idx()] || refs[l.idx()] > p
+    });
+    let mut out = b.clone();
+    for &(_, i) in args {
+        out.data[i as usize][1] |= ref_word::PROMOTED;
+    }
+    out.storage = rows;
+    Some(out)
 }
 
 #[cfg(test)]
@@ -384,6 +431,89 @@ mod tests {
             index.capture_mode(LocalId::from_raw(3), CaptureMode::Shared),
             CaptureMode::Shared
         );
+    }
+
+    /// Counts its reference-type queries: one per unpromoted `Ref`.
+    struct Counting(std::cell::Cell<usize>);
+    impl OwnCx for Counting {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn reference_target(&self, _: Ty) -> Option<Ty> {
+            self.0.set(self.0.get() + 1);
+            None
+        }
+        fn counted(&self, _: Ty) -> bool {
+            false
+        }
+        fn pass(&self, _: &crate::ir::Callee, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Lent
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Lent
+        }
+        fn may_write(&self, _: &crate::ir::Callee) -> bool {
+            false
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Owned
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+    }
+
+    /// `n` cell locals, each referenced once by a call's argument.
+    fn referenced_calls(n: u32) -> Body {
+        use crate::ir::{Callee, Place, Providers, TirBuilder, TirSink};
+        let (mut tb, none) = (
+            TirBuilder::new(DefId::from_raw(1), BodyKind::Fn),
+            NodeIdx::NONE,
+        );
+        let blk = tb.open_block();
+        let callee = Callee::Item {
+            def: DefId::from_raw(2),
+            targs: hd_types::TyList::EMPTY,
+        };
+        for _ in 0..n {
+            let l = tb.local(Ty::I32, Symbol::from_raw(0), local_flags::PARAM, none);
+            let p = tb.place(&Place::local(l));
+            let r = tb.emit(Tag::Ref, p, ref_word::LOCAL, Ty::VOID, none);
+            tb.call(&callee, &[r], Providers::None, Ty::VOID, none);
+        }
+        let root = tb.close_block(blk, None, Ty::VOID, none);
+        let mut b = tb.finish(root, &[]).expect("a verified body");
+        b.storage = (0..n)
+            .map(|l| (SubId::from_raw(0), LocalId::from_raw(l), Storage::Cell))
+            .collect();
+        b
+    }
+
+    #[test]
+    fn settle_drops_promoted_rows_in_linear_work() {
+        for n in [100, 1_000] {
+            let b = referenced_calls(n);
+            let cx = Counting(std::cell::Cell::new(0));
+            // Every other call passes its argument by value.
+            let args: Vec<(u16, u32)> = (0..b.len())
+                .filter(|&i| b.tags[i] == Tag::Call)
+                .map(|i| b.call_args(i)[0])
+                .filter(|&r| b.data[r as usize][0] & 1 == 0)
+                .map(|r| (0, r))
+                .collect();
+            let out = settle(&b, &args, &[], &cx).expect("a changed body");
+            let kept: Vec<u32> = out.storage.iter().map(|r| r.1.raw()).collect();
+            assert_eq!(kept, (0..n).filter(|l| l & 1 == 1).collect::<Vec<_>>());
+            let marked = (0..b.len())
+                .filter(|&i| b.tags[i] == Tag::Ref && out.data[i][1] & ref_word::PROMOTED != 0);
+            assert_eq!(marked.count(), n as usize / 2);
+            // One type query per `Ref` in the census, one per argument.
+            assert_eq!(cx.0.get(), n as usize * 3 / 2);
+            assert!(settle(&b, &[], &[], &cx).is_none());
+        }
     }
 
     #[test]

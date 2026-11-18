@@ -803,6 +803,9 @@ pub mod ref_word {
     /// local's object (`Part::Lent`). The checker never sets it
     /// (invariant 22).
     pub const LENT: u32 = 64;
+    /// Set by `own::storage::settle`: an argument collection passes by
+    /// value (§23.40), a read of its place.
+    pub const PROMOTED: u32 = 128;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0

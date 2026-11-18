@@ -624,7 +624,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
         // A promoted argument lends its place's value (§23.40); the
         // caller's frame keeps the local alive through its last use.
-        if self.promoted.contains(&i) {
+        if self.promoted(i) {
             // ruled out: checked local references carry LOCAL; moves never
             // takes them unless returned. promotable_ref requires one call
             // use and no return, while frame references never take a count.

@@ -233,7 +233,7 @@ pub fn main() -> void $ Console:
 >   %25 = Drop [%21] : ()
 >   %20 finds [$0] full
     println(read(&original))
->   %26 = Ref local frame [$0] : &string
+>   %26 = Ref local frame promoted [$0] : &string
 >   %27 = Call app/main/read[] (%26) : usize
 >   %28 = LoanEnd [%26] : ()
 >   %29 = Call std/console/println[usize] (%27) : ()
@@ -362,5 +362,5 @@ pub fn main() -> void $ Console:
 >   %138 = Retain %137 Operation operand 0 #0 : ()
 >   %139 = Drop [%135] : ()
 >   %135 finds [$0] full
->   storage sub 0: $0 slot, $2 cell, $4 slot, $5 slot
+>   storage sub 0: $2 cell, $4 slot, $5 slot
 >   summary kept [] writes

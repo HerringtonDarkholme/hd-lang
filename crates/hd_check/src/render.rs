@@ -327,6 +327,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                         (hd_tir::ir::ref_word::FRAME, "frame"),
                         (hd_tir::ir::ref_word::PINS, "pins"),
                         (hd_tir::ir::ref_word::LENT, "lent"),
+                        (hd_tir::ir::ref_word::PROMOTED, "promoted"),
                     ];
                     let mode: Vec<&str> = words
                         .iter()

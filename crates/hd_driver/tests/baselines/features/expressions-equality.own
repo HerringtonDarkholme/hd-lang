@@ -109,11 +109,10 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 >   %0 = Release %7 Exit local $0 #2 : ()
 >   %1 = Release %7 Exit local $1 #2 : ()
     a == b
->   %2 = Ref local frame [$0] : &Map[string, string]
->   %3 = Ref local frame [$1] : &Map[string, string]
+>   %2 = Ref local frame promoted [$0] : &Map[string, string]
+>   %3 = Ref local frame promoted [$1] : &Map[string, string]
 >   %4 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
 >   %7 = Block %4 : bool
->   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

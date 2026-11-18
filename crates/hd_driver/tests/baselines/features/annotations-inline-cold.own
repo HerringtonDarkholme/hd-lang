@@ -196,7 +196,7 @@ fn use_first(xs: List[string]) -> usize:
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
 >   %19 = LoanEnd [$1] : ()
->   %20 = Ref local frame [$0] : &List[string]
+>   %20 = Ref local frame promoted [$0] : &List[string]
 >   %21 = Call app/main/checksum[] (%20) : usize
 >   %22 = LoanEnd [%20] : ()
 >   %23 = Prim Add [%18 %21] : usize

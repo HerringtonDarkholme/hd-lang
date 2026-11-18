@@ -9565,7 +9565,7 @@ impl Run<'_> {
             && let Some((body, _)) = out
             && b.rendered.set(()).is_ok()
         {
-            self.render_own(p, def, body);
+            self.render_own(p, def, body, false);
         }
         out
     }
@@ -9619,9 +9619,9 @@ impl Run<'_> {
     /// The `own` fixture view's text of body `def` when `Host::render_tir`
     /// names it ([`Output::own_text`]), once: the body as collection reads
     /// it, after the ownership passes.
-    fn render_own(&self, p: &ProgramTables, def: DefId, body: &Body) {
+    fn render_own(&self, p: &ProgramTables, def: DefId, body: &Body, settled: bool) {
         let path = self.names().path(def);
-        if !self.renders_tir(&path) || lock(&self.own_text).contains_key(&path) {
+        if !self.renders_tir(&path) || !settled && lock(&self.own_text).contains_key(&path) {
             return;
         }
         let mut text = self.render_owned(p, body);
@@ -11340,7 +11340,15 @@ impl Run<'_> {
                 .or_else(|| c.collected.supplied_body(&self.pool, item, args))
                 .or_else(|| self.body_of(p, item).map(|b| &b.0))
         };
-        let body = |id: hd_base::InstId| collected(id);
+        // Each instance body with its final storage rows, once emission's
+        // input exists (`hd_wasm::settled`).
+        let settled = OnceLock::<HashMap<hd_base::InstId, Arc<Body>>>::new();
+        let body = |id| {
+            settled
+                .get()
+                .and_then(|s| s.get(&id).map(AsRef::as_ref))
+                .or_else(|| collected(id))
+        };
         let inits = &c.collected.inits;
         let entry = match &c.roots {
             #[cfg(feature = "fixtures")]
@@ -11570,6 +11578,15 @@ impl Run<'_> {
             mutation_targets: &mutation_targets,
             coinductive_flags: &coinductive_flags,
         };
+        // The `own` view shows an item's plain instance's final rows.
+        let t = &c.collected.table;
+        for (id, b) in settled.get_or_init(|| hd_wasm::settled(&input)) {
+            if !self.host.render_tir.is_empty()
+                && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
+            {
+                self.render_own(p, t.item[id.idx()], b, true);
+            }
+        }
         // A session's build always links: a REPL input over earlier
         // modules imports them.
         let base = hd_wasm::Session::default();

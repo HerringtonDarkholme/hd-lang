@@ -66,7 +66,7 @@ impl hd_tir::own::short::Context for Em<'_, '_, '_> {
         self.is_cell(local) || self.slots.contains_key(&local)
     }
     fn promoted(&self, value: u32) -> bool {
-        self.promoted.contains(&value)
+        Em::promoted(self, value)
     }
     fn loan_value(&self, value: u32) -> bool {
         self.loans.contains(&value)

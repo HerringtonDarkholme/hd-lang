@@ -10,7 +10,6 @@
 //! instead, whose zero count word makes the holders' counts do nothing.
 
 use crate::op::Op as I;
-use hd_base::HashSet;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::Target;
@@ -24,7 +23,7 @@ use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
 
-/// Each local of `stored` (a cell or a slot, [`stored_locals`]) mapped
+/// Each local of `stored` (a cell or a slot, `Body::storage`) mapped
 /// to the instruction of its first store outside any closure that
 /// captures it: that store declares it and makes its cell during RC
 /// lowering. A parameter moves into its cell on entry, so it has none
@@ -83,70 +82,6 @@ pub(super) fn shared_locals_with(
                 .map(|&(_, c)| b.cap_local[c as usize].idx()),
         )
         .collect()
-}
-
-/// The locals of sub-body `sub` that the passes put in a cell or a frame
-/// slot (`Body::storage`), and those of them in a slot, once promoted
-/// arguments apply: one reads its local's value (§23.40), so a local that
-/// only promoted references reach and no closure shares stays in Wasm
-/// locals.
-pub(super) fn stored_locals(
-    input: &crate::Input<'_>,
-    b: &Body,
-    (sub, facts): (u16, &super::body_facts::BodyFacts),
-    promoted: &HashSet<u32>,
-) -> (Vec<usize>, Vec<usize>) {
-    let (pool, env) = (input.pool, input.env);
-    let shared = &facts.shared;
-    let reached = |l: usize| {
-        promoted.is_empty()
-            || shared.contains(&l)
-            || facts.refs.get(&l).into_iter().flatten().copied().any(|i| {
-                crate::work::use_facts(1);
-                super::shape::ref_local(b, i) == Some(l)
-                    && !promoted.contains(&u32::try_from(i).expect("insts"))
-                    && matches!(
-                        crate::layout::kind(pool, env, b.ty[i]),
-                        crate::layout::Kind::Ref { fat: false, .. }
-                    )
-            })
-    };
-    let (mut cells, mut slots) = (Vec::new(), Vec::new());
-    for &(l, k) in &facts.storage[usize::from(sub)] {
-        crate::work::use_facts(1);
-        if reached(l.idx()) {
-            cells.push(l.idx());
-            if k == hd_tir::ir::Storage::Slot {
-                slots.push(l.idx());
-            }
-        }
-    }
-    (cells, slots)
-}
-
-/// Keeps the `slots` of a suspending root (`storage::awaited_slots`)
-/// that only awaits of a known body take a reference to: that body keeps
-/// the reference uncounted in its own frame, which ends before the
-/// caller's. An await of a trait value's method builds a cold frame that
-/// counts the reference, which would count the caller's own frame, so its
-/// locals keep their cells. One scan of the body.
-pub(super) fn keep_awaited_slots(b: &Body, targets: &HashMap<u32, Target>, slots: &mut Vec<usize>) {
-    if slots.is_empty() {
-        return;
-    }
-    let mut ops = Vec::new();
-    for (at, _) in (0u32..).zip(&b.tags).filter(|(_, t)| **t == Tag::Await) {
-        if matches!(targets.get(&at), Some(Target::Call(t)) if t.kind == hd_mono::TargetKind::Instance)
-        {
-            continue;
-        }
-        hd_tir::own::operands(b, at as usize, &mut ops);
-        for op in &ops {
-            if let Some(l) = super::shape::ref_local(b, op.value as usize) {
-                slots.retain(|&s| s != l);
-            }
-        }
-    }
 }
 
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
@@ -301,7 +236,7 @@ impl Em<'_, '_, '_> {
         self.b.full_cells.binary_search(&(j, l)).is_ok()
     }
 
-    /// Gives each local of `slots` ([`stored_locals`]) a slot in the function's
+    /// Gives each local of `slots` (its `Storage::Slot` rows) a slot in the function's
     /// frame on the local stack (§23.38): a zero count word, as a static
     /// object's, then the value in its cell's layout, so a count update
     /// through the slot's address does nothing.
