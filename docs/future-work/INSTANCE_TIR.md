@@ -190,7 +190,7 @@ Each step lands green on its own and names what it deletes.
 | 6b | Recorded reads per instance (question 3) and a code cache per instance (D01), after #49 point 4 gives emitted code a relocatable unit | the program-wide `program_api_hash` | an edit to one layout owns exactly its readers; a one-body edit re-emits exactly its readers |
 | 7a | Storage decided in TIR, landed for promotion and trait-value awaits: `promote::settled` runs `hd_tir::own::settle` once per instance body after collection, which writes final rows and marks promoted `Ref`s (`ref_word::PROMOTED`); `mem_locals` remains physical parameter-ABI lowering | `promoted_refs`, `stored_locals`, `keep_awaited_slots` | the `own` view prints final rows; `wat` cases and release bench modules byte-identical; counted test at n and 10n |
 | 7b | TIR boundary ownership after collection: one cached `ParameterMode` query and one `own::boundary::plan` per instance group, stored beside its body by stable instance ID; unchanged bodies are not cloned for annotations | emitter parameter/capture loan analyses, its trait-slot argument classifier, string-slice comparison ownership, and the driver's second Copy-rule walker | ownership and Wasm stages; release benchmark modules byte-identical |
-| 7 | Drop flags as TIR locals (#1420), then counts as statements (§14 T3) | `emit/drop_flags.rs` except cell layout | #1420's done check |
+| 7 | Drop flags as TIR statements (#1420), then counts as statements (§14 T3) | the emitter's flag decisions (`drop_state`, `mark_drop_place`, `stored_drop`); `emit/drop_flags.rs` keeps the lowering: flag locals, guards, saving across awaits and the cell slot layout | #1420's done check |
 
 ## Appendix A. Stress test
 
