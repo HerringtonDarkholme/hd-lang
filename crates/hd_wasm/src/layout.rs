@@ -1296,18 +1296,6 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
     pass_mode(pool, env, counts, t, env.parameter_mode(t, false))
 }
 
-/// Function values borrow Copy inputs through the driver's common query,
-/// and preserve the existing reference-variance convention. Variance may turn a
-/// counted reference input into a local loan without changing the code
-/// pointer (`fn.type.variance-repr`), including for function values inside
-/// containers, and inside a tuple, struct or enum the input holds by value:
-/// a `fn((&i32, i32))` serves as a `fn((*i32, i32))` with no wrapper
-/// (`types.variance.no-insertion`). Such an input is borrowed whole, so
-/// its caller releases what it counts, as it does a lone `*T`.
-pub fn function_pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
-    pass_mode(pool, env, counts, t, env.parameter_mode(t, true))
-}
-
 /// A cheap ownership query, shared per type within the link. Concrete
 /// frame construction later computes the guarded leaf plan once per parameter.
 pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
@@ -1324,33 +1312,36 @@ pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     )
 }
 
-/// Independent count ownership and value transfer at a function-value input.
-/// A noncopy value transfers its native ownership even when reference variance
-/// requires some thin reference counts to remain with the caller.
+/// Physical count walks lowered from TIR's single function-input record.
+/// The record supplies native transfer and the caller/callee count partition;
+/// this structure contains only its concrete layout lowering.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FunctionInput {
+pub(crate) struct FunctionInputWalks {
     pub transfer: bool,
     pub owned: Option<Walk>,
     pub borrowed: Option<Walk>,
 }
 
-pub(crate) fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> FunctionInput {
+pub(crate) fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> FunctionInputWalks {
+    let input = env.function_input(t);
     let t = strip(pool, env, t);
-    if env.function_value_copies(t) || matches!(kind(pool, env, t), Kind::Ref { .. }) {
-        return FunctionInput {
+    if !input.transfer {
+        return FunctionInputWalks {
             transfer: false,
             owned: None,
             borrowed: count_walk(pool, env, t),
         };
     }
+    // Physical fast path: without thin-reference leaves the split plan is
+    // just the ordinary count walk. The TIR convention is unchanged.
     if !holds_thin_ref(pool, env, t) {
-        return FunctionInput {
+        return FunctionInputWalks {
             transfer: true,
             owned: count_walk(pool, env, t),
             borrowed: None,
         };
     }
-    FunctionInput {
+    FunctionInputWalks {
         transfer: true,
         owned: memoized(&INPUT_OWNED, pool, env, t, &|t, part| {
             if matches!(kind(pool, env, t), Kind::Ref { fat: false, .. }) {

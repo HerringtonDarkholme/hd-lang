@@ -13193,11 +13193,8 @@ impl ProgramEnv for Env<'_> {
     fn parameter_mode(&self, ty: Ty, function: bool) -> hd_tir::own::ParameterMode {
         self.parameter_mode(ty, function)
     }
-    fn function_value_copies(&self, ty: Ty) -> bool {
-        hd_tir::own::OwnCx::copies(self, ty) == hd_tir::own::Tri::Yes
-    }
-    fn function_value_transfers(&self, ty: Ty) -> bool {
-        self.function_parameter(ty) == hd_tir::own::Pass::Owned
+    fn function_input(&self, ty: Ty) -> hd_tir::own::FunctionInput {
+        self.function_input(ty)
     }
 
     fn transfer_adapter(&self, def: DefId, _args: TyList) -> bool {

@@ -3221,7 +3221,13 @@ impl Em<'_, '_, '_> {
     fn argument_pass(&self, lends: Option<u64>, k: usize, t: Ty) -> Pass {
         match lends {
             Some(lends) => self.pass_at(lends, k, t),
-            None => crate::layout::function_pass(self.pool(), self.env(), true, t),
+            None => crate::layout::pass_mode(
+                self.pool(),
+                self.env(),
+                true,
+                t,
+                self.env().function_input(t).mode,
+            ),
         }
     }
 

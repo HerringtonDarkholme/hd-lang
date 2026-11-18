@@ -142,7 +142,7 @@ pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
 /// Whether a function value borrows an input of type `t` that a plain
 /// function's parameter would own: one that holds a thin reference by
 /// value, which variance may turn from counted to local in place
-/// ([`layout::function_pass`]). The ownership passes' function-value
+/// (`hd_tir::own::FunctionInput`). The ownership passes' function-value
 /// convention reads it, so callers and closure bodies agree.
 #[must_use]
 pub fn function_input_borrows(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {

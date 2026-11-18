@@ -143,6 +143,17 @@ pub enum ParameterMode {
     Lent,
 }
 
+/// One function-value input convention, shared by ownership and emission.
+/// Native value transfer is independent of count ownership: a non-Copy
+/// input can transfer its owner while lending its thin reference counts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FunctionInput {
+    pub mode: ParameterMode,
+    /// The native owner and other counts transfer. Thin reference
+    /// counts stay with the caller for representation-preserving variance.
+    pub transfer: bool,
+}
+
 impl ParameterMode {
     /// Read the release summary's existing 64-slot lending mask.
     #[must_use]

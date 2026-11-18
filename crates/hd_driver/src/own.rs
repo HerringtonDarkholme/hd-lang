@@ -902,7 +902,7 @@ impl OwnCx for Env<'_> {
             return Pass::Owned;
         }
         if suspends
-            && !ProgramEnv::function_value_transfers(self, params[k])
+            && self.function_input(params[k]).mode.pass() != Pass::Owned
             && !self.cold_moves(params[k])
         {
             return Pass::Lent;
@@ -1375,7 +1375,8 @@ pub(super) struct TypeFacts {
     refs: RefFacts,
     /// Whether it holds a counted leaf, and its reference ownership.
     layout: Option<(bool, Option<bool>)>,
-    modes: [Option<hd_tir::own::ParameterMode>; 2],
+    mode: Option<hd_tir::own::ParameterMode>,
+    function_input: Option<hd_tir::own::FunctionInput>,
     collection: Option<bool>,
 }
 
@@ -1512,7 +1513,8 @@ fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTabl
             TypeFacts {
                 refs,
                 layout: None,
-                modes: [None; 2],
+                mode: None,
+                function_input: None,
                 collection: None,
             },
         );
@@ -1560,7 +1562,8 @@ fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
             ..RefFacts::NONE
         },
         layout: None,
-        modes: [None; 2],
+        mode: None,
+        function_input: None,
         collection: None,
     };
     let mut table = TypeTable::default();
@@ -1752,17 +1755,54 @@ impl Env<'_> {
     /// not another decision. A local reference still lends its reads even
     /// when its physical representation has no counted leaf.
     pub(super) fn parameter_mode(&self, t: Ty, function: bool) -> hd_tir::own::ParameterMode {
-        use hd_tir::own::ParameterMode as Mode;
-        let at = usize::from(function);
-        if let Some(hit) = lock(&self.run.own_types).get(t).and_then(|f| f.modes[at]) {
+        if function {
+            return self.function_input(t).mode;
+        }
+        if let Some(hit) = lock(&self.run.own_types).get(t).and_then(|f| f.mode) {
             return hit;
         }
+        let answer = self.classify_parameter(t, false);
+        self.ref_facts(t);
+        if let Some(f) = lock(&self.run.own_types).get_mut(t) {
+            f.mode = Some(answer);
+        }
+        answer
+    }
+
+    /// Freeze the function-value ABI once per type. Only concrete types ask
+    /// layout for the thin-reference fact; open generic bodies do not lay out
+    /// their unused values. Native transfer uses the erased representation,
+    /// as the physical ABI did before this record was shared.
+    pub(super) fn function_input(&self, t: Ty) -> hd_tir::own::FunctionInput {
+        use hd_tir::own::FunctionInput;
+        if let Some(hit) = lock(&self.run.own_types)
+            .get(t)
+            .and_then(|f| f.function_input)
+        {
+            return hit;
+        }
+        let mode = self.classify_parameter(t, true);
+        let physical = hd_wasm::strip_type(&self.run.pool, self, t);
+        let answer = FunctionInput {
+            mode,
+            transfer: !matches!(self.run.pool.get(physical), TyData::Ref { .. })
+                && self.copies(physical) != Tri::Yes,
+        };
+        self.ref_facts(t);
+        if let Some(f) = lock(&self.run.own_types).get_mut(t) {
+            f.function_input = Some(answer);
+        }
+        answer
+    }
+
+    fn classify_parameter(&self, t: Ty, function: bool) -> hd_tir::own::ParameterMode {
+        use hd_tir::own::ParameterMode as Mode;
         let (counted, reference) = match self.run.pool.get(t) {
             TyData::Ref { counted, .. } => (counted, Some(counted)),
             _ if self.is_open(t) => (true, None),
             _ => self.layout_facts(t),
         };
-        let answer = if reference == Some(false) || function && reference.is_some() {
+        if reference == Some(false) || function && reference.is_some() {
             Mode::Lent
         } else if !counted {
             Mode::Uncounted
@@ -1773,12 +1813,7 @@ impl Env<'_> {
             Mode::Lent
         } else {
             Mode::Owned
-        };
-        self.ref_facts(t);
-        if let Some(f) = lock(&self.run.own_types).get_mut(t) {
-            f.modes[at] = Some(answer);
         }
-        answer
     }
 
     /// The selected parameter representation decides the cold entry mode.

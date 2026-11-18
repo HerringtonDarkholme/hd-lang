@@ -117,12 +117,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// The ownership pipeline's value-parameter decision. Codegen only lowers
     /// the recorded convention to the concrete count walk.
     fn parameter_mode(&self, ty: Ty, function: bool) -> hd_tir::own::ParameterMode;
-    /// Concrete Copy classification for the function-value input convention.
-    fn function_value_copies(&self, ty: Ty) -> bool;
-    /// Whether a function-value parameter receives its owner. Copy values
-    /// and reference-variance inputs are lent; the concrete adapter or closure
-    /// entry takes any count its body needs. Other values transfer ownership.
-    fn function_value_transfers(&self, ty: Ty) -> bool;
+    /// TIR's single function-value input convention; codegen only lowers
+    /// its count ownership to concrete physical walks.
+    fn function_input(&self, ty: Ty) -> hd_tir::own::FunctionInput;
     /// Whether a function reference uses an owned call-body adapter for
     /// its target's selected cold convention.
     fn cold_transfer_adapter(&self, def: DefId) -> bool {
