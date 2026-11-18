@@ -3161,49 +3161,46 @@ impl<'s, 'a> Search<'s, 'a> {
 /// The variables of `t` in first-occurrence order, each distinct node
 /// walked once (`seen`), so each variable is pushed once.
 fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>, seen: &mut HashSet<Ty>) {
-    if !pool.has_infer(t) || !seen.insert(t) {
+    if !pool.has_infer(t) {
         return;
     }
-    crate::work::type_node();
-    match pool.get(t) {
-        TyData::Infer(v) => out.push(v),
-        TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-            for a in pool.list_items(args).iter().copied() {
-                collect_vars(pool, a, out, seen);
+    hd_base::stack::all(t, |t, stack| {
+        if !pool.has_infer(t) || !seen.insert(t) {
+            return true;
+        }
+        crate::work::type_node();
+        let start = stack.len();
+        match pool.get(t) {
+            TyData::Infer(v) => out.push(v),
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                stack.extend_from_slice(pool.list_items(args));
             }
-        }
-        TyData::Tuple { elems, rest } => {
-            for a in pool.list_items(elems).iter().copied().chain(rest) {
-                collect_vars(pool, a, out, seen);
+            TyData::Tuple { elems, rest } => {
+                stack.extend_from_slice(pool.list_items(elems));
+                stack.extend(rest);
             }
-        }
-        TyData::Union(members) => {
-            for a in pool.list_items(members).iter().copied() {
-                collect_vars(pool, a, out, seen);
+            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+            TyData::Ref { inner, .. } => stack.push(inner),
+            TyData::Fn { params, result, .. } => {
+                stack.extend_from_slice(pool.list_items(params));
+                stack.push(result);
             }
+            // A stall names the variables of the goal's own structure; one
+            // inside a projection, an opaque type or a row waits with it.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Canon(_)
+            | TyData::Row(_)
+            | TyData::Context(_) => {}
         }
-        TyData::Ref { inner: i, .. } => {
-            collect_vars(pool, i, out, seen);
-        }
-        TyData::Fn { params, result, .. } => {
-            for a in pool.list_items(params).iter().copied() {
-                collect_vars(pool, a, out, seen);
-            }
-            collect_vars(pool, result, out, seen);
-        }
-        // A stall names the variables of the goal's own structure; one
-        // inside a projection, an opaque type or a row waits with it.
-        TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Opaque { .. }
-        | TyData::Param(_)
-        | TyData::Const(_)
-        | TyData::Assoc { .. }
-        | TyData::Canon(_)
-        | TyData::Row(_)
-        | TyData::Context(_) => {}
-    }
+        stack[start..].reverse();
+        true
+    });
 }
 
 /// Goal arguments that are bare variables learn the matching head
@@ -3606,13 +3603,22 @@ impl Search<'_, '_> {
 /// The parameter a clause on `t` is about: `t` itself, or the parameter
 /// a rigid projection such as `I::IntoIter` projects from.
 fn clause_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
-    match pool.get(t) {
+    let mut leaf = t;
+    hd_base::stack::all(t, |t, stack| {
+        if let TyData::Assoc { self_ty, .. } = pool.get(t) {
+            stack.push(self_ty);
+            true
+        } else {
+            leaf = t;
+            false
+        }
+    });
+    match pool.get(leaf) {
         TyData::Param(p) => Some(p),
         TyData::Opaque { owner, .. } => Some(ParamRef {
             owner,
             index: u16::MAX,
         }),
-        TyData::Assoc { self_ty, .. } => clause_param(pool, self_ty),
         _ => None,
     }
 }
@@ -4008,6 +4014,116 @@ mod tests {
     };
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
+
+    #[test]
+    fn variable_collection_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let global = InternPool::new();
+                let local = LocalPool::new();
+                let pool = Types::with_local(&global, &local);
+                let mut infer = InferTable::default();
+                let vars: Vec<_> = (0..4)
+                    .map(|_| infer.fresh(pool, VarKind::General))
+                    .collect();
+                let ids: Vec<_> = vars
+                    .iter()
+                    .map(|&t| match pool.get(t) {
+                        TyData::Infer(v) => v,
+                        _ => unreachable!("fresh variable"),
+                    })
+                    .collect();
+                for depth in [100, 1_000] {
+                    let mut t = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&[vars[1], vars[0], vars[1]]),
+                        rest: None,
+                    });
+                    for _ in 0..depth {
+                        t = pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[t, t]),
+                            rest: None,
+                        });
+                    }
+                    let root = pool.intern_ty(&TyData::Fn {
+                        params: pool.list(&[t]),
+                        result: vars[2],
+                        row: pool.row(&RowData {
+                            keys: vec![vars[3]],
+                            params: vec![],
+                        }),
+                        suspends: false,
+                        inputs: crate::Inputs::Fixed,
+                        deps: crate::FnDeps::NONE,
+                    });
+                    let mut out = Vec::new();
+                    let mut seen = hd_base::HashSet::default();
+                    let ((), work) = crate::work::count_type_nodes(|| {
+                        super::collect_vars(pool, root, &mut out, &mut seen);
+                    });
+                    assert_eq!(
+                        out,
+                        [ids[1], ids[0], ids[2]],
+                        "first occurrence order; row variables stay hidden"
+                    );
+                    assert_eq!(work, depth + 5);
+                    let ((), repeat) = crate::work::count_type_nodes(|| {
+                        super::collect_vars(pool, root, &mut out, &mut seen);
+                    });
+                    assert_eq!(repeat, 0);
+                    assert_eq!(out.len(), 3);
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
+    #[test]
+    fn clause_parameters_at_depth_1000_fit_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let owner = DefId::from_raw(1);
+                let param = crate::ParamRef { owner, index: 0 };
+                let p = pool.intern_ty(&TyData::Param(param));
+                let opaque = pool.intern_ty(&TyData::Opaque {
+                    owner,
+                    site: 0,
+                    args: TyList::EMPTY,
+                    bound: Ty::I32,
+                    borrows: false,
+                });
+                for (mut t, expected) in [
+                    (p, Some(param)),
+                    (
+                        opaque,
+                        Some(crate::ParamRef {
+                            owner,
+                            index: u16::MAX,
+                        }),
+                    ),
+                    (Ty::I32, None),
+                ] {
+                    for _ in 0..1_000 {
+                        t = pool.intern_ty(&TyData::Assoc {
+                            assoc: DefId::from_raw(2),
+                            trait_: owner,
+                            self_ty: t,
+                            args: pool.list(&[p]),
+                        });
+                    }
+                    assert_eq!(super::clause_param(types, t), expected);
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
 
     /// Folder 0 holding a test's impl rows, and owning every test id: the
     /// impls a module of that folder solves with, read by owner lookup.
