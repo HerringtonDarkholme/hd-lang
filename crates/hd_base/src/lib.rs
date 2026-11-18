@@ -8,6 +8,7 @@
 //! `append` is the workspace's one audited `unsafe` module.
 
 pub mod append;
+pub mod bitset;
 pub mod hash;
 pub mod leb;
 pub mod limits;

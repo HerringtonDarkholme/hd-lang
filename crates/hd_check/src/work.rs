@@ -454,3 +454,27 @@ pub(crate) fn global_mutability_probe() {
         }
     });
 }
+
+thread_local! {
+    static LOAN_WORDS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the loan-set words the region solver writes and its readers read
+/// on this thread (`crate::regions`): each set it builds, each set it
+/// passes along an edge, and each solved set a reader iterates or probes.
+/// Use the driver's serial executor to measure a whole build.
+pub fn count_loan_words<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = LOAN_WORDS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = LOAN_WORDS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` loan-set words read or written.
+pub(crate) fn loan_words(n: usize) {
+    LOAN_WORDS.with(|c| {
+        if let Some(w) = c.get() {
+            c.set(Some(w + n as u64));
+        }
+    });
+}

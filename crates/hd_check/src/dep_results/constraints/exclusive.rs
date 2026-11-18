@@ -749,7 +749,7 @@ impl Gen<'_, '_> {
         if !self.loans.iter().any(|o| matches!(o, Origin::Site(_))) {
             return Vec::new();
         }
-        let has = |v: &[Region], loan: u32| v.iter().any(|&g| sol.value(g).contains(loan));
+        let has = |v: &[Region], loan: u32| v.iter().any(|&g| sol.holds(g, loan));
         let (topo, (reads, sets)) = (Topology::new(b), self.reads());
         let order = Order {
             b,
@@ -1128,7 +1128,7 @@ impl Gen<'_, '_> {
                 *by_comp.entry(sol.component(g)).or_insert_with(|| {
                     let mut h = Held::default();
                     crate::work::scan_work(1);
-                    for l in sol.value(g).iter() {
+                    for l in sol.loans(g) {
                         match slot[l as usize] {
                             Slot::Elem(k) => h.elems.push(k),
                             Slot::Site(k) => h.sites.push(k),

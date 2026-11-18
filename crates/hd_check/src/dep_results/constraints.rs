@@ -1678,7 +1678,7 @@ impl Gen<'_, '_> {
     /// The origins the top slots of view `v` hold.
     fn origins(&self, sol: &Solution, v: &View) -> Set {
         let tops = self.split(v).0;
-        let loans = tops.iter().flat_map(|&r| sol.value(r).iter());
+        let loans = tops.iter().flat_map(|&r| sol.loans(r));
         let mut set: Set = (loans.map(|l| self.loans[l as usize]))
             .filter(|o| !matches!(o, Origin::Site(_) | Origin::Outside(_)))
             .collect();
@@ -1692,7 +1692,7 @@ impl Gen<'_, '_> {
         let (Some(&l), Some(v)) = (self.ids.get(&o), self.val(v)) else {
             return false;
         };
-        (self.split(&v).0.iter()).any(|&r| sol.value(r).contains(l))
+        (self.split(&v).0.iter()).any(|&r| sol.holds(r, l))
     }
 
     /// What instruction `i` uses, for the scope check: its value's
@@ -1813,7 +1813,8 @@ impl Gen<'_, '_> {
             }
             let mut memo = at_lifetimes.borrow_mut();
             let lts = memo.entry(c).or_insert_with(|| {
-                let mut lts: Vec<u32> = (sol.value(to).iter())
+                let mut lts: Vec<u32> = sol
+                    .loans(to)
                     .filter_map(|x| self.s.lifetime_of(self.loans[x as usize]))
                     .collect();
                 lts.sort_stable();
@@ -1887,7 +1888,7 @@ impl Gen<'_, '_> {
         };
         for x in violations.iter().filter(|x| kept(&x.edge)) {
             let e = x.edge;
-            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            let bad = sol.loans(e.from).filter(|&l| !allowed(&e, l));
             passed.extend(bad.map(|l| self.loans[l as usize]));
         }
         // An origin a call may not pass at a bound's lifetime is reported
@@ -1895,7 +1896,7 @@ impl Gen<'_, '_> {
         // value holding it is passed on, stored or returned.
         for x in violations.iter().filter(|x| x.edge.cat == Category::Bound) {
             let e = x.edge;
-            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            let bad = sol.loans(e.from).filter(|&l| !allowed(&e, l));
             let fresh: Vec<Origin> = (bad.map(|l| self.loans[l as usize]))
                 .filter(|o| !passed.contains(o))
                 .collect();
@@ -1914,7 +1915,7 @@ impl Gen<'_, '_> {
         }
         for x in violations.iter().filter(|x| x.edge.cat != Category::Bound) {
             let e = x.edge;
-            let bad = sol.value(e.from).iter().filter(|&l| !allowed(&e, l));
+            let bad = sol.loans(e.from).filter(|&l| !allowed(&e, l));
             let reported = |o: &Origin| {
                 matches!(e.cat, Category::Result | Category::CallerPlace) && passed.contains(o)
             };

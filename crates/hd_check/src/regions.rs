@@ -4,9 +4,11 @@
 //! instruction adds outlives edges between them, and
 //! [`Constraints::solve`] computes every region's loan set at once: an
 //! iterative Tarjan pass collapses strongly connected components, then one
-//! pass unions bitsets in topological order (`ref.dep.origin.set`).
+//! pass builds each component's loan set once, in topological order
+//! (`ref.dep.origin.set`).
 
 use hd_base::SliceSort as _;
+use hd_base::bitset::{Builder, HybridSet};
 use std::ops::Range;
 
 /// A region variable: a dense index into one body's [`RegionTable`].
@@ -111,50 +113,6 @@ pub(crate) struct Edge {
     pub(crate) cat: Category,
 }
 
-/// A loan set: a bitset that grows to the highest loan it holds.
-#[derive(Clone, Default, PartialEq, Eq, Debug)]
-pub(crate) struct Loans(Vec<u64>);
-
-impl Loans {
-    pub(crate) fn insert(&mut self, l: Loan) {
-        let w = (l / 64) as usize;
-        if self.0.len() <= w {
-            self.0.resize(w + 1, 0);
-        }
-        self.0[w] |= 1 << (l % 64);
-    }
-
-    pub(crate) fn contains(&self, l: Loan) -> bool {
-        self.0
-            .get((l / 64) as usize)
-            .is_some_and(|w| w & (1 << (l % 64)) != 0)
-    }
-
-    #[cfg_attr(not(test), expect(dead_code, reason = "only the unit tests read it"))]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.iter().all(|&w| w == 0)
-    }
-
-    /// Adds every loan of `other`.
-    fn union(&mut self, other: &Loans) {
-        if self.0.len() < other.0.len() {
-            self.0.resize(other.0.len(), 0);
-        }
-        for (a, b) in self.0.iter_mut().zip(&other.0) {
-            *a |= b;
-        }
-    }
-
-    /// The loans, in increasing order.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = Loan> + '_ {
-        self.0.iter().enumerate().flat_map(|(i, &w)| {
-            (0..64u32)
-                .filter(move |b| w & (1 << b) != 0)
-                .map(move |b| ix(i) * 64 + b)
-        })
-    }
-}
-
 /// The constraint graph of one body: outlives edges and seed loans.
 #[derive(Default)]
 pub(crate) struct Constraints {
@@ -173,7 +131,7 @@ pub(crate) struct Violation {
 /// Every region's solved value: `comp` maps a region to its component.
 pub(crate) struct Solution {
     comp: Vec<u32>,
-    values: Vec<Loans>,
+    values: Vec<HybridSet>,
 }
 
 impl Constraints {
@@ -198,8 +156,10 @@ impl Constraints {
         self.seeds.push((r, l));
     }
 
-    /// Solves the graph over `regions` variables. Linear in regions plus
-    /// edges times loan words; checked edges propagate like the others.
+    /// Solves the graph over `regions` variables; checked edges propagate
+    /// like the others. Linear in regions plus edges, plus each source
+    /// set's size once per component it reaches by an edge; a set whose
+    /// parts are too spread for a bitmap sorts them ([`Builder::finish`]).
     pub(crate) fn solve(&self, regions: u32) -> Solution {
         let n = regions as usize;
         // Out-edges per region, in edge order (compressed rows).
@@ -219,22 +179,31 @@ impl Constraints {
         let sccs = hd_base::scc::sccs(n, |v, out| {
             out.extend_from_slice(&adj[off[v as usize] as usize..off[v as usize + 1] as usize]);
         });
-        let mut values = vec![Loans::default(); sccs.len()];
-        for &(r, l) in &self.seeds {
-            values[sccs.comp[r as usize] as usize].insert(l);
-        }
         // Tarjan finishes a component after every component it reaches, so
-        // the highest number is a source: union along edges from there.
-        for c in (0..values.len()).rev() {
-            let (lo, hi) = values.split_at_mut(c);
+        // the highest number is a source and every edge into a component
+        // comes from a higher one: build each set once, from its seeds and
+        // the finished sets of its sources, each source once.
+        let mut parts: Vec<Builder> = (0..sccs.len()).map(|_| Builder::default()).collect();
+        for &(r, l) in &self.seeds {
+            parts[sccs.comp[r as usize] as usize].insert(l);
+        }
+        let mut from = vec![u32::MAX; sccs.len()];
+        let mut values = vec![HybridSet::default(); sccs.len()];
+        for c in (0..sccs.len()).rev() {
+            let part = std::mem::take(&mut parts[c]);
+            crate::work::loan_words(part.parts());
+            let value = part.finish();
             for &r in sccs.members(c) {
                 for &t in &adj[off[r as usize] as usize..off[r as usize + 1] as usize] {
                     let d = sccs.comp[t as usize] as usize;
-                    if d != c {
-                        lo[d].union(&hi[0]);
+                    if d != c && from[d] != ix(c) {
+                        from[d] = ix(c);
+                        crate::work::loan_words(value.size());
+                        parts[d].union(&value);
                     }
                 }
             }
+            values[c] = value;
         }
         Solution {
             comp: sccs.comp,
@@ -244,9 +213,18 @@ impl Constraints {
 }
 
 impl Solution {
-    /// The loans region `r` may point into.
-    pub(crate) fn value(&self, r: Region) -> &Loans {
-        &self.values[self.comp[r as usize] as usize]
+    /// The loans region `r` may point into, in increasing order: one read
+    /// of its set's [`size`](HybridSet::size).
+    pub(crate) fn loans(&self, r: Region) -> hd_base::bitset::Iter<'_> {
+        let set = &self.values[self.comp[r as usize] as usize];
+        crate::work::loan_words(set.size());
+        set.iter()
+    }
+
+    /// Whether region `r` may point into loan `l`.
+    pub(crate) fn holds(&self, r: Region, l: Loan) -> bool {
+        crate::work::loan_words(1);
+        self.values[self.comp[r as usize] as usize].contains(l)
     }
 
     /// Whether `a` and `b` ended in one component, and so share a value.
@@ -273,7 +251,7 @@ impl Solution {
             .iter()
             .filter(|e| e.cat != Category::Flow)
             .filter_map(|e| {
-                let loan = self.value(e.from).iter().find(|&l| !allowed(e, l))?;
+                let loan = self.loans(e.from).find(|&l| !allowed(e, l))?;
                 Some(Violation { edge: *e, loan })
             })
             .collect();
@@ -287,7 +265,7 @@ mod tests {
     use super::*;
 
     fn loans(s: &Solution, r: Region) -> Vec<Loan> {
-        s.value(r).iter().collect()
+        s.loans(r).collect()
     }
 
     fn flow(c: &mut Constraints, a: Region, b: Region) {
@@ -299,7 +277,7 @@ mod tests {
         let s = Constraints::default().solve(0);
         assert!(s.values.is_empty());
         let s = Constraints::default().solve(3);
-        assert!((0..3).all(|r| s.value(r).is_empty() && !s.same(r, (r + 1) % 3)));
+        assert!((0..3).all(|r| s.loans(r).next().is_none() && !s.same(r, (r + 1) % 3)));
     }
 
     #[test]
@@ -386,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn bitsets_grow_across_words() {
+    fn loan_sets_cost_their_members() {
         let mut c = Constraints::default();
         flow(&mut c, 0, 2);
         flow(&mut c, 1, 2);
@@ -394,11 +372,14 @@ mod tests {
             c.seed(0, l);
         }
         c.seed(1, 130);
+        c.seed(1, 100_000);
         let s = c.solve(3);
-        assert_eq!(loans(&s, 2), [0, 63, 64, 130, 200]);
-        assert!(s.value(2).contains(200) && !s.value(2).contains(65));
-        assert!(!s.value(1).contains(1000));
-        assert_eq!(s.value(0).0.len(), 4);
+        assert_eq!(loans(&s, 2), [0, 63, 64, 130, 200, 100_000]);
+        assert!(s.holds(2, 200) && !s.holds(2, 65));
+        assert!(!s.holds(1, 1000) && s.holds(1, 100_000));
+        // A far loan costs half a word, not the 1,562 words below it.
+        let size = |r: Region| s.values[s.component(r) as usize].size();
+        assert_eq!((size(0), size(1), size(2)), (2, 1, 3));
     }
 
     #[test]

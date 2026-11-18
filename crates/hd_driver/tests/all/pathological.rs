@@ -2692,6 +2692,40 @@ fn element_loan_arguments_scan_the_body_once() {
     });
 }
 
+/// `n` calls each passing a reference to one local beside another
+/// argument: each is a site loan whose argument region is its own
+/// component (#2154).
+fn reference_calls(n: usize) -> String {
+    let mut s = String::from(
+        "fn look(x: &i32, by: i32) -> i32:\n    *x + by\n\npub fn main() -> void $ Console:\n    let a = +1\n    let mut t = +0\n",
+    );
+    for _ in 0..n {
+        s.push_str("    t += look(&a, t)\n");
+    }
+    s.push_str("    println(t)\n");
+    s
+}
+
+// Checker: #2154, a solved component's loan set costs its members: the
+// dense bitset grew to the highest loan id, so k reference-taking calls
+// held about k components of up to k/64 words each.
+#[test]
+fn reference_calls_read_loan_sets_by_their_members() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_loan_words(|| compile(&reference_calls(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "loan-set words for 100 and 1,000 reference-taking calls: {small} and {large}"
+        );
+    });
+}
+
 /// `n` built-in pushes, each onto an element of one list, whose argument
 /// takes `&mut` of another list (`ref.elem.access.live`).
 fn element_receiver_pushes(n: usize) -> String {
