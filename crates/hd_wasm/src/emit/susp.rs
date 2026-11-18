@@ -1775,14 +1775,7 @@ pub(super) fn finish(
                     let Some(ls) = em.locals.get(l).cloned() else {
                         continue;
                     };
-                    let mut loaded = Vec::new();
-                    for leaf in &m.leaves[p.first..p.first + p.count] {
-                        let y = em.f.local(leaf.val);
-                        em.f.get(0);
-                        em.f.op(leaf.load(0));
-                        em.f.set(y);
-                        loaded.push(y);
-                    }
+                    let loaded = em.f.load_locals(0, &m.leaves[p.first..p.first + p.count]);
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_local(*l, &loaded, true))?;
                     }

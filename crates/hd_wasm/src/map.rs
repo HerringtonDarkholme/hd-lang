@@ -17,7 +17,7 @@ use hd_mono::{CallTarget, Target};
 use hd_types::Ty;
 
 use crate::Input;
-use crate::layout::{Leaf, LeafOps as _, Pass, Walk};
+use crate::layout::{Leaf, Pass, Walk};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
 use crate::rt::{Helper, own_arg, retain_call, walk_code};
 
@@ -333,11 +333,7 @@ fn load_entry(f: &mut Func, entry: &Entry, from: usize, to: usize) -> Vec<u32> {
     let at = f.local(Val::I32);
     f.set(at);
     let ls: Vec<u32> = entry.leaves.iter().map(|l| f.local(l.val)).collect();
-    for (l, x) in entry.leaves[from..to].iter().zip(&ls[from..to]) {
-        f.get(at);
-        f.op(l.load(0));
-        f.set(*x);
-    }
+    f.load_into(at, &entry.leaves[from..to], &ls[from..to]);
     ls
 }
 
@@ -1324,11 +1320,7 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     f.op(I::If(BlockType::Empty));
     entry_at(&mut f, t, cap, i, entry.size);
     f.set(at);
-    for (l, x) in entry.leaves.iter().zip(&elems) {
-        f.get(at);
-        f.op(l.load(0));
-        f.set(*x);
-    }
+    f.load_into(at, &entry.leaves, &elems);
     if let Some(w) = entry.walk() {
         for x in &elems {
             f.get(*x);

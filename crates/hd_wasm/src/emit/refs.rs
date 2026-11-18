@@ -1070,10 +1070,7 @@ impl Em<'_, '_, '_> {
         let (pt, part) = self.fold_path(self.b.local_ty[l], &path)?;
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
         let c = self.cell_of(l)?;
-        for leaf in &leaves {
-            self.f.get(c);
-            self.f.op(leaf.load(0));
-        }
+        self.f.push_leaves(c, &leaves);
         self.store_owned(i)?;
         if self.needs_drop(pt) {
             for leaf in &leaves {
@@ -1089,10 +1086,8 @@ impl Em<'_, '_, '_> {
     /// names, into instruction `dest`'s value: the part's leaves at the
     /// address.
     fn read_part(&mut self, dest: u32, at: u32, value: &RefLayout, part: Part) -> StageResult<()> {
-        for leaf in &value.leaves[part.first..part.first + part.count] {
-            self.f.get(at);
-            self.f.op(leaf.load(0));
-        }
+        self.f
+            .push_leaves(at, &value.leaves[part.first..part.first + part.count]);
         self.store(dest)
     }
 

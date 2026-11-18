@@ -4700,11 +4700,7 @@ fn drop_value_glue(
     f.u32(crate::module::HEADER);
     f.op(Instruction::I32Add);
     f.set(at);
-    for (i, leaf) in leaves.iter().enumerate() {
-        f.get(at);
-        f.get(u32::try_from(i).expect("leaves"));
-        f.op(leaf.store(0));
-    }
+    f.store_locals(at, leaves, 0..);
     call_drops(&mut f, at, drops);
     let ls = load_elem_locals(&mut f, leaves);
     fill_elem(&mut f, at, leaves, &ls);
@@ -4749,13 +4745,7 @@ pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
 /// so it reads a value that may not copy.
 pub(crate) fn ref_lend(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
     f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
-    let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
-    for (leaf, l) in value.leaves.iter().zip(&ls) {
-        f.get(at);
-        f.op(leaf.load(0));
-        f.set(*l);
-    }
-    ls
+    f.load_locals(at, &value.leaves)
 }
 
 /// Moves the value that the reference in local `at` names out of its
@@ -4798,17 +4788,8 @@ pub(crate) fn ref_store(
     if !owned {
         ref_count(f, ls, value, true);
     }
-    let old: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
-    for (leaf, o) in value.leaves.iter().zip(&old) {
-        f.get(at);
-        f.op(leaf.load(0));
-        f.set(*o);
-    }
-    for (leaf, l) in value.leaves.iter().zip(ls) {
-        f.get(at);
-        f.get(*l);
-        f.op(leaf.store(0));
-    }
+    let old = f.load_locals(at, &value.leaves);
+    f.store_locals(at, &value.leaves, ls.iter().copied());
     if release {
         let was = f.reason.replace(hd_tir::own::Reason::Overwritten);
         ref_count(f, &old, value, false);

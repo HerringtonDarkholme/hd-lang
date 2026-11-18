@@ -26,7 +26,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{Enc, Is, IsOps as _, LeafOps as _, Pass, Test, num, vals};
+use crate::layout::{Enc, Is, IsOps as _, Pass, Test, num, vals};
 use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 
@@ -4270,10 +4270,7 @@ impl Em<'_, '_, '_> {
         self.comp(p, 0)?;
         self.f.set(at);
         if !store {
-            for l in &m.leaves {
-                self.f.get(at);
-                self.f.op(l.load(0));
-            }
+            self.f.push_leaves(at, &m.leaves);
             return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
         }
         let s = self.retain_src(&value::Src::Ref(w), t)?;

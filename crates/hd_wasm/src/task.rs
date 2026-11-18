@@ -2703,11 +2703,7 @@ fn all_node_poll(m: &Module, elem: &Elem) -> Func {
     f.u32(crate::rt::LIST_ELEMS);
     f.op(Instruction::I32Add);
     f.set(result);
-    for (leaf, local) in elem.leaves.iter().zip(&tmp) {
-        f.get(result);
-        f.get(*local);
-        f.op(leaf.store(0));
-    }
+    f.store_locals(result, &elem.leaves, tmp.iter().copied());
     all_done(&mut f, index, 1);
     f.op(Instruction::Else);
     flags_any(&mut f, child, CANCELLED);
@@ -2960,17 +2956,7 @@ fn all_drop(m: &Module, elem: &Elem) -> Func {
             f.u32(crate::rt::LIST_ELEMS);
             f.op(Instruction::I32Add);
             f.set(address);
-            let values: Vec<_> = elem
-                .leaves
-                .iter()
-                .map(|l| {
-                    let value = f.local(l.val);
-                    f.get(address);
-                    f.op(l.load(0));
-                    f.set(value);
-                    value
-                })
-                .collect();
+            let values = f.load_locals(address, &elem.leaves);
             crate::rt::walk_code(
                 f,
                 walk,

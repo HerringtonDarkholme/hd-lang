@@ -27,7 +27,7 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{self, IsOps as _, Leaf, LeafOps as _, Walk};
+use crate::layout::{self, IsOps as _, Leaf, Walk};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};
@@ -2171,10 +2171,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             f.op(I::I32GeU);
             f.op(I::BrIf(1));
             enc_call(f, 0, &l.ty, |f| {
-                for leaf in &l.elem.leaves {
-                    f.get(at);
-                    f.op(leaf.load(0));
-                }
+                f.push_leaves(at, &l.elem.leaves);
             });
             f.get(at);
             f.u32(l.elem.size);
@@ -2212,10 +2209,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             crate::map::each_entry(f, t, mp.entry.size, &|f, at| {
                 for (ty, leaves) in [(&mp.key, key), (&mp.val, val)] {
                     enc_call(f, 0, ty, |f| {
-                        for leaf in leaves {
-                            f.get(at);
-                            f.op(leaf.load(0));
-                        }
+                        f.push_leaves(at, leaves);
                     });
                 }
             });
@@ -2269,11 +2263,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
             f.u32(crate::module::HEADER);
             f.op(I::I32Add);
             f.set(at);
-            for (local, leaf) in (1u32..).zip(&c.leaves) {
-                f.get(at);
-                f.get(local);
-                f.op(leaf.store(0));
-            }
+            f.store_locals(at, &c.leaves, 1..);
             f.get(at);
             f.call(Sym::Inst(c.codec));
             f.set(text[1]);
@@ -2309,10 +2299,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
                 on_path(f, count, I::I32Add);
             }
             enc_call(f, 0, &o.ty, |f| {
-                for leaf in &o.elem.leaves {
-                    f.get(1);
-                    f.op(leaf.load(0));
-                }
+                f.push_leaves(1, &o.elem.leaves);
             });
             if o.tracked {
                 on_path(f, count, I::I32Sub);
@@ -2521,11 +2508,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             f.op(I::I32GeU);
             f.op(I::BrIf(1));
             let vals = dec_into(f, 0, &l.ty);
-            for (leaf, v) in l.elem.leaves.iter().zip(&vals) {
-                f.get(at);
-                f.get(*v);
-                f.op(leaf.store(0));
-            }
+            f.store_locals(at, &l.elem.leaves, vals.iter().copied());
             // The buffer's length counts the element only once it is
             // stored, so its glue never releases an unwritten one.
             f.get(buf);
@@ -2570,11 +2553,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
                 f.helper(Helper::New);
             }
             f.set(obj);
-            for (leaf, v) in o.elem.leaves.iter().zip(&vals) {
-                f.get(obj);
-                f.get(*v);
-                f.op(leaf.store(0));
-            }
+            f.store_locals(obj, &o.elem.leaves, vals.iter().copied());
             f.get(obj);
         }
         LTy::Record(fields) => {

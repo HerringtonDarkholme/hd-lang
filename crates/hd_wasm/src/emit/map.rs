@@ -15,7 +15,7 @@ use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
-use crate::layout::{LeafOps as _, coll_kind, payload_mem, strip};
+use crate::layout::{coll_kind, payload_mem, strip};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
@@ -491,16 +491,7 @@ impl Em<'_, '_, '_> {
             let at = em.f.local(Val::I32);
             entry_address(&mut em.f, m, ent, e.size);
             em.f.set(at);
-            let ls = e.leaves[from..to]
-                .iter()
-                .map(|l| {
-                    let x = em.f.local(l.val);
-                    em.f.get(at);
-                    em.f.op(l.load(0));
-                    em.f.set(x);
-                    x
-                })
-                .collect();
+            let ls = em.f.load_locals(at, &e.leaves[from..to]);
             (at, ls)
         };
         let n = e.leaves.len();
@@ -549,16 +540,7 @@ impl Em<'_, '_, '_> {
             if !moves {
                 self.release_map_part(i, Part::Operand(0), &vl, vt)?;
             }
-            let kl: Vec<u32> = e.leaves[..e.keys]
-                .iter()
-                .map(|l| {
-                    let x = self.f.local(l.val);
-                    self.f.get(at);
-                    self.f.op(l.load(0));
-                    self.f.set(x);
-                    x
-                })
-                .collect();
+            let kl = self.f.load_locals(at, &e.leaves[..e.keys]);
             self.release_map_part(i, Part::Operand(1), &kl, kt)?;
             hash_address(&mut self.f, m, ent);
             self.f.i32(-1);

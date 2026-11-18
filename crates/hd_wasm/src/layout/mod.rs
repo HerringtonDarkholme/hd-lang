@@ -60,6 +60,43 @@ pub fn pass_mode(
     }
 }
 
+/// The leaf loops of a value at a heap address in a local, `base` 0
+/// (`crates/hd_wasm/DESIGN.md` §23.3).
+impl crate::module::Func {
+    /// Pushes each of `leaves`, loaded from the address in local `at`.
+    pub fn push_leaves(&mut self, at: u32, leaves: &[Leaf]) {
+        for leaf in leaves {
+            self.get(at);
+            self.op(leaf.load(0));
+        }
+    }
+
+    /// Loads each of `leaves` from the address in local `at` into `xs`.
+    pub fn load_into(&mut self, at: u32, leaves: &[Leaf], xs: &[u32]) {
+        for (leaf, x) in leaves.iter().zip(xs) {
+            self.get(at);
+            self.op(leaf.load(0));
+            self.set(*x);
+        }
+    }
+
+    /// [`Self::load_into`] fresh locals, which it returns.
+    pub fn load_locals(&mut self, at: u32, leaves: &[Leaf]) -> Vec<u32> {
+        let xs: Vec<u32> = leaves.iter().map(|l| self.local(l.val)).collect();
+        self.load_into(at, leaves, &xs);
+        xs
+    }
+
+    /// Stores locals `xs` as `leaves` at the address in local `at`.
+    pub fn store_locals(&mut self, at: u32, leaves: &[Leaf], xs: impl IntoIterator<Item = u32>) {
+        for (leaf, x) in leaves.iter().zip(xs) {
+            self.get(at);
+            self.get(x);
+            self.op(leaf.store(0));
+        }
+    }
+}
+
 /// A leaf's Wasm memory access.
 pub trait LeafOps {
     fn load(self, base: u32) -> I;

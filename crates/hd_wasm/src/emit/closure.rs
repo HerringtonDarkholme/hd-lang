@@ -293,12 +293,7 @@ impl Em<'_, '_, '_> {
         self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         if !matches!(self.kind(t), crate::layout::Kind::Value) || self.drop_calls(t).is_empty() {
-            let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
-            for (leaf, x) in m.leaves.iter().zip(&ls) {
-                self.f.get(c);
-                self.f.op(leaf.load(0));
-                self.f.set(*x);
-            }
+            let ls = self.f.load_locals(c, &m.leaves);
             self.release_locals(&ls, t)?;
         } else {
             self.f.get(c);
@@ -433,12 +428,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn cell_read(&mut self, l: usize) -> StageResult<Vec<u32>> {
         let (m, _) = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
-        let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
-        for (leaf, x) in m.leaves.iter().zip(&ls) {
-            self.f.get(c);
-            self.f.op(leaf.load(0));
-            self.f.set(*x);
-        }
+        let ls = self.f.load_locals(c, &m.leaves);
         Ok(ls)
     }
 
@@ -459,12 +449,7 @@ impl Em<'_, '_, '_> {
         let slot = self.slots.contains_key(&l);
         let (m, walk) = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
-        let held: Vec<u32> = m.leaves.iter().map(|leaf| self.f.local(leaf.val)).collect();
-        for (leaf, x) in m.leaves.iter().zip(&held) {
-            self.f.get(c);
-            self.f.op(leaf.load(0));
-            self.f.set(*x);
-        }
+        let held = self.f.load_locals(c, &m.leaves);
         // Only a counted payload needs its old copy cleared: an uncounted
         // one is never released from the cell.
         if walk.is_some() {
@@ -692,11 +677,8 @@ impl Em<'_, '_, '_> {
                 self.env_caps.insert(*l, (env, p.offset));
             }
             let ls = self.local(u32::try_from(*l).expect("locals"))?;
-            for (leaf, x) in m.leaves[p.first..p.first + p.count].iter().zip(&ls) {
-                self.f.get(env);
-                self.f.op(leaf.load(0));
-                self.f.set(*x);
-            }
+            self.f
+                .load_into(env, &m.leaves[p.first..p.first + p.count], &ls);
             if *shared && env == 0 {
                 // A shared capture holds its cell's address. The
                 // environment owns the cell; writes still replace only
