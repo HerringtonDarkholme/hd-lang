@@ -968,95 +968,97 @@ impl Layout {
     /// which the pool shares between its uses, is not entered again
     /// ([`Layouts::slotless`]): a type of n doubled levels,
     /// `((s, s), (s, s))`, costs n steps, not 2^n. A part with slots is
-    /// entered once per use, so a layout's work is its slots' paths.
+    /// entered once per use, so a layout's work is its slots' paths. The
+    /// walk keeps its own stack, so a type nested to the depth limit
+    /// takes no native frame per level: each entry is a part to enter
+    /// (`None`), or one to finish, with where its slots start.
     fn walk(ls: &Layouts<'_>, t: Ty, top: bool, depth: u32, out: &mut Vec<Slot>) {
         let (pool, suspend) = (ls.pool, ls.suspend);
-        if depth > hd_base::limits::TYPE_DEPTH || ls.slotless.borrow().contains(&t) {
-            return;
-        }
-        crate::work::layout_step();
-        let start = out.len();
-        let d = depth + 1;
-        let walk = |t: Ty, top: bool, out: &mut Vec<Slot>| Self::walk(ls, t, top, d, out);
-        let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
-        let slot = Slot {
-            ty: t,
-            fun: hold || matches!(pool.get(t), TyData::Fn { .. }),
-            hold,
-            top,
-            end: out.len() + 1,
-            written: false,
-            shared_mut: false,
-            whole: false,
-        };
-        match pool.get(t) {
-            TyData::Ref {
-                counted: false,
-                inner,
-                ..
-            } => {
-                let k = out.len();
-                out.push(slot);
-                walk(inner, false, out);
-                // A referent with no slot of its own that holds origins is
-                // one place, which a store fills whole.
-                if out.len() == k + 1 && whole_referent(ls, inner) {
-                    out.push(Slot {
-                        ty: inner,
-                        top: false,
-                        end: k + 2,
-                        whole: true,
-                        ..slot
-                    });
+        let mut stack: Vec<(Ty, bool, u32, Option<usize>)> = vec![(t, top, depth, None)];
+        while let Some((t, top, depth, entered)) = stack.pop() {
+            let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
+            let slot = Slot {
+                ty: t,
+                fun: hold || matches!(pool.get(t), TyData::Fn { .. }),
+                hold,
+                top,
+                end: out.len() + 1,
+                written: false,
+                shared_mut: false,
+                whole: false,
+            };
+            if let Some(start) = entered {
+                // A referent with no slot of its own that holds origins
+                // is one place, which a store fills whole.
+                if let TyData::Ref {
+                    counted: false,
+                    inner,
+                    ..
+                } = pool.get(t)
+                {
+                    if out.len() == start + 1 && whole_referent(ls, inner) {
+                        out.push(Slot {
+                            ty: inner,
+                            top: false,
+                            end: start + 2,
+                            whole: true,
+                            ..slot
+                        });
+                    }
+                    out[start].end = out.len();
+                } else if matches!(pool.get(t), TyData::Ref { mutable: true, .. }) {
+                    out[start..].iter_mut().for_each(|s| s.shared_mut = true);
+                } else if hold {
+                    out.push(slot);
                 }
-                out[k].end = out.len();
+                // Only a walk the depth limit cut nowhere is the type's
+                // whole answer.
+                if out.len() == start && depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
+                    ls.slotless.borrow_mut().insert(t);
+                }
+                continue;
             }
-            TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
-            // A counted reference holds its referent's slots, as a
-            // generic instance does (`ref.local.holding.counted`).
-            TyData::Ref { inner, mutable, .. } => {
-                let k = out.len();
-                walk(inner, top, out);
-                if mutable {
-                    out[k..].iter_mut().for_each(|s| s.shared_mut = true);
-                }
+            if depth > hd_base::limits::TYPE_DEPTH || ls.slotless.borrow().contains(&t) {
+                continue;
             }
-            TyData::Tuple { elems, rest } => {
-                for &e in pool.list_items(elems) {
-                    walk(e, top, out);
+            crate::work::layout_step();
+            stack.push((t, top, depth, Some(out.len())));
+            let (first, d) = (stack.len(), depth + 1);
+            match pool.get(t) {
+                TyData::Ref {
+                    counted: false,
+                    inner,
+                    ..
+                } => {
+                    out.push(slot);
+                    stack.push((inner, false, d, None));
                 }
-                if let Some(r) = rest {
-                    walk(r, top, out);
+                TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => out.push(slot),
+                // A counted reference holds its referent's slots, as a
+                // generic instance does (`ref.local.holding.counted`).
+                TyData::Ref { inner, .. } => stack.push((inner, top, d, None)),
+                TyData::Tuple { elems, rest } => {
+                    let parts = pool.list_items(elems).iter().chain(rest.iter());
+                    stack.extend(parts.map(|&e| (e, top, d, None)));
                 }
+                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                    stack.extend(pool.list_items(args).iter().map(|&a| (a, top, d, None)));
+                }
+                TyData::Prim(_)
+                | TyData::Never
+                | TyData::Poison
+                | TyData::Union(_)
+                | TyData::Opaque { borrows: false, .. }
+                | TyData::Param(_)
+                | TyData::Const(_)
+                | TyData::Assoc { .. }
+                | TyData::Infer(_)
+                | TyData::Canon(_)
+                | TyData::Row(_)
+                | TyData::Context(_) => {}
             }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                for &a in pool.list_items(args) {
-                    walk(a, top, out);
-                }
-                if hold {
-                    out.push(Slot {
-                        end: out.len() + 1,
-                        ..slot
-                    });
-                }
-            }
-            TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Union(_)
-            | TyData::Opaque { borrows: false, .. }
-            | TyData::Param(_)
-            | TyData::Const(_)
-            | TyData::Assoc { .. }
-            | TyData::Infer(_)
-            | TyData::Canon(_)
-            | TyData::Row(_)
-            | TyData::Context(_) => {}
-        }
-        // Only a walk the depth limit cut nowhere is the type's whole
-        // answer.
-        if out.len() == start && depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
-            ls.slotless.borrow_mut().insert(t);
+            // Parts are entered in order, the first on top.
+            stack[first..].reverse();
         }
     }
 
