@@ -1699,8 +1699,9 @@ slots, at any depth. A per-type "has slots" flag lets a body whose values
 and locals have none skip the solver.
 
 **Loans** are what a parameter slot refers to, a local, a hidden local of
-`&e`, and a top-level binding. A region's value is a bitset of loans
-(`Loans`).
+`&e`, and a top-level binding. A region's value is a set of loans
+(`hd_base::bitset::HybridSet`) whose size is its members: sorted while
+sparse, a bitset over its own words once that is no larger.
 
 ### 15.2 Constraints
 
@@ -1729,9 +1730,11 @@ that a `&'a mut` field names; elsewhere it is covariant.
 ### 15.3 The Solver And The Checks
 
 `Constraints::solve` builds the constraint graph, collapses strongly
-connected components with an iterative Tarjan pass, and unions bitsets
-once in topological order. The work is linear in slots plus edges, with
-no pass count and no recursion. It is location-insensitive, as
+connected components with an iterative Tarjan pass, and builds each
+component's loan set once in topological order, from its seeds and its
+source components' finished sets, each source once. The work is linear
+in slots plus edges, plus each source set's size once per component it
+reaches, with no pass count and no recursion. It is location-insensitive, as
 `ref.dep.origin.set` specifies: one value per region for the whole body.
 
 Each signature lifetime is a universal region. Its parameter slots start
