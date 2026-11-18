@@ -117,74 +117,83 @@ impl Ck<'_, '_> {
     /// Keep the chosen hidden types invariant inside ordinary outer
     /// conversions (for example an optional injection around the result).
     pub(crate) fn constrain_opaque_return(&mut self, got: Ty, want: Ty, node: NodeRef<'_>) -> bool {
-        if !self.strict_opaque_return(want) {
-            return true;
-        }
-        let pool = self.pool();
-        let got = self.infer.shallow(pool, got);
-        if got == Ty::NEVER {
-            return true;
-        }
-        if self.strict_opaque_slot(want) {
-            let got = self.norm_ty(got);
-            let wanted = self.norm_ty(want);
-            let snapshot = self.infer.snapshot();
-            if self.infer.unify(pool, got, wanted).is_ok() {
+        hd_base::stack::all((got, want), |(got, want), stack| {
+            if !self.strict_opaque_return(want) {
                 return true;
             }
-            self.infer.rollback(snapshot);
-            let (expected, found) = self.show_pair(wanted, got);
-            self.err(hd_diag::Code::TypeMismatch, node,
+            let pool = self.pool();
+            let got = self.infer.shallow(pool, got);
+            if got == Ty::NEVER {
+                return true;
+            }
+            if self.strict_opaque_slot(want) {
+                let got = self.norm_ty(got);
+                let wanted = self.norm_ty(want);
+                let snapshot = self.infer.snapshot();
+                if self.infer.unify(pool, got, wanted).is_ok() {
+                    return true;
+                }
+                self.infer.rollback(snapshot);
+                let (expected, found) = self.show_pair(wanted, got);
+                self.err(hd_diag::Code::TypeMismatch, node,
                 &format!("all returns of `impl Trait` need one concrete type: expected {expected}, found {found}"));
-            return false;
-        }
-        let wanted = self.expected_shape(want);
-        let incoming = self.expected_shape(got);
-        let list = |me: &mut Self, got, want| {
-            pool.list_items(got)
-                .iter()
-                .zip(pool.list_items(want))
-                .all(|(&g, &w)| me.constrain_opaque_return(g, w, node))
-        };
-        if let Some(inner) = self.option_arg(wanted)
-            && self.injects_into(incoming, wanted)
-        {
-            return self.constrain_opaque_return(got, inner, node);
-        }
-        match (pool.get(incoming), pool.get(wanted)) {
-            (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
-                self.constrain_opaque_return(g, w, node)
+                return false;
             }
-            (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {
-                list(self, g, w)
+            let wanted = self.expected_shape(want);
+            let incoming = self.expected_shape(got);
+            let list = |stack: &mut Vec<(Ty, Ty)>, got, want| {
+                stack.extend(
+                    pool.list_items(got)
+                        .iter()
+                        .zip(pool.list_items(want))
+                        .rev()
+                        .map(|(&g, &w)| (g, w)),
+                );
+            };
+            if let Some(inner) = self.option_arg(wanted)
+                && self.injects_into(incoming, wanted)
+            {
+                stack.push((got, inner));
+                return true;
             }
-            (TyData::Tuple { elems: g, rest: a }, TyData::Tuple { elems: w, rest: b }) => {
-                list(self, g, w)
-                    && match (a, b) {
-                        (Some(g), Some(w)) => self.constrain_opaque_return(g, w, node),
-                        _ => true,
+            match (pool.get(incoming), pool.get(wanted)) {
+                (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
+                    stack.push((g, w));
+                }
+                (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {
+                    list(stack, g, w);
+                }
+                (TyData::Tuple { elems: g, rest: a }, TyData::Tuple { elems: w, rest: b }) => {
+                    if let (Some(g), Some(w)) = (a, b) {
+                        stack.push((g, w));
                     }
+                    list(stack, g, w);
+                }
+                (
+                    TyData::TraitValue {
+                        def: a,
+                        args: g,
+                        bindings: a_bindings,
+                    },
+                    TyData::TraitValue {
+                        def: b,
+                        args: w,
+                        bindings: b_bindings,
+                    },
+                ) if a == b => {
+                    stack.extend(
+                        a_bindings
+                            .into_iter()
+                            .zip(b_bindings)
+                            .rev()
+                            .filter_map(|((a, g), (b, w))| (a == b).then_some((g, w))),
+                    );
+                    list(stack, g, w);
+                }
+                _ => return true,
             }
-            (
-                TyData::TraitValue {
-                    def: a,
-                    args: g,
-                    bindings: a_bindings,
-                },
-                TyData::TraitValue {
-                    def: b,
-                    args: w,
-                    bindings: b_bindings,
-                },
-            ) if a == b => {
-                list(self, g, w)
-                    && a_bindings
-                        .into_iter()
-                        .zip(b_bindings)
-                        .all(|((a, g), (b, w))| a != b || self.constrain_opaque_return(g, w, node))
-            }
-            _ => true,
-        }
+            true
+        })
     }
 
     pub(crate) fn local_return_annotation(
@@ -318,6 +327,15 @@ mod tests {
                             assert_eq!(work, depth + 2, "one graph walk and one strict-slot read");
                         }
                     }
+                    let mut deep = strict;
+                    for _ in 0..1_000 {
+                        deep = pool.intern_ty(&TyData::Ref {
+                            inner: deep,
+                            mutable: false,
+                            counted: true,
+                        });
+                    }
+                    assert!(ck.constrain_opaque_return(deep, deep, ck.cx.src.parse.tree.root()));
                     let owner = ck.cx.names.item("app.main", "Shape");
                     let row = pool.row(&hd_types::RowData {
                         keys: vec![strict],

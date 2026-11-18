@@ -887,44 +887,82 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
 
     /// `annot.self-ref.needs.*`.
     fn needs(&self, t: Ty, seen: &mut Vec<Ty>) -> bool {
+        enum Work {
+            Visit(Ty),
+            Any(std::vec::IntoIter<Ty>, bool),
+            All(std::vec::IntoIter<Vec<Ty>>),
+            Restore(Vec<Ty>),
+        }
         let pool = self.cx.names.pool;
         let k = &self.cx.names.known;
-        if seen.contains(&t) {
-            return false;
-        }
-        seen.push(t);
-        match pool.get(t) {
-            // `annot.self-ref.needs.reference`: a reference always refers to
-            // a value, so it needs what its referent needs.
-            TyData::Ref { inner: x, .. } => self.needs(x, seen),
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().any(|e| self.needs(*e, seen))
-                    || rest.is_some_and(|r| self.needs(r, seen))
-            }
-            TyData::Adt { def, args } => {
-                if def == self.data {
-                    return true;
-                }
-                if def == k.list || def == k.map {
-                    return false;
-                }
-                if def == k.result {
-                    let first = pool.list_items(args).first().copied();
-                    return first.is_some_and(|x| self.needs(x, seen));
-                }
-                match self.fields(def, args) {
-                    Some((true, vs)) => vs.iter().flatten().any(|f| self.needs(*f, seen)),
-                    Some((false, vs)) => {
-                        !vs.is_empty()
-                            && vs
-                                .iter()
-                                .all(|v| v.iter().any(|f| self.needs(*f, &mut seen.clone())))
+        let mut answer = false;
+        hd_base::stack::all(Work::Visit(t), |work, stack| {
+            match work {
+                Work::Restore(saved) => *seen = saved,
+                Work::Any(mut fields, fresh) => {
+                    if !answer && let Some(field) = fields.next() {
+                        stack.push(Work::Any(fields, fresh));
+                        if fresh {
+                            let fresh = seen.clone();
+                            stack.push(Work::Restore(std::mem::replace(seen, fresh)));
+                        }
+                        stack.push(Work::Visit(field));
                     }
-                    None => false,
+                }
+                Work::All(mut variants) => {
+                    if answer && let Some(fields) = variants.next() {
+                        stack.push(Work::All(variants));
+                        stack.push(Work::Any(fields.into_iter(), true));
+                        answer = false;
+                    }
+                }
+                Work::Visit(t) => {
+                    answer = false;
+                    if seen.contains(&t) {
+                        return true;
+                    }
+                    seen.push(t);
+                    match pool.get(t) {
+                        TyData::Ref { inner, .. } => stack.push(Work::Visit(inner)),
+                        TyData::Tuple { elems, rest } => {
+                            let fields = pool
+                                .list_items(elems)
+                                .iter()
+                                .copied()
+                                .chain(rest)
+                                .collect::<Vec<_>>();
+                            stack.push(Work::Any(fields.into_iter(), false));
+                        }
+                        TyData::Adt { def, args } => {
+                            if def == self.data {
+                                answer = true;
+                            } else if def == k.list || def == k.map {
+                                return true;
+                            } else if def == k.result {
+                                if let Some(&first) = pool.list_items(args).first() {
+                                    stack.push(Work::Visit(first));
+                                }
+                            } else {
+                                match self.fields(def, args) {
+                                    Some((true, vs)) => stack.push(Work::Any(
+                                        vs.into_iter().flatten().collect::<Vec<_>>().into_iter(),
+                                        false,
+                                    )),
+                                    Some((false, vs)) if !vs.is_empty() => {
+                                        stack.push(Work::All(vs.into_iter()));
+                                        answer = true;
+                                    }
+                                    _ => return true,
+                                }
+                            }
+                        }
+                        _ => return true,
+                    }
                 }
             }
-            _ => false,
-        }
+            true
+        });
+        answer
     }
 }
 
@@ -1023,6 +1061,7 @@ mod self_reference_walk_tests {
                                     });
                                 }
                                 let positive = leaf == target;
+                                assert_eq!(refs.needs(root, &mut Vec::new()), positive);
                                 let work = (depth + 1) * if positive { 2 } else { 1 };
                                 assert_eq!(
                                     hd_types::work::count_type_nodes(|| refs.refers(root)),
