@@ -1097,12 +1097,29 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
     fill(&mut t.write_start, n + 1, 0);
     for i in 0..n {
+        let [a, w] = b.data[i];
+        let tag = b.tags[i];
+        t.effects[i].may = match tag {
+            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
+            Tag::Intrinsic => IntrinsicOp::from_u32(a) == Some(IntrinsicOp::Item),
+            Tag::CallValue | Tag::CallHost | Tag::DefaultCall | Tag::Hook | Tag::Await => true,
+            _ => false,
+        };
         t.write_start[i] = u32_of(t.writes.len());
         let k = t.frame_uses.partition_point(|u| (u.0 as usize) < i);
         for u in k..t.frame_uses.len() {
             let (at, key) = t.frame_uses[u];
             if at as usize != i {
                 break;
+            }
+            // A frame dependency extends storage's life; a nonconsuming
+            // load or a proved read-only call cannot change that storage.
+            // Keep every use for the verifier's alias checks. Move reads
+            // still write, as Swift SIL's MemoryBehavior specifies.
+            if tag == Tag::Read && w != ReadMode::Move as u32
+                || tag == Tag::Call && !t.effects[i].may
+            {
+                continue;
             }
             t.writes.push(Write {
                 key,
@@ -1113,8 +1130,6 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 dropped: Dropped::Nothing,
             });
         }
-        let [a, w] = b.data[i];
-        let tag = b.tags[i];
         let mutable_ref = tag == Tag::Ref && w & ref_word::MUT != 0;
         let moved = tag == Tag::Read && w == ReadMode::Move as u32;
         if mutable_ref || moved || matches!(tag, Tag::Store | Tag::Drop | Tag::IsUnique) {
@@ -1143,12 +1158,6 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 });
             }
         }
-        t.effects[i].may = match tag {
-            Tag::Call => Callee::from_words(b.record(a)).is_none_or(|c| cx.may_write(&c)),
-            Tag::Intrinsic => IntrinsicOp::from_u32(a) == Some(IntrinsicOp::Item),
-            Tag::CallValue | Tag::CallHost | Tag::DefaultCall | Tag::Hook | Tag::Await => true,
-            _ => false,
-        };
     }
     t.write_start[n] = u32_of(t.writes.len());
 }
