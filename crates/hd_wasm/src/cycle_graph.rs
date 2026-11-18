@@ -75,16 +75,6 @@ pub(crate) struct Shape {
     pub rank: u32,
 }
 
-struct Node {
-    ty: Ty,
-    shape: Shape,
-    low: usize,
-    component: usize,
-    next: usize,
-    active: bool,
-    cut: bool,
-}
-
 #[derive(Default)]
 pub(crate) struct Graph {
     done: HashMap<Ty, Facts>,
@@ -103,158 +93,125 @@ impl Graph {
         if let Some(&facts) = self.done.get(&root) {
             return facts;
         }
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut ids = HashMap::default();
-        let mut pending = vec![root];
-        let mut frames: Vec<usize> = Vec::new();
-        let mut components = Vec::new();
+        let mut nodes = HashMap::default();
         let mut ancestors: HashMap<DefId, BTreeSet<(u32, u32)>> = HashMap::default();
-        loop {
-            if let Some(ty) = pending.pop() {
-                let mut data = shape(ty);
-                #[cfg(test)]
-                {
-                    self.visits += 1;
-                }
-                let cut = data.declaration.is_some_and(|def| {
-                    ancestors.get(&def).is_some_and(|types| {
-                        types.range(..=(data.rank, u32::MAX)).take(limit).count() == limit
-                    })
-                });
-                if cut {
-                    // Unfolding is unknown, never a proof of non-recursion.
-                    data.parts.clear();
-                    data.value_open = true;
-                    data.object_open = true;
-                }
-                if let Some(def) = data.declaration {
-                    ancestors.entry(def).or_default().insert((data.rank, ty.0));
-                }
-                let at = nodes.len();
-                ids.insert(ty, at);
-                nodes.push(Node {
-                    ty,
-                    shape: data,
-                    low: at,
-                    component: usize::MAX,
-                    next: 0,
-                    active: true,
-                    cut,
-                });
-                frames.push(at);
-                components.push(at);
-            }
-            let Some(&at) = frames.last() else {
-                break;
-            };
-            if let Some(&child) = nodes[at].shape.parts.get(nodes[at].next) {
-                nodes[at].next += 1;
-                #[cfg(test)]
-                {
-                    self.visits += 1;
-                }
-                if self.done.contains_key(&child) {
-                    continue;
-                }
-                if let Some(&to) = ids.get(&child) {
-                    if nodes[to].active {
-                        nodes[at].low = nodes[at].low.min(to);
+        hd_base::scc::Online::default().visit(root, |event| {
+            match event {
+                hd_base::scc::Event::Enter(ty, out) => {
+                    if self.done.contains_key(&ty) {
+                        return false;
                     }
-                } else {
-                    pending.push(child);
-                }
-                continue;
-            }
-            #[cfg(test)]
-            {
-                self.visits += 1;
-            }
-            frames.pop();
-            if let Some(def) = nodes[at].shape.declaration
-                && let Some(types) = ancestors.get_mut(&def)
-            {
-                types.remove(&(nodes[at].shape.rank, nodes[at].ty.0));
-            }
-            if nodes[at].low == at {
-                let mut members = Vec::new();
-                while let Some(member) = components.pop() {
+                    let mut data = shape(ty);
                     #[cfg(test)]
                     {
                         self.visits += 1;
                     }
-                    nodes[member].active = false;
-                    nodes[member].component = at;
-                    members.push(member);
-                    if member == at {
-                        break;
+                    let cut = data.declaration.is_some_and(|def| {
+                        ancestors.get(&def).is_some_and(|types| {
+                            types.range(..=(data.rank, u32::MAX)).take(limit).count() == limit
+                        })
+                    });
+                    if cut {
+                        // Unfolding is unknown, never a proof of non-recursion.
+                        data.parts.clear();
+                        data.value_open = true;
+                        data.object_open = true;
                     }
+                    if let Some(def) = data.declaration {
+                        ancestors.entry(def).or_default().insert((data.rank, ty.0));
+                    }
+                    out.extend_from_slice(&data.parts);
+                    nodes.insert(ty, (data, cut));
                 }
-                let mut value = false;
-                let mut unknown = false;
-                let cyclic = members.len() > 1 || nodes[at].shape.parts.contains(&nodes[at].ty);
-                for &member in &members {
+                hd_base::scc::Event::Edge(_, _) => {
                     #[cfg(test)]
                     {
                         self.visits += 1;
                     }
-                    value |= nodes[member].shape.value_open;
-                    unknown |= nodes[member].cut;
-                    for child in &nodes[member].shape.parts {
+                }
+                hd_base::scc::Event::Finish(ty) => {
+                    #[cfg(test)]
+                    {
+                        self.visits += 1;
+                    }
+                    let data = &nodes[&ty].0;
+                    if let Some(def) = data.declaration
+                        && let Some(types) = ancestors.get_mut(&def)
+                    {
+                        types.remove(&(data.rank, ty.0));
+                    }
+                }
+                hd_base::scc::Event::Component(members, cyclic) => {
+                    let inside: hd_base::HashSet<Ty> = members.iter().copied().collect();
+                    #[cfg(test)]
+                    {
+                        self.visits += members.len();
+                    }
+                    let mut value = false;
+                    let mut unknown = false;
+                    for member in members {
                         #[cfg(test)]
                         {
                             self.visits += 1;
                         }
-                        if ids.get(child).is_some_and(|&to| nodes[to].component == at) {
-                            continue;
-                        }
-                        // ruled out: an edge leaving a completed SCC reaches
-                        // an already completed SCC or an earlier cached query.
-                        let facts = crate::emit::required(
-                            self.done.get(child),
-                            "completed cycle successor",
-                        );
-                        value |= facts.value;
-                        unknown |= facts.unknown;
-                    }
-                }
-                for &member in &members {
-                    #[cfg(test)]
-                    {
-                        self.visits += 1;
-                    }
-                    let mut object = nodes[member].shape.object_open;
-                    for child in &nodes[member].shape.parts {
-                        #[cfg(test)]
-                        {
-                            self.visits += 1;
-                        }
-                        object |= if ids.get(child).is_some_and(|&to| nodes[to].component == at) {
-                            value
-                        } else {
-                            // ruled out: the component's outgoing facts were
-                            // read successfully in the preceding loop.
-                            crate::emit::required(
+                        let (data, cut) = &nodes[member];
+                        value |= data.value_open;
+                        unknown |= cut;
+                        for child in &data.parts {
+                            #[cfg(test)]
+                            {
+                                self.visits += 1;
+                            }
+                            if inside.contains(child) {
+                                continue;
+                            }
+                            // ruled out: an edge leaving a completed SCC reaches
+                            // an already completed SCC or an earlier cached query.
+                            let facts = crate::emit::required(
                                 self.done.get(child),
-                                "completed object successor",
-                            )
-                            .value
-                        };
+                                "completed cycle successor",
+                            );
+                            value |= facts.value;
+                            unknown |= facts.unknown;
+                        }
                     }
-                    self.done.insert(
-                        nodes[member].ty,
-                        Facts {
-                            value,
-                            object,
-                            recursive: cyclic || unknown,
-                            unknown,
-                        },
-                    );
+                    for member in members {
+                        #[cfg(test)]
+                        {
+                            self.visits += 1;
+                        }
+                        let data = &nodes[member].0;
+                        let mut object = data.object_open;
+                        for child in &data.parts {
+                            #[cfg(test)]
+                            {
+                                self.visits += 1;
+                            }
+                            object |= if inside.contains(child) {
+                                value
+                            } else {
+                                // ruled out: outgoing facts were read in the preceding loop.
+                                crate::emit::required(
+                                    self.done.get(child),
+                                    "completed object successor",
+                                )
+                                .value
+                            };
+                        }
+                        self.done.insert(
+                            *member,
+                            Facts {
+                                value,
+                                object,
+                                recursive: cyclic || unknown,
+                                unknown,
+                            },
+                        );
+                    }
                 }
             }
-            if let Some(&parent) = frames.last() {
-                nodes[parent].low = nodes[parent].low.min(nodes[at].low);
-            }
-        }
+            true
+        });
         // ruled out: the root's DFS frame closed its SCC before the work ended.
         *crate::emit::required(self.done.get(&root), "completed cycle root")
     }

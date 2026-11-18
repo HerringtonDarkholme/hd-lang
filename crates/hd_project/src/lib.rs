@@ -1690,22 +1690,24 @@ impl FolderGraph {
                 }
             }
         }
-        // Depth-first in path order (folders are already path-sorted).
-        let mut state = vec![0u8; n]; // 0 new, 1 visiting, 2 done
-        let mut t = Tarjan {
-            index: vec![u32::MAX; n],
-            low: vec![0; n],
-            on_stack: vec![false; n],
-            stack: Vec::new(),
-            next: 0,
-        };
-        for f in 0..n {
-            let f = FolderId::from_raw(u32::try_from(f).expect("f"));
-            g.visit(f, &mut state);
-            if t.index[f.idx()] == u32::MAX {
-                g.strong(f, &mut t);
+        // Path-sorted roots and edges preserve DFS postorder, including
+        // within cycles, while the shared walk uses heap frames.
+        hd_base::scc::traverse(n, (0..n).map(hd_base::scc::node), |event| {
+            match event {
+                hd_base::scc::Event::Enter(f, out) => {
+                    out.extend(g.uses[f as usize].iter().map(|f| f.raw()));
+                }
+                hd_base::scc::Event::Finish(f) => g.order.push(FolderId::from_raw(f)),
+                hd_base::scc::Event::Component(members, _) if members.len() > 1 => {
+                    let mut members: Vec<_> =
+                        members.iter().copied().map(FolderId::from_raw).collect();
+                    members.sort_stable_by_key(|f| f.raw());
+                    g.cycles.push(members);
+                }
+                hd_base::scc::Event::Edge(_, _) | hd_base::scc::Event::Component(_, _) => {}
             }
-        }
+            true
+        });
         g.closure = vec![FolderSet::with_capacity(n); n];
         g.height = vec![0; n];
         for &f in &g.order {
@@ -1721,64 +1723,6 @@ impl FolderGraph {
         }
         g
     }
-
-    fn visit(&mut self, f: FolderId, state: &mut [u8]) {
-        if state[f.idx()] != 0 {
-            return;
-        }
-        state[f.idx()] = 1;
-        let next: Vec<FolderId> = self.uses[f.idx()].clone();
-        for u in next {
-            self.visit(u, state);
-        }
-        state[f.idx()] = 2;
-        self.order.push(f);
-    }
-
-    /// Tarjan's algorithm from `f` (§4.8 rule 3): each strongly connected
-    /// component of more than one folder becomes one cycle, its members in
-    /// path order.
-    fn strong(&mut self, f: FolderId, t: &mut Tarjan) {
-        let v = f.idx();
-        t.index[v] = t.next;
-        t.low[v] = t.next;
-        t.next += 1;
-        t.stack.push(v);
-        t.on_stack[v] = true;
-        for i in 0..self.uses[v].len() {
-            let u = self.uses[v][i];
-            let w = u.idx();
-            if t.index[w] == u32::MAX {
-                self.strong(u, t);
-                t.low[v] = t.low[v].min(t.low[w]);
-            } else if t.on_stack[w] {
-                t.low[v] = t.low[v].min(t.index[w]);
-            }
-        }
-        if t.low[v] == t.index[v] {
-            let mut scc = Vec::new();
-            while let Some(w) = t.stack.pop() {
-                t.on_stack[w] = false;
-                scc.push(FolderId::from_raw(u32::try_from(w).expect("w")));
-                if w == v {
-                    break;
-                }
-            }
-            if scc.len() > 1 {
-                scc.sort_stable_by_key(|g| g.raw());
-                self.cycles.push(scc);
-            }
-        }
-    }
-}
-
-/// The state of Tarjan's algorithm over the folder graph.
-struct Tarjan {
-    index: Vec<u32>,
-    low: Vec<u32>,
-    on_stack: Vec<bool>,
-    stack: Vec<usize>,
-    next: u32,
 }
 
 #[cfg(test)]

@@ -2259,55 +2259,21 @@ pub fn bottom_up<N: Copy + Eq + std::hash::Hash>(
     callees: &mut dyn FnMut(N) -> Vec<N>,
     scc: &mut dyn FnMut(&mut Vec<N>, bool),
 ) {
-    if done(root) {
-        return;
-    }
-    // A name is resolved only at an edge. Frames and the active stack carry
-    // dense visit indices: (name, low link, on stack) in discovery order.
-    let mut index: HashMap<N, usize> = HashMap::from_iter([(root, 0)]);
-    let mut nodes = vec![(root, 0, true)];
-    let mut stack = vec![0];
-    // Per frame: visit index, edges, next edge, stack length before entry.
-    // A component root owns the suffix starting at its saved boundary;
-    // completed child components have already removed their own suffixes.
-    let mut work = vec![(0, callees(root), 0, 0)];
-    while let Some((v, edges, at, base)) = work.last_mut() {
-        let v = *v;
-        if let Some(&c) = edges.get(*at) {
-            *at += 1;
-            if let Some(&ci) = index.get(&c) {
-                if nodes[ci].2 {
-                    nodes[v].1 = nodes[v].1.min(ci);
+    hd_base::scc::Online::default().visit(root, |event| {
+        match event {
+            hd_base::scc::Event::Enter(n, out) => {
+                if done(n) {
+                    return false;
                 }
-            } else if !done(c) {
-                let ci = nodes.len();
-                let base = stack.len();
-                index.insert(c, ci);
-                nodes.push((c, ci, true));
-                stack.push(ci);
-                work.push((ci, callees(c), 0, base));
+                out.extend(callees(n));
             }
-            continue;
+            hd_base::scc::Event::Component(members, recursive) => {
+                scc(&mut members.to_vec(), recursive);
+            }
+            hd_base::scc::Event::Edge(_, _) | hd_base::scc::Event::Finish(_) => {}
         }
-        let calls_itself = edges.contains(&nodes[v].0);
-        let base = *base;
-        let low = nodes[v].1;
-        work.pop();
-        if let Some(&(parent, ..)) = work.last() {
-            nodes[parent].1 = nodes[parent].1.min(low);
-        }
-        if v == low {
-            let mut members: Vec<N> = stack
-                .drain(base..)
-                .map(|m| {
-                    nodes[m].2 = false;
-                    nodes[m].0
-                })
-                .collect();
-            let recursive = members.len() > 1 || calls_itself;
-            scc(&mut members, recursive);
-        }
-    }
+        true
+    });
 }
 
 /// `i`, a body position or a count of flags, as a `u32` word.

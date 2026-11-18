@@ -1368,73 +1368,50 @@ fn declarations_hash(
         names.dedup();
         (h.finish(), names)
     };
-    // Per visited item, by visit number: the item, its own hash, the items
-    // it names, its low link and whether it is on `stack`.
-    let (own, names) = read(root, canons);
-    let mut index: HashMap<DefId, usize> = HashMap::from_iter([(root, 0)]);
-    let mut nodes = vec![(root, own, names)];
-    let (mut low, mut on, mut stack) = (vec![0], vec![true], vec![0]);
-    let mut call: Vec<(usize, usize)> = vec![(0, 0)];
-    while let Some(&mut (v, ref mut k)) = call.last_mut() {
-        if let Some(&w) = nodes[v].2.get(*k) {
-            *k += 1;
-            if memo.contains_key(&w) {
-                continue;
-            }
-            match index.get(&w) {
-                None => {
-                    let i = nodes.len();
-                    index.insert(w, i);
-                    let (own, names) = read(w, canons);
-                    nodes.push((w, own, names));
-                    low.push(i);
-                    on.push(true);
-                    stack.push(i);
-                    call.push((i, 0));
+    let mut nodes = HashMap::default();
+    hd_base::scc::Online::default().visit(root, |event| {
+        match event {
+            hd_base::scc::Event::Enter(d, out) => {
+                if memo.contains_key(&d) {
+                    return false;
                 }
-                Some(&wi) if on[wi] => low[v] = low[v].min(wi),
-                Some(_) => {}
+                let (own, names) = read(d, canons);
+                out.extend_from_slice(&names);
+                nodes.insert(d, (own, names));
             }
-            continue;
-        }
-        call.pop();
-        if let Some(&(p, _)) = call.last() {
-            low[p] = low[p].min(low[v]);
-        }
-        if low[v] != v {
-            continue;
-        }
-        let at = stack.iter().rposition(|&x| x == v).expect("on the stack");
-        let members = stack.split_off(at);
-        let inside: hd_base::HashSet<DefId> = members.iter().map(|&m| nodes[m].0).collect();
-        let mut owns: Vec<Hash128> = Vec::new();
-        let mut outside: Vec<Hash128> = Vec::new();
-        for &m in &members {
-            on[m] = false;
-            owns.push(nodes[m].1);
-            for n in &nodes[m].2 {
-                if !inside.contains(n) {
-                    outside.push(memo[n]);
+            hd_base::scc::Event::Component(members, _) => {
+                let inside: HashSet<DefId> = members.iter().copied().collect();
+                let mut owns = Vec::new();
+                let mut outside = Vec::new();
+                for m in members {
+                    owns.push(nodes[m].0);
+                    for n in &nodes[m].1 {
+                        if !inside.contains(n) {
+                            outside.push(memo[n]);
+                        }
+                    }
+                }
+                owns.sort_stable();
+                outside.sort_stable();
+                outside.dedup();
+                let mut h = StableHasher::new("declarations");
+                h.len(owns.len());
+                for o in owns {
+                    h.hash(o);
+                }
+                h.len(outside.len());
+                for o in outside {
+                    h.hash(o);
+                }
+                let hash = h.finish();
+                for &m in members {
+                    memo.insert(m, hash);
                 }
             }
+            hd_base::scc::Event::Edge(_, _) | hd_base::scc::Event::Finish(_) => {}
         }
-        owns.sort_stable();
-        outside.sort_stable();
-        outside.dedup();
-        let mut h = StableHasher::new("declarations");
-        h.len(owns.len());
-        for o in owns {
-            h.hash(o);
-        }
-        h.len(outside.len());
-        for o in outside {
-            h.hash(o);
-        }
-        let hash = h.finish();
-        for m in members {
-            memo.insert(nodes[m].0, hash);
-        }
-    }
+        true
+    });
     memo[&root]
 }
 

@@ -449,6 +449,7 @@ mod tests {
     fn online_work_is_linear_across_wide_deep_and_repeated_seeds() {
         std::thread::Builder::new()
             .stack_size(96 * 1024)
+            // cost: one thread, one O(nodes + edges + seeds) walk per generated graph.
             .spawn(|| {
                 for (width, depth) in [(1000, 20), (10000, 20), (1, 10000)] {
                     let n = width * depth;

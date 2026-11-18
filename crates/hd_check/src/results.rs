@@ -482,93 +482,40 @@ impl Results {
     fn find_ready(&mut self, seeds: &[DefId], search: &mut ReadySearch) -> Vec<DefId> {
         let mut ready = Vec::new();
         for &seed in seeds {
-            if !self.waiting.contains(&seed) || search.ids.contains_key(&seed) {
-                continue;
-            }
-            self.visit(seed, search);
-            while let Some(frame) = search.frames.last_mut() {
-                let v = frame.v;
-                let Some(&w) = frame.callees.get(frame.next) else {
-                    search.frames.pop();
-                    let node = search.nodes[v];
-                    if node.low == v {
-                        Self::pop_component(node.pos, search, &mut ready);
-                    }
-                    // A finished component passes on its verdict; a member
-                    // of the parent's component, its low link.
-                    let node = search.nodes[v];
-                    if let Some(parent) = search.frames.last() {
-                        let pn = &mut search.nodes[parent.v];
-                        if node.on_stack {
-                            pn.low = pn.low.min(node.low);
-                        } else {
-                            pn.blocked |= node.blocked;
+            search.walk.visit(seed, |event| {
+                match event {
+                    hd_base::scc::Event::Enter(v, out) => {
+                        if !self.waiting.contains(&v) {
+                            return false;
+                        }
+                        crate::work::solve_work(1);
+                        let blocked = self.reaches_undone(v);
+                        search.blocked.insert(v, blocked);
+                        if !blocked {
+                            out.extend_from_slice(&self.wait_callees[&v]);
                         }
                     }
-                    continue;
-                };
-                frame.next += 1;
-                crate::work::solve_work(1);
-                if !self.waiting.contains(&w) {
-                    continue;
-                }
-                match search.ids.get(&w).copied() {
-                    None => self.visit(w, search),
-                    Some(wi) => {
-                        let wn = search.nodes[wi];
-                        let vn = &mut search.nodes[v];
-                        if wn.on_stack {
-                            vn.low = vn.low.min(wi);
-                        } else {
-                            vn.blocked |= wn.blocked;
+                    hd_base::scc::Event::Edge(v, w) => {
+                        crate::work::solve_work(1);
+                        if search.blocked.get(&w) == Some(&true) {
+                            search.blocked.insert(v, true);
                         }
                     }
+                    hd_base::scc::Event::Component(members, _) => {
+                        let blocked = members.iter().any(|m| search.blocked[m]);
+                        for &m in members {
+                            search.blocked.insert(m, blocked);
+                        }
+                        if !blocked {
+                            ready.extend_from_slice(members);
+                        }
+                    }
+                    hd_base::scc::Event::Finish(_) => {}
                 }
-            }
+                true
+            });
         }
         ready
-    }
-
-    /// Enters row `v`: a row with an edge to a callable not done is
-    /// blocked and needs no walk of its edges.
-    fn visit(&mut self, v: DefId, search: &mut ReadySearch) {
-        crate::work::solve_work(1);
-        let index = search.nodes.len();
-        let blocked = self.reaches_undone(v);
-        search.ids.insert(v, index);
-        search.rows.push(v);
-        search.nodes.push(SearchNode {
-            low: index,
-            on_stack: true,
-            blocked,
-            pos: search.stack.len(),
-        });
-        search.stack.push(index);
-        // A blocked row's edges need no walk: its component is blocked.
-        let callees = if blocked {
-            Vec::new()
-        } else {
-            self.wait_callees[&v].clone()
-        };
-        search.frames.push(SearchFrame {
-            v: index,
-            callees,
-            next: 0,
-        });
-    }
-
-    /// Pops the component whose root is at `pos` on the stack: blocked
-    /// as a whole when any member is, else ready.
-    fn pop_component(pos: usize, search: &mut ReadySearch, ready: &mut Vec<DefId>) {
-        let members = search.stack.split_off(pos);
-        let blocked = members.iter().any(|&m| search.nodes[m].blocked);
-        for &m in &members {
-            search.nodes[m].on_stack = false;
-            search.nodes[m].blocked = blocked;
-        }
-        if !blocked {
-            ready.extend(members.iter().map(|&m| search.rows[m]));
-        }
     }
 
     /// Solves the rows of `group`, which reach only callables done and
@@ -684,33 +631,11 @@ impl Results {
     }
 }
 
-/// One settle's search for ready rows ([`Results::find_ready`]): each
-/// row entered gets the next index into `rows` and `nodes`.
+/// One settle's persistent search and per-component blocked verdicts.
 #[derive(Default)]
 struct ReadySearch {
-    ids: HashMap<DefId, usize>,
-    rows: Vec<DefId>,
-    nodes: Vec<SearchNode>,
-    stack: Vec<usize>,
-    frames: Vec<SearchFrame>,
-}
-
-#[derive(Clone, Copy)]
-struct SearchNode {
-    low: usize,
-    on_stack: bool,
-    /// An edge to a callable not done or to a blocked component; once
-    /// the row's component is popped, whether the component is blocked.
-    blocked: bool,
-    /// Where the row went on the stack.
-    pos: usize,
-}
-
-/// A row being walked: its index, its callees and the next one to take.
-struct SearchFrame {
-    v: usize,
-    callees: Vec<DefId>,
-    next: usize,
+    walk: hd_base::scc::Online<DefId>,
+    blocked: HashMap<DefId, bool>,
 }
 
 /// A row parameter's name as its owner declares it.

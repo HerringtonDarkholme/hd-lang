@@ -12170,58 +12170,26 @@ fn decode_runs(b: &[u8]) -> Option<Vec<Vec<InitRun>>> {
 /// component it reaches; and each node's component (`usize::MAX` when
 /// unreached).
 fn strongly_connected(edges: &[Vec<usize>], starts: &[usize]) -> (Vec<Vec<usize>>, Vec<usize>) {
-    let n = edges.len();
-    let mut index = vec![usize::MAX; n];
-    let mut low = vec![0; n];
-    let mut on = vec![false; n];
-    let mut stack = Vec::new();
-    let mut comp = vec![usize::MAX; n];
-    let mut groups: Vec<Vec<usize>> = Vec::new();
-    let mut counter = 0;
-    for &s in starts {
-        if index[s] != usize::MAX {
-            continue;
-        }
-        // Iterative DFS: (node, next edge).
-        let mut work = vec![(s, 0usize)];
-        index[s] = counter;
-        low[s] = counter;
-        counter += 1;
-        stack.push(s);
-        on[s] = true;
-        while let Some(&mut (v, ref mut e)) = work.last_mut() {
-            if let Some(&w) = edges[v].get(*e) {
-                *e += 1;
-                if index[w] == usize::MAX {
-                    index[w] = counter;
-                    low[w] = counter;
-                    counter += 1;
-                    stack.push(w);
-                    on[w] = true;
-                    work.push((w, 0));
-                } else if on[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
+    let sccs = hd_base::scc::sccs_from(
+        edges.len(),
+        starts.iter().map(|&v| hd_base::scc::node(v)),
+        |v, out| out.extend(edges[v as usize].iter().map(|&w| hd_base::scc::node(w))),
+    );
+    let groups = sccs
+        .iter()
+        .map(|members| members.iter().rev().map(|&v| v as usize).collect())
+        .collect();
+    let comp = sccs
+        .comp
+        .iter()
+        .map(|&c| {
+            if c == hd_base::scc::UNREACHED {
+                usize::MAX
+            } else {
+                c as usize
             }
-            work.pop();
-            if let Some(&(u, _)) = work.last() {
-                low[u] = low[u].min(low[v]);
-            }
-            if low[v] == index[v] {
-                let mut g = Vec::new();
-                while let Some(w) = stack.pop() {
-                    on[w] = false;
-                    comp[w] = groups.len();
-                    g.push(w);
-                    if w == v {
-                        break;
-                    }
-                }
-                groups.push(g);
-            }
-        }
-    }
+        })
+        .collect();
     (groups, comp)
 }
 
