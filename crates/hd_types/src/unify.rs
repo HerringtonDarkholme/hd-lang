@@ -203,6 +203,82 @@ pub struct TrialMark {
     vars: usize,
 }
 
+enum UnifyWork {
+    Pair(Ty, Ty, Option<(Ty, Ty)>),
+    Done((Ty, Ty)),
+    List(crate::TyList, crate::TyList, Ty, Ty),
+    FunctionRows(crate::RowId, crate::RowId, Ty, Ty),
+    ContextDone(crate::RowId, crate::RowId, Ty, Ty),
+}
+
+// Only function-row matches are partial constraints: an initially unmatched
+// variable key can later acquire a trait. Track their existing resolution
+// invalidations and the matched-pair parents, instead of clearing every pair.
+#[derive(Default)]
+struct UnifyMemo {
+    done: HashSet<(Ty, Ty)>,
+    dirty: HashSet<(Ty, Ty)>,
+    parents: HashMap<(Ty, Ty), HashSet<(Ty, Ty)>>,
+    pending: Vec<((Ty, Ty), (Ty, Ty))>,
+    rows: HashMap<Ty, HashSet<(Ty, Ty)>>,
+    killed: usize,
+}
+
+impl UnifyMemo {
+    fn link(&mut self, pair: (Ty, Ty), parent: (Ty, Ty)) {
+        if self.rows.is_empty() {
+            self.pending.push((pair, parent));
+        } else {
+            self.parents.entry(pair).or_default().insert(parent);
+        }
+    }
+
+    fn watch(&mut self, table: &InferTable, pool: Types<'_>, row: crate::RowId, pair: (Ty, Ty)) {
+        let raw = pool.intern_ty(&TyData::Row(row));
+        if pool.has_infer(raw) && pool.has_infer(table.resolve(pool, raw)) {
+            if self.rows.is_empty() {
+                // Index dependencies only once an open function row needs it.
+                for (child, parent) in self.pending.drain(..) {
+                    self.parents.entry(child).or_default().insert(parent);
+                }
+                self.killed = table.closed.borrow().killed.len();
+            }
+            self.rows.entry(raw).or_default().insert(pair);
+        }
+    }
+
+    fn sync(&mut self, table: &InferTable) {
+        if self.rows.is_empty() {
+            return;
+        }
+        let closed = table.closed.borrow();
+        let mut todo = Vec::new();
+        for &(_, ty, _, _) in &closed.killed[self.killed..] {
+            todo.extend(
+                self.rows
+                    .get(&ty)
+                    .into_iter()
+                    .flat_map(|ps| ps.iter())
+                    .copied(),
+            );
+        }
+        self.killed = closed.killed.len();
+        while let Some(pair) = todo.pop() {
+            if self.dirty.insert(pair) {
+                crate::work::type_node();
+                self.done.remove(&pair);
+                todo.extend(
+                    self.parents
+                        .get(&pair)
+                        .into_iter()
+                        .flat_map(|ps| ps.iter())
+                        .copied(),
+                );
+            }
+        }
+    }
+}
+
 impl InferTable {
     pub fn fresh(&mut self, pool: Types<'_>, kind: VarKind) -> Ty {
         let v = crate::word(self.parent.len());
@@ -587,6 +663,87 @@ impl InferTable {
         if a == b {
             return Ok(());
         }
+        if matches!(pool.get(a), TyData::Infer(_) | TyData::Poison)
+            || matches!(pool.get(b), TyData::Infer(_) | TyData::Poison)
+        {
+            return self.unify_step(pool, a, b, &mut Vec::new());
+        }
+        let mut memo = UnifyMemo::default();
+        let mut answer = Ok(());
+        hd_base::stack::all(UnifyWork::Pair(a, b, None), |work, stack| {
+            memo.sync(self);
+            let result = match work {
+                UnifyWork::Pair(a, b, parent) => {
+                    let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
+                    if a == b {
+                        return true;
+                    }
+                    if matches!(pool.get(a), TyData::Infer(_) | TyData::Poison)
+                        || matches!(pool.get(b), TyData::Infer(_) | TyData::Poison)
+                    {
+                        self.unify_step(pool, a, b, stack)
+                    } else {
+                        let pair = (a, b);
+                        if let Some(parent) = parent {
+                            memo.link(pair, parent);
+                        }
+                        if memo.done.contains(&pair) {
+                            return true;
+                        }
+                        memo.dirty.remove(&pair);
+                        crate::work::type_node();
+                        stack.push(UnifyWork::Done(pair));
+                        self.unify_step(pool, a, b, stack)
+                    }
+                }
+                UnifyWork::Done(pair) => {
+                    // A row read earlier in this match may have changed
+                    // under a later child. Do not cache that stale success.
+                    if !memo.dirty.contains(&pair) {
+                        memo.done.insert(pair);
+                    }
+                    Ok(())
+                }
+                UnifyWork::List(x, y, a, b) => Self::queue_unify_list(pool, x, y, a, b, stack),
+                UnifyWork::FunctionRows(x, y, a, b) => {
+                    memo.watch(self, pool, x, (a, b));
+                    memo.watch(self, pool, y, (a, b));
+                    if self.row_variable(pool, x) || self.row_variable(pool, y) {
+                        self.unify_data_rows(pool, x, y, a, b)
+                    } else {
+                        self.queue_row_keys(pool, x, y, true, (a, b), stack);
+                        Ok(())
+                    }
+                }
+                UnifyWork::ContextDone(x, y, a, b) => {
+                    if self.resolve_row(pool, x) == self.resolve_row(pool, y) {
+                        Ok(())
+                    } else {
+                        Err(UnifyError::Mismatch {
+                            expected: a,
+                            found: b,
+                        })
+                    }
+                }
+            };
+            match result {
+                Ok(()) => true,
+                Err(error) => {
+                    answer = Err(error);
+                    false
+                }
+            }
+        });
+        answer
+    }
+
+    fn unify_step(
+        &mut self,
+        pool: Types<'_>,
+        a: Ty,
+        b: Ty,
+        stack: &mut Vec<UnifyWork>,
+    ) -> Result<(), UnifyError> {
         match (pool.get(a), pool.get(b)) {
             // The variables of the other side take poison: what is
             // inferred from a type that failed is no new error.
@@ -613,7 +770,10 @@ impl InferTable {
                     mutable: my,
                     counted: cy,
                 },
-            ) if mx == my && cx == cy => self.unify(pool, x, y),
+            ) if mx == my && cx == cy => {
+                stack.push(UnifyWork::Pair(x, y, Some((a, b))));
+                Ok(())
+            }
             (TyData::Infer(x), TyData::Infer(y)) => {
                 let (x, y) = (self.root(x.raw()), self.root(y.raw()));
                 let (kx, ky) = (self.kind[x as usize], self.kind[y as usize]);
@@ -673,11 +833,11 @@ impl InferTable {
                     ..
                 },
             ) if d1 == d2 && s1 == s2 => {
-                self.unify_lists(pool, a1, a2, a, b)?;
-                self.unify(pool, b1, b2)
+                stack.push(UnifyWork::Pair(b1, b2, Some((a, b))));
+                Self::queue_unify_list(pool, a1, a2, a, b, stack)
             }
             (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
-                self.unify_lists(pool, a1, a2, a, b)
+                Self::queue_unify_list(pool, a1, a2, a, b, stack)
             }
             (
                 TyData::Tuple {
@@ -688,7 +848,7 @@ impl InferTable {
                     elems: e2,
                     rest: None,
                 },
-            ) => self.unify_lists(pool, e1, e2, a, b),
+            ) => Self::queue_unify_list(pool, e1, e2, a, b, stack),
             // `types.tuple.rest.same`: with rest elements, the fixed
             // elements and the rest elements are each pairwise equal; a
             // tuple with one never meets a tuple without.
@@ -702,10 +862,10 @@ impl InferTable {
                     rest: Some(r2),
                 },
             ) => {
-                self.unify_lists(pool, e1, e2, a, b)?;
-                self.unify(pool, r1, r2)
+                stack.push(UnifyWork::Pair(r1, r2, Some((a, b))));
+                Self::queue_unify_list(pool, e1, e2, a, b, stack)
             }
-            (TyData::Union(x), TyData::Union(y)) => self.unify_lists(pool, x, y, a, b),
+            (TyData::Union(x), TyData::Union(y)) => Self::queue_unify_list(pool, x, y, a, b, stack),
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..
@@ -713,7 +873,7 @@ impl InferTable {
                 TyData::TraitValue {
                     def: d2, args: a2, ..
                 },
-            ) if d1 == d2 => self.unify_lists(pool, a1, a2, a, b),
+            ) if d1 == d2 => Self::queue_unify_list(pool, a1, a2, a, b, stack),
             (
                 TyData::Assoc {
                     assoc: x1,
@@ -728,8 +888,9 @@ impl InferTable {
                     ..
                 },
             ) if x1 == x2 => {
-                self.unify(pool, s1, s2)?;
-                self.unify_lists(pool, a1, a2, a, b)
+                stack.push(UnifyWork::List(a1, a2, a, b));
+                stack.push(UnifyWork::Pair(s1, s2, Some((a, b))));
+                Ok(())
             }
             (
                 TyData::Fn {
@@ -749,34 +910,31 @@ impl InferTable {
                     row: w2,
                 },
             ) if s1 == s2 && d1 == d2 => {
-                if i1 == i2 {
-                    self.unify_lists(pool, p1, p2, a, b)?;
+                let inputs = if i1 == i2 {
+                    UnifyWork::List(p1, p2, a, b)
                 } else if i1 == Inputs::Tuple || i2 == Inputs::Tuple {
                     // An inputs tuple of unknown arity against the other
                     // side's whole inputs (`fn.type.ctor.inputs`).
-                    let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
-                    self.unify(pool, t1, t2)?;
+                    UnifyWork::Pair(
+                        pool.inputs_tuple(p1, i1),
+                        pool.inputs_tuple(p2, i2),
+                        Some((a, b)),
+                    )
                 } else {
                     return Err(UnifyError::Mismatch {
                         expected: a,
                         found: b,
                     });
-                }
-                self.unify(pool, r1, r2)?;
-                // A row that is one variable, a generic row parameter's,
-                // takes the other row, as a data type's row argument does;
-                // otherwise a variable in a row key is decided by the other
-                // row's key of the same trait, as in a context row. Whether
-                // the rows fit is the caller's question, as a top-level
-                // function row may widen (`req.row.subsume`), so keys with
-                // no variable are left to it.
-                if self.row_variable(pool, w1) || self.row_variable(pool, w2) {
-                    return self.unify_data_rows(pool, w1, w2, a, b);
-                }
-                self.unify_row_keys(pool, w1, w2, true)
+                };
+                // Row-variable classification runs after the inputs/result
+                // bindings, as function rows may widen (`req.row.subsume`).
+                stack.push(UnifyWork::FunctionRows(w1, w2, a, b));
+                stack.push(UnifyWork::Pair(r1, r2, Some((a, b))));
+                stack.push(inputs);
+                Ok(())
             }
             (TyData::Context(r1), TyData::Context(r2)) => {
-                self.unify_context_rows(pool, r1, r2, a, b)
+                self.unify_context_rows(pool, r1, r2, a, b, stack)
             }
             // A data constructor represents its inferred row argument as a
             // row containing one inference variable. Bind that variable to
@@ -845,6 +1003,7 @@ impl InferTable {
         r2: crate::RowId,
         a: Ty,
         b: Ty,
+        stack: &mut Vec<UnifyWork>,
     ) -> Result<(), UnifyError> {
         let mismatch = UnifyError::Mismatch {
             expected: a,
@@ -855,12 +1014,9 @@ impl InferTable {
         if d1.keys.len() != d2.keys.len() || d1.params != d2.params {
             return Err(mismatch);
         }
-        self.unify_row_keys(pool, r1, r2, false)?;
-        if self.resolve_row(pool, r1) == self.resolve_row(pool, r2) {
-            Ok(())
-        } else {
-            Err(mismatch)
-        }
+        stack.push(UnifyWork::ContextDone(r1, r2, a, b));
+        self.queue_row_keys(pool, r1, r2, false, (a, b), stack);
+        Ok(())
     }
 
     /// Unifies each key of row `r1` with the key of the same trait in
@@ -868,21 +1024,23 @@ impl InferTable {
     /// only pairs where a key holds a variable. Cost: one hash probe per
     /// key of each row to index them by trait, then one probe and at most
     /// one unify per key of the first; no work for two rows without keys.
-    fn unify_row_keys(
+    fn queue_row_keys(
         &mut self,
         pool: Types<'_>,
         r1: crate::RowId,
         r2: crate::RowId,
         open_only: bool,
-    ) -> Result<(), UnifyError> {
+        parent: (Ty, Ty),
+        stack: &mut Vec<UnifyWork>,
+    ) {
         let (r1, r2) = (self.resolve_row(pool, r1), self.resolve_row(pool, r2));
         if r1 == r2 {
-            return Ok(());
+            return;
         }
         let d1 = pool.row_data(r1);
         let d2 = pool.row_data(r2);
         if d1.keys.is_empty() || d2.keys.is_empty() {
-            return Ok(());
+            return;
         }
         // Each row's keys by trait, `None` for a trait named twice: one
         // probe per key, so the pairing is linear in the keys.
@@ -897,26 +1055,25 @@ impl InferTable {
             by
         };
         let (by1, by2) = (by_trait(&d1.keys), by_trait(&d2.keys));
-        for &k1 in &d1.keys {
+        for &k1 in d1.keys.iter().rev() {
             let TyData::TraitValue { def, .. } = pool.get(k1) else {
                 continue;
             };
             if let (Some(Some(_)), Some(Some(k2))) = (by1.get(&def), by2.get(&def))
                 && (!open_only || pool.has_infer(k1) || pool.has_infer(*k2))
             {
-                self.unify(pool, k1, *k2)?;
+                stack.push(UnifyWork::Pair(k1, *k2, Some(parent)));
             }
         }
-        Ok(())
     }
 
-    fn unify_lists(
-        &mut self,
+    fn queue_unify_list(
         pool: Types<'_>,
         l1: crate::TyList,
         l2: crate::TyList,
         a: Ty,
         b: Ty,
+        stack: &mut Vec<UnifyWork>,
     ) -> Result<(), UnifyError> {
         let (x, y) = (pool.list_items(l1), pool.list_items(l2));
         if x.len() != y.len() {
@@ -925,9 +1082,12 @@ impl InferTable {
                 found: b,
             });
         }
-        for (&s, &t) in x.iter().zip(y) {
-            self.unify(pool, s, t)?;
-        }
+        stack.extend(
+            x.iter()
+                .zip(y)
+                .rev()
+                .map(|(&s, &t)| UnifyWork::Pair(s, t, Some((a, b)))),
+        );
         Ok(())
     }
 }
@@ -1119,6 +1279,363 @@ mod tests {
             panic!("a fresh variable");
         };
         v
+    }
+
+    #[test]
+    fn unification_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let (gp, lp) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&gp, &lp);
+                let pair = |t| {
+                    p.intern_ty(&TyData::Tuple {
+                        elems: p.list(&[t, t]),
+                        rest: None,
+                    })
+                };
+                for depth in [100, 1000] {
+                    let mut table = InferTable::default();
+                    let x = table.fresh(p, VarKind::General);
+                    let (mut a, mut b, mut bad) = (x, Ty::I32, Ty::BOOL);
+                    for _ in 0..depth {
+                        a = pair(a);
+                        b = pair(b);
+                        bad = pair(bad);
+                    }
+                    let snapshot = table.snapshot();
+                    let (answer, work) = crate::work::count_type_nodes(|| table.unify(p, a, b));
+                    assert_eq!(answer, Ok(()));
+                    assert_eq!(work, depth);
+                    assert_eq!(table.resolve(p, a), b);
+                    table.rollback(snapshot);
+                    assert_eq!(table.shallow(p, x), x);
+                    let (answer, work) = crate::work::count_type_nodes(|| table.unify(p, b, bad));
+                    assert_eq!(
+                        answer,
+                        Err(UnifyError::Mismatch {
+                            expected: Ty::I32,
+                            found: Ty::BOOL
+                        })
+                    );
+                    assert_eq!(work, depth + 1);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    // The first function-row match cannot pair its bare variable X to a
+    // trait key. Binding X later makes that key visible on a repeated pair.
+    fn partial_row_pair(p: Types<'_>, table: &mut InferTable) -> (Ty, Ty, Ty, Ty, Ty) {
+        use hd_base::DefId;
+        let x = table.fresh(p, VarKind::General);
+        let y = table.fresh(p, VarKind::General);
+        let key = |def, t| {
+            p.intern_ty(&TyData::TraitValue {
+                def: DefId::from_raw(def),
+                args: p.list(&[t]),
+                bindings: Vec::new(),
+            })
+        };
+        let d = key(2, Ty::BOOL);
+        let left = p.row(&RowData {
+            keys: vec![x, d],
+            params: Vec::new(),
+        });
+        let right = p.row(&RowData {
+            keys: vec![key(1, y), d],
+            params: Vec::new(),
+        });
+        let fun = |row| {
+            p.intern_ty(&TyData::Fn {
+                params: crate::TyList::EMPTY,
+                result: Ty::VOID,
+                row,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: crate::FnDeps::NONE,
+            })
+        };
+        (fun(left), fun(right), x, y, key(1, Ty::I32))
+    }
+
+    #[test]
+    fn unification_rechecks_only_changed_row_matches_and_their_parents() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let (gp, lp) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&gp, &lp);
+                let tuple = |ts: &[Ty]| {
+                    p.intern_ty(&TyData::Tuple {
+                        elems: p.list(ts),
+                        rest: None,
+                    })
+                };
+                for depth in [100, 1000] {
+                    let mut table = InferTable::default();
+                    let (mut a, mut b, x, y, key) = partial_row_pair(p, &mut table);
+                    for _ in 0..depth {
+                        a = tuple(&[a, a]);
+                        b = tuple(&[b, b]);
+                    }
+                    let snapshot = table.snapshot();
+                    let (answer, work) = crate::work::count_type_nodes(|| {
+                        table.unify(p, tuple(&[a, x, a]), tuple(&[b, key, b]))
+                    });
+                    assert_eq!(answer, Ok(()));
+                    assert_eq!(
+                        table.shallow(p, y),
+                        Ty::I32,
+                        "the later trait key was paired"
+                    );
+                    assert!(
+                        work < 20 * depth + 100,
+                        "affected ancestor work stays linear: {work}"
+                    );
+                    table.rollback(snapshot);
+                    assert_eq!(table.shallow(p, x), x);
+                    assert_eq!(table.shallow(p, y), y);
+                    // Here the row changes before its enclosing tuple's
+                    // finish. That active tuple must not cache a stale answer.
+                    let (a, b) = (tuple(&[a, x]), tuple(&[b, key]));
+                    table.unify(p, tuple(&[a, a]), tuple(&[b, b])).unwrap();
+                    assert_eq!(table.shallow(p, y), Ty::I32);
+                }
+                // Bound variables can hide the function constructors from
+                // their parents' raw metadata. Unioning a watched row variable
+                // and then binding its new root must invalidate them too.
+                let mut table = InferTable::default();
+                let (a, b, x, y, key) = partial_row_pair(p, &mut table);
+                let fa = table.fresh(p, VarKind::General);
+                let fb = table.fresh(p, VarKind::General);
+                table.unify(p, fa, a).unwrap();
+                table.unify(p, fb, b).unwrap();
+                let (a, b) = (tuple(&[fa]), tuple(&[fb]));
+                let z = table.fresh(p, VarKind::General);
+                table
+                    .unify(p, tuple(&[a, x, z, a]), tuple(&[b, z, key, b]))
+                    .unwrap();
+                assert_eq!(table.shallow(p, y), Ty::I32);
+                let mut counts = Vec::new();
+                for width in [100, 1000] {
+                    let mut table = InferTable::default();
+                    let (mut a, mut b, _, y, _) = partial_row_pair(p, &mut table);
+                    for _ in 0..20 {
+                        a = tuple(&[a, a]);
+                        b = tuple(&[b, b]);
+                    }
+                    let (mut left, mut right) = (Vec::new(), Vec::new());
+                    for _ in 0..width {
+                        left.extend([a, table.fresh(p, VarKind::General)]);
+                        right.extend([b, Ty::I32]);
+                    }
+                    let (answer, work) = crate::work::count_type_nodes(|| {
+                        table.unify(p, tuple(&left), tuple(&right))
+                    });
+                    assert_eq!(answer, Ok(()));
+                    assert_eq!(table.shallow(p, y), y);
+                    counts.push(work);
+                }
+                assert_eq!(
+                    counts[0], counts[1],
+                    "unrelated bindings do not rewalk the shared depth-20 pair"
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn unification_of_mixed_holders_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                use hd_base::DefId;
+                let (gp, lp) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&gp, &lp);
+                let mut table = InferTable::default();
+                let x = table.fresh(p, VarKind::General);
+                let wrap = |t, k| {
+                    let def = DefId::from_raw(1);
+                    p.intern_ty(&match k % 9 {
+                        0 => TyData::Ref {
+                            inner: t,
+                            mutable: true,
+                            counted: true,
+                        },
+                        1 => TyData::Adt {
+                            def,
+                            args: p.list(&[t]),
+                        },
+                        2 => TyData::Tuple {
+                            elems: p.list(&[Ty::BOOL]),
+                            rest: Some(t),
+                        },
+                        3 => TyData::Union(p.list(&[t, Ty::BOOL])),
+                        4 => TyData::TraitValue {
+                            def,
+                            args: p.list(&[t]),
+                            bindings: vec![(DefId::from_raw(2), Ty::BOOL)],
+                        },
+                        5 => TyData::Opaque {
+                            owner: def,
+                            site: 3,
+                            borrows: false,
+                            args: p.list(&[t]),
+                            bound: Ty::BOOL,
+                        },
+                        6 => TyData::Assoc {
+                            assoc: DefId::from_raw(2),
+                            trait_: def,
+                            self_ty: t,
+                            args: p.list(&[Ty::BOOL]),
+                        },
+                        7 => TyData::Fn {
+                            params: p.list(&[Ty::BOOL]),
+                            result: t,
+                            row: RowId::EMPTY,
+                            suspends: true,
+                            inputs: Inputs::Fixed,
+                            deps: crate::FnDeps::NONE,
+                        },
+                        _ => TyData::Context(p.row(&RowData {
+                            keys: vec![p.intern_ty(&TyData::TraitValue {
+                                def,
+                                args: p.list(&[t]),
+                                bindings: Vec::new(),
+                            })],
+                            params: Vec::new(),
+                        })),
+                    })
+                };
+                let (mut a, mut b) = (x, Ty::I32);
+                for k in 0..1000 {
+                    a = wrap(a, k);
+                    b = wrap(b, k);
+                }
+                table.unify(p, a, b).unwrap();
+                assert_eq!(table.resolve(p, a), b);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn unification_keeps_failure_order_and_does_not_equate_poison() {
+        use hd_base::DefId;
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut table = InferTable::default();
+        let x = table.fresh(p, VarKind::General);
+        let assoc = |base, args| {
+            p.intern_ty(&TyData::Assoc {
+                assoc: DefId::from_raw(1),
+                trait_: DefId::from_raw(2),
+                self_ty: base,
+                args,
+            })
+        };
+        let (a, b) = (
+            assoc(x, crate::TyList::EMPTY),
+            assoc(Ty::I32, p.list(&[Ty::BOOL])),
+        );
+        let snapshot = table.snapshot();
+        assert_eq!(
+            table.unify(p, a, b),
+            Err(UnifyError::Mismatch {
+                expected: a,
+                found: b
+            })
+        );
+        assert_eq!(
+            table.shallow(p, x),
+            Ty::I32,
+            "base binding precedes argument arity failure"
+        );
+        table.rollback(snapshot);
+        let opaque = |args, bound| {
+            p.intern_ty(&TyData::Opaque {
+                owner: DefId::from_raw(1),
+                site: 1,
+                borrows: false,
+                args,
+                bound,
+            })
+        };
+        let (a, b) = (
+            opaque(p.list(&[x]), Ty::BOOL),
+            opaque(p.list(&[Ty::I32]), Ty::I32),
+        );
+        assert_eq!(
+            table.unify(p, a, b),
+            Err(UnifyError::Mismatch {
+                expected: Ty::BOOL,
+                found: Ty::I32
+            })
+        );
+        assert_eq!(
+            table.shallow(p, x),
+            Ty::I32,
+            "opaque arguments precede its bound"
+        );
+        table.rollback(snapshot);
+        let tuple = |ts: &[Ty]| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(ts),
+                rest: None,
+            })
+        };
+        assert_eq!(
+            table.unify(
+                p,
+                tuple(&[Ty::POISON, Ty::POISON, Ty::I32]),
+                tuple(&[Ty::I32, Ty::BOOL, Ty::BOOL])
+            ),
+            Err(UnifyError::Mismatch {
+                expected: Ty::I32,
+                found: Ty::BOOL
+            })
+        );
+        let fun = |params, result, row| {
+            p.intern_ty(&TyData::Fn {
+                params,
+                result,
+                row,
+                suspends: false,
+                inputs: Inputs::Fixed,
+                deps: crate::FnDeps::NONE,
+            })
+        };
+        let row_var = table.fresh(p, VarKind::General);
+        let row = p.row(&RowData {
+            keys: vec![row_var],
+            params: Vec::new(),
+        });
+        assert_eq!(
+            table.unify(
+                p,
+                fun(p.list(&[x]), Ty::BOOL, row),
+                fun(p.list(&[Ty::I32]), Ty::I32, RowId::EMPTY)
+            ),
+            Err(UnifyError::Mismatch {
+                expected: Ty::BOOL,
+                found: Ty::I32
+            })
+        );
+        assert_eq!(table.shallow(p, x), Ty::I32);
+        assert_eq!(
+            table.shallow(p, row_var),
+            row_var,
+            "failed result leaves the row untouched"
+        );
     }
 
     #[test]
