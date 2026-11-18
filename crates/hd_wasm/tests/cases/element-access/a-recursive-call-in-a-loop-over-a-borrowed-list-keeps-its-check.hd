@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: v8 release
+# expected: no bounds check: `depth` takes and returns an integer and
+# reaches no list, yet the list proofs refuse any call they do not know
+# in a loop over a list behind a reference (`list_loop_safe`,
+# `external`), so `xs[i]` under `i < xs.len()` keeps its check.
+# Known: /tmp/lt214/call-in-a-loop-over-a-borrowed-list-keeps-checks.md
+fn depth(n: i64) -> i64:
+    if n <= 0:
+        return 0
+    1 + depth(n - 1)
+
+fn total(xs: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        s = s + xs[i] + depth(3)
+        i = i + 1
+    s

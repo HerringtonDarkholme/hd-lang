@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# expected: no bounds check: `i < xs.len()` bounds the element
+# reference `xs[i]` passed to `string.len`, which cannot change `xs`;
+# the list proofs refuse any call they do not know in a loop over a list
+# behind a reference (`list_loop_safe`, `external`), and `for i in
+# 0..xs.len()` keeps this check too. The same loop over a by-value
+# `List[string]` (hd_driver features/while-loops.hd) drops it.
+# Known: /tmp/lt214/call-in-a-loop-over-a-borrowed-list-keeps-checks.md
+fn total(xs: &List[string]) -> usize:
+    let n = 0usize
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        n = n + xs[i].len()
+        i = i + 1
+    n
