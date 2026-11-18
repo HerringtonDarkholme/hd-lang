@@ -179,7 +179,7 @@ impl Joins {
     }
 }
 
-/// How deep the meet and conversion walks go before giving up.
+/// How deep shape unification walks before ordinary unification takes over.
 const DEPTH: u32 = 32;
 
 impl Ck<'_, '_> {
@@ -456,7 +456,7 @@ impl Ck<'_, '_> {
             && !(open(gs) && self.infer.kind_of(pool, gs) == Some(VarKind::General))
         {
             let snap = self.infer.snapshot();
-            if self.unify_join(inner, got) && self.lct_converts(got, inner, true, 0) {
+            if self.unify_join(inner, got) && self.lct_converts(got, inner, true) {
                 return true;
             }
             self.infer.rollback(snap);
@@ -493,7 +493,7 @@ impl Ck<'_, '_> {
         // admitted conversion. The meet builds the type so that this value
         // does, and the earlier values reach the current type, so they are
         // compared again only when the type changes.
-        let met = self.lct_meet(cur, g, true, 0).filter(|t| {
+        let met = self.lct_meet(cur, g, true).filter(|t| {
             *t == cur
                 || self
                     .joined_types(var)
@@ -613,115 +613,164 @@ impl Ck<'_, '_> {
     /// values take the union of their rows
     /// (`types.lct.row-union-every-site`); below it rows are invariant
     /// (`types.variance.function`, `req.row.union.literal.direct`).
-    fn lct_meet(&self, a: Ty, b: Ty, top: bool, depth: u32) -> Option<Ty> {
+    fn lct_meet(&self, a: Ty, b: Ty, top: bool) -> Option<Ty> {
+        enum Work {
+            Enter(Ty, Ty, bool, usize),
+            Tuple((Ty, Ty, bool), std::ops::Range<usize>, bool, usize),
+        }
         let pool = self.pool();
         let (a, b) = (self.resolved(a), self.resolved(b));
         if a == b {
             return Some(a);
         }
-        if depth > DEPTH {
-            return None;
-        }
-        let d = depth + 1;
-        match (pool.get(a), pool.get(b)) {
-            // Reference permissions weaken at the site, while the
-            // referred-to type stays invariant (`ref.convert.weaken`).
-            // A counted reference lends itself as a local one
-            // (`ref.convert.lend`), so the kinds join as the access does.
-            (
-                TyData::Ref {
-                    inner: x,
-                    mutable: xm,
-                    counted: xc,
-                },
-                TyData::Ref {
-                    inner: y,
-                    mutable: ym,
-                    counted: yc,
-                },
-            ) if self.resolved(x) == self.resolved(y) => Some(pool.intern_ty(&TyData::Ref {
-                inner: x,
-                mutable: xm && ym,
-                counted: xc && yc,
-            })),
-            // A tuple element keeps its permission and converts as the
-            // whole tuple does, as assignment allows (`perm_fits`).
-            (
-                TyData::Tuple {
-                    elems: xs,
-                    rest: xr,
-                },
-                TyData::Tuple {
-                    elems: ys,
-                    rest: yr,
-                },
-            ) => {
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                let mut out = Vec::with_capacity(xs.len());
-                for (x, y) in xs.iter().zip(ys.iter()) {
-                    out.push(self.lct_meet(*x, *y, false, d)?);
+        let mut memo = HashMap::default();
+        let mut values = vec![Ty::POISON];
+        let done = hd_base::stack::all(Work::Enter(a, b, top, 0), |work, stack| {
+            let (a, b, top, out) = match work {
+                Work::Enter(a, b, top, out) => (a, b, top, out),
+                Work::Tuple(key, slots, rest, out) => {
+                    let parts = &values[slots];
+                    let n = parts.len() - usize::from(rest);
+                    let ty = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&parts[..n]),
+                        rest: rest.then(|| parts[n]),
+                    });
+                    memo.insert(key, ty);
+                    values[out] = ty;
+                    return true;
                 }
-                let rest = match (xr, yr) {
-                    (Some(x), Some(y)) => Some(self.lct_meet(x, y, false, d)?),
-                    (None, None) => None,
-                    _ => return None,
-                };
-                Some(pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&out),
-                    rest,
-                }))
+            };
+            let (a, b) = (self.resolved(a), self.resolved(b));
+            if a == b {
+                values[out] = a;
+                return true;
             }
-            (
-                TyData::Fn {
-                    params: xp,
-                    result: xr,
-                    suspends,
-                    inputs,
-                    row: xw,
-                    deps,
-                },
-                TyData::Fn {
-                    params: yp,
-                    result: yr,
-                    suspends: ys,
-                    inputs: yi,
-                    row: yw,
-                    deps: yd,
-                },
-            ) if top
-                && suspends == ys
-                && inputs == yi
-                && deps == yd
-                && self.same_signature(xp, xr, yp, yr) =>
-            {
-                let (xw, yw) = (
-                    self.infer.resolve_row(pool, xw),
-                    self.infer.resolve_row(pool, yw),
-                );
-                let row = if xw == yw {
-                    xw
-                } else {
-                    let mut union = pool.row_data(xw);
-                    let more = pool.row_data(yw);
-                    union.keys.extend(more.keys);
-                    union.params.extend(more.params);
-                    pool.row(&union)
-                };
-                Some(pool.intern_ty(&TyData::Fn {
-                    params: xp,
-                    result: xr,
-                    suspends,
-                    inputs,
-                    row,
-                    deps,
-                }))
+            if let Some(&ty) = memo.get(&(a, b, top)) {
+                values[out] = ty;
+                return true;
             }
-            // A generic type's arguments meet only as one type: by
-            // `types.lct.no-combine` for a covariant one, by
-            // `types.option.invariant` and invariance for the rest. Two
-            // functions that differ below the top differ in a row there.
-            _ => None,
-        }
+            hd_types::work::type_node();
+            let ty = match (pool.get(a), pool.get(b)) {
+                // Reference permissions weaken at the site, while the
+                // referred-to type stays invariant (`ref.convert.weaken`).
+                // A counted reference lends itself as a local one
+                // (`ref.convert.lend`), so the kinds join as the access does.
+                (
+                    TyData::Ref {
+                        inner: x,
+                        mutable: xm,
+                        counted: xc,
+                    },
+                    TyData::Ref {
+                        inner: y,
+                        mutable: ym,
+                        counted: yc,
+                    },
+                ) if self.resolved(x) == self.resolved(y) => Some(pool.intern_ty(&TyData::Ref {
+                    inner: x,
+                    mutable: xm && ym,
+                    counted: xc && yc,
+                })),
+                // A tuple element keeps its permission and converts as the
+                // whole tuple does, as assignment allows (`perm_fits`).
+                (
+                    TyData::Tuple {
+                        elems: xs,
+                        rest: xr,
+                    },
+                    TyData::Tuple {
+                        elems: ys,
+                        rest: yr,
+                    },
+                ) => {
+                    let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
+                    if xs.len() != ys.len() {
+                        return false;
+                    }
+                    let rest = match (xr, yr) {
+                        (Some(x), Some(y)) => Some((x, y)),
+                        (None, None) => None,
+                        _ => return false,
+                    };
+                    let first = values.len();
+                    values.resize(first + xs.len() + usize::from(rest.is_some()), Ty::POISON);
+                    stack.push(Work::Tuple(
+                        (a, b, top),
+                        first..values.len(),
+                        rest.is_some(),
+                        out,
+                    ));
+                    if let Some((x, y)) = rest {
+                        stack.push(Work::Enter(x, y, false, first + xs.len()));
+                    }
+                    stack.extend(
+                        xs.iter()
+                            .zip(ys)
+                            .enumerate()
+                            .rev()
+                            .map(|(i, (&x, &y))| Work::Enter(x, y, false, first + i)),
+                    );
+                    return true;
+                }
+                (
+                    TyData::Fn {
+                        params: xp,
+                        result: xr,
+                        suspends,
+                        inputs,
+                        row: xw,
+                        deps,
+                    },
+                    TyData::Fn {
+                        params: yp,
+                        result: yr,
+                        suspends: ys,
+                        inputs: yi,
+                        row: yw,
+                        deps: yd,
+                    },
+                ) if top
+                    && suspends == ys
+                    && inputs == yi
+                    && deps == yd
+                    && self.same_signature(xp, xr, yp, yr) =>
+                {
+                    let (xw, yw) = (
+                        self.infer.resolve_row(pool, xw),
+                        self.infer.resolve_row(pool, yw),
+                    );
+                    let row = if xw == yw {
+                        xw
+                    } else {
+                        let mut union = pool.row_data(xw);
+                        let more = pool.row_data(yw);
+                        union.keys.extend(more.keys);
+                        union.params.extend(more.params);
+                        pool.row(&union)
+                    };
+                    Some(pool.intern_ty(&TyData::Fn {
+                        params: xp,
+                        result: xr,
+                        suspends,
+                        inputs,
+                        row,
+                        deps,
+                    }))
+                }
+                // A generic type's arguments meet only as one type: by
+                // `types.lct.no-combine` for a covariant one, by
+                // `types.option.invariant` and invariance for the rest. Two
+                // functions that differ below the top differ in a row there.
+                _ => None,
+            };
+            let Some(ty) = ty else {
+                return false;
+            };
+            memo.insert((a, b, top), ty);
+            values[out] = ty;
+            true
+        });
+        done.then(|| values[0])
     }
 
     /// Whether two function types have the same parameters and result,
@@ -745,73 +794,77 @@ impl Ck<'_, '_> {
     /// function's parameters and result must already agree: a variance
     /// step never carries a weakening (`types.lct.no-combine`). `top` lets
     /// a function value's row widen to the site's union row.
-    fn lct_converts(&self, s: Ty, t: Ty, top: bool, depth: u32) -> bool {
+    fn lct_converts(&self, s: Ty, t: Ty, top: bool) -> bool {
         let pool = self.pool();
         let (s, t) = (self.resolved(s), self.resolved(t));
         if s == t {
             return true;
         }
-        if depth > DEPTH {
-            return false;
-        }
-        let d = depth + 1;
-        match (pool.get(s), pool.get(t)) {
-            (
-                TyData::Ref {
-                    inner: x,
-                    mutable: xm,
-                    counted: xc,
-                },
-                TyData::Ref {
-                    inner: y,
-                    mutable: ym,
-                    counted: yc,
-                },
-            ) => self.resolved(x) == self.resolved(y) && (xm || !ym) && (xc || !yc),
-            (
-                TyData::Tuple {
-                    elems: xs,
-                    rest: xr,
-                },
-                TyData::Tuple {
-                    elems: ys,
-                    rest: yr,
-                },
-            ) => {
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                xs.len() == ys.len()
-                    && xs
-                        .iter()
-                        .zip(ys.iter())
-                        .all(|(x, y)| self.lct_converts(*x, *y, false, d))
-                    && match (xr, yr) {
-                        (Some(x), Some(y)) => self.lct_converts(x, y, false, d),
-                        (None, None) => true,
-                        _ => false,
+        let mut seen = HashSet::default();
+        hd_base::stack::all((s, t, top), |(s, t, top), stack| {
+            let (s, t) = (self.resolved(s), self.resolved(t));
+            if s == t || !seen.insert((s, t, top)) {
+                return true;
+            }
+            hd_types::work::type_node();
+            match (pool.get(s), pool.get(t)) {
+                (
+                    TyData::Ref {
+                        inner: x,
+                        mutable: xm,
+                        counted: xc,
+                    },
+                    TyData::Ref {
+                        inner: y,
+                        mutable: ym,
+                        counted: yc,
+                    },
+                ) => self.resolved(x) == self.resolved(y) && (xm || !ym) && (xc || !yc),
+                (
+                    TyData::Tuple {
+                        elems: xs,
+                        rest: xr,
+                    },
+                    TyData::Tuple {
+                        elems: ys,
+                        rest: yr,
+                    },
+                ) => {
+                    let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
+                    if xs.len() != ys.len() {
+                        return false;
                     }
+                    match (xr, yr) {
+                        (Some(x), Some(y)) => stack.push((x, y, false)),
+                        (None, None) => {}
+                        _ => return false,
+                    }
+                    stack.extend(xs.iter().zip(ys).rev().map(|(&x, &y)| (x, y, false)));
+                    true
+                }
+                (
+                    TyData::Fn {
+                        params: xp,
+                        result: xr,
+                        suspends,
+                        inputs,
+                        deps,
+                        ..
+                    },
+                    TyData::Fn {
+                        params: yp,
+                        result: yr,
+                        suspends: ys,
+                        inputs: yi,
+                        deps: yd,
+                        ..
+                    },
+                ) if suspends == ys && inputs == yi && deps == yd => {
+                    top && self.same_signature(xp, xr, yp, yr)
+                }
+                _ => false,
             }
-            (
-                TyData::Fn {
-                    params: xp,
-                    result: xr,
-                    suspends,
-                    inputs,
-                    deps,
-                    ..
-                },
-                TyData::Fn {
-                    params: yp,
-                    result: yr,
-                    suspends: ys,
-                    inputs: yi,
-                    deps: yd,
-                    ..
-                },
-            ) if suspends == ys && inputs == yi && deps == yd => {
-                top && self.same_signature(xp, xr, yp, yr)
-            }
-            _ => false,
-        }
+        })
     }
 
     /// Whether an earlier value of type `v` reaches the site type `t`: by
@@ -819,13 +872,13 @@ impl Ck<'_, '_> {
     /// one (`types.lct.optional`).
     fn lct_reaches(&self, v: Ty, t: Ty) -> bool {
         let pool = self.pool();
-        if v == Ty::NEVER || self.lct_converts(v, t, true, 0) {
+        if v == Ty::NEVER || self.lct_converts(v, t, true) {
             return true;
         }
         let t = self.infer.resolve(pool, t);
         self.option_arg(t).is_some_and(|inner| {
             self.option_layers(self.resolved(v)) < self.option_layers(t)
-                && self.lct_converts(v, inner, true, 0)
+                && self.lct_converts(v, inner, true)
         })
     }
 
@@ -1006,6 +1059,132 @@ impl Ck<'_, '_> {
 mod tests {
     use super::*;
     use hd_tir::ir::{BodyKind, TirBuilder};
+
+    #[test]
+    fn tuple_meets_and_conversions_at_depth_1000_share_pair_answers() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for both generated depth tests.
+            .spawn(|| {
+                crate::body::with_checker(|ck| {
+                    let p = ck.pool();
+                    for am in [false, true] {
+                        for ac in [false, true] {
+                            for bm in [false, true] {
+                                for bc in [false, true] {
+                                    let reference = |mutable, counted| {
+                                        p.intern_ty(&TyData::Ref {
+                                            inner: Ty::I32,
+                                            mutable,
+                                            counted,
+                                        })
+                                    };
+                                    for depth in [100, 1000] {
+                                        let (mut a, mut b, mut wanted) = (
+                                            reference(am, ac),
+                                            reference(bm, bc),
+                                            reference(am && bm, ac && bc),
+                                        );
+                                        for i in 0..depth {
+                                            let tuple = |t| {
+                                                p.intern_ty(&TyData::Tuple {
+                                                    elems: p.list(&[t, t]),
+                                                    rest: (i % 2 == 0).then_some(t),
+                                                })
+                                            };
+                                            a = tuple(a);
+                                            b = tuple(b);
+                                            wanted = tuple(wanted);
+                                        }
+                                        let work = if a == b { 0 } else { depth + 1 };
+                                        assert_eq!(
+                                            hd_types::work::count_type_nodes(
+                                                || ck.lct_meet(a, b, true)
+                                            ),
+                                            (Some(wanted), work)
+                                        );
+                                        assert_eq!(
+                                            hd_types::work::count_type_nodes(
+                                                || ck.lct_converts(a, b, true)
+                                            ),
+                                            ((am || !bm) && (ac || !bc), work)
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn lct_rows_join_only_at_the_top_and_arguments_stay_invariant() {
+        crate::body::with_checker(|ck| {
+            let p = ck.pool();
+            let key = |name| {
+                p.intern_ty(&TyData::TraitValue {
+                    def: ck.cx.names.item("app.main", name),
+                    args: hd_types::TyList::EMPTY,
+                    bindings: Vec::new(),
+                })
+            };
+            let row = |keys| {
+                p.row(&hd_types::RowData {
+                    keys,
+                    params: Vec::new(),
+                })
+            };
+            let left = row(vec![key("Left")]);
+            let right = row(vec![key("Right")]);
+            let union = row(vec![key("Left"), key("Right")]);
+            let function = |row| {
+                p.intern_ty(&TyData::Fn {
+                    params: p.list(&[Ty::I32]),
+                    result: Ty::I32,
+                    row,
+                    suspends: false,
+                    inputs: hd_types::Inputs::Fixed,
+                    deps: hd_types::FnDeps::NONE,
+                })
+            };
+            let (a, b) = (function(left), function(right));
+            assert_eq!(ck.lct_meet(a, b, true), Some(function(union)));
+            assert!(ck.lct_converts(a, b, true));
+            assert_eq!(ck.lct_meet(a, b, false), None);
+            assert!(!ck.lct_converts(a, b, false));
+            let tuple = |t, rest| {
+                p.intern_ty(&TyData::Tuple {
+                    elems: p.list(&[t]),
+                    rest,
+                })
+            };
+            let adt = |t| {
+                p.intern_ty(&TyData::Adt {
+                    def: ck.cx.names.known.list,
+                    args: p.list(&[t]),
+                })
+            };
+            for (a, b) in [
+                (tuple(a, None), tuple(b, None)),
+                (adt(a), adt(b)),
+                (tuple(Ty::I32, Some(Ty::I32)), tuple(Ty::I32, None)),
+                (
+                    tuple(Ty::I32, None),
+                    p.intern_ty(&TyData::Tuple {
+                        elems: hd_types::TyList::EMPTY,
+                        rest: None,
+                    }),
+                ),
+            ] {
+                assert_eq!(ck.lct_meet(a, b, true), None);
+                assert!(!ck.lct_converts(a, b, true));
+            }
+        });
+    }
 
     #[test]
     fn deferred_tries_visit_only_their_return_site_and_roll_back() {
