@@ -2,7 +2,7 @@
 //! rustc's `PassMode::Indirect` with `rustc_codegen_ssa`'s
 //! `OperandValue::Ref`, and its `sret` pointer for a result).
 //!
-//! A struct or tuple of more than [`crate::layout::INDIRECT`] values
+//! A struct, tuple or enum of more than [`crate::layout::INDIRECT`] values
 //! ([`crate::layout::by_address`]) passes to an instance's
 //! *worker*, `Sym::Part(key, Part::Indirect)`, as one `i32`: the address of
 //! its bits in the shadow stack (memory [`STACK`]). The worker keeps the

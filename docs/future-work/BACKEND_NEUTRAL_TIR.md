@@ -224,7 +224,7 @@ No language rule, intrinsic or syntax is added.
 | Case | What happens | Design answer |
 | --- | --- | --- |
 | A doubling tuple, 13, 20 and 29 levels | today: 5 fallback instances at depth 13; without the fallback, 4.03 s and 7.16 GB (#2102) | 15, 22 and 31 layout entries; `scalars` saturates; the value is `Memory` |
-| `Option[D13]`, an enum over that tuple | `by_address` excludes enums, so the enum's values flatten | an enum over 16 scalars is `Memory`; step 1 adds this, priced at +200 |
+| `Option[D13]`, an enum over that tuple | before part 3a of step 1, `by_address` excluded enums, so the enum's values flattened | an enum over 16 scalars is `Memory`; step 1 adds this, priced at +200 |
 | A shared variable partly moved, captured by two closures | today: flag slots in the cell layout, one per type node | locals with one capture set share a box; the flag is a tuple field |
 | A flag live across an await | today: saved to the frame, reloaded in the destructor | a local live across a point is a frame field; no flag rule |
 | The collector traces a started, idle frame (bd99dd806 was held for this) | a parameter moved before the await must be skipped | the trace shim is `Match pc` and `If flag` over frame fields |

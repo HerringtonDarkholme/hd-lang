@@ -333,7 +333,7 @@ pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
         .collect()
 }
 
-/// The most scalar values a struct or tuple passes as values. A larger one
+/// The most scalar values a struct, tuple or enum passes as values. A larger one
 /// passes as one address (rustc's `PassMode::Indirect`, which the Rust ABI
 /// picks above two pointers): passing it costs one value however many it
 /// holds, so a value forwarded down a chain of calls costs each call the
