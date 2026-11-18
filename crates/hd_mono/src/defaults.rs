@@ -833,6 +833,14 @@ fn reachable_given_with(
     visit: &mut impl FnMut(),
 ) -> Vec<bool> {
     let values = Values::compute(body, &[], calls);
+    reachable_values(body, &values, visit).0
+}
+
+fn reachable_values(
+    body: &Body,
+    values: &Values,
+    visit: &mut impl FnMut(),
+) -> (Vec<bool>, Vec<bool>) {
     let chosen = |i: usize| match body.tags[i] {
         Tag::If | Tag::Match => values.chosen(body, i),
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => values.switched(body, i),
@@ -951,7 +959,38 @@ fn reachable_given_with(
             }
         }
     }
-    live
+    (live, finishes)
+}
+
+/// The common result of normal completion and every reachable return under
+/// independently proved call values. Return statements participate even when
+/// they precede a known tail; a known tail alone cannot hide an early return.
+/// This shares the existing SCCP values and reachability, in O(body size).
+#[must_use]
+pub fn returned_given(
+    body: &Body,
+    calls: &dyn Fn(usize) -> Option<Value>,
+) -> Option<(Value, Vec<bool>)> {
+    let &[root] = body.sub_root.as_slice() else {
+        return None;
+    };
+    let values = Values::compute(body, &[], calls);
+    let (reachable, finishes) = reachable_values(body, &values, &mut || {});
+    let mut result = if finishes[root as usize] {
+        Some(values.word(body, root)?)
+    } else {
+        None
+    };
+    for (i, &live) in reachable.iter().enumerate() {
+        if live && body.tags[i] == Tag::Return {
+            let value = values.word(body, body.data[i][0])?;
+            if result.is_some_and(|known| known != value) {
+                return None;
+            }
+            result = Some(value);
+        }
+    }
+    Some((result?, reachable))
 }
 
 /// `body` as one instruction that makes `value` ([`collapse`]'s copy);
@@ -1137,6 +1176,34 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_tir::ir::{BodyKind, Callee, Providers, TirBuilder, TirSink};
     use hd_types::TyList;
+
+    #[test]
+    fn returned_values_include_only_reachable_early_returns_and_completion() {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let n = NodeIdx::NONE;
+        let root = b.open_block();
+        let condition = b.call(&item(2), &[], Providers::None, Ty::BOOL, n);
+        let yes = b.open_block();
+        let one = b.const_value(Ty::BOOL, 1);
+        let returned = b.emit(Tag::Return, one.0, NONE, Ty::NEVER, n);
+        let yes = b.close_block(yes, None, Ty::NEVER, n);
+        let no = b.open_block();
+        let no = b.close_block(no, None, Ty::VOID, n);
+        let branches = b.refs_record(&[yes, no]);
+        b.emit(Tag::If, condition.0, branches, Ty::VOID, n);
+        let zero = b.const_value(Ty::BOOL, 0);
+        let root = b.close_block(root, Some(zero), Ty::BOOL, n);
+        let body = b.finish(root, &[]).expect("valid early-return body");
+        assert!(returned_given(&body, &|_| None).is_none());
+        for bit in [0, 1] {
+            let (value, live) = returned_given(&body, &|i| {
+                (i == condition.0 as usize).then_some(Value::Scalar(bit))
+            })
+            .expect("one reachable result");
+            assert_eq!(value, Value::Scalar(bit));
+            assert_eq!(live[returned.0 as usize], bit == 1);
+        }
+    }
 
     #[test]
     fn constant_result_after_a_call_is_not_a_constant_default() {

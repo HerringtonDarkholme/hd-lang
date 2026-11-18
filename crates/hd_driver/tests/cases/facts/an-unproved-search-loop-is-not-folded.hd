@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: v8 release
+# expected: keep the stalled call; absence of the type does not prove termination.
+use std.annotation.inline
+use std.inspect.Inspectable
+use std.serde.{EnumTagging, RenameCase, rename_all}
+use std.structure.Facts
+
+@inline(.Never)
+fn stalled(source: Facts) -> EnumTagging?:
+    items := source.items
+    i := 0
+    while i < items.len():
+        match items[i].downcast_ref::[EnumTagging]():
+            .Some(found) => return .Some(*found)
+            .None => pass
+    .None
+
+pub fn unproved(value: i64) -> i64:
+    let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]
+    facts := Facts { items: items }
+    # subject
+    if stalled(facts).is_some(): value + 1 else: value + 2

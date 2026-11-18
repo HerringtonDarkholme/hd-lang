@@ -1,0 +1,32 @@
+# @dump: wat stdout
+# @build: v8 release
+# expected: the subject contains no search or wrapped call.
+use std.annotation.inline
+use std.inspect.Inspectable
+use std.serde.{EnumTagging, RenameAll, RenameCase, rename_all}
+use std.structure.Facts
+use std.testing.{assert, assert_equal}
+
+@inline(.Never)
+fn search[F < Inspectable](source: Facts) -> F?:
+    for item in source.items:
+        match item.downcast_ref::[F]():
+            .Some(found) => return .Some(*found)
+            .None => pass
+    .None
+
+@inline(.Never)
+fn wrapped[F < Inspectable](source: Facts) -> F?:
+    alias := source
+    search::[F](alias)
+
+pub fn absent(value: i64) -> i64:
+    let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]
+    facts := Facts { items: items }
+    # subject
+    if wrapped::[EnumTagging](facts).is_some(): value + 1 else: value + 2
+
+pub fn main() -> void:
+    assert_equal(absent(40i64), 42i64)
+    let items: List[*dyn Inspectable] = [box(rename_all(.CamelCase))]
+    assert(wrapped::[RenameAll](Facts { items: items }).is_some())

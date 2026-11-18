@@ -2530,77 +2530,11 @@ impl FactEnv for Env<'_> {
         def: DefId,
         args: TyList,
     ) -> Option<hd_opt::fact_specialize::FactLookup> {
-        let find = self.run.known.facts_find;
-        if def == find {
-            let key = *self.run.pool.list_items(args).first()?;
-            if key == Ty::POISON
-                || self.run.pool.has_param(key)
-                || self.run.pool.has_assoc(key)
-                || self.run.pool.has_opaque(key)
-            {
-                return None;
-            }
-            return Some(hd_opt::fact_specialize::FactLookup {
-                key,
-                projection: Vec::new(),
-            });
-        }
-        let body = &self.checked_body(def)?.0;
-        if body.tags.iter().any(|tag| {
-            !matches!(
-                tag,
-                hd_tir::Tag::Block | hd_tir::Tag::Read | hd_tir::Tag::Call
-            )
-        }) {
-            return None;
-        }
-        let mut calls = body
-            .tags
-            .iter()
-            .enumerate()
-            .filter_map(|(i, tag)| (*tag == hd_tir::Tag::Call).then_some(i));
-        let call = calls.next()?;
-        if calls.next().is_some() {
-            return None;
-        }
-        let root = *body.sub_root.first()? as usize;
-        if body.tags.get(root) != Some(&hd_tir::Tag::Block)
-            || body.data[root][1] != u32::try_from(call).ok()?
-        {
-            return None;
-        }
-        let Callee::Item { def: callee, targs } = hd_tir::inline::plain_call(body, call)? else {
-            return None;
-        };
-        if callee != find {
-            return None;
-        }
-        let record = body.record(body.data[call][1]);
-        let call_args = &record[..record.len().saturating_sub(3)];
-        let receiver = *call_args.first()? as usize;
-        if body.tags.get(receiver) != Some(&hd_tir::Tag::Read) {
-            return None;
-        }
-        let receiver = body.decode_place(body.data[receiver][0])?;
-        let hd_tir::ir::PlaceRoot::Local(receiver_local) = receiver.root else {
-            return None;
-        };
-        if hd_tir::own::params(body).as_slice() != [receiver_local.raw()] {
-            return None;
-        }
-        let key = *self.run.pool.list_items(targs).first()?;
-        let key = hd_mono::subst(&self.run.pool, self, def, args, key);
-        if key == Ty::POISON
-            || self.run.pool.has_param(key)
-            || self.run.pool.has_assoc(key)
-            || self.run.pool.has_opaque(key)
-        {
-            return None;
-        }
-        Some(hd_opt::fact_specialize::FactLookup {
-            key,
-            projection: receiver.proj,
-        })
+        hd_opt::fact_specialize::lookup_key(self, def, args)
+    }
+
+    fn search_input_copies(&self, ty: Ty) -> bool {
+        hd_tir::own::OwnCx::copies(self, ty) == hd_tir::own::Tri::Yes
     }
 
     fn list_is_empty(&self, def: DefId) -> bool {

@@ -168,6 +168,7 @@ pub trait InlineEnv: ProgramEnv {
 /// iterated, so output stays deterministic.
 #[derive(Default)]
 pub struct Memo {
+    pub(crate) fact_lookups: Mutex<crate::fact_specialize::lookup::Memo>,
     /// Per callee and type arguments, the copy a call of it inlines, its
     /// own calls copied first, and its hash, or `None` when a call of it
     /// stays (`callee_copy`).

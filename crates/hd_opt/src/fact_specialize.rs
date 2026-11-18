@@ -8,12 +8,18 @@ use hd_types::{Ty, TyList};
 
 use crate::structure_specialize::StructureEnv;
 
+pub(crate) mod lookup;
+
 /// Facts about one declaration-fact query which the driver can answer from
 /// generator metadata and checked bodies.
 pub trait FactEnv: StructureEnv {
-    /// The queried fact type when `def[args]` is either `Facts.find` itself
-    /// or a pure one-argument wrapper around it.
+    /// The queried type and input projection proved by a read-only search
+    /// summary of this callee's checked code.
     fn fact_lookup_key(&self, def: DefId, args: TyList) -> Option<FactLookup>;
+
+    /// Copy inputs cannot introduce an observable native destructor at the
+    /// elided call boundary. This query reads typing facts, not concrete layout.
+    fn search_input_copies(&self, ty: Ty) -> bool;
 
     /// Whether `def` is the ordinary `List.is_empty` helper.
     fn list_is_empty(&self, def: DefId) -> bool;
@@ -48,12 +54,19 @@ pub struct KnownFacts {
     pub digest: Hash128,
 }
 
-/// The requested type and the path from a recognized wrapper's first
-/// parameter to the `Facts` receiver it passes to `Facts.find`.
+/// A proved nullable search: requested type, input and collection projection.
+/// The digest includes every checked callee body used by the proof.
 #[derive(Clone, Debug)]
 pub struct FactLookup {
     pub key: Ty,
+    pub parameter: usize,
     pub projection: Vec<Proj>,
+    pub digest: Hash128,
+}
+
+/// Derive a nullable collection-search summary without recognizing a name.
+pub fn lookup_key(env: &dyn FactEnv, def: DefId, args: TyList) -> Option<FactLookup> {
+    lookup::lookup(env, def, args)
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -67,10 +80,11 @@ enum StoredValue {
 /// Replaces queries proven absent from fixed, literal facts by `None`. The
 /// returned hash names both the transform and every checked body it relied on.
 pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Hash128 {
-    if env.memo().is_none() {
+    if env.memo().is_none() || !body.tags.contains(&Tag::Call) {
         return hash;
     }
     let stores = stored_values(body);
+    let inputs = lookup::potential_inputs(body);
     let mut dependencies = Vec::new();
     for call in (0..body.len()).rev() {
         let Some(Callee::Item { def, targs }) = hd_tir::inline::plain_call(body, call) else {
@@ -98,12 +112,15 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
                 continue;
             }
         }
+        if !inputs[call] {
+            continue;
+        }
         let Some(lookup) = env.fact_lookup_key(def, targs) else {
             continue;
         };
         let record = body.record(body.data[call][1]);
         let args = &record[..record.len().saturating_sub(3)];
-        let Some(&facts) = args.first() else {
+        let Some(&facts) = args.get(lookup.parameter) else {
             continue;
         };
         let Some(facts) = source_facts(env, body, &stores, facts, &lookup.projection, 0) else {
@@ -116,6 +133,7 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
         body.tags[call] = Tag::NewVariant;
         body.data[call] = [0, empty];
         dependencies.push(facts.digest);
+        dependencies.push(lookup.digest);
     }
     if dependencies.is_empty() {
         return hash;
