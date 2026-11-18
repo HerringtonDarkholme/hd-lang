@@ -7,12 +7,12 @@
 //! built here; only the position findings are reported, by the same
 //! forwarder that writes a delegation's (`crate::delegate`).
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::DiagBuf;
 use hd_intern::PathKind;
 use hd_resolve::{ImplKind, Item, ItemData};
 use hd_syntax::NodeRef;
-use hd_tir::ir::{IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{BlockMark, IntrinsicOp, LoopMark, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Prim, Ty, TyData};
 
 use crate::body::{BodyCx, Ck, ExpectPosition};
@@ -106,6 +106,23 @@ pub(crate) struct Conversion {
     pub base: Ty,
 }
 
+enum ConvertWork {
+    Enter(Ref, (Ty, Ty)),
+    Variant(BlockMark, Ref, Ty, Option<Ty>),
+    List(ListConversion),
+}
+
+#[derive(Clone, Copy)]
+struct ListConversion {
+    out: LocalId,
+    index: LocalId,
+    loop_: LoopMark,
+    body: BlockMark,
+    then: BlockMark,
+    condition: Ref,
+    ty: Ty,
+}
+
 impl Conversion {
     /// Whether `from` and `to` are the same local-reference receiver at the
     /// newtype and its erased base. A reference elsewhere in a signature is
@@ -132,24 +149,31 @@ impl Conversion {
     /// Whether a value of `from` converts to `to`.
     pub(crate) fn can(&self, ck: &Ck<'_, '_>, from: Ty, to: Ty) -> bool {
         let pool = ck.pool();
+        let known = ck.cx.names.known;
         let (from, to) = (ck.resolved(from), ck.resolved(to));
         if from == to || self.is_wrap(from, to) || self.is_unwrap(from, to) {
+            hd_types::work::type_node();
             return true;
         }
-        let known = ck.cx.names.known;
-        match (pool.get(from), pool.get(to)) {
-            (TyData::Adt { def: d, args: a }, TyData::Adt { def: e, args: b }) if d == e => {
-                let (a, b) = (pool.list_items(a), pool.list_items(b));
-                if d == known.list || d == known.option {
-                    self.can(ck, a[0], b[0])
-                } else if d == known.result {
-                    a[1] == b[1] && self.can(ck, a[0], b[0])
-                } else {
-                    false
-                }
+        hd_base::stack::all((from, to), |(from, to), stack| {
+            hd_types::work::type_node();
+            let (from, to) = (ck.resolved(from), ck.resolved(to));
+            if from == to || self.is_wrap(from, to) || self.is_unwrap(from, to) {
+                return true;
             }
-            _ => false,
-        }
+            match (pool.get(from), pool.get(to)) {
+                (TyData::Adt { def: d, args: a }, TyData::Adt { def: e, args: b }) if d == e => {
+                    let (a, b) = (pool.list_items(a), pool.list_items(b));
+                    if d == known.list || d == known.option || (d == known.result && a[1] == b[1]) {
+                        stack.push((a[0], b[0]));
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            }
+        })
     }
 
     fn is_wrap(&self, from: Ty, to: Ty) -> bool {
@@ -167,89 +191,120 @@ impl Conversion {
         r: Ref,
         (from, to): (Ty, Ty),
         node: NodeRef<'_>,
-    ) -> StageResult<Ref> {
+    ) -> Ref {
+        let (f, t) = (ck.resolved(from), ck.resolved(to));
+        if f == t || self.is_wrap(f, t) || self.is_unwrap(f, t) {
+            hd_types::work::type_node();
+            return self.apply_step(ck, r, (from, to), node, &mut Vec::new());
+        }
+        let at = node.index();
+        let mut converted = r;
+        hd_base::stack::all(ConvertWork::Enter(r, (from, to)), |work, stack| {
+            converted = match work {
+                ConvertWork::Enter(r, pair) => {
+                    hd_types::work::type_node();
+                    self.apply_step(ck, r, pair, node, stack)
+                }
+                ConvertWork::Variant(block, input, ty, other) => {
+                    let tag = u32::from(other.is_none());
+                    let rec = ck.b.refs_record(&[converted]);
+                    let made = ck.b.emit(Tag::NewVariant, tag, rec, ty, at);
+                    let then = ck.b.close_block(block, Some(made), ty, at);
+                    let block = ck.b.open_block();
+                    let rec = if let Some(t) = other {
+                        let value = ck.b.payload(input, 1 - tag, 0, t, at);
+                        ck.b.refs_record(&[value])
+                    } else {
+                        ck.b.refs_record(&[])
+                    };
+                    let made = ck.b.emit(Tag::NewVariant, 1 - tag, rec, ty, at);
+                    let other = ck.b.close_block(block, Some(made), ty, at);
+                    let rec = ck.b.refs_record(&[Ref(tag), then, other]);
+                    ck.b.emit(Tag::SwitchTag, input.0, rec, ty, at)
+                }
+                ConvertWork::List(frame) => Self::finish_list(ck, converted, frame, node),
+            };
+            true
+        });
+        converted
+    }
+
+    fn apply_step(
+        &self,
+        ck: &mut Ck<'_, '_>,
+        r: Ref,
+        (from, to): (Ty, Ty),
+        node: NodeRef<'_>,
+        stack: &mut Vec<ConvertWork>,
+    ) -> Ref {
         let pool = ck.pool();
         let at = node.index();
         let (f, t) = (ck.resolved(from), ck.resolved(to));
         if f == t {
-            return Ok(ck.coerce(
+            return ck.coerce(
                 r,
                 from,
                 to,
                 node,
                 "a forwarded value",
                 ExpectPosition::General,
-            ));
+            );
         }
         if self.is_unwrap(f, t) {
-            return Ok(ck.b.field(r, 0, to, at));
+            return ck.b.field(r, 0, to, at);
         }
         if self.is_wrap(f, t) {
             // The newtype's value, as its constructor builds it.
             let rec = ck.b.refs_record(&[r]);
             let made = ck.b.emit(Tag::NewStruct, NONE, rec, t, at);
-            return Ok(ck.coerce(
+            return ck.coerce(
                 made,
                 t,
                 to,
                 node,
                 "a wrapped value",
                 ExpectPosition::General,
-            ));
+            );
         }
         let known = ck.cx.names.known;
         match (pool.get(f), pool.get(t)) {
             (TyData::Adt { def, args: a }, TyData::Adt { def: to, args: b })
-                if def == known.option && to == known.option =>
+                if (def == known.option && to == known.option) || def == known.result =>
             {
-                let (a, b) = (pool.list_items(a)[0], pool.list_items(b)[0]);
-                let tb = ck.b.open_block();
-                let u = ck.b.payload(r, 1, 0, a, at);
-                let c = self.apply(ck, u, (a, b), node)?;
-                let rec = ck.b.refs_record(&[c]);
-                let some = ck.b.emit(Tag::NewVariant, 1, rec, t, at);
-                let then = ck.b.close_block(tb, Some(some), t, at);
-                let eb = ck.b.open_block();
-                let empty = ck.b.refs_record(&[]);
-                let absent = ck.b.emit(Tag::NewVariant, 0, empty, t, at);
-                let other = ck.b.close_block(eb, Some(absent), t, at);
-                let rec = ck.b.refs_record(&[Ref(1), then, other]);
-                Ok(ck.b.emit(Tag::SwitchTag, r.0, rec, t, at))
-            }
-            (TyData::Adt { def, args: a }, TyData::Adt { args: b, .. }) if def == known.result => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
-                let ob = ck.b.open_block();
-                let v = ck.b.payload(r, 0, 0, a[0], at);
-                let c = self.apply(ck, v, (a[0], b[0]), node)?;
-                let rec = ck.b.refs_record(&[c]);
-                let okv = ck.b.emit(Tag::NewVariant, 0, rec, t, at);
-                let ok = ck.b.close_block(ob, Some(okv), t, at);
-                let eb = ck.b.open_block();
-                let e = ck.b.payload(r, 1, 0, a[1], at);
-                let rec = ck.b.refs_record(&[e]);
-                let errv = ck.b.emit(Tag::NewVariant, 1, rec, t, at);
-                let err = ck.b.close_block(eb, Some(errv), t, at);
-                let rec = ck.b.refs_record(&[Ref(0), ok, err]);
-                Ok(ck.b.emit(Tag::SwitchTag, r.0, rec, t, at))
+                let block = ck.b.open_block();
+                let tag = u32::from(def == known.option);
+                let value = ck.b.payload(r, tag, 0, a[0], at);
+                stack.push(ConvertWork::Variant(
+                    block,
+                    r,
+                    t,
+                    (def == known.result).then(|| a[1]),
+                ));
+                stack.push(ConvertWork::Enter(value, (a[0], b[0])));
+                value
             }
             (TyData::Adt { def, args: a }, TyData::Adt { args: b, .. }) if def == known.list => {
                 let (a, b) = (pool.list_items(a)[0], pool.list_items(b)[0]);
-                self.list(ck, r, (f, t), (a, b), node)
+                let (value, frame) = Self::start_list(ck, r, (f, t), a, node);
+                stack.push(ConvertWork::List(frame));
+                stack.push(ConvertWork::Enter(value, (a, b)));
+                value
             }
+            // ruled out: another conversion kind; Forwarder::body checked can.
             _ => unreachable!("Forwarder::body checked Conversion::can"),
         }
     }
 
     /// A list of `from`'s elements as a list of `to`'s, by a counting
     /// loop: each element converts, then joins the new list.
-    fn list(
-        &self,
+    fn start_list(
         ck: &mut Ck<'_, '_>,
         r: Ref,
         (list_from, list_to): (Ty, Ty),
-        (from, to): (Ty, Ty),
+        from: Ty,
         node: NodeRef<'_>,
-    ) -> StageResult<Ref> {
+    ) -> (Ref, ListConversion) {
         let at = node.index();
         let usize_ty = Ty::prim(Prim::Usize);
         let out_ty = list_to;
@@ -288,7 +343,33 @@ impl Conversion {
         let s = ck.b.get(src_l, list_from, at);
         let i = ck.b.get(i_l, usize_ty, at);
         let item = ck.b.element(s, i, from, at);
-        let c = self.apply(ck, item, (from, to), node)?;
+        (
+            item,
+            ListConversion {
+                out: out_l,
+                index: i_l,
+                loop_: lp,
+                body: lb,
+                then: tb,
+                condition: below,
+                ty: list_to,
+            },
+        )
+    }
+
+    fn finish_list(ck: &mut Ck<'_, '_>, c: Ref, frame: ListConversion, node: NodeRef<'_>) -> Ref {
+        let ListConversion {
+            out: out_l,
+            index: i_l,
+            loop_: lp,
+            body: lb,
+            then: tb,
+            condition: below,
+            ty: list_to,
+        } = frame;
+        let at = node.index();
+        let usize_ty = Ty::prim(Prim::Usize);
+        let out_ty = list_to;
         let o = ck.b.get(out_l, out_ty, at);
         let rec = ck.b.refs_record(&[o, c]);
         ck.b.emit(
@@ -311,13 +392,157 @@ impl Conversion {
         let body = ck.b.close_block(lb, None, Ty::VOID, at);
         ck.b.close_loop(lp, body, Ty::VOID, at);
         let o = ck.b.get(out_l, out_ty, at);
-        Ok(ck.coerce(
+        ck.coerce(
             o,
             out_ty,
             list_to,
             node,
             "a rewrapped list",
             ExpectPosition::General,
-        ))
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::body::with_checker;
+    use hd_types::TyList;
+
+    fn conversion(ck: &Ck<'_, '_>) -> Conversion {
+        Conversion {
+            base: Ty::I32,
+            newtype: ck.pool().intern_ty(&TyData::Adt {
+                def: ck.cx.names.item("app.main", "Wrapped"),
+                args: TyList::EMPTY,
+            }),
+        }
+    }
+
+    fn nest(ck: &Ck<'_, '_>, mut t: Ty, depth: usize, form: usize) -> Ty {
+        let p = ck.pool();
+        let k = ck.cx.names.known;
+        for i in 0..depth {
+            let (def, args) = match if form == 3 { i % 3 } else { form } {
+                0 => (k.option, p.list(&[t])),
+                1 => (k.result, p.list(&[t, Ty::BOOL])),
+                _ => (k.list, p.list(&[t])),
+            };
+            t = p.intern_ty(&TyData::Adt { def, args });
+        }
+        t
+    }
+
+    #[test]
+    fn newtype_conversion_queries_at_depth_1000_fit_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                with_checker(|ck| {
+                    let conv = conversion(ck);
+                    for depth in [100, 1000] {
+                        for form in 0..4 {
+                            let a = nest(ck, conv.base, depth, form);
+                            let b = nest(ck, conv.newtype, depth, form);
+                            let bad = nest(ck, Ty::BOOL, depth, form);
+                            for (from, to, expected) in
+                                [(a, b, true), (b, a, true), (a, bad, false)]
+                            {
+                                let (answer, work) =
+                                    hd_types::work::count_type_nodes(|| conv.can(ck, from, to));
+                                assert_eq!(answer, expected);
+                                assert_eq!(work, u64::try_from(depth + 1).unwrap());
+                            }
+                        }
+                    }
+                    let p = ck.pool();
+                    let k = ck.cx.names.known;
+                    let result = |x, e| {
+                        p.intern_ty(&TyData::Adt {
+                            def: k.result,
+                            args: p.list(&[x, e]),
+                        })
+                    };
+                    assert!(!conv.can(
+                        ck,
+                        result(conv.base, Ty::I32),
+                        result(conv.newtype, Ty::BOOL)
+                    ));
+                    for data in [
+                        TyData::Tuple {
+                            elems: p.list(&[conv.newtype]),
+                            rest: None,
+                        },
+                        TyData::Union(p.list(&[conv.newtype])),
+                        TyData::Ref {
+                            inner: conv.newtype,
+                            mutable: false,
+                            counted: false,
+                        },
+                    ] {
+                        assert!(!conv.can(ck, p.intern_ty(&data), Ty::I32));
+                    }
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn applying_newtype_conversions_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                for depth in [100, 1000] {
+                    for form in 0..4 {
+                        for wrap in [false, true] {
+                            with_checker(|ck| {
+                                let conv = conversion(ck);
+                                let (from, to) = if wrap {
+                                    (conv.base, conv.newtype)
+                                } else {
+                                    (conv.newtype, conv.base)
+                                };
+                                let (from, to) =
+                                    (nest(ck, from, depth, form), nest(ck, to, depth, form));
+                                let node = ck.cx.src.parse.tree.root();
+                                let root = ck.b.open_block();
+                                let sym = ck.cx.names.syms.intern("input");
+                                let local = ck.b.local(from, sym, local_flags::PARAM, node.index());
+                                let input = ck.b.get(local, from, node.index());
+                                let (out, work) = hd_types::work::count_type_nodes(|| {
+                                    conv.apply(ck, input, (from, to), node)
+                                });
+                                assert_eq!(work, u64::try_from(depth + 1).unwrap());
+                                ck.b.close_block(root, Some(out), to, node.index());
+                                let body = ck.b.body();
+                                let count = |tag| body.tags.iter().filter(|&&t| t == tag).count();
+                                let lists = if form == 2 {
+                                    depth
+                                } else if form == 3 {
+                                    depth / 3
+                                } else {
+                                    0
+                                };
+                                assert_eq!(count(Tag::Loop), lists);
+                                assert_eq!(count(Tag::SwitchTag), depth - lists);
+                                assert_eq!(count(Tag::NewVariant), 2 * (depth - lists));
+                                assert_eq!(body.local_ty.len(), 1 + 4 * lists);
+                                assert_eq!(count(Tag::NewStruct), usize::from(wrap));
+                                assert!(
+                                    body.tags.len() < 40 * depth + 10,
+                                    "emitted work is linear"
+                                );
+                            });
+                        }
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
