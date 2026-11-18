@@ -17,14 +17,14 @@ pub trait Tuple < ?Copy
 
 ## The static-dispatch trait implemented by every function value, for a callee that may change its captures.
 ## See [fn.trait.mut.decl](../../spec/lang/07-functions.md#r-fn.trait.mut.decl).
-pub trait FnMut[I < Tuple, O, $ R = $()]:
+pub trait FnMut[I < ?Copy & Tuple, O < ?Copy, $ R = $()]:
     ## Calls this function with the parameter tuple `args`; the call may change its captures.
     @intrinsic("fn_mut_call")
     fn call_mut(&mut self, args: I) -> O $ R
 
 ## The static-dispatch trait for a function value that changes none of its captures; it extends `FnMut`.
 ## See [fn.trait.decl](../../spec/lang/07-functions.md#r-fn.trait.decl).
-pub trait Fn[I < Tuple, O, $ R = $()] < FnMut[I, O, $ R]:
+pub trait Fn[I < ?Copy & Tuple, O < ?Copy, $ R = $()] < FnMut[I, O, $ R]:
     ## Calls this function with the parameter tuple `args`.
     @intrinsic("fn_call")
     fn call(&self, args: I) -> O $ R

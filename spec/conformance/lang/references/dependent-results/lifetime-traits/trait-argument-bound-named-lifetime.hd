@@ -3,7 +3,7 @@
 struct Point:
     x: i32
 
-trait Store[T]:
+trait Store[T < ?Copy]:
     fn put(&mut self, value: T) -> void
 
 fn fill['a, S < Store[&'a Point]](s: &mut S, p: &'a Point) -> void:

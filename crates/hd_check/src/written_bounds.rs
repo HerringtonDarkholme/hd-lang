@@ -11,17 +11,28 @@ use hd_types::{ParamRef, Ty, TyData, Types};
 /// projections must equal (`trait.bound.no-implied.positions`). Callers ask
 /// the goals in order and stop after the first miss for an argument
 /// (`types.generic.bound`, `types.generic.default.bound`).
+///
+/// `self_ty` is `Some` when `def` is a trait (`trait.bound.unsatisfied`):
+/// its parameter 0 is `Self`, so `generics[i]` is parameter `i + 1`, and a
+/// bound naming `Self` reads the implementing type. Each goal is one
+/// substitution of one declared bound: linear in the bounds written.
 pub(crate) fn goals(
     pool: Types<'_>,
     def: DefId,
     generics: &[Generic],
+    self_ty: Option<Ty>,
     args: &[Ty],
 ) -> Vec<(usize, Ty, TraitRef, Ty)> {
     let subst = |t| {
         pool.subst(t, &|p: ParamRef| {
-            (p.owner == def)
-                .then(|| args.get(usize::from(p.index)).copied())
-                .flatten()
+            if p.owner != def {
+                return None;
+            }
+            match (self_ty, usize::from(p.index)) {
+                (None, i) => args.get(i).copied(),
+                (Some(s), 0) => Some(s),
+                (Some(_), i) => args.get(i - 1).copied(),
+            }
         })
     };
     let mut goals = Vec::new();

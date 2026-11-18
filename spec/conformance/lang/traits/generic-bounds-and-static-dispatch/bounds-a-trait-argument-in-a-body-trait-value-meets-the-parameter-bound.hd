@@ -1,0 +1,13 @@
+# test: a trait argument that misses its parameter bound is rejected in a trait value a body writes
+trait Shown:
+    fn shown(self) -> i32
+
+trait Tagged[T < Shown]:
+    fn tag(self, t: T) -> i32
+
+struct Plain:
+    v: i64
+
+fn read() -> i32:
+    let values: List[&dyn Tagged[Plain]] = [] # diagnostic: unsatisfied-trait-bound
+    +1

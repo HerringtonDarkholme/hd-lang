@@ -369,28 +369,7 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
             return;
         };
         if let ItemData::Trait(_) = o.data {
-            let s = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-            let args: Vec<Ty> = o
-                .generics
-                .iter()
-                .enumerate()
-                .map(|(i, g)| {
-                    let index = u16::try_from(i + 1).unwrap_or(u16::MAX);
-                    if g.row {
-                        pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
-                            keys: Vec::new(),
-                            params: vec![hd_types::RowParamRef { owner, index }],
-                        })))
-                    } else {
-                        pool.intern_ty(&TyData::Param(ParamRef { owner, index }))
-                    }
-                })
-                .collect();
-            let tv = pool.intern_ty(&TyData::TraitValue {
-                def: owner,
-                args: pool.list(&args),
-                bindings: vec![],
-            });
+            let (s, tv) = trait_identity(pool, owner, &o.generics);
             add_bound(cx.lookup, pool, env, (s, tv), cx.names.known.copy);
             generics(owner, &o.generics, 1, env);
         } else {
@@ -413,6 +392,33 @@ fn environment(cx: &HeaderCx<'_>, it: &Item) -> ParamEnv {
         | ItemData::Builtin => generics(it.def, &it.generics, 0, &mut env),
     }
     env
+}
+
+/// A trait's `Self` and the trait over its own parameters, `Tr[P..]`:
+/// the clause its items assume, and the `Self` its written bounds read.
+fn trait_identity(pool: Types<'_>, owner: DefId, generics: &[Generic]) -> (Ty, Ty) {
+    let s = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+    let args: Vec<Ty> = generics
+        .iter()
+        .enumerate()
+        .map(|(i, g)| {
+            let index = u16::try_from(i + 1).unwrap_or(u16::MAX);
+            if g.row {
+                pool.intern_ty(&TyData::Row(pool.row(&hd_types::RowData {
+                    keys: Vec::new(),
+                    params: vec![hd_types::RowParamRef { owner, index }],
+                })))
+            } else {
+                pool.intern_ty(&TyData::Param(ParamRef { owner, index }))
+            }
+        })
+        .collect();
+    let tv = pool.intern_ty(&TyData::TraitValue {
+        def: owner,
+        args: pool.list(&args),
+        bindings: vec![],
+    });
+    (s, tv)
 }
 
 /// A step of [`ItemCheck::check_ty`]'s walk: a type to check; a
@@ -645,8 +651,19 @@ impl<'a> ItemCheck<'_, 'a> {
             ItemData::Fn(s, _) | ItemData::Method { sig: s, .. } => &s.generics,
             _ => &it.generics,
         };
-        for b in gens.iter().filter(|g| !g.row).flat_map(|g| &g.bounds) {
-            self.check_bound(*b)?;
+        let (owner, offset) = match &it.data {
+            ItemData::Trait(_) => (it.def, 1),
+            ItemData::Alias { .. } => (self.cx.names.known.alias_params, 0),
+            _ => (it.def, 0),
+        };
+        for (i, g) in gens.iter().enumerate().filter(|(_, g)| !g.row) {
+            let index = offset + u16::try_from(i).unwrap_or(u16::MAX);
+            let p = self
+                .pool()
+                .intern_ty(&TyData::Param(ParamRef { owner, index }));
+            for b in &g.bounds {
+                self.check_bound(p, *b)?;
+            }
         }
         // A default satisfies its parameter's bounds
         // (`types.generic.default.bound`); only certain failures report,
@@ -669,8 +686,9 @@ impl<'a> ItemCheck<'_, 'a> {
         }
         match &it.data {
             ItemData::Trait(t) => {
+                let (this, identity) = trait_identity(self.pool(), it.def, &it.generics);
                 for s in &t.supers {
-                    self.check_bound(*s)?;
+                    self.check_bound(this, *s)?;
                 }
                 // `type Next < Src[Need[bool]]`: an associated type's
                 // bounds are written types (`trait.bound.no-implied.positions`),
@@ -682,8 +700,17 @@ impl<'a> ItemCheck<'_, 'a> {
                     else {
                         continue;
                     };
+                    let TyData::TraitValue { args, .. } = self.pool().get(identity) else {
+                        continue;
+                    };
+                    let projection = self.pool().intern_ty(&TyData::Assoc {
+                        assoc: a,
+                        trait_: it.def,
+                        self_ty: this,
+                        args,
+                    });
                     for b in bounds {
-                        self.check_bound(*b)?;
+                        self.check_bound(projection, *b)?;
                     }
                 }
             }
@@ -720,6 +747,12 @@ impl<'a> ItemCheck<'_, 'a> {
         {
             return Ok(());
         }
+        let written = self.pool().intern_ty(&TyData::TraitValue {
+            def: *trait_,
+            args: *trait_args,
+            bindings: vec![],
+        });
+        self.trait_arg_bounds(*self_ty, written, 0)?;
         if *trait_ == self.cx.names.known.drop_trait {
             self.drop_on_copy(*self_ty);
         }
@@ -1580,10 +1613,11 @@ impl<'a> ItemCheck<'_, 'a> {
         }
     }
 
-    /// A written bound: the types in its arguments and bindings are
-    /// written types (`trait.bound.no-implied.positions`). Its own
+    /// A written bound on `self_ty`: the types in its arguments and
+    /// bindings are written types (`trait.bound.no-implied.positions`),
+    /// and its arguments meet its trait's own parameter bounds. Its own
     /// arguments may be left to defaults, so only they are checked.
-    fn check_bound(&mut self, b: Ty) -> StageResult<()> {
+    fn check_bound(&mut self, self_ty: Ty, b: Ty) -> StageResult<()> {
         let pool = self.pool();
         if let TyData::TraitValue { args, bindings, .. } = pool.get(b) {
             for &a in pool.list_items(args) {
@@ -1593,7 +1627,26 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.check_ty(t, 0)?;
             }
         }
-        Ok(())
+        self.trait_arg_bounds(self_ty, b, 0)
+    }
+
+    /// A written trait reference `Tr[A..]` with `Self` as `self_ty`: each
+    /// argument meets the bounds `Tr` declares on its parameter
+    /// (`trait.bound.unsatisfied`), as a type constructor's arguments do.
+    /// The one check every trait reference asks: an implementation's
+    /// header, a bound, a supertrait, and a trait value type, whose `Self`
+    /// is itself. One goal per declared bound.
+    fn trait_arg_bounds(&mut self, self_ty: Ty, b: Ty, slot: u32) -> StageResult<()> {
+        let pool = self.pool();
+        let TyData::TraitValue { def, args, .. } = pool.get(b) else {
+            return Ok(());
+        };
+        let Some(target) = self.cx.lookup.item(def) else {
+            return Ok(());
+        };
+        let args = pool.list_items(args);
+        let goals = crate::written_bounds::goals(pool, def, &target.generics, Some(self_ty), args);
+        self.arg_bounds(goals, slot)
     }
 
     /// Written types against their declared bounds (`trait.bound.no-implied`).
@@ -1753,7 +1806,8 @@ impl<'a> ItemCheck<'_, 'a> {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
                 if let Some(target) = self.cx.lookup.item(def) {
-                    let goals = crate::written_bounds::goals(pool, def, &target.generics, args_v);
+                    let goals =
+                        crate::written_bounds::goals(pool, def, &target.generics, None, args_v);
                     self.arg_bounds(goals, slot)?;
                 }
                 kids.extend(args_v.iter().map(|&a| Work::Ty(a, slot)));
@@ -1771,6 +1825,7 @@ impl<'a> ItemCheck<'_, 'a> {
                     );
                     self.report(slot, Code::PartialGenericArguments, message);
                 }
+                self.trait_arg_bounds(t, t, slot)?;
                 if let TyData::TraitValue { args, bindings, .. } = pool.get(t) {
                     kids.extend(pool.list_items(args).iter().map(|&a| Work::Ty(a, 0)));
                     kids.extend(bindings.iter().map(|&(_, b)| Work::Ty(b, 0)));

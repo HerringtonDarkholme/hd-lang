@@ -1,0 +1,47 @@
+# test: a trait argument that meets its parameter bound checks in every form
+trait Shown:
+    fn shown(self) -> i32
+
+trait Tagged[T < Shown]:
+    fn tag(self, t: T) -> i32
+
+trait Labelled[T < Shown] < Tagged[T]:
+    fn label(self) -> i32
+
+trait Mirror[T]:
+    fn mirror(self) -> i32
+
+trait Paired[T < Mirror[Self]]:
+    fn pair(self) -> i32
+
+struct Plain:
+    v: i64
+
+impl Shown for Plain:
+    fn shown(self) -> i32:
+        +1
+
+struct Holder:
+    v: i32
+
+impl Tagged[Plain] for Holder:
+    fn tag(self, t: Plain) -> i32:
+        t.shown()
+
+impl Mirror[Holder] for Plain:
+    fn mirror(self) -> i32:
+        +2
+
+impl Paired[Plain] for Holder:
+    fn pair(self) -> i32:
+        +3
+
+fn through_bound[X < Shown, V < Tagged[X]](v: V, x: X) -> i32:
+    v.tag(x)
+
+fn through_value(v: &dyn Tagged[Plain]) -> i32:
+    v.tag(Plain { v: +1 })
+
+fn in_body(h: &Holder) -> i32:
+    let v: &dyn Tagged[Plain] = h
+    v.tag(Plain { v: +2 })

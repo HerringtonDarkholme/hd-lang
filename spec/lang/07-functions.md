@@ -449,7 +449,7 @@ fn unbounded[Args, O](callback: Fn[Args, O, $()]) -> void: pass  # error: generi
 The `Fn` trait describes the exact plain function type that a generic value
 may hold and call.
 
-1. r[fn.trait.decl] `std.function` declares `trait Fn[I < Tuple, O, $R = $()]` with `fn call(&self, args: I) -> O $R`.
+1. r[fn.trait.decl] `std.function` declares `trait Fn[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call(&self, args: I) -> O $R`.
 2. r[fn.trait.function-values-read-only] A plain function value implements `Fn` for its exact inputs tuple, output type, and requirement row, except where [`fn.trait.read-only`](#r-fn.trait.read-only) and the rules after it make it implement only `FnMut`.
 3. r[fn.trait.bound-sugar] In a bound, `Fn(A, B) -> O $R` denotes `Fn[(A, B), O, $R]`, and an omitted row is `$()`.
 4. r[fn.trait.bound-tuple] The tuple form `Fn[(A, B), O, $R]` remains valid in a bound.
@@ -483,7 +483,7 @@ fn stuck[F < FnMut(i32) -> void](f: F) -> void:
     f(1)  # error: not-writable
 ```
 
-1. r[fn.trait.mut.decl] `std.function` declares `trait FnMut[I < Tuple, O, $R = $()]` with `fn call_mut(&mut self, args: I) -> O $R`.
+1. r[fn.trait.mut.decl] `std.function` declares `trait FnMut[I < ?Copy & Tuple, O < ?Copy, $R = $()]` with `fn call_mut(&mut self, args: I) -> O $R`.
 2. r[fn.trait.mut.supertrait] `Fn[I, O, $R]` has the supertrait `FnMut[I, O, $R]`, so a value whose bound is `Fn` meets an `FnMut` bound of the same arguments.
 3. r[fn.trait.mut.function-values] Every plain function value implements `FnMut` for its exact inputs tuple, output type, and requirement row.
 4. r[fn.trait.mut.sugar] `FnMut(A, B) -> O $R` denotes `FnMut[(A, B), O, $R]`, and the bound rules for `Fn` above apply to `FnMut` alike.

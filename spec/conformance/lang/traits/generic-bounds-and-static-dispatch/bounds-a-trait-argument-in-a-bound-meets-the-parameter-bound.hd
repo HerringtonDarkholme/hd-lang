@@ -1,0 +1,12 @@
+# test: a trait argument that misses its parameter bound is rejected in a bound
+trait Shown:
+    fn shown(self) -> i32
+
+trait Tagged[T < Shown]:
+    fn tag(self, t: T) -> i32
+
+struct Plain:
+    v: i64
+
+fn read[V < Tagged[Plain]](v: V) -> i32: # diagnostic: unsatisfied-trait-bound
+    +1

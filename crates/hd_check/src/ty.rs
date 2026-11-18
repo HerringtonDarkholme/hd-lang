@@ -879,6 +879,7 @@ impl Ck<'_, '_> {
                 args,
                 bindings,
             });
+            self.check_written_bounds(t, (def, &[]), (&arg_nodes, n))?;
             return Ok(t);
         }
         // A written type infers nothing: a slot it omits needs a default
@@ -937,8 +938,12 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let filled;
-        let (owner, args) = match pool.get(t) {
-            TyData::Adt { def: d, args } if d == def => (def, pool.list_items(args)),
+        // A trait value type is its own `Self` (`trait.bound.unsatisfied`).
+        let (owner, self_ty, args) = match pool.get(t) {
+            TyData::Adt { def: d, args } if d == def => (def, None, pool.list_items(args)),
+            TyData::TraitValue { def: d, args, .. } if d == def => {
+                (def, Some(t), pool.list_items(args))
+            }
             _ if matches!(item.data, ItemData::Alias { .. }) => {
                 let owner = hd_resolve::params_owner(self.cx.names.known, item);
                 let with_outer = self.with_outer_args(item, written);
@@ -948,12 +953,13 @@ impl Ck<'_, '_> {
                     &item.generics,
                     &with_outer,
                 );
-                (owner, filled.as_slice())
+                (owner, None, filled.as_slice())
             }
             _ => return Ok(()),
         };
         let mut missed = None;
-        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, owner, &item.generics, args)
+        for (i, arg, tref, bound) in
+            crate::written_bounds::goals(pool, owner, &item.generics, self_ty, args)
         {
             if missed == Some(i) {
                 continue;
@@ -1019,7 +1025,9 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let mut missed = None;
-        for (i, arg, tref, bound) in crate::written_bounds::goals(pool, def, &item.generics, args) {
+        for (i, arg, tref, bound) in
+            crate::written_bounds::goals(pool, def, &item.generics, None, args)
+        {
             if missed == Some(i) {
                 continue;
             }

@@ -1,0 +1,20 @@
+# test: a trait parameter bound that names Self reads the implementing type at an implementation header
+trait Mirror[T]:
+    fn mirror(self) -> i32
+
+trait Paired[T < Mirror[Self]]:
+    fn pair(self) -> i32
+
+struct Left:
+    v: i32
+
+struct Right:
+    v: i32
+
+impl Mirror[Left] for Left:
+    fn mirror(self) -> i32:
+        +1
+
+impl Paired[Left] for Right: # diagnostic: unsatisfied-trait-bound
+    fn pair(self) -> i32:
+        +2

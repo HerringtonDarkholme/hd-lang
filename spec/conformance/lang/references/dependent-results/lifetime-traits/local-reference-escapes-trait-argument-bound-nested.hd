@@ -4,7 +4,7 @@
 struct Point:
     x: i32
 
-trait Store[T]:
+trait Store[T < ?Copy]:
     fn put(&mut self, value: T) -> void
 
 fn count[S < Store[(i32, &mut Point)]](s: &mut S) -> i32: # diagnostic: local-reference-escapes
