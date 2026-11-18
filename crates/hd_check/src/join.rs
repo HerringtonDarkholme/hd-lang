@@ -179,9 +179,6 @@ impl Joins {
     }
 }
 
-/// How deep shape unification walks before ordinary unification takes over.
-const DEPTH: u32 = 32;
-
 impl Ck<'_, '_> {
     /// A `?` whose operand kind awaits this function's inferred result.
     /// Its payload still participates in ordinary checking immediately.
@@ -520,49 +517,11 @@ impl Ck<'_, '_> {
     /// unify whatever their declared variance: a variance step that
     /// weakens a permission inside them is the combination
     /// `types.lct.no-combine` rules out. A reference's own referent unifies
-    /// too. Cost: one walk of the tuple spine, bounded by `DEPTH`.
+    /// too. The inference table shares its explicit pair walk and row
+    /// invalidation memo with ordinary unification.
     fn unify_join(&mut self, a: Ty, b: Ty) -> bool {
-        self.unify_join_at(a, b, 0)
-    }
-
-    fn unify_join_at(&mut self, a: Ty, b: Ty, depth: u32) -> bool {
         let pool = self.pool();
-        let (sa, sb) = (self.infer.shallow(pool, a), self.infer.shallow(pool, b));
-        if depth > DEPTH {
-            return self.infer.unify(pool, sa, sb).is_ok();
-        }
-        let d = depth + 1;
-        match (pool.get(sa), pool.get(sb)) {
-            (TyData::Ref { inner: x, .. }, TyData::Ref { inner: y, .. }) => {
-                self.infer.unify(pool, x, y).is_ok()
-            }
-            (
-                TyData::Tuple {
-                    elems: xs,
-                    rest: xr,
-                },
-                TyData::Tuple {
-                    elems: ys,
-                    rest: yr,
-                },
-            ) => {
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                if xs.len() != ys.len() {
-                    return false;
-                }
-                let elems = xs
-                    .iter()
-                    .zip(ys.iter())
-                    .all(|(x, y)| self.unify_join_at(*x, *y, d));
-                elems
-                    && match (xr, yr) {
-                        (Some(x), Some(y)) => self.unify_join_at(x, y, d),
-                        (None, None) => true,
-                        _ => false,
-                    }
-            }
-            _ => self.infer.unify(pool, sa, sb).is_ok(),
-        }
+        self.infer.unify_join(pool, a, b).is_ok()
     }
 
     fn joined_types(&self, var: Ty) -> Vec<Ty> {
@@ -1059,6 +1018,72 @@ impl Ck<'_, '_> {
 mod tests {
     use super::*;
     use hd_tir::ir::{BodyKind, TirBuilder};
+
+    #[test]
+    fn join_shape_unification_at_depth_1000_shares_pairs_and_keeps_bindings() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                crate::body::with_checker(|ck| {
+                    let p = ck.pool();
+                    let reference = |inner, mutable| {
+                        p.intern_ty(&TyData::Ref {
+                            inner,
+                            mutable,
+                            counted: mutable,
+                        })
+                    };
+                    let tuple = |elems: &[Ty], rest| {
+                        p.intern_ty(&TyData::Tuple {
+                            elems: p.list(elems),
+                            rest,
+                        })
+                    };
+                    for depth in [100, 1000] {
+                        let x = ck.infer.fresh(p, VarKind::General);
+                        let (mut a, mut b) = (reference(x, true), reference(Ty::I32, false));
+                        for _ in 0..depth {
+                            a = tuple(&[a, a], None);
+                            b = tuple(&[b, b], None);
+                        }
+                        let snapshot = ck.infer.snapshot();
+                        assert_eq!(
+                            hd_types::work::count_type_nodes(|| ck.unify_join(a, b)),
+                            (true, depth + 1)
+                        );
+                        assert_eq!(ck.infer.shallow(p, x), Ty::I32);
+                        ck.infer.rollback(snapshot);
+                        assert_eq!(ck.infer.shallow(p, x), x);
+                    }
+                    let (a, b) = (reference(Ty::I32, true), reference(Ty::I32, false));
+                    let list = |t| {
+                        p.intern_ty(&TyData::Adt {
+                            def: ck.cx.names.known.list,
+                            args: p.list(&[t]),
+                        })
+                    };
+                    // A successful permission-ignoring pair cannot satisfy
+                    // the same pair's invariant query beneath List.
+                    assert!(!ck.unify_join(tuple(&[a, list(a)], None), tuple(&[b, list(b)], None)));
+                    let x = ck.infer.fresh(p, VarKind::General);
+                    let snapshot = ck.infer.snapshot();
+                    assert!(
+                        !ck.unify_join(tuple(&[x], Some(list(Ty::I32))), tuple(&[Ty::I32], None))
+                    );
+                    assert_eq!(
+                        ck.infer.shallow(p, x),
+                        Ty::I32,
+                        "fixed elements bind before a rest-presence mismatch"
+                    );
+                    ck.infer.rollback(snapshot);
+                    assert_eq!(ck.infer.shallow(p, x), x);
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 
     #[test]
     fn tuple_meets_and_conversions_at_depth_1000_share_pair_answers() {
