@@ -54,9 +54,6 @@ pub struct KnownItems {
     /// `Facts`, whose `items` list may be inspected only after the value is
     /// proved to be declaration facts.
     pub facts: DefId,
-    /// `Facts.find`, whose answer can be fixed after a generated declaration's
-    /// concrete facts body is known.
-    pub facts_find: DefId,
     /// `FieldRecord`, which a `Field` handle refers to.
     pub field: DefId,
     /// `FieldRecord.get`, whose generated handle call a closed Structure walk
@@ -368,7 +365,6 @@ impl KnownItems {
             static_bound,
             alias_params: item("std.core", "'alias"),
             facts: item("std.structure", "Facts"),
-            facts_find: inherent_method("std.structure", "impl Facts", "find"),
             field: item("std.structure", "FieldRecord"),
             field_get: inherent_method(
                 "std.structure",
