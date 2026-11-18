@@ -912,14 +912,14 @@ pub(super) fn temporary_ends(
     env: &dyn ProgramEnv,
     (b, topo): (&Body, &hd_tir::ir::Topology),
     index: &OriginIndex,
-    found: &[(usize, Held, Bind, Option<Loan>)],
+    found: &[(usize, Held, Bind)],
     (facts, rows): (&LifetimeFacts, &[usize]),
 ) -> LoanEnds {
     if found.is_empty() {
         return LoanEnds::default();
     }
     let mut graph = OriginGraph::default();
-    for &(_, held, _, _) in found {
+    for &(_, held, _) in found {
         graph.publish(held);
     }
     let context = OriginContext {
@@ -932,7 +932,7 @@ pub(super) fn temporary_ends(
     let stored = &facts.stored;
     let handoffs: hd_base::HashSet<_> = found
         .iter()
-        .filter_map(|&(at, _, bind, _)| match bind {
+        .filter_map(|&(at, _, bind)| match bind {
             Bind::Share(from) | Bind::Move(from) => Some((hd_tir::ir::u32_of(at), from)),
             _ => None,
         })
@@ -941,7 +941,7 @@ pub(super) fn temporary_ends(
     let mut ranges = ScopeHolderRanges::default();
     let mut declared: Vec<_> = found
         .iter()
-        .map(|(_, held, _, _)| stored[held.local].0)
+        .map(|(_, held, _)| stored[held.local].0)
         .filter(|&at| at < b.len())
         .collect();
     declared.sort_stable();
