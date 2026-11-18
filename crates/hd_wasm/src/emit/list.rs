@@ -537,8 +537,10 @@ impl Em<'_, '_, '_> {
         }
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
-        // loop does. Include nested statements of that prelude, up to the
-        // statement that holds the loop, whose body the test above took.
+        // loop does. Include nested statements of that prelude, through the
+        // statement that holds the loop: an arm or an outer loop around it
+        // runs there too. Only the loop and its body, which the test above
+        // took, are left out.
         if before {
             let (blk, start) = (
                 self.topo.blk[len as usize],
@@ -547,7 +549,8 @@ impl Em<'_, '_, '_> {
             let Some(finish) = self.position_in(blk, loop_inst) else {
                 return Vec::new();
             };
-            let prelude = self.statements(blk, start + 1, finish - 1);
+            let mut prelude = self.statements(blk, start + 1, finish);
+            prelude.retain(|x| *x != loop_inst && body.binary_search(x).is_err());
             if !self.list_loop_safe(root, &prelude, &aliases) {
                 return Vec::new();
             }

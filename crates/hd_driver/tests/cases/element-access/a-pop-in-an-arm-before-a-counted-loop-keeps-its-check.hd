@@ -1,0 +1,18 @@
+# @dump: stdout
+# @build: dev | release
+# A counter below a length read before an `if`: the arm pops the list
+# before its loop, so the loop reads past the end and panics
+# (`expr.index.list.range`). The rising-counter proof walks the arm's
+# statements before the loop too.
+fn total(xs: &mut List[i64], c: bool) -> i64:
+    n := xs.len()
+    let s = 0i64
+    if c:
+        let _ = xs.pop()
+        for i in 0..n:
+            s = s + xs[i]
+    s
+
+pub fn main() -> void $ Console:
+    let mut xs = [1i64, 2, 3, 4]
+    println(total(&mut xs, true))

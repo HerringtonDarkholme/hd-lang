@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# The outer loop pops the list after the inner loop, so `n` is no longer
+# its length on the next pass: the inner read keeps its bounds check.
+fn total(xs: &mut List[i64]) -> i64:
+    n := xs.len()
+    let s = 0i64
+    for k in 0..3usize:
+        # subject
+        for i in 0..n:
+            s = s + xs[i]
+        let _ = xs.pop()
+    s
