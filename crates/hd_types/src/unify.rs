@@ -450,7 +450,7 @@ impl InferTable {
         }
     }
 
-    /// Resolves every variable it can, recursively: each distinct node of
+    /// Resolves every variable it can on an explicit stack: each distinct node of
     /// the type once, memoized by type id, so a type that shares its
     /// parts (an interned DAG) costs its distinct nodes, not its tree.
     #[must_use]
@@ -548,9 +548,37 @@ impl InferTable {
 
     /// Binds every unbound variable of `t` to poison.
     fn poison_vars(&mut self, pool: Types<'_>, t: Ty) {
-        if pool.has_infer(t) {
-            let _ = crate::TyMap::ty(&mut PoisonVars { table: self, pool }, t);
+        if !pool.has_infer(t) {
+            return;
         }
+        let mut seen = HashSet::default();
+        hd_base::stack::all(t, |t, stack| {
+            let t = self.shallow(pool, t);
+            if !pool.has_infer(t) || !seen.insert(t) {
+                return true;
+            }
+            crate::work::type_node();
+            if let TyData::Infer(v) = pool.get(t) {
+                let root = self.root(v.raw());
+                self.binding[root as usize] = Some(Ty::POISON);
+                self.hold(root, holds::POISON);
+                self.trail.push(Undo::Bind(root));
+                self.kill(root);
+            } else {
+                let start = stack.len();
+                match pool.get(t) {
+                    TyData::Fn { params, result, .. } => {
+                        stack.extend_from_slice(pool.list_items(params));
+                        stack.push(result);
+                    }
+                    // Poison propagation has always left row keys alone.
+                    TyData::Row(_) | TyData::Context(_) => {}
+                    _ => pool.children(t, stack),
+                }
+                stack[start..].reverse();
+            }
+            true
+        });
     }
 
     /// Unifies two types; on error the caller rolls back to its snapshot.
@@ -924,83 +952,158 @@ impl<'t, 'p> Resolve<'t, 'p> {
     }
 }
 
-impl crate::TyMap for Resolve<'_, '_> {
-    fn ty(&mut self, t: Ty) -> Ty {
-        let t = self.table.shallow(self.pool, t);
+impl Resolve<'_, '_> {
+    // Keep known roots off the heap work stack.
+    fn known(&mut self, t: Ty) -> Option<Ty> {
         if !self.pool.has_infer(t) {
-            return t;
+            return Some(t);
         }
-        // `shallow` leaves only an unbound root variable.
         if let TyData::Infer(v) = self.pool.get(t) {
             self.deps.push(Dep::Var(v.raw()));
+            return Some(t);
+        }
+        let c = self.table.closed.borrow();
+        let r = c
+            .map
+            .get(&t)
+            .or_else(|| c.open.get(&t).map(|(r, _)| r))
+            .copied()?;
+        if self.pool.has_infer(r) {
+            self.deps.push(Dep::Ty(t));
+        }
+        Some(r)
+    }
+}
+
+// Rebuild only after every child has been resolved. This mapper reads the
+// finished entries without recording a second copy of their dependencies.
+struct ResolvedChildren<'t, 'p> {
+    table: &'t InferTable,
+    pool: Types<'p>,
+}
+
+impl crate::TyMap for ResolvedChildren<'_, '_> {
+    fn ty(&mut self, t: Ty) -> Ty {
+        let t = self.table.shallow(self.pool, t);
+        if !self.pool.has_infer(t) || matches!(self.pool.get(t), TyData::Infer(_)) {
             return t;
         }
-        // Every node resolved so far is kept, closed or open, and a kept
-        // open entry is valid: a change under it killed it.
-        let known = {
-            let c = self.table.closed.borrow();
-            c.map
-                .get(&t)
-                .or_else(|| c.open.get(&t).map(|(r, _)| r))
-                .copied()
+        let c = self.table.closed.borrow();
+        c.map
+            .get(&t)
+            .or_else(|| c.open.get(&t).map(|(r, _)| r))
+            .copied()
+            // ruled out: an unfinished child; its finish frame ran before
+            // the parent's and resolution cannot change bindings.
+            .expect("the child has finished resolving")
+    }
+
+    fn row(&mut self, r: crate::RowId) -> crate::RowId {
+        let t = self.ty(self.pool.intern_ty(&TyData::Row(r)));
+        // ruled out: another constructor, since resolution preserves Row.
+        let TyData::Row(r) = self.pool.get(t) else {
+            unreachable!("resolved row")
         };
-        if let Some(r) = known {
-            if self.pool.has_infer(r) {
-                self.deps.push(Dep::Ty(t));
-            }
-            return r;
-        }
-        crate::work::resolve_node();
-        let mark = self.deps.len();
-        let r = self.pool.map_children(t, self);
-        let stamp = self.table.trail.len();
-        let mut c = self.table.closed.borrow_mut();
-        if self.pool.has_infer(r) {
-            c.depend(self.deps.drain(mark..), t, stamp);
-            c.open.insert(t, (r, stamp));
-            c.log.push((stamp, t, true));
-            self.deps.push(Dep::Ty(t));
-        } else {
-            self.deps.truncate(mark);
-            c.map.insert(t, r);
-            c.log.push((stamp, t, false));
-        }
         r
     }
-    fn row(&mut self, r: crate::RowId) -> crate::RowId {
+}
+
+impl ResolvedChildren<'_, '_> {
+    fn row_keys(&mut self, r: crate::RowId) -> crate::RowId {
         let mut d = self.pool.row_data(r);
-        if !d.keys.iter().any(|k| self.pool.has_infer(*k)) {
-            return r;
-        }
-        d.keys = d.keys.iter().map(|k| self.ty(*k)).collect();
+        d.keys = d
+            .keys
+            .iter()
+            .map(|&k| {
+                crate::work::type_node();
+                crate::TyMap::ty(self, k)
+            })
+            .collect();
         self.pool.row(&d)
     }
 }
 
-/// Binds the unbound variables of a type to poison ([`InferTable::poison_vars`]).
-struct PoisonVars<'t, 'p> {
-    table: &'t mut InferTable,
-    pool: Types<'p>,
-}
-
-impl crate::TyMap for PoisonVars<'_, '_> {
+impl crate::TyMap for Resolve<'_, '_> {
     fn ty(&mut self, t: Ty) -> Ty {
+        enum Work {
+            Enter(Ty),
+            Finish(Ty, usize),
+        }
         let t = self.table.shallow(self.pool, t);
-        if let TyData::Infer(v) = self.pool.get(t) {
-            let root = self.table.root(v.raw());
-            self.table.binding[root as usize] = Some(Ty::POISON);
-            self.table.hold(root, holds::POISON);
-            self.table.trail.push(Undo::Bind(root));
-            self.table.kill(root);
-            return Ty::POISON;
+        if let Some(known) = self.known(t) {
+            return known;
         }
-        if self.pool.has_infer(t) {
-            self.pool.map_children(t, self)
-        } else {
-            t
-        }
+
+        let mut children = Vec::new();
+        hd_base::stack::all(Work::Enter(t), |work, stack| {
+            match work {
+                Work::Enter(t) => {
+                    let t = self.table.shallow(self.pool, t);
+                    if self.known(t).is_some() {
+                        return true;
+                    }
+                    crate::work::resolve_node();
+                    stack.push(Work::Finish(t, self.deps.len()));
+                    children.clear();
+                    match self.pool.get(t) {
+                        TyData::Fn {
+                            params,
+                            result,
+                            row,
+                            ..
+                        } => {
+                            children.extend_from_slice(self.pool.list_items(params));
+                            children.push(result);
+                            children.push(self.pool.intern_ty(&TyData::Row(row)));
+                        }
+                        TyData::Context(row) => {
+                            children.push(self.pool.intern_ty(&TyData::Row(row)));
+                        }
+                        _ => self.pool.children(t, &mut children),
+                    }
+                    stack.extend(children.iter().rev().map(|&c| Work::Enter(c)));
+                }
+                Work::Finish(t, mark) => {
+                    let mut ready = ResolvedChildren {
+                        table: self.table,
+                        pool: self.pool,
+                    };
+                    let r = if let TyData::Row(row) = self.pool.get(t) {
+                        self.pool.intern_ty(&TyData::Row(ready.row_keys(row)))
+                    } else {
+                        self.pool.map_children(t, &mut ready)
+                    };
+                    let stamp = self.table.trail.len();
+                    let mut c = self.table.closed.borrow_mut();
+                    if self.pool.has_infer(r) {
+                        c.depend(self.deps.drain(mark..), t, stamp);
+                        c.open.insert(t, (r, stamp));
+                        c.log.push((stamp, t, true));
+                        self.deps.push(Dep::Ty(t));
+                    } else {
+                        self.deps.truncate(mark);
+                        c.map.insert(t, r);
+                        c.log.push((stamp, t, false));
+                    }
+                }
+            }
+            true
+        });
+        crate::TyMap::ty(
+            &mut ResolvedChildren {
+                table: self.table,
+                pool: self.pool,
+            },
+            t,
+        )
     }
+
     fn row(&mut self, r: crate::RowId) -> crate::RowId {
+        let t = self.ty(self.pool.intern_ty(&TyData::Row(r)));
+        // ruled out: another constructor, since resolution preserves Row.
+        let TyData::Row(r) = self.pool.get(t) else {
+            unreachable!("resolved row")
+        };
         r
     }
 }
@@ -1016,6 +1119,255 @@ mod tests {
             panic!("a fresh variable");
         };
         v
+    }
+
+    #[test]
+    fn resolving_depth_1000_and_binding_open_types_fit_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let (gp, lp) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&gp, &lp);
+                for depth in [100, 1000] {
+                    let mut table = InferTable::default();
+                    let x = table.fresh(p, VarKind::General);
+                    let tuple = |t, n| {
+                        p.intern_ty(&TyData::Tuple {
+                            elems: p.list(&vec![t; n]),
+                            rest: None,
+                        })
+                    };
+                    let (mut open, mut closed) = (x, Ty::I32);
+                    for _ in 0..depth {
+                        open = tuple(open, 2);
+                        closed = tuple(closed, 2);
+                    }
+                    let (found, work) = crate::work::count_resolve_nodes(|| table.resolve(p, open));
+                    assert_eq!(found, open);
+                    assert_eq!(work, depth);
+                    for width in [100, 1000] {
+                        let root = tuple(open, width);
+                        let (found, work) =
+                            crate::work::count_resolve_nodes(|| table.resolve(p, root));
+                        assert_eq!(found, root);
+                        assert_eq!(work, 1, "shared children stay cached at either width");
+                    }
+                    let snapshot = table.snapshot();
+                    table.unify(p, x, Ty::I32).unwrap();
+                    let (found, work) = crate::work::count_resolve_nodes(|| table.resolve(p, open));
+                    assert_eq!(found, closed);
+                    assert_eq!(work, depth);
+                    assert_eq!(
+                        crate::work::count_resolve_nodes(|| table.resolve(p, open)),
+                        (closed, 0)
+                    );
+                    table.rollback(snapshot);
+                    assert_eq!(
+                        crate::work::count_resolve_nodes(|| table.resolve(p, open)),
+                        (open, 0)
+                    );
+                    // A bind calls resolve and the occurs check on an open
+                    // target, so stack safety must hold on that path too.
+                    let target = table.fresh(p, VarKind::General);
+                    table.unify(p, target, open).unwrap();
+                    assert_eq!(table.resolve(p, target), open);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn poison_at_depth_1000_fits_a_small_stack_and_preserves_rows() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let (gp, lp) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&gp, &lp);
+                for depth in [100, 1000] {
+                    let mut table = InferTable::default();
+                    let x = table.fresh(p, VarKind::General);
+                    let mut root = x;
+                    for _ in 0..depth {
+                        root = p.intern_ty(&TyData::Tuple {
+                            elems: p.list(&[root, root]),
+                            rest: None,
+                        });
+                    }
+                    let snapshot = table.snapshot();
+                    let (answer, work) =
+                        crate::work::count_type_nodes(|| table.unify(p, Ty::POISON, root));
+                    assert_eq!(answer, Ok(()));
+                    assert_eq!(work, depth + 1);
+                    assert_eq!(table.resolve(p, x), Ty::POISON);
+                    table.rollback(snapshot);
+                    assert_eq!(table.resolve(p, x), x);
+                }
+                let mut table = InferTable::default();
+                let x = table.fresh(p, VarKind::General);
+                let row_var = table.fresh(p, VarKind::General);
+                let row = p.row(&RowData {
+                    keys: vec![row_var],
+                    params: Vec::new(),
+                });
+                let root = p.intern_ty(&TyData::Fn {
+                    params: p.list(&[x]),
+                    result: x,
+                    row,
+                    suspends: false,
+                    inputs: Inputs::Fixed,
+                    deps: crate::FnDeps::NONE,
+                });
+                table.unify(p, root, Ty::POISON).unwrap();
+                assert_eq!(table.resolve(p, x), Ty::POISON);
+                assert_eq!(table.resolve(p, row_var), row_var);
+                for kind in [TyData::Row(row), TyData::Context(row)] {
+                    table.unify(p, p.intern_ty(&kind), Ty::POISON).unwrap();
+                    assert_eq!(table.resolve(p, row_var), row_var);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn resolving_and_poisoning_keep_every_holder_and_row_boundary() {
+        use hd_base::DefId;
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut table = InferTable::default();
+        let x = table.fresh(p, VarKind::General);
+        let forms = |x| {
+            let args = p.list(&[x]);
+            let row = p.row(&RowData {
+                keys: vec![x],
+                params: Vec::new(),
+            });
+            let def = DefId::from_raw(1);
+            [
+                TyData::Adt { def, args },
+                TyData::Tuple {
+                    elems: args,
+                    rest: Some(x),
+                },
+                TyData::Union(args),
+                TyData::Fn {
+                    params: args,
+                    result: x,
+                    row,
+                    suspends: true,
+                    inputs: Inputs::Fixed,
+                    deps: crate::FnDeps::NONE,
+                },
+                TyData::TraitValue {
+                    def,
+                    args,
+                    bindings: vec![(DefId::from_raw(2), x)],
+                },
+                TyData::Opaque {
+                    owner: def,
+                    site: 3,
+                    borrows: true,
+                    args,
+                    bound: x,
+                },
+                TyData::Assoc {
+                    assoc: DefId::from_raw(2),
+                    trait_: def,
+                    self_ty: x,
+                    args,
+                },
+                TyData::Ref {
+                    inner: x,
+                    mutable: true,
+                    counted: false,
+                },
+                TyData::Row(row),
+                TyData::Context(row),
+            ]
+            .map(|d| p.intern_ty(&d))
+        };
+        let (open, closed) = (forms(x), forms(Ty::I32));
+        for &t in &open {
+            assert_eq!(table.resolve(p, t), t);
+        }
+        let snapshot = table.snapshot();
+        table.unify(p, x, Ty::I32).unwrap();
+        for (&a, b) in open.iter().zip(closed) {
+            assert_eq!(table.resolve(p, a), b);
+        }
+        table.rollback(snapshot);
+        for &t in &open {
+            assert_eq!(table.resolve(p, t), t);
+        }
+        for (index, &t) in open.iter().enumerate() {
+            table.unify(p, t, Ty::POISON).unwrap();
+            assert_eq!(table.resolve(p, x), if index < 8 { Ty::POISON } else { x });
+            table.rollback(snapshot);
+        }
+    }
+
+    #[test]
+    fn resolving_shared_rows_indexes_their_keys_once() {
+        use hd_base::DefId;
+        for width in [100, 1000] {
+            let (gp, lp) = (InternPool::new(), LocalPool::new());
+            let p = Types::with_local(&gp, &lp);
+            let mut table = InferTable::default();
+            let x = table.fresh(p, VarKind::General);
+            let keys = (0..width)
+                .map(|i| {
+                    p.intern_ty(&TyData::TraitValue {
+                        def: DefId::from_raw(i + 1),
+                        args: p.list(&[x]),
+                        bindings: Vec::new(),
+                    })
+                })
+                .collect();
+            let row = p.row(&RowData {
+                keys,
+                params: Vec::new(),
+            });
+            let functions: Vec<_> = (0..width)
+                .map(|i| {
+                    p.intern_ty(&TyData::Fn {
+                        params: crate::TyList::EMPTY,
+                        result: p.intern_ty(&TyData::Adt {
+                            def: DefId::from_raw(i + 2000),
+                            args: crate::TyList::EMPTY,
+                        }),
+                        row,
+                        suspends: false,
+                        inputs: Inputs::Fixed,
+                        deps: crate::FnDeps::NONE,
+                    })
+                })
+                .collect();
+            let root = p.intern_ty(&TyData::Tuple {
+                elems: p.list(&functions),
+                rest: None,
+            });
+            let (found, work) = crate::work::count_type_nodes(|| table.resolve(p, root));
+            assert_eq!(found, root);
+            assert_eq!(work, 3 * u64::from(width) + 2);
+            assert_eq!(
+                crate::work::count_type_nodes(|| table.resolve(p, root)),
+                (root, 0)
+            );
+            let snapshot = table.snapshot();
+            table.unify(p, x, Ty::I32).unwrap();
+            let closed = table.resolve(p, root);
+            assert!(!p.has_infer(closed));
+            table.rollback(snapshot);
+            assert_eq!(
+                crate::work::count_type_nodes(|| table.resolve(p, root)),
+                (root, 0)
+            );
+        }
     }
 
     #[test]
