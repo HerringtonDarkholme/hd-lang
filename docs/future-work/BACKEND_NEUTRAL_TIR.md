@@ -61,15 +61,15 @@ a flag slot the emitter saves and reloads around the await. The emitter
 lays out the frame and writes the destructor, which has no TIR body.
 
 **End state, lines** (`wc -l` at 421bcec83; the plan's figures are in
-[Cost](#cost)):
+[Cost](#cost), re-priced from the call graph at ed579e47b):
 
 | Tree | Today | End state | Change |
 | --- | --- | --- | --- |
-| `crates/hd_wasm/src` | 72,379 | about 52,500 | −19,900 |
-| `crates/hd_tir/src` | 47,848 | about 55,290, plus step 3b's lifting | +7,445 |
-| `crates/hd_driver/src/own.rs` | 4,234 | about 3,700 | −550 |
-| a new crate, `hd_layout`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
-| **All four** | **124,461** | **about 115,950**, plus step 3b's lifting | **−8,505** |
+| `crates/hd_wasm/src` | 72,379 | about 57,760 | −14,620 |
+| `crates/hd_tir/src` | 47,848 | about 54,980, plus step 3b's lifting | +7,130 |
+| `crates/hd_driver/src/own.rs` | 4,234 | about 3,670 | −570 |
+| a new crate, `hd_layout`, and `hd_opt` growth | 0 | about 2,880 | +2,880 |
+| **All four** | **124,461** | **about 119,280**, plus step 3b's lifting | **−5,185** |
 
 ## Open questions
 
@@ -191,35 +191,61 @@ and the eight structures this design rejects.
 
 ## Cost
 
-Deletions are measured spans at 421bcec83. Additions are estimates;
-Appendix E gives each method. "Moved" lines change crate and are not
-counted as deleted. Each step deletes the path it replaces.
+Steps 0 to 2a are built. Steps 3 to 8 are re-priced from a resolved
+call graph at ed579e47b (lane 211; Appendix E, "Call graph"): deletions
+are measured non-test spans, additions are estimates with the method in
+Appendix E. "Moved" lines change crate and are not counted as deleted.
+Each step deletes the path it replaces. Rows are in landing order.
 
 | Step | Adds, and deletes | `hd_wasm` | `hd_tir` | Elsewhere | Net |
 | --- | --- | --- | --- | --- | --- |
 | 0 | #2166: the owned verifier's re-proofs (lane 204, done) | 0 | −365 | 0 | −365 |
-| 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
-| 2a | cancel blocks: each await gets a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go. Built (lane 210): +43 measured, not −35, since no await tag has a free word and a `cancel` column names the block; the totals still use −35 | −17 | +61 | −1 | +43 |
-| 2b | after step 5: scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` goes whole, its ladder also served step 5's argument-loan scopes | | | 0 | about 0 |
-| 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
-| 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −809, plus the lifting | 0 | priced when step 3 lands |
-| 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, most of `emit/count.rs` | −2,950 | +800 | 0 | −2,150 |
-| 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs` | −6,750 | +5,650 | 0 | −1,100 |
-| 6 | index guards as an optimization; `emit/guards.rs`, the list caches | −2,100 | −50 | `hd_opt` +1,550 | −600 |
-| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs` with step 2's destructor code, `susp_spill.rs`, `frame_referents.rs` | −2,850 | +1,600 | 0 | −1,250 |
-| 8 | `verify_lowered`; read modes in the backend, the dev and release split | −450 | +250 | `own.rs` −50 | −250 |
-| | **Total**, before 3b's lifting | **−19,900** | **+7,445** | **+3,950** | **−8,505** |
+| 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` (done) | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
+| 2a | cancel blocks: each await gets a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go (lane 210, done) | −17 | +61 | −1 | +43 |
+| 6 | index guards as an optimization; `emit/guards.rs`, the list caches, `stable_lists` | −1,841 | −71 | `hd_opt` +1,465 | −447 |
+| 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs`, the loan scopes in `scope.rs`, the loan reads in `count.rs` | −5,408 | +4,390 | 0 | −1,018 |
+| 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, `ReleasePlan`, the count decisions in `count.rs` | −401 | +850 | `hd_layout` −1,538 | −1,089 |
+| 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` passes, the flag tags | −1,150 | +267 | 0 | −883 |
+| 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −601, plus the lifting | 0 | priced when step 3 lands |
+| 2b | scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` | −228 | +245 | 0 | +17 |
+| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave | −2,505 | +1,600 | 0 | −905 |
+| 8 | `verify_lowered`; read modes in the backend, the dev and release split | −72 | +250 | `own.rs` −66 | +112 |
+| | **Total**, before 3b's lifting | **−14,622** | **+7,127** | **+2,310** | **−5,185** |
 
-**Where it grows, and why.** No step grows the compiler. Step 2 is split
-(lane 209, 2026-11-18): as first planned it measured about +330. The
-emitter's scope ladder also runs step 5's loan cleanup, and a started
-frame is cancelled in its poll body, not in the destructor. So 2a builds
-the cancel blocks now, and 2b lowers scopes after step 5. Steps 5 and 7 grow `hd_tir` by 7,250 lines and
-shrink the whole by 2,350. Step 5 moves analysis and rewrites the
-decisions the emitter makes while it emits: measured range −800 to
-−1,450 (Appendix E); the table uses −1,100. Step 7 is the least certain,
-between −800 and −1,600. Both are here because an LLVM backend would
-otherwise rewrite them.
+**Where it grows, and why.** Step 8 grows by about 112 lines and step
+2b by up to 62 (range −28 to +62). Step 8's old −450 counted
+`body_func`'s analysis calls, which steps 3, 4, 5 and 7 delete with
+their callees (28 references), and the 20 of 44 backend `ReadMode`
+references that sit in files steps 3 to 6 delete. What is left is 24
+`ReadMode` references against a 250-line verifier. Folding `verify_lowered` into the owned verifier's tag walk as
+a phase check (about +80) would make step 8 −58. Step 2b's high end is
+lane 209's measured plan for step 2 less what 2a built.
+
+The earlier total, −8,505, was stale: its rows summed to −7,780. The
+re-priced total is −5,185. The gap, step by step:
+
+- **Test lines.** Steps 3, 4, 6 and 7 counted whole files with their
+  tests; step 5 did not. That is 1,065 lines: `walk_plan*` 586,
+  `guards.rs` 258, `frame_referents.rs` 108, `own/drop_flags.rs` 59,
+  `susp.rs` 54.
+- **Shared files.** `count.rs` serves steps 4, 5 and 7 and keeps 443
+  lines of primitives; `scope.rs` serves 2b, 5 and 7; `borrow.rs` holds
+  the frame's loan code. As in step 2, the ladder of one step runs
+  another step's work. Appendix E lists the split.
+- **Suspension counts stay until step 7.** `susp.rs` reads stated counts
+  at `FrameDrop`, `Cold` and `Materialize` 11 times. No TIR body holds
+  those points until step 7 makes the poll and destroy bodies, so 101
+  lines of `count.rs` move from step 4 to step 7.
+- **Step 3 reuses what it was to delete.** Elaboration keeps
+  `MovePaths` (165), and `settled` keeps `boundary_inputs` (37).
+- **Adapters.** +85 lines that step 7 deletes: `frame_referents`
+  over layouts (+45, step 4), the cold destructor's loan ends (+30,
+  step 5), the cancel exit of a suspension point (+10, step 2b).
+
+Steps 5 and 7 grow `hd_tir` by 5,990 lines and shrink the whole by
+1,923. Step 5 moves analysis and rewrites the decisions the emitter makes
+while it emits: range −838 to −1,198; the table uses −1,018. Both are
+here because an LLVM backend would otherwise rewrite them.
 
 No language rule, intrinsic or syntax is added.
 
@@ -493,21 +519,22 @@ fallback, exact keys first, recorded reads, client-side instances.
 ## Appendix E. Details
 
 **Step notes.** Each step is a few commits. Each commit deletes the
-path it replaces and names its reference implementation.
+path it replaces and names its reference implementation. Rows 2b to 8
+are measured at ed579e47b in non-test lines (lane 211).
 
 | Step | Measured deletions | Estimated additions and their method |
 | --- | --- | --- |
 | 0 | the owned verifier's re-proofs: −365 net (lane 204: the checks that re-run their pass's own predicate, and `verify_instance` folded in; `counts::verify` stays while about 30 tests use it) | none |
-| 3b | `ir/local_fns.rs` 809 (601 code, 208 tests). Folding it onto `ir::copy` measured only about −60 (lane 204), since the copy is already shared | lifting: each generic local function becomes its own body keyed by (enclosing item, sub-body), with the enclosing type parameters plus its own, and its captures as parameters, boxed when mutated (step 3's `Box`). `hd_mono::instantiate` then specializes it like any generic function. Priced by a probe once step 3 lands. |
+| 3b | `ir/local_fns.rs` 809 (601 non-test, 208 tests). Folding it onto `ir::copy` measured only about −60 (lane 204), since the copy is already shared | lifting: each generic local function becomes its own body keyed by (enclosing item, sub-body), with the enclosing type parameters plus its own, and its captures as parameters, boxed when mutated (step 3's `Box`). `hd_mono::instantiate` then specializes it like any generic function. Priced by a probe once step 3 lands. |
 | 1 | memo scopes 257; `hd_wasm/lib.rs` driver wrappers 257; `own.rs` fallback 73; `TypeTable` 229 and about 2,000 of `layout.rs` and 594 of cycle code move | interner and target +150 (one arena and one map); enum and suspending memory locals +200 (the frame-block path in `indirect.rs` is 180); `own/parts.rs` 459 becomes shared move paths, about 350 |
 | 2a | `unwind_drops` and `release_unwound` (lane 209 measured) | each await's cancel block, built with the body as rustc's MIR builder does (`yield(..) -> [resume: bbN, drop: bbM]`, checked with `rustc --emit=mir`), filled by `own::known` |
-| 2b | `emit/scope.rs` 358, after step 5 moves the argument-loan cleanup scopes it also runs (`borrow.rs` `cleanup_flags`, `cleanup_loans`) | scope lowering to flag locals and blocks; rustc has no exit-code local, its drop tree gives each exit its own path |
-| 3 | cell functions in `closure.rs` 476; `promote.rs` 286 less about 45 of lowering; `emit/drop_flags.rs` 473; `own/drop_flags.rs` 467; hook guards in `value.rs` 178 | storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467; the analysis exists in `own/storage.rs`); elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays); 55 `is_cell` sites at about 3 lines; the `Box` tag +70 (the tag row below) |
-| 4 | `Walk` and `ReleasePlan` 585; `walk_plan*` 1,664 | shim builder +450 (`ReleasePlan::new`, `walk_one` and `switch_walk_by` total 100; a TIR writer and trace glue around them); count lowering +300; `emit/count.rs` keeps about 500 of 1,203; shim keys +100 (the generated-body row below) |
-| 5 | `loan_facts.rs` 335; `ref_slots.rs` 382; cell and frame coupling in `borrow.rs` 274; `Origin*` types in `excl.rs` 243 | split by whether a function touches the Wasm `Func` (non-test lines): `excl.rs` 2,621, all analysis; `borrow.rs` 2,526, analysis 1,322 and emission 1,105. The analysis moves, about 3,700 after `Origin*`; about 600 lines of decisions made while emitting are rewritten as statement insertion at 0.6 to 1.2 times, 360 to 720; moved tests 1,100 to 1,390; two tags 140. So `hd_tir` +5,300 to +5,950, the backend keeps about 500 (its check and state code is 206 today), and the step nets −800 to −1,450 |
-| 6 | emitter-side application in `guards.rs` 376; the file's other 1,572 lines move to `hd_opt` | list caches −150 (7 `Em` fields and their readers) |
-| 7 | `susp.rs` 2,112; `susp_spill.rs` 148; `frame_referents.rs` 259; `suspension_work.rs` 48 | coroutine lowering +1,550 (`susp.rs` has 2,029 non-test lines; rustc's transform is about 2,000); poll and destroy keys +50 |
-| 8 | `generic_inlined` 17 | `verify_lowered` +250 (`ir/instance.rs` is 333); 34 `ReadMode` sites and `body_func`'s analysis calls, about −450 |
+| 6 | `guards.rs` 1,691 non-test, of which the emitter-side application is 376 and 1,315 move to `hd_opt`; `stable_lists` column 21 (a removed column) | list caches −150 and `hoist.rs` −50 (estimates); `hd_opt` +1,465: the moved lines at 1:1, the proof's application as a statement deletion +150 (0.4 of 376) |
+| 5 | `excl.rs` 2,620; `borrow.rs` 2,525; `loan_facts.rs` 335; `ref_slots.rs` 220; `scope.rs` `loan_scope_begin`/`end` 26 and the call in `scope` 3; `count.rs` `prepare_own_loans` and `input_carriers` 167 and 12 loan lines in its exit code; about 30 kept loan calls | analysis moved to `hd_tir` 3,700 (`excl.rs` and `borrow.rs`'s 1,322 of analysis, less `Origin*`); about 600 lines of decisions made while emitting, rewritten as statement insertion at 0.6 to 1.2, 360 to 720; `LoanBegin` and `Access` 140; backend emission 500 (its check and state code is 206 today); cache key 10; adapter +30: the cold destructor ends its captures' loans by `LoanEnd` emission, replacing 63 lines of `borrow.rs` it calls today, until step 7. Net −838 to −1,198 |
+| 4 | `count.rs` 362: its 33 decision functions (475) less 81 of suspension-boundary readers and 20 of `release_all_inner` kept for step 7, less 12 gone with step 5; `walk_plan.rs` 733 and `walk_plan/semantics.rs` 345 (`oracle.rs` is test-only); `Walk`, `WalkKind`, `ReleasePlan`, `ReleaseStep` and their builders in `hd_layout/src/lib.rs` 460; 24 count calls in step 3, 2b and 7 code; about 60 vanishing kept calls (`take`, `settle`, `operation_count`) | shim builder +450 (`ReleasePlan::new`, `walk_one` and `switch_walk_by` total 100; a TIR writer and trace glue around them); count lowering +300; shim keys +100 (the generated-body row below); adapter +45: `frame_referents::leaves` over `Layout::fields`, until step 7. `count.rs` keeps 443 lines of primitives. `Walk`'s 73 users in `rt.rs`, `map.rs`, `task.rs`, `boundary.rs`, `views.rs` and others move onto shim calls at 1:1; their walk interpreters, about 236 lines, may shrink further |
+| 3 | `closure.rs` cell functions 364 less 12 gone with step 4; `emit/drop_flags.rs` 473 less 3; `own/drop_flags.rs` 408 less `MovePaths` 165, which elaboration reuses; `promote.rs` 169 less `boundary_inputs` 37, which moves to the driver with `settled`; hook guards in `value.rs` 184; `is_cell` at 26 sites, 78; the cold destructor's flag save, select and reload in `susp.rs` 14; flag tags 60; `Body::storage` and `full_cells` 150 (lane 210) | lane 210's plan: `Box` tag +70, storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467), elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays), emitter `Box` lowering +80 |
+| 2b | `emit/scope.rs` 238: the 2b set 271 less `ready_frame` 24, kept for step 7, 6 gone with step 4 and 3 with step 5 | scope lowering +200 (the 271-line ladder rewritten at 0.75; rustc's drop tree gives each exit its own path) to +290 (lane 209's +330 plan for all of step 2, less 2a's 61); adapter +10: a point's cancel exit branches to its cancel block, until step 7 |
+| 7 | `susp.rs` 2,042 (2,058 less 14, 3 and 63 gone with steps 3, 4 and 5, plus the 64 lines of adapters and `ready_frame` that steps 5 and 2b leave there); `count.rs` suspension readers 101; `susp_spill.rs` 148; `frame_referents.rs` 151; `suspension_work.rs` 48; about 15 kept calls | coroutine lowering +1,550 (`susp.rs` has 2,029 non-test lines; rustc's transform is about 2,000); poll and destroy keys +50 |
+| 8 | `generic_inlined` 16; 24 `ReadMode` references left in `hd_wasm`, about 3 lines each; `own.rs` 50 | `verify_lowered` +250 (`ir/instance.rs` is 333) |
 
 **Plumbing, counted.** Past steps missed this by 300 to 450 lines.
 
@@ -574,7 +601,7 @@ backend asks for the scalars of a `Scalars` type only, at most 16. A
 | Layout work | per scalar leaf; exponential for a doubling type | per distinct type; one probe per query |
 | Warm dev build, no edit | one key probe per instance | the same; the store holds the lowered form (decision 7) |
 | Runtime, Wasm size | baseline | bench gate per step, measured against 421bcec83 so the caps never compound: output equal, size within 0.5%, time within 2% |
-| Web compiler gzip (2.6 MB cap) | baseline | smaller: about 8,300 fewer lines linked |
+| Web compiler gzip (2.6 MB cap) | baseline | smaller: about 5,200 fewer lines linked |
 | Accumulated state | no per-instance work scales with it | the same; the never-lent set stays one link-time pass |
 
 **Order of the lowerings.** Scopes run first, so a suite is a block and
@@ -583,9 +610,48 @@ boxed with its root. Counts and loans run before the coroutine pass, so
 the destroy body gets their statements per state. Storage runs before
 the coroutine pass, so a box address is a saved local.
 
-The steps land in another order. Each step's old path must be gone when
-it lands, and a flag can't be a plain local while the emitter still
-writes the destructor's drops.
+The steps land in another order: 6, 5, 4, 3, 3b, 2b, 7, 8. Each step's
+old path must be gone when it lands, so the order follows the call graph
+below. Step 6 has no caller outside kept code. Step 5 goes before 4 and
+3, since `count.rs` calls the loan code and `borrow.rs` the cell code.
+Step 4 goes before 3, since `count.rs` calls the cells and drop flags 18
+times, while the cell code's 8 count calls vanish once counts are
+statements. Step 3b needs step 3's `Box`. Step 2b goes after 5, which
+takes the loan scopes, and before 7, since a resume must not enter a
+`Scope` in its middle. Step 7 goes after 4, 5 and 2b. A flag may be a
+plain local while the emitter writes the destructor: the destructor
+releases only a cold frame (a started frame is never freed, #1430), whose
+parameters' flags `save_initial_drop_flags` sets to 1, so step 3 deletes
+the frame's flag save, select and reload.
+
+**Call graph** (lane 211, at ed579e47b). For each item a step deletes,
+its callers, resolved to definitions by rust-analyzer: 621 items, 1,956
+edges. An edge conflicts when its caller's step lands later. In the
+order above:
+
+| Deleted by | Called from | Refs | Resolution |
+| --- | --- | --- | --- |
+| 3 (cells, drop flags) | 4, 5, 6 | 30 | reorder: those steps land first and delete the callers |
+| 3 (`is_cell`, `new_cell`, the frame's flag save) | 7, `susp.rs` `finish` | 7 | step 3 deletes the calls, 14 lines: a box is a plain counted local, and a cold frame's flags are 1 |
+| 4 (count decisions) | 3, the cell and flag code | 5 | step 4 deletes the calls: the count is a statement around the access |
+| 4 (`Walk`) | 3, `cell_mem`, `cell_walk`, `drop_inline_flags` | 3 | step 4 rewrites them as shim calls, 1:1 |
+| 4 (`settle`, `store_owned`) | 7, the await code | 6 | step 4 deletes or replaces the calls |
+| 4 (`stated_count`, `exit_owners`, `count_local`, ...) | 7, `finish`, `count_point_ref` | 18 | kept until step 7: 101 lines of `count.rs` |
+| 4 (`Walk`, `WalkKind`) | 7, `frame_referents.rs` | 11 | adapter +45 over `Layout::fields`, deleted by step 7 |
+| 4 (`take`, `retain_ref`, `settle_value`) | 2b, `ret_value` | 3 | step 4 deletes the calls |
+| 5 (`borrow_*`) | 4, the exit and read code in `count.rs` | 6 | step 5 deletes its 12 lines there |
+| 5 (`borrow_scope_end`) | 2b, `scope` | 1 | step 5 deletes the call with the loan scopes |
+| 5 (`borrow_abandon`, `own_caps`, ...) | 7, `finish` | 5 | adapter +30 by `LoanEnd` emission, deleted by step 7 |
+| 2b (`Exit`, `exit`) | 7, `point` | 3 | adapter +10: branch to the cancel block, deleted by step 7 |
+| 7 (`FRAME`, `free_own_frame`, `leave_cancelled`, ...) | 2b, 3, 4, 5 | 18 | none: the callers go first; `ready_frame` (24) and `release_all_inner`'s waker and frame-referent lines (20) stay until step 7 |
+| 8 (`ReadMode`) | 3, 4, 5, 6 | 20 | none: step 8 lands last |
+
+In the design's order (3, 3b, 4, 5, 2b, 6, 7, 8), 47 of the 78 edge
+groups conflicted. In this order 41 do: 24 are calls the deleting step
+removes, 9 are the three adapters and 8 are the readers kept until step
+7. Kept callers are rewritten inside their step: 380
+references for step 4 (151 to `count.rs`, 73 to `Walk` in `hd_wasm`),
+104 for step 3, 56 for step 5.
 
 **Checklist.**
 
@@ -614,7 +680,16 @@ writes the destructor's drops.
 - sites: `rg -o '\.leaves\b' crates/hd_wasm/src | wc -l`,
   `rg -o 'Tag::' crates/hd_wasm/src | wc -l`, and `rg -c` of a module's
   function names for its callers;
-- history: `git show --numstat <commit> -- 'crates/**/*.rs'`.
+- history: `git show --numstat <commit> -- 'crates/**/*.rs'`;
+- the call graph (lane 211, at ed579e47b): `rust-analyzer lsif .`
+  (rust-analyzer 1.97.1) resolves each reference to its definition;
+  `ast-grep scan` with a rule matching `function_item`, `struct_item`,
+  `enum_item`, `const_item`, `impl_item` and `mod_item` gives every
+  item's span; a reference's caller is its innermost enclosing `fn`, and
+  one inside a test module is dropped; a scratch script joins them with
+  each step's deleted items;
+- re-priced spans: non-test lines, an item from its first `///` or `#[`
+  line to its end, by a scratch script over the `ast-grep` spans.
 
 **Parse log.** The two `text` blocks parse with
 `scripts/hd-conformance.sh parse`, and the first passes `hd check`.
