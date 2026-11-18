@@ -455,62 +455,16 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
     out
 }
 
-/// Each node's strongly connected component (Tarjan's algorithm, without
-/// recursion).
-fn components(succ: &[Vec<usize>], edges: &[&Edge], ids: &HashMap<Node, usize>) -> Vec<usize> {
-    const UNSEEN: usize = usize::MAX;
-    let n = succ.len();
-    let mut index = vec![UNSEEN; n];
-    let mut low = vec![0; n];
-    let mut on_stack = vec![false; n];
-    let mut comp = vec![UNSEEN; n];
-    let mut stack = Vec::new();
-    let mut next = 0;
-    let mut comps = 0;
-    for root in 0..n {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        // (node, position in its successor list)
-        let mut work = vec![(root, 0)];
-        index[root] = next;
-        low[root] = next;
-        next += 1;
-        stack.push(root);
-        on_stack[root] = true;
-        while let Some(&mut (v, ref mut k)) = work.last_mut() {
-            if let Some(&e) = succ[v].get(*k) {
-                *k += 1;
-                let w = ids[&edges[e].to];
-                if index[w] == UNSEEN {
-                    index[w] = next;
-                    low[w] = next;
-                    next += 1;
-                    stack.push(w);
-                    on_stack[w] = true;
-                    work.push((w, 0));
-                } else if on_stack[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            work.pop();
-            if let Some(&(u, _)) = work.last() {
-                low[u] = low[u].min(low[v]);
-            }
-            if low[v] == index[v] {
-                while let Some(w) = stack.pop() {
-                    on_stack[w] = false;
-                    comp[w] = comps;
-                    if w == v {
-                        break;
-                    }
-                }
-                comps += 1;
-            }
-        }
-    }
-    comp
+/// Each node's strongly connected component ([`hd_base::scc`]).
+fn components(succ: &[Vec<usize>], edges: &[&Edge], ids: &HashMap<Node, usize>) -> Vec<u32> {
+    let sccs = hd_base::scc::sccs(succ.len(), |v, out| {
+        out.extend(
+            succ[v as usize]
+                .iter()
+                .map(|&e| hd_base::scc::node(ids[&edges[e].to])),
+        );
+    });
+    sccs.comp
 }
 
 /// The edges of a shortest path from `from` to `to`, empty when they are

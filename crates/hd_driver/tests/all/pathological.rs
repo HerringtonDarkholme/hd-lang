@@ -464,6 +464,30 @@ fn alias_chain_header_types_grow_linearly() {
     );
 }
 
+// Resolver: #2135, the alias and supertrait components are one iterative
+// walk (`hd_base::scc`). Declared top first, a 20,000-alias chain is a
+// 20,000-deep walk from its first item: it checks on a 256 KiB stack.
+#[test]
+fn a_top_first_alias_chain_checks_on_a_small_stack() {
+    std::thread::Builder::new()
+        .stack_size(256 << 10)
+        .spawn(|| {
+            let n = 20_000;
+            let mut src = String::new();
+            for i in (1..=n).rev() {
+                let _ = writeln!(src, "type A{i} = List[A{}]", i - 1);
+            }
+            let _ = writeln!(src, "type A0 = i32\nfn f(x: A{n}) -> A{n}: x");
+            let out = compile(&src, &Goal::Analyze);
+            let mut codes: Vec<&str> = out.diags.code.iter().map(|c| c.as_str()).collect();
+            codes.dedup();
+            assert_eq!(codes, ["type-too-large"], "{}", out.render());
+        })
+        .expect("thread")
+        .join()
+        .expect("no stack overflow");
+}
+
 // Checker: #1825, a public alias chain's interface and signature walks
 // (`InterfaceCheck`, `ItemCheck::private_in`) keep each type's answer
 // across the items of a pass, with their own stacks, so each alias costs

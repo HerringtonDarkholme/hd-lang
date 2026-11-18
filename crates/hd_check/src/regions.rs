@@ -216,84 +216,31 @@ impl Constraints {
             adj[at[e.from as usize] as usize] = e.to;
             at[e.from as usize] += 1;
         }
-        let (comp, order, starts) = tarjan(&off, &adj);
-        let mut values = vec![Loans::default(); starts.len() - 1];
+        let sccs = hd_base::scc::sccs(n, |v, out| {
+            out.extend_from_slice(&adj[off[v as usize] as usize..off[v as usize + 1] as usize]);
+        });
+        let mut values = vec![Loans::default(); sccs.len()];
         for &(r, l) in &self.seeds {
-            values[comp[r as usize] as usize].insert(l);
+            values[sccs.comp[r as usize] as usize].insert(l);
         }
         // Tarjan finishes a component after every component it reaches, so
         // the highest number is a source: union along edges from there.
         for c in (0..values.len()).rev() {
             let (lo, hi) = values.split_at_mut(c);
-            for &r in &order[starts[c] as usize..starts[c + 1] as usize] {
+            for &r in sccs.members(c) {
                 for &t in &adj[off[r as usize] as usize..off[r as usize + 1] as usize] {
-                    let d = comp[t as usize] as usize;
+                    let d = sccs.comp[t as usize] as usize;
                     if d != c {
                         lo[d].union(&hi[0]);
                     }
                 }
             }
         }
-        Solution { comp, values }
-    }
-}
-
-/// Iterative Tarjan: each region's component, numbered in finishing order,
-/// and the regions grouped by component (`order[starts[c]..starts[c + 1]]`).
-fn tarjan(off: &[u32], adj: &[Region]) -> (Vec<u32>, Vec<Region>, Vec<u32>) {
-    const NONE: u32 = u32::MAX;
-    let n = off.len() - 1;
-    let (mut index, mut low, mut comp) = (vec![NONE; n], vec![0; n], vec![NONE; n]);
-    let (mut stack, mut order, mut starts) = (Vec::new(), Vec::with_capacity(n), vec![0]);
-    // Each frame: a region and the position of its next out-edge.
-    let mut frames: Vec<(Region, u32)> = Vec::new();
-    for root in 0..ix(n) {
-        let mut next = Some(root);
-        loop {
-            if let Some(v) = next.take() {
-                if index[v as usize] != NONE {
-                    break;
-                }
-                // Every visited region is on the stack or already in `order`.
-                let k = ix(stack.len() + order.len());
-                (index[v as usize], low[v as usize]) = (k, k);
-                stack.push(v);
-                frames.push((v, off[v as usize]));
-            }
-            let Some(&mut (v, ref mut i)) = frames.last_mut() else {
-                break;
-            };
-            let v = v as usize;
-            if *i < off[v + 1] {
-                let w = adj[*i as usize];
-                *i += 1;
-                if index[w as usize] == NONE {
-                    next = Some(w);
-                } else if comp[w as usize] == NONE {
-                    // Still on the stack.
-                    low[v] = low[v].min(index[w as usize]);
-                }
-                continue;
-            }
-            frames.pop();
-            if let Some(&(p, _)) = frames.last() {
-                low[p as usize] = low[p as usize].min(low[v]);
-            }
-            if low[v] == index[v] {
-                let c = ix(starts.len() - 1);
-                // Tarjan's pop: the component is the stack down to `v`.
-                while let Some(x) = stack.pop() {
-                    comp[x as usize] = c;
-                    order.push(x);
-                    if x as usize == v {
-                        break;
-                    }
-                }
-                starts.push(ix(order.len()));
-            }
+        Solution {
+            comp: sccs.comp,
+            values,
         }
     }
-    (comp, order, starts)
 }
 
 impl Solution {

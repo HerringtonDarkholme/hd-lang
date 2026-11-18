@@ -12,6 +12,7 @@ pub mod hash;
 pub mod limits;
 pub mod lines;
 pub mod path;
+pub mod scc;
 pub mod sort;
 pub mod stable;
 pub mod unsupported;

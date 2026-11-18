@@ -1070,58 +1070,13 @@ fn decide_component(
 }
 
 /// The strongly connected components of the graph with `edges`, each a
-/// list of node numbers, every component after the ones it reaches:
-/// Tarjan's algorithm on a work stack, each node and edge visited once.
+/// list of node numbers, every component after the ones it reaches
+/// ([`hd_base::scc`]).
 fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    const UNSEEN: usize = usize::MAX;
-    let n = edges.len();
-    let mut index = vec![UNSEEN; n];
-    let mut low = vec![0; n];
-    let mut on_stack = vec![false; n];
-    let mut stack = Vec::new();
-    let mut path: Vec<(usize, usize)> = Vec::new();
-    let mut out = Vec::new();
-    let mut count = 0;
-    for root in 0..n {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        let mut next = Some(root);
-        loop {
-            if let Some(v) = next.take() {
-                index[v] = count;
-                low[v] = count;
-                count += 1;
-                stack.push(v);
-                on_stack[v] = true;
-                path.push((v, 0));
-            }
-            let Some(top) = path.last_mut() else { break };
-            let v = top.0;
-            if let Some(&w) = edges[v].get(top.1) {
-                top.1 += 1;
-                if index[w] == UNSEEN {
-                    next = Some(w);
-                } else if on_stack[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            path.pop();
-            if low[v] == index[v] {
-                let at = stack.iter().rposition(|&x| x == v).unwrap_or(0);
-                let comp = stack.split_off(at);
-                for &x in &comp {
-                    on_stack[x] = false;
-                }
-                out.push(comp);
-            }
-            if let Some(&(parent, _)) = path.last() {
-                low[parent] = low[parent].min(low[v]);
-            }
-        }
-    }
-    out
+    let sccs = hd_base::scc::sccs_of(edges);
+    (sccs.iter())
+        .map(|m| m.iter().map(|&x| x as usize).collect())
+        .collect()
 }
 
 #[cfg(test)]

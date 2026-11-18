@@ -1011,66 +1011,18 @@ impl Plan {
 }
 
 /// The strongly connected components of `edges` restricted to the nodes
-/// `include` keeps, each after every component it reaches (Tarjan's
-/// algorithm with an explicit stack).
+/// `include` keeps, each after every component it reaches
+/// ([`hd_base::scc`]); a component's members in the order Tarjan pops them.
 fn components(edges: &[Vec<u32>], include: &[bool]) -> Vec<Vec<u32>> {
-    let n = edges.len();
-    let mut index = vec![usize::MAX; n];
-    let mut low = vec![0; n];
-    let mut on_stack = vec![false; n];
-    let mut stack = Vec::new();
-    let mut next = 0;
-    let mut out = Vec::new();
-    for root in 0..n {
-        if index[root] != usize::MAX || !include[root] {
-            continue;
-        }
-        index[root] = next;
-        low[root] = next;
-        next += 1;
-        stack.push(root);
-        on_stack[root] = true;
-        let mut work = vec![(root, 0)];
-        while let Some(&(v, i)) = work.last() {
-            if let Some(&w) = edges[v].get(i) {
-                if let Some(top) = work.last_mut() {
-                    top.1 += 1;
-                }
-                let w = w as usize;
-                if !include[w] {
-                    continue;
-                }
-                if index[w] == usize::MAX {
-                    index[w] = next;
-                    low[w] = next;
-                    next += 1;
-                    stack.push(w);
-                    on_stack[w] = true;
-                    work.push((w, 0));
-                } else if on_stack[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            work.pop();
-            if let Some(&(u, _)) = work.last() {
-                low[u] = low[u].min(low[v]);
-            }
-            if low[v] != index[v] {
-                continue;
-            }
-            let mut component = Vec::new();
-            while let Some(w) = stack.pop() {
-                on_stack[w] = false;
-                component.push(u32::try_from(w).unwrap_or(u32::MAX));
-                if w == v {
-                    break;
-                }
-            }
-            out.push(component);
-        }
-    }
-    out
+    let roots = (0..edges.len())
+        .filter(|&v| include[v])
+        .map(hd_base::scc::node);
+    let sccs = hd_base::scc::sccs_from(edges.len(), roots, |v, out| {
+        out.extend(edges[v as usize].iter().filter(|&&w| include[w as usize]));
+    });
+    sccs.iter()
+        .map(|m| m.iter().rev().copied().collect())
+        .collect()
 }
 
 fn plan(cx: &BodyCx<'_>) -> std::sync::Arc<Plan> {

@@ -7735,64 +7735,18 @@ fn cut_edges(pool: &InternPool, supers: &mut Vec<Ty>, cut: &[DefId]) {
     }
 }
 
-/// The strongly connected components of a graph (Tarjan's algorithm),
-/// each after every component it reaches: dependencies first. Members of
-/// a component are in index order.
+/// The strongly connected components of a graph ([`hd_base::scc`]), each
+/// after every component it reaches: dependencies first. Members of a
+/// component are in index order.
 fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    struct St<'e> {
-        edges: &'e [Vec<usize>],
-        index: Vec<Option<usize>>,
-        low: Vec<usize>,
-        on: Vec<bool>,
-        stack: Vec<usize>,
-        next: usize,
-        out: Vec<Vec<usize>>,
-    }
-    fn visit(st: &mut St<'_>, v: usize) {
-        st.index[v] = Some(st.next);
-        st.low[v] = st.next;
-        st.next += 1;
-        st.stack.push(v);
-        st.on[v] = true;
-        for &w in &st.edges[v] {
-            match st.index[w] {
-                None => {
-                    visit(st, w);
-                    st.low[v] = st.low[v].min(st.low[w]);
-                }
-                Some(iw) if st.on[w] => st.low[v] = st.low[v].min(iw),
-                Some(_) => {}
-            }
-        }
-        if Some(st.low[v]) == st.index[v] {
-            let mut comp = Vec::new();
-            while let Some(w) = st.stack.pop() {
-                st.on[w] = false;
-                comp.push(w);
-                if w == v {
-                    break;
-                }
-            }
+    let sccs = hd_base::scc::sccs_of(edges);
+    (sccs.iter())
+        .map(|m| {
+            let mut comp: Vec<usize> = m.iter().map(|&x| x as usize).collect();
             comp.sort_stable();
-            st.out.push(comp);
-        }
-    }
-    let n = edges.len();
-    let mut st = St {
-        edges,
-        index: vec![None; n],
-        low: vec![0; n],
-        on: vec![false; n],
-        stack: Vec::new(),
-        next: 0,
-        out: Vec::new(),
-    };
-    for v in 0..n {
-        if st.index[v].is_none() {
-            visit(&mut st, v);
-        }
-    }
-    st.out
+            comp
+        })
+        .collect()
 }
 
 /// The placement error of an implementation head, if it is outside its

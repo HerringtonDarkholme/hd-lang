@@ -297,7 +297,7 @@ pub fn is_flag_method(env: &dyn ProgramEnv, item: DefId, args: TyList) -> bool {
 /// The flag nodes of `0..n` on a cycle of `edges`, where node `n` is the
 /// virtual node of dynamic calls, which reaches every flag. Only a flag
 /// can be on a reported cycle, and a walk from it finds every cycle
-/// through it, so the walk ([`components`]) starts at flags alone.
+/// through it, so the walk ([`hd_base::scc`]) starts at flags alone.
 /// `work` counts the nodes entered and the edges followed, for the cost
 /// test.
 fn coinductive_cycles(
@@ -309,98 +309,22 @@ fn coinductive_cycles(
     let virt = word(n);
     let flags: Vec<u32> = (0..virt).filter(|&i| flag[i as usize]).collect();
     let mut cyclic = vec![false; n];
-    let mut succ = |v: u32, out: &mut Vec<u32>| {
+    let sccs = hd_base::scc::sccs_from(n + 1, flags.iter().copied(), |v, out| {
         if v == virt {
             out.extend_from_slice(&flags);
         } else {
             edges(v, out);
         }
-    };
-    components(n + 1, &flags, &mut succ, work, &mut |members, looped| {
+    });
+    *work += sccs.work;
+    for (c, members) in sccs.iter().enumerate() {
         for &m in members {
             if m != virt {
-                cyclic[m as usize] = looped && flag[m as usize];
-            }
-        }
-    });
-    cyclic
-}
-
-/// The strongly connected components of the graph `edges` gives over
-/// nodes `0..n` that `roots` reach, each passed to `emit` with whether it
-/// is a cycle (more than one member, or a member calling itself). A
-/// component is emitted after every component it reaches, callees first.
-/// An iterative Tarjan walk (Tarjan 1972, in the shape of rustc's
-/// `rustc_data_structures::graph::scc`): dense per-node arrays, one
-/// explicit frame stack whose successor lists share one buffer, each node
-/// entered once and each edge followed once, no native recursion. `work`
-/// counts the nodes entered and the edges followed.
-fn components(
-    n: usize,
-    roots: &[u32],
-    edges: &mut dyn FnMut(u32, &mut Vec<u32>),
-    work: &mut u64,
-    emit: &mut dyn FnMut(&[u32], bool),
-) {
-    const UNSEEN: u32 = u32::MAX;
-    let mut index = vec![UNSEEN; n];
-    let mut low = vec![0u32; n];
-    let mut on_stack = vec![false; n];
-    let mut stack: Vec<u32> = Vec::new();
-    // Per frame: its node, its next successor, and the range of its
-    // successors in `succ`; a child's range follows its parent's.
-    let mut frames: Vec<(u32, usize, usize, usize)> = Vec::new();
-    let mut succ: Vec<u32> = Vec::new();
-    let mut next = 0u32;
-    for &root in roots {
-        if index[root as usize] != UNSEEN {
-            continue;
-        }
-        let mut pending = Some(root);
-        loop {
-            if let Some(v) = pending.take() {
-                *work += 1;
-                index[v as usize] = next;
-                low[v as usize] = next;
-                next += 1;
-                stack.push(v);
-                on_stack[v as usize] = true;
-                let from = succ.len();
-                edges(v, &mut succ);
-                frames.push((v, from, from, succ.len()));
-            }
-            let Some(&mut (v, ref mut at, from, end)) = frames.last_mut() else {
-                break;
-            };
-            if *at < end {
-                let w = succ[*at];
-                *at += 1;
-                *work += 1;
-                if index[w as usize] == UNSEEN {
-                    pending = Some(w);
-                } else if on_stack[w as usize] {
-                    low[v as usize] = low[v as usize].min(index[w as usize]);
-                }
-                continue;
-            }
-            if low[v as usize] == index[v as usize] {
-                // ruled out: Tarjan's invariant keeps a node on the stack
-                // until its component closes, and `v` closes it here.
-                let at = stack.iter().rposition(|&m| m == v).unwrap_or(0);
-                let looped = stack.len() - at > 1 || succ[from..end].contains(&v);
-                for &m in &stack[at..] {
-                    on_stack[m as usize] = false;
-                }
-                emit(&stack[at..], looped);
-                stack.truncate(at);
-            }
-            frames.pop();
-            succ.truncate(from);
-            if let Some(&(parent, ..)) = frames.last() {
-                low[parent as usize] = low[parent as usize].min(low[v as usize]);
+                cyclic[m as usize] = sccs.cyclic(c) && flag[m as usize];
             }
         }
     }
+    cyclic
 }
 
 /// [`solve_flags`]'s evaluation of one node's body, where a call of node
@@ -492,19 +416,14 @@ pub fn solve_flags(
         }
     }
     let mut value: Vec<Option<bool>> = vec![None; n];
-    let mut comp = vec![u32::MAX; n];
     let mut in_set = vec![false; n];
     let mut settled: Vec<Option<bool>> = vec![None; n];
-    let roots: Vec<u32> = (0..word(n)).collect();
-    let mut walk = 0;
     let mut evals = 0;
-    let mut succ = |v: u32, out: &mut Vec<u32>| out.extend_from_slice(out_of(v));
-    let mut next_comp = 0u32;
-    components(n, &roots, &mut succ, &mut walk, &mut |members, _| {
-        let c = next_comp;
-        next_comp += 1;
+    let sccs = hd_base::scc::sccs(n, |v, out| out.extend_from_slice(out_of(v)));
+    let comp = &sccs.comp;
+    for (c, members) in sccs.iter().enumerate() {
+        let c = word(c);
         for &m in members {
-            comp[m as usize] = c;
             in_set[m as usize] = pure[m as usize];
         }
         // Pass 1: the greatest set that is surely `true`.
@@ -565,8 +484,8 @@ pub fn solve_flags(
                 settled[m as usize]
             };
         }
-    });
-    *work += walk + evals;
+    }
+    *work += sccs.work + evals;
     value
 }
 

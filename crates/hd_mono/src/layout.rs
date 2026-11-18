@@ -217,57 +217,11 @@ pub fn recursive_instance(
 }
 
 /// Strongly connected components of a graph given by successor lists:
-/// per node, its component's number (Tarjan's algorithm, iterative).
+/// per node, its component's number ([`hd_base::scc`]).
 #[must_use]
 pub fn sccs(succ: &[Vec<usize>]) -> Vec<usize> {
-    const UNSEEN: usize = usize::MAX;
-    let n = succ.len();
-    let (mut index, mut low, mut comp) = (vec![UNSEEN; n], vec![0; n], vec![UNSEEN; n]);
-    let (mut stack, mut on) = (Vec::new(), vec![false; n]);
-    let (mut next, mut ncomp) = (0, 0);
-    for root in 0..n {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        // (node, next successor to visit)
-        let mut call = vec![(root, 0)];
-        index[root] = next;
-        low[root] = next;
-        next += 1;
-        stack.push(root);
-        on[root] = true;
-        while let Some(&mut (v, ref mut k)) = call.last_mut() {
-            if let Some(&w) = succ[v].get(*k) {
-                *k += 1;
-                if index[w] == UNSEEN {
-                    index[w] = next;
-                    low[w] = next;
-                    next += 1;
-                    stack.push(w);
-                    on[w] = true;
-                    call.push((w, 0));
-                } else if on[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            call.pop();
-            if let Some(&(p, _)) = call.last() {
-                low[p] = low[p].min(low[v]);
-            }
-            if low[v] == index[v] {
-                while let Some(w) = stack.pop() {
-                    on[w] = false;
-                    comp[w] = ncomp;
-                    if w == v {
-                        break;
-                    }
-                }
-                ncomp += 1;
-            }
-        }
-    }
-    comp
+    let sccs = hd_base::scc::sccs_of(succ);
+    sccs.comp.into_iter().map(|c| c as usize).collect()
 }
 
 /// Each type's `canon` digest, for one build: a type is encoded once, and
