@@ -341,31 +341,58 @@ pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
 /// (owner, #2031).
 pub const INDIRECT: usize = 16;
 
-/// The layout of `t` when a value of it may live by address (#2031,
-/// steps 4 and 6): a struct or tuple of more than [`INDIRECT`] values,
-/// which may hold counted references and `Drop` hooks. Its counts move
-/// with its bits; a release walks them from the address
-/// (`emit/indirect.rs` `release_plan`), after its hooks ran on a heap
-/// copy (`rt::HookPlan`).
-pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Option<Mem>> {
+/// Whether a value of `t` may live by address (#2031, steps 4 and 6;
+/// rustc's `BackendRepr::Memory`): a struct, a tuple or an enum of more
+/// than [`INDIRECT`] values, which may hold counted references and `Drop`
+/// hooks. Its counts move with its bits; a release walks them from the
+/// address (`emit/indirect.rs` `release_plan`), after its hooks ran on a
+/// heap copy (`rt::HookPlan`). One probe of [`scalars`], which lists no
+/// leaves of a type past [`INDIRECT`].
+pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<bool> {
     let t = strip(pool, env, t);
-    let aggregate = match pool.get(t) {
-        TyData::Tuple { .. } => true,
-        TyData::Adt { def, args } => {
-            env.std_kind(def) == StdKind::Other
-                && matches!(kind(pool, env, t), Kind::Value)
-                && env.enum_variants(def, args).is_none()
+    Ok(inline(pool, env, t) && scalars(pool, env, t)? > INDIRECT)
+}
+
+/// Whether stripped `t` holds its parts inline: a tuple, a union, or a
+/// struct or enum kept by value.
+fn inline(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    match pool.get(t) {
+        TyData::Tuple { .. } | TyData::Union(_) => true,
+        TyData::Adt { def, .. } => {
+            env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
         }
         _ => false,
-    };
-    if !aggregate {
-        return Ok(None);
     }
-    let m = mem(pool, env, t)?;
-    if m.leaves.len() <= INDIRECT {
-        return Ok(None);
-    }
-    Ok(Some(m))
+}
+
+/// How many scalar values `t` holds ([`Mem::leaves`]' length), saturating
+/// at `INDIRECT + 1`: rustc's `BackendRepr` choice, made from the parts'
+/// counts. A struct or tuple sums its fields'; an enum with a variant past
+/// [`INDIRECT`] is past it, and otherwise lists its values from variants
+/// of at most [`INDIRECT`] each. So a type doubled n times costs O(n)
+/// types, each O(its own fields), where its leaves are 2^n (#2170).
+pub fn scalars(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<usize> {
+    const PAST: usize = INDIRECT + 1;
+    memoized(&SCALARS, pool, env, t, &|u, part| {
+        let sum = |fields: &[Ty]| -> StageResult<usize> {
+            let mut n = 0;
+            for &f in fields {
+                n = (n + part(f)?).min(PAST);
+            }
+            Ok(n)
+        };
+        if inline(pool, env, u) {
+            let Some(vs) = variants(pool, env, u) else {
+                return sum(&value_parts(pool, env, u));
+            };
+            for fields in vs.iter() {
+                if sum(fields)? == PAST {
+                    return Ok(PAST);
+                }
+            }
+        }
+        Ok(mem(pool, env, u)?.leaves.len().min(PAST))
+    })
 }
 
 /// How a value of a [`by_address`] type releases its counts from its
@@ -607,6 +634,7 @@ type VariantTypes = std::rc::Rc<Vec<Vec<Ty>>>;
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
     static SHAPES: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
+    static SCALARS: Memo<StageResult<usize>> = const { std::cell::RefCell::new(None) };
     static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
@@ -626,6 +654,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
         shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+        scalars: Option<hd_base::HashMap<Ty, StageResult<usize>>>,
         walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -641,6 +670,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
             SHAPES.set(self.shapes.take());
+            SCALARS.set(self.scalars.take());
             WALKS.set(self.walks.take());
             COUNT_WALKS.set(self.count_walks.take());
             DROPS.set(self.drops.take());
@@ -657,6 +687,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     let _reset = Reset {
         mems: MEMS.take(),
         shapes: SHAPES.take(),
+        scalars: SCALARS.take(),
         walks: WALKS.take(),
         count_walks: COUNT_WALKS.take(),
         drops: DROPS.take(),
@@ -670,6 +701,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     SHAPES.set(Some(hd_base::HashMap::default()));
+    SCALARS.set(Some(hd_base::HashMap::default()));
     WALKS.set(Some(hd_base::HashMap::default()));
     COUNT_WALKS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
@@ -688,6 +720,7 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
 struct Scope {
     mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
     shapes: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
+    scalars: Option<hd_base::HashMap<Ty, StageResult<usize>>>,
     walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     drops: Option<hd_base::HashMap<Ty, bool>>,
@@ -707,6 +740,7 @@ impl Scope {
         Self {
             mems: MEMS.take(),
             shapes: SHAPES.take(),
+            scalars: SCALARS.take(),
             walks: WALKS.take(),
             count_walks: COUNT_WALKS.take(),
             drops: DROPS.take(),
@@ -726,6 +760,7 @@ impl Scope {
         Self {
             mems: Some(hd_base::HashMap::default()),
             shapes: Some(hd_base::HashMap::default()),
+            scalars: Some(hd_base::HashMap::default()),
             walks: Some(hd_base::HashMap::default()),
             count_walks: Some(hd_base::HashMap::default()),
             drops: Some(hd_base::HashMap::default()),
@@ -744,6 +779,7 @@ impl Scope {
     fn put(self) {
         MEMS.set(self.mems);
         SHAPES.set(self.shapes);
+        SCALARS.set(self.scalars);
         WALKS.set(self.walks);
         COUNT_WALKS.set(self.count_walks);
         DROPS.set(self.drops);

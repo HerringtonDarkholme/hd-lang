@@ -1,0 +1,102 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# An enum over 16 values is `Memory` in every position, as a struct is
+# (#2170; rustc passes such an enum by pointer and returns it through
+# `sret`): a result written into its caller's block, a parameter only
+# read, a parameter only dropped, a field of a struct over 16 values
+# (its release nests the enum's), a frame local passed on, a generic
+# instance, an optional over a big struct, a union over one, a function
+# value and a closure (the leaf wrapper), a list element, and a whole
+# move on to another callee (stays leaves). The checked builds find no
+# leak at exit.
+struct Big:
+    f0: i32
+    f1: i32
+    f2: i32
+    f3: i32
+    f4: i32
+    f5: i32
+    f6: i32
+    f7: i32
+    f8: i32
+    f9: i32
+    f10: i32
+    f11: i32
+    f12: i32
+    f13: i32
+    f14: i32
+    f15: i32
+    name: string
+
+enum Shape:
+    Wide(Big, string)
+    Narrow(i64, string)
+    Nothing
+
+struct Outer:
+    shape: Shape
+    v: i32
+    tag: string
+
+struct Label:
+    n: string
+
+enum Labelled:
+    Many(Big, Label)
+    One(Label)
+
+fn mk(x: i32, n: string) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, name: "${n}${x}" }
+
+fn shape(k: i32) -> Shape:
+    if k == 0: .Wide(mk(k, "w"), "extra") else if k == 1: .Narrow(7, "nar") else: .Nothing
+
+fn size(s: Shape) -> i32:
+    match s:
+        .Wide(b, e) => b.f15 + i32(b.name.len()) + i32(e.len())
+        .Narrow(n, e) => i32(n) + i32(e.len())
+        .Nothing => -1
+
+fn ignore(s: Shape) -> i32: 3
+
+fn outer(k: i32) -> Outer: Outer { shape: shape(k), v: k, tag: "t${k}" }
+
+fn osize(o: Outer) -> i32: o.v + i32(o.tag.len())
+
+fn maybe(k: i32) -> Big?:
+    if k > 0: .Some(mk(k, "m")) else: .None
+
+fn labelled(k: i32) -> Labelled:
+    if k == 0: .Many(mk(k, "h"), Label { n: "ten" }) else: .One(Label { n: "twenty" })
+
+fn drop_labelled(h: Labelled) -> i32: 1
+
+fn union(k: i32) -> Big | string:
+    if k == 0: ._0(mk(k, "u")) else: ._1("str")
+
+fn usize_of(u: Big | string) -> i32:
+    match u:
+        ._0(b) => b.f3
+        ._1(s) => i32(s.len())
+
+fn keep[T](x: T) -> T: x
+
+fn forward(s: Shape) -> i32: size(s) + 1
+
+pub fn main() -> void $ Console:
+    for k in [0, 1, 2]:
+        println("${size(shape(k))} ${ignore(shape(k))} ${osize(outer(k))}")
+        let s = shape(k)
+        let t = keep(s)
+        println("${size(t)}")
+        match maybe(k):
+            .Some(b) => println("some ${b.f15} ${b.name}")
+            .None => println("none")
+        println("${drop_labelled(labelled(k))}")
+        let unused = labelled(k)
+        println("${usize_of(union(k))}")
+        let f = size
+        let c = shape(k)
+        g := fn() -> i32: size(c)
+        let xs: List[Shape] = [shape(k), shape(2)]
+        println("${f(shape(k))} ${g()} ${size(xs[0])} ${forward(shape(k))}")
+    println("done")

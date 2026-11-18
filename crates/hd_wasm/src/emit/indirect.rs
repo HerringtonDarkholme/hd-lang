@@ -143,14 +143,11 @@ fn compute_ret(input: &Input<'_>, b: &hd_tir::ir::Body, id: InstId) -> Option<Me
         return None;
     }
     let (item, args) = (t.item[id.idx()], t.args[id.idx()]);
-    let ret = input.env.ret(item)?;
-    by_address(
-        input.pool,
-        input.env,
-        subst(input.pool, input.env, item, args, ret),
-    )
-    .ok()
-    .flatten()
+    let ret = subst(input.pool, input.env, item, args, input.env.ret(item)?);
+    if !by_address(input.pool, input.env, ret).ok()? {
+        return None;
+    }
+    crate::layout::mem(input.pool, input.env, ret).ok()
 }
 
 fn compute_params(
@@ -171,7 +168,9 @@ fn compute_params(
     let mut counted: HashMap<usize, hd_types::Ty> = HashMap::default();
     for (k, &l) in locals.iter().enumerate() {
         let ty = b.local_ty[l];
-        if let Ok(Some(m)) = by_address(pool, env, ty) {
+        if matches!(by_address(pool, env, ty), Ok(true))
+            && let Ok(m) = crate::layout::mem(pool, env, ty)
+        {
             if crate::layout::walk(pool, env, ty).is_some()
                 || crate::layout::holds_drop(pool, env, ty)
             {
@@ -255,7 +254,7 @@ fn moves_through_addresses(
         let Some(&u) = ms.tys.get(*f as usize) else {
             return false;
         };
-        if !matches!(by_address(pool, env, u), Ok(Some(_))) {
+        if !matches!(by_address(pool, env, u), Ok(true)) {
             return false;
         }
         t = u;
@@ -279,12 +278,29 @@ pub(crate) fn release_plan(
         if memo.contains_key(&u) {
             continue;
         }
+        // An enum releases its values by its own switch walk: no part of
+        // it is a field a move can take out alone.
+        if crate::layout::variants(pool, env, u).is_some() {
+            let plan = match crate::layout::count_walk(pool, env, u) {
+                Some(walk) => Some(std::sync::Arc::new(ReleasePlan::new(vec![
+                    ReleaseStep::Inline {
+                        field: 0,
+                        leaves: crate::layout::mem(pool, env, u)?.leaves,
+                        walk,
+                        colls: crate::layout::coll_leaves(pool, env, u),
+                    },
+                ]))),
+                None => None,
+            };
+            memo.insert(u, plan);
+            continue;
+        }
         let ms = crate::layout::members(pool, env, u)?;
         if !ready {
             let mut pending = Vec::new();
             for &f in &ms.tys {
                 let f = strip(f);
-                if !memo.contains_key(&f) && by_address(pool, env, f)?.is_some() {
+                if !memo.contains_key(&f) && by_address(pool, env, f)? {
                     pending.push((f, false));
                 }
             }
@@ -298,7 +314,7 @@ pub(crate) fn release_plan(
         let mut steps = Vec::new();
         for (field, (&f, part)) in ms.tys.iter().zip(&ms.parts).enumerate() {
             let field = u32_of(field);
-            if by_address(pool, env, f)?.is_some() {
+            if by_address(pool, env, f)? {
                 if let Some(plan) = memo.get(&strip(f)).cloned().flatten() {
                     steps.push(ReleaseStep::Nested {
                         field,
@@ -1265,9 +1281,10 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let ty = b.local_ty[l];
-            let Ok(Some(m)) = by_address(self.pool(), self.env(), ty) else {
+            if !matches!(by_address(self.pool(), self.env(), ty), Ok(true)) {
                 continue;
-            };
+            }
+            let m = crate::layout::mem(self.pool(), self.env(), ty)?;
             let counted = self.released(ty);
             // A counted value lands with its counts: written in place, or
             // moved in from memory, at its one use. A copy read stored
@@ -1404,13 +1421,24 @@ impl Em<'_, '_, '_> {
             if self.m.hook_plans.contains_key(&u) {
                 continue;
             }
+            // An enum's hooks, its own first, are its leaf glue's, each
+            // under its variant's guards.
+            if crate::layout::variants(pool, env, u).is_some() {
+                let calls = self.drop_calls(u);
+                let plan = (!calls.is_empty()).then(|| {
+                    let step = HookStep::Inline { field: 0, calls };
+                    std::sync::Arc::new(HookPlan::new(Vec::new(), vec![step]))
+                });
+                self.m.hook_plans.insert(u, plan);
+                continue;
+            }
             let ms = crate::layout::members(pool, env, u)?;
             if !ready {
                 let mut pending = Vec::new();
                 for &f in &ms.tys {
                     if !self.m.hook_plans.contains_key(&f)
                         && crate::layout::holds_drop(pool, env, f)
-                        && by_address(pool, env, f)?.is_some()
+                        && by_address(pool, env, f)?
                     {
                         pending.push((f, false));
                     }
@@ -1444,7 +1472,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
                 let field = u32_of(field);
-                if by_address(pool, env, f)?.is_some() {
+                if by_address(pool, env, f)? {
                     if let Some(plan) = self.m.hook_plans.get(&f).cloned().flatten() {
                         fields.push(HookStep::Nested {
                             field,
