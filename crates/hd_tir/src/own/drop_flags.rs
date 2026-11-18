@@ -1,4 +1,4 @@
-//! Drop flags as TIR statements (#1420, `docs/future-work/INSTANCE_TIR.md`
+//! Drop flags as TIR statements (#1420, `docs/future-work/INSTANCE_TIR.md` at 421bcec83
 //! step 7), for a local and an instruction's value. A value root's flag is
 //! a `bool` local; a cell's statement writes the flag slots of the cell's
 //! layout under its path instead, which every body sharing the cell reads.

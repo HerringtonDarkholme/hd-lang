@@ -1,4 +1,4 @@
-//! Invariant 24 (`docs/future-work/INSTANCE_TIR.md`, "Verifier"): an
+//! Invariant 24 (`docs/future-work/INSTANCE_TIR.md` at 421bcec83, "Verifier"): an
 //! instance body holds no generic form. The driver marks each body it
 //! builds for an instance [`Phase::Instance`] and runs this check before
 //! the ownership passes, as Swift's SIL verifier rejects an archetype left

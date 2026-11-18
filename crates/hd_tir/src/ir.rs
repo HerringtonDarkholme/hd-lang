@@ -916,7 +916,7 @@ pub struct SuspRow {
 }
 const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 
-/// Which side of collection a body is on (`docs/future-work/INSTANCE_TIR.md`,
+/// Which side of collection a body is on (`docs/future-work/INSTANCE_TIR.md` at 421bcec83,
 /// "Phase mark"): the checker's generic form, or one instance's form, whose
 /// types are concrete and whose trait calls are chosen ([`verify_instance`],
 /// invariant 24). A non-generic item's checked body becomes its one

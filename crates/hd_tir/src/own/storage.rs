@@ -9,7 +9,7 @@
 //! [`awaited_slots`]).
 //!
 //! Collection's choices then reach each instance body's rows before
-//! emission ([`settle`], `docs/future-work/INSTANCE_TIR.md` step 7a): a
+//! emission ([`settle`], `docs/future-work/INSTANCE_TIR.md` at 421bcec83 step 7a): a
 //! promoted argument reads its local's value, and a frame slot whose
 //! `Await` calls no known body is a cell, as that await counts its
 //! arguments. A build with no runtime has no slots; the emitter reads it.
@@ -365,7 +365,7 @@ fn run_with(
     b.storage = rows;
 }
 
-/// `b`'s final rows (`docs/future-work/INSTANCE_TIR.md` step 7a), from
+/// `b`'s final rows (`docs/future-work/INSTANCE_TIR.md` at 421bcec83 step 7a), from
 /// collection's choices for the instances that emit its sub-bodies:
 /// `args`, each sub-body's `Ref`s passed by value (§23.40), and `counted`,
 /// the root's locals an await of no known body takes. A local that only
