@@ -197,6 +197,14 @@ pub struct InferTable {
 #[derive(Clone, Copy, Debug)]
 pub struct Snapshot(usize);
 
+/// A live inference dependency changed since a snapshot. Trial changes that
+/// have already been rolled back are absent.
+#[derive(Clone, Copy, Debug)]
+pub enum ClassChange {
+    Merged { from: u32, into: u32 },
+    Value(u32),
+}
+
 /// A trial's rollback point: the trail and the variable count. Rolling
 /// back to it also drops the variables the trial made, so a failed trial
 /// leaves no variable behind (`crates/hd_check/DESIGN.md` (type checking) §3.5, §2.5).
@@ -211,6 +219,7 @@ enum UnifyWork {
     Join(Ty, Ty, Option<(Ty, Ty, bool)>),
     JoinRest(Option<Ty>, Option<Ty>, (Ty, Ty, bool)),
     Done((Ty, Ty, bool)),
+    ProbeDone((Ty, Ty, bool), usize),
     List(crate::TyList, crate::TyList, Ty, Ty),
     FunctionRows(crate::RowId, crate::RowId, Ty, Ty),
     ContextDone(crate::RowId, crate::RowId, Ty, Ty),
@@ -344,6 +353,19 @@ impl InferTable {
     #[must_use]
     pub fn snapshot(&self) -> Snapshot {
         Snapshot(self.trail.len())
+    }
+
+    /// Changes after a still-live snapshot, in trail order. The caller advances
+    /// its cursor only after speculative helpers have returned and rolled back.
+    pub fn changes_since(&self, s: Snapshot) -> impl Iterator<Item = ClassChange> + '_ {
+        self.trail[s.0..].iter().filter_map(|entry| match *entry {
+            Undo::Parent(v, _) => Some(ClassChange::Merged {
+                from: v,
+                into: self.root(v),
+            }),
+            Undo::Bind(v) | Undo::Rebind(v, ..) | Undo::Kind(v, _) => Some(ClassChange::Value(v)),
+            Undo::Rank(..) => None,
+        })
     }
 
     pub fn rollback(&mut self, s: Snapshot) {
@@ -633,21 +655,40 @@ impl InferTable {
 
     /// Unifies two types; on error the caller rolls back to its snapshot.
     pub fn unify(&mut self, pool: Types<'_>, a: Ty, b: Ty) -> Result<(), UnifyError> {
-        self.unify_in(pool, a, b, false)
+        self.unify_in(pool, a, b, false, None)
     }
 
     /// Shape unification for least-common-type sites: reference permissions
     /// are ignored at the site and in tuple elements, while referents and
     /// generic arguments still unify invariantly (`types.lct.no-combine`).
     pub fn unify_join(&mut self, pool: Types<'_>, a: Ty, b: Ty) -> Result<(), UnifyError> {
-        self.unify_in(pool, a, b, true)
+        self.unify_in(pool, a, b, true, None)
     }
 
-    fn unify_in(&mut self, pool: Types<'_>, a: Ty, b: Ty, join: bool) -> Result<(), UnifyError> {
+    /// A rollback-only unification probe and its independently failing
+    /// ancestor pairs. A reported pair entered before any trial binding,
+    /// so its failure is valid at the probe's initial inference state.
+    pub fn probe_unify(&mut self, pool: Types<'_>, a: Ty, b: Ty) -> (bool, Vec<(Ty, Ty)>) {
+        let at = self.snapshot();
+        let mut failed = Vec::new();
+        let ok = self.unify_in(pool, a, b, false, Some(&mut failed)).is_ok();
+        self.rollback(at);
+        (ok, failed)
+    }
+
+    fn unify_in(
+        &mut self,
+        pool: Types<'_>,
+        a: Ty,
+        b: Ty,
+        join: bool,
+        mut report: Option<&mut Vec<(Ty, Ty)>>,
+    ) -> Result<(), UnifyError> {
         enum Shape {
             Reference(Ty, Ty),
             Tuple(crate::TyList, crate::TyList, Option<Ty>, Option<Ty>),
         }
+        let baseline = self.trail.len();
         let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
         if a == b {
             return Ok(());
@@ -700,7 +741,11 @@ impl InferTable {
                             return true;
                         }
                         crate::work::type_node();
-                        stack.push(UnifyWork::Done(pair));
+                        stack.push(if report.is_some() {
+                            UnifyWork::ProbeDone(pair, self.trail.len())
+                        } else {
+                            UnifyWork::Done(pair)
+                        });
                         match shape {
                             Some(Shape::Reference(x, y)) => {
                                 stack.push(UnifyWork::Pair(x, y, Some(pair)));
@@ -739,7 +784,7 @@ impl InferTable {
                         found: parent.1,
                     }),
                 },
-                UnifyWork::Done(pair) => {
+                UnifyWork::Done(pair) | UnifyWork::ProbeDone(pair, _) => {
                     // A row read earlier in this match may have changed
                     // under a later child. Do not cache that stale success.
                     memo.walk.finish(pair);
@@ -770,6 +815,15 @@ impl InferTable {
             match result {
                 Ok(()) => true,
                 Err(error) => {
+                    if let Some(report) = report.as_deref_mut() {
+                        for frame in stack.iter() {
+                            if let UnifyWork::ProbeDone(pair, at) = frame
+                                && *at == baseline
+                            {
+                                report.push((pair.0, pair.1));
+                            }
+                        }
+                    }
                     answer = Err(error);
                     false
                 }
@@ -1384,6 +1438,66 @@ mod tests {
             panic!("a fresh variable");
         };
         v
+    }
+
+    #[test]
+    fn probe_failures_report_only_independent_ancestor_queries() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for generated unification probes.
+            .spawn(|| {
+                let (global, local) = (InternPool::new(), LocalPool::new());
+                let p = Types::with_local(&global, &local);
+                let mut table = InferTable::default();
+                let fun = |result| {
+                    p.intern_ty(&TyData::Fn {
+                        params: crate::TyList::EMPTY,
+                        result,
+                        row: crate::RowId::EMPTY,
+                        suspends: false,
+                        inputs: Inputs::Fixed,
+                        deps: crate::FnDeps::NONE,
+                    })
+                };
+                for depth in [100, 1000] {
+                    let (mut a, mut b) = (Ty::I32, Ty::BOOL);
+                    for _ in 0..depth {
+                        a = fun(a);
+                        b = fun(b);
+                    }
+                    let ((ok, failed), work) =
+                        crate::work::count_type_nodes(|| table.probe_unify(p, a, b));
+                    assert!(!ok);
+                    assert_eq!(failed.len(), usize::try_from(depth + 1).unwrap());
+                    assert_eq!(work, depth + 1);
+                    assert!(failed.contains(&(a, b)));
+                }
+                let x = table.fresh(p, VarKind::General);
+                let tuple = |xs: &[Ty]| {
+                    p.intern_ty(&TyData::Tuple {
+                        elems: p.list(xs),
+                        rest: None,
+                    })
+                };
+                let (a, b) = (tuple(&[x, x]), tuple(&[Ty::BOOL, Ty::BOOL]));
+                let (left, right) = (tuple(&[x, a]), tuple(&[Ty::I32, b]));
+                let (ok, failed) = table.probe_unify(p, left, right);
+                assert!(!ok);
+                assert!(failed.contains(&(left, right)));
+                assert!(
+                    !failed.contains(&(a, b)),
+                    "earlier sibling bindings are not this subquery's baseline"
+                );
+                assert_eq!(table.shallow(p, x), x);
+                assert!(
+                    table.probe_unify(p, a, b).0,
+                    "the contextual failure unifies independently"
+                );
+                assert_eq!(table.shallow(p, x), x);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

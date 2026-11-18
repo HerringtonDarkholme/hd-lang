@@ -3731,6 +3731,7 @@ struct OptInFinding {
     /// A member that a skip fact omits but that declares no default for
     /// `build` (`annot.impl-fact.skips.no-default`).
     no_default: bool,
+    too_complex: bool,
     message: String,
 }
 
@@ -8011,7 +8012,9 @@ impl Run<'_> {
                 );
             } else {
                 let def = cx.lookup.own[f.item].def;
-                let code = if f.no_default {
+                let code = if f.too_complex {
+                    Code::ItemTooComplex
+                } else if f.no_default {
                     Code::OmittedMemberWithoutDefault
                 } else {
                     Code::MemberNotDerivable
@@ -8442,11 +8445,27 @@ impl Run<'_> {
                     let owner = opt.structure_owner();
                     if let Some(facts) = facts
                         && !derived.structures.contains(&owner)
-                        && let Ok(g) = hd_check::structure::structure_bodies(tcx, opt, facts)
                     {
-                        derived.structures.push(owner);
-                        derived.items.extend(g.items);
-                        derived.bodies.extend(g.bodies);
+                        match hd_check::structure::structure_bodies(tcx, opt, facts) {
+                            Ok(g) => {
+                                derived.structures.push(owner);
+                                derived.items.extend(g.items);
+                                derived.bodies.extend(g.bodies);
+                            }
+                            Err(error) => {
+                                if error.out_of_fuel {
+                                    out.push(OptInFinding {
+                                        item: *i,
+                                        data: opt.data,
+                                        slot: 0,
+                                        compare: false,
+                                        no_default: false,
+                                        too_complex: true,
+                                        message: error.what,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
                 out.extend(
@@ -8461,6 +8480,7 @@ impl Run<'_> {
                             slot: opt.members[member].slot,
                             compare: compare && !no_default,
                             no_default,
+                            too_complex: false,
                             message,
                         }),
                 );

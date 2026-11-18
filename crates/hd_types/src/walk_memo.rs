@@ -5,7 +5,7 @@ use hd_base::{HashMap, HashSet};
 use std::hash::Hash;
 
 #[derive(Clone, Debug)]
-pub(crate) struct WalkMemo<K, D = Ty> {
+pub struct WalkMemo<K, D = Ty> {
     done: HashSet<K>,
     dirty: HashSet<K>,
     parents: HashMap<K, HashSet<K>>,
@@ -28,29 +28,30 @@ impl<K, D> Default for WalkMemo<K, D> {
 }
 
 impl<K: Copy + Eq + Hash, D: Copy + Eq + Hash> WalkMemo<K, D> {
-    pub(crate) fn active(&self) -> bool {
+    #[must_use]
+    pub fn active(&self) -> bool {
         self.indexed
     }
-    pub(crate) fn enter(&mut self, key: K) -> bool {
+    pub fn enter(&mut self, key: K) -> bool {
         if self.done.contains(&key) {
             return false;
         }
         self.dirty.remove(&key);
         true
     }
-    pub(crate) fn finish(&mut self, key: K) {
+    pub fn finish(&mut self, key: K) {
         if !self.dirty.contains(&key) {
             self.done.insert(key);
         }
     }
-    pub(crate) fn link(&mut self, child: K, parent: K) {
+    pub fn link(&mut self, child: K, parent: K) {
         if self.indexed {
             self.parents.entry(child).or_default().insert(parent);
         } else {
             self.pending.push((child, parent));
         }
     }
-    pub(crate) fn watch(&mut self, dependency: D, key: K) {
+    pub fn watch(&mut self, dependency: D, key: K) {
         if !self.indexed {
             for (child, parent) in self.pending.drain(..) {
                 self.parents.entry(child).or_default().insert(parent);
@@ -59,12 +60,12 @@ impl<K: Copy + Eq + Hash, D: Copy + Eq + Hash> WalkMemo<K, D> {
         }
         self.watches.entry(dependency).or_default().insert(key);
     }
-    pub(crate) fn unwatch(&mut self, dependency: D, key: K) {
+    pub fn unwatch(&mut self, dependency: D, key: K) {
         if let Some(keys) = self.watches.get_mut(&dependency) {
             keys.remove(&key);
         }
     }
-    pub(crate) fn changed(&mut self, dependency: D) {
+    pub fn changed(&mut self, dependency: D) {
         // A watcher must run again before it can be invalidated again.
         // Consuming these edges avoids scanning already-dirty readers on
         // every subsequent clause addition or inference binding.
@@ -76,7 +77,7 @@ impl<K: Copy + Eq + Hash, D: Copy + Eq + Hash> WalkMemo<K, D> {
             .collect();
         self.invalidate(todo);
     }
-    pub(crate) fn forget(&mut self, key: K) {
+    pub fn forget(&mut self, key: K) {
         self.invalidate(vec![key]);
     }
     fn invalidate(&mut self, mut todo: Vec<K>) {

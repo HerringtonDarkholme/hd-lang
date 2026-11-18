@@ -13,6 +13,81 @@ enum Mode {
     Recursive,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum ReturnQuery {
+    Strict(Ty),
+    Pair(Ty, Ty),
+}
+
+/// Read raw strict-slot occurrences, stopping at opaque and union boundaries.
+/// Child queries are evaluated in order and stop at the first true answer.
+fn strict_query(
+    pool: hd_types::Types<'_>,
+    table: &hd_types::InferTable,
+    classes: &hd_base::HashSet<u32>,
+    memo: &mut crate::type_query::TypeQueries<ReturnQuery>,
+    ty: Ty,
+) -> bool {
+    enum Work {
+        Enter(Ty),
+        Next(Ty, std::vec::IntoIter<Ty>),
+    }
+    let mut todo = vec![Work::Enter(ty)];
+    let mut answer = false;
+    while let Some(work) = todo.pop() {
+        match work {
+            Work::Enter(ty) => {
+                let key = ReturnQuery::Strict(ty);
+                if let Some(cached) = memo.cached(key) {
+                    answer = cached;
+                    continue;
+                }
+                hd_types::work::type_node();
+                if let Some(class) = table.class_of(pool, ty) {
+                    memo.watch_class(key, class);
+                    answer = classes.contains(&class);
+                    memo.finish(key, answer);
+                    continue;
+                }
+                if !pool.has_infer(ty)
+                    || matches!(pool.get(ty), TyData::Opaque { .. } | TyData::Union(_))
+                {
+                    answer = false;
+                    memo.finish(key, false);
+                    continue;
+                }
+                let mut children = Vec::new();
+                if let TyData::Fn {
+                    params,
+                    result,
+                    row,
+                    ..
+                } = pool.get(ty)
+                {
+                    children.extend_from_slice(pool.list_items(params));
+                    children.push(result);
+                    children.push(pool.intern_ty(&TyData::Row(row)));
+                } else {
+                    pool.children(ty, &mut children);
+                }
+                answer = false;
+                todo.push(Work::Next(ty, children.into_iter()));
+            }
+            Work::Next(ty, mut children) => {
+                let key = ReturnQuery::Strict(ty);
+                if !answer && let Some(child) = children.next() {
+                    memo.link(ReturnQuery::Strict(child), key);
+                    todo.push(Work::Next(ty, children));
+                    todo.push(Work::Enter(child));
+                } else {
+                    memo.finish(key, answer);
+                }
+            }
+        }
+    }
+    answer
+}
+
 impl Ck<'_, '_> {
     pub(crate) fn open_opaque_return(&mut self, ty: Ty) -> Ty {
         self.map_opaque_return(ty, Mode::Open)
@@ -117,74 +192,143 @@ impl Ck<'_, '_> {
     /// Keep the chosen hidden types invariant inside ordinary outer
     /// conversions (for example an optional injection around the result).
     pub(crate) fn constrain_opaque_return(&mut self, got: Ty, want: Ty, node: NodeRef<'_>) -> bool {
-        if !self.strict_opaque_return(want) {
+        enum Work {
+            Pair(Ty, Ty, Option<ReturnQuery>),
+            Finish(ReturnQuery),
+        }
+        if self.strict_rets.is_empty() || !self.pool().has_infer(want) {
             return true;
         }
         let pool = self.pool();
-        let got = self.infer.shallow(pool, got);
-        if got == Ty::NEVER {
-            return true;
-        }
-        if self.strict_opaque_slot(want) {
-            let got = self.norm_ty(got);
-            let wanted = self.norm_ty(want);
-            let snapshot = self.infer.snapshot();
-            if self.infer.unify(pool, got, wanted).is_ok() {
-                return true;
+        let mut classes: hd_base::HashSet<_> = self
+            .strict_rets
+            .iter()
+            .filter_map(|&slot| self.infer.class_of(pool, slot))
+            .collect();
+        let mut cursor = self.infer.snapshot();
+        let mut memo =
+            crate::type_query::TypeQueries::<ReturnQuery>::new(&self.infer, self.env.changes());
+        let mut layers = crate::type_query::TypeQueries::new(&self.infer, self.env.changes());
+        let mut todo = vec![Work::Pair(got, want, None)];
+        while let Some(work) = todo.pop() {
+            // A merge can make its winning class strict without changing that
+            // class's value. Wake its prior false strictness readers as well.
+            for change in self.infer.changes_since(cursor) {
+                if let hd_types::unify::ClassChange::Merged { from, into } = change
+                    && classes.remove(&from)
+                    && classes.insert(into)
+                {
+                    memo.changed_class(into);
+                }
             }
-            self.infer.rollback(snapshot);
-            let (expected, found) = self.show_pair(wanted, got);
-            self.err(hd_diag::Code::TypeMismatch, node,
-                &format!("all returns of `impl Trait` need one concrete type: expected {expected}, found {found}"));
-            return false;
-        }
-        let wanted = self.expected_shape(want);
-        let incoming = self.expected_shape(got);
-        let list = |me: &mut Self, got, want| {
-            pool.list_items(got)
-                .iter()
-                .zip(pool.list_items(want))
-                .all(|(&g, &w)| me.constrain_opaque_return(g, w, node))
-        };
-        if let Some(inner) = self.option_arg(wanted)
-            && self.injects_into(incoming, wanted)
-        {
-            return self.constrain_opaque_return(got, inner, node);
-        }
-        match (pool.get(incoming), pool.get(wanted)) {
-            (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
-                self.constrain_opaque_return(g, w, node)
+            cursor = self.infer.snapshot();
+            memo.sync(&self.infer, self.env.changes());
+            let (got, want, parent) = match work {
+                Work::Finish(key) => {
+                    memo.finish(key, true);
+                    continue;
+                }
+                Work::Pair(got, want, parent) => (got, want, parent),
+            };
+            let key = ReturnQuery::Pair(got, want);
+            if let Some(parent) = parent {
+                memo.link(key, parent);
             }
-            (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {
-                list(self, g, w)
+            if memo.cached(key) == Some(true) {
+                continue;
             }
-            (TyData::Tuple { elems: g, rest: a }, TyData::Tuple { elems: w, rest: b }) => {
-                list(self, g, w)
-                    && match (a, b) {
-                        (Some(g), Some(w)) => self.constrain_opaque_return(g, w, node),
-                        _ => true,
+            hd_types::work::type_node();
+            memo.link(ReturnQuery::Strict(want), key);
+            if !strict_query(pool, &self.infer, &classes, &mut memo, want) {
+                memo.finish(key, true);
+                continue;
+            }
+            memo.observe(pool, &self.infer, got, key);
+            memo.observe(pool, &self.infer, want, key);
+            let got = self.infer.shallow(pool, got);
+            if got == Ty::NEVER {
+                memo.finish(key, true);
+                continue;
+            }
+            if self
+                .infer
+                .class_of(pool, want)
+                .is_some_and(|c| classes.contains(&c))
+            {
+                let got = self.norm_ty(got);
+                let wanted = self.norm_ty(want);
+                let snapshot = self.infer.snapshot();
+                if self.infer.unify(pool, got, wanted).is_err() {
+                    self.infer.rollback(snapshot);
+                    let (expected, found) = self.show_pair(wanted, got);
+                    self.err(hd_diag::Code::TypeMismatch, node,
+                        &format!("all returns of `impl Trait` need one concrete type: expected {expected}, found {found}"));
+                    return false;
+                }
+                todo.push(Work::Finish(key));
+                continue;
+            }
+            let wanted = self.expected_shape(want);
+            let incoming = self.expected_shape(got);
+            todo.push(Work::Finish(key));
+            if let Some(inner) = self.option_arg(wanted)
+                && self.option_layers_in(incoming, &mut layers) + 1
+                    == self.option_layers_in(wanted, &mut layers)
+            {
+                todo.push(Work::Pair(got, inner, Some(key)));
+                continue;
+            }
+            let mut children = Vec::new();
+            let mut list = |got, want| {
+                children.extend(
+                    pool.list_items(got)
+                        .iter()
+                        .zip(pool.list_items(want))
+                        .map(|(&g, &w)| (g, w)),
+                );
+            };
+            match (pool.get(incoming), pool.get(wanted)) {
+                (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
+                    children.push((g, w));
+                }
+                (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {
+                    list(g, w);
+                }
+                (TyData::Tuple { elems: g, rest: a }, TyData::Tuple { elems: w, rest: b }) => {
+                    list(g, w);
+                    if let (Some(g), Some(w)) = (a, b) {
+                        children.push((g, w));
                     }
+                }
+                (
+                    TyData::TraitValue {
+                        def: a,
+                        args: g,
+                        bindings: ga,
+                    },
+                    TyData::TraitValue {
+                        def: b,
+                        args: w,
+                        bindings: wa,
+                    },
+                ) if a == b => {
+                    list(g, w);
+                    children.extend(
+                        ga.into_iter()
+                            .zip(wa)
+                            .filter_map(|((a, g), (b, w))| (a == b).then_some((g, w))),
+                    );
+                }
+                _ => continue,
             }
-            (
-                TyData::TraitValue {
-                    def: a,
-                    args: g,
-                    bindings: a_bindings,
-                },
-                TyData::TraitValue {
-                    def: b,
-                    args: w,
-                    bindings: b_bindings,
-                },
-            ) if a == b => {
-                list(self, g, w)
-                    && a_bindings
-                        .into_iter()
-                        .zip(b_bindings)
-                        .all(|((a, g), (b, w))| a != b || self.constrain_opaque_return(g, w, node))
-            }
-            _ => true,
+            todo.extend(
+                children
+                    .into_iter()
+                    .rev()
+                    .map(|(g, w)| Work::Pair(g, w, Some(key))),
+            );
         }
+        true
     }
 
     pub(crate) fn local_return_annotation(
@@ -289,6 +433,114 @@ impl hd_types::TyMap for OpaqueMap<'_, '_, '_> {
 mod tests {
     use super::*;
     use crate::body::with_checker;
+
+    #[test]
+    fn opaque_constraints_share_mutating_subgraphs_at_depth_1000() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for generated return constraints.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                for depth in [100, 1_000] {
+                    with_checker(|ck| {
+                        let p = ck.pool();
+                        let strict = ck.infer.fresh(p, VarKind::General);
+                        ck.strict_rets.push(strict);
+                        let (mut got, mut want) = (Ty::I32, strict);
+                        for _ in 0..depth {
+                            got = p.intern_ty(&TyData::Tuple {
+                                elems: p.list(&[got, got]),
+                                rest: None,
+                            });
+                            want = p.intern_ty(&TyData::Tuple {
+                                elems: p.list(&[want, want]),
+                                rest: None,
+                            });
+                        }
+                        let node = ck.cx.src.parse.tree.root();
+                        let (answer, work) = hd_types::work::count_type_nodes(|| {
+                            ck.constrain_opaque_return(got, want, node)
+                        });
+                        assert!(answer);
+                        assert_eq!(ck.infer.resolve(p, strict), Ty::I32);
+                        assert!(
+                            work <= 30 * depth + 30,
+                            "linear affected graph work: {depth}: {work}"
+                        );
+                    });
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn opaque_constraints_follow_aliases_and_revisit_optional_paths() {
+        with_checker(|ck| {
+            let p = ck.pool();
+            let strict = ck.infer.fresh(p, VarKind::General);
+            let later = ck.infer.fresh(p, VarKind::General);
+            let incoming = ck.infer.fresh(p, VarKind::General);
+            ck.strict_rets.push(strict);
+            let def = ck.cx.names.item("app.main", "Holder");
+            let wrap = |t| {
+                p.intern_ty(&TyData::Adt {
+                    def,
+                    args: p.list(&[t]),
+                })
+            };
+            let tuple = |xs: &[Ty]| {
+                p.intern_ty(&TyData::Tuple {
+                    elems: p.list(xs),
+                    rest: None,
+                })
+            };
+            let got = tuple(&[wrap(incoming), later, wrap(incoming)]);
+            let want = tuple(&[wrap(later), strict, wrap(later)]);
+            let node = ck.cx.src.parse.tree.root();
+            assert!(ck.constrain_opaque_return(got, want, node));
+            assert_eq!(
+                ck.infer.class_of(p, incoming),
+                ck.infer.class_of(p, strict),
+                "a later alias makes the repeated subtree strict"
+            );
+        });
+        with_checker(|ck| {
+            let p = ck.pool();
+            let strict = ck.infer.fresh(p, VarKind::General);
+            let other_strict = ck.infer.fresh(p, VarKind::General);
+            let later = ck.infer.fresh(p, VarKind::General);
+            let incoming = ck.infer.fresh(p, VarKind::General);
+            ck.strict_rets.extend([strict, other_strict]);
+            let option = |t| {
+                p.intern_ty(&TyData::Adt {
+                    def: ck.cx.names.known.option,
+                    args: p.list(&[t]),
+                })
+            };
+            ck.infer.unify(p, other_strict, option(Ty::I32)).unwrap();
+            let tuple = |xs: &[Ty]| {
+                p.intern_ty(&TyData::Tuple {
+                    elems: p.list(xs),
+                    rest: None,
+                })
+            };
+            let got = tuple(&[option(incoming), incoming, later, option(incoming)]);
+            let want = tuple(&[
+                option(option(later)),
+                other_strict,
+                strict,
+                option(option(later)),
+            ]);
+            let node = ck.cx.src.parse.tree.root();
+            assert!(ck.constrain_opaque_return(got, want, node));
+            assert_eq!(
+                ck.infer.resolve(p, strict),
+                Ty::I32,
+                "defer optional alignment until that subtree is strict"
+            );
+        });
+    }
 
     #[test]
     fn strict_returns_at_depth_1000_fit_a_small_stack() {

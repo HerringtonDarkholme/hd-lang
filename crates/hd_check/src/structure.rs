@@ -551,7 +551,7 @@ pub fn structure_bodies(
     let target = Target {
         ty,
         name: names.text(item.name).to_owned(),
-        vars: variants(cx, opt, ty, facts),
+        vars: variants(cx, opt, ty, facts)?,
         facts: facts.of_type,
     };
     let gcx = hd_structure::Cx {
@@ -610,7 +610,7 @@ pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
 /// fills (`OptIn::fills_declared`, `annot.impl-fact.fills-defaults`) and
 /// a member a skip fact omits (`annot.impl-fact.skips`), and their facts
 /// bodies.
-fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var> {
+fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> StageResult<Vec<Var>> {
     let names = &cx.names;
     let pool = names.pool;
     let item = cx.lookup.item(opt.data).expect("OptIn::build target");
@@ -636,7 +636,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
     let member = |v: usize, i: usize, f: &hd_resolve::Field, omitted: bool| {
         let declared = names.text(f.name).to_owned();
         let t = sub(f.ty);
-        Mem {
+        Ok(Mem {
             name: label(&declared),
             positional: declared.starts_with(|c: char| c.is_ascii_digit()),
             declared,
@@ -652,9 +652,9 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                 None
             },
             rest: false,
-            self_ref: self_refs.member(t),
+            self_ref: self_refs.member(t)?,
             facts: fact(v, i),
-        }
+        })
     };
     let mut out = Vec::new();
     match &item.data {
@@ -668,7 +668,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                         || opt.skipped_at(0, i);
                     member(0, i, f, omitted)
                 })
-                .collect();
+                .collect::<StageResult<_>>()?;
             out.push(Var {
                 name: names.text(item.name).to_owned(),
                 index: 0,
@@ -689,7 +689,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                     .iter()
                     .enumerate()
                     .map(|(i, f)| member(k, i, f, opt.skipped_at(k, i)))
-                    .collect();
+                    .collect::<StageResult<_>>()?;
                 let shared = shared
                     .iter()
                     .map(|f| {
@@ -715,7 +715,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
         }
         _ => unreachable!("OptIn::build accepts only structs and enums"),
     }
-    out
+    Ok(out)
 }
 
 /// Self references (`annot.self-ref.*`): whether a member's type refers
@@ -737,6 +737,7 @@ struct SelfRefs<'a, 'c> {
     cx: &'a BodyCx<'c>,
     data: DefId,
     references: std::cell::RefCell<ReferenceGraph>,
+    needs: std::cell::RefCell<crate::self_needs::Needs>,
 }
 
 impl<'a, 'c> SelfRefs<'a, 'c> {
@@ -745,38 +746,16 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             cx,
             data,
             references: std::cell::RefCell::default(),
+            needs: std::cell::RefCell::new(crate::self_needs::Needs::new(cx.fuel)),
         }
     }
 
     /// `SelfRef`'s index for a member of type `t`.
-    fn member(&self, t: Ty) -> u32 {
-        if self.needs(t, &mut Vec::new()) {
-            2
+    fn member(&self, t: Ty) -> StageResult<u32> {
+        if self.needs.borrow_mut().needs(self.cx, self.data, t)? {
+            Ok(2)
         } else {
-            u32::from(self.refers(t))
-        }
-    }
-
-    /// The fields of a struct or each variant of an enum, with `args`
-    /// substituted.
-    fn fields(&self, def: DefId, args: TyList) -> Option<(bool, Vec<Vec<Ty>>)> {
-        let pool = self.cx.names.pool;
-        let args = pool.list_items(args).to_vec();
-        let ty = |t: Ty| {
-            pool.subst(t, &|p: ParamRef| {
-                (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
-            })
-        };
-        match &self.cx.lookup.item(def)?.data {
-            ItemData::Struct(fs, _) => Some((true, vec![fs.iter().map(|f| ty(f.ty)).collect()])),
-            ItemData::Enum { variants, .. } => Some((
-                false,
-                variants
-                    .iter()
-                    .map(|v| v.fields.iter().map(|f| ty(f.ty)).collect())
-                    .collect(),
-            )),
-            _ => None,
+            Ok(u32::from(self.refers(t)))
         }
     }
 
@@ -883,48 +862,6 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             }
         }
         graph.found.contains(&root)
-    }
-
-    /// `annot.self-ref.needs.*`.
-    fn needs(&self, t: Ty, seen: &mut Vec<Ty>) -> bool {
-        let pool = self.cx.names.pool;
-        let k = &self.cx.names.known;
-        if seen.contains(&t) {
-            return false;
-        }
-        seen.push(t);
-        match pool.get(t) {
-            // `annot.self-ref.needs.reference`: a reference always refers to
-            // a value, so it needs what its referent needs.
-            TyData::Ref { inner: x, .. } => self.needs(x, seen),
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().any(|e| self.needs(*e, seen))
-                    || rest.is_some_and(|r| self.needs(r, seen))
-            }
-            TyData::Adt { def, args } => {
-                if def == self.data {
-                    return true;
-                }
-                if def == k.list || def == k.map {
-                    return false;
-                }
-                if def == k.result {
-                    let first = pool.list_items(args).first().copied();
-                    return first.is_some_and(|x| self.needs(x, seen));
-                }
-                match self.fields(def, args) {
-                    Some((true, vs)) => vs.iter().flatten().any(|f| self.needs(*f, seen)),
-                    Some((false, vs)) => {
-                        !vs.is_empty()
-                            && vs
-                                .iter()
-                                .all(|v| v.iter().any(|f| self.needs(*f, &mut seen.clone())))
-                    }
-                    None => false,
-                }
-            }
-            _ => false,
-        }
     }
 }
 

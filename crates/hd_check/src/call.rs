@@ -3481,83 +3481,94 @@ impl Ck<'_, '_> {
     /// replaced by a fresh variable: a pending goal fixes it once that
     /// type is known, so the rest of the statement can use the result,
     /// and an argument can fix the self type and the projection together.
+    /// Equal projection terms in this query denote one normal form, including
+    /// their implicit trait arguments, so share their goal and result variable
+    /// (`types.generic.infer.projection.check`). The memo stays query-local.
     fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
+        enum Work {
+            Enter(Ty, usize),
+            Finish(Ty, ProjectionShape, std::ops::Range<usize>, usize),
+        }
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         if !pool.has_assoc(t) || !pool.has_infer(t) {
             return t;
         }
-        let list = |me: &mut Self, l: TyList| {
-            let v: Vec<Ty> = pool
-                .list_items(l)
-                .iter()
-                .map(|x| me.open_projections(*x, site, n))
-                .collect();
-            pool.list(&v)
-        };
-        let d = match pool.get(t) {
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => {
-                let self_ty = self.resolved(self_ty);
-                if !pool.has_infer(self_ty) {
-                    return t;
-                }
-                let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
-                let mut av = pool.list_items(args).to_vec();
-                while av.len() < n_trait {
-                    av.push(self.infer.fresh(pool, VarKind::General));
-                }
-                let var = self.infer.fresh(pool, VarKind::General);
-                self.pending.push(crate::body::PendingGoal {
-                    tref: TraitRef {
+        let mut memo = HashMap::default();
+        let mut values = vec![Ty::POISON];
+        let mut children = Vec::new();
+        hd_base::stack::all(Work::Enter(t, 0), |work, stack| {
+            match work {
+                Work::Enter(t, out) => {
+                    let t = self.infer.resolve(pool, t);
+                    if !pool.has_assoc(t) || !pool.has_infer(t) {
+                        values[out] = t;
+                        return true;
+                    }
+                    if let Some(&done) = memo.get(&t) {
+                        values[out] = done;
+                        return true;
+                    }
+                    hd_types::work::type_node();
+                    if let TyData::Assoc {
+                        assoc,
                         trait_,
                         self_ty,
-                        args: pool.list(&av),
-                    },
-                    at: n.index(),
-                    kind: crate::body::Waiting::Project { assoc, var, site },
-                });
-                return var;
+                        args,
+                    } = pool.get(t)
+                    {
+                        let self_ty = self.resolved(self_ty);
+                        let done = if pool.has_infer(self_ty) {
+                            let n_trait =
+                                self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
+                            let mut av = pool.list_items(args).to_vec();
+                            for _ in av.len()..n_trait {
+                                av.push(self.infer.fresh(pool, VarKind::General));
+                            }
+                            let var = self.infer.fresh(pool, VarKind::General);
+                            self.pending.push(crate::body::PendingGoal {
+                                tref: TraitRef {
+                                    trait_,
+                                    self_ty,
+                                    args: pool.list(&av),
+                                },
+                                at: n.index(),
+                                kind: crate::body::Waiting::Project { assoc, var, site },
+                            });
+                            var
+                        } else {
+                            t
+                        };
+                        memo.insert(t, done);
+                        values[out] = done;
+                        return true;
+                    }
+                    children.clear();
+                    let Some(shape) = ProjectionShape::read(pool, t, &mut children) else {
+                        memo.insert(t, t);
+                        values[out] = t;
+                        return true;
+                    };
+                    let first = values.len();
+                    values.resize(first + children.len(), Ty::POISON);
+                    stack.push(Work::Finish(t, shape, first..values.len(), out));
+                    stack.extend(
+                        children
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &t)| Work::Enter(t, first + i)),
+                    );
+                }
+                Work::Finish(t, shape, slots, out) => {
+                    let done = pool.intern_ty(&shape.build(pool, &values[slots]));
+                    memo.insert(t, done);
+                    values[out] = done;
+                }
             }
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(self, args),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(self, elems),
-                rest,
-            },
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: self.open_projections(inner, site, n),
-                mutable,
-                counted,
-            },
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => TyData::Fn {
-                params: list(self, params),
-                result: self.open_projections(result, site, n),
-                row,
-                suspends,
-                inputs,
-                deps,
-            },
-            _ => return t,
-        };
-        pool.intern_ty(&d)
+            true
+        });
+        values[0]
     }
 
     // ------------------------------------------------------------ variants
@@ -6373,6 +6384,91 @@ impl Ck<'_, '_> {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ProjectionShape {
+    Assoc(DefId, DefId),
+    Adt(DefId),
+    Tuple(Option<Ty>),
+    Ref(bool, bool),
+    Function(hd_types::RowId, bool, Inputs, hd_types::FnDeps),
+}
+impl ProjectionShape {
+    fn read(pool: hd_types::Types<'_>, t: Ty, children: &mut Vec<Ty>) -> Option<Self> {
+        Some(match pool.get(t) {
+            TyData::Assoc {
+                self_ty,
+                args,
+                assoc,
+                trait_,
+            } => {
+                children.push(self_ty);
+                children.extend_from_slice(pool.list_items(args));
+                Self::Assoc(assoc, trait_)
+            }
+            TyData::Adt { args, def } => {
+                children.extend_from_slice(pool.list_items(args));
+                Self::Adt(def)
+            }
+            TyData::Tuple { elems, rest } => {
+                children.extend_from_slice(pool.list_items(elems));
+                Self::Tuple(rest)
+            }
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => {
+                children.push(inner);
+                Self::Ref(mutable, counted)
+            }
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+                deps,
+            } => {
+                children.extend_from_slice(pool.list_items(params));
+                children.push(result);
+                Self::Function(row, suspends, inputs, deps)
+            }
+            _ => return None,
+        })
+    }
+    fn build(self, pool: hd_types::Types<'_>, parts: &[Ty]) -> TyData {
+        match self {
+            Self::Assoc(assoc, trait_) => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: parts[0],
+                args: pool.list(&parts[1..]),
+            },
+            Self::Adt(def) => TyData::Adt {
+                def,
+                args: pool.list(parts),
+            },
+            Self::Tuple(rest) => TyData::Tuple {
+                elems: pool.list(parts),
+                rest,
+            },
+            Self::Ref(mutable, counted) => TyData::Ref {
+                inner: parts[0],
+                mutable,
+                counted,
+            },
+            Self::Function(row, suspends, inputs, deps) => TyData::Fn {
+                params: pool.list(&parts[..parts.len() - 1]),
+                result: parts[parts.len() - 1],
+                row,
+                suspends,
+                inputs,
+                deps,
+            },
+        }
+    }
+}
+
 impl Ck<'_, '_> {
     /// Normalizes every projection inside a type: each distinct node that
     /// holds a projection once (memoized by type id for the call), and a
@@ -6389,16 +6485,9 @@ impl Ck<'_, '_> {
     }
 
     fn normalize_deep_in(&mut self, t: Ty, memo: &mut HashMap<Ty, Ty>) -> StageResult<Ty> {
-        enum Constructor {
-            Assoc(DefId, DefId),
-            Adt(DefId),
-            Tuple(Option<Ty>),
-            Ref(bool, bool),
-            Function(hd_types::RowId, bool, Inputs, hd_types::FnDeps),
-        }
         enum Work {
             Enter(Ty, usize),
-            Finish(Ty, Constructor, std::ops::Range<usize>, usize),
+            Finish(Ty, ProjectionShape, std::ops::Range<usize>, usize),
         }
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
@@ -6425,49 +6514,9 @@ impl Ck<'_, '_> {
                     }
                     hd_types::work::type_node();
                     children.clear();
-                    let constructor = match pool.get(t) {
-                        TyData::Assoc {
-                            self_ty,
-                            args,
-                            assoc,
-                            trait_,
-                        } => {
-                            children.push(self_ty);
-                            children.extend_from_slice(pool.list_items(args));
-                            Constructor::Assoc(assoc, trait_)
-                        }
-                        TyData::Adt { args, def } => {
-                            children.extend_from_slice(pool.list_items(args));
-                            Constructor::Adt(def)
-                        }
-                        TyData::Tuple { elems, rest } => {
-                            children.extend_from_slice(pool.list_items(elems));
-                            Constructor::Tuple(rest)
-                        }
-                        TyData::Ref {
-                            inner,
-                            mutable,
-                            counted,
-                        } => {
-                            children.push(inner);
-                            Constructor::Ref(mutable, counted)
-                        }
-                        TyData::Fn {
-                            params,
-                            result,
-                            row,
-                            suspends,
-                            inputs,
-                            deps,
-                        } => {
-                            children.extend_from_slice(pool.list_items(params));
-                            children.push(result);
-                            Constructor::Function(row, suspends, inputs, deps)
-                        }
-                        _ => {
-                            values[out] = t;
-                            return true;
-                        }
+                    let Some(constructor) = ProjectionShape::read(pool, t, &mut children) else {
+                        values[out] = t;
+                        return true;
                     };
                     let first = values.len();
                     values.resize(first + children.len(), Ty::POISON);
@@ -6484,35 +6533,7 @@ impl Ck<'_, '_> {
                     // Read the exact child answers, not newly resolved input
                     // IDs: a later sibling's normalization can learn bindings.
                     let parts = &values[slots];
-                    let data = match constructor {
-                        Constructor::Assoc(assoc, trait_) => TyData::Assoc {
-                            assoc,
-                            trait_,
-                            self_ty: parts[0],
-                            args: pool.list(&parts[1..]),
-                        },
-                        Constructor::Adt(def) => TyData::Adt {
-                            def,
-                            args: pool.list(parts),
-                        },
-                        Constructor::Tuple(rest) => TyData::Tuple {
-                            elems: pool.list(parts),
-                            rest,
-                        },
-                        Constructor::Ref(mutable, counted) => TyData::Ref {
-                            inner: parts[0],
-                            mutable,
-                            counted,
-                        },
-                        Constructor::Function(row, suspends, inputs, deps) => TyData::Fn {
-                            params: pool.list(&parts[..parts.len() - 1]),
-                            result: parts[parts.len() - 1],
-                            row,
-                            suspends,
-                            inputs,
-                            deps,
-                        },
-                    };
+                    let data = constructor.build(pool, parts);
                     let rebuilt = pool.intern_ty(&data);
                     let done = if matches!(data, TyData::Assoc { .. }) {
                         match self.normalize(rebuilt) {
@@ -6760,6 +6781,159 @@ mod projection_walk_tests {
             owner,
             self_ty,
         )
+    }
+
+    #[test]
+    fn opening_projections_shares_one_normal_form_per_query_at_depth_1000() {
+        use crate::body::{Waiting, with_checker_items};
+        use hd_resolve::{Generic, Item, TraitData};
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for these generated projection graphs.
+            .spawn(|| {
+                with_checker_items(
+                    |names| {
+                        let def = names.item("app.main", "Shelf");
+                        let mut item = Item::new(
+                            def,
+                            names.syms.intern("Shelf"),
+                            true,
+                            ItemData::Trait(TraitData::default()),
+                        );
+                        item.generics.push(Generic::plain(names.syms.intern("U")));
+                        vec![item]
+                    },
+                    |ck| {
+                        let p = ck.pool();
+                        let trait_ = ck.cx.names.item("app.main", "Shelf");
+                        let assoc = ck.cx.names.member(trait_, PathKind::Member, "Out");
+                        let node = ck.cx.src.parse.tree.root();
+                        for implicit in [false, true] {
+                            for depth in [100, 1000] {
+                                let self_ty = ck.infer.fresh(p, VarKind::General);
+                                let leaf = p.intern_ty(&TyData::Assoc {
+                                    assoc,
+                                    trait_,
+                                    self_ty,
+                                    args: if implicit {
+                                        TyList::EMPTY
+                                    } else {
+                                        p.list(&[Ty::I32])
+                                    },
+                                });
+                                let row = p.row(&hd_types::RowData {
+                                    keys: vec![p.intern_ty(&TyData::TraitValue {
+                                        def: trait_,
+                                        args: p.list(&[leaf]),
+                                        bindings: Vec::new(),
+                                    })],
+                                    params: Vec::new(),
+                                });
+                                let wrap = |t, i| {
+                                    p.intern_ty(&match i % 4 {
+                                        0 => TyData::Adt {
+                                            def: trait_,
+                                            args: p.list(&[t, t]),
+                                        },
+                                        1 => TyData::Tuple {
+                                            elems: p.list(&[t, t]),
+                                            rest: Some(leaf),
+                                        },
+                                        2 => TyData::Ref {
+                                            inner: t,
+                                            mutable: true,
+                                            counted: true,
+                                        },
+                                        _ => TyData::Fn {
+                                            params: p.list(&[t, t]),
+                                            result: t,
+                                            row,
+                                            suspends: false,
+                                            inputs: Inputs::Fixed,
+                                            deps: hd_types::FnDeps::NONE,
+                                        },
+                                    })
+                                };
+                                let mut root = leaf;
+                                for i in 0..depth {
+                                    root = wrap(root, i);
+                                }
+                                let _ = ck.infer.resolve(p, root);
+                                let before = ck.pending.len();
+                                let (found, work) = hd_types::work::count_type_nodes(|| {
+                                    ck.open_projections(root, ProjectSite::Argument, node)
+                                });
+                                assert_eq!(work, depth + 1);
+                                assert_eq!(ck.pending.len(), before + 1);
+                                let goal = ck.pending[before];
+                                assert_eq!(goal.tref.self_ty, self_ty);
+                                assert_eq!(goal.tref.trait_, trait_);
+                                assert_eq!(p.list_items(goal.tref.args).len(), 1);
+                                let Waiting::Project {
+                                    assoc: got,
+                                    var,
+                                    site,
+                                } = goal.kind
+                                else {
+                                    panic!("projection goal");
+                                };
+                                assert_eq!(got, assoc);
+                                assert_eq!(site, ProjectSite::Argument);
+                                let arg = p.list_items(goal.tref.args)[0];
+                                if implicit {
+                                    assert!(matches!(p.get(arg), TyData::Infer(_)));
+                                } else {
+                                    assert_eq!(arg, Ty::I32);
+                                }
+                                let mut wanted = var;
+                                for i in 0..depth {
+                                    wanted = wrap(wanted, i);
+                                }
+                                assert_eq!(found, wanted);
+                            }
+                        }
+                        let self_ty = ck.infer.fresh(p, VarKind::General);
+                        let proj = |args| {
+                            p.intern_ty(&TyData::Assoc {
+                                assoc,
+                                trait_,
+                                self_ty,
+                                args,
+                            })
+                        };
+                        let (a, b) = (proj(p.list(&[Ty::I32])), proj(p.list(&[Ty::BOOL])));
+                        let pair = p.intern_ty(&TyData::Tuple {
+                            elems: p.list(&[a, b]),
+                            rest: None,
+                        });
+                        let before = ck.pending.len();
+                        ck.open_projections(pair, ProjectSite::Result, node);
+                        assert_eq!(
+                            ck.pending.len(),
+                            before + 2,
+                            "different trait arguments keep distinct goals"
+                        );
+                        let first = ck.open_projections(a, ProjectSite::Result, node);
+                        let second = ck.open_projections(a, ProjectSite::Result, node);
+                        assert_ne!(
+                            first, second,
+                            "separate queries retain their own inference scope"
+                        );
+                        let known = p.intern_ty(&TyData::Assoc {
+                            assoc,
+                            trait_,
+                            self_ty: Ty::I32,
+                            args: p.list(&[self_ty]),
+                        });
+                        let before = ck.pending.len();
+                        assert_eq!(ck.open_projections(known, ProjectSite::Result, node), known);
+                        assert_eq!(ck.pending.len(), before);
+                    },
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 
     #[test]

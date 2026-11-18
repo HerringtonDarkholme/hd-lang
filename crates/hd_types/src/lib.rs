@@ -46,6 +46,7 @@ pub use pool::{
 };
 pub use sealed::CopyDecl;
 pub use unify::{InferTable, UnifyError, VarKind, holds};
+pub use walk_memo::WalkMemo;
 
 #[cfg(test)]
 mod word_tests {

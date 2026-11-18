@@ -1,0 +1,230 @@
+# @dump: diagnostics spans
+# @fuel: 300
+# Mandatory-self query exhaustion is an item error, never missing structure.
+use std.structure.{Structure, Describer, Variant, Field}
+
+trait Shape:
+    fn shape() -> void
+
+struct Sink: pass
+
+impl[S] Describer[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, value: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, value: Field[S, F]) -> Result[void, never]:
+        .Ok(())
+
+impl[T] Shape for T by Structure:
+    fn shape() -> void:
+        let mut sink = Sink {}
+        _ := T::describe(&mut sink)
+
+struct Part[T]:
+    value: T
+
+@derive(Shape)
+struct Nest:
+    value: Part[
+        Part[
+            Part[
+                Part[
+                    Part[
+                        Part[
+                            Part[
+                                Part[
+                                    Part[
+                                        Part[
+                                            Part[
+                                                Part[
+                                                    Part[
+                                                        Part[
+                                                            Part[
+                                                                Part[
+                                                                    Part[
+                                                                        Part[
+                                                                            Part[
+                                                                                Part[
+                                                                                    Part[
+                                                                                        Part[
+                                                                                            Part[
+                                                                                                Part[
+                                                                                                    Part[
+                                                                                                        Part[
+                                                                                                            Part[
+                                                                                                                Part[
+                                                                                                                    Part[
+                                                                                                                        Part[
+                                                                                                                            Part[
+                                                                                                                                Part[
+                                                                                                                                    Part[
+                                                                                                                                        Part[
+                                                                                                                                            Part[
+                                                                                                                                                Part[
+                                                                                                                                                    Part[
+                                                                                                                                                        Part[
+                                                                                                                                                            Part[
+                                                                                                                                                                Part[
+                                                                                                                                                                    Part[
+                                                                                                                                                                        Part[
+                                                                                                                                                                            Part[
+                                                                                                                                                                                Part[
+                                                                                                                                                                                    Part[
+                                                                                                                                                                                        Part[
+                                                                                                                                                                                            Part[
+                                                                                                                                                                                                Part[
+                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                                                                                    Part[
+                                                                                                                                                                                                                                                                                                                                                                                                        Part[
+                                                                                                                                                                                                                                                                                                                                                                                                            Part[
+                                                                                                                                                                                                                                                                                                                                                                                                                Part[
+                                                                                                                                                                                                                                                                                                                                                                                                                    i32,
+                                                                                                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                                ],
+                                                                                                                                                                                                                            ],
+                                                                                                                                                                                                                        ],
+                                                                                                                                                                                                                    ],
+                                                                                                                                                                                                                ],
+                                                                                                                                                                                                            ],
+                                                                                                                                                                                                        ],
+                                                                                                                                                                                                    ],
+                                                                                                                                                                                                ],
+                                                                                                                                                                                            ],
+                                                                                                                                                                                        ],
+                                                                                                                                                                                    ],
+                                                                                                                                                                                ],
+                                                                                                                                                                            ],
+                                                                                                                                                                        ],
+                                                                                                                                                                    ],
+                                                                                                                                                                ],
+                                                                                                                                                            ],
+                                                                                                                                                        ],
+                                                                                                                                                    ],
+                                                                                                                                                ],
+                                                                                                                                            ],
+                                                                                                                                        ],
+                                                                                                                                    ],
+                                                                                                                                ],
+                                                                                                                            ],
+                                                                                                                        ],
+                                                                                                                    ],
+                                                                                                                ],
+                                                                                                            ],
+                                                                                                        ],
+                                                                                                    ],
+                                                                                                ],
+                                                                                            ],
+                                                                                        ],
+                                                                                    ],
+                                                                                ],
+                                                                            ],
+                                                                        ],
+                                                                    ],
+                                                                ],
+                                                            ],
+                                                        ],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]

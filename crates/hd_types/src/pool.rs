@@ -2299,102 +2299,130 @@ impl<'a> Types<'a> {
         if let Some(done) = memo.get(t) {
             return done;
         }
-        crate::work::type_node();
-        let out = self.subst_node(t, f, memo);
-        memo.insert(t, out);
-        out
+        self.subst_walk(SubstWork::Type(t, 0), f, memo).0
     }
 
-    fn subst_node(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>, memo: &mut SubstMemo) -> Ty {
-        let l = |x: TyList, memo: &mut SubstMemo| {
-            let items: Vec<Ty> = self
-                .list_items(x)
-                .iter()
-                .map(|&e| self.subst_in(e, f, memo))
-                .collect();
-            self.list(&items)
-        };
-        let d = match self.get(t) {
-            TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args,
-                bound,
-            } => TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args: l(args, memo),
-                bound: self.subst_in(bound, f, memo),
-            },
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: l(args, memo),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: l(elems, memo),
-                rest: rest.map(|r| self.subst_in(r, f, memo)),
-            },
-            TyData::Union(members) => TyData::Union(l(members, memo)),
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: self.subst_in(inner, f, memo),
-                mutable,
-                counted,
-            },
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => {
-                let (ps, r) = (l(params, memo), self.subst_in(result, f, memo));
-                TyData::Fn {
-                    params: ps,
-                    result: r,
-                    row: self.subst_row_in(row, f, memo),
-                    suspends,
-                    inputs,
-                    deps: self.instance_deps(
-                        (self.list_items(params), result, deps),
-                        (self.list_items(ps), r),
-                    ),
+    fn subst_walk(
+        self,
+        first: SubstWork,
+        f: &dyn Fn(ParamRef) -> Option<Ty>,
+        memo: &mut SubstMemo,
+    ) -> (Ty, RowId) {
+        let mut values = vec![Ty::POISON];
+        let mut rows = vec![RowId::EMPTY];
+        let mut children = Vec::new();
+        hd_base::stack::all(first, |work, stack| {
+            match work {
+                SubstWork::Type(t, out) => {
+                    if !self.has_param(t) {
+                        values[out] = t;
+                        return true;
+                    }
+                    if let TyData::Param(p) = self.get(t) {
+                        values[out] = f(p).unwrap_or(t);
+                        return true;
+                    }
+                    if let Some(done) = memo.get(t) {
+                        values[out] = done;
+                        return true;
+                    }
+                    crate::work::type_node();
+                    children.clear();
+                    let row = match self.get(t) {
+                        TyData::Fn {
+                            params,
+                            result,
+                            row,
+                            ..
+                        } => {
+                            children.extend_from_slice(self.list_items(params));
+                            children.push(result);
+                            Some(row)
+                        }
+                        TyData::Row(r) | TyData::Context(r) => Some(r),
+                        _ => {
+                            self.children(t, &mut children);
+                            None
+                        }
+                    };
+                    let first = values.len();
+                    values.resize(first + children.len(), Ty::POISON);
+                    let row = row.map(|r| {
+                        let out = rows.len();
+                        rows.push(RowId::EMPTY);
+                        (r, out)
+                    });
+                    stack.push(SubstWork::TypeDone(
+                        t,
+                        first..values.len(),
+                        row.map(|(_, out)| out),
+                        out,
+                    ));
+                    if let Some((r, out)) = row {
+                        stack.push(SubstWork::Row(r, out));
+                    }
+                    stack.extend(
+                        children
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &t)| SubstWork::Type(t, first + i)),
+                    );
+                }
+                SubstWork::Row(r, out) => {
+                    if self.row_meta(r) & meta::HAS_PARAM == 0 {
+                        rows[out] = r;
+                        return true;
+                    }
+                    if let Some(&done) = memo.rows.get(&r) {
+                        rows[out] = done;
+                        return true;
+                    }
+                    crate::work::type_node();
+                    let data = self.row_data(r);
+                    let first = values.len();
+                    values.resize(first + data.keys.len(), Ty::POISON);
+                    stack.push(SubstWork::RowDone(r, data.params, first..values.len(), out));
+                    stack.extend(
+                        data.keys
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &t)| SubstWork::Type(t, first + i)),
+                    );
+                }
+                SubstWork::TypeDone(t, slots, row, out) => {
+                    let mut answers = SubstAnswers {
+                        children: &values[slots],
+                        next: 0,
+                        row: row.map_or(RowId::EMPTY, |i| rows[i]),
+                    };
+                    let done = self.map_children(t, &mut answers);
+                    memo.insert(t, done);
+                    values[out] = done;
+                }
+                SubstWork::RowDone(r, params, slots, out) => {
+                    let mut data = RowData {
+                        keys: values[slots].to_vec(),
+                        params: Vec::new(),
+                    };
+                    for p in params {
+                        match f(ParamRef {
+                            owner: p.owner,
+                            index: p.index,
+                        }) {
+                            Some(t) => data.keys.push(t),
+                            None => data.params.push(p),
+                        }
+                    }
+                    let done = self.row(&data);
+                    memo.rows.insert(r, done);
+                    rows[out] = done;
                 }
             }
-            TyData::Row(r) => TyData::Row(self.subst_row_in(r, f, memo)),
-            TyData::Context(r) => TyData::Context(self.subst_row_in(r, f, memo)),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: l(args, memo),
-                bindings: bindings
-                    .into_iter()
-                    .map(|(d, b)| (d, self.subst_in(b, f, memo)))
-                    .collect(),
-            },
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty: self.subst_in(self_ty, f, memo),
-                args: l(args, memo),
-            },
-            other => other,
-        };
-        self.intern_ty(&d)
+            true
+        });
+        (values[0], rows[0])
     }
 
     /// Replaces declared parameters in a row: a row parameter maps through
@@ -2416,21 +2444,36 @@ impl<'a> Types<'a> {
         if self.row_meta(r) & meta::HAS_PARAM == 0 {
             return r;
         }
-        let d = self.row_data(r);
-        let mut out = RowData {
-            keys: d.keys.iter().map(|k| self.subst_in(*k, f, memo)).collect(),
-            params: Vec::new(),
-        };
-        for p in d.params {
-            match f(ParamRef {
-                owner: p.owner,
-                index: p.index,
-            }) {
-                Some(t) => out.keys.push(t),
-                None => out.params.push(p),
-            }
+        if let Some(&done) = memo.rows.get(&r) {
+            return done;
         }
-        self.row(&out)
+        self.subst_walk(SubstWork::Row(r, 0), f, memo).1
+    }
+}
+
+enum SubstWork {
+    Type(Ty, usize),
+    Row(RowId, usize),
+    TypeDone(Ty, std::ops::Range<usize>, Option<usize>, usize),
+    RowDone(RowId, Vec<RowParamRef>, std::ops::Range<usize>, usize),
+}
+
+/// Child and row answers carried by the typed postorder frames, in the
+/// shared `children`/`map_children` order; no resolution or recursive lookup.
+struct SubstAnswers<'a> {
+    children: &'a [Ty],
+    next: usize,
+    row: RowId,
+}
+
+impl TyMap for SubstAnswers<'_> {
+    fn ty(&mut self, _: Ty) -> Ty {
+        let t = self.children[self.next];
+        self.next += 1;
+        t
+    }
+    fn row(&mut self, _: RowId) -> RowId {
+        self.row
     }
 }
 
@@ -2441,6 +2484,7 @@ struct SubstMemo {
     small: [(Ty, Ty); 8],
     len: usize,
     big: HashMap<Ty, Ty>,
+    rows: HashMap<RowId, RowId>,
 }
 
 impl SubstMemo {
@@ -2449,6 +2493,7 @@ impl SubstMemo {
             small: [(Ty(0), Ty(0)); 8],
             len: 0,
             big: HashMap::default(),
+            rows: HashMap::default(),
         }
     }
 
@@ -2747,6 +2792,160 @@ impl Erase {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn substitution_at_depth_1000_uses_typed_frames_and_shared_rows() {
+        use super::*;
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for generated substitution graphs.
+            .spawn(|| {
+                let pool = InternPool::new();
+                let p = pool.types();
+                let owner = DefId::from_raw(1);
+                let param = p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+                for depth in [100, 1000] {
+                    let (mut root, mut wanted) = (param, Ty::I32);
+                    for _ in 0..depth {
+                        let pair = |t| {
+                            p.intern_ty(&TyData::Tuple {
+                                elems: p.list(&[t, t]),
+                                rest: None,
+                            })
+                        };
+                        root = pair(root);
+                        wanted = pair(wanted);
+                    }
+                    assert_eq!(
+                        crate::work::count_type_nodes(|| p.subst(root, &|_| Some(Ty::I32))),
+                        (wanted, depth)
+                    );
+                }
+                let key = |def, args| {
+                    p.intern_ty(&TyData::TraitValue {
+                        def: DefId::from_raw(def),
+                        args,
+                        bindings: Vec::new(),
+                    })
+                };
+                let extra = key(3, TyList::EMPTY);
+                let replacement = p.row(&RowData {
+                    keys: vec![extra],
+                    params: Vec::new(),
+                });
+                let replacement = p.intern_ty(&TyData::Row(replacement));
+                let map = |q: ParamRef| {
+                    (q.owner == owner).then_some(if q.index == 0 { Ty::I32 } else { replacement })
+                };
+                let wrap = |t, i, mapped| {
+                    let row = p.row(&RowData {
+                        keys: if mapped {
+                            vec![key(2, p.list(&[t])), extra]
+                        } else {
+                            vec![key(2, p.list(&[t]))]
+                        },
+                        params: if mapped {
+                            Vec::new()
+                        } else {
+                            vec![RowParamRef { owner, index: 1 }]
+                        },
+                    });
+                    p.intern_ty(&match i % 10 {
+                        0 => TyData::Adt {
+                            def: owner,
+                            args: p.list(&[t, t]),
+                        },
+                        1 => TyData::Tuple {
+                            elems: p.list(&[t, t]),
+                            rest: Some(t),
+                        },
+                        2 => TyData::Union(p.list(&[t, t])),
+                        3 => TyData::Ref {
+                            inner: t,
+                            mutable: true,
+                            counted: true,
+                        },
+                        4 => TyData::Opaque {
+                            owner,
+                            site: 0,
+                            borrows: true,
+                            args: p.list(&[t]),
+                            bound: t,
+                        },
+                        5 => TyData::TraitValue {
+                            def: owner,
+                            args: p.list(&[t]),
+                            bindings: vec![(owner, t)],
+                        },
+                        6 => TyData::Assoc {
+                            assoc: owner,
+                            trait_: owner,
+                            self_ty: t,
+                            args: p.list(&[t]),
+                        },
+                        7 => TyData::Fn {
+                            params: p.list(&[t, t]),
+                            result: t,
+                            row,
+                            suspends: true,
+                            inputs: Inputs::Fixed,
+                            deps: FnDeps::NONE,
+                        },
+                        8 => TyData::Row(row),
+                        _ => TyData::Context(row),
+                    })
+                };
+                let (mut root, mut wanted) = (param, Ty::I32);
+                for i in 0..1000 {
+                    root = wrap(root, i, false);
+                    wanted = wrap(wanted, i, true);
+                }
+                let (found, work) = crate::work::count_type_nodes(|| p.subst(root, &map));
+                assert_eq!(found, wanted);
+                assert!(work < 4000, "one visit per node/row, not its paths: {work}");
+                let row = p.row(&RowData {
+                    keys: vec![key(2, p.list(&[param]))],
+                    params: vec![RowParamRef { owner, index: 1 }],
+                });
+                let wanted = p.row(&RowData {
+                    keys: vec![key(2, p.list(&[Ty::I32])), extra],
+                    params: Vec::new(),
+                });
+                assert_eq!(p.subst_row(row, &map), wanted);
+                assert_eq!(p.subst_row(row, &|_| None), row);
+                for width in [100, 1000] {
+                    let make_row = |t| {
+                        p.row(&RowData {
+                            keys: (0..width).map(|i| key(i + 10, p.list(&[t]))).collect(),
+                            params: Vec::new(),
+                        })
+                    };
+                    let (open, closed) = (make_row(param), make_row(Ty::I32));
+                    let (mut root, mut wanted) = (Ty::VOID, Ty::VOID);
+                    for _ in 0..20 {
+                        let fun = |result, row| {
+                            p.intern_ty(&TyData::Fn {
+                                params: TyList::EMPTY,
+                                result,
+                                row,
+                                suspends: false,
+                                inputs: Inputs::Fixed,
+                                deps: FnDeps::NONE,
+                            })
+                        };
+                        root = fun(root, open);
+                        wanted = fun(wanted, closed);
+                    }
+                    assert_eq!(
+                        crate::work::count_type_nodes(|| p.subst(root, &map)),
+                        (wanted, u64::from(width) + 21)
+                    );
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
     /// #2024: `type R0 = &T`, `type R{i} = (R{i-1}, R{i-1})`, and a
     /// function type over each level. Each count is read from the item's
     /// own word, set once when the item is interned from its parts' words,

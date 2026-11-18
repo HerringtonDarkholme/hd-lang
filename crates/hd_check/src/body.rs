@@ -2195,6 +2195,38 @@ impl Ck<'_, '_> {
         n
     }
 
+    /// Query-local optional spine lengths. Observing shared source types once
+    /// lets a later binding invalidate only the lengths that read it.
+    pub(crate) fn option_layers_in(
+        &self,
+        mut ty: Ty,
+        memo: &mut crate::type_query::TypeQueries<Ty, usize>,
+    ) -> usize {
+        let pool = self.pool();
+        memo.sync(&self.infer, self.env.changes());
+        let mut path = Vec::new();
+        let mut depth = loop {
+            if let Some(depth) = memo.cached(ty) {
+                break depth;
+            }
+            hd_types::work::type_node();
+            memo.observe(pool, &self.infer, ty, ty);
+            if let Some(inner) = self.option_arg(self.infer.shallow(pool, ty)) {
+                memo.link(inner, ty);
+                path.push(ty);
+                ty = inner;
+            } else {
+                memo.finish(ty, 0);
+                break 0;
+            }
+        };
+        for ty in path.into_iter().rev() {
+            depth += 1;
+            memo.finish(ty, depth);
+        }
+        depth
+    }
+
     /// Whether a value of type `got` takes one optional injection into the
     /// optional `want`: `got` has exactly one optional layer fewer, so an
     /// `i32` goes into an `i32?` and an `i32?` into an `i32??`
@@ -2626,7 +2658,7 @@ impl Ck<'_, '_> {
             // `types.variance.no-insertion`, `fn.type.variance-repr.excluded`:
             // variance would allow the conversion, but an element would
             // change representation.
-            if self.repr_change(got, want, 0) {
+            if self.repr_change(got, want) {
                 let msg = format!(
                     "in {what}: expected {want_s}, found {got_s}; variance never changes an element's representation, so convert the element yourself"
                 );
@@ -2794,94 +2826,157 @@ impl Ck<'_, '_> {
     /// only by trait-value construction or optional injection
     /// (`types.variance.no-insertion`).
     ///
-    /// It walks the types' structure, so it stops at
-    /// `hd_base::limits::TYPE_DEPTH`, past which a type is `type-too-large`.
-    fn repr_change(&mut self, got: Ty, want: Ty, depth: u32) -> bool {
-        let pool = self.pool();
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return false;
+    /// Explicit postorder work shares both representation and rollback-probe
+    /// queries. Failed probes certify independent ancestor failures, avoiding
+    /// a fresh suffix walk at every nested function result.
+    fn repr_change(&mut self, got: Ty, want: Ty) -> bool {
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        enum Query {
+            Repr(Ty, Ty),
+            Unify(Ty, Ty),
         }
-        let got = self.norm_ty(got);
-        let got = self.resolved(self.infer.resolve(pool, got));
-        let want = self.norm_ty(want);
-        let want = self.resolved(self.infer.resolve(pool, want));
-        // `from` meets `to` in a position: equal (`Some(false)`), or
-        // convertible only by a representation change (`Some(true)`)
-        // (`types.variance.repr.excluded`).
-        let pair = |this: &mut Self, from: Ty, to: Ty| -> Option<bool> {
-            if this.can_unify(from, to) {
-                return Some(false);
+        enum Work {
+            Repr(Ty, Ty, Option<Query>),
+            Position(Ty, Ty, bool, usize, Query),
+            Finish(Query, usize),
+        }
+        let pool = self.pool();
+        let mut memo =
+            crate::type_query::TypeQueries::<Query>::new(&self.infer, self.env.changes());
+        let mut layers = crate::type_query::TypeQueries::new(&self.infer, self.env.changes());
+        let probe = |this: &mut Self,
+                     memo: &mut crate::type_query::TypeQueries<Query>,
+                     from: Ty,
+                     to: Ty,
+                     parent: Query| {
+            let (a, b) = (this.norm_ty(from), this.norm_ty(to));
+            memo.sync(&this.infer, this.env.changes());
+            let key = Query::Unify(a, b);
+            memo.link(key, parent);
+            if let Some(answer) = memo.cached(key) {
+                return answer;
             }
-            if this.elem_converts(from, to) {
-                return Some(true);
+            let (answer, failed) = this.infer.probe_unify(pool, a, b);
+            for (x, y) in failed {
+                let failed_key = Query::Unify(x, y);
+                let _ = memo.cached(failed_key);
+                memo.observe(pool, &this.infer, x, failed_key);
+                memo.observe(pool, &this.infer, y, failed_key);
+                memo.finish(failed_key, false);
             }
-            this.repr_change(from, to, depth + 1).then_some(true)
+            memo.observe(pool, &this.infer, a, key);
+            memo.observe(pool, &this.infer, b, key);
+            memo.finish(key, answer);
+            answer
         };
-        match (pool.get(got), pool.get(want)) {
-            (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
-                let mut changed = false;
-                for (j, (x, y)) in xs.iter().zip(ys.iter()).enumerate() {
-                    let step = match vs.get(j).copied().unwrap_or(0) {
-                        1 => pair(self, *x, *y),
-                        -1 => pair(self, *y, *x),
-                        _ => self.can_unify(*x, *y).then_some(false),
+        let mut changed = Vec::new();
+        let mut todo = vec![Work::Repr(got, want, None)];
+        while let Some(work) = todo.pop() {
+            memo.sync(&self.infer, self.env.changes());
+            match work {
+                Work::Repr(got, want, parent) => {
+                    let got = self.norm_ty(got);
+                    let got = self.resolved(self.infer.resolve(pool, got));
+                    let want = self.norm_ty(want);
+                    let want = self.resolved(self.infer.resolve(pool, want));
+                    memo.sync(&self.infer, self.env.changes());
+                    let key = Query::Repr(got, want);
+                    if let Some(parent) = parent {
+                        memo.link(key, parent);
+                    }
+                    if let Some(answer) = memo.cached(key) {
+                        if !answer {
+                            return false;
+                        }
+                        continue;
+                    }
+                    hd_types::work::type_node();
+                    memo.observe(pool, &self.infer, got, key);
+                    memo.observe(pool, &self.infer, want, key);
+                    let index = changed.len();
+                    changed.push(false);
+                    todo.push(Work::Finish(key, index));
+                    match (pool.get(got), pool.get(want)) {
+                        (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys })
+                            if def == d2 =>
+                        {
+                            let vs = self.declared_variances(def);
+                            for (j, (&x, &y)) in pool
+                                .list_items(xs)
+                                .iter()
+                                .zip(pool.list_items(ys))
+                                .enumerate()
+                                .rev()
+                            {
+                                let (from, to, invariant) = match vs.get(j).copied().unwrap_or(0) {
+                                    1 => (x, y, false),
+                                    -1 => (y, x, false),
+                                    _ => (x, y, true),
+                                };
+                                todo.push(Work::Position(from, to, invariant, index, key));
+                            }
+                        }
+                        (
+                            TyData::Fn {
+                                params: xp,
+                                result: xr,
+                                ..
+                            },
+                            TyData::Fn {
+                                params: yp,
+                                result: yr,
+                                ..
+                            },
+                        ) => {
+                            let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
+                            if xp.len() != yp.len() {
+                                return false;
+                            }
+                            todo.push(Work::Position(xr, yr, false, index, key));
+                            for (&x, &y) in xp.iter().zip(yp).rev() {
+                                todo.push(Work::Position(y, x, false, index, key));
+                            }
+                        }
+                        _ => return false,
+                    }
+                }
+                Work::Position(from, to, invariant, index, parent) => {
+                    let fits = probe(self, &mut memo, from, to, parent);
+                    if fits {
+                        continue;
+                    }
+                    if invariant {
+                        return false;
+                    }
+                    let from = self.resolved(self.infer.resolve(pool, from));
+                    let to = self.resolved(self.infer.resolve(pool, to));
+                    let inserts = if let Some((tv, mutable)) = self.dyn_ref_of(to) {
+                        memo.environment(parent);
+                        self.ref_of(from).is_some_and(|(inner, writable)| {
+                            (!mutable || writable) && self.dyn_fits(inner, tv)
+                        })
+                    } else {
+                        self.option_arg(to).is_some_and(|inner| {
+                            self.option_layers_in(from, &mut layers) + 1
+                                == self.option_layers_in(to, &mut layers)
+                                && probe(self, &mut memo, from, inner, parent)
+                        })
                     };
-                    match step {
-                        Some(c) => changed |= c,
-                        None => return false,
+                    changed[index] = true;
+                    if !inserts {
+                        todo.push(Work::Repr(from, to, Some(parent)));
                     }
                 }
-                changed
-            }
-            (
-                TyData::Fn {
-                    params: xp,
-                    result: xr,
-                    ..
-                },
-                TyData::Fn {
-                    params: yp,
-                    result: yr,
-                    ..
-                },
-            ) => {
-                let (xp, yp) = (pool.list_items(xp), pool.list_items(yp));
-                if xp.len() != yp.len() {
-                    return false;
-                }
-                let mut changed = false;
-                for (x, y) in xp.iter().zip(yp.iter()) {
-                    match pair(self, *y, *x) {
-                        Some(c) => changed |= c,
-                        None => return false,
+                Work::Finish(key, index) => {
+                    let answer = changed[index];
+                    memo.finish(key, answer);
+                    if !answer {
+                        return false;
                     }
                 }
-                match pair(self, xr, yr) {
-                    Some(c) => changed | c,
-                    None => false,
-                }
             }
-            _ => false,
         }
-    }
-
-    /// Whether a value of type `from` converts to `to` only by building a
-    /// trait value it implements, or by one optional injection.
-    fn elem_converts(&mut self, from: Ty, to: Ty) -> bool {
-        let pool = self.pool();
-        let from = self.infer.resolve(pool, from);
-        let from = self.resolved(from);
-        let to = self.infer.resolve(pool, to);
-        let to = self.resolved(to);
-        if let Some((tv, mutable)) = self.dyn_ref_of(to) {
-            return self.ref_of(from).is_some_and(|(inner, writable)| {
-                (!mutable || writable) && self.dyn_fits(inner, tv)
-            });
-        }
-        self.option_arg(to)
-            .is_some_and(|inner| self.injects_into(from, to) && self.can_unify(from, inner))
+        true
     }
 
     /// Whether two types can unify, with no lasting effect.
@@ -5725,4 +5820,85 @@ pub(crate) fn with_checker_items(
         &mut diags,
     );
     run(&mut ck);
+}
+
+#[cfg(test)]
+mod representation_walk_tests {
+    use super::*;
+
+    #[test]
+    fn optional_spines_share_lengths_and_follow_bindings() {
+        with_checker(|ck| {
+            let p = ck.pool();
+            let mut memo = crate::type_query::TypeQueries::new(&ck.infer, ck.env.changes());
+            let tail = ck.infer.fresh(p, VarKind::General);
+            let mut spine = vec![tail];
+            for _ in 0..1_000 {
+                spine.push(ck.optional(*spine.last().unwrap()));
+            }
+            let ((), work) = hd_types::work::count_type_nodes(|| {
+                for (depth, &ty) in spine.iter().enumerate().rev() {
+                    assert_eq!(ck.option_layers_in(ty, &mut memo), depth);
+                }
+            });
+            assert!(work <= 2_002, "one shared dependency/spine walk: {work}");
+            ck.infer.unify(p, tail, ck.optional(Ty::I32)).unwrap();
+            assert_eq!(ck.option_layers_in(spine[1_000], &mut memo), 1_001);
+        });
+    }
+
+    #[test]
+    fn representation_probes_share_failed_suffixes_at_depth_1000() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for generated shared function graphs.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                with_checker(|ck| {
+                    let p = ck.pool();
+                    let option = |t| {
+                        p.intern_ty(&TyData::Adt {
+                            def: ck.cx.names.known.option,
+                            args: p.list(&[t]),
+                        })
+                    };
+                    let function = |params: &[Ty], result| {
+                        p.intern_ty(&TyData::Fn {
+                            params: p.list(params),
+                            result,
+                            row: hd_types::RowId::EMPTY,
+                            suspends: false,
+                            inputs: hd_types::Inputs::Fixed,
+                            deps: hd_types::FnDeps::NONE,
+                        })
+                    };
+                    for depth in [100, 1_000] {
+                        let (mut got, mut want) = (Ty::I32, option(Ty::I32));
+                        for _ in 0..depth {
+                            // The same suffix is reached through result covariance
+                            // and twice through reversed parameter variance.
+                            (got, want) =
+                                (function(&[want, want], got), function(&[got, got], want));
+                        }
+                        let _ = ck.infer.resolve(p, got);
+                        let _ = ck.infer.resolve(p, want);
+                        let (answer, work) =
+                            hd_types::work::count_type_nodes(|| ck.repr_change(got, want));
+                        assert!(answer);
+                        assert!(
+                            work <= 20 * depth + 20,
+                            "linear shared suffix work: {depth}: {work}"
+                        );
+                        assert!(
+                            !ck.repr_change(got, got),
+                            "no insertion is no representation change"
+                        );
+                    }
+                    assert!(!ck.repr_change(function(&[], Ty::I32), function(&[], Ty::BOOL)));
+                    assert!(!ck.repr_change(function(&[Ty::I32], Ty::I32), function(&[], Ty::I32)));
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 }
