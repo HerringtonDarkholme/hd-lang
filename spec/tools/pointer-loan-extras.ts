@@ -1,3 +1,5 @@
+import { genericExtras } from "./pointer-loan-generic-extras.ts";
+
 // The adversarial cases of spec/tools/generate-pointer-loan-matrix.ts:
 // each one shape the reference-kind x path x lifetime x action matrix does
 // not reach, with its source and the verdicts of both models.
@@ -1197,7 +1199,9 @@ fn keep['a](left: &'a string, right: &'a string, pick: bool) -> &'a string:
     if pick: left else: right
 
 fn through_call(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
-    r := keep(p.get_ref().expect("slot"), q.get_ref().expect("slot"), true)
+    left := p.get_ref().expect("slot")
+    right := q.get_ref().expect("slot")
+    r := keep(left, right, true)
     alias.push() # panic: borrow-conflict
     *r
 
@@ -1230,7 +1234,12 @@ fn keep['a](left: &'a string, right: &'a string, pick: bool) -> &'a string:
     if pick: left else: right
 
 fn through_call(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
-    r := keep(p.get_ref().expect("slot"), q.get_ref().expect("slot"), false)
+    r := if true:
+        left := p.get_ref().expect("slot")
+        right := q.get_ref().expect("slot")
+        keep(left, right, false)
+    else:
+        p.get_ref().expect("slot")
     alias.push() # panic: borrow-conflict
     *r
 
@@ -1312,6 +1321,7 @@ pub fn main() -> void $ Console:
     println(through_call(p, p, forward))
 `,
   },
+  ...genericExtras,
 ];
 /** Each adversarial case's columns: elision under loans (A), keep-alive (B). */
 export const extraColumns: Record<string, [string, string]> = {
@@ -1363,4 +1373,8 @@ export const extraColumns: Record<string, [string, string]> = {
   "through-call-two-sources-right": ["loan needed", "runs, stale"],
   "through-call-function-value": ["loan needed", "runs, stale"],
   "through-call-trait-value": ["loan needed", "runs, stale"],
+  "through-generic-carrier-some": ["loan needed", "runs, stale"],
+  "through-generic-carrier-fallback": ["loan needed", "runs, stale"],
+  "through-generic-carrier-struct": ["loan needed", "runs, stale"],
+  "through-generic-two-reference-slots": ["loan needed", "runs"],
 };

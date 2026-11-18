@@ -419,6 +419,12 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         .map(|&(c, a)| (map(t, c), map(t, a)))
         .filter(|&(c, a)| c != NONE && a != NONE)
         .collect();
+    for row in &mut b.loan_slots {
+        row.call = map(t, row.call);
+        row.value = map(t, row.value);
+    }
+    b.loan_slots
+        .retain(|row| row.call != NONE && row.value != NONE);
     // Both words name instructions no edit deletes (a suspension point and
     // a value), and the splice keeps their order.
     for row in &mut b.unwind_drops {

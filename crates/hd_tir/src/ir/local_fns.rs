@@ -144,6 +144,11 @@ pub fn instantiate_local_functions(
     for (k, &(call, _)) in b.held_args.iter().enumerate() {
         side[region_of(call as usize)].held.push(u32_of(k));
     }
+    for (k, row) in b.loan_slots.iter().enumerate() {
+        side[region_of(row.call as usize)]
+            .loan_slots
+            .push(u32_of(k));
+    }
     for (k, row) in b.susp.iter().enumerate() {
         side[region_of(row.inst as usize)].susp.push(u32_of(k));
     }
@@ -365,6 +370,8 @@ pub fn instantiate_local_functions(
     }
     out.fallback.sort_stable_by_key(|r| r[0]);
     out.held_args.sort_stable_by_key(|r| r.0);
+    out.loan_slots
+        .sort_stable_by_key(|r| (r.call, r.value, r.origin));
     out.susp.sort_stable_by_key(|r| r.inst);
     Ok(Some((out, built)))
 }
@@ -468,6 +475,7 @@ fn local_words(b: &Body, i: usize, f: &mut dyn FnMut(u32)) {
 struct Side {
     fallback: Vec<u32>,
     held: Vec<u32>,
+    loan_slots: Vec<u32>,
     susp: Vec<u32>,
 }
 
@@ -788,6 +796,15 @@ impl Tables<'_> {
             let (call, arg) = b.held_args[k as usize];
             if let (Some(call), Some(arg)) = (self.inst(c, call), self.inst(c, arg)) {
                 out.held_args.push((call, arg));
+            }
+        }
+        for &k in &side.loan_slots {
+            let row = &b.loan_slots[k as usize];
+            if let (Some(call), Some(value)) = (self.inst(c, row.call), self.inst(c, row.value)) {
+                let mut row = row.clone();
+                row.call = call;
+                row.value = value;
+                out.loan_slots.push(row);
             }
         }
         for &k in &side.susp {

@@ -521,6 +521,26 @@ fn encode(
     w.str(&b.label);
     let held: Vec<u32> = b.held_args.iter().flat_map(|&(c, a)| [c, a]).collect();
     u32s(&mut w, held.into_iter());
+    w.len_of(&b.loan_slots);
+    for slot in &b.loan_slots {
+        w.u32(slot.call);
+        w.u32(slot.value);
+        w.u32(slot.origin);
+        w.u8(u8::from(slot.expand));
+        w.len_of(&slot.path);
+        for step in &slot.path {
+            match *step {
+                crate::ir::LoanField::Field(index) => {
+                    w.u8(0);
+                    w.u32(index);
+                }
+                crate::ir::LoanField::Variant(index) => {
+                    w.u8(1);
+                    w.u32(index);
+                }
+            }
+        }
+    }
     // Locations last, outside the hashed prefix: moving a body in its file
     // changes node indices, not the body (`crates/hd_cache/DESIGN.md` §5.3).
     let hashed = u32::try_from(w.bytes.len()).expect("body over 4 GiB");
@@ -786,6 +806,28 @@ pub fn read_body(
     }
     b.label = r.str().into();
     b.held_args = col(&mut r).chunks_exact(2).map(|c| (c[0], c[1])).collect();
+    for _ in 0..r.count() {
+        let (call, value, origin, expand) = (r.u32(), r.u32(), r.u32(), r.u8());
+        if expand > 1 {
+            return None;
+        }
+        let mut path = Vec::new();
+        for _ in 0..r.count() {
+            let (kind, index) = (r.u8(), r.u32());
+            path.push(match kind {
+                0 => crate::ir::LoanField::Field(index),
+                1 => crate::ir::LoanField::Variant(index),
+                _ => return None,
+            });
+        }
+        b.loan_slots.push(crate::ir::LoanSlot {
+            call,
+            value,
+            origin,
+            path,
+            expand: expand != 0,
+        });
+    }
     b.syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.local_syn = col(&mut r).into_iter().map(NodeIdx::from_raw).collect();
     b.fallback = col(&mut r).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
@@ -892,7 +934,26 @@ mod tests {
         );
         b.emit(Tag::Return, call.0, crate::ir::NONE, Ty::NEVER, n);
         let root = b.close_block(blk, None, Ty::NEVER, n);
-        let body = b.finish(root, &[]).expect("verifies");
+        let mut body = b.finish(root, &[]).expect("verifies");
+        body.loan_slots = vec![
+            crate::ir::LoanSlot {
+                call: call.0,
+                value: get.0,
+                path: vec![
+                    crate::ir::LoanField::Variant(1),
+                    crate::ir::LoanField::Field(0),
+                ],
+                origin: 7,
+                expand: false,
+            },
+            crate::ir::LoanSlot {
+                call: call.0,
+                value: call.0,
+                path: vec![],
+                origin: 7,
+                expand: true,
+            },
+        ];
         let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
         let (pool2, paths2, syms2) = (
             InternPool::new(),
@@ -902,6 +963,7 @@ mod tests {
         paths2.item("zzz", "a", "b");
         let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
+        assert_eq!(body.loan_slots, back.loan_slots);
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
     }

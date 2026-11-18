@@ -37,6 +37,7 @@ struct Index {
     rows: Vec<Vec<usize>>,
     fallback: Vec<Vec<[u32; 2]>>,
     held: Vec<Vec<(u32, u32)>>,
+    loan_slots: Vec<Vec<crate::ir::LoanSlot>>,
     shared: Vec<Vec<u32>>,
     roots: HashSet<u32>,
     params: Vec<Vec<u32>>,
@@ -64,6 +65,11 @@ impl Index {
         for &row in &body.held_args {
             work!(1);
             held[subs[row.0 as usize] as usize].push(row);
+        }
+        let mut loan_slots = vec![Vec::new(); rows.len()];
+        for row in &body.loan_slots {
+            work!(4 + row.path.len());
+            loan_slots[subs[row.call as usize] as usize].push(row.clone());
         }
         let mut shared = vec![Vec::new(); rows.len()];
         for &(sub, capture) in &body.inlined_shared {
@@ -93,6 +99,7 @@ impl Index {
             rows,
             fallback,
             held,
+            loan_slots,
         }
     }
 
@@ -111,6 +118,12 @@ impl Index {
                 + captures.len()
                 + self.fallback.get(sub)?.len() * 2
                 + self.held.get(sub)?.len() * 2
+                + self
+                    .loan_slots
+                    .get(sub)?
+                    .iter()
+                    .map(|row| 4 + row.path.len())
+                    .sum::<usize>()
                 + self.shared.get(sub)?.len() * 4
                 + self.copy_roots.get(sub)?.len() * 3,
         )?;
@@ -140,6 +153,7 @@ impl Index {
         let mut out = Body::new(body.item, BodyKind::Fn);
         out.fallback.clone_from(self.fallback.get(sub)?);
         out.held_args.clone_from(self.held.get(sub)?);
+        out.loan_slots.clone_from(self.loan_slots.get(sub)?);
         for &[_, local] in &out.fallback {
             work!(1);
             if local != 0 {
@@ -336,6 +350,11 @@ impl Index {
         for row in &mut out.held_args {
             work!(1);
             *row = (*values.get(&row.0)?, *values.get(&row.1)?);
+        }
+        for row in &mut out.loan_slots {
+            work!(1);
+            row.call = *values.get(&row.call)?;
+            row.value = *values.get(&row.value)?;
         }
         out.sub_root.push(*values.get(body.sub_root.get(sub)?)?);
         out.sub_params.push(Range32::default());
@@ -869,6 +888,8 @@ fn erase_definitions(
     }
     body.fallback.retain(|row| !dead_inst[row[0] as usize]);
     body.held_args.retain(|row| !dead_inst[row.0 as usize]);
+    body.loan_slots
+        .retain(|row| !dead_inst[row.call as usize] && !dead_inst[row.value as usize]);
     let mut labels = vec![NONE; body.label_inst.len()];
     let mut kept = Vec::new();
     for (old, &inst) in body.label_inst.iter().enumerate() {

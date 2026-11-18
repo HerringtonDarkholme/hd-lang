@@ -25,7 +25,8 @@ use std::sync::Arc;
 #[derive(Debug, Default)]
 pub(crate) struct OriginIndex {
     canonical: Vec<usize>,
-    held: Vec<Option<u32>>,
+    held: hd_base::HashMap<usize, Vec<u32>>,
+    loan_slots: hd_base::HashMap<usize, Vec<hd_tir::ir::LoanSlot>>,
     breaks: hd_base::HashMap<usize, Vec<(usize, u32)>>,
 }
 
@@ -74,12 +75,21 @@ impl OriginIndex {
                 state[value] = 2;
             }
         }
-        let mut held = vec![None; b.len()];
+        let mut held: hd_base::HashMap<usize, Vec<u32>> = hd_base::HashMap::default();
         for &(value, argument) in &b.held_args {
             work(1);
-            if let Some(slot) = held.get_mut(value as usize) {
-                slot.get_or_insert(argument);
+            if (value as usize) < b.len() {
+                held.entry(value as usize).or_default().push(argument);
             }
+        }
+        let mut loan_slots: hd_base::HashMap<usize, Vec<hd_tir::ir::LoanSlot>> =
+            hd_base::HashMap::default();
+        for row in &b.loan_slots {
+            work(1 + row.path.len());
+            loan_slots
+                .entry(row.call as usize)
+                .or_default()
+                .push(row.clone());
         }
         let mut breaks: hd_base::HashMap<usize, Vec<(usize, u32)>> = hd_base::HashMap::default();
         for (i, &tag) in b.tags.iter().enumerate() {
@@ -98,6 +108,7 @@ impl OriginIndex {
         Self {
             canonical,
             held,
+            loan_slots,
             breaks,
         }
     }
@@ -113,8 +124,8 @@ impl OriginIndex {
         self.value(value).map_or_else(Vec::new, query)
     }
 
-    fn argument(&self, value: usize) -> Option<u32> {
-        self.held.get(value).copied().flatten()
+    fn arguments(&self, value: usize) -> &[u32] {
+        self.held.get(&value).map_or(&[], Vec::as_slice)
     }
 
     /// Tail values precede breaks; the two labels of a Scope interleave
@@ -1400,7 +1411,157 @@ struct OriginContext<'a> {
     call_argument: bool,
 }
 
+/// Physical reference positions of one value-relative checked fragment.
+/// A hole's concrete slots retain their relative ordinal across forwarding.
+fn loan_fragment(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    b: &Body,
+    fragment: &hd_tir::ir::LoanSlot,
+) -> Option<Vec<usize>> {
+    let root = *b.ty.get(fragment.value as usize)?;
+    let mut ty = root;
+    let mut variant = None;
+    let mut path = Vec::with_capacity(fragment.path.len());
+    for step in &fragment.path {
+        ty = strip(pool, env, ty);
+        match *step {
+            hd_tir::ir::LoanField::Variant(index) => {
+                variant = Some(index);
+                path.push(Proj::Variant(index));
+            }
+            hd_tir::ir::LoanField::Field(index) => {
+                ty = match variant.take() {
+                    Some(case) => *variants(pool, env, ty)?
+                        .get(case as usize)?
+                        .get(index as usize)?,
+                    None => *value_parts(pool, env, ty).get(index as usize)?,
+                };
+                path.push(Proj::Field(index));
+            }
+        }
+    }
+    let physical = projection_slots(pool, env, root, &path)?;
+    let mut references = ref_slots(pool, env, ty);
+    // An auto-ref argument may still use its whole counted pointer word.
+    if references.is_empty()
+        && !fragment.expand
+        && matches!(kind(pool, env, ty), Kind::Ref { whole: true, .. })
+    {
+        references.push((0, ty));
+    }
+    references
+        .into_iter()
+        .map(|(slot, _)| physical.get(slot).copied())
+        .collect()
+}
+
 impl OriginContext<'_> {
+    fn fragment(
+        &self,
+        row: &hd_tir::ir::LoanSlot,
+        graph: &mut OriginGraph,
+    ) -> Vec<(usize, Option<usize>)> {
+        let Some(&ty) = self.body.ty.get(row.value as usize) else {
+            return Vec::new();
+        };
+        let key = (ty, row.path.clone(), row.expand);
+        let slots = graph
+            .fragments
+            .entry(key)
+            .or_insert_with(|| loan_fragment(self.pool, self.env, self.body, row).map(Rc::new));
+        slots
+            .iter()
+            .flat_map(|s| s.iter())
+            .enumerate()
+            .map(|(ordinal, &slot)| (slot, row.expand.then_some(ordinal)))
+            .collect()
+    }
+
+    fn call_parts(&self, call: usize, graph: &mut OriginGraph) -> Option<Vec<OriginPart>> {
+        let rows = self.index.loan_slots.get(&call)?;
+        let mut group_indices = hd_base::HashMap::default();
+        let mut groups: Vec<OriginGroup> = Vec::new();
+        for row in rows.iter().filter(|row| row.value as usize != call) {
+            for (slot, lane) in self.fragment(row, graph) {
+                let Some(source) = self.part(
+                    row.value,
+                    OriginMap::Projection([(slot, 0)].into_iter().collect()),
+                ) else {
+                    continue;
+                };
+                let direct = graph.sets.atom_with(Bind::Call(row.value), || {
+                    arg_loan(self.pool, self.env, self.body, row.value)
+                });
+                let fallback = matches!(graph.sets.nodes[direct], OriginSet::Atom(_, Some(_)))
+                    .then(|| graph.rows.leaf(0, direct));
+                let source = graph.virtual_plan(
+                    self.body.len(),
+                    OriginPlan::Scope {
+                        values: vec![source],
+                        fallback,
+                        parents: None,
+                    },
+                );
+                let group = *group_indices.entry((row.origin, lane)).or_insert_with(|| {
+                    let index = groups.len();
+                    groups.push(((row.origin, lane), Vec::new()));
+                    index
+                });
+                groups[group].1.push(OriginPart {
+                    value: source,
+                    map: OriginMap::Offset(0),
+                });
+            }
+        }
+        let mut roots = hd_base::HashMap::default();
+        let mut origin_indices = hd_base::HashMap::default();
+        let mut by_origin: Vec<(u32, Vec<OriginPart>)> = Vec::new();
+        for (key, values) in groups {
+            let value = graph.virtual_plan(self.body.len(), OriginPlan::Call { values, slot: 0 });
+            roots.insert(key, value);
+            let group = *origin_indices.entry(key.0).or_insert_with(|| {
+                let index = by_origin.len();
+                by_origin.push((key.0, Vec::new()));
+                index
+            });
+            by_origin[group].1.push(OriginPart {
+                value,
+                map: OriginMap::Offset(0),
+            });
+        }
+        let all: hd_base::HashMap<_, _> = by_origin
+            .into_iter()
+            .map(|(origin, values)| {
+                (
+                    origin,
+                    graph.virtual_plan(self.body.len(), OriginPlan::Call { values, slot: 0 }),
+                )
+            })
+            .collect();
+        let mut out = Vec::new();
+        for row in rows.iter().filter(|row| row.value as usize == call) {
+            for (slot, lane) in self.fragment(row, graph) {
+                let sources: Vec<_> = match lane {
+                    None => all.get(&row.origin).copied().into_iter().collect(),
+                    Some(_) => [
+                        roots.get(&(row.origin, None)),
+                        roots.get(&(row.origin, lane)),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .copied()
+                    .collect(),
+                };
+                out.extend(sources.into_iter().map(|value| OriginPart {
+                    value,
+                    map: OriginMap::Offset(slot),
+                }));
+            }
+        }
+        Some(out)
+    }
+
     fn part(&self, value: u32, map: OriginMap) -> Option<OriginPart> {
         Some(OriginPart {
             value: self.index.value(value as usize)?,
@@ -1409,19 +1570,18 @@ impl OriginContext<'_> {
     }
 
     fn held(&self, c: usize, graph: &mut OriginGraph) -> OriginAnswer {
-        let Some(a) = self.index.argument(c) else {
-            return OriginGraph::empty();
-        };
         let slots = ref_slots(self.pool, self.env, self.body.ty[c]);
         if slots.is_empty() {
             return None;
         }
-        let set = graph.sets.atom_with(Bind::Call(a), || {
-            arg_loan(self.pool, self.env, self.body, a)
-        });
-        graph
-            .rows
-            .build(slots.into_iter().map(|(slot, _)| (slot, set)))
+        let mut rows = Vec::new();
+        for &a in self.index.arguments(c) {
+            let set = graph.sets.atom_with(Bind::Call(a), || {
+                arg_loan(self.pool, self.env, self.body, a)
+            });
+            rows.extend(slots.iter().map(|&(slot, _)| (slot, set)));
+        }
+        graph.rows.build(rows)
     }
 
     fn read(&self, c: usize) -> Option<OriginPlan> {
@@ -1466,30 +1626,32 @@ impl OriginContext<'_> {
             // Holder registration already follows a returned Ref's reborrow
             // roots. A transient call argument instead needs the inlined
             // receiver's own Ref origin as well as the result's origin.
-            if direct.is_some()
-                && let Some(a) = self.index.argument(c)
-                && let Some(v) = self.index.value(a as usize)
-                && (self.call_argument && b.tags[v] == Tag::Ref
-                    || b.tags[v] == Tag::Read
-                        && matches!(
-                            kind(self.pool, self.env, b.ty[v]),
-                            Kind::Ref {
-                                whole: true,
-                                fat: false,
-                                ..
-                            }
-                        ))
-            {
-                let set = graph
-                    .sets
-                    .atom_with(Bind::CallParent(a), || arg_loan(self.pool, self.env, b, a));
-                parents = graph.rows.build(
-                    graph
-                        .rows
-                        .collect(direct)
-                        .into_iter()
-                        .map(|(slot, _)| (slot, set)),
-                );
+            for &a in self.index.arguments(c) {
+                if direct.is_some()
+                    && let Some(v) = self.index.value(a as usize)
+                    && (self.call_argument && b.tags[v] == Tag::Ref
+                        || b.tags[v] == Tag::Read
+                            && matches!(
+                                kind(self.pool, self.env, b.ty[v]),
+                                Kind::Ref {
+                                    whole: true,
+                                    fat: false,
+                                    ..
+                                }
+                            ))
+                {
+                    let set = graph
+                        .sets
+                        .atom_with(Bind::CallParent(a), || arg_loan(self.pool, self.env, b, a));
+                    let added = graph.rows.build(
+                        graph
+                            .rows
+                            .collect(direct)
+                            .into_iter()
+                            .map(|(slot, _)| (slot, set)),
+                    );
+                    parents = graph.rows.pair(parents, added);
+                }
             }
             return Some(OriginPlan::Scope {
                 values,
@@ -1506,12 +1668,24 @@ impl OriginContext<'_> {
                 // as OSSA forwarding uses extend the introducing borrow.
                 // The direct loan remains the fallback for an untracked
                 // argument; returning a reference does not end its loan.
-                let values = self.index.argument(c).map_or_else(Vec::new, |argument| {
-                    ref_slots(self.pool, self.env, b.ty[c])
-                        .into_iter()
-                        .filter_map(|(slot, _)| self.part(argument, OriginMap::Offset(slot)))
-                        .collect()
-                });
+                if let Some(values) = self.call_parts(c, graph) {
+                    return Some(OriginPlan::Scope {
+                        values,
+                        fallback: direct,
+                        parents: None,
+                    });
+                }
+                let slots = ref_slots(self.pool, self.env, b.ty[c]);
+                let values = self
+                    .index
+                    .arguments(c)
+                    .iter()
+                    .flat_map(|&argument| {
+                        slots.iter().filter_map(move |&(slot, _)| {
+                            self.part(argument, OriginMap::Offset(slot))
+                        })
+                    })
+                    .collect();
                 return Some(OriginPlan::Scope {
                     values,
                     fallback: direct,
@@ -1630,8 +1804,14 @@ struct LocalOrigins {
     answer: OriginAnswer,
 }
 
+type OriginGroup = ((u32, Option<usize>), Vec<OriginPart>);
+type FragmentCache =
+    hd_base::HashMap<(Ty, Vec<hd_tir::ir::LoanField>, bool), Option<Rc<Vec<usize>>>>;
+
 #[derive(Default)]
 pub(super) struct OriginGraph {
+    virtual_plans: hd_base::HashMap<usize, Rc<OriginPlan>>,
+    fragments: FragmentCache,
     plans: hd_base::HashMap<usize, Rc<OriginPlan>>,
     answers: hd_base::HashMap<usize, OriginAnswer>,
     parents: hd_base::HashMap<usize, OriginParents>,
@@ -1653,10 +1833,15 @@ pub(super) struct OriginGraph {
 }
 
 impl OriginGraph {
-    fn empty() -> OriginAnswer {
-        None
+    fn virtual_plan(&mut self, instructions: usize, plan: OriginPlan) -> usize {
+        #[cfg(test)]
+        {
+            self.work += 1;
+        }
+        let value = instructions + self.virtual_plans.len();
+        self.virtual_plans.insert(value, Rc::new(plan));
+        value
     }
-
     fn ready(&mut self, rows: Vec<(usize, Bind, Option<Loan>)>) -> OriginAnswer {
         self.rows.build(
             rows.into_iter()
@@ -1986,7 +2171,11 @@ impl OriginGraph {
                         active.insert(value),
                         "ruled out: structural TIR value edges are acyclic; local reads are leaves"
                     );
-                    let plan = Rc::new(prepare(value, self));
+                    let plan = if let Some(plan) = self.virtual_plans.get(&value) {
+                        Rc::clone(plan)
+                    } else {
+                        Rc::new(prepare(value, self))
+                    };
                     pending.push(OriginTask::Exit(value, Rc::clone(&plan)));
                     pending.extend(plan.children().rev().map(OriginTask::Enter));
                 }
@@ -2574,6 +2763,62 @@ mod origin_index_tests {
                     assert_eq!(graph.cost() - before, width * (2 * usize::from(positive)));
                 }
             }
+        }
+    }
+
+    #[test]
+    fn shared_call_origin_groups_do_not_expand_source_result_products() {
+        for depth in [1, 20] {
+            let mut costs = Vec::new();
+            for width in [1_000usize, 10_000] {
+                let mut graph = OriginGraph::default();
+                let mut sources = Vec::new();
+                for lane in 0..width {
+                    let bind = Bind::Begin(u32::try_from(lane).expect("test width"));
+                    let answer = graph.ready(vec![(0, bind, None)]);
+                    let value = graph.virtual_plan(0, OriginPlan::Ready(answer));
+                    sources.push(OriginPart {
+                        value,
+                        map: OriginMap::Offset(0),
+                    });
+                }
+                let mut group = graph.virtual_plan(
+                    0,
+                    OriginPlan::Call {
+                        values: sources,
+                        slot: 0,
+                    },
+                );
+                for _ in 1..depth {
+                    group = graph.virtual_plan(
+                        0,
+                        OriginPlan::Call {
+                            values: vec![OriginPart {
+                                value: group,
+                                map: OriginMap::Offset(0),
+                            }],
+                            slot: 0,
+                        },
+                    );
+                }
+                let outputs = (0..width)
+                    .map(|slot| OriginPart {
+                        value: group,
+                        map: OriginMap::Offset(slot),
+                    })
+                    .collect();
+                let root = graph.virtual_plan(0, OriginPlan::Join(outputs));
+                let answer = graph.answer(root, |_, _| panic!("all nodes are virtual"));
+                assert!(answer.is_some());
+                // Each result slot shares the same candidate set rather than
+                // constructing width squared individual origin facts.
+                assert!(graph.sets.nodes.len() <= 2 * width);
+                let cost = graph.cost();
+                assert_eq!(graph.answer(root, |_, _| panic!("cached")), answer);
+                assert_eq!(graph.cost(), cost);
+                costs.push(cost);
+            }
+            assert!(costs[1] <= 12 * costs[0], "depth={depth} costs={costs:?}");
         }
     }
 
@@ -3294,8 +3539,8 @@ mod origin_index_tests {
         b.emit(Tag::Break, 0, NONE, Ty::VOID, NodeIdx::NONE);
         b.body_mut().held_args = vec![(scope.0, 13), (scope.0, 14)];
         let index = OriginIndex::new(b.body_mut());
-        assert_eq!(index.argument(scope.0 as usize), Some(13));
-        assert_eq!(index.argument(usize::MAX), None);
+        assert_eq!(index.arguments(scope.0 as usize), &[13, 14]);
+        assert_eq!(index.arguments(usize::MAX), &[]);
         assert_eq!(
             index
                 .returns(b.body_mut(), scope.0 as usize)

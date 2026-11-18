@@ -666,6 +666,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         ]);
     }
     out.held_args.append(&mut k.held_args);
+    out.loan_slots.append(&mut k.loan_slots);
     let captures = u32_of(out.cap_local.len());
     out.cap_local.extend(
         k.cap_local
