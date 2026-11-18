@@ -39,7 +39,6 @@ pub(crate) use hd_tir::own::pointer::LoanSite;
 mod closure;
 mod control;
 mod count;
-pub(crate) use count::LoanCell;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
 mod drop_flags;
@@ -55,8 +54,7 @@ mod list;
 mod loan;
 mod map;
 mod promote;
-pub use promote::{lent_referent, promotable_referent, rooted_referent, settled};
-mod parameter_uses;
+pub use promote::{Settled, lent_referent, promotable_referent, rooted_referent, settled};
 pub(crate) mod ref_slots;
 mod refs;
 mod row;
@@ -67,26 +65,6 @@ mod susp_spill;
 mod switch;
 mod text;
 mod value;
-
-pub(crate) use count::BoundaryCell;
-
-/// Share the immutable count census across every instance/sub-body that
-/// reads the same stable Input body. Pointer identities live only during
-/// this prepass; the module retains facts by stable instance ID.
-pub(crate) fn prepare_boundary_counts(input: &Input<'_>, module: &mut Module) {
-    use std::sync::Arc;
-    let mut grouped = HashMap::default();
-    module.boundary_counts = vec![None; input.collected.table.item.len()];
-    for &id in input.order {
-        let Some(body) = (input.body)(id) else {
-            continue;
-        };
-        let facts = grouped
-            .entry(std::ptr::from_ref(body))
-            .or_insert_with(BoundaryCell::default);
-        module.boundary_counts[id.idx()] = Some(Arc::clone(facts));
-    }
-}
 
 /// Read a fact guaranteed by the named checked/collected producer.
 /// Typed accessors keep the producer proof beside the lookup; sharing this
@@ -114,25 +92,6 @@ pub(crate) fn prepare_element_checks(input: &Input<'_>, module: &mut Module) {
             .entry(std::ptr::from_ref(body))
             .or_insert_with(|| Arc::new(hd_tir::own::ElementChecks::new(body)));
         module.element_checks[id.idx()] = Some(Arc::clone(facts));
-    }
-}
-
-/// Share a lazy immutable-body loan census between all collected sub-bodies.
-/// Pointer grouping is confined to this prepass while Input owns every body;
-/// emission retains only stable instance-indexed cells, never pointer keys.
-pub(crate) fn prepare_loan_uses(input: &Input<'_>, module: &mut Module) {
-    use std::sync::{Arc, OnceLock};
-    let mut grouped = HashMap::default();
-    module.loan_uses = vec![None; input.collected.table.item.len()];
-    crate::work::loan_queries(input.order.len());
-    for &id in input.order {
-        let Some(body) = (input.body)(id) else {
-            continue;
-        };
-        let facts = grouped
-            .entry(std::ptr::from_ref(body))
-            .or_insert_with(|| Arc::new(OnceLock::new()));
-        module.loan_uses[id.idx()] = Some(Arc::clone(facts));
     }
 }
 
@@ -222,12 +181,23 @@ fn body_func<'a>(
         .and_then(|id| m.body_facts.get_mut(id.idx()))
         .and_then(Option::take)
         .unwrap_or_default();
+    let boundary = inst.and_then(|id| (input.boundary)(id)).unwrap_or_else(|| {
+        let inputs = promote::boundary_inputs(input, b, item, own.cold.is_some(), own.lends);
+        std::sync::Arc::new(hd_tir::own::boundary::plan(
+            b,
+            &hd_tir::ir::Topology::new(b),
+            input.own_cx,
+            &inputs,
+            &mut crate::work::loan_queries,
+        ))
+    });
     let facts = body_cell.get_or_init(|| {
         body_facts::BodyFacts::new(
             b,
             input.own_cx,
             m.track_origins,
             input.runtime.checked.is_some(),
+            &boundary,
         )
     });
 
@@ -265,19 +235,7 @@ fn body_func<'a>(
             (l.idx(), facts.cell_stores[&l.idx()])
         })
         .collect();
-    let loan_uses = inst
-        .and_then(|id| m.loan_uses.get(id.idx()))
-        .and_then(Clone::clone)
-        .unwrap_or_default();
-    let mut em = Em::new(
-        input,
-        m,
-        b,
-        item,
-        targets,
-        cells,
-        (sub, inst, loan_uses, facts),
-    );
+    let mut em = Em::new(input, m, b, item, targets, cells, (sub, boundary, facts));
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
     em.type_promoted();
     em.plan_slots(&slots, framed_slots)?;
@@ -526,12 +484,8 @@ fn body_func<'a>(
         em.f.set(em.susp.as_ref().map_or(0, |s| s.pc));
         em.f.op(Instruction::Else);
     }
-    // The parameters this instance receives borrowed whose value the body
-    // only lends or passes on to callees that borrow it here too
-    // (`Em::instance_loans`), including a lifted closure's own parameters.
-    // A suspending body with no suspension point runs while its frame,
-    // which holds a count of each parameter, lives: it borrows the
-    // parameters its reads only lend, as a plain body borrows a lent one.
+    // The TIR boundary pass already decided which parameters, captures and
+    // reads lend here. No parameter/capture-use analysis runs in emission.
     let unsuspended = suspending
         && closure.is_none()
         && !b.tags.iter().any(|&t| {
@@ -540,20 +494,15 @@ fn body_func<'a>(
                 Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
             )
         });
-    // A closure's code runs while the closure value, whose environment
-    // holds a count of each copied capture, lives: it borrows the captures
-    // its reads only lend (`Em::capture_loans`).
-    let lent_caps = match closure {
-        Some(ci) if em.counting && !suspending => em.capture_loans(ci),
-        _ => hd_base::HashSet::default(),
-    };
     let transferred = if suspending {
         em.cold_transferred_locals(&plocals)
     } else {
         hd_base::HashSet::default()
     };
-    let lent_here = if em.counting && (by_type || unsuspended) {
-        em.instance_loans(&plocals, unsuspended, &transferred)
+    let lent_here: hd_base::HashSet<_> = if em.counting {
+        let rows = &em.boundary.subs[usize::from(sub)];
+        em.loans.extend(rows.loans.iter().copied());
+        rows.borrowed.iter().copied().collect()
     } else {
         hd_base::HashSet::default()
     };
@@ -623,7 +572,7 @@ fn body_func<'a>(
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
                     }
                 }
-            } else if em.borrowed.contains(l) || lent_caps.contains(l) {
+            } else if em.borrowed.contains(l) || lent_here.contains(l) {
                 em.borrowed.insert(*l);
             } else {
                 let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
@@ -1124,7 +1073,8 @@ fn forward(
     {
         let t = subst(pool, env, callee, cargs, p);
         let vs = vals(pool, env, t)?;
-        let target_lends = k < 64 && lends & (1 << k) != 0;
+        let target_lends = hd_tir::own::ParameterMode::Owned.with_lends(lends, k)
+            == hd_tir::own::ParameterMode::Lent;
         if let Pass::Owned(_) = crate::layout::pass(pool, env, true, t) {
             let input = crate::layout::function_input(pool, env, t);
             // ruled out: collected function signatures use Wasm's u32
@@ -1333,9 +1283,7 @@ struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
     b: &'a Body,
-    boundary_counts: BoundaryCell,
     parameter_positions: HashMap<usize, usize>,
-    argument_loans: std::cell::RefCell<HashMap<u32, hd_base::HashSet<u32>>>,
     recursive_bindings: std::sync::Arc<hd_tir::own::RecursiveBindings>,
     /// The instructions the emitter types otherwise than the body does:
     /// a promoted argument, or a builtin's operand read through its
@@ -1419,7 +1367,7 @@ struct Em<'i, 'a, 'm> {
     defer_flags: HashMap<u32, u32>,
     /// The reads that take no count (`borrow` reads, lent parameters'
     /// reads and references, [`Em::prepare_own_loans`],
-    /// [`Em::instance_loans`]): their places are no place's to release.
+    /// the TIR boundary plan): their places are no place's to release.
     loans: hd_base::HashSet<u32>,
     /// The locals the passes store a borrow into, with the stored value
     /// ([`Em::prepare_own_loans`]): they hold no count.
@@ -1580,7 +1528,7 @@ struct Em<'i, 'a, 'm> {
     /// Each local a closure of the body captures, shared.
     captured: std::sync::Arc<hd_base::HashSet<usize>>,
     /// One local-use census shared by parameter and capture loan queries.
-    loan_uses: LoanCell,
+    boundary: std::sync::Arc<hd_tir::own::boundary::Boundary>,
     /// The final body's shared block structure.
     topo: std::sync::Arc<hd_tir::ir::Topology>,
     /// Its preorder, shared lazily with sibling closure instances.
@@ -1667,7 +1615,11 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         item: DefId,
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
-        (sub, inst, loan_uses, facts): (u16, Option<InstId>, LoanCell, &body_facts::BodyFacts),
+        (sub, boundary, facts): (
+            u16,
+            std::sync::Arc<hd_tir::own::boundary::Boundary>,
+            &body_facts::BodyFacts,
+        ),
     ) -> Self {
         assert_eq!(
             b.phase,
@@ -1675,10 +1627,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             "the emitter lowers instance bodies only: `{}`",
             (input.path)(item)
         );
-        let boundary_counts = inst
-            .and_then(|id| m.boundary_counts.get(id.idx()))
-            .and_then(Clone::clone)
-            .unwrap_or_default();
         let f = m.func("", vec![], vec![]);
         let mut em = Em {
             frame_index: HashMap::default(),
@@ -1686,9 +1634,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input,
             m,
             b,
-            boundary_counts,
             parameter_positions: HashMap::default(),
-            argument_loans: std::cell::RefCell::new(HashMap::default()),
             recursive_bindings: std::sync::Arc::clone(&facts.recursive),
             retyped: HashMap::default(),
             item,
@@ -1772,7 +1718,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             susp_slots: 0,
             drive_buffer: None,
             sub_id: sub,
-            loan_uses,
+            boundary,
             uses: std::sync::Arc::clone(&facts.uses),
             slot_uses: std::sync::Arc::clone(&facts.slot_uses),
             break_counts: std::sync::Arc::clone(&facts.break_counts),
@@ -3255,10 +3201,8 @@ impl Em<'_, '_, '_> {
     /// `lends` (`ProgramEnv::lends`) takes its parameter `k`, of type `t`:
     /// [`Em::pass`], but borrowed where it is lent.
     pub(super) fn pass_at(&self, lends: u64, k: usize, t: Ty) -> Pass {
-        match self.pass(t) {
-            Pass::Owned(_) if k < 64 && lends & (1 << k) != 0 => Pass::Borrowed,
-            p => p,
-        }
+        let mode = self.env().parameter_mode(t, false).with_lends(lends, k);
+        crate::layout::pass_mode(self.pool(), self.env(), true, t, mode)
     }
 
     /// The body's own input convention, distinct from a callee's. Lifted

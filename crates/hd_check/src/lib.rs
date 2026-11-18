@@ -45,6 +45,7 @@ mod local;
 mod local_refs;
 mod local_rows;
 mod moves;
+pub use moves::{CopyAnswer, copy_answer};
 mod opaque;
 mod pat;
 mod privacy;

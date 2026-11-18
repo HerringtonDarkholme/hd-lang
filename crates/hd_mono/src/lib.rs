@@ -109,6 +109,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn suspends(&self, def: DefId) -> bool;
     /// Whether the selected parameter representation uses the owned cold ABI.
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool;
+    /// The ownership pipeline's value-parameter decision. Codegen only lowers
+    /// the recorded convention to the concrete count walk.
+    fn parameter_mode(&self, ty: Ty, function: bool) -> hd_tir::own::ParameterMode;
     /// Concrete Copy classification for the function-value input convention.
     fn function_value_copies(&self, ty: Ty) -> bool;
     /// Whether a function-value parameter receives its owner. Copy values

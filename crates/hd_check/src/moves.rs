@@ -15,7 +15,7 @@
 
 use hd_base::{HashMap, HashSet, LocalId, SliceSort as _};
 use hd_diag::Code;
-use hd_resolve::{ItemData, Lookup};
+use hd_resolve::{Item, ItemData};
 use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
@@ -57,9 +57,33 @@ fn is_mut_ref(pool: Types<'_>, t: Ty) -> bool {
 /// A member type's own answer ([`blocker`]): the blocker it holds, if
 /// any, and whether that answer depends on the body (`open`).
 #[derive(Clone, Copy)]
-pub(crate) struct CopyAnswer {
+pub struct CopyAnswer {
     pub blocker: Option<Ty>,
     pub open: bool,
+}
+
+type CopyContext<'w, 'p> = (
+    Types<'p>,
+    &'w dyn Fn(hd_base::DefId) -> Option<&'p Item>,
+    &'w [Ty],
+    bool, // compiler ownership queries reborrow local-reference bits
+);
+
+/// The checker's Copy rule for compiler ownership after checking. Local
+/// references are reborrowed bits here; the checker already checked their
+/// exclusive moves. Nominal `!Copy` and open parameter rules remain shared.
+/// Callers share the checker's published closed answers and cache each newly
+/// answered member. The same iterative walk handles instantiated types not
+/// visited while checking a generic body; no second ownership rule is needed.
+pub fn copy_answer<'p>(
+    pool: Types<'p>,
+    item: &dyn Fn(hd_base::DefId) -> Option<&'p Item>,
+    t: Ty,
+    normalize: &mut dyn FnMut(Ty) -> Ty,
+    known: &mut dyn FnMut(Ty) -> Option<CopyAnswer>,
+    done: &mut dyn FnMut(Ty, CopyAnswer),
+) -> CopyAnswer {
+    known(t).unwrap_or_else(|| blocker((pool, item, &[], true), t, normalize, known, done))
 }
 
 /// One type the walk of [`blocker`] has entered and not finished: its
@@ -75,25 +99,23 @@ struct CopyFrame {
 
 /// What `t` holds by itself, before its member types: a blocker, or the
 /// member types to ask in field order. A `*mut T` and a `&T` copy.
-fn copy_step(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
-    let (pool, lookup, relaxed) = cx;
+fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
+    let (pool, find, relaxed, reborrow) = cx;
     match pool.get(t) {
         TyData::Ref {
             mutable, counted, ..
-        } => Ok((mutable && !counted).then_some(t)),
+        } => Ok((mutable && !counted && !reborrow).then_some(t)),
         TyData::Tuple { elems, rest } => {
             Err(pool.list_items(elems).iter().copied().chain(rest).collect())
         }
         TyData::Union(ms) => Err(pool.list_items(ms).to_vec()),
         TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
-        TyData::Param(p) => Ok((!param_copies((pool, lookup), p)).then_some(t)),
+        TyData::Param(p) => Ok((!param_copies((pool, find), p)).then_some(t)),
         TyData::Assoc { assoc, .. } => {
-            let copies = lookup.item(assoc).is_some_and(|item| match &item.data {
+            let copies = find(assoc).is_some_and(|item| match &item.data {
                 ItemData::AssocType { bounds, .. } => bounds.iter().any(|&bound| {
                     pool.trait_value(bound).is_some_and(|(trait_, _)| {
-                        lookup
-                            .item(trait_)
-                            .is_some_and(hd_resolve::Item::requires_copy)
+                        find(trait_).is_some_and(hd_resolve::Item::requires_copy)
                     })
                 }),
                 _ => false,
@@ -101,7 +123,7 @@ fn copy_step(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty) -> Result<Option<Ty>, V
             Ok((!copies).then_some(t))
         }
         TyData::Adt { def, args } => {
-            let Some(item) = lookup.item(def) else {
+            let Some(item) = find(def) else {
                 return Ok(None);
             };
             match item.copy_decl() {
@@ -157,7 +179,7 @@ fn copy_step(cx: (Types<'_>, &Lookup<'_>, &[Ty]), t: Ty) -> Result<Option<Ty>, V
 /// answer assumed it. Work: one step per distinct member type entered,
 /// at any depth, with no native recursion.
 fn blocker(
-    cx: (Types<'_>, &Lookup<'_>, &[Ty]),
+    cx: CopyContext<'_, '_>,
     t: Ty,
     normalize: &mut dyn FnMut(Ty) -> Ty,
     known: &mut dyn FnMut(Ty) -> Option<CopyAnswer>,
@@ -180,7 +202,7 @@ fn blocker(
 
 /// The state of one [`blocker`] walk.
 struct CopyWalk<'w, 'p> {
-    cx: (Types<'p>, &'w Lookup<'p>, &'w [Ty]),
+    cx: CopyContext<'w, 'p>,
     normalize: &'w mut dyn FnMut(Ty) -> Ty,
     known: &'w mut dyn FnMut(Ty) -> Option<CopyAnswer>,
     done: &'w mut dyn FnMut(Ty, CopyAnswer),
@@ -272,7 +294,15 @@ impl CopyWalk<'_, '_> {
                 top.low = top.low.min(low);
                 if a.blocker.is_some() {
                     top.answer.blocker = a.blocker;
-                    top.next = top.members.len();
+                    // An ownership query keeps looking past a ?Copy blocker:
+                    // a concrete !Copy part makes every instance noncopyable.
+                    if !self.cx.3
+                        || a.blocker.is_some_and(|t| {
+                            !matches!(self.cx.0.get(t), TyData::Param(_) | TyData::Assoc { .. })
+                        })
+                    {
+                        top.next = top.members.len();
+                    }
                 }
             }
             if top.next < top.members.len() {
@@ -303,8 +333,11 @@ impl CopyWalk<'_, '_> {
 /// implies it, as every parameter has unless declared `?Copy`
 /// (`ref.copy.generic.default`, `ref.copy.trait.default`). A trait's
 /// `Self` is `Copy` unless the trait is declared `< ?Copy`.
-fn param_copies((pool, lookup): (Types<'_>, &Lookup<'_>), p: ParamRef) -> bool {
-    let Some(item) = lookup.item(p.owner) else {
+fn param_copies<'p>(
+    (pool, find): (Types<'p>, &dyn Fn(hd_base::DefId) -> Option<&'p Item>),
+    p: ParamRef,
+) -> bool {
+    let Some(item) = find(p.owner) else {
         return true;
     };
     if let ItemData::Trait(t) = &item.data
@@ -317,7 +350,7 @@ fn param_copies((pool, lookup): (Types<'_>, &Lookup<'_>), p: ParamRef) -> bool {
     generics.get(at).is_none_or(|g| {
         g.bounds.iter().any(|&b| {
             pool.trait_value(b)
-                .is_some_and(|(d, _)| lookup.item(d).is_some_and(hd_resolve::Item::requires_copy))
+                .is_some_and(|(d, _)| find(d).is_some_and(hd_resolve::Item::requires_copy))
         })
     })
 }
@@ -615,7 +648,7 @@ impl Ck<'_, '_> {
         let lookup = self.cx.lookup;
         let mut answered: Vec<(Ty, CopyAnswer)> = Vec::new();
         let a = blocker(
-            (pool, lookup, relaxed),
+            (pool, &|d| lookup.item(d), relaxed, false),
             t,
             &mut |ty| self.norm_ty(ty),
             &mut |u| {

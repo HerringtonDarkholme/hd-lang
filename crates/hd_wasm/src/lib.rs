@@ -43,7 +43,7 @@ use hd_types::{InternPool, Ty, TyData};
 
 #[cfg(feature = "checked-report")]
 pub use count_audit::resolve as resolve_count_audit;
-pub use emit::{lent_referent, promotable_referent, rooted_referent, settled};
+pub use emit::{Settled, lent_referent, promotable_referent, rooted_referent, settled};
 pub use module::{Session, Sym};
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::{DISPATCH_ARMS, Helper};
@@ -147,6 +147,12 @@ pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
 #[must_use]
 pub fn function_input_borrows(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     layout::holds_thin_ref(pool, env, t)
+}
+
+/// Concrete layout fact: copying this value runs collection copy glue.
+#[must_use]
+pub fn copies_collection_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    layout::coll_kind(pool, env, t).is_some() || !layout::coll_leaves(pool, env, t).is_empty()
 }
 
 /// Whether ownership must transfer an inline runtime Drop value rather
@@ -432,6 +438,7 @@ pub struct Input<'a> {
     /// Each instance's TIR body, by instance: its instance body (a
     /// default argument's or a plan's), its supplied body, or its item's.
     pub body: &'a dyn Fn(InstId) -> Option<&'a Body>,
+    pub boundary: &'a dyn Fn(InstId) -> Option<std::sync::Arc<hd_tir::own::boundary::Boundary>>,
     /// The private `std.num` implementations of floating power and
     /// remainder, which Wasm has no native instructions for.
     pub float_ops: FloatOps,
@@ -895,9 +902,7 @@ fn link(
     drive::collect(input, &mut m);
     emit::collect_loans(input, &mut m);
     emit::prepare_element_checks(input, &mut m);
-    emit::prepare_boundary_counts(input, &mut m);
     emit::prepare_body_facts(input, &mut m);
-    emit::prepare_loan_uses(input, &mut m);
     for id in input.order {
         let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
