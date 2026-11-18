@@ -2,7 +2,7 @@
 
 Status: accepted design (owner, 2026-11-18: "accept all your
 recommendations"); domain: compiler internals; nothing built. It replaces
-`docs/future-work/INSTANCE_TIR.md` (accepted 2026-11-17, built through
+`INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
 [ownership.md](../compiler/ownership.md) and
@@ -68,7 +68,7 @@ lays out the frame and writes the destructor, which has no TIR body.
 | `crates/hd_wasm/src` | 72,379 | about 52,500 | −19,900 |
 | `crates/hd_tir/src` | 47,848 | about 55,450 | +7,600 |
 | `crates/hd_driver/src/own.rs` | 4,234 | about 3,700 | −550 |
-| new `crates/hd_layout/src`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
+| a new crate, `hd_layout`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
 | **All four** | **124,461** | **about 116,150** | **−8,330** |
 
 ## Open questions
@@ -415,7 +415,7 @@ patterns overlap, so the rows do not sum to 154.
 | `gap: #2075`, a projection chain past its depth | `hd_mono/src/lib.rs:590` | not on this path; stays with #2075 |
 
 **What instance TIR built.** Its record is in git history at 421bcec83,
-`docs/future-work/INSTANCE_TIR.md`. Its four decisions stand: no
+`INSTANCE_TIR.md`. Its four decisions stand: no
 fallback, exact keys first, recorded reads, client-side instances.
 
 | Step | State | Here |
