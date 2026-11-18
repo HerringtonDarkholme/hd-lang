@@ -80,6 +80,12 @@ impl Topology {
             });
             self.first.push(f);
         }
+        // A cancel block no list holds; its point runs it.
+        for &(at, blk) in &b.cancel {
+            if let Some(o) = self.owner.get_mut(blk as usize) {
+                *o = at;
+            }
+        }
         for (s, &r) in b.sub_root.iter().enumerate() {
             if (r as usize) < n {
                 self.is_root[r as usize] = true;

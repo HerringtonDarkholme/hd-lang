@@ -1357,4 +1357,4 @@ pub fn main!() -> void $ Clock:
 >   %155 = Drop [$1] : ()
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $0 cell
->   unwind %64 drops [%63]
+>   cancel %64 releases [%63]

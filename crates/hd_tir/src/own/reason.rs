@@ -54,7 +54,7 @@ impl Reason {
             1 => Reason::SecondOwner,
             LAST_USE => Reason::LastUse,
             3 => Reason::Overwritten,
-            4 => Reason::Cancelled,
+            CANCELLED => Reason::Cancelled,
             5 => Reason::MayBeShared,
             6 => Reason::PointerLoan,
             8 => Reason::ByDesign,
@@ -65,6 +65,8 @@ impl Reason {
 
 /// The data word b of a `Drop` the passes place after a last use.
 pub(crate) const LAST_USE: u32 = 2;
+/// The reason word of a `Release` in a cancel block.
+pub(crate) const CANCELLED: u32 = 4;
 
 impl std::fmt::Display for Reason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

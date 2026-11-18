@@ -617,19 +617,16 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             err(errs, NONE, format!("exit drop row {k} is out of order"));
         }
     }
-    for (k, &(at, v)) in b.unwind_drops.iter().enumerate() {
+    for (k, &(at, blk)) in b.cancel.iter().enumerate() {
         let point = b.tags.get(at as usize).is_some_and(|&t| is_suspension(t));
-        if !point || v as usize >= b.len() {
+        if !point || b.tags.get(blk as usize) != Some(&Tag::Block) {
             err(
                 errs,
                 at,
-                format!(
-                    "unwind drop row {k} names %{v} at %{at}, which is no value at a suspension point"
-                ),
+                format!("cancel row {k} names %{blk} at %{at}, which is no point's block"),
             );
-        }
-        if k > 0 && b.unwind_drops[k - 1] >= (at, v) {
-            err(errs, at, format!("unwind drop row {k} is out of order"));
+        } else if k > 0 && b.cancel[k - 1].0 >= at {
+            err(errs, at, format!("cancel row {k} is out of order"));
         }
     }
     for (k, &(s, l, _)) in b.storage.iter().enumerate() {
@@ -2241,23 +2238,26 @@ impl<'a> Balance<'a> {
     }
 
     /// Suspension point `x`, whose cancellation leaves through the exit:
-    /// every value owned there has a row in the unwind set, which releases
-    /// it, and every local that may hold a value is in the exit set.
+    /// every value owned there has a `Release` in its cancel block, and
+    /// every local that may hold a value is in the exit set.
     fn at_point(&mut self, x: u32, st: &Set) {
-        let rows = &self.b.unwind_drops;
-        let at = rows.partition_point(|r| r.0 < x);
-        let mut row = rows[at..].iter().take_while(|r| r.0 == x).map(|r| r.1);
-        let mut next = row.next();
+        let b = self.b;
+        let blk = b
+            .cancel_block(x)
+            .filter(|&c| b.tags.get(c as usize) == Some(&Tag::Block));
+        let list = blk.map_or(&[][..], |c| b.record(b.data[c as usize][0]));
+        let mut released: Vec<u32> = list
+            .iter()
+            .filter_map(|&s| b.data.get(s as usize).map(|d| d[0]))
+            .collect();
+        released.sort_stable();
         for position in 0..self.domains[self.domain].values.len() {
             charge(1);
             let v = self.domains[self.domain].values[position] as usize;
             let k = self.num[v];
-            while next.is_some_and(|w| (w as usize) < v) {
-                next = row.next();
-            }
-            if k != NONE && self.bit(st, 0, k) && next != Some(u32_of(v)) {
+            if k != NONE && self.bit(st, 0, k) && released.binary_search(&u32_of(v)).is_err() {
                 let what =
-                    format!("%{v} is owned at suspension point %{x}, whose unwind set lacks it");
+                    format!("%{v} is owned at suspension point %{x}, whose cancel block lacks it");
                 self.err(x, what);
                 return;
             }

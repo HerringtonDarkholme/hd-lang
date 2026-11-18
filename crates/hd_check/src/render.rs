@@ -500,16 +500,17 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let _ = writeln!(o, "  storage sub {s}: {}", locals.join(", "));
         }
     }
-    // The ownership passes' unwind set, per suspension point
-    // (`Body::unwind_drops`).
-    let mut rows = b.unwind_drops.iter().peekable();
-    while let Some(&(at, v)) = rows.next() {
-        let mut values = vec![format!("%{v}")];
-        while let Some(&&(_, v)) = rows.peek().filter(|r| r.0 == at) {
-            values.push(format!("%{v}"));
-            rows.next();
+    // Each suspension point's cancel block (`Body::cancel`), when it
+    // releases anything.
+    for &(at, blk) in &b.cancel {
+        let values: Vec<String> = b
+            .record(b.data[blk as usize][0])
+            .iter()
+            .map(|&s| format!("%{}", b.data[s as usize][0]))
+            .collect();
+        if !values.is_empty() {
+            let _ = writeln!(o, "  cancel %{at} releases [{}]", values.join(" "));
         }
-        let _ = writeln!(o, "  unwind %{at} drops [{}]", values.join(" "));
     }
     // Known-null's cells made before use (`Body::full_cells`), per
     // instruction.

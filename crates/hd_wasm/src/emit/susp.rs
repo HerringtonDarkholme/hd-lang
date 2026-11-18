@@ -649,8 +649,15 @@ impl Em<'_, '_, '_> {
         // The ladders run as fresh code.
         self.f.i32(0);
         self.f.set(pc);
-        self.cancel_from = i;
-        self.exit(Exit::Cancel)?;
+        // The point's cancel block, before the scopes' suites run.
+        if self.counting
+            && let Some(blk) = self.b.cancel_block(i)
+        {
+            for s in self.rec(self.b.data[blk as usize][0]) {
+                self.inst_body(s)?;
+            }
+        }
+        self.exit(Exit::Cancel);
         self.close();
         Ok(())
     }
@@ -1292,7 +1299,7 @@ impl Em<'_, '_, '_> {
     /// The final step of `Exit::Cancel`: with the function's one exit,
     /// noted for [`Self::exit_frame`] and taken; without, the zero
     /// results and the frame returned.
-    pub(super) fn leave_cancelled(&mut self) -> StageResult<()> {
+    pub(super) fn leave_cancelled(&mut self) {
         // ruled out: Exit::Cancel comes only from point or a suspending
         // dispose ladder; emit::instance installs Susp for their ABI.
         let cancelled = self.susp.as_ref().map(|s| s.cancelled);
@@ -1303,8 +1310,8 @@ impl Em<'_, '_, '_> {
         if self.counting
             && let Some(cancelled) = cancelled
         {
-            // The exit releases only its exit set.
-            self.release_unwound(self.cancel_from)?;
+            // The exit releases only its exit set; the point released its
+            // cancel block.
             for l in self.ret.clone() {
                 self.f.zero(l);
             }
@@ -1312,7 +1319,7 @@ impl Em<'_, '_, '_> {
             self.f.set(cancelled);
             let d = self.depth(Ctl::Exit);
             self.f.op(I::Br(d));
-            return Ok(());
+            return;
         }
         self.flags_or(FRAME, EXITED);
         self.unwound();
@@ -1321,7 +1328,6 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(FRAME);
         self.f.op(I::Return);
-        Ok(())
     }
 }
 

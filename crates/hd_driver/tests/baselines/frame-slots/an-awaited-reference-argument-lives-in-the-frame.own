@@ -20,4 +20,4 @@ app/main/caller
   exit sub 0 drops [$1]
   storage sub 0: $1 slot
   summary none
-  unwind %8 drops [%7]
+  cancel %8 releases [%7]

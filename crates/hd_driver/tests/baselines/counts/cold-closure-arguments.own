@@ -78,7 +78,7 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   storage sub 0: $5 cell
 >   storage sub 1: $5 cell
 >   summary none
->   unwind %32 drops [%28 %29 %30 %31]
+>   cancel %32 releases [%28 %29 %30 %31]
 
 fn cancel(key: string, keys: List[string]) -> void:
 > app/main/cancel
@@ -205,4 +205,4 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   storage sub 0: $0 cell, $5 cell
 >   storage sub 1: $0 cell, $5 cell
 >   summary none
->   unwind %32 drops [%28 %31]
+>   cancel %32 releases [%28 %31]

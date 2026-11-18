@@ -1,0 +1,30 @@
+# @dump: own wat
+# @build: v8 release
+# Each suspension point names its own cancel block, as rustc's `yield`
+# names its `drop` target (#2171): the two points in `scoped`'s `defer`
+# scope release `text(1)` and `text(2)` each at its own point, where the
+# scope's one ladder released both before: in the WAT, each cancellation
+# branch releases its own string before it sets the ladder's exit code. The
+# runtime fixture
+# `all-builds/a-cancelled-point-releases-what-it-holds` cancels each form.
+use std.annotation.inline
+use std.ops.defer
+use std.time.{Clock, Duration, sleep}
+
+@inline(.Never)
+fn text(n: i32) -> string:
+    "t${n}"
+
+@inline(.Never)
+fn total(a: string, b: string) -> usize:
+    a.len() + b.len()
+
+fn nap!(ms: i64) -> string $ Clock:
+    sleep!(Duration::milliseconds(ms))
+    "x"
+
+# subject
+fn scoped!(first: i64, second: i64) -> usize $ Clock + Console:
+    defer(fn() -> void: println("cleanup"))
+    a := total(text(1), nap!(first))
+    a + total(text(2), nap!(second))

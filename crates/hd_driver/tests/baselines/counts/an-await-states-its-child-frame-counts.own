@@ -44,4 +44,4 @@ fn stored!() -> i32 $ Clock:
 >   %9 = Retain %7 Operation child #0 : ()
 >   %10 = Drop [%6] : ()
 >   summary none
->   unwind %7 drops [%6]
+>   cancel %7 releases [%6]

@@ -139,4 +139,4 @@ pub fn main!() -> void $ Console + Clock:
 >   exit sub 0 drops [$1]
 >   storage sub 0: $0 cell
 >   summary none
->   unwind %25 drops [%17]
+>   cancel %25 releases [%17]

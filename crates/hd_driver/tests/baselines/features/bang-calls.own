@@ -88,7 +88,7 @@ fn both!(a: string, b: string) -> usize:
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
->   unwind %8 drops [%5 %7]
+>   cancel %8 releases [%5 %7]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either

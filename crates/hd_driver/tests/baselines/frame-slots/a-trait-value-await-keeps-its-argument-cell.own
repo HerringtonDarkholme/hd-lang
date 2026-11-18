@@ -105,7 +105,7 @@ fn through_known!(n: usize) -> usize $ Clock:
 >   %7 finds [$1] full
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 slot
->   unwind %8 drops [%7]
+>   cancel %8 releases [%7]
 
 fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 > app/main/through_value
@@ -141,7 +141,7 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   %13 finds [$2] full
 >   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 cell
->   unwind %14 drops [%13]
+>   cancel %14 releases [%13]
 
 pub fn main!() -> void $ Console + Clock:
     let plain = Plain {}
@@ -276,4 +276,4 @@ pub fn main!() -> void $ Console + Clock:
 >   %15 finds [$0] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 cell
->   unwind %22 drops [%21]
+>   cancel %22 releases [%21]

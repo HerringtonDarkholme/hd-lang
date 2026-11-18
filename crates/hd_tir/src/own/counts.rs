@@ -175,7 +175,11 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
             err(u32_of(i), "a count statement has a value type".into());
         }
         if info.at == At::Value || (info.at == At::Operation && info.part == Part::Result) {
-            let wanted = if info.at == At::Value {
+            // A value's release is a cancel block's (`known.rs`).
+            let wanted = if info.at == At::Value && b.tags[i] == Tag::Release {
+                let reason = super::reason::CANCELLED;
+                (Tag::Release, Info::new(At::Value, Part::Result, reason))
+            } else if info.at == At::Value {
                 (Tag::Retain, Info::new(At::Value, Part::Result, 0))
             } else {
                 (Tag::Release, Info::new(At::Operation, Part::Result, 3))

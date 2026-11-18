@@ -533,9 +533,9 @@ pub struct Body {
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
-    pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; never on the wire
-    pub unwind_drops: Vec<(u32, u32)>,  // the ownership passes' unwind set: (suspension point, value); never on the wire
-    pub stable_lists: Vec<(u32, u32)>,  // hoisting's stable list places: (loop, place word); never on the wire
+    pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; the wire's owned section
+    pub cancel: Vec<(u32, u32)>,        // each suspension point's cancel block: (point, block); the wire's owned section
+    pub stable_lists: Vec<(u32, u32)>,  // hoisting's stable list places: (loop, place word); the wire's owned section
 }
 pub struct Inst(pub u32);
 pub struct Ref(pub u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
@@ -840,10 +840,13 @@ or `REPEAT` when an existing fact already proves uniqueness. The type is `void`.
 A body's one exit per sub-body drops the locals of its exit set,
 `exit_drops`: rows of a sub-body and a local, sorted, which the passes
 write. A suspension point's cancellation, a way out no TIR jump spells,
-releases the values of its unwind set, `unwind_drops`: rows of a
-suspension point and a value, sorted, which the known-null pass
-writes; it then leaves through the exit, so the exit set holds every
-local that may hold a value at a suspension point. `stable_lists`, which
+runs its cancel block, as rustc's `yield` names its `drop` target:
+`cancel` rows of a point and a `Block` that no list holds, sorted, one per
+point, which `own::known::cancel_blocks` makes empty and the known-null
+pass fills with a `Release` (at `Value`, reason `cancelled`) of each value
+that may hold a count there. The cancellation then leaves through the
+exit, so the exit set holds every local that may hold a value at a
+suspension point. `stable_lists`, which
 the hoisting pass writes, holds rows of a loop and a place of a list
 whose header and buffer nothing in the loop replaces, sorted; the
 backend keeps the buffer's address and length in locals for that loop.
@@ -1098,7 +1101,7 @@ The verifier checks each of these:
     A value root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
     no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
-    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops`
+    `FlagSet` or `FlagClear`, no `exit_drops`, `cancel`
     or `stable_lists` row.
 23. **After the ownership passes, ownership balances**: every owned
     value has exactly one consumer or one `Drop` on each path; no `Read`
@@ -1189,7 +1192,7 @@ Those test-only queries do not require a second checker-facing fact API.
     path, a value still owned where its sub-body ends or where a loop
     that computes it goes round, a local that may hold a value at the
     exit outside the exit set, and at a suspension point an owned value
-    outside its unwind set or such a local are errors. A `move` read of
+    its cancel block does not release or such a local are errors. A `move` read of
     a whole value consumes it; a `move` read or a `Drop` of a part of a
     value or a local takes that part, which a fourth bit set records
     (one bit per distinct part place): more parts, or a `Drop` of what
@@ -1301,7 +1304,7 @@ Those test-only queries do not require a second checker-facing fact API.
   values may hold a count deletes the `Drop`s no path reaches with one,
   removes the exit rows of locals empty at every way out (a `Return`,
   the root's end, a suspension point; never a parameter's or a
-  capture's), and writes each suspension point's unwind set; then
+  capture's), and fills each suspension point's cancel block; then
   hoisting (`own/hoist.rs`): an `IsUnique` in a loop's iteration block,
   behind an entry test whose prefix is pure, moves before the loop
   (marked hoisted) when nothing in the loop copies, references,

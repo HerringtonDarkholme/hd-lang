@@ -362,8 +362,8 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
     b.forwarded_reads
         .retain(|&(value, read)| value != NONE && read != NONE);
     // Both words name instructions no edit deletes (a suspension point and
-    // a value), and the splice keeps their order.
-    for row in &mut b.unwind_drops {
+    // its cancel block), and the splice keeps their order.
+    for row in &mut b.cancel {
         *row = (word(row.0), word(row.1));
     }
     // A read the edits delete takes its row with it.

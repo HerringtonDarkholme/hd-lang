@@ -79,8 +79,8 @@ fn local!() -> i64:
 >   storage sub 0: $1 cell
 >   storage sub 1: $1 cell
 >   summary none
->   unwind %8 drops [%7]
->   unwind %18 drops [%16 %17]
+>   cancel %8 releases [%7]
+>   cancel %18 releases [%16 %17]
 
 fn shared!() -> i64:
     let mut tally = Tally { n: 0 }
@@ -126,8 +126,8 @@ fn shared!() -> i64:
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary none
->   unwind %10 drops [%9]
->   unwind %20 drops [%18 %19]
+>   cancel %10 releases [%9]
+>   cancel %20 releases [%18 %19]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -166,5 +166,5 @@ fn copied!() -> i64:
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   summary none
->   unwind %8 drops [%7]
->   unwind %18 drops [%16 %17]
+>   cancel %8 releases [%7]
+>   cancel %18 releases [%16 %17]

@@ -119,4 +119,4 @@ pub fn main!() -> void $ Console:
 >   %56 = Call std/console/println[string] (%55) : ()
 >   %22 finds [$2] full
 >   storage sub 0: $0 cell, $2 cell
->   unwind %12 drops [%10 %11]
+>   cancel %12 releases [%10 %11]

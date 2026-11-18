@@ -153,7 +153,8 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
             self.f.op(I::End);
         }
-        self.scope_exits(i, code)
+        self.scope_exits(i, code);
+        Ok(())
     }
 
     /// Reuse the defer exit ladder for abandoned call arguments.
@@ -173,18 +174,18 @@ impl Em<'_, '_, '_> {
         self.open(Ctl::Scope(i));
     }
 
-    pub(super) fn loan_scope_end(&mut self, i: u32) -> StageResult<()> {
+    pub(super) fn loan_scope_end(&mut self, i: u32) {
         if !self.borrow_has_scope(i) {
-            return Ok(());
+            return;
         }
         let code = self.scopes[&i].code;
         self.f.zero(code);
         self.close();
         self.borrow_scope_end(i);
-        self.scope_exits(i, code)
+        self.scope_exits(i, code);
     }
 
-    fn scope_exits(&mut self, i: u32, code: u32) -> StageResult<()> {
+    fn scope_exits(&mut self, i: u32, code: u32) {
         let exits = self.scopes.remove(&i).map(|s| s.exits).unwrap_or_default();
         for (k, e) in exits.into_iter().enumerate() {
             self.f.get(code);
@@ -192,13 +193,9 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Eq);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
-            if e == Exit::Cancel {
-                self.cancel_from = i;
-            }
-            self.exit(e)?;
+            self.exit(e);
             self.close();
         }
-        Ok(())
     }
 
     /// `Defer`: suite `s` is registered.
@@ -213,7 +210,7 @@ impl Em<'_, '_, '_> {
 
     /// Leaves by `e`: to the innermost cleanup scope it crosses, which runs
     /// its suites and then takes `e` again; else directly.
-    pub(super) fn exit(&mut self, e: Exit) -> StageResult<()> {
+    pub(super) fn exit(&mut self, e: Exit) {
         let floor = match e {
             Exit::Brk(t) => self.ctl.position(Ctl::Brk(t)),
             Exit::Cont(t) => self.ctl.position(Ctl::Cont(t)),
@@ -232,7 +229,7 @@ impl Em<'_, '_, '_> {
             self.f.set(code);
             let d = u32::try_from(self.ctl.len() - 1 - p).expect("depth");
             self.f.op(I::Br(d));
-            return Ok(());
+            return;
         }
         match e {
             Exit::Brk(t) => {
@@ -254,9 +251,8 @@ impl Em<'_, '_, '_> {
                 self.ready_frame();
                 self.f.op(I::Return);
             }
-            Exit::Cancel => self.leave_cancelled()?,
+            Exit::Cancel => self.leave_cancelled(),
         }
-        Ok(())
     }
 
     /// `return a`: its value, with a count for the caller when the
@@ -300,7 +296,8 @@ impl Em<'_, '_, '_> {
                 self.settle_value(a);
             }
         }
-        self.exit(Exit::Ret)
+        self.exit(Exit::Ret);
+        Ok(())
     }
 }
 

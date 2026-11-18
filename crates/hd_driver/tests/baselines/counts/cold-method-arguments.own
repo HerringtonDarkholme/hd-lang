@@ -75,7 +75,7 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >   %16 = Block %13 : usize
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   unwind %13 drops [%11]
+>   cancel %13 releases [%11]
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic

@@ -53,7 +53,7 @@ fn run!() -> void:
 >   %3 finds [$0] full
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
->   unwind %4 drops [%3]
+>   cancel %4 releases [%3]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }

@@ -78,7 +78,7 @@ fn later!(n: usize) -> usize $ Clock:
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
 >   summary none
->   unwind %12 drops [%11]
+>   cancel %12 releases [%11]
 
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -131,7 +131,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   unwind %13 drops [%9 %10 %11 %12]
+>   cancel %13 releases [%9 %10 %11 %12]
 
 fn first!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)

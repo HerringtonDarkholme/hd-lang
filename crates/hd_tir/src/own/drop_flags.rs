@@ -259,7 +259,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     for &(_, l) in &b.exit_drops {
         *dropped.entry(Key::Local(l.raw())).or_default() += 1;
     }
-    for &(_, v) in &b.unwind_drops {
+    for (_, v) in b.cancel_releases() {
         *dropped.entry(Key::Value(v)).or_default() += 1;
     }
     let mut hooked = HashMap::<Key, bool>::default();
@@ -277,9 +277,9 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             &dropped,
         )
     };
-    // A cancellation ladder releases every unwind row of its scope, so a
-    // value with one that an operand consumes is moved whole there, as
-    // the known-null pass clears its bit (`known.rs`).
+    // A cancel block releases a value that an operand may also consume,
+    // so that value is moved whole there, as the known-null pass clears
+    // its bit (`known.rs`).
     let mut paths = paths;
     let mut consumed = Vec::new();
     // A closure that moves a capture moves all of its local.
@@ -303,7 +303,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
         }
     }
     let mut ops = Vec::new();
-    if !b.unwind_drops.is_empty() {
+    if b.cancel_releases().next().is_some() {
         for i in 0..b.len() {
             super::operands(b, i, &mut ops);
             for op in &ops {

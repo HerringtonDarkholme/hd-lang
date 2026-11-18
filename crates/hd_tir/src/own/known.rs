@@ -70,9 +70,12 @@ use super::{
 use hd_base::SliceSort as _;
 use std::ops::Range;
 
+use crate::ir::count::{At, Info, Part};
 use crate::ir::{
     Body, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags, ref_word, u32_of,
 };
+use hd_base::NodeIdx;
+use hd_types::Ty;
 
 /// A whole-local drop after a branch and the normal arm that may need it.
 /// A second arm makes the drop stay at the join.
@@ -154,8 +157,8 @@ pub(crate) struct Tables {
 }
 
 /// Runs known-null over `b` with the earlier passes' deletions in `edits`,
-/// adding its own there, and fills `b.unwind_drops` and
-/// `b.full_cells` and trims `b.exit_drops`.
+/// adding its own there, fills each point's cancel block and
+/// `b.full_cells`, and trims `b.exit_drops`.
 pub(crate) fn run(
     b: &mut Body,
     topo: &Topology,
@@ -165,7 +168,6 @@ pub(crate) fn run(
 ) {
     let n = b.len();
     t.empty_variants.take();
-    b.unwind_drops.clear();
     b.full_cells.clear();
     t.cells.clear();
     t.suites = 0;
@@ -248,15 +250,51 @@ pub(crate) fn run(
             b.full_cells.push((at, l));
         }
     }
-    // The unwind set: each suspension point's values that may hold a
-    // count.
+    // Each point's cancel block: a `Release` of each value that may hold
+    // a count there, in value order, all sharing one count record.
+    // Rows and points both ascend, and `cancel_blocks` gave every point
+    // its row: one merge, no lookup.
+    let (mut record, mut row) = (NONE, 0);
     t.points.sort_stable();
     for &x in &t.points {
+        while b.cancel[row].0 < x {
+            row += 1;
+        }
+        let blk = b.cancel[row].1;
         let at = t.susp_at[x as usize] as usize;
         for bit in t.nl as usize..(t.nl + t.nv) as usize {
             if t.susp[at + bit / 64] & (1 << (bit % 64)) != 0 {
-                b.unwind_drops.push((x, t.vals[bit - t.nl as usize]));
+                if record == NONE {
+                    let reason = super::reason::CANCELLED;
+                    record = Info::new(At::Value, Part::Result, reason).write(b);
+                }
+                let v = t.vals[bit - t.nl as usize];
+                edits.insert(blk, 0, Tag::Release, [v, record], Ty::VOID, NodeIdx::NONE);
             }
+        }
+    }
+}
+
+/// Gives each suspension point an empty cancel block ([`Body::cancel`]),
+/// as rustc's MIR builder names each `yield`'s `drop` target; [`run`]
+/// fills it. One pass, one shared empty list, no source position.
+pub(crate) fn cancel_blocks(b: &mut Body) {
+    b.cancel.clear();
+    let mut empty = NONE;
+    for i in 0..b.len() {
+        if !is_suspension(b.tags[i]) {
+            continue;
+        }
+        if empty == NONE {
+            empty = crate::ir::push_record(b, &[]);
+        }
+        b.cancel.push((u32_of(i), u32_of(b.len())));
+        b.tags.push(Tag::Block);
+        b.data.push([empty, NONE]);
+        b.ty.push(Ty::VOID);
+        b.syn.push(NodeIdx::NONE);
+        if !b.anchors.is_empty() {
+            b.anchors.push(NONE);
         }
     }
 }

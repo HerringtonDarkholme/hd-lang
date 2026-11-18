@@ -1031,14 +1031,12 @@ pub struct Body {
     /// locals. Sorted, each pair once. A pass output: empty in the
     /// checker's TIR (invariant 22); the wire's owned section.
     pub storage: Vec<(SubId, LocalId, Storage)>,
-    /// The ownership passes' unwind set (`docs/compiler/tir-v2.md`,
-    /// "Known-null"): per row, a suspension point and an owned value that
-    /// may still hold a count there, which the point's cancellation, a way
-    /// out the body has no jump for, releases. The exit releases the exit
-    /// set on that way out too, so the locals need no rows. Sorted, each
-    /// row once. A pass output: empty in the checker's TIR (invariant 22);
-    /// the wire's owned section.
-    pub unwind_drops: Vec<(u32, u32)>,
+    /// Each suspension point's cancel block, as rustc's `Yield` names its
+    /// `drop` target: per row, a point and a `Block` no list holds, which
+    /// the point runs when cancelled there; known-null fills it. Sorted,
+    /// one row per point. A pass output: empty in the checker's TIR
+    /// (invariant 22); the wire's owned section.
+    pub cancel: Vec<(u32, u32)>,
     /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
     /// row, an instruction and an addressed local (one that a `Ref` of its
     /// own storage or a shared capture puts in a cell) that certainly holds
@@ -1125,7 +1123,7 @@ impl Body {
             loan_slots: vec![],
             exit_drops: vec![],
             storage: vec![],
-            unwind_drops: vec![],
+            cancel: vec![],
             full_cells: vec![],
             stable_lists: vec![],
             forwarded_reads: vec![],
@@ -1634,6 +1632,24 @@ impl Body {
     pub fn record(&self, at: u32) -> &[u32] {
         let n = self.extra[at as usize] as usize;
         &self.extra[at as usize + 1..at as usize + 1 + n]
+    }
+
+    /// Suspension point `at`'s cancel block ([`Body::cancel`]): one probe.
+    #[must_use]
+    pub fn cancel_block(&self, at: u32) -> Option<u32> {
+        let k = self.cancel.binary_search_by_key(&at, |r| r.0).ok()?;
+        Some(self.cancel[k].1)
+    }
+
+    /// What cancelling at each point releases, as (point, value): the
+    /// `Release` statements of each cancel block, in row and list order.
+    pub fn cancel_releases(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
+        self.cancel.iter().flat_map(move |&(at, blk)| {
+            let list = self.record(self.data[blk as usize][0]);
+            list.iter()
+                .filter(|&&s| self.tags[s as usize] == Tag::Release)
+                .map(move |&s| (at, self.data[s as usize][0]))
+        })
     }
 
     /// The parameter locals explicitly recorded for sub-body `sub`.
@@ -2654,7 +2670,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     }
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
-        || !b.unwind_drops.is_empty()
+        || !b.cancel.is_empty()
         || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
         || !b.anchors.is_empty()
@@ -2663,10 +2679,10 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} storage, {} unwind drop, {} full cell, {} stable list and {} anchor rows before the ownership passes",
+                "{} exit drop, {} storage, {} cancel block, {} full cell, {} stable list and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
                 b.storage.len(),
-                b.unwind_drops.len(),
+                b.cancel.len(),
                 b.full_cells.len(),
                 b.stable_lists.len(),
                 b.anchors.len()
@@ -3245,8 +3261,8 @@ pub fn print(b: &Body) -> String {
             storage.name()
         );
     }
-    for (inst, value) in &b.unwind_drops {
-        let _ = writeln!(o, "unwinddrop {inst} {value}");
+    for (inst, block) in &b.cancel {
+        let _ = writeln!(o, "cancel {inst} {block}");
     }
     for (inst, local) in &b.full_cells {
         let _ = writeln!(o, "fullcell {inst} {local}");
@@ -3453,12 +3469,12 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 b.storage
                     .push((SubId::from_raw(s), LocalId::from_raw(l), k));
             }
-            "unwinddrop" => {
+            "cancel" => {
                 let v = nums(1)?;
                 if v.len() != 2 {
-                    return Err(e("unwinddrop needs 2 fields".into()));
+                    return Err(e("cancel needs 2 fields".into()));
                 }
-                b.unwind_drops.push((v[0], v[1]));
+                b.cancel.push((v[0], v[1]));
             }
             "fullcell" => {
                 let v = nums(1)?;
@@ -4287,7 +4303,7 @@ mod tests {
     }
 
     /// Invariant 22: the checker's TIR has no ownership: no decided read
-    /// mode, no ownership statement, no exit set, unwind set or region row.
+    /// mode, no ownership statement, no exit set, cancel block or region row.
     #[test]
     fn checker_output_has_no_ownership() {
         use super::{ReadMode, verify};
@@ -4303,7 +4319,7 @@ mod tests {
             .push((SubId::from_raw(0), LocalId::from_raw(1)));
         assert_eq!(findings(&verify(&rows)), [(22, NONE)]);
         rows.exit_drops.clear();
-        rows.unwind_drops.push((0, 0));
+        rows.cancel.push((0, 0));
         assert_eq!(findings(&verify(&rows)), [(22, NONE)]);
     }
 
@@ -4328,7 +4344,7 @@ mod tests {
             LocalId::from_raw(1),
             super::Storage::Cell,
         ));
-        body.unwind_drops.push((2, 0));
+        body.cancel.push((2, 0));
         assert_eq!(parse(&print(&body)).expect("parses"), body);
     }
 

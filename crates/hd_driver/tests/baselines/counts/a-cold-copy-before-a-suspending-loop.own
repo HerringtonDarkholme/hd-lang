@@ -29,4 +29,4 @@ app/main/run
   exit sub 0 drops [$0]
   storage sub 0: $0 cell
   summary none
-  unwind %10 drops [%8]
+  cancel %10 releases [%8]

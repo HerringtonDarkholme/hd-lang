@@ -150,7 +150,16 @@ mod tests {
         let root = builder.close_block(root, Some(result), Ty(45), NodeIdx::NONE);
         let second = b.0;
         let mut b = builder.finish(root, &[]).unwrap();
-        b.unwind_drops.push((second, a.0));
+        // The first join's result is held across the second: the second's
+        // cancel block releases it.
+        crate::own::known::cancel_blocks(&mut b);
+        let blk = b.cancel_block(second).unwrap();
+        let record =
+            Info::new(At::Value, Part::Result, crate::own::reason::CANCELLED).write(&mut b);
+        let mut edits = splice::Tables::default();
+        edits.insert(blk, 0, Tag::Release, [a.0, record], Ty::VOID, NodeIdx::NONE);
+        let topo = Topology::new(&b);
+        splice::apply(&mut b, &topo, &mut edits).unwrap();
         state(&mut b);
         let i = result_packet(&b);
         let target = b.data[i][0];

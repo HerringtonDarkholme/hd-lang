@@ -50,7 +50,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   exit sub 0 drops [$0 $2]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
->   unwind %15 drops [%14]
+>   cancel %15 releases [%14]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
@@ -130,6 +130,6 @@ pub fn main!() -> void $ Console:
 >   %37 = Call std/console/println[i32] (%32) : ()
 >   exit sub 0 drops [$2]
 >   summary none
->   unwind %8 drops [%6 %7]
->   unwind %22 drops [%20 %21]
->   unwind %32 drops [%30 %31]
+>   cancel %8 releases [%6 %7]
+>   cancel %22 releases [%20 %21]
+>   cancel %32 releases [%30 %31]

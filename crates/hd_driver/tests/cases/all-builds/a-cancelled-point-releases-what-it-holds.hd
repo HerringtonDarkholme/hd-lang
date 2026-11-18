@@ -1,0 +1,60 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A task cancelled at a suspension point releases what that point holds,
+# its cancel block (#2171), before its scopes' suites run: a point in a
+# `defer` scope (the first or the second of two), in a nested scope, in a
+# loop, at a join and awaiting a function value. The checked runs' exit
+# audit fails on a leak or a double free.
+use std.annotation.inline
+use std.ops.defer
+use std.task.{join, race}
+use std.time.{Clock, Duration, sleep}
+
+@inline(.Never)
+fn text(n: i32) -> string:
+    "t${n}"
+
+@inline(.Never)
+fn total(a: string, b: string) -> usize:
+    a.len() + b.len()
+
+fn nap!(ms: i64) -> string $ Clock:
+    sleep!(Duration::milliseconds(ms))
+    "x"
+
+fn scoped!(first: i64, second: i64) -> usize $ Clock + Console:
+    defer(fn() -> void: println("cleanup"))
+    a := total(text(1), nap!(first))
+    a + total(text(2), nap!(second))
+
+fn nested!(ms: i64) -> usize $ Clock + Console:
+    defer(fn() -> void: println("outer"))
+    if ms > 0:
+        defer(fn() -> void: println("inner"))
+        return total(text(5), nap!(ms))
+    0
+
+fn looped!(ms: i64) -> usize $ Clock:
+    let mut sum: usize = 0
+    for i in 0..3:
+        sum = sum + total(text(i), nap!(ms))
+    sum
+
+fn joined!(ms: i64) -> usize $ Clock:
+    total(text(3), join!(nap(1), nap(ms))._0)
+
+fn valued!(ms: i64) -> usize $ Clock:
+    f := fn!(n: i64) -> string $ Clock: nap!(n)
+    total(text(4), f!(ms))
+
+fn quick!() -> usize $ Clock:
+    nap!(20).len()
+
+pub fn main!() -> void $ Console + Clock:
+    println("first ${race!(scoped(500, 1), quick())}")
+    println("second ${race!(scoped(1, 500), quick())}")
+    println("nested ${race!(nested(500), quick())}")
+    println("looped ${race!(looped(500), quick())}")
+    println("joined ${race!(joined(500), quick())}")
+    println("valued ${race!(valued(500), quick())}")
+    println("done ${scoped!(1, 1) + nested!(1) + looped!(1) + joined!(1) + valued!(1)}")

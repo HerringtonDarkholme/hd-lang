@@ -163,7 +163,7 @@ fn holds!() -> usize $ Clock:
 >   %11 = Drop [%4] : ()
 >   %12 = Block %7 : usize
 >   summary none
->   unwind %5 drops [%4]
+>   cancel %5 releases [%4]
 
 fn gone!() -> usize $ Clock:
     n := text(1).len()

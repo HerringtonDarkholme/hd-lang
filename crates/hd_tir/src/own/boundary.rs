@@ -147,7 +147,7 @@ impl Counts {
                 a == b
             });
         }
-        self.unwound.extend(b.unwind_drops.iter().map(|&(_, v)| v));
+        self.unwound.extend(b.cancel_releases().map(|(_, v)| v));
         for l in &b.cap_local {
             visit();
             self.captures.insert(l.idx());

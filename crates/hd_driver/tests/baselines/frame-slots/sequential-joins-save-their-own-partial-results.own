@@ -82,5 +82,5 @@ fn sequential!(left: string, right: string) -> string:
 >   %46 = Drop [%40] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   summary none
->   unwind %8 drops [%5 %7]
->   unwind %25 drops [%22 %24]
+>   cancel %8 releases [%5 %7]
+>   cancel %25 releases [%22 %24]

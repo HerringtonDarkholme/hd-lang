@@ -22,4 +22,4 @@ app/main/run
   %20 finds [$5] full
   exit sub 0 drops [$0 $1 $3 $5]
   storage sub 0: $3 cell, $5 slot
-  unwind %21 drops [%20]
+  cancel %21 releases [%20]

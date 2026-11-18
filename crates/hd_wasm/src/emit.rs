@@ -1486,10 +1486,6 @@ struct Em<'i, 'a, 'm> {
     /// How many `using` dispose suites that wait the instruction being
     /// emitted is inside: their points are shielded (`susp.rs`).
     shield: u32,
-    /// The suspension point, or the cleanup scope whose ladder, an
-    /// `Exit::Cancel` being taken leaves from: an owned body releases the
-    /// unwind rows of the points it holds ([`Em::release_unwound`]).
-    cancel_from: u32,
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
@@ -1708,7 +1704,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             tir_flags: None,
             susp: None,
             shield: 0,
-            cancel_from: NONE,
             cells: shared,
             entry_cells: hd_base::HashSet::default(),
             param_vals: HashMap::default(),
@@ -2032,7 +2027,7 @@ impl Em<'_, '_, '_> {
     /// Coercion `i` of `a` that keeps its values: a consumed operand's
     /// locals become `i`'s, count and all, with nothing emitted; any other
     /// is copied with a count of its own. In a suspending body the operand
-    /// keeps its locals, which a cancelled point's unwind may release.
+    /// keeps its locals, which a cancelled point's cancel block may release.
     fn same_value(&mut self, i: u32, a: u32) -> StageResult<()> {
         // A counted reference that an instance lends as a local one (a
         // generic body's `*T` to `&T`, which the passes saw consume it): the
@@ -2355,7 +2350,7 @@ impl Em<'_, '_, '_> {
             self.tail_into(tail, d, blk)?;
         }
         if labelled {
-            self.loan_scope_end(blk)?;
+            self.loan_scope_end(blk);
             self.close();
             if let Some(d) = dest {
                 // A break out of the block stored its value in the
@@ -2626,9 +2621,18 @@ impl Em<'_, '_, '_> {
                     self.own_retain(a)?;
                 }
             }
-            // Boundary declarations lower at their named entry or exit.
+            // A cancel block's release of a value (`Body::cancel`), which
+            // only its point's cancellation branch lowers. A boundary
+            // release, which a loop's entry-test prefix also passes here,
+            // lowers at its named entry, exit or operation.
+            Tag::Release => {
+                let info = CountInfo::read(self.b, i as usize);
+                if let Some(c) = info.filter(|c| c.at == CountAt::Value) {
+                    self.because(Reason::from_word(c.reason), |em| em.release_value(a))?;
+                }
+            }
             // Lowered in its store's walk of the place.
-            Tag::Release | Tag::MakeUnique => {}
+            Tag::MakeUnique => {}
             Tag::LoanEnd => {
                 self.borrow_drop(i);
                 self.own_loan_end(i);
@@ -2755,7 +2759,7 @@ impl Em<'_, '_, '_> {
                 self.loops += 1;
                 self.loan_scope_begin(i);
                 self.block_into(a, None)?;
-                self.loan_scope_end(i)?;
+                self.loan_scope_end(i);
                 self.loops -= 1;
                 self.f.op(Instruction::Br(0));
                 self.close();
@@ -2772,9 +2776,9 @@ impl Em<'_, '_, '_> {
                         self.tail_into(bw, target, i)?;
                     }
                     self.settle(i);
-                    self.exit(scope::Exit::Brk(target))?;
+                    self.exit(scope::Exit::Brk(target));
                 } else {
-                    self.exit(scope::Exit::Cont(target))?;
+                    self.exit(scope::Exit::Cont(target));
                 }
             }
             Tag::Return => {
@@ -2794,7 +2798,7 @@ impl Em<'_, '_, '_> {
                 self.open(Ctl::Plain);
                 self.loan_scope_begin(i);
                 self.block_into(a, Some(i))?;
-                self.loan_scope_end(i)?;
+                self.loan_scope_end(i);
                 self.close();
                 if self.placed.contains_key(&i) {
                     self.written.insert(i);
@@ -2817,9 +2821,9 @@ impl Em<'_, '_, '_> {
                 for arm in &blocks[1..] {
                     self.close();
                     self.block_into(*arm, Some(i))?;
-                    self.exit(scope::Exit::Brk(i))?;
+                    self.exit(scope::Exit::Brk(i));
                 }
-                self.loan_scope_end(i)?;
+                self.loan_scope_end(i);
                 self.close();
             }
             Tag::ToArm => {

@@ -550,7 +550,7 @@ fn owned(b: &Body) -> bool {
     !(b.susp.is_empty()
         && b.exit_drops.is_empty()
         && b.storage.is_empty()
-        && b.unwind_drops.is_empty()
+        && b.cancel.is_empty()
         && b.full_cells.is_empty()
         && b.stable_lists.is_empty()
         && b.forwarded_reads.is_empty()
@@ -600,7 +600,7 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
             .collect::<Vec<_>>()
             .into_iter(),
     );
-    pairs(w, &b.unwind_drops);
+    pairs(w, &b.cancel);
     pairs(w, &b.full_cells);
     pairs(w, &b.stable_lists);
     u32s(w, b.anchors.iter().copied());
@@ -666,7 +666,7 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
             Some((SubId::from_raw(c[0]), LocalId::from_raw(c[1]), k))
         })
         .collect::<Option<_>>()?;
-    b.unwind_drops = pairs(col(r));
+    b.cancel = pairs(col(r));
     b.full_cells = pairs(col(r));
     b.stable_lists = pairs(col(r));
     b.anchors = col(r);
@@ -1023,7 +1023,7 @@ mod tests {
         }];
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Cell)];
-        body.unwind_drops = vec![(1, 2)];
+        body.cancel = vec![(1, 2)];
         body.full_cells = vec![(0, 0)];
         body.stable_lists = vec![(2, crate::ir::place::BARE_LOCAL)];
         body.forwarded_reads = vec![(2, 0)];

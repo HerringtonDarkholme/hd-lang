@@ -199,7 +199,7 @@ counted as deleted. Each step deletes the path it replaces.
 | --- | --- | --- | --- | --- | --- |
 | 0 | #2166: the owned verifier's re-proofs (lane 204, done) | 0 | −365 | 0 | −365 |
 | 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
-| 2a | cancel blocks: the TIR builder gives each await a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go | about −35 | | 0 | about −35 |
+| 2a | cancel blocks: each await gets a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go. Built (lane 210): +43 measured, not −35, since no await tag has a free word and a `cancel` column names the block; the totals still use −35 | −17 | +61 | −1 | +43 |
 | 2b | after step 5: scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` goes whole, its ladder also served step 5's argument-loan scopes | | | 0 | about 0 |
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
 | 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −809, plus the lifting | 0 | priced when step 3 lands |

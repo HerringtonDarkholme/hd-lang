@@ -765,11 +765,10 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   borrow pass left unowned takes none, and an instance that receives it
   owned (a type parameter's) releases it by its stated exit `Release`
   (`hd_tir::own::abi`); and a cancelled suspension point, an edge the
-  TIR does not have, releases the values the known-null pass lists for it
-  (`Body::unwind_drops`; from a cleanup scope's ladder, those of every
-  point inside the scope) and then leaves through the exit, whose exit
-  set holds every local that may hold a value at a suspension point
-  (`release_unwound`).
+  TIR does not have, runs its cancel block (`Body::cancel`: the
+  `Release` of each value it holds) in its cancellation branch, before
+  the cleanup scopes' ladders, and then leaves through the exit, whose
+  exit set holds every local that may hold a value at a suspension point.
 - **Uniqueness checks.** `IsUnique` lowers to `rt:list_unique` or
   `rt:map_unique` of the header at its place: a local's or a value's,
   then struct fields, elements, bounds-checked, and dereferences

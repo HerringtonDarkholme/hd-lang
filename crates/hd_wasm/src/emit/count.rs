@@ -707,10 +707,10 @@ impl Em<'_, '_, '_> {
 
     fn zero_locals_of(&mut self, r: u32) {
         // Only a suspending body's cancelled way out reads a moved value's
-        // locals again: a cleanup scope's ladder (`release_unwound`)
-        // releases the unwind rows of every point in it, and the zero says
-        // this one holds nothing. A value is never dropped after its move,
-        // so outside a frame nothing else tests it.
+        // locals again: a point's cancel block releases every value that
+        // may hold a count there, and the zero says this one holds nothing.
+        // A value is never dropped after its move, so outside a frame
+        // nothing else tests it.
         if self.susp.is_some() {
             for l in self.vals.get(&r).cloned().unwrap_or_default() {
                 self.f.zero(l);
@@ -1174,31 +1174,5 @@ impl Em<'_, '_, '_> {
             }
             _ => self.store(i),
         }
-    }
-
-    /// The release on a cancelled suspension point's way out of an owned
-    /// body: the cancel edge is no TIR jump, so the values the passes list
-    /// for the points it may come from (`Body::unwind_drops`: the point
-    /// itself, or every point inside the cleanup scope `from` whose ladder
-    /// takes it) are released (and zeroed) here. The exit then releases
-    /// the exit set, which holds every local that may hold a value at a
-    /// suspension point.
-    pub(super) fn release_unwound(&mut self, from: u32) -> StageResult<()> {
-        let (Some((lo, hi)), Some(s)) = (self.range(from), self.susp.as_ref()) else {
-            return Ok(());
-        };
-        let rows = &self.b.unwind_drops;
-        let mut vals: Vec<u32> = Vec::new();
-        for (&p, &k) in &s.states {
-            if (lo..=hi).contains(&k) {
-                let at = rows.partition_point(|r| r.0 < p);
-                vals.extend(rows[at..].iter().take_while(|r| r.0 == p).map(|r| r.1));
-            }
-        }
-        vals.sort_stable();
-        vals.dedup();
-        self.because(Reason::Cancelled, |em| {
-            vals.into_iter().try_for_each(|v| em.release_value(v))
-        })
     }
 }

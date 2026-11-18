@@ -1140,6 +1140,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.splice,
     )?;
     insert::run(b, cx, scratch)?;
+    known::cancel_blocks(b);
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
     derive::run(b, topo, cx, &mut scratch.derive);
@@ -2196,8 +2197,8 @@ pub(crate) mod tests {
         for (s, l) in &b.exit_drops {
             let _ = writeln!(out, "exit {} ${}", s.raw(), l.raw());
         }
-        for (at, v) in &b.unwind_drops {
-            let _ = writeln!(out, "unwind %{at} %{v}");
+        for (at, v) in b.cancel_releases() {
+            let _ = writeln!(out, "cancel %{at} releases %{v}");
         }
         for (at, l) in &b.full_cells {
             let _ = writeln!(out, "full %{at} ${l}");
@@ -3222,8 +3223,8 @@ pub(crate) mod tests {
         assert_eq!(count(100), 3 * 100);
     }
 
-    /// Known-null at a suspension point: its unwind set lists the values
-    /// that may hold a count there, a lent argument and a value consumed
+    /// Known-null at a suspension point: its cancel block releases the
+    /// values that may hold a count there, a lent argument and a value consumed
     /// after it, and a local that may hold a value there keeps its exit
     /// row although it is empty at the exit itself; a local moved before
     /// it leaves the exit set.
@@ -3253,7 +3254,59 @@ pub(crate) mod tests {
         );
         assert!(text.contains("exit 0 $1\n"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
-        assert!(text.contains("unwind %9 %7\nunwind %9 %8\n"), "{text}");
+        assert!(text.contains("%18 Block [%16 %17]\n"), "{text}");
+        assert!(
+            text.contains("cancel %9 releases %7\ncancel %9 releases %8\n"),
+            "{text}"
+        );
+    }
+
+    /// Each suspension point owns its cancel block, which releases what
+    /// the point holds; the owned verifier rejects a cancel row out of
+    /// order, one that names no block, and a point whose block lacks a
+    /// value it holds.
+    #[test]
+    fn a_cancel_block_belongs_to_its_point() {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let t = call(&mut b, 7, &[], Ty::STRING);
+        for _ in 0..2 {
+            let aw = call(&mut b, 8, &[], Ty::VOID);
+            b.body_mut().tags[aw.0 as usize] = Tag::Await;
+        }
+        call(&mut b, 9, &[t], Ty::VOID);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+        let errs = |b: &Body| -> Vec<String> {
+            verify_owned(b, &Cx).into_iter().map(|e| e.what).collect()
+        };
+        assert_eq!(errs(&body), Vec::<String>::new());
+        let topo = crate::ir::Topology::new(&body);
+        assert_eq!(body.cancel.len(), 2);
+        for &(at, blk) in &body.cancel {
+            assert_eq!(topo.owner[blk as usize], at);
+            assert_eq!(topo.sub[blk as usize], 0);
+        }
+        let held: Vec<u32> = body.cancel_releases().map(|r| r.1).collect();
+        // The renumbered `t`, held at both points.
+        assert!(held.len() == 2 && held[0] == held[1], "{held:?}");
+        assert_eq!(body.tags[held[0] as usize], Tag::Call);
+        let has = |b: &Body, what: &str| errs(b).iter().any(|e| e.contains(what));
+        let mut bad = body.clone();
+        bad.cancel.swap(0, 1);
+        assert!(
+            has(&bad, "cancel row 1 is out of order"),
+            "{:?}",
+            errs(&bad)
+        );
+        let mut bad = body.clone();
+        bad.cancel[0].1 = u32::MAX - 1;
+        assert!(has(&bad, "which is no point's block"));
+        let mut bad = body.clone();
+        bad.cancel.remove(0);
+        assert!(has(&bad, "whose cancel block lacks it"), "{:?}", errs(&bad));
     }
 
     /// Move's rule 4: a `Ref` of a celled local at its last access takes
