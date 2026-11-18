@@ -1,0 +1,37 @@
+# @dump: own wat
+# expected: the never-inlined call forwards the element loan to its result;
+# the aliasing grow must panic borrow-conflict before any element read (#2120).
+use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        for round in 0..64:
+            self.items.push("new-" + "x".repeat(40 + round))
+
+@inline(.Never)
+fn keep['a](value: &'a string) -> &'a string:
+    value
+
+@inline(.Always)
+fn fwd['a](value: &'a string) -> &'a string:
+    value
+
+fn through_call(p: *mut Slots, alias: *mut Slots) -> string:
+    r := keep(p.get_ref().expect("slot"))
+    alias.push()
+    *r
+
+fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
+    r := fwd(p.get_ref().expect("slot"))
+    alias.push()
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original-" + "z".repeat(40)] })
+    println(through_call(p, p))
