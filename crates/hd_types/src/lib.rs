@@ -10,6 +10,7 @@ pub mod pool;
 pub mod sealed;
 pub mod solver;
 pub mod unify;
+mod walk_memo;
 pub mod wire;
 pub mod work;
 

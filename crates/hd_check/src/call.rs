@@ -6275,11 +6275,8 @@ impl Ck<'_, '_> {
             let n_trait = self.cx.lookup.item(trait_).map_or(0, |i| i.generics.len());
             let args = if pool.list_items(args).len() < n_trait {
                 let env = &self.env;
-                env.clauses_of(st)
-                    .iter()
-                    .map(|&i| i as usize)
-                    .find(|&i| env.clause_trait()[i] == trait_)
-                    .map_or(args, |i| env.clause_args()[i])
+                env.first_clause(st, trait_)
+                    .map_or(args, |i| env.clause_args()[i as usize])
             } else {
                 args
             };
@@ -6392,6 +6389,17 @@ impl Ck<'_, '_> {
     }
 
     fn normalize_deep_in(&mut self, t: Ty, memo: &mut HashMap<Ty, Ty>) -> StageResult<Ty> {
+        enum Constructor {
+            Assoc(DefId, DefId),
+            Adt(DefId),
+            Tuple(Option<Ty>),
+            Ref(bool, bool),
+            Function(hd_types::RowId, bool, Inputs, hd_types::FnDeps),
+        }
+        enum Work {
+            Enter(Ty, usize),
+            Finish(Ty, Constructor, std::ops::Range<usize>, usize),
+        }
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         if !pool.has_assoc(t) {
@@ -6400,70 +6408,130 @@ impl Ck<'_, '_> {
         if let Some(&done) = memo.get(&t) {
             return Ok(done);
         }
-        hd_types::work::type_node();
-        let list = |me: &mut Self, l: TyList, memo: &mut HashMap<Ty, Ty>| -> StageResult<TyList> {
-            let mut v = Vec::new();
-            for x in pool.list_items(l).iter().copied() {
-                v.push(me.normalize_deep_in(x, memo)?);
+        let mut values = vec![Ty::POISON];
+        let mut children = Vec::new();
+        let mut failed = None;
+        hd_base::stack::all(Work::Enter(t, 0), |work, stack| {
+            match work {
+                Work::Enter(t, out) => {
+                    let t = self.infer.resolve(pool, t);
+                    if !pool.has_assoc(t) {
+                        values[out] = t;
+                        return true;
+                    }
+                    if let Some(&done) = memo.get(&t) {
+                        values[out] = done;
+                        return true;
+                    }
+                    hd_types::work::type_node();
+                    children.clear();
+                    let constructor = match pool.get(t) {
+                        TyData::Assoc {
+                            self_ty,
+                            args,
+                            assoc,
+                            trait_,
+                        } => {
+                            children.push(self_ty);
+                            children.extend_from_slice(pool.list_items(args));
+                            Constructor::Assoc(assoc, trait_)
+                        }
+                        TyData::Adt { args, def } => {
+                            children.extend_from_slice(pool.list_items(args));
+                            Constructor::Adt(def)
+                        }
+                        TyData::Tuple { elems, rest } => {
+                            children.extend_from_slice(pool.list_items(elems));
+                            Constructor::Tuple(rest)
+                        }
+                        TyData::Ref {
+                            inner,
+                            mutable,
+                            counted,
+                        } => {
+                            children.push(inner);
+                            Constructor::Ref(mutable, counted)
+                        }
+                        TyData::Fn {
+                            params,
+                            result,
+                            row,
+                            suspends,
+                            inputs,
+                            deps,
+                        } => {
+                            children.extend_from_slice(pool.list_items(params));
+                            children.push(result);
+                            Constructor::Function(row, suspends, inputs, deps)
+                        }
+                        _ => {
+                            values[out] = t;
+                            return true;
+                        }
+                    };
+                    let first = values.len();
+                    values.resize(first + children.len(), Ty::POISON);
+                    stack.push(Work::Finish(t, constructor, first..values.len(), out));
+                    stack.extend(
+                        children
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .map(|(i, &c)| Work::Enter(c, first + i)),
+                    );
+                }
+                Work::Finish(t, constructor, slots, out) => {
+                    // Read the exact child answers, not newly resolved input
+                    // IDs: a later sibling's normalization can learn bindings.
+                    let parts = &values[slots];
+                    let data = match constructor {
+                        Constructor::Assoc(assoc, trait_) => TyData::Assoc {
+                            assoc,
+                            trait_,
+                            self_ty: parts[0],
+                            args: pool.list(&parts[1..]),
+                        },
+                        Constructor::Adt(def) => TyData::Adt {
+                            def,
+                            args: pool.list(parts),
+                        },
+                        Constructor::Tuple(rest) => TyData::Tuple {
+                            elems: pool.list(parts),
+                            rest,
+                        },
+                        Constructor::Ref(mutable, counted) => TyData::Ref {
+                            inner: parts[0],
+                            mutable,
+                            counted,
+                        },
+                        Constructor::Function(row, suspends, inputs, deps) => TyData::Fn {
+                            params: pool.list(&parts[..parts.len() - 1]),
+                            result: parts[parts.len() - 1],
+                            row,
+                            suspends,
+                            inputs,
+                            deps,
+                        },
+                    };
+                    let rebuilt = pool.intern_ty(&data);
+                    let done = if matches!(data, TyData::Assoc { .. }) {
+                        match self.normalize(rebuilt) {
+                            Ok(done) => done,
+                            Err(error) => {
+                                failed = Some(error);
+                                return false;
+                            }
+                        }
+                    } else {
+                        rebuilt
+                    };
+                    memo.insert(t, done);
+                    values[out] = done;
+                }
             }
-            Ok(pool.list(&v))
-        };
-        let d = match pool.get(t) {
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => {
-                let s = self.normalize_deep_in(self_ty, memo)?;
-                let a = list(self, args, memo)?;
-                let x = pool.intern_ty(&TyData::Assoc {
-                    assoc,
-                    trait_,
-                    self_ty: s,
-                    args: a,
-                });
-                let out = self.normalize(x)?;
-                memo.insert(t, out);
-                return Ok(out);
-            }
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(self, args, memo)?,
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(self, elems, memo)?,
-                rest,
-            },
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: self.normalize_deep_in(inner, memo)?,
-                mutable,
-                counted,
-            },
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps,
-            } => TyData::Fn {
-                params: list(self, params, memo)?,
-                result: self.normalize_deep_in(result, memo)?,
-                row,
-                suspends,
-                inputs,
-                deps,
-            },
-            _ => return Ok(t),
-        };
-        let out = pool.intern_ty(&d);
-        memo.insert(t, out);
-        Ok(out)
+            true
+        });
+        failed.map_or(Ok(values[0]), Err)
     }
 }
 
@@ -6664,4 +6732,242 @@ pub(crate) fn dyn_type_param_message(name: &str) -> String {
     format!(
         "`{name}` has a type or row parameter of its own, which is unavailable on a trait value; use a generic bound on the caller, or give the method a parameter typed `&dyn Trait` or `*dyn Trait`"
     )
+}
+
+#[cfg(test)]
+mod projection_walk_tests {
+    use super::*;
+    use crate::body::{add_projection_bounds, with_checker};
+
+    fn projection(ck: &Ck<'_, '_>, base: Ty, binding: Option<Ty>) -> (Ty, DefId, Ty) {
+        let pool = ck.pool();
+        let owner = ck.cx.names.item("app.main", "Shelf");
+        let assoc = ck.cx.names.member(owner, PathKind::Member, "Out");
+        let self_ty = binding.map_or(base, |value| {
+            pool.intern_ty(&TyData::TraitValue {
+                def: owner,
+                args: TyList::EMPTY,
+                bindings: vec![(assoc, value)],
+            })
+        });
+        (
+            pool.intern_ty(&TyData::Assoc {
+                assoc,
+                trait_: owner,
+                self_ty,
+                args: TyList::EMPTY,
+            }),
+            owner,
+            self_ty,
+        )
+    }
+
+    #[test]
+    fn normalization_at_depth_1000_fits_a_small_stack_and_shares_answers() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                with_checker(|ck| {
+                    let p = ck.pool();
+                    let leaf = projection(ck, Ty::I32, Some(Ty::I32)).0;
+                    for depth in [100, 1000] {
+                        let (mut root, mut wanted) = (leaf, Ty::I32);
+                        for _ in 0..depth {
+                            let tuple = |t| {
+                                p.intern_ty(&TyData::Tuple {
+                                    elems: p.list(&[t, t]),
+                                    rest: None,
+                                })
+                            };
+                            root = tuple(root);
+                            wanted = tuple(wanted);
+                        }
+                        let mut memo = HashMap::default();
+                        let (found, work) = hd_types::work::count_type_nodes(|| {
+                            ck.normalize_deep_in(root, &mut memo)
+                        });
+                        assert_eq!(found.unwrap(), wanted);
+                        assert_eq!(work, depth + 1);
+                        assert_eq!(
+                            hd_types::work::count_type_nodes(|| ck
+                                .normalize_deep_in(root, &mut memo)
+                                .unwrap()),
+                            (wanted, 0)
+                        );
+                    }
+                    let owner = ck.cx.names.item("app.main", "Holder");
+                    let row = p.row(&hd_types::RowData {
+                        keys: vec![p.intern_ty(&TyData::TraitValue {
+                            def: owner,
+                            args: p.list(&[leaf]),
+                            bindings: Vec::new(),
+                        })],
+                        params: Vec::new(),
+                    });
+                    let wrap = |t, i| {
+                        p.intern_ty(&match i % 4 {
+                            0 => TyData::Adt {
+                                def: owner,
+                                args: p.list(&[t, t]),
+                            },
+                            1 => TyData::Ref {
+                                inner: t,
+                                mutable: true,
+                                counted: true,
+                            },
+                            2 => TyData::Tuple {
+                                elems: p.list(&[t, t]),
+                                rest: Some(leaf),
+                            },
+                            _ => TyData::Fn {
+                                params: p.list(&[t, t]),
+                                result: t,
+                                row,
+                                suspends: true,
+                                inputs: Inputs::Fixed,
+                                deps: hd_types::FnDeps::NONE,
+                            },
+                        })
+                    };
+                    let (mut root, mut wanted) = (leaf, Ty::I32);
+                    for i in 0..1000 {
+                        root = wrap(root, i);
+                        wanted = wrap(wanted, i);
+                    }
+                    assert_eq!(ck.normalize_deep(root).unwrap(), wanted);
+                    for data in [
+                        TyData::Union(p.list(&[leaf])),
+                        TyData::Opaque {
+                            owner,
+                            site: 0,
+                            borrows: true,
+                            args: p.list(&[leaf]),
+                            bound: leaf,
+                        },
+                        TyData::TraitValue {
+                            def: owner,
+                            args: p.list(&[leaf]),
+                            bindings: vec![(owner, leaf)],
+                        },
+                        TyData::Row(row),
+                        TyData::Context(row),
+                    ] {
+                        let ty = p.intern_ty(&data);
+                        assert_eq!(ck.normalize_deep(ty).unwrap(), ty);
+                    }
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn a_thousand_rigid_projection_bases_normalize_on_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated projection-chain test.
+            .spawn(|| {
+                for depth in [100, 1000] {
+                    with_checker(|ck| {
+                        let p = ck.pool();
+                        let mut root = p.intern_ty(&TyData::Param(ParamRef {
+                            owner: ck.cx.names.item("app.main", "f"),
+                            index: 0,
+                        }));
+                        for _ in 0..depth {
+                            let (next, trait_, _) = projection(ck, root, None);
+                            ck.env.push(root, trait_, TyList::EMPTY, Vec::new(), false);
+                            root = next;
+                        }
+                        let (found, work) =
+                            hd_types::work::count_type_nodes(|| ck.normalize_deep(root));
+                        assert_eq!(found.unwrap(), root);
+                        assert!(
+                            work < 10 * depth + 100,
+                            "projection-chain work stays linear: {work}"
+                        );
+                    });
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn bounds_scans_wake_only_for_the_missing_clause_and_survive_rollback() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                for depth in [100, 1000] {
+                    with_checker(|ck| {
+                        let p = ck.pool();
+                        let base = p.intern_ty(&TyData::Param(ParamRef {
+                            owner: ck.cx.names.item("app.main", "f"),
+                            index: 0,
+                        }));
+                        let (proj, trait_, _) = projection(ck, base, None);
+                        let mut root = proj;
+                        for _ in 0..depth {
+                            root = p.intern_ty(&TyData::Tuple {
+                                elems: p.list(&[root, root]),
+                                rest: None,
+                            });
+                        }
+                        let query = |env: &mut hd_types::solver::ParamEnv| {
+                            hd_types::work::count_type_nodes(|| {
+                                add_projection_bounds(
+                                    ck.cx.lookup,
+                                    p,
+                                    env,
+                                    root,
+                                    ck.cx.names.known.copy,
+                                )
+                            })
+                        };
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                        assert_eq!(query(&mut ck.env), (false, 0));
+                        // Even clauses on the same self type cannot wake an
+                        // unrelated trait/argument dependency.
+                        for i in 0..1000 {
+                            let unrelated = ck.cx.names.item("app.main", &format!("Other{i}"));
+                            ck.env
+                                .push(base, unrelated, TyList::EMPTY, Vec::new(), false);
+                            assert_eq!(query(&mut ck.env), (false, 0));
+                        }
+                        let wrong = ck.env.len();
+                        let wrong_index = u32::try_from(wrong).unwrap();
+                        ck.env
+                            .push(base, trait_, p.list(&[Ty::I32]), Vec::new(), false);
+                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
+                        assert_eq!(query(&mut ck.env), (false, 0));
+                        let before = ck.env.len();
+                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
+                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                        assert!(ck.env.elaborated(proj));
+                        assert_eq!(query(&mut ck.env), (false, 0));
+                        ck.env.truncate(before);
+                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
+                        assert!(!ck.env.elaborated(proj));
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                        assert!(ck.env.elaborated(proj));
+                        ck.env.truncate(wrong);
+                        assert_eq!(ck.env.first_clause(base, trait_), None);
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                        ck.env.push(base, trait_, TyList::EMPTY, Vec::new(), false);
+                        assert_eq!(ck.env.first_clause(base, trait_), Some(wrong_index));
+                        assert_eq!(query(&mut ck.env), (false, depth + 1));
+                    });
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 }

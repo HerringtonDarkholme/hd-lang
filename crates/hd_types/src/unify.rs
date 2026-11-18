@@ -219,66 +219,29 @@ enum UnifyWork {
 // invalidations and the matched-pair parents, instead of clearing every pair.
 #[derive(Default)]
 struct UnifyMemo {
-    done: HashSet<(Ty, Ty)>,
-    dirty: HashSet<(Ty, Ty)>,
-    parents: HashMap<(Ty, Ty), HashSet<(Ty, Ty)>>,
-    pending: Vec<((Ty, Ty), (Ty, Ty))>,
-    rows: HashMap<Ty, HashSet<(Ty, Ty)>>,
+    walk: crate::walk_memo::WalkMemo<(Ty, Ty)>,
     killed: usize,
 }
 
 impl UnifyMemo {
-    fn link(&mut self, pair: (Ty, Ty), parent: (Ty, Ty)) {
-        if self.rows.is_empty() {
-            self.pending.push((pair, parent));
-        } else {
-            self.parents.entry(pair).or_default().insert(parent);
-        }
-    }
-
     fn watch(&mut self, table: &InferTable, pool: Types<'_>, row: crate::RowId, pair: (Ty, Ty)) {
         let raw = pool.intern_ty(&TyData::Row(row));
         if pool.has_infer(raw) && pool.has_infer(table.resolve(pool, raw)) {
-            if self.rows.is_empty() {
-                // Index dependencies only once an open function row needs it.
-                for (child, parent) in self.pending.drain(..) {
-                    self.parents.entry(child).or_default().insert(parent);
-                }
+            if !self.walk.active() {
                 self.killed = table.closed.borrow().killed.len();
             }
-            self.rows.entry(raw).or_default().insert(pair);
+            self.walk.watch(raw, pair);
         }
     }
-
     fn sync(&mut self, table: &InferTable) {
-        if self.rows.is_empty() {
+        if !self.walk.active() {
             return;
         }
         let closed = table.closed.borrow();
-        let mut todo = Vec::new();
         for &(_, ty, _, _) in &closed.killed[self.killed..] {
-            todo.extend(
-                self.rows
-                    .get(&ty)
-                    .into_iter()
-                    .flat_map(|ps| ps.iter())
-                    .copied(),
-            );
+            self.walk.changed(ty);
         }
         self.killed = closed.killed.len();
-        while let Some(pair) = todo.pop() {
-            if self.dirty.insert(pair) {
-                crate::work::type_node();
-                self.done.remove(&pair);
-                todo.extend(
-                    self.parents
-                        .get(&pair)
-                        .into_iter()
-                        .flat_map(|ps| ps.iter())
-                        .copied(),
-                );
-            }
-        }
     }
 }
 
@@ -688,12 +651,11 @@ impl InferTable {
                     } else {
                         let pair = (a, b);
                         if let Some(parent) = parent {
-                            memo.link(pair, parent);
+                            memo.walk.link(pair, parent);
                         }
-                        if memo.done.contains(&pair) {
+                        if !memo.walk.enter(pair) {
                             return true;
                         }
-                        memo.dirty.remove(&pair);
                         crate::work::type_node();
                         stack.push(UnifyWork::Done(pair));
                         self.unify_step(pool, a, b, stack)
@@ -702,9 +664,7 @@ impl InferTable {
                 UnifyWork::Done(pair) => {
                     // A row read earlier in this match may have changed
                     // under a later child. Do not cache that stale success.
-                    if !memo.dirty.contains(&pair) {
-                        memo.done.insert(pair);
-                    }
+                    memo.walk.finish(pair);
                     Ok(())
                 }
                 UnifyWork::List(x, y, a, b) => Self::queue_unify_list(pool, x, y, a, b, stack),

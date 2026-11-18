@@ -126,12 +126,15 @@ pub struct ParamEnv {
     clause_mut: Vec<bool>,
     clause_origin: Vec<u16>,
     by_self: HashMap<Ty, Vec<u32>>,
+    first_trait: HashMap<(Ty, DefId), u32>,
     present: HashMap<(Ty, DefId, TyList), u32>,
     /// The projections whose bounds are elaborated, in order, each with
     /// the clause count once it was: truncating below that count drops
     /// the record with the clauses.
     elaborated: Vec<(Ty, u32)>,
     elaborated_set: HashSet<Ty>,
+    projection_walk: crate::walk_memo::WalkMemo<Ty, (Ty, DefId, Option<TyList>)>,
+    projection_waits: HashMap<Ty, (Ty, DefId, Option<TyList>)>,
     /// How many truncations dropped clauses: an index over the clauses
     /// made at one count stays valid while this does, and needs only the
     /// clauses pushed since ([`Self::epoch`]).
@@ -201,6 +204,7 @@ impl ParamEnv {
         }
         self.present.insert((self_ty, trait_, args), at);
         self.by_self.entry(self_ty).or_default().push(at);
+        self.first_trait.entry((self_ty, trait_)).or_insert(at);
         self.clause_self.push(self_ty);
         self.clause_trait.push(trait_);
         self.clause_args.push(args);
@@ -208,6 +212,8 @@ impl ParamEnv {
         self.clause_mut.push(mut_);
         self.clause_origin
             .push(u16::try_from(i).unwrap_or(u16::MAX));
+        self.projection_walk.changed((self_ty, trait_, Some(args)));
+        self.projection_walk.changed((self_ty, trait_, None));
         true
     }
 
@@ -223,6 +229,13 @@ impl ParamEnv {
         self.by_self.get(&self_ty).map_or(&[], Vec::as_slice)
     }
 
+    /// The first clause on this self type and trait, regardless of arguments.
+    /// One index probe; insertion and truncation retain declared order.
+    #[must_use]
+    pub fn first_clause(&self, self_ty: Ty, trait_: DefId) -> Option<u32> {
+        self.first_trait.get(&(self_ty, trait_)).copied()
+    }
+
     /// Drops the clauses from index `n` on, and the record of each
     /// projection elaborated into them. A self type's clause indices
     /// ascend, so the dropped ones are the tail of its list.
@@ -236,7 +249,16 @@ impl ParamEnv {
             .zip(self.clause_trait.drain(n..))
             .zip(self.clause_args.drain(n..));
         for ((s, t), a) in dropped {
+            self.projection_walk.changed((s, t, Some(a)));
+            self.projection_walk.changed((s, t, None));
             self.present.remove(&(s, t, a));
+            if self
+                .first_trait
+                .get(&(s, t))
+                .is_some_and(|&i| i as usize >= n)
+            {
+                self.first_trait.remove(&(s, t));
+            }
             // Every clause's self type has its list (`push`).
             let list = self.by_self.entry(s).or_default();
             list.pop();
@@ -252,6 +274,7 @@ impl ParamEnv {
         {
             self.elaborated.pop();
             self.elaborated_set.remove(&p);
+            self.projection_walk.forget(p);
         }
     }
 
@@ -263,10 +286,32 @@ impl ParamEnv {
 
     /// Records that the bounds of projection `p` are now elaborated.
     pub fn mark_elaborated(&mut self, p: Ty) {
+        if let Some(base) = self.projection_waits.remove(&p) {
+            self.projection_walk.unwatch(base, p);
+        }
         if self.elaborated_set.insert(p) {
             let end = u32::try_from(self.clause_self.len()).unwrap_or(u32::MAX);
             self.elaborated.push((p, end));
         }
+    }
+
+    /// Start a bounds walk only when its previous traversal is not valid.
+    pub fn projection_scan_enter(&mut self, ty: Ty) -> bool {
+        self.projection_walk.enter(ty)
+    }
+    /// A subtype's bounds walk is a dependency of its containing type's.
+    pub fn projection_scan_child(&mut self, child: Ty, parent: Ty) {
+        self.projection_walk.link(child, parent);
+    }
+    /// Complete a bounds traversal unless a child became stale during it.
+    pub fn projection_scan_done(&mut self, ty: Ty) {
+        self.projection_walk.finish(ty);
+    }
+    /// A missing clause on `base` must wake this projection's bounds walk.
+    pub fn projection_scan_wait(&mut self, ty: Ty, base: Ty, trait_: DefId, args: Option<TyList>) {
+        let key = (base, trait_, args);
+        self.projection_waits.insert(ty, key);
+        self.projection_walk.watch(key, ty);
     }
 
     #[must_use]

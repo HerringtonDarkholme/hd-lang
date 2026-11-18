@@ -1237,11 +1237,32 @@ fn projection_bounds_in(
     if !pool.has_assoc(t) {
         return;
     }
-    let mut kids = Vec::new();
-    pool.children(t, &mut kids);
-    for k in kids {
-        projection_bounds_in(lookup, pool, env, k, copy);
-    }
+    let mut children = Vec::new();
+    hd_base::stack::all((t, false), |(t, finish), stack| {
+        if finish {
+            projection_bounds_one(lookup, pool, env, t, copy);
+            env.projection_scan_done(t);
+        } else if pool.has_assoc(t) && env.projection_scan_enter(t) {
+            hd_types::work::type_node();
+            stack.push((t, true));
+            children.clear();
+            pool.children(t, &mut children);
+            for &child in children.iter().rev().filter(|&&c| pool.has_assoc(c)) {
+                env.projection_scan_child(child, t);
+                stack.push((child, false));
+            }
+        }
+        true
+    });
+}
+
+fn projection_bounds_one(
+    lookup: &Lookup<'_>,
+    pool: hd_types::Types<'_>,
+    env: &mut ParamEnv,
+    t: Ty,
+    copy: DefId,
+) {
     let TyData::Assoc {
         assoc,
         trait_,
@@ -1262,18 +1283,16 @@ fn projection_bounds_in(
     // they are its clause's, as `Ck::normalize` reads them.
     let n_trait = lookup.item(trait_).map_or(0, |i| i.generics.len());
     let args = if pool.list_items(args).len() < n_trait {
-        match env
-            .clauses_of(self_ty)
-            .iter()
-            .map(|&i| i as usize)
-            .find(|&i| env.clause_trait()[i] == trait_)
-        {
-            Some(i) => env.clause_args()[i],
-            None => return,
+        if let Some(i) = env.first_clause(self_ty, trait_) {
+            env.clause_args()[i as usize]
+        } else {
+            env.projection_scan_wait(t, self_ty, trait_, None);
+            return;
         }
     } else if env.contains(self_ty, trait_, args) {
         args
     } else {
+        env.projection_scan_wait(t, self_ty, trait_, Some(args));
         return;
     };
     if let Some(ItemData::AssocType { bounds, .. }) = lookup.item(assoc).map(|i| &i.data) {
