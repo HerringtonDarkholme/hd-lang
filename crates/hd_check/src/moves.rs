@@ -255,6 +255,9 @@ impl CopyWalk<'_, '_> {
                 low,
             ));
         }
+        // Count actual member expansion, after all memo/cycle answers.
+        // Both checker and ownership queries now use this shared walk.
+        hd_types::work::type_node();
         open |= matches!(pool.get(u), TyData::Param(_) | TyData::Assoc { .. });
         match copy_step(self.cx, u) {
             Ok(blocker) => {
