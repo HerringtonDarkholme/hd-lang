@@ -77,7 +77,7 @@ fn can_coincide(pool: Types<'_>, a: Ty, b: Ty) -> bool {
             stack.extend([Some(b), Some(a)]);
             return true;
         };
-        let std::collections::hash_map::Entry::Vacant(slot) = ids.entry(ty) else {
+        let hd_base::hash::hash_map::Entry::Vacant(slot) = ids.entry(ty) else {
             return true;
         };
         hd_types::work::type_node();
@@ -171,10 +171,10 @@ fn can_coincide(pool: Types<'_>, a: Ty, b: Ty) -> bool {
             for (name, value) in y.bindings {
                 hd_types::work::type_node();
                 match x.bindings.entry(name) {
-                    std::collections::hash_map::Entry::Occupied(entry) => {
+                    hd_base::hash::hash_map::Entry::Occupied(entry) => {
                         parts.push((*entry.get(), value));
                     }
-                    std::collections::hash_map::Entry::Vacant(entry) => {
+                    hd_base::hash::hash_map::Entry::Vacant(entry) => {
                         entry.insert(value);
                     }
                 }
