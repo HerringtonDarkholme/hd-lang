@@ -7,12 +7,13 @@
 //! the generic SIL function, its types mapped through the map, its
 //! witness-method calls devirtualized.
 //!
-//! Cost: one clone of the body, one pass over its type columns and
+//! Cost: at most one clone of the body, one pass over its type columns and
 //! records, and [`subst`] once per distinct type and each distinct type
 //! list's items once ([`substitute_body`]); one pass over the calls to
 //! rechoose. So an instance costs its body's size plus its distinct
 //! types, never the program's.
 
+use std::borrow::Cow;
 use std::cell::RefCell;
 
 use hd_base::{DefId, HashMap};
@@ -25,19 +26,20 @@ use crate::{ProgramEnv, subst};
 /// Instance `(item, args)`'s body from `generic`, its item's body (as
 /// checked, or folded and inlined once per generic body in dev): types
 /// substituted ([`subst`]) and bound calls chosen by `pick`, which answers
-/// as collection selects. `args` is not empty: a non-generic item's own
-/// body is its instance's, with no copy; its generic local functions
-/// are instantiated too ([`instantiate_locals`]).
+/// as collection selects. A non-generic callee copy passes empty `args`;
+/// a non-generic item's own instance body needs no copy. Generic local
+/// functions are instantiated too ([`instantiate_locals`]). A borrowed template is
+/// cloned once; an already fresh body is consumed without another clone.
 #[must_use]
 pub fn instantiate(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     item: DefId,
     args: TyList,
-    generic: &Body,
+    generic: Cow<'_, Body>,
     pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>,
 ) -> Body {
-    let mut body = generic.clone();
+    let mut body = generic.into_owned();
     substitute_body(pool, &mut body, &mut |t| subst(pool, env, item, args, t));
     // Its generic local functions are instantiated at the now concrete
     // arguments, so their bound calls are chosen with the rest.

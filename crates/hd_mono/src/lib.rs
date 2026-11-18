@@ -33,7 +33,7 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 mod type_depth;
-pub use instance::{close_body, instantiate, instantiate_locals};
+pub use instance::{close_body, instantiate, instantiate_locals, substitute_body};
 pub use type_depth::type_argument_depth;
 
 pub use crate::layout::Sub;

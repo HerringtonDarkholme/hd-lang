@@ -19,6 +19,7 @@
 //! body, and a default body's result type is its checked body's root.
 
 use hd_base::SliceSort as _;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 
@@ -2608,6 +2609,7 @@ impl FactEnv for Env<'_> {
         let (raw, hash) = self.checked_body(def)?;
         // The one builder of an instance's body (`hd_mono::instantiate`),
         // with the choices collection makes.
+        let raw = Cow::Borrowed(raw);
         let body = hd_mono::instantiate(&self.run.pool, self, def, args, raw, &|t, s, a| {
             InlineEnv::select_choice(self, t, s, a)
         });
@@ -2944,6 +2946,7 @@ impl Env<'_> {
             let walk = ProgramEnv::dbg_structure(self)
                 .filter(|&(show, ..)| show == def)
                 .map(|(_, structure, _)| structure);
+            let generic = Cow::Borrowed(generic);
             hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|t, s, a| {
                 if walk == Some(t) {
                     return Some(Chosen::Builtin(0));
@@ -2971,7 +2974,7 @@ impl Env<'_> {
     /// The instance body of `node`, whose type arguments are past
     /// [`MAX_INSTANCE_LEAVES`] (gap: #2102): its generic item's body as
     /// the passes owned it, its types substituted at the arguments
-    /// (`hd_mono::substitute_body`, one `subst` per distinct type), so
+    /// (`hd_mono::instantiate`, one `subst` per distinct type), so
     /// the emitter lowers it as any instance and substitutes nothing.
     /// Its counts are the generic body's and its bound calls stay bound,
     /// chosen by collection's call targets, so it is marked but not
@@ -2982,14 +2985,15 @@ impl Env<'_> {
         if instance_leaves(&self.run.pool, args) <= MAX_INSTANCE_LEAVES {
             return None;
         }
-        let mut body = match self.supplied_member((def, args)) {
-            Some((family, at)) => self.owned_generated(family.bodies[at].clone()).ok()?,
-            None => self.run.body_of(self.p, def)?.0.clone(),
+        let generic = match self.supplied_member((def, args)) {
+            Some((family, at)) => Cow::Owned(self.owned_generated(family.bodies[at].clone()).ok()?),
+            None => Cow::Borrowed(&self.run.body_of(self.p, def)?.0),
         };
-        let pool = &self.run.pool;
-        hd_mono::instance::substitute_body(pool, &mut body, &mut |t| {
-            hd_mono::subst(pool, self, def, args, t)
-        });
+        // This body is already owned: retain its bound calls and their
+        // established count decisions. Generic locals were instantiated
+        // before ownership; the selector deliberately rechooses nothing.
+        let mut body =
+            hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|_, _, _| None);
         body.phase = hd_tir::ir::Phase::Instance;
         Some(std::sync::Arc::new(body))
     }
