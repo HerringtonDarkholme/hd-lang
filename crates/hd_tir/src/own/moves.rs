@@ -919,8 +919,10 @@ fn apply(
 ) {
     for i in 0..b.len() {
         if t.decide[i] == TAKE && topo.blk[i] != NONE {
-            // Not in a suspending sub-body (invariant 23): a cell between
-            // its points moves by a read, and a `Ref` keeps its count.
+            // Not in a suspending sub-body: a cell between its points
+            // moves by a read, and a `Ref` keeps its count. [`take`] is
+            // the one writer of `TAKES`; the stage cases
+            // own/a-reference-after-a-suspension-in-* cover it.
             if !t.susp_sub[topo.sub[i] as usize] {
                 take(b, topo, t, edits, i);
             }

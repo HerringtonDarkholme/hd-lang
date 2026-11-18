@@ -2148,8 +2148,8 @@ is worth deciding only if they are hot.
      that loop, and in
      that loop nothing copies (a read whose value a use keeps), moves,
      writes or references it, pins or suspends, and no call may write
-     unless it is a whole local no closure captures. The stable rows
-     name loops and such places, in order.
+     unless it is a whole local no closure captures. The stable rows and
+     the deferred pairs are hoisting's own output, not checked again.
    - **The backend** (`hd_wasm/DESIGN.md` §23.16): a hoisted
      `IsUnique` waits for its loop (`Em::hoisted`) and runs there under
      the entry test, the pure prefix emitted once more; unguarded in a

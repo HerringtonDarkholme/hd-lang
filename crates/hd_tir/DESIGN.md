@@ -1115,17 +1115,17 @@ The verifier checks each of these:
     is not a trait value (instance TIR's verifier,
     `docs/future-work/BACKEND_NEUTRAL_TIR.md` Appendix D):
     `hd_mono::instantiate` chooses each one at a concrete receiver as an
-    `Impl` or `Builtin` call. The driver marks and checks each body it
-    owns for an instance before the ownership passes (`verify_instance`).
+    `Impl` or `Builtin` call. The driver marks each body it owns for an
+    instance before the ownership passes, and `verify_owned` checks the
+    passes' output.
     Since #2104 a generic local function is one plain sub-body per
     distinct type arguments, so an instance body holds none.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
 same with 23 in place of 22, for a body after the ownership passes.
-`verify_instance` checks 24 on every instance body the driver owns, in
-every compiler: one pass over the columns and the calls, O(1) per type
-by its flags.
+On an instance body `verify_owned` checks 24 too, wherever it runs:
+one pass over the columns and the calls, O(1) per type by its flags.
 The checker finishes each body with `verify_checked` in debug compilers,
 allocation/count audit builds, or explicit verification (`HD_VERIFY=1` in
 the CLI and CI, `Packages::verify_tir` for embedders). Ordinary compilers

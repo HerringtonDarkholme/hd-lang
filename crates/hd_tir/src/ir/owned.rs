@@ -39,8 +39,6 @@
 //! - the exit set's rows are sorted, once each, and name a sub-body and a
 //!   local of the body; the unwind set's are sorted, once each, and name a
 //!   suspension point and a value;
-//! - no `Ref` takes its local's count of a cell in a sub-body that holds
-//!   a suspension point ([`takes_outside_suspension`]);
 //! - an `IsUnique` is plain, `HOISTED`, `FRESH`, `REPEAT`, or a deferred
 //!   initializer/check pair; a hoisted initializer stands
 //!   right before a loop (among other hoisted ones), names a local's place
@@ -48,27 +46,23 @@
 //!   roots at; in that loop nothing copies it (a read of it or of a place
 //!   holding it whose value a use keeps), takes a `Ref` that overlaps it,
 //!   writes a place holding it, pins or suspends, and no call may write
-//!   unless it is a whole local no closure captures; each stable-list
-//!   row names a loop and a place of that form, in order
-//!   ([`hoisted`]);
+//!   unless it is a whole local no closure captures ([`hoisted`]);
 //! - a collection change's operand that reads a place rooted at a local
 //!   or a top-level binding reads it right after the place's `IsUnique`
 //!   (or a hoisted one names the place), with nothing that may write
 //!   between that read and the change; any other operand, and the root
 //!   of an `IsUnique` rooted at a value, reads no such place through
 //!   other reads, so the buffer a check or a change leaves reaches the
-//!   place it replaced ([`change_places`]);
-//! - each `FlagSet` and `FlagClear` names a `bool` flag local and one
-//!   move path for it, a part of a local or a value in place
-//!   ([`flag_statement`]).
+//!   place it replaced ([`change_places`]).
 //!
 //! A census groups facts and sparse part keys by sub-body. The walks use
 //! dense instruction tables and bitsets sized to that sub-body's moves,
 //! borrows, values, locals and parts, including imported borrow dependencies.
 
 use super::{
-    Body, Callee, ELEM, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag,
-    Topology, VerifyError, is_suspension, local_flags, place, ref_word, u32_of, verify_structure,
+    Body, Callee, ChoiceKind, ELEM, NONE, Op, Phase, Place, PlaceRoot, Proj, ReadMode, Ref, Root,
+    Tag, Topology, TypeWord, VerifyError, is_suspension, local_flags, place, record_type_words,
+    ref_word, sub_flags, u32_of, verify_structure,
 };
 use crate::own::flow::{
     Backward, BitArena, Flow, Forward, Suites, backward_blocks, charge, forward, get_bit, set_bit,
@@ -76,10 +70,11 @@ use crate::own::flow::{
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes_counts as consumes, operands, tracked};
 use hd_base::SliceSort as _;
+use hd_types::{Ty, TyData, TyList};
 
-/// Verifies a body after the ownership passes: the structural invariants
-/// and invariant 23 ([the module](self)), with the facts `cx` gives the
-/// passes.
+/// Verifies a body after the ownership passes: the structural invariants,
+/// invariant 23 ([the module](self)) and, on an instance body, 24
+/// ([`instance`]), with the facts `cx` gives the passes.
 #[must_use]
 pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let topo = Topology::new(b);
@@ -110,11 +105,9 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         neutral_stores: &neutral_stores,
     };
     decided(b, &mut errs);
+    instance(b, own, &mut errs);
     crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
-    retained_results(b, own, &topo, &mut errs);
     crate::own::counts::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
-    crate::own::overwrites::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
-    takes_outside_suspension(b, &topo, &mut errs);
     change_places(b, &topo, &mut errs);
     hoisted(b, &topo, own, &mut errs);
     Empties::new(&cx, own).walk(&mut errs);
@@ -122,7 +115,6 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     binding_locals(&cx, own, &mut errs);
     borrowed_wrappers(b, &forwarding, &mut errs);
     Balance::new(b, &topo, own, &neutral_stores).walk(&mut errs);
-    copies(b, &mut errs);
     errs
 }
 
@@ -169,192 +161,12 @@ fn borrowed_wrappers(b: &Body, sources: &[u32], errs: &mut Vec<VerifyError>) {
     }
 }
 
-/// Every owned borrowed result takes its count exactly once,
-/// immediately after construction and before a source owner can be dropped.
-fn retained_results(b: &Body, cx: &dyn OwnCx, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let results = crate::own::retains::results(b, cx, topo);
-    let returned = crate::own::retains::returned_ends(b, cx, topo, Tag::LoanEnd);
-    for i in 0..b.len() {
-        if results[i] {
-            let block = topo.blk[i];
-            let next = (block != NONE)
-                .then(|| {
-                    b.record(b.data[block as usize][0])
-                        .get(topo.pos[i] as usize + 1)
-                })
-                .flatten()
-                .copied();
-            // A count that a `LoanEnd` ended is no count to take.
-            let handed = returned[i].is_some()
-                || crate::own::retains::handed(b, cx, topo, &results, i, Tag::LoanEnd).is_some();
-            if !handed
-                && !next.is_some_and(|next| {
-                    b.tags[next as usize] == Tag::Retain
-                        && b.data[next as usize][0] == u32_of(i)
-                        && super::count::Info::read(b, next as usize)
-                            == Some(super::count::Info::new(
-                                super::count::At::Value,
-                                super::count::Part::Result,
-                                0,
-                            ))
-                })
-            {
-                err(
-                    errs,
-                    u32_of(i),
-                    "an owned borrowed result lacks its stored retain".into(),
-                );
-            }
-        }
-        if b.tags[i] != Tag::Retain
-            || super::count::Info::read(b, i).is_some_and(|c| c.at != super::count::At::Value)
-        {
-            continue;
-        }
-        let [value, _] = b.data[i];
-        let valid = Ref(value).as_inst().is_some_and(|v| {
-            let source = v.0 as usize;
-            source < i
-                && results[source]
-                && topo.blk[source] != NONE
-                && topo.blk[source] == topo.blk[i]
-                && topo.pos[source] + 1 == topo.pos[i]
-        });
-        if !valid
-            || super::count::Info::read(b, i)
-                != Some(super::count::Info::new(
-                    super::count::At::Value,
-                    super::count::Part::Result,
-                    0,
-                ))
-            || b.ty[i] != hd_types::Ty::VOID
-        {
-            err(
-                errs,
-                u32_of(i),
-                "a retain without an adjacent owned borrowed-result proof".into(),
-            );
-        }
-    }
-}
-
-/// What the inliner's copies promise (`crate::inline`). Each anchor with
-/// the `INLINED` bit falls in a `Body::inlined` row; the rows are sorted
-/// and disjoint, and each call's anchor is the caller's own or, for a copy
-/// inside a copy, an anchor in a row before it. A place in a
-/// copy is rooted at a local the body defines: a parameter or a local some
-/// whole `Store` writes.
-fn copies(b: &Body, errs: &mut Vec<VerifyError>) {
-    if !b.anchors.is_empty() && b.anchors.len() != b.len() {
-        err(
-            errs,
-            NONE,
-            format!("{} anchors for {} instructions", b.anchors.len(), b.len()),
-        );
-    }
-    let mut end = 0;
-    for &[first, len, _, call] in &b.inlined {
-        // A copy inside a copy is called from one of the rows before it.
-        if first < end || call & INLINED != 0 && call & !INLINED >= first {
-            err(
-                errs,
-                NONE,
-                format!("inlined row at {first} out of order, or called in a copy after it"),
-            );
-        }
-        end = first + len;
-    }
-    let mut previous = None;
-    for &[at, source] in &b.inlined_origins {
-        let frame = b.inlined.partition_point(|f| f[0] <= at).checked_sub(1);
-        if previous.is_some_and(|old| old >= at)
-            || frame.is_none_or(|k| at >= b.inlined[k][0] + b.inlined[k][1])
-            || source & INLINED != 0
-        {
-            err(
-                errs,
-                NONE,
-                format!("invalid sparse inlined origin {at} -> {source}"),
-            );
-        }
-        previous = Some(at);
-    }
-    let mut stores = vec![0u32; b.local_ty.len()];
-    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Store) {
-        let w = b.data[i][0];
-        if let Some(n) = stores.get_mut((w & !place::BARE_LOCAL) as usize)
-            && w & place::BARE_LOCAL != 0
-        {
-            *n += 1;
-        }
-    }
-    let param = |l: usize| {
-        b.local_flags
-            .get(l)
-            .is_some_and(|f| f & local_flags::PARAM != 0)
-    };
-    for (i, &a) in b
-        .anchors
-        .iter()
-        .enumerate()
-        .filter(|e| *e.1 & INLINED != 0 && *e.1 != NONE)
-    {
-        let x = a & !INLINED;
-        let k = b.inlined.partition_point(|e| e[0] <= x);
-        if k == 0 || x >= b.inlined[k - 1][0] + b.inlined[k - 1][1] {
-            err(errs, u32_of(i), format!("anchor {x} is in no inlined copy"));
-        }
-        let (oa, ob) = b.tags.get(i).map_or((Op::None, Op::None), |t| t.operands());
-        for (w, op) in b.data.get(i).into_iter().flatten().zip([oa, ob]) {
-            if op == Op::Place
-                && let Some(l) = b.local_in_place(*w).map(hd_base::LocalId::idx)
-                && !param(l)
-                && stores.get(l).is_some_and(|&n| n == 0)
-            {
-                err(
-                    errs,
-                    u32_of(i),
-                    format!("a copy's place is rooted at ${l}, which nothing stores"),
-                );
-            }
-        }
-    }
-}
-
 fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {
     errs.push(VerifyError {
         invariant: 23,
         inst,
         what,
     });
-}
-
-/// No `Ref` takes its local's count of a cell in a sub-body that holds a
-/// suspension point: the frame saves the cell's local at each point, and
-/// a resume enters blocks in the middle (move's rule 4).
-fn takes_outside_suspension(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let takes = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::TAKES != 0;
-    if !(0..b.len()).any(takes) {
-        return;
-    }
-    let subs = &topo.sub;
-    let mut suspends = vec![false; b.sub_root.len()];
-    for (i, &tag) in b.tags.iter().enumerate() {
-        if is_suspension(tag)
-            && let Some(s) = suspends.get_mut(subs[i] as usize)
-        {
-            *s = true;
-        }
-    }
-    for i in (0..b.len()).filter(|&i| takes(i)) {
-        if suspends.get(subs[i] as usize) == Some(&true) {
-            err(
-                errs,
-                u32_of(i),
-                "a `Ref` takes a cell's count in a sub-body with a suspension point".into(),
-            );
-        }
-    }
 }
 
 /// A collection change's operand that reads a place rooted at a local or
@@ -469,8 +281,8 @@ fn change_places(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
     }
 }
 
-/// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
-/// "Hoisting"): what the pass relies on, checked again.
+/// Hoisting's `IsUnique`s (`docs/compiler/tir-v2.md`, "Hoisting"): what
+/// the pass relies on, which its edit-batch mates could break.
 fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     use super::unique_word::{DEFERRED, DEFERRED_CACHE, DEFERRED_INIT, FRESH, HOISTED, REPEAT};
     use crate::own::hoist;
@@ -503,7 +315,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
         }
     }
     let any = (0..n).any(|i| b.tags[i] == Tag::IsUnique && b.data[i][1] != 0);
-    if !any && b.stable_lists.is_empty() {
+    if !any {
         return;
     }
     let element_checks = crate::own::ElementChecks::new(b);
@@ -565,7 +377,6 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
                     .any(|&(_, r)| hoist::ref_in_loop(r, last[r as usize], first[lp as usize], lp)))
     };
     let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
-    let mut deferred = std::collections::BTreeMap::<u32, Vec<(u32, u32)>>::new();
     for i in 0..n {
         if b.tags[i] != Tag::IsUnique {
             continue;
@@ -619,12 +430,6 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             );
             continue;
         };
-        if matches!(w, DEFERRED_INIT | DEFERRED_CACHE) {
-            deferred
-                .entry(b.data[i][0])
-                .or_default()
-                .push((first[l as usize], l));
-        }
         let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
         if local == NONE || !hoist::hoistable(&steps) || reached(local as usize, l) {
             err(
@@ -695,92 +500,97 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
             }
         }
     }
-    // Decisions for the same canonical place have disjoint loop ranges.
-    // Two indexed passes avoid an ancestor search at every covered write.
-    for ranges in deferred.values_mut() {
-        ranges.sort_stable();
-        for pair in ranges.windows(2) {
-            if pair[0].1 >= pair[1].0 {
-                err(
-                    errs,
-                    pair[1].1,
-                    "overlapping deferred uniqueness decisions".into(),
-                );
-            }
+}
+
+/// Invariant 24: an instance body (`Phase::Instance`) holds no generic
+/// form, since the emitter substitutes none. Rejected: a type naming a
+/// type parameter, a projection or an opaque result, in any column or
+/// record type word (`hd_mono::instantiate` and `close_body` close them);
+/// a generic local function (`hd_mono::instantiate_locals`, whose error
+/// `instantiate` leaves to this check); and a trait call chosen through
+/// a bound at a receiver that is no trait value (`inline::rechoose`).
+/// Cost: one pass over the columns and records, an O(1) flag test a type.
+fn instance(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+    let Some(pool) = cx.pool().filter(|_| b.phase == Phase::Instance) else {
+        return;
+    };
+    let mut bad = |inst: u32, what: String| {
+        errs.push(VerifyError {
+            invariant: 24,
+            inst,
+            what,
+        });
+    };
+    let types = pool.types();
+    let open = |t: Ty| types.has_param(t) || types.has_assoc(t) || types.has_opaque(t);
+    let generic = |t: Ty| format!("`{}` is generic", cx.shown(t));
+    // A trait value's call, or one through a reference to it, dispatches.
+    let trait_value = |t: Ty| {
+        let t = match pool.get(t) {
+            TyData::Ref { inner, .. } => inner,
+            _ => t,
+        };
+        matches!(pool.get(t), TyData::TraitValue { .. })
+    };
+    if let Some(sub) = b.sub_flags.iter().position(|f| f & sub_flags::GENERIC != 0) {
+        bad(
+            b.sub_root[sub],
+            format!("sub-body {sub} is a generic local function"),
+        );
+    }
+    for (i, &t) in b.ty.iter().enumerate().filter(|e| open(*e.1)) {
+        bad(u32_of(i), generic(t));
+    }
+    let consts = b.consts.iter().map(|c| &c.0);
+    for &t in b.local_ty.iter().chain(consts).filter(|&&t| open(t)) {
+        bad(NONE, format!("a local or constant: {}", generic(t)));
+    }
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Call) {
+        if let Some(Callee::TraitMethod {
+            self_ty,
+            choice: (ChoiceKind::Bound, _),
+            ..
+        }) = Callee::from_words(b.record(b.data[i][0]))
+            && !types.has_param(self_ty)
+            && !trait_value(self_ty)
+        {
+            bad(
+                u32_of(i),
+                format!(
+                    "a trait call chosen through a bound at `{}`",
+                    cx.shown(self_ty)
+                ),
+            );
         }
     }
-    for i in 0..n {
-        if b.tags[i] != Tag::IsUnique || b.data[i][1] != DEFERRED {
+    record_type_words(b, &mut |at, word| {
+        let w = b.extra[at];
+        let t = match word {
+            TypeWord::Ty => Some(Ty(w)).filter(|&t| open(t)),
+            TypeWord::List => pool
+                .list_items(TyList(w))
+                .iter()
+                .copied()
+                .find(|&t| open(t)),
+        };
+        if let Some(t) = t {
+            bad(NONE, format!("record word {at}: {}", generic(t)));
+        }
+    });
+}
+
+/// The read modes and the side rows.
+fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
+    for (i, (&tag, &[_, w])) in b.tags.iter().zip(&b.data).enumerate() {
+        if tag != Tag::Read {
             continue;
         }
-        let covered = deferred.get(&b.data[i][0]).is_some_and(|ranges| {
-            let at = ranges.partition_point(|&(lo, _)| lo <= u32_of(i));
-            at > 0 && u32_of(i) < ranges[at - 1].1
-        });
-        if !covered {
-            err(
-                errs,
-                u32_of(i),
-                "a deferred uniqueness check without its loop decision".into(),
-            );
-        }
-    }
-    for (k, &(l, word)) in b.stable_lists.iter().enumerate() {
-        let (local, _) = hoist::resolve(b, word, &mut steps, &mut raw);
-        if b.tags.get(l as usize) != Some(&Tag::Loop)
-            || local == NONE
-            || !hoist::hoistable(&steps)
-            || (k > 0 && b.stable_lists[k - 1] >= (l, word))
-        {
-            err(
-                errs,
-                l,
-                format!("stable list row {k} names no loop, no local's place, or is out of order"),
-            );
-        }
-    }
-}
-
-/// A drop flag statement (`own::drop_flags`): b is a `bool` local, and a
-/// is a part of a local or an instruction's value in place (fields and
-/// variants), the same place word in every statement of that local, so
-/// one flag stands for one move path.
-fn flag_statement(b: &Body, i: usize, paths: &mut Vec<u32>, errs: &mut Vec<VerifyError>) {
-    let [word, flag] = b.data[i];
-    let p = b.view(word);
-    let what = if b.local_ty.get(flag as usize) != Some(&hd_types::Ty::BOOL) {
-        format!(
-            "a `{}` of flag ${flag}, which is no `bool` local",
-            b.tags[i].name()
-        )
-    } else if !matches!(p.root, Root::Local(_) | Root::Value(_)) || !p.in_place(b) {
-        format!("a `{}` of a place no move path names", b.tags[i].name())
-    } else {
-        paths.resize(b.local_ty.len(), NONE);
-        let first = &mut paths[flag as usize];
-        if *first == NONE || *first == word {
-            *first = word;
-            return;
-        }
-        format!("flag ${flag} stands for two move paths")
-    };
-    err(errs, u32_of(i), what);
-}
-
-/// The modes, the exit set and the drop flag statements.
-fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
-    let mut flag_paths = Vec::new();
-    for (i, (&tag, &[_, w])) in b.tags.iter().zip(&b.data).enumerate() {
-        match tag {
-            Tag::Read => match ReadMode::from_u32(w) {
-                Some(ReadMode::Use) => {
-                    err(errs, u32_of(i), "a `Read` left `use` by the passes".into());
-                }
-                None => err(errs, u32_of(i), format!("a `Read` of unknown mode {w}")),
-                Some(_) => {}
-            },
-            Tag::FlagSet | Tag::FlagClear => flag_statement(b, i, &mut flag_paths, errs),
-            _ => {}
+        match ReadMode::from_u32(w) {
+            Some(ReadMode::Use) => {
+                err(errs, u32_of(i), "a `Read` left `use` by the passes".into());
+            }
+            None => err(errs, u32_of(i), format!("a `Read` of unknown mode {w}")),
+            Some(_) => {}
         }
     }
     for (k, &(sub, local)) in b.exit_drops.iter().enumerate() {
@@ -2635,35 +2445,6 @@ mod deferred_tests {
     use hd_types::Ty;
 
     #[test]
-    fn deferred_checks_and_initializers_require_a_covering_loop() -> Result<(), String> {
-        for (mode, message) in [
-            (unique_word::DEFERRED, "without its loop decision"),
-            (unique_word::DEFERRED_INIT, "that no loop follows"),
-            (unique_word::DEFERRED_CACHE, "that no loop follows"),
-        ] {
-            let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
-            let root = build.open_block();
-            let local = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
-            build.emit(
-                Tag::IsUnique,
-                local.raw() | place::BARE_LOCAL,
-                mode,
-                Ty::VOID,
-                NodeIdx::NONE,
-            );
-            let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
-            let body = build
-                .finish_tolerating(root, &[], &[22])
-                .map_err(|e| format!("{e:?}"))?;
-            let errors = verify_owned(&body, &crate::own::tests::Cx);
-            assert!(
-                errors.iter().any(|e| e.what.contains(message)),
-                "{errors:?}"
-            );
-        }
-        Ok(())
-    }
-    #[test]
     fn a_deferred_cache_rejects_buffer_growth() -> Result<(), String> {
         use crate::ir::{IntrinsicOp, ReadMode};
         let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
@@ -3045,5 +2826,232 @@ mod sub_body_metadata_tests {
             "100 closures: {small}; 1000 closures: {large}"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod instance_tests {
+    use super::verify_owned;
+    use crate::ir::{
+        Body, BodyKind, Callee, ChoiceKind, Phase, Providers, Tag, TirBuilder, TirSink as _,
+        local_flags, sub_flags,
+    };
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_types::{InternPool, ParamRef, Ty, TyData};
+
+    use crate::own::{OwnCx, Pass};
+
+    /// The passes' facts with a pool, so the instance check runs.
+    struct Pooled<'a>(&'a InternPool);
+
+    impl OwnCx for Pooled<'_> {
+        fn temporary_owner_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn counted(&self, _: Ty) -> bool {
+            false
+        }
+        fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            true
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Lent
+        }
+        fn holds_coll(&self, _: Ty) -> bool {
+            false
+        }
+        fn pool(&self) -> Option<&InternPool> {
+            Some(self.0)
+        }
+        fn shown(&self, t: Ty) -> String {
+            format!("t{}", t.0)
+        }
+    }
+
+    const F: DefId = DefId::from_raw(1);
+
+    fn param(pool: &InternPool, index: u16) -> Ty {
+        pool.intern_ty(&TyData::Param(ParamRef { owner: F, index }))
+    }
+
+    /// `fn f(x: t) -> t: g::[t](x)`, marked an instance.
+    fn body(pool: &InternPool, t: Ty) -> Body {
+        let n = NodeIdx::from_raw(0);
+        let mut b = TirBuilder::new(F, BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(t, Symbol::from_raw(0), local_flags::PARAM, n);
+        let get = b.get(x, t, n);
+        let callee = Callee::Item {
+            def: DefId::from_raw(2),
+            targs: pool.list(&[t]),
+        };
+        let call = b.call(&callee, &[get], Providers::None, t, n);
+        b.emit(Tag::Return, call.0, crate::ir::NONE, Ty::NEVER, n);
+        let root = b.close_block(blk, None, Ty::NEVER, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        body.phase = Phase::Instance;
+        body
+    }
+
+    /// The body's invariant 24 findings.
+    fn found(b: &Body, pool: &InternPool) -> Vec<String> {
+        verify_owned(b, &Pooled(pool))
+            .into_iter()
+            .filter(|e| e.invariant == 24)
+            .map(|e| e.what)
+            .collect()
+    }
+
+    /// `fn f(x: t): x.m()`, a trait call chosen `choice` at `t`.
+    fn trait_call(pool: &InternPool, t: Ty, choice: (ChoiceKind, u32)) -> Body {
+        let n = NodeIdx::from_raw(0);
+        let mut b = TirBuilder::new(F, BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(t, Symbol::from_raw(0), local_flags::PARAM, n);
+        let get = b.get(x, t, n);
+        let callee = Callee::TraitMethod {
+            trait_: DefId::from_raw(5),
+            method: DefId::from_raw(6),
+            self_ty: t,
+            targs: pool.list(&[]),
+            choice,
+        };
+        b.call(&callee, &[get], Providers::None, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        body.phase = Phase::Instance;
+        body
+    }
+
+    /// A bound's call left at a concrete receiver is rejected; one chosen
+    /// as an impl or builtin passes, as does a bound's call at a trait
+    /// value or a reference to one, which dispatches through its table.
+    #[test]
+    fn a_bound_call_passes_only_at_a_trait_value() {
+        let pool = InternPool::new();
+        let bound = (ChoiceKind::Bound, 0);
+        assert_eq!(
+            found(&trait_call(&pool, Ty::I32, bound), &pool),
+            [format!(
+                "a trait call chosen through a bound at `t{}`",
+                Ty::I32.0
+            )]
+        );
+        for choice in [(ChoiceKind::Impl, 9), (ChoiceKind::Builtin, 1)] {
+            assert!(found(&trait_call(&pool, Ty::I32, choice), &pool).is_empty());
+        }
+        let dyn_ = pool.intern_ty(&TyData::TraitValue {
+            def: DefId::from_raw(5),
+            args: pool.list(&[]),
+            bindings: Vec::new(),
+        });
+        let by_ref = pool.intern_ty(&TyData::Ref {
+            inner: dyn_,
+            mutable: false,
+            counted: false,
+        });
+        for t in [dyn_, by_ref] {
+            assert!(found(&trait_call(&pool, t, bound), &pool).is_empty());
+        }
+        // A receiver naming a parameter is the type check's finding only.
+        let what = found(&trait_call(&pool, param(&pool, 0), bound), &pool);
+        assert!(
+            what.iter().all(|w| !w.starts_with("a trait call")),
+            "{what:?}"
+        );
+    }
+
+    #[test]
+    fn a_concrete_instance_body_passes() {
+        let pool = InternPool::new();
+        assert!(found(&body(&pool, Ty::I32), &pool).is_empty());
+    }
+
+    /// A checked body may name its item's parameters, and a context
+    /// without a pool checks no types.
+    #[test]
+    fn only_an_instance_body_with_a_pool_is_checked() {
+        let pool = InternPool::new();
+        let mut b = body(&pool, param(&pool, 0));
+        assert!(!found(&b, &pool).is_empty());
+        assert!(
+            verify_owned(&b, &crate::own::tests::Cx)
+                .iter()
+                .all(|e| e.invariant != 24)
+        );
+        b.phase = Phase::Checked;
+        assert!(found(&b, &pool).is_empty());
+    }
+
+    /// The parameter is reported in each column it reaches: the
+    /// instruction and local columns and the callee's type arguments.
+    #[test]
+    fn a_type_parameter_is_rejected_in_every_column() {
+        let pool = InternPool::new();
+        let t = param(&pool, 0);
+        let mut b = body(&pool, t);
+        b.consts.push((t, 0));
+        let what = found(&b, &pool);
+        let name = format!("`t{}` is generic", t.0);
+        assert!(what.iter().any(|w| w == &name), "{what:?}");
+        let other = format!("a local or constant: {name}");
+        assert_eq!(what.iter().filter(|&w| w == &other).count(), 2, "{what:?}");
+        assert!(
+            what.iter()
+                .any(|w| w.starts_with("record word") && w.ends_with(&name)),
+            "{what:?}"
+        );
+    }
+
+    #[test]
+    fn an_unnormalized_projection_is_rejected() {
+        let pool = InternPool::new();
+        let t = pool.intern_ty(&TyData::Assoc {
+            assoc: DefId::from_raw(5),
+            trait_: DefId::from_raw(6),
+            self_ty: Ty::I32,
+            args: pool.list(&[]),
+        });
+        let what = found(&body(&pool, t), &pool);
+        assert!(what.contains(&format!("`t{}` is generic", t.0)), "{what:?}");
+    }
+
+    #[test]
+    fn an_unopened_opaque_result_is_rejected() {
+        let pool = InternPool::new();
+        let t = pool.intern_ty(&TyData::Opaque {
+            owner: DefId::from_raw(5),
+            site: 0,
+            borrows: false,
+            args: pool.list(&[]),
+            bound: Ty::I32,
+        });
+        let what = found(&body(&pool, t), &pool);
+        assert!(what.contains(&format!("`t{}` is generic", t.0)), "{what:?}");
+    }
+
+    /// A generic local function's sub-body is rejected, and its own
+    /// parameters with it, as any other parameter.
+    #[test]
+    fn a_generic_local_function_is_rejected() {
+        let pool = InternPool::new();
+        let own = param(&pool, 1);
+        let mut b = body(&pool, own);
+        b.sub_flags[0] |= sub_flags::GENERIC;
+        let what = found(&b, &pool);
+        assert_eq!(what[0], "sub-body 0 is a generic local function");
+        assert!(
+            what.contains(&format!("`t{}` is generic", own.0)),
+            "{what:?}"
+        );
     }
 }

@@ -5,9 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hd_base::DefId;
-use hd_tir::ir::{
-    CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_instance, verify_owned,
-};
+use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_owned};
 use hd_types::{InternPool, ParamRef, Ty, TyData};
 
 mod context {
@@ -213,8 +211,42 @@ fn instance_errors(body: &hd_tir::ir::Body) -> Vec<hd_tir::ir::VerifyError> {
     }));
     assert_eq!(t, Ty(PARAM_T), "the corpus names `T` by its pool row");
     let mut errors = verify(body);
-    errors.extend(verify_instance(body, &pool, &|t| format!("t{}", t.0)));
+    let owned = verify_owned(body, &Pooled(&pool));
+    errors.extend(owned.into_iter().filter(|e| e.invariant == 24));
     errors
+}
+
+/// Facts with a pool, so [`verify_owned`] runs its instance check.
+struct Pooled<'a>(&'a InternPool);
+
+impl hd_tir::own::OwnCx for Pooled<'_> {
+    fn temporary_owner_name(&self) -> hd_base::Symbol {
+        hd_base::Symbol::NONE
+    }
+    fn counted(&self, _: Ty) -> bool {
+        false
+    }
+    fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Lent
+    }
+    fn pass_value(&self, _: Ty, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Lent
+    }
+    fn may_write(&self, _: &Callee) -> bool {
+        true
+    }
+    fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+        false
+    }
+    fn received(&self, _: DefId, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Lent
+    }
+    fn holds_coll(&self, _: Ty) -> bool {
+        false
+    }
+    fn pool(&self) -> Option<&InternPool> {
+        Some(self.0)
+    }
 }
 
 /// Tags no valid body holds: a reserved slot (invariant 14), tier 2's

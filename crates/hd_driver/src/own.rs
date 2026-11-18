@@ -36,7 +36,7 @@ use hd_tir::own::{CallMemory, OwnCx, OwnScratch, Pass, Summary, Tri, Uncopied};
 use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, ParamEnv, Selection, SolveCx, Solver, TableSolver, TraitRef,
 };
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{InternPool, Ty, TyData, TyList};
 
 use super::{Env, LazyBody, ProgramTables, Run, lock};
 
@@ -1117,6 +1117,14 @@ impl OwnCx for Env<'_> {
             self.counted(field)
         });
         true
+    }
+
+    fn pool(&self) -> Option<&InternPool> {
+        Some(&self.run.pool)
+    }
+
+    fn shown(&self, ty: Ty) -> String {
+        hd_mono::shown_type(&self.run.pool, self, ty)
     }
 
     fn summarizes(&self) -> bool {
@@ -3089,9 +3097,9 @@ impl Env<'_> {
     }
 
     /// Marks `body`, about to be owned as instance `(body.item, args)`, an
-    /// instance body (`hd_tir::ir::Phase::Instance`) and verifies it holds
-    /// no generic form (`hd_tir::ir::verify_instance`, invariant 24): a
-    /// generic item's at its type arguments, a non-generic item's own
+    /// instance body (`hd_tir::ir::Phase::Instance`), which holds no
+    /// generic form (invariant 24, checked with the passes' output by
+    /// `hd_tir::ir::verify_owned`): a generic item's at its type arguments, a non-generic item's own
     /// body with no copy. A generic item's own body, which serves its
     /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2102), stays checked.
     /// A facts body that names none of its owner's type parameters is
@@ -3101,7 +3109,7 @@ impl Env<'_> {
     /// verified like a non-generic body. A generic data type's structure
     /// member facts name its parameters and are reached at its arguments.
     /// Cost: one pass over the body; the item's generics once.
-    pub(super) fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
+    pub(super) fn mark_instance(&self, body: &mut Body, args: TyList) {
         let owner = ProgramEnv::generics_owner(self, body.item);
         let pool = &self.run.pool;
         let closed_fact = || {
@@ -3128,7 +3136,7 @@ impl Env<'_> {
                 "generic body `{}` serves its instances with a generic local function",
                 self.run.names().path(body.item)
             );
-            return Ok(());
+            return;
         }
         // A generic instance's types were closed as they were substituted;
         // a non-generic body may still name an opaque result, and the
@@ -3141,26 +3149,6 @@ impl Env<'_> {
             hd_tir::inline::rechoose(body, &|t, s, a| InlineEnv::select_choice(self, t, s, a));
         }
         body.phase = hd_tir::ir::Phase::Instance;
-        let pool = &self.run.pool;
-        let errs = hd_tir::ir::verify_instance(body, pool, &|t| hd_mono::shown_type(pool, self, t));
-        let Some(e) = errs.first() else {
-            return Ok(());
-        };
-        Err(NotImplemented::bug(
-            Stage::Collect,
-            format!(
-                "instance `{}` at [{}] fails invariant 24 at %{}: {} ({} findings)",
-                self.run.names().path(body.item),
-                pool.list_items(args)
-                    .iter()
-                    .map(|&t| hd_mono::shown_type(pool, self, t))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                e.inst,
-                e.what,
-                errs.len()
-            ),
-        ))
     }
 
     /// Inlined body `body` of instance `(body.item, args)`, with hash
@@ -3174,7 +3162,7 @@ impl Env<'_> {
         args: TyList,
     ) -> StageResult<(Body, Hash128)> {
         let node = (body.item, args);
-        self.mark_instance(&mut body, args)?;
+        self.mark_instance(&mut body, args);
         if self.return_loan_layout(body.item, args).is_some() {
             hd_tir::own::return_loan::prepare(&mut body);
         }

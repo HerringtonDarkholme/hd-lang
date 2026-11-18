@@ -1,8 +1,10 @@
 # expect: reject 24
 body 1 Fn Instance
 local 19 0 - 0
+sub 1 0 0 - 0
 labels
 caps
 modes
-extra
+extra 1 0
 %0 = Read 2147483648 0 : 19 @-
+%1 = Block 0 - : 19 @-

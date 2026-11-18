@@ -15,7 +15,6 @@ use hd_base::{
 use hd_types::{Ty, TyList};
 
 mod copy;
-mod instance;
 mod local_fns;
 mod owned;
 mod root;
@@ -25,7 +24,6 @@ mod view;
 pub(crate) use copy::{
     Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, push_record, renumber,
 };
-pub use instance::verify_instance;
 pub use local_fns::{LocalTypes, instantiate_local_functions};
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
@@ -918,8 +916,8 @@ const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
 
 /// Which side of collection a body is on (`docs/future-work/INSTANCE_TIR.md` at 421bcec83,
 /// "Phase mark"): the checker's generic form, or one instance's form, whose
-/// types are concrete and whose trait calls are chosen ([`verify_instance`],
-/// invariant 24). A non-generic item's checked body becomes its one
+/// types are concrete and whose trait calls are chosen (invariant 24,
+/// [`verify_owned`]). A non-generic item's checked body becomes its one
 /// instance's by setting the mark, with no copy.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -2403,7 +2401,7 @@ impl VerifyError {
 /// facts for 8, 11, 13 and 17; the checker constructs those relationships.
 /// 3's `Hole` and `Poison` half needs the module's errors ([`poison_sites`]),
 /// and 23 holds after ownership ([`verify_owned`]) where 22 holds before;
-/// 24 holds on an instance body ([`verify_instance`]).
+/// 24 holds on an instance body, which [`verify_owned`] checks too.
 pub const CHECKED_INVARIANTS: &[u8] = &[
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24,
 ];
@@ -4488,42 +4486,13 @@ mod tests {
         assert!(verify_owned(&after, &Counts).is_empty());
     }
 
-    /// Invariant 23: a drop flag statement names one move path, a part of
-    /// a local in place, for each `bool` flag local.
-    #[test]
-    fn verifier_takes_one_move_path_per_drop_flag() {
-        use super::verify_owned;
-        let flag = |b: &mut TirBuilder, tag, place: &str, local: LocalId, n| {
-            let word = b.place(&place.parse().expect("place"));
-            b.emit(tag, word, local.raw(), Ty::VOID, n);
-        };
-        let body = owned_body(|b, n| {
-            let f = b.local(Ty::BOOL, Symbol::from_raw(2), 0, n);
-            let g = b.local(Ty::BOOL, Symbol::from_raw(3), 0, n);
-            let w = b.place(&"[$0 .1]".parse().expect("place"));
-            b.emit(Tag::FlagSet, w, f.raw(), Ty::VOID, n);
-            b.emit(Tag::FlagClear, w, f.raw(), Ty::VOID, n);
-            // Another word of the same path is a second path for `f`.
-            flag(b, Tag::FlagClear, "[$0 .1]", f, n);
-            // Through a dereference no move path goes.
-            flag(b, Tag::FlagSet, "[*$1]", g, n);
-            // `$1` is no `bool` local.
-            flag(b, Tag::FlagSet, "[$0]", LocalId::from_raw(1), n);
-        });
-        assert_eq!(
-            findings(&verify_owned(&body, &Counts)),
-            [(23, 2), (23, 3), (23, 4)]
-        );
-    }
-
-    /// Invariant 23: a decided mode for every read, a `bool` local for
-    /// every flag statement, and an exit set in order.
+    /// Invariant 23: a decided mode for every read and an exit set in
+    /// order.
     #[test]
     fn verifier_rejects_undecided_ownership() {
         use super::{ReadMode, verify_owned};
         let mut body = owned_body(|b, n| {
             read(b, "[$0]", ReadMode::Use, n);
-            statement(b, Tag::FlagSet, "[$0]", n);
         });
         body.exit_drops = vec![
             (SubId::from_raw(0), LocalId::from_raw(1)),
@@ -4531,7 +4500,7 @@ mod tests {
         ];
         assert_eq!(
             findings(&verify_owned(&body, &Counts)),
-            [(23, 0), (23, 1), (23, NONE)]
+            [(23, 0), (23, NONE)]
         );
     }
 

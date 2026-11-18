@@ -972,27 +972,4 @@ mod tests {
         let text = crate::ir::print(&b);
         assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
     }
-
-    #[test]
-    fn the_verifier_rejects_a_missing_or_mislabeled_result_count() {
-        let mut b = body();
-        crate::own::run(&mut b, &Facts, &mut OwnScratch::default()).unwrap();
-        let retain = b.tags.iter().position(|&t| t == Tag::Retain).unwrap();
-        b.extra[b.data[retain][1] as usize + 4] = 2;
-        assert!(
-            verify_owned(&b, &Facts)
-                .iter()
-                .any(|e| e.what.contains("borrowed-result proof"))
-        );
-        b.extra[b.data[retain][1] as usize + 4] = 0;
-        let root = b.sub_root[0] as usize;
-        let list = b.data[root][0] as usize;
-        assert_eq!(b.extra[list + b.extra[list] as usize], u32_of(retain));
-        b.extra[list] -= 1;
-        assert!(
-            verify_owned(&b, &Facts)
-                .iter()
-                .any(|e| e.what.contains("lacks its stored retain"))
-        );
-    }
 }

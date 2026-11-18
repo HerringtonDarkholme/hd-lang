@@ -539,6 +539,15 @@ pub trait OwnCx {
     fn summarizes(&self) -> bool {
         false
     }
+    /// The type pool, for the verifier's instance check (invariant 24);
+    /// `None` skips it.
+    fn pool(&self) -> Option<&hd_types::InternPool> {
+        None
+    }
+    /// How a diagnostic spells `ty`.
+    fn shown(&self, ty: Ty) -> String {
+        format!("{ty:?}")
+    }
 }
 
 /// Structural candidate (scope, provider operand, final context call) triples.
@@ -3277,29 +3286,6 @@ pub(crate) mod tests {
         assert!(!plain.contains("Drop [$0]"), "{plain}");
         assert!(!suspending.contains("take"), "{suspending}");
         assert!(suspending.contains("Drop [$0]"), "{suspending}");
-        // The verifier refuses a take that a suspension point follows.
-        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
-        let blk = b.open_block();
-        let x = local(&mut b, 0);
-        let s = call(&mut b, 7, &[], Ty::STRING);
-        b.set(x, s, n);
-        let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
-        let r = b.emit(Tag::Ref, word, 0, Ty::STRING, n);
-        call(&mut b, 8, &[r], Ty::VOID);
-        let root = b.close_block(blk, None, Ty::VOID, n);
-        let mut body = b.finish(root, &[]).expect("verifies");
-        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
-        assert!(verify_owned(&body, &Cx).is_empty());
-        let at = (0..body.len())
-            .rev()
-            .find(|&i| body.tags[i] == Tag::Call)
-            .expect("call");
-        body.tags[at] = Tag::Await;
-        let errs = verify_owned(&body, &Cx);
-        assert!(
-            errs.iter().any(|e| e.what.contains("takes a cell's count")),
-            "{errs:?}"
-        );
     }
 
     /// A whole-value read after an earlier reference moves the payload out

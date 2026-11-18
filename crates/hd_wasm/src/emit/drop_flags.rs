@@ -110,8 +110,8 @@ impl Em<'_, '_, '_> {
                 out.entry(root).or_default().push((p.proj, flag));
             }
         }
-        // The verifier gives each flag local one path: equal paths are one
-        // flag's statements.
+        // The flag pass (`hd_tir::own::drop_flags`) gives each flag local
+        // one path: equal paths are one flag's statements.
         for paths in out.values_mut() {
             paths.sort_stable_by(|a, b| path_order(&a.0, &b.0));
             paths.dedup_by(|a, b| a.0 == b.0);

@@ -102,11 +102,12 @@ impl Em<'_, '_, '_> {
         if self.retained_before_result.remove(&value) {
             return Ok(());
         }
-        // ruled out: retained_results verifies Retain immediately after its value;
-        // lowering stores that value or records its earlier retain above.
+        // ruled out: the retains pass (`hd_tir::own::retains`) splices a
+        // Retain right after its value; lowering stores that value or
+        // records its earlier retain above.
         assert!(
             self.vals.contains_key(&value),
-            "retained_results: Retain must follow a constructed or pre-retained value"
+            "a Retain must follow a constructed or pre-retained value"
         );
         let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))

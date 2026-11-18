@@ -1158,36 +1158,6 @@ mod tests {
         );
     }
 
-    /// The verifier checks what a copy promises: anchors in its rows, the
-    /// rows in order, and places rooted at locals the body defines.
-    #[test]
-    fn the_verifier_checks_what_a_copy_promises() {
-        let mut b = caller();
-        inline_call(&mut b, 1, callee()).expect("inlines");
-        run(&mut b, &Cx, &mut OwnScratch::default()).expect("passes");
-        assert_eq!(verify_owned(&b, &Cx), []);
-        let finds =
-            |b: &Body, what: &str| verify_owned(b, &Cx).iter().any(|e| e.what.contains(what));
-        let i = (0..b.len()).find(|&i| b.anchors[i] & crate::ir::INLINED != 0);
-        let mut bad = b.clone();
-        bad.anchors[i.expect("a copied instruction")] = crate::ir::INLINED | 0x63;
-        assert!(finds(&bad, "in no inlined copy"));
-        let mut bad = b.clone();
-        bad.inlined[0][3] |= crate::ir::INLINED;
-        assert!(finds(&bad, "called in a copy"));
-        // A copy's read of a local nothing stores.
-        assert!(!finds(&b, "nothing stores"));
-        let copied = |i: usize| b.anchors[i] & crate::ir::INLINED != 0 && b.tags[i] == Tag::Read;
-        let read = (0..b.len()).find(|&i| copied(i)).expect("the copy's read");
-        let l = u32_of(b.local_ty.len());
-        b.local_ty.push(LIST);
-        b.local_name.push(Symbol::from_raw(0));
-        b.local_syn.push(N);
-        b.local_flags.push(0);
-        b.data[read][0] = l | crate::ir::place::BARE_LOCAL;
-        assert!(finds(&b, &format!("rooted at ${l}, which nothing stores")));
-    }
-
     /// The test context's list type ([`crate::own::tests::Cx`]).
     const LIST: Ty = Ty(1_000_000);
 

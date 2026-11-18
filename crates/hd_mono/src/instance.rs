@@ -43,8 +43,8 @@ pub fn instantiate(
     substitute_body(pool, &mut body, &mut |t| subst(pool, env, item, args, t));
     // Its generic local functions are instantiated at the now concrete
     // arguments, so their bound calls are chosen with the rest.
-    // A malformed body is left as it is, and the instance verifier
-    // rejects its generic local function (`hd_tir::ir::verify_instance`).
+    // A malformed body is left as it is, and the owned verifier rejects
+    // its generic local function (`hd_tir::ir::verify_owned`).
     let _ = instantiate_locals(pool, env, item, &mut body);
     rechoose(&mut body, pick);
     body

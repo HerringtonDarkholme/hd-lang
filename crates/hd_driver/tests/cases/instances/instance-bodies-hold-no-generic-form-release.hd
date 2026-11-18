@@ -1,8 +1,8 @@
 # @dump: stdout
 # @build: release
 # Instance TIR step 1 (#2101): the driver marks each body it owns for an
-# instance `Instance` and verifies it holds no type parameter and no
-# unnormalized projection (`hd_tir::ir::verify_instance`, invariant 24).
+# instance `Instance`; it holds no type parameter and no unnormalized
+# projection (invariant 24, which `hd_tir::ir::verify_owned` checks).
 # Each form below reaches the check: a non-generic body, a trait's default
 # method (`Self`), a generic impl's method (the impl's `T`), a projection
 # in a generic signature, a parameter default, and a generic local

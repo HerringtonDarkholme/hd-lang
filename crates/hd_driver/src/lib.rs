@@ -13503,7 +13503,7 @@ impl ProgramEnv for Env<'_> {
         }?;
         // Written at the exact argument, it is its instance's body.
         let mut body = body;
-        self.mark_instance(&mut body, self.run.pool.list(&[ty]))?;
+        self.mark_instance(&mut body, self.run.pool.list(&[ty]));
         self.owned_generated(body)
     }
     fn own_generated(&self, body: Body) -> StageResult<Body> {

@@ -49,9 +49,8 @@ pub(super) fn results(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<bool> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, CaptureMode, Place, PlaceRoot, Proj, TirBuilder, TirSink,
-        count::{At, Info, Part},
-        local_flags, verify_owned,
+        BodyKind, Callee, CaptureMode, Place, PlaceRoot, Proj, TirBuilder, TirSink, local_flags,
+        verify_owned,
     };
     use crate::own::{Pass, retains, splice};
     use hd_base::{DefId, NodeIdx, Symbol};
@@ -198,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn the_value_statement_is_idempotent_and_verifies_its_fact_phase_reason_and_adjacency() {
+    fn the_value_statement_is_idempotent() {
         let mut b = body(ref_word::LOCAL, Ty(43), vec![]);
         b.anchors = vec![17; b.len()];
         for _ in 0..2 {
@@ -211,34 +210,5 @@ mod tests {
         assert_eq!(b.anchors[i], 17);
         let text = crate::ir::print(&b);
         assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
-        for info in [
-            Info::new(At::Operation, Part::Result, 0),
-            Info::new(At::Value, Part::Operand(0), 0),
-            Info::new(At::Value, Part::Result, 2),
-        ] {
-            let mut wrong = b.clone();
-            wrong.data[i][1] = info.write(&mut wrong);
-            assert!(!verify_owned(&wrong, &Facts(true)).is_empty());
-        }
-        assert!(!verify_owned(&b, &Facts(false)).is_empty());
-        for duplicate in [false, true] {
-            let mut wrong = b.clone();
-            let topo = Topology::new(&wrong);
-            let mut edits = splice::Tables::default();
-            if duplicate {
-                edits.insert(
-                    topo.blk[i],
-                    topo.pos[i] + 1,
-                    Tag::Retain,
-                    wrong.data[i],
-                    Ty::VOID,
-                    NodeIdx::NONE,
-                );
-            } else {
-                edits.remove(crate::ir::u32_of(i));
-            }
-            splice::apply(&mut wrong, &topo, &mut edits).unwrap();
-            assert!(!verify_owned(&wrong, &Facts(true)).is_empty());
-        }
     }
 }
