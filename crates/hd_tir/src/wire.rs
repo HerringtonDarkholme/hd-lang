@@ -551,10 +551,8 @@ fn owned(b: &Body) -> bool {
         && b.exit_drops.is_empty()
         && b.storage.is_empty()
         && b.unwind_drops.is_empty()
-        && b.live.is_empty()
         && b.full_cells.is_empty()
         && b.stable_lists.is_empty()
-        && b.regions.is_empty()
         && b.forwarded_reads.is_empty()
         && b.anchors.is_empty()
         && b.inlined.is_empty()
@@ -603,14 +601,8 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
             .into_iter(),
     );
     pairs(w, &b.unwind_drops);
-    w.len_of(&b.live);
-    for (point, held) in &b.live {
-        w.u32(*point);
-        u32s(w, held.iter().copied());
-    }
     pairs(w, &b.full_cells);
     pairs(w, &b.stable_lists);
-    pairs(w, &b.regions);
     u32s(w, b.anchors.iter().copied());
     u32s(
         w,
@@ -675,13 +667,8 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         })
         .collect::<Option<_>>()?;
     b.unwind_drops = pairs(col(r));
-    for _ in 0..r.count() {
-        let point = r.u32();
-        b.live.push((point, col(r)));
-    }
     b.full_cells = pairs(col(r));
     b.stable_lists = pairs(col(r));
-    b.regions = pairs(col(r));
     b.anchors = col(r);
     b.inlined = col(r)
         .chunks_exact(4)
@@ -1037,7 +1024,6 @@ mod tests {
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Cell)];
         body.unwind_drops = vec![(1, 2)];
-        body.live = vec![(1, vec![3, 4]), (2, vec![])];
         body.full_cells = vec![(0, 0)];
         body.stable_lists = vec![(2, crate::ir::place::BARE_LOCAL)];
         body.forwarded_reads = vec![(2, 0)];

@@ -58,7 +58,7 @@
 //!   of an `IsUnique` rooted at a value, reads no such place through
 //!   other reads, so the buffer a check or a change leaves reaches the
 //!   place it replaced ([`change_places`]);
-//! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
+//! - nothing tier 2 reserves: no `FlagSet` or `FlagClear`.
 //!
 //! A census groups facts and sparse part keys by sub-body. The walks use
 //! dense instruction tables and bitsets sized to that sub-body's moves,
@@ -756,9 +756,6 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             _ => {}
         }
     }
-    if !b.regions.is_empty() {
-        err(errs, NONE, "lifetime regions are tier 2's".into());
-    }
     for (k, &(sub, local)) in b.exit_drops.iter().enumerate() {
         if sub.idx() >= b.sub_root.len() || local.idx() >= b.local_ty.len() {
             err(
@@ -789,27 +786,6 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
         }
         if k > 0 && b.unwind_drops[k - 1] >= (at, v) {
             err(errs, at, format!("unwind drop row {k} is out of order"));
-        }
-    }
-    for (k, (at, words)) in b.live.iter().enumerate() {
-        let point = b.tags.get(*at as usize).is_some_and(|&t| is_suspension(t));
-        let named = words.iter().all(|&w| {
-            let l = w & !crate::ir::place::BARE_LOCAL;
-            if w == l {
-                (w as usize) < b.len()
-            } else {
-                (l as usize) < b.local_ty.len()
-            }
-        });
-        if !point || !named || !words.is_sorted() {
-            err(
-                errs,
-                *at,
-                format!("live row {k} at %{at} is no point's sorted locals and values"),
-            );
-        }
-        if k > 0 && b.live[k - 1].0 >= *at {
-            err(errs, *at, format!("live row {k} is out of order"));
         }
     }
     for (k, &(s, l, _)) in b.storage.iter().enumerate() {

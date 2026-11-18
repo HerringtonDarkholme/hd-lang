@@ -536,7 +536,6 @@ pub struct Body {
     pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; never on the wire
     pub unwind_drops: Vec<(u32, u32)>,  // the ownership passes' unwind set: (suspension point, value); never on the wire
     pub stable_lists: Vec<(u32, u32)>,  // hoisting's stable list places: (loop, place word); never on the wire
-    pub regions: Vec<(u32, u32)>,       // tier 2's lifetime regions (reserved): empty
 }
 pub struct Inst(pub u32);
 pub struct Ref(pub u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
@@ -848,7 +847,8 @@ local that may hold a value at a suspension point. `stable_lists`, which
 the hoisting pass writes, holds rows of a loop and a place of a list
 whose header and buffer nothing in the loop replaces, sorted; the
 backend keeps the buffer's address and length in locals for that loop.
-`regions` is tier 2's (reserved) and stays empty.
+The unused `live` and reserved `regions` columns were removed (#2141);
+guarded-drop statements `FlagSet` and `FlagClear` remain.
 
 **Providers**
 
@@ -1099,8 +1099,8 @@ The verifier checks each of these:
     A value root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
     no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
-    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops`,
-    `stable_lists` or `regions` row.
+    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops`
+    or `stable_lists` row.
 23. **After the ownership passes, ownership balances**: every owned
     value has exactly one consumer or one `Drop` on each path; no `Read`
     of a place follows its `move` on any path without a `Store` in

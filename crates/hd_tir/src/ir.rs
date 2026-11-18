@@ -1040,12 +1040,6 @@ pub struct Body {
     /// row once. A pass output: empty in the checker's TIR (invariant 22);
     /// the wire's owned section.
     pub unwind_drops: Vec<(u32, u32)>,
-    /// What a suspension frame holds at each point (`own/live.rs`): per
-    /// row, a point and the locals (`place::BARE_LOCAL | l`) and values
-    /// a resume there may read, sorted. A point with no row saves
-    /// everything. Sorted by point. A pass output: empty in the checker's
-    /// TIR (invariant 22); the wire's owned section.
-    pub live: Vec<(u32, Vec<u32>)>,
     /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
     /// row, an instruction and an addressed local (one that a `Ref` of its
     /// own storage or a shared capture puts in a cell) that certainly holds
@@ -1063,11 +1057,6 @@ pub struct Body {
     /// Sorted, each row once. A pass output: empty in the checker's TIR
     /// (invariant 22); the wire's owned section.
     pub stable_lists: Vec<(u32, u32)>,
-    /// Lifetime regions of borrows, per row an instruction and its region,
-    /// sorted (`docs/compiler/tir-v2.md`, "Encoding, wire format and
-    /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
-    /// and 23).
-    pub regions: Vec<(u32, u32)>,
     /// Unary RC forwarding identities: (wrapper/construction, source Read).
     /// Sorted ownership-pass output. Single-hop scopes/coercions need no row;
     /// read modes remain authoritative for whether the identity is borrowed.
@@ -1138,10 +1127,8 @@ impl Body {
             exit_drops: vec![],
             storage: vec![],
             unwind_drops: vec![],
-            live: vec![],
             full_cells: vec![],
             stable_lists: vec![],
-            regions: vec![],
             forwarded_reads: vec![],
             anchors: vec![],
             inlined: vec![],
@@ -2669,24 +2656,20 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.unwind_drops.is_empty()
-        || !b.live.is_empty()
         || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
-        || !b.regions.is_empty()
         || !b.anchors.is_empty()
     {
         errs.push(VerifyError {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} storage, {} unwind drop, {} live, {} full cell, {} stable list, {} region and {} anchor rows before the ownership passes",
+                "{} exit drop, {} storage, {} unwind drop, {} full cell, {} stable list and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
                 b.storage.len(),
                 b.unwind_drops.len(),
-                b.live.len(),
                 b.full_cells.len(),
                 b.stable_lists.len(),
-                b.regions.len(),
                 b.anchors.len()
             ),
         });
@@ -3266,21 +3249,11 @@ pub fn print(b: &Body) -> String {
     for (inst, value) in &b.unwind_drops {
         let _ = writeln!(o, "unwinddrop {inst} {value}");
     }
-    for (inst, words) in &b.live {
-        let _ = write!(o, "live {inst}");
-        for w in words {
-            let _ = write!(o, " {w}");
-        }
-        let _ = writeln!(o);
-    }
     for (inst, local) in &b.full_cells {
         let _ = writeln!(o, "fullcell {inst} {local}");
     }
     for (inst, word) in &b.stable_lists {
         let _ = writeln!(o, "stablelist {inst} {word}");
-    }
-    for (inst, region) in &b.regions {
-        let _ = writeln!(o, "region {inst} {region}");
     }
     for (inst, read) in &b.forwarded_reads {
         let _ = writeln!(o, "forwardread {inst} {read}");
@@ -3488,13 +3461,6 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.unwind_drops.push((v[0], v[1]));
             }
-            "live" => {
-                let v = nums(1)?;
-                let Some((&at, words)) = v.split_first() else {
-                    return Err(e("live needs a point".into()));
-                };
-                b.live.push((at, words.to_vec()));
-            }
             "fullcell" => {
                 let v = nums(1)?;
                 if v.len() != 2 {
@@ -3508,13 +3474,6 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     return Err(e("stablelist needs 2 fields".into()));
                 }
                 b.stable_lists.push((v[0], v[1]));
-            }
-            "region" => {
-                let v = nums(1)?;
-                if v.len() != 2 {
-                    return Err(e("region needs 2 fields".into()));
-                }
-                b.regions.push((v[0], v[1]));
             }
             "const" => {
                 let t = word(f.get(1).copied().unwrap_or("")).map_err(e)?;
@@ -4371,9 +4330,6 @@ mod tests {
             super::Storage::Cell,
         ));
         body.unwind_drops.push((2, 0));
-        body.live.push((2, vec![0, super::place::BARE_LOCAL | 1]));
-        body.live.push((3, vec![]));
-        body.regions.push((0, 3));
         assert_eq!(parse(&print(&body)).expect("parses"), body);
     }
 
@@ -4540,14 +4496,13 @@ mod tests {
             read(b, "[$0]", ReadMode::Use, n);
             statement(b, Tag::FlagSet, "[$0]", n);
         });
-        body.regions.push((0, 0));
         body.exit_drops = vec![
             (SubId::from_raw(0), LocalId::from_raw(1)),
             (SubId::from_raw(0), LocalId::from_raw(0)),
         ];
         assert_eq!(
             findings(&verify_owned(&body, &Counts)),
-            [(23, 0), (23, 1), (23, NONE), (23, NONE)]
+            [(23, 0), (23, 1), (23, NONE)]
         );
     }
 

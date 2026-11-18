@@ -1156,7 +1156,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.topo.build(b);
     // Resident backend slots no longer require per-point serialized rows.
     // Keep the wire column readable for older artifacts and diagnostics.
-    b.live.clear();
     uncopied(b, cx, &mut scratch.uncopied);
     Ok(())
 }

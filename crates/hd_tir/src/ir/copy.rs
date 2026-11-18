@@ -356,9 +356,6 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
     for x in &mut b.sub_root {
         *x = word(*x);
     }
-    for row in &mut b.regions {
-        row.0 = word(row.0);
-    }
     for row in &mut b.forwarded_reads {
         *row = (word(row.0), word(row.1));
     }
