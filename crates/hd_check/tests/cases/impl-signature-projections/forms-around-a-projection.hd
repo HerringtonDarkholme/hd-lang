@@ -1,0 +1,81 @@
+# @dump: diagnostics
+# A trait type that names `Self::Out` matches the implementation's type
+# only when every form around the projection is the same: a reference
+# and its mutability, a type's arguments, a tuple's elements, a function
+# type's parameters and result, a trait value's arguments, and a tuple's
+# rest element.
+trait Wrap[T]:
+    fn unwrap(&self) -> T
+
+trait Source:
+    type Out
+    fn get(&self) -> &Self::Out
+    fn get_mut(&mut self) -> &mut Self::Out
+    fn all(&self) -> List[Self::Out]
+    fn pair(&self) -> (Self::Out, i32)
+    fn maker(&self) -> fn(i32) -> Self::Out
+    fn take(&mut self, value: Self::Out) -> void
+    fn feed(&mut self, w: &dyn Wrap[Self::Out]) -> void
+    fn many(&self, xs: (i32, List[Self::Out]...)) -> void
+
+struct Good:
+    v: i32
+
+impl Source for Good:
+    type Out = i32
+    fn get(&self) -> &i32:
+        &self.v
+    fn get_mut(&mut self) -> &mut i32:
+        &mut self.v
+    fn all(&self) -> List[i32]:
+        [self.v]
+    fn pair(&self) -> (i32, i32):
+        (self.v, self.v)
+    fn maker(&self) -> fn(i32) -> i32:
+        fn(x: i32) -> i32: x
+    fn take(&mut self, value: i32) -> void:
+        self.v = value
+    fn feed(&mut self, w: &dyn Wrap[i32]) -> void:
+        self.v = w.unwrap()
+    fn many(&self, xs: (i32, List[i32]...)) -> void:
+        pass
+
+struct Bad:
+    v: i32
+
+impl Source for Bad:
+    type Out = i32
+    fn get(&self) -> i32:
+        self.v
+    fn get_mut(&mut self) -> &i32:
+        &self.v
+    fn all(&self) -> Map[i32, i32]:
+        {}
+    fn pair(&self) -> (i32, string):
+        (self.v, "")
+    fn maker(&self) -> fn(string) -> i32:
+        fn(x: string) -> i32: +0
+    fn take(&mut self, value: i32) -> void:
+        self.v = value
+    fn feed(&mut self, w: &dyn Wrap[string]) -> void:
+        pass
+    fn many(&self, xs: (i32, i32)) -> void:
+        pass
+
+# A projection the implementation does not bind to a projection-free type
+# stays the bodies' to compare: a method generic's `I::IntoIter`, and an
+# `Out` bound to another projection.
+trait Lister:
+    type Out
+    fn of[I < Iterable[i32]](&self, it: I) -> I::IntoIter
+    fn out(&self, x: Self::Out) -> Self::Out
+
+struct ByIter[J < Iterable[i32]]:
+    inner: J
+
+impl[J < Iterable[i32]] Lister for ByIter[J]:
+    type Out = J::IntoIter
+    fn of[I < Iterable[i32]](&self, it: I) -> I::IntoIter:
+        it.iter()
+    fn out(&self, x: J::IntoIter) -> J::IntoIter:
+        x

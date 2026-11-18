@@ -8,7 +8,7 @@ use hd_base::SliceSort as _;
 use hd_diag::Code;
 use hd_resolve::{FnSig, ImplKind, ItemData, Lookup, Names};
 use hd_syntax::NodeRef;
-use hd_types::{ParamRef, Ty, TyData, Types};
+use hd_types::{ParamRef, Ty, TyData, TyList, Types};
 use std::fmt::Write as _;
 
 use crate::body::Ck;
@@ -63,6 +63,100 @@ fn has_assoc(pool: Types<'_>, t: Ty) -> bool {
         }
     }
     false
+}
+
+/// The trait method's types at the implementation (`inst`), and a
+/// projection's binding in the implementation (`bound`).
+type SigMaps<'x> = (&'x dyn Fn(Ty) -> Ty, &'x dyn Fn(Ty) -> Option<Ty>);
+
+/// Whether the implementation's type `g` is the trait's type `w`. A
+/// projection the implementation binds (`bound`, its `type X = ...` with
+/// no projection of its own) is that binding; any other projection is the
+/// bodies' to compare and matches any type. Every form around one (a
+/// reference, a type's or a trait value's arguments, a tuple, a function
+/// type) must be `g`'s form, so `&Self::Out` never matches `i32`. One pass
+/// over `w`'s forms down to its projections, with an explicit stack.
+fn same_but_projections(
+    pool: Types<'_>,
+    (w, g): (Ty, Ty),
+    bound: &dyn Fn(Ty) -> Option<Ty>,
+) -> bool {
+    let lists = |a: TyList, b: TyList, stack: &mut Vec<(Ty, Ty)>| {
+        let (a, b) = (pool.list_items(a), pool.list_items(b));
+        stack.extend(a.iter().copied().zip(b.iter().copied()));
+        a.len() == b.len()
+    };
+    let mut stack = vec![(w, g)];
+    while let Some((w, g)) = stack.pop() {
+        if w == g || !has_assoc(pool, w) && !matches!(pool.get(w), TyData::Assoc { .. }) {
+            if w != g {
+                return false;
+            }
+            continue;
+        }
+        let fits = match (pool.get(w), pool.get(g)) {
+            (TyData::Assoc { .. }, _) => {
+                if let Some(b) = bound(w) {
+                    stack.push((b, g));
+                }
+                true
+            }
+            (
+                TyData::Ref {
+                    inner,
+                    mutable,
+                    counted,
+                },
+                TyData::Ref {
+                    inner: gi,
+                    mutable: gm,
+                    counted: gc,
+                },
+            ) => {
+                stack.push((inner, gi));
+                mutable == gm && counted == gc
+            }
+            (TyData::Adt { def, args }, TyData::Adt { def: gd, args: ga }) => {
+                def == gd && lists(args, ga, &mut stack)
+            }
+            (
+                TyData::TraitValue { def, args, .. },
+                TyData::TraitValue {
+                    def: gd, args: ga, ..
+                },
+            ) => def == gd && lists(args, ga, &mut stack),
+            (
+                TyData::Tuple { elems, rest },
+                TyData::Tuple {
+                    elems: ge,
+                    rest: gr,
+                },
+            ) => {
+                match (rest, gr) {
+                    (Some(r), Some(q)) => stack.push((r, q)),
+                    (None, None) => {}
+                    _ => return false,
+                }
+                lists(elems, ge, &mut stack)
+            }
+            (
+                TyData::Fn { params, result, .. },
+                TyData::Fn {
+                    params: gp,
+                    result: gr,
+                    ..
+                },
+            ) => {
+                stack.push((result, gr));
+                lists(params, gp, &mut stack)
+            }
+            _ => false,
+        };
+        if !fits {
+            return false;
+        }
+    }
+    true
 }
 
 /// The names of the trait methods that the written implementation `imp`
@@ -179,6 +273,7 @@ impl Ck<'_, '_> {
             trait_slots,
             self_ty,
             kind,
+            assoc: assoc_bindings,
             ..
         } = &impl_item.data
         else {
@@ -265,7 +360,21 @@ impl Ck<'_, '_> {
                 .is_some();
         // A result left out is `missing-result-type` already.
         let omitted = hd_resolve::Src::type_child(node).is_none();
-        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, &inst)
+        // `Self::X` of this implementation is its own `type X = ...`.
+        let bound = |t: Ty| match pool.get(t) {
+            TyData::Assoc {
+                assoc,
+                trait_: tr,
+                self_ty: st,
+                ..
+            } if tr == trait_ && st == self_ty => assoc_bindings
+                .iter()
+                .find(|(d, _)| *d == assoc)
+                .map(|&(_, b)| b)
+                .filter(|&b| !has_assoc(pool, b) && !matches!(pool.get(b), TyData::Assoc { .. })),
+            _ => None,
+        };
+        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, (&inst, &bound))
             && !(omitted && why == "the result type")
         {
             let mut msg = format!(
@@ -351,13 +460,13 @@ impl Ck<'_, '_> {
         pool: Types<'_>,
         (want, got): (&FnSig, &FnSig),
         free_bounds: bool,
-        inst: &dyn Fn(Ty) -> Ty,
+        (inst, bound): SigMaps<'_>,
     ) -> Option<&'static str> {
         // A type that failed to resolve was reported where it is
         // written; it matches anything here.
         let same = |w: Ty, g: Ty| {
             let w = inst(w);
-            has_assoc(pool, w) || w == g || pool.has_poison(w) || pool.has_poison(g)
+            pool.has_poison(w) || pool.has_poison(g) || same_but_projections(pool, (w, g), bound)
         };
         if want.params.len() != got.params.len() {
             return Some("the parameter count");
