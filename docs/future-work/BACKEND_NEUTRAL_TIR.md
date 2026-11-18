@@ -66,10 +66,10 @@ lays out the frame and writes the destructor, which has no TIR body.
 | Tree | Today | End state | Change |
 | --- | --- | --- | --- |
 | `crates/hd_wasm/src` | 72,379 | about 52,500 | −19,900 |
-| `crates/hd_tir/src` | 47,848 | about 55,240, plus step 3b's lifting | +7,390 |
+| `crates/hd_tir/src` | 47,848 | about 55,290, plus step 3b's lifting | +7,445 |
 | `crates/hd_driver/src/own.rs` | 4,234 | about 3,700 | −550 |
 | a new crate, `hd_layout`, and `hd_opt` growth | 0 | about 4,500 | +4,500 |
-| **All four** | **124,461** | **about 115,900**, plus step 3b's lifting | **−8,560** |
+| **All four** | **124,461** | **about 115,950**, plus step 3b's lifting | **−8,505** |
 
 ## Open questions
 
@@ -195,7 +195,7 @@ counted as deleted. Each step deletes the path it replaces.
 
 | Step | Adds, and deletes | `hd_wasm` | `hd_tir` | Elsewhere | Net |
 | --- | --- | --- | --- | --- | --- |
-| 0 | #2166: the owned verifier's re-proofs, measured first (lane 204 plans about −420) | 0 | −420 | 0 | −420 |
+| 0 | #2166: the owned verifier's re-proofs (lane 204, done) | 0 | −365 | 0 | −365 |
 | 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
 | 2 | scope lowering and cancel blocks; `emit/scope.rs`, `unwind_drops`; until step 7 the emitter's destructor lowers each point's cancel block (+150) | −250 | +300 | 0 | +50 |
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` files, the flag tags | −1,550 | +170 | 0 | −1,380 |
@@ -205,7 +205,7 @@ counted as deleted. Each step deletes the path it replaces.
 | 6 | index guards as an optimization; `emit/guards.rs`, the list caches | −2,100 | −50 | `hd_opt` +1,550 | −600 |
 | 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs` with step 2's destructor code, `susp_spill.rs`, `frame_referents.rs` | −2,850 | +1,600 | 0 | −1,250 |
 | 8 | `verify_lowered`; read modes in the backend, the dev and release split | −450 | +250 | `own.rs` −50 | −250 |
-| | **Total**, before 3b's lifting | **−19,900** | **+7,390** | **+3,950** | **−8,560** |
+| | **Total**, before 3b's lifting | **−19,900** | **+7,445** | **+3,950** | **−8,505** |
 
 **Where it grows, and why.** Step 2 grows the compiler by about 50
 lines: until step 7 deletes the emitter's destructor, that destructor
@@ -453,7 +453,7 @@ path it replaces and names its reference implementation.
 
 | Step | Measured deletions | Estimated additions and their method |
 | --- | --- | --- |
-| 0 | the owned verifier's re-proofs: lane 204 measured about −420 (seven checks that re-run their pass's own predicate, and `verify_instance` folded in) | none |
+| 0 | the owned verifier's re-proofs: −365 net (lane 204: the checks that re-run their pass's own predicate, and `verify_instance` folded in; `counts::verify` stays while about 30 tests use it) | none |
 | 3b | `ir/local_fns.rs` 809 (601 code, 208 tests). Folding it onto `ir::copy` measured only about −60 (lane 204), since the copy is already shared | lifting: each generic local function becomes its own body keyed by (enclosing item, sub-body), with the enclosing type parameters plus its own, and its captures as parameters, boxed when mutated (step 3's `Box`). `hd_mono::instantiate` then specializes it like any generic function. Priced by a probe once step 3 lands. |
 | 1 | memo scopes 257; `hd_wasm/lib.rs` driver wrappers 257; `own.rs` fallback 73; `TypeTable` 229 and about 2,000 of `layout.rs` and 594 of cycle code move | interner and target +150 (one arena and one map); enum and suspending memory locals +200 (the frame-block path in `indirect.rs` is 180); `own/parts.rs` 459 becomes shared move paths, about 350 |
 | 2 | `scope.rs` 358; the hand-picked destructor saves, about 40 | scope lowering and cancel blocks +300 (the emitter's ladder is 308 non-test lines); temporary, deleted in step 7: the destructor lowers each point's cancel block through ordinary statement lowering, +100 to +200 (`susp.rs`'s cancel path is 93 lines; the destructor's flag saves are 79 in `drop_flags.rs` and its loan cells 58 in `borrow.rs`, deleted in steps 3 and 5) |
