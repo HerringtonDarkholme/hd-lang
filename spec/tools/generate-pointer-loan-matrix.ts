@@ -294,11 +294,15 @@ function aliasType(path: Path, action: Action): string {
 }
 
 /** What one case's generated parts need to know. */
-interface Case {
+interface Selection {
   kind: Kind;
   path: Path;
   life: Life;
   action: Action;
+  throughCall?: boolean;
+}
+
+interface Case extends Selection {
   panic: boolean;
   aliasName: string;
   aliasParam: string;
@@ -306,11 +310,12 @@ interface Case {
   rootDecl: string;
   root: string;
   rootParam: string;
+  reference: (root: string) => string;
   /** The alias statement, then a churn of freed blocks, at an indent. */
   acting: (indent: string) => string;
 }
 
-function makeCase(kind: Kind, path: Path, life: Life, action: Action): Case {
+function makeCase({ kind, path, life, action, throughCall = false }: Selection): Case {
   const panic = panics(kind, path, life, action);
   const marker = panic ? " # panic: borrow-conflict" : "";
   const statement = act(path, action);
@@ -335,6 +340,10 @@ function makeCase(kind: Kind, path: Path, life: Life, action: Action): Case {
     rootDecl: local ? "    let mut own = Cell { value: orig(), other: second() }\n" : "",
     root: local ? "own" : "p",
     rootParam: local ? "" : `p: *mut ${rootType(path)}, `,
+    reference: (root) => {
+      const value = reference(kind, path, root);
+      return throughCall ? `${kind === "mut" ? "hold_mut" : "hold_ref"}(${value})` : value;
+    },
     acting,
   };
 }
@@ -345,26 +354,26 @@ const shapes: Record<Life, (cs: Case) => { extra: string; probe: string }> = {
     const name = cs.kind === "mut" ? "touch" : "length";
     return {
       extra: `fn ${name}(slot: ${cs.refType}) -> string:\n    *slot\n\n`,
-      probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    seen := ${name}(${reference(cs.kind, cs.path, cs.root)})\n${cs.acting("    ")}\n    _ := junk.len()\n    seen\n`,
+      probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    seen := ${name}(${cs.reference(cs.root)})\n${cs.acting("    ")}\n    _ := junk.len()\n    seen\n`,
     };
   },
   stmt: (cs) => ({
     extra: "",
-    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n${cs.acting("    ")}\n    seen := *r\n    _ := junk.len()\n    seen\n`,
+    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${cs.reference(cs.root)}\n${cs.acting("    ")}\n    seen := *r\n    _ := junk.len()\n    seen\n`,
   }),
   loop: (cs) => ({
     extra: "",
-    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    let seen = ""\n    for round in 0..2:\n        if round == 1:\n${cs.acting("            ")}\n            _ := junk.len()\n        seen = *r\n    seen\n`,
+    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${cs.reference(cs.root)}\n    let seen = ""\n    for round in 0..2:\n        if round == 1:\n${cs.acting("            ")}\n            _ := junk.len()\n        seen = *r\n    seen\n`,
   }),
   arg: (cs) => ({
     extra: `fn observe(r: ${cs.refType}, ${cs.aliasParam}) -> string:\n${cs.acting("    ")}\n    seen := *r\n    _ := junk.len()\n    seen\n\n`,
-    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    observe(${reference(cs.kind, cs.path, cs.root)}, ${cs.aliasName})\n`,
+    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    observe(${cs.reference(cs.root)}, ${cs.aliasName})\n`,
   }),
   ret: (cs) => {
     const self = cs.kind === "mut" ? "&mut self" : "&self";
     const getter = cs.kind === "mut" ? "slot_mut" : "slot_ref";
     return {
-      extra: `impl ${rootType(cs.path)}:\n    fn ${getter}(${self}) -> ${cs.refType}:\n        ${reference(cs.kind, cs.path, "self")}\n\n`,
+      extra: `impl ${rootType(cs.path)}:\n    fn ${getter}(${self}) -> ${cs.refType}:\n        ${cs.reference("self")}\n\n`,
       probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${cs.root}.${getter}()\n${cs.acting("    ")}\n    seen := *r\n    _ := junk.len()\n    seen\n`,
     };
   },
@@ -372,16 +381,16 @@ const shapes: Record<Life, (cs: Case) => { extra: string; probe: string }> = {
     const view = cs.kind === "mut" ? "ViewMut" : "View";
     return {
       extra: `struct ${view}['a]:\n    r: ${cs.kind === "mut" ? "&'a mut" : "&'a"} string\n\n`,
-      probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    view := ${view} { r: ${reference(cs.kind, cs.path, cs.root)} }\n${cs.acting("    ")}\n    seen := *view.r\n    _ := junk.len()\n    seen\n`,
+      probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    view := ${view} { r: ${cs.reference(cs.root)} }\n${cs.acting("    ")}\n    seen := *view.r\n    _ := junk.len()\n    seen\n`,
     };
   },
   closure: (cs) => ({
     extra: `fn apply(${cs.aliasParam}, read: fn() -> string) -> string:\n${cs.acting("    ")}\n    seen := read()\n    _ := junk.len()\n    seen\n\n`,
-    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    apply(${cs.aliasName}, fn() -> string: *r)\n`,
+    probe: `fn probe(${cs.rootParam}${cs.aliasParam}) -> string:\n${cs.rootDecl}    r := ${cs.reference(cs.root)}\n    apply(${cs.aliasName}, fn() -> string: *r)\n`,
   }),
   bang: (cs) => ({
     extra: `fn act!(${cs.aliasParam}) -> string $ Tick:\n    $.use(Tick).tick!("")\n${cs.acting("    ")}\n    _ := junk.len()\n    "acted"\n\n`,
-    probe: `fn probe!(${cs.rootParam}${cs.aliasParam}) -> string $ Tick:\n${cs.rootDecl}    r := ${reference(cs.kind, cs.path, cs.root)}\n    _ := act!(${cs.aliasName})\n    seen := *r\n    seen\n`,
+    probe: `fn probe!(${cs.rootParam}${cs.aliasParam}) -> string $ Tick:\n${cs.rootDecl}    r := ${cs.reference(cs.root)}\n    _ := act!(${cs.aliasName})\n    seen := *r\n    seen\n`,
   }),
 };
 
@@ -433,9 +442,21 @@ function columns(kind: Kind, path: Path, life: Life, action: Action): string {
   return `# Verdicts: loans (A) with elision: ${elisionOf(kind, path, life, action)}; keep-alive (B): ${goOf(path, life, action)}.\n`;
 }
 
-function generate(kind: Kind, path: Path, life: Life, action: Action) {
-  const cs = makeCase(kind, path, life, action);
-  const name = `${stem}${life}-${kind}-${path}-${action}${cs.panic ? "-panics" : ""}`;
+function forwarder(kind: Kind, throughCall: boolean) {
+  if (!throughCall) {
+    return { description: "", source: "" };
+  }
+  const referenceType = `&'a${kind === "mut" ? " mut" : ""} string`;
+  return {
+    description: ", through a never-inlined forwarder",
+    source: `use std.annotation.inline\n\n@inline(.Never)\nfn ${kind === "mut" ? "hold_mut" : "hold_ref"}['a](value: ${referenceType}) -> ${referenceType}:\n    value\n\n`,
+  };
+}
+
+function generate(selection: Selection) {
+  const { kind, path, life, action, throughCall = false } = selection;
+  const cs = makeCase(selection);
+  const name = `${stem}${life}-${kind}-${path}-${action}${throughCall ? "-through-call" : ""}${cs.panic ? "-panics" : ""}`;
   const file = `${topic}/${life}/${name}.hd`;
   const { extra, probe } = shapes[life](cs);
   const head = life === "bang" ? `${tickTrait}\n${decls(path)}` : decls(path);
@@ -448,11 +469,12 @@ function generate(kind: Kind, path: Path, life: Life, action: Action) {
     path === "local"
       ? `an alias cannot reach the local, so its ${action} touches another object`
       : `an alias ${words.action[action]}`;
-  const title = `# test: pointer loans: a \`${lend}\` to ${words.path[path]}, ${words.life[life]}; ${alias}; ${verdict}`;
+  const forwarding = forwarder(kind, throughCall);
+  const title = `# test: pointer loans: a \`${lend}\` to ${words.path[path]}, ${words.life[life]}${forwarding.description}; ${alias}; ${verdict}`;
   const contents = `${title}
 ${life === "bang" ? tickProfile : ""}${cs.panic ? "" : "# expect-stdout: ok\n"}# Generated by spec/tools/generate-pointer-loan-matrix.ts; edit the generator.
 # Accepted design: docs/compiler/ownership.md#pointer-loans-model-a (2026-11-03; built under #1336).
-${columns(kind, path, life, action)}${head}${holder}
+${columns(kind, path, life, action)}${forwarding.source}${head}${holder}
 ${extra}${probe}
 ${entry(cs)}`;
   output(`conformance/${file}`, contents);
@@ -478,7 +500,8 @@ for (const life of lives) {
   for (const kind of kinds) {
     for (const path of paths) {
       for (const action of actions(path, life)) {
-        generate(kind, path, life, action);
+        generate({ kind, path, life, action });
+        generate({ kind, path, life, action, throughCall: true });
       }
     }
   }
