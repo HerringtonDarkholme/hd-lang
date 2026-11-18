@@ -223,8 +223,8 @@ pub trait ProgramEnv: LayoutEnv {
     fn printed_name(&self, def: DefId) -> String;
     /// The item's stable path, for diagnostics.
     fn describe(&self, def: DefId) -> String;
-    /// The source position of a checked body's instruction. Generated bodies
-    /// have no source node and collection never asks for one.
+    /// The source position of a checked body's instruction. `NodeIdx::NONE`
+    /// asks for the item's declaration anchor, when one is available.
     fn source_span(&self, item: DefId, node: NodeIdx) -> Option<hd_base::Span>;
     /// The text of a string const argument (`hd_types::ConstValue::Str`).
     fn const_text(&self, p: hd_base::PathId) -> String;

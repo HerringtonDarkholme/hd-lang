@@ -658,7 +658,13 @@ fn link(
     emit::collect_loans(input, &mut m);
     emit::prepare_body_facts(input, &mut m);
     for id in input.order {
-        let f = emit::instance(input, &mut m, *id)?;
+        let f = emit::instance(input, &mut m, *id).map_err(|error| {
+            locate_layout_error(error, || {
+                input
+                    .env
+                    .source_span(input.collected.table.item[id.idx()], hd_base::NodeIdx::NONE)
+            })
+        })?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
@@ -711,6 +717,80 @@ fn link(
             wasm,
             functions: Vec::new(),
         })
+    }
+}
+
+/// Attach the requesting item's position when layout has no finer source
+/// context. Successful emission performs no source-position lookup.
+fn locate_layout_error(
+    error: hd_base::NotImplemented,
+    source: impl FnOnce() -> Option<hd_base::Span>,
+) -> hd_base::NotImplemented {
+    if error.too_large
+        && error.span.is_none()
+        && let Some(span) = source()
+    {
+        return error.at(span);
+    }
+    error
+}
+
+fn global_source_span(input: &Input<'_>, global: DefId) -> Option<hd_base::Span> {
+    // cost: only a failed global layout asks this. Scan existing initializer
+    // roots and each unique body's rows once to find the binding's store,
+    // without adding successful-build
+    // metadata or decoding places. Sibling init roots may share one body;
+    // initializer stores retain their declaration syns.
+    let mut seen = hd_base::HashSet::default();
+    for id in input.order {
+        let Some(body) = (input.body)(*id).filter(|body| body.kind == hd_tir::ir::BodyKind::Init)
+        else {
+            continue;
+        };
+        if !seen.insert(std::ptr::from_ref(body)) {
+            continue;
+        }
+        for i in 0..body.len() {
+            if body.tags[i] == hd_tir::ir::Tag::Store
+                && matches!(body.view(body.data[i][0]).root, hd_tir::ir::Root::Global(def, _) if def == global)
+                && body.syn[i] != hd_base::NodeIdx::NONE
+                && let Some(span) = input.env.source_span(body.item, body.syn[i])
+            {
+                return Some(span);
+            }
+        }
+    }
+    input.env.source_span(global, hd_base::NodeIdx::NONE)
+}
+
+#[cfg(test)]
+mod layout_error_location_tests {
+    use super::locate_layout_error;
+    use hd_base::{FileId, NotImplemented, Span, Stage};
+
+    #[test]
+    fn layout_stops_use_available_context_and_preserve_inner_locations() {
+        let span = Span {
+            file: FileId::from_raw(3),
+            lo: 17,
+            hi: 24,
+        };
+        let error = NotImplemented::too_large(Stage::Emit, "large value");
+        assert_eq!(
+            locate_layout_error(error.clone(), || Some(span)),
+            error.clone().at(span)
+        );
+        assert_eq!(locate_layout_error(error.clone(), || None), error);
+        let located = error.at(span);
+        assert_eq!(
+            locate_layout_error(located.clone(), || panic!("already located")),
+            located
+        );
+        let bug = NotImplemented::bug(Stage::Emit, "internal check");
+        assert_eq!(
+            locate_layout_error(bug.clone(), || panic!("not a layout stop")),
+            bug
+        );
     }
 }
 
@@ -788,14 +868,18 @@ fn address_globals(
             let header = if object { module::HEADER } else { 0 };
             let address = if session {
                 if !previous.is_some_and(|p| p.has_binding(h)) {
-                    let lay = layout::mem(input.pool, input.env, ty)?;
+                    let lay = layout::mem(input.pool, input.env, ty).map_err(|error| {
+                        locate_layout_error(error, || global_source_span(input, def))
+                    })?;
                     let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
                     m.binding_slots.insert(h, at);
                     m.label_static(at, &(input.path)(def));
                 }
                 module::Address::Binding(h)
             } else {
-                let lay = layout::mem(input.pool, input.env, ty)?;
+                let lay = layout::mem(input.pool, input.env, ty).map_err(|error| {
+                    locate_layout_error(error, || global_source_span(input, def))
+                })?;
                 let at = m.static_slot(header + lay.size, lay.align.max(4)) + header;
                 m.label_static(at, &(input.path)(def));
                 module::Address::Static(at)

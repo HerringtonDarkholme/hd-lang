@@ -13053,6 +13053,9 @@ impl Env<'_> {
 impl ProgramEnv for Env<'_> {
     fn source_span(&self, item: DefId, node: hd_base::NodeIdx) -> Option<Span> {
         let module = self.run.item_module(item)?.idx();
+        if node == hd_base::NodeIdx::NONE {
+            return Some(self.run.item_span(item, 0));
+        }
         let source = self.run.src(module);
         Some(source.span(source.parse.tree.node(node)))
     }
