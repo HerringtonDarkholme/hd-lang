@@ -1,0 +1,64 @@
+# @dump: diagnostics
+# A built-in `push` or `remove` whose receiver is an element changes that
+# element in place: its access to the collection begins with the receiver,
+# before the arguments run (`fn.method.eval-order`, `ref.elem.access.live`).
+# An argument that changes the collection, or a place holding it, conflicts.
+fn bump(v: &mut List[List[i32]]) -> i32:
+    v.push([2])
+    0
+
+fn list() -> void:
+    let mut xs = [[1]]
+    xs[0].push(bump(&mut xs))
+
+fn through_reference(xs: &mut List[List[i32]]) -> void:
+    xs[0].push(bump(xs))
+
+fn nested() -> void:
+    let mut xs = [[[1]]]
+    xs[0][0].push(grow(&mut xs))
+
+fn grow(v: &mut List[List[List[i32]]]) -> i32:
+    v.push([[2]])
+    0
+
+struct S:
+    items: List[List[i32]]
+
+fn grow_s(s: &mut S) -> i32:
+    s.items.push([2])
+    0
+
+fn holder() -> void:
+    let mut s = S { items: [[1]] }
+    s.items[0].push(grow_s(&mut s))
+
+fn grow_m(v: &mut Map[string, List[i32]]) -> i32:
+    v["b"] = [2]
+    0
+
+fn map_value() -> void:
+    let mut m: Map[string, List[i32]] = {}
+    m["a"] = [1]
+    m["a"].push(grow_m(&mut m))
+
+fn key(v: &mut List[Map[string, i32]]) -> string:
+    v.push({})
+    "a"
+
+fn remove() -> void:
+    let mut xs: List[Map[string, i32]] = [{}]
+    _ := xs[0].remove(key(&mut xs))
+
+fn no_ref(u: void) -> List[i32]:
+    [1]
+
+fn by_push() -> void:
+    let mut xs = [[1]]
+    xs[0].push(no_ref(xs.push([2]))[0])
+
+fn reads() -> void:
+    let mut xs = [[1]]
+    let mut ys = [[1]]
+    xs[0].push(i32(xs.len()))
+    xs[0].push(bump(&mut ys))

@@ -128,6 +128,56 @@ struct CallTables {
     touches: Vec<(u32, Path)>,
 }
 
+/// Whether instruction `i` may write a place, as [`Gen::writes`] lists:
+/// a store, a `&mut` taken or passed on, or a built-in call that changes
+/// its receiver.
+pub(in crate::dep_results) fn writes_place(pool: Types<'_>, b: &Body, i: usize) -> bool {
+    match b.tags[i] {
+        Tag::Store => true,
+        Tag::Ref | Tag::Read => is_mut(pool, b.ty[i]),
+        Tag::Intrinsic => matches!(
+            IntrinsicOp::from_u32(b.data[i][0]),
+            Some(
+                IntrinsicOp::ListPush
+                    | IntrinsicOp::ListReserve
+                    | IntrinsicOp::MapSet
+                    | IntrinsicOp::MapRemove
+            )
+        ),
+        _ => false,
+    }
+}
+
+/// Whether instruction `i` takes a reference to an element place.
+pub(in crate::dep_results) fn elem_ref(b: &Body, i: usize) -> bool {
+    b.tags[i] == Tag::Ref
+        && b.decode_place(b.data[i][0])
+            .is_some_and(|p| p.proj.iter().any(|s| matches!(s, Proj::Elem(_))))
+}
+
+/// The receiver read of instruction `c` when `c` is a built-in `push` or
+/// map `remove` whose receiver is an element of a collection: the call
+/// changes that element in place.
+pub(in crate::dep_results) fn elem_receiver(b: &Body, c: usize) -> Option<u32> {
+    if b.tags[c] != Tag::Intrinsic
+        || !matches!(
+            IntrinsicOp::from_u32(b.data[c][0]),
+            Some(IntrinsicOp::ListPush | IntrinsicOp::MapRemove)
+        )
+    {
+        return None;
+    }
+    let &recv = (b.data[c][1] != NONE)
+        .then(|| b.record(b.data[c][1]))?
+        .first()?;
+    let p = (b.tags.get(recv as usize) == Some(&Tag::Read))
+        .then(|| b.decode_place(b.data[recv as usize][0]))??;
+    p.proj
+        .iter()
+        .any(|s| matches!(s, Proj::Elem(_)))
+        .then_some(recv)
+}
+
 /// The entries of `xs`, sorted by `key`, with `lo < key < hi`.
 fn window<T>(xs: &[T], key: impl Fn(&T) -> u32, lo: u32, hi: u32) -> &[T] {
     let a = xs.partition_point(|x| key(x) <= lo);
@@ -701,8 +751,14 @@ impl Gen<'_, '_> {
         }
         let has = |v: &[Region], loan: u32| v.iter().any(|&g| sol.value(g).contains(loan));
         let (topo, (reads, sets)) = (Topology::new(b), self.reads());
-        // Each site: its `Ref`, its place, and the bindings that hold it,
-        // each with its stores of a value that does not.
+        let order = Order {
+            b,
+            t: &topo,
+            cx: self,
+        };
+        // Each site: its `Ref`, its place, the bindings that hold it, each
+        // with its stores of a value that does not, and an element
+        // reference loop's loop.
         let mut sites = Vec::new();
         let mut rooted = Vec::new();
         for (loan, o) in self.loans.iter().enumerate() {
@@ -736,17 +792,15 @@ impl Gen<'_, '_> {
                     (h, other)
                 })
                 .collect();
-            sites.push((i, from, place, kind, holders));
+            let lp = matches!(kind, Kind::Elem(_))
+                .then(|| order.ref_loop(i))
+                .flatten();
+            sites.push((i, from, place, kind, holders, lp));
         }
-        if sites.iter().all(|s| s.4.is_empty()) {
+        if sites.iter().all(|s| s.4.is_empty() && s.5.is_none()) {
             return Vec::new();
         }
         let users = self.users();
-        let order = Order {
-            b,
-            t: &topo,
-            cx: self,
-        };
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         // An access: the instruction, its place, where it happens, and
         // whether it writes or moves its place. A move comes first, so its
@@ -772,7 +826,7 @@ impl Gen<'_, '_> {
             if node == NodeIdx::NONE || out.iter().any(|x| nests(range(x.0), range(node))) {
                 continue;
             }
-            'site: for (i, from, (r, sp), kind, holders) in &sites {
+            'site: for (i, from, (r, sp), kind, holders, lp) in &sites {
                 // A rooted loan's source resolves through the binding that
                 // holds it; `resolved` is computed whenever any loan is rooted.
                 let (root, path) = match &resolved {
@@ -808,7 +862,7 @@ impl Gen<'_, '_> {
                             self.move_message(root, h, *kind, inner)
                         } else if let Kind::Elem(excl) = *kind {
                             let what = self.elem_what(excl, access, wi, path.len() <= sp.len());
-                            self.elem_message(root, h, what, inner)
+                            self.elem_message(root, Some(h), what, inner)
                         } else {
                             self.conflict_message(root, h, *kind, inner)
                         };
@@ -818,14 +872,14 @@ impl Gen<'_, '_> {
                 }
                 // A loop over element references is one access for the
                 // whole loop (`flow.for.ref.access`), whatever its binding
-                // still reads.
-                if let (Kind::Elem(excl), Some(l), Some(&(h, _))) =
-                    (*kind, order.ref_loop(*i), holders.first())
+                // still reads, a wildcard's included.
+                if let (Kind::Elem(excl), Some(l)) = (*kind, *lp)
                     && access != Access::Move
                     && order.chain(at).contains(&l)
                 {
                     let inner = sp.iter().any(|s| matches!(s, Proj::Field(_)));
                     let what = self.elem_what(excl, access, wi, path.len() <= sp.len());
+                    let h = holders.first().map(|x| x.0);
                     let msg = self.elem_message(root, h, what, inner);
                     let msg = match msg.split_once(" and is used later; ") {
                         Some((head, _)) => {
@@ -861,9 +915,9 @@ impl Gen<'_, '_> {
     /// place conflicts, and so does a use of one after a written `&mut`.
     /// `ref.excl.args.shared`: a `&` a call takes against a write or a
     /// move of an overlapping place in a later argument. `ref.elem.conflict`: an
-    /// element reference argument against a length change of its
-    /// collection. A call that holds an error of `found` already gets no
-    /// other.
+    /// element reference argument or a built-in call's element receiver
+    /// against a length change of its collection. A call that holds an
+    /// error of `found` already gets no other.
     pub(super) fn call_conflicts(
         &self,
         sol: &Solution,
@@ -902,16 +956,39 @@ impl Gen<'_, '_> {
         let (mut by_comp, mut lists): (HashMap<u32, u32>, Vec<Held>) = Default::default();
         let mut tables: Option<CallTables> = None;
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
+        let tables_of = || {
+            let firsts = self.users();
+            let mut writes = self.writes(&firsts);
+            writes.sort_stable_by_key(|x| x.2);
+            CallTables {
+                firsts,
+                writes,
+                moves: self.moves(),
+                touches: self.accesses(),
+            }
+        };
         for c in 0..b.tags.len() {
-            if !matches!(
-                b.tags[c],
-                Tag::Call | Tag::CallDyn | Tag::CallValue | Tag::Await
-            ) || b.syn[c] == NodeIdx::NONE
+            let receiver = elem_receiver(b, c);
+            if !(receiver.is_some()
+                || matches!(
+                    b.tags[c],
+                    Tag::Call | Tag::CallDyn | Tag::CallValue | Tag::Await
+                ))
+                || b.syn[c] == NodeIdx::NONE
             {
                 continue;
             }
             let (lo, hi) = range(b.syn[c]);
             if found.iter().any(|x| (lo..hi).contains(&range(x.0).0)) {
+                continue;
+            }
+            if let Some(recv) = receiver {
+                let t = tables.get_or_insert_with(tables_of);
+                if let Some(e) = self.elem_receiver_conflict(c, recv, t)
+                    && !out.iter().any(|x| x.0 == e.0)
+                {
+                    out.push(e);
+                }
                 continue;
             }
             let mut args = Vec::new();
@@ -927,17 +1004,7 @@ impl Gen<'_, '_> {
             if args.is_empty() {
                 continue;
             }
-            let t = tables.get_or_insert_with(|| {
-                let firsts = self.users();
-                let mut writes = self.writes(&firsts);
-                writes.sort_stable_by_key(|x| x.2);
-                CallTables {
-                    firsts,
-                    writes,
-                    moves: self.moves(),
-                    touches: self.accesses(),
-                }
-            });
+            let t = tables.get_or_insert_with(tables_of);
             // Each argument's loans: its one component's list as it is,
             // or the sorted union of its components' lists.
             let comps: Vec<Vec<u32>> = (args.iter())
@@ -1222,6 +1289,48 @@ impl Gen<'_, '_> {
         None
     }
 
+    /// `ref.elem.access.live`, `fn.method.eval-order`: the element
+    /// receiver read `recv` of built-in call `c` accesses its collection
+    /// from that read until the call, so a change of the collection or of
+    /// a place holding it in an argument conflicts. One binary search in
+    /// `t.writes` and the writes between the two.
+    fn elem_receiver_conflict(
+        &self,
+        c: usize,
+        recv: u32,
+        t: &CallTables,
+    ) -> Option<(NodeIdx, String)> {
+        let b = self.s.b;
+        let (root, mut sp) = path_of(b, b.data[recv as usize][0])?;
+        sp.truncate(sp.iter().rposition(|s| matches!(s, Proj::Elem(_)))?);
+        let (wi, at) = window(&t.writes, |x| x.2, recv, w(c))
+            .iter()
+            .filter(|(wi, (r, q), _)| {
+                *r == root
+                    && q.len() <= sp.len()
+                    && overlap(&sp, q)
+                    && self.elem_conflict(false, Access::Write, *wi, q.len(), sp.len(), recv)
+            })
+            .map(|x| (x.0, x.2))
+            .min()?;
+        let node = [wi, at]
+            .into_iter()
+            .map(|x| b.syn[x as usize])
+            .find(|&n| n != NodeIdx::NONE)?;
+        let n = self.s.cx.names.text(b.local_name[root as usize]);
+        let place = if n.starts_with('$') {
+            "a temporary".to_owned()
+        } else {
+            format!("`{n}`")
+        };
+        Some((
+            node,
+            format!(
+                "this may change {place} while the call's receiver is an element of it; make the change before the call"
+            ),
+        ))
+    }
+
     /// Whether access `wi` of a place `len` steps long conflicts with the
     /// element reference `site` of a collection `sp` steps long, `&mut`
     /// when `excl`, whose place it overlaps. A move of the collection or
@@ -1278,8 +1387,9 @@ impl Gen<'_, '_> {
     }
 
     /// The message of an element reference's conflict on local `root`,
-    /// held by local `holder`, `inner` when the collection is a part of it.
-    fn elem_message(&self, root: u32, holder: u32, what: ElemWhat, inner: bool) -> String {
+    /// held by local `holder` if any, `inner` when the collection is a
+    /// part of it.
+    fn elem_message(&self, root: u32, holder: Option<u32>, what: ElemWhat, inner: bool) -> String {
         let (b, names) = (self.s.b, &self.s.cx.names);
         let name = |l: u32| {
             let n = names.text(b.local_name[l as usize]);
@@ -1289,7 +1399,7 @@ impl Gen<'_, '_> {
         if inner {
             place = format!("a collection in {place}");
         }
-        let (h, after) = match name(holder) {
+        let (h, after) = match holder.and_then(name) {
             Some(h) => (h.clone(), format!("{h}'s last use")),
             None => ("a reference".to_owned(), "that use".to_owned()),
         };
@@ -1371,7 +1481,7 @@ impl Gen<'_, '_> {
             place = format!("a collection in {place}");
         }
         match (name(holder), kind) {
-            (_, Kind::Elem(_)) => self.elem_message(root, holder, ElemWhat::Resize, inner),
+            (_, Kind::Elem(_)) => self.elem_message(root, Some(holder), ElemWhat::Resize, inner),
             (Some(h), Kind::Excl) => format!(
                 "this uses {place} while {h} refers to it as `&mut` and is used later; use {place} after {h}'s last use, or through {h}"
             ),

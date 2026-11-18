@@ -484,10 +484,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// flags, init facts, the possibly-uninitialized set and the row
     /// frames (rule TC-5). Written only while a checkpoint is open.
     pub undo: Vec<crate::trial::BodyUndo>,
-    /// Element references (`ref.elem.local-value`, `elem_refs.rs`): the
-    /// expressions where a direct element access participates in a call's
-    /// conflict check, by what use it has there.
-    pub elem_ok: HashMap<hd_base::NodeIdx, crate::elem_refs::ElemUse>,
     /// Local references (`local_refs.rs`): the `&` each binding inferred
     /// from another local takes its type from, the locals whose capture
     /// reported, and the types the body and its signature write.
@@ -536,17 +532,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// written-argument count. Its call is indirect, so no `Callee`
     /// record keeps these for the local-reference escape check.
     pub local_ref_call_targs: Vec<(hd_base::NodeIdx, Vec<Ty>, usize)>,
-    /// The exclusivity stack of the open calls and element reference
-    /// loops, with each frame's start, and the conflicting accesses found
-    /// so far by the collection's binding (`ref.elem.conflict`,
-    /// `elem_refs.rs`), reported at the body's end.
-    pub excl: Vec<crate::elem_refs::Excl>,
-    pub excl_frames: Vec<usize>,
-    pub conflicts: Vec<(LocalId, hd_base::NodeIdx)>,
-    /// How many element reference loops over a list reached through a
-    /// `&mut` binding are being checked: inside one, such a binding's
-    /// referent is a place the checker sees whole (`flow.for.ref.conflict`).
-    pub mut_ref_loops: u32,
     /// The checkpoints taken and not yet rolled back or committed.
     pub open_trials: u32,
     /// The promoted variables of open recursive-row trials, keyed by
@@ -849,7 +834,6 @@ pub(crate) fn new_ck<'a, 'c>(
         shown: None,
         facts: crate::init::InitFacts::default(),
         undo: Vec::new(),
-        elem_ok: HashMap::default(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
         bound_escapes: HashSet::default(),
@@ -863,10 +847,6 @@ pub(crate) fn new_ck<'a, 'c>(
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),
         local_ref_call_targs: Vec::new(),
-        excl: Vec::new(),
-        excl_frames: Vec::new(),
-        conflicts: Vec::new(),
-        mut_ref_loops: 0,
         open_trials: 0,
         row_banks: Vec::new(),
         row_sources: Vec::new(),
@@ -4579,7 +4559,6 @@ impl Ck<'_, '_> {
             SyntaxKind::FieldExpr => {
                 let [base] = lhs.parts();
                 let fname = self.cx.src.text(self.cx.src.last(lhs)).to_owned();
-                self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
                 // The place the base names, which nothing reads yet
                 // (`docs/compiler/tir-v2.md`, "Field writes").
                 let Some(op) = self.place_of(base, None, crate::refs::PlaceUse::Write)? else {
@@ -4759,10 +4738,6 @@ impl Ck<'_, '_> {
                     });
                     self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
                 } else {
-                    // Inserting a map entry may resize its table, just as
-                    // remove may. An open element loop keeps its access
-                    // for the whole body, even with wildcard bindings.
-                    self.length_changed(br, lhs.index());
                     let rec = self.b.refs_record(&[br, kr, v]);
                     self.b.emit(
                         Tag::Intrinsic,
@@ -5202,7 +5177,6 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         self.finish_bindings()?;
-        self.report_conflicts();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
             let facts = std::mem::take(&mut self.facts);

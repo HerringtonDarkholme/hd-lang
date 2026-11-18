@@ -617,18 +617,6 @@ impl Ck<'_, '_> {
                 _ => {}
             }
         }
-        // A direct element-reference argument participates in the call's
-        // static conflict check (`ref.elem.conflict`).
-        let all: Vec<NodeRef<'t>> = a
-            .positional
-            .iter()
-            .chain(&a.after_spread)
-            .chain(a.named.iter().map(|(_, e)| e))
-            .copied()
-            .collect();
-        for e in all {
-            self.elem_may_stand(e, crate::elem_refs::ElemUse::Arg);
-        }
         a
     }
 
@@ -1090,23 +1078,8 @@ impl Ck<'_, '_> {
         r
     }
 
-    /// A call of `callee` with `args`; `n` is the call node. The call is
-    /// one exclusivity frame: the accesses of its element reference
-    /// arguments and receiver end with it (`ref.elem.access.live`).
+    /// A call of `callee` with `args`; `n` is the call node.
     pub(crate) fn call_args(
-        &mut self,
-        n: NodeRef<'_>,
-        callee: NodeRef<'_>,
-        args: &Args<'_>,
-        want: Option<Ty>,
-    ) -> StageResult<(Ref, Ty)> {
-        self.open_access_frame();
-        let r = self.call_args_in_frame(n, callee, args, want);
-        self.close_access_frame();
-        r
-    }
-
-    fn call_args_in_frame(
         &mut self,
         n: NodeRef<'_>,
         callee: NodeRef<'_>,
@@ -3924,7 +3897,6 @@ impl Ck<'_, '_> {
         method_targs: Vec<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let [base] = callee.parts();
-        self.elem_may_stand(base, crate::elem_refs::ElemUse::Receiver);
         let name = self.cx.src.text(self.cx.src.last(callee)).to_owned();
         if base.kind() == SyntaxKind::NameExpr
             && self.cx.src.text(self.cx.src.first(base)) == "Union"
@@ -5439,12 +5411,6 @@ impl Ck<'_, '_> {
                     // `push` and `remove` change the receiver in place
                     // (`types.coll.writable.call`).
                     self.coll_change(recv, rt, "this call", n);
-                    // An element receiver's access begins before the
-                    // arguments run (`fn.method.eval-order`,
-                    // `ref.elem.access.live`).
-                    if let Some((coll, _)) = self.element_of(recv) {
-                        self.begin_access(coll);
-                    }
                 }
                 // The spec's declared parameter name, so a named argument
                 // matches (`module.method.normative`).
@@ -5472,9 +5438,6 @@ impl Ck<'_, '_> {
                     destination: ArgumentDestination::Call,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
-                if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
-                    self.length_changed(recv, n.index());
-                }
                 if op == IntrinsicOp::MapGet && self.cx.source_facts.is_some() {
                     self.tool_facts.map_gets.push(n.index());
                 }

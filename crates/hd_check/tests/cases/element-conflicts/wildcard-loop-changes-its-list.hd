@@ -1,0 +1,37 @@
+# @dump: diagnostics
+# A loop over element references is one access to its collection
+# (`flow.for.ref.access`), whatever its binding: a wildcard binding holds no
+# reference, and a length change in the body still conflicts. A change of
+# another list, or a store to an element, does not.
+fn shared() -> void:
+    let mut xs = [1, 2]
+    for _ in &xs:
+        xs.push(1)
+
+fn exclusive() -> void:
+    let mut xs = [1, 2]
+    for _ in &mut xs:
+        xs.push(1)
+
+fn field() -> void:
+    let mut t = ([1], 2)
+    for _ in &t._0:
+        t._0.push(1)
+
+fn other_list() -> void:
+    let mut xs = [1, 2]
+    let mut ys = [1]
+    for _ in &xs:
+        ys.push(1)
+
+fn element_store() -> void:
+    let mut xs = [1, 2]
+    for _ in &xs:
+        xs[0] = 3
+
+fn counted() -> void $ Console:
+    let xs = [1, 2]
+    let mut c = 0
+    for _ in &xs:
+        c += 1
+    println(c)

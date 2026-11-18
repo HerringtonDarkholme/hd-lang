@@ -536,15 +536,6 @@ impl Ck<'_, '_> {
                 }
             }
         };
-        let arg = self.elem_ok.get(&n.index()) == Some(&crate::elem_refs::ElemUse::Arg);
-        if mutable {
-            self.mut_place_taken(&place, n.index(), arg);
-        }
-        if let Root::Elem(coll, ..) = place.root
-            && arg
-        {
-            self.begin_access(coll);
-        }
         let inner = self.resolved(self.infer.resolve(pool, place.ty));
         // `ref.expr.kind.always-local`: whatever type is expected.
         let rt = self.ref_ty(inner, mutable, false);
@@ -684,7 +675,6 @@ impl Ck<'_, '_> {
                 {
                     return Ok(Some(Operand::Value(v.0, v.1)));
                 }
-                self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
                 let Some(b) = self.place_of(base, None, use_)? else {
                     return Ok(None);
                 };
@@ -692,7 +682,6 @@ impl Ck<'_, '_> {
             }
             SyntaxKind::DerefExpr => {
                 let [inner] = e.parts();
-                self.elem_may_stand(inner, crate::elem_refs::ElemUse::Through);
                 let (r, t) = self.expr(inner, None)?;
                 let Some((it, _)) = self.ref_of(t) else {
                     self.not_a_reference(t, inner);
@@ -1265,7 +1254,6 @@ impl Ck<'_, '_> {
     /// copy.
     pub(crate) fn deref_expr(&mut self, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         let [e] = n.parts();
-        self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         if self.dyn_ref_of(t).is_some() {
             self.err(
@@ -1293,7 +1281,6 @@ impl Ck<'_, '_> {
         s: NodeRef<'_>,
     ) -> StageResult<()> {
         let [e] = lhs.parts();
-        self.elem_may_stand(e, crate::elem_refs::ElemUse::Through);
         let (r, t) = self.expr(e, None)?;
         let Some((inner, mutable)) = self.ref_of(t) else {
             self.not_a_reference(t, e);

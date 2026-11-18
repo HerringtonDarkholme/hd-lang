@@ -301,19 +301,6 @@ impl Ck<'_, '_> {
                 self.new_object_place(v, t, base)
             }
         };
-        // A receiver of a call: its `&mut` is held until the call returns,
-        // and a direct element-reference receiver begins an access
-        // (`ref.elem.access.live`).
-        let receiver = self
-            .elem_ok
-            .get(&crate::elem_refs::strip_parens(base).index())
-            == Some(&crate::elem_refs::ElemUse::Receiver);
-        if mutable {
-            self.mut_place_taken(&place, base.index(), receiver);
-        }
-        if receiver && let Root::Elem(coll, ..) = place.root {
-            self.begin_access(coll);
-        }
         let inner = self.resolved(place.ty);
         let rt = self.ref_ty(inner, mutable, false);
         let r = self.make_ref(&place, mutable, rt, base);

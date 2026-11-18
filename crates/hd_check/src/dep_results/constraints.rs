@@ -18,6 +18,7 @@ use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
 
 mod exclusive;
+pub(super) use exclusive::{elem_receiver, elem_ref, writes_place};
 
 /// A value's or a place's region variables, one per slot of its type.
 type View = (Vec<Region>, Ty);

@@ -344,7 +344,6 @@ impl Ck<'_, '_> {
             cur = base;
         }
         for link in spine.into_iter().rev() {
-            self.elem_may_stand(link, crate::elem_refs::ElemUse::Receiver);
             let v = self.expr(link, None)?;
             self.chain_recv = Some((link.index(), v));
         }
@@ -2694,7 +2693,6 @@ impl Ck<'_, '_> {
         {
             return Ok(v);
         }
-        self.elem_may_stand(base, crate::elem_refs::ElemUse::Through);
         let based = self.expr(base, None)?;
         self.field_of_value(based, &name, (base, n))
     }

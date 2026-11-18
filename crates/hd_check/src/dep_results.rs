@@ -3674,6 +3674,7 @@ impl Ck<'_, '_> {
             || body.local_ty.iter().enumerate().any(|(l, &t)| {
                 body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
             });
+        let (mut last_write, mut first_elem_ref) = (None, u32::MAX);
         for i in 0..body.tags.len() {
             if matches!(
                 body.tags[i],
@@ -3700,6 +3701,19 @@ impl Ck<'_, '_> {
                     }
                 });
                 through |= m && n > 1;
+            }
+            // A write after an element reference, a wildcard loop's
+            // included, or between a built-in call's element receiver and
+            // the call (`ref.elem.conflict`).
+            if let Some(recv) = constraints::elem_receiver(body, i) {
+                through |= last_write.is_some_and(|x| x > recv);
+            }
+            if constraints::writes_place(pool, body, i) {
+                through |= first_elem_ref < w(i);
+                last_write = Some(w(i));
+            }
+            if constraints::elem_ref(body, i) {
+                first_elem_ref = first_elem_ref.min(w(i));
             }
             match body.tags[i] {
                 // A block's or a loop's value may leave a local's scope.
@@ -3923,22 +3937,9 @@ impl Ck<'_, '_> {
             skip: &skip,
         };
         let verdicts = constraints::solve(&s, &returns);
-        // One error for a conflict `ref.elem.conflict` reported.
-        let tree = &self.cx.src.parse.tree;
-        let elem: Vec<_> = (self.conflicts.iter())
-            .map(|c| range(tree.node(c.1)))
-            .collect();
         let sigs = (own.as_ref(), mine.as_ref());
         for (at, code, msg) in self.verdict_list(verdicts, sigs, fun, &paths) {
             let node = self.cx.src.parse.tree.node(at);
-            let (lo, hi) = range(node);
-            if code == Code::ConflictingAccess
-                && elem
-                    .iter()
-                    .any(|&(a, b)| a <= lo && hi <= b || lo <= a && b <= hi)
-            {
-                continue;
-            }
             self.err(code, node, &msg);
         }
     }

@@ -2638,6 +2638,40 @@ fn element_loan_arguments_scan_the_body_once() {
     });
 }
 
+/// `n` built-in pushes, each onto an element of one list, whose argument
+/// takes `&mut` of another list (`ref.elem.access.live`).
+fn element_receiver_pushes(n: usize) -> String {
+    let mut s = String::from(
+        "fn grow(v: &mut List[i32]) -> i32:\n    v.push(+1)\n    +0\n\npub fn main() -> void $ Console:\n    let mut xs: List[List[i32]] = [[+0], [+0], [+0]]\n    let mut ys: List[i32] = []\n",
+    );
+    for i in 0..n {
+        let _ = writeln!(s, "    xs[{}].push(grow(&mut ys))", i % 3);
+    }
+    s.push_str("    println(xs[0][0])\n");
+    s
+}
+
+// Checker: an element receiver's access is checked against the writes
+// between the receiver and its call, one window of the body's sorted
+// writes per call.
+#[test]
+fn element_receivers_read_one_window_of_writes_each() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) = hd_check::work::count_scan_work(|| {
+                compile(&element_receiver_pushes(n), &Goal::Analyze)
+            });
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 element-receiver pushes: {small} and {large}"
+        );
+    });
+}
+
 // Checker: #1910, the enum tagging pass finds each enum's derivation
 // blocks in an index of the heads built once: a scan of every head per
 // enum was quadratic in the items.

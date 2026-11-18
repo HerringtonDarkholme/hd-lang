@@ -92,7 +92,6 @@ pub(crate) struct Checkpoint {
     strict_rets: usize,
     recursive_returns: usize,
     clauses: usize,
-    excl: [usize; 3],
     depths: [usize; 6],
 }
 
@@ -297,11 +296,6 @@ impl Ck<'_, '_> {
             strict_rets: self.strict_rets.len(),
             recursive_returns: self.recursive_returns.len(),
             clauses: self.env.len(),
-            excl: [
-                self.excl.len(),
-                self.excl_frames.len(),
-                self.conflicts.len(),
-            ],
             depths: self.depths(),
         }
     }
@@ -380,9 +374,6 @@ impl Ck<'_, '_> {
         if clauses_added {
             self.env.key = Some(self.cx.global.env_key(&self.env));
         }
-        self.excl.truncate(c.excl[0]);
-        self.excl_frames.truncate(c.excl[1]);
-        self.conflicts.truncate(c.excl[2]);
         self.cond_flow = None;
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.
