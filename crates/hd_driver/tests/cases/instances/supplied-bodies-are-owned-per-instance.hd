@@ -1,0 +1,108 @@
+# @dump: stdout
+# @build: dev checked | release checked
+# Instance TIR step 4b (#2125): a compiler-supplied body (a tuple's
+# `describe` and `build`, and the field factories they call) is owned
+# once per instance, at its describer or source type, like any instance
+# body. One describer only reads each field handle and one hands it on
+# with an owned value, so the two `describe` instances at one tuple type
+# count differently; checked mode audits every block.
+# expected: both builds print the four lines, and no block leaks.
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+
+trait Sample:
+    fn seed(start: usize) -> Self
+    fn name() -> string
+
+impl Sample for i32:
+    fn seed(start: usize) -> i32:
+        i32(start)
+    fn name() -> string:
+        "i32"
+
+impl Sample for string:
+    fn seed(start: usize) -> string:
+        "s$start" + "!"
+    fn name() -> string:
+        "string"
+
+struct Seeds:
+    start: usize
+    at: usize
+
+impl[S] Source[S] for Seeds:
+    type Error = never
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        key := members.at(self.at / 2)
+        self.at += 1
+        .Ok(key)
+    fn member[F < Sample](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::seed(self.start + h.info.position))
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the source provides every member")
+
+# Lends each handle: it only reads the field's position.
+struct Names:
+    parts: List[string]
+
+impl[S] Describer[S] for Names:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F < Sample](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.parts.push("${h.info.position}:${F::name()}")
+        .Ok(())
+
+# Hands each handle on to a source, with an owned previous value.
+struct Forward:
+    parts: List[string]
+
+impl[S] Describer[S] for Forward:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F < Sample](&mut self, h: Field[S, F]) -> Result[void, never]:
+        let mut s = Seeds { start: 5, at: 0 }
+        match s.member(h, .Some(F::seed(7))):
+            .Ok(v) => self.parts.push(F::name())
+            .Err(_) => panic("never")
+        .Ok(())
+
+trait Probe:
+    fn names() -> string
+    fn forward() -> string
+    fn built(start: usize) -> Self
+
+impl[T < Tuple] Probe for T by Structure:
+    fn names() -> string:
+        let mut names = Names { parts: [] }
+        _ := T::describe(&mut names)
+        names.parts.join(",")
+    fn forward() -> string:
+        let mut forward = Forward { parts: [] }
+        _ := T::describe(&mut forward)
+        forward.parts.join(",")
+    fn built(start: usize) -> T:
+        let mut source = Seeds { start: start, at: 0 }
+        match T::build(&mut source):
+            .Ok(value) => value
+            .Err(_) => panic("never")
+
+fn names_of[T < Probe]() -> string:
+    T::names()
+
+fn forward_of[T < Probe]() -> string:
+    T::forward()
+
+fn built[T < Probe](start: usize) -> T:
+    T::built(start)
+
+pub fn main() -> void $ Console:
+    println(names_of::[(string, i32)]())
+    println(forward_of::[(string, i32)]())
+    let (s, n) = built::[(string, i32)](3)
+    println("${s} ${n}")
+    let (m, t) = built::[(i32, string)](7)
+    println("${m} ${t}")

@@ -7,8 +7,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), string]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), string]" (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), i32]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), i32]" (param i32 i32 i32 i32) (result i32)))
@@ -58,50 +56,22 @@
     end
     local.get $t5
     local.get $h
-    if
-      local.get $h
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $h
-        call $rt:retain_known
-      end
-    end
-    local.get $h
-    local.get $t3
-    local.get $t0
-    call $rt:retain
     local.get $t3
     local.get $t0
     call $"impl[S] Source[S] for Seeds.member[(string, i32), string]"
     drop
-    local.set $t5
+    local.set $h
     local.get $t3
     local.get $t0
     call $rt:release
     ;; ...
   )
-  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32) (local $t0 i32)
+  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
-    i32.const 7
-    local.set $t0
-    ;; ...
-    local.get $h
-    if
-      local.get $h
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $h
-        call $rt:retain_known
-      end
-    end
     local.get $h
     i32.const 1
-    local.get $t0
+    i32.const 7
     call $"impl[S] Source[S] for Seeds.member[(string, i32), i32]"
     drop
     ;; ...

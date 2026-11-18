@@ -3245,10 +3245,11 @@ impl Cx<'_> {
             .first()
             .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
         // An item's root instance asks for its body; each closure's code
-        // instance shares its parent's, which made its environment. An
-        // intrinsic's source body is a placeholder; its generated supplied
-        // body must remain authoritative instead of owning that placeholder.
-        if env.intrinsic(item).is_none()
+        // instance shares its parent's, which made its environment. A
+        // supplied method's or factory's instance body is its generated
+        // body owned at the instance's arguments; any other intrinsic's
+        // source body is a placeholder, never asked for.
+        if (env.intrinsic(item).is_none() || supplied.is_some())
             && sub == Sub::Body(0)
             && !self.out.instance_bodies.contains_key(&id)
             && let Some(body) = self.item_body(item, args)?

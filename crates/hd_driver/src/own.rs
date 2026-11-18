@@ -2846,6 +2846,23 @@ impl Env<'_> {
         (family.bodies.first()?.item == def).then_some(family)
     }
 
+    /// The generated family and the index of the body that instance
+    /// `(def, args)` runs, where `def` is a `Structure` method or a hidden
+    /// tuple factory: collection chose it as supplied at self type
+    /// `args[0]` (`hd_mono` `supplied_target`, a `dbg` body's private
+    /// structure included), so no selection is asked again here. `None`
+    /// for any other item. Cost: one family probe
+    /// (`raw_supplied_family`, memoized per method and self type).
+    fn supplied_member(
+        &self,
+        (def, args): Node,
+    ) -> Option<(std::sync::Arc<super::SuppliedFamily>, usize)> {
+        let &target = self.run.pool.list_items(args).first()?;
+        let family = self.raw_supplied_family(def, target).ok()??;
+        let at = *family.index.get(&def)?;
+        Some((family, at))
+    }
+
     /// The instance a call runs, where the call names one: a direct
     /// call's callee at its type arguments, or a trait call's impl method
     /// where the call is chosen as an impl.
@@ -2894,9 +2911,17 @@ impl Env<'_> {
             return None;
         }
         let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
-        let supplied = self.supplied_walk_family((def, args));
-        let (generic, hash) = if let Some(family) = &supplied {
-            (&family.bodies[0], family.hash)
+        // A compiler-supplied method's or factory's instance runs its
+        // generated body at the instance's arguments; an intrinsic with
+        // none has no instance body here (its source body is a
+        // placeholder, and collection supplies a `dbg` body itself).
+        let supplied = self.supplied_member((def, args));
+        if supplied.is_none() && ProgramEnv::intrinsic(self, def).is_some() {
+            return None;
+        }
+        let walk = supplied.is_some() && self.supplied_walk_family((def, args)).is_some();
+        let (generic, hash) = if let Some((family, at)) = &supplied {
+            (&family.bodies[*at], family.hash)
         } else {
             let (raw, hash) = if dev {
                 self.generic_inlined(def)?
@@ -2924,10 +2949,15 @@ impl Env<'_> {
                 InlineEnv::select_choice(self, t, s, a)
             })
         };
+        if supplied.is_some() && !walk {
+            // A generated body's places are rooted at their locals, as the
+            // checker roots its own (`Env::owned_generated`).
+            Self::root(&mut body, None);
+        }
         if dev {
             return Some((body, hash));
         }
-        let hash = if supplied.is_some() || StructureEnv::generated_structure_walk(self, def) {
+        let hash = if walk || StructureEnv::generated_structure_walk(self, def) {
             hd_opt::structure_specialize::specialize_shared_walk(self, &mut body, hash)
         } else {
             hash
@@ -3015,7 +3045,7 @@ impl Env<'_> {
     /// body with no copy. A generic item's own body, which serves its
     /// instances past [`MAX_INSTANCE_LEAVES`] (gap: #2102), stays checked.
     /// Cost: one pass over the body; the item's generics once.
-    fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
+    pub(super) fn mark_instance(&self, body: &mut Body, args: TyList) -> StageResult<()> {
         let owner = ProgramEnv::generics_owner(self, body.item);
         if args == TyList::EMPTY && !ProgramEnv::generic_rows(self, owner).is_empty() {
             // ruled out: the generic body that serves past the leaf limit
