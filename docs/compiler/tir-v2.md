@@ -710,8 +710,12 @@ and later builds decode it instead of running the passes again
 too, keyed by the body, the program's declarations and the build's
 settings, with the bodies the folds and the inliner read, each by TIR
 hash; a later dev build takes it while each still hashes the same
-(`Run::package_owned_key`, #2028). After a body edit, the passes run on
-the edited bodies and the bodies that read them.
+(`Run::package_owned_key`, #2028). A generic instance's owned form is
+stored the same way, keyed by its instance key and its generic body's
+TIR hash (a compiler-supplied member's by its family's hash), with the
+bodies its generic body's folded form read (`Run::instance_owned_key`,
+#2106). After a body edit, the passes run on the edited bodies, the
+bodies that read them, and the instances of either.
 
 - **Why after decoding, not in `ModuleFinish`.** At decode the program's
   layout facts are at hand (whether a type has counted leaves), and the

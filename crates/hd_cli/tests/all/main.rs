@@ -72,6 +72,7 @@ mod fifo;
 mod fixing;
 mod host_traits;
 mod install;
+mod instance_cache_edit;
 #[cfg(unix)]
 mod interrupt_signal;
 #[cfg(unix)]
