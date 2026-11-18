@@ -92,20 +92,6 @@ impl TestPlan {
         cases.sort_stable_by(|a, b| a.key.cmp(&b.key));
         Self { cases }
     }
-
-    /// `it_each`: row 0 reported a count, so schedule rows 1..count.
-    pub fn expand_rows(&mut self, case: &CaseKey, count: u32) {
-        let Some(base) = self.cases.iter().find(|c| &c.key == case).cloned() else {
-            return;
-        };
-        for row in 1..count {
-            let mut c = base.clone();
-            c.key.row = row;
-            c.name = format!("{}[{row}]", base.name);
-            self.cases.push(c);
-        }
-        self.cases.sort_stable_by(|a, b| a.key.cmp(&b.key));
-    }
 }
 
 /// Streams results in content order: a case prints once it and every
@@ -223,19 +209,16 @@ mod tests {
     }
 
     #[test]
-    fn rows_expand_and_filters_select() {
+    fn filters_select() {
         let mut each = case(1, "rows");
         each.kind = CaseKind::ItEach;
-        let mut plan = TestPlan::new(vec![each, case(2, "other")], Some("rows"));
-        assert_eq!(plan.cases.len(), 1);
-        let key = plan.cases[0].key.clone();
-        plan.expand_rows(&key, 3);
+        let plan = TestPlan::new(vec![each, case(2, "other")], Some("rows"));
         assert_eq!(
             plan.cases
                 .iter()
                 .map(|c| c.name.as_str())
                 .collect::<Vec<_>>(),
-            ["rows", "rows[1]", "rows[2]"]
+            ["rows"]
         );
     }
 }

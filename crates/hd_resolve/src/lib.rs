@@ -253,30 +253,10 @@ pub enum ExportState {
     Loop,
 }
 
-/// A folder's exports, chains followed (§3.15), frozen into the blob.
-#[derive(Clone, Debug, Default)]
-pub struct FolderExports {
-    pub module: Vec<ModuleId>,
-    pub name: Vec<Symbol>,
-    pub target: Vec<DefId>,
-    pub state: Vec<ExportState>,
-}
-
-/// The orphan rule (§4.12): an impl must live in the module of its trait
-/// or of its self type's head.
-#[must_use]
-pub fn orphan_ok(
-    impl_module: ModuleId,
-    trait_module: Option<ModuleId>,
-    self_head_module: Option<ModuleId>,
-) -> bool {
-    trait_module == Some(impl_module) || self_head_module == Some(impl_module)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Binding, BindingKind, ModuleScope, Origin, orphan_ok};
-    use hd_base::{ModuleId, Symbol};
+    use super::{Binding, BindingKind, ModuleScope, Origin};
+    use hd_base::Symbol;
 
     #[test]
     fn a_name_from_two_uses_is_ambiguous_but_own_wins() {
@@ -321,13 +301,5 @@ mod tests {
             0,
         );
         assert_eq!(s.lookup(y).expect("bound").value, 1);
-    }
-
-    #[test]
-    fn orphan_rule() {
-        let m = ModuleId::from_raw;
-        assert!(orphan_ok(m(1), Some(m(1)), Some(m(2))));
-        assert!(orphan_ok(m(2), Some(m(1)), Some(m(2))));
-        assert!(!orphan_ok(m(3), Some(m(1)), Some(m(2))));
     }
 }

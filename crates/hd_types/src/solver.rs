@@ -105,8 +105,6 @@ pub struct EnvKey(pub u32);
 
 impl EnvKey {
     pub const EMPTY: EnvKey = EnvKey(0);
-    /// An environment the run memo has not interned yet (`GlobalMemo::env_key`).
-    pub const UNSET: EnvKey = EnvKey(u32::MAX);
 }
 
 /// The elaborated parameter environment, as columns (§2.3). Clauses are
@@ -810,14 +808,6 @@ impl Iterator for Rows<'_> {
             }
         }
     }
-}
-
-/// Head matching (§3.4).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MatchResult {
-    Yes(Vec<Ty>),
-    No,
-    Maybe(Vec<u8>),
 }
 
 /// A candidate of an `Instantiations` goal (§6.5): a scheme over the

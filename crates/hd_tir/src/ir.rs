@@ -1710,15 +1710,6 @@ impl Body {
         Some(Place { root, proj })
     }
 
-    /// The values place word `word` reads ([`Place::values`]); none when it
-    /// is malformed.
-    #[must_use]
-    pub fn place_values(&self, word: u32) -> Vec<u32> {
-        self.decode_place(word)
-            .map(|p| p.values())
-            .unwrap_or_default()
-    }
-
     /// The local `Store` `i` writes in place, and whether it replaces all
     /// of it: a place rooted at a local whose projections are all struct
     /// fields (`[$l]`, `[$l .x .y]`). `None` for any other instruction or

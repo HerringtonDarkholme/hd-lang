@@ -347,8 +347,3 @@ export function highlight(line: string): string {
     .map(({ text, kind }) => (COLORS[kind] === "" ? text : `${COLORS[kind]}${text}${RESET}`))
     .join("");
 }
-
-/** Colors each line of a multi-line hd fragment. */
-export function highlightLines(text: string): string {
-  return text.split("\n").map(highlight).join("\n");
-}

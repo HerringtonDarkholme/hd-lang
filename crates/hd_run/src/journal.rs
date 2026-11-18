@@ -71,9 +71,6 @@ pub struct Row {
     pub payload: Vec<u8>,
 }
 
-/// Large payloads go to a blob store by content hash (§4.3).
-pub const BLOB_THRESHOLD: usize = 4096;
-
 /// The format number of a `Header` row.
 pub const FORMAT: u64 = 1;
 

@@ -29,9 +29,6 @@ pub enum Requirement {
 
 /// Summary bits from the `tir` entry (§6.2).
 pub mod gate {
-    pub const HAS_LOOP: u8 = 1;
-    pub const HAS_CLOSURE: u8 = 2;
-    pub const HAS_ALLOC: u8 = 4;
     pub const HAS_SUSPEND: u8 = 8;
     pub const HAS_DYN_CALL: u8 = 16;
     pub const HAS_CALL: u8 = 32;

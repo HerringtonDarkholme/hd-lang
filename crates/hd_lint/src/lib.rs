@@ -20,14 +20,7 @@ use hd_syntax::{CommentKind, NodeRef, SyntaxKind, TokenKind};
 use hd_types::Prim;
 pub use walk::{BindingEvent, Cx, Event, Events, binding_name, walk};
 
-pub const DERIVATION_DRIFT: &str = Code::DerivationLineDrift.as_str();
-pub const BROKEN_DOC_LINK: &str = Code::BrokenDocLink.as_str();
-pub const DBG_IN_DEPENDENCY: &str = Code::DbgInDependency.as_str();
-pub const LOST_WRITE: &str = Code::LostWrite.as_str();
-pub const MAP_GET_STORE_BACK: &str = Code::MapGetStoreBack.as_str();
 pub const UNUSED_DERIVATION: &str = Code::UnusedDerivationFact.as_str();
-pub const MIXED_SCRIPT: &str = Code::MixedScriptIdentifier.as_str();
-pub const PRIVATE_MAIN: &str = Code::PrivateMain.as_str();
 pub const UNSELECTED_MAIN: &str = Code::UnselectedMain.as_str();
 pub const UNREACHABLE: &str = Code::UnreachableCode.as_str();
 pub const UNUSED_DEBUG: &str = Code::UnusedDebugText.as_str();

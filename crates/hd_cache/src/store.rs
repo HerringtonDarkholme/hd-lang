@@ -312,8 +312,6 @@ pub struct EntryHeader {
 pub const MAGIC: &[u8; 4] = b"HDCE";
 pub const HEADER_LEN: usize = 64;
 pub const SECTION_LEN: usize = 16;
-pub const FLAG_HAS_DIAGNOSTICS: u32 = 1;
-pub const FLAG_HAS_TIR: u32 = 2;
 
 /// A section table row: kind, flags, rows and the payload offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -123,8 +123,8 @@ pub fn specialize_calls(env: &dyn StructureEnv, body: &mut Body, hash: Hash128) 
             continue;
         };
         // A data walk first reaches Walker's default `data_*` bridge. Inline
-        // those exact hooks before selecting the concrete legacy hooks they
-        // expose. Two bounded passes avoid turning recursive user methods
+        // those exact hooks before selecting the required `variant` and
+        // `member` methods they call. Two bounded passes avoid turning recursive user methods
         // into an inlining fixpoint.
         let nested_hashes = if walk {
             let mut hashes = inline_data_walker_methods(env, &mut copy, false);

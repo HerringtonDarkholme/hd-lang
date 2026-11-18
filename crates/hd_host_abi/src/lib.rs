@@ -664,15 +664,6 @@ impl Handle {
     }
 }
 
-/// The host side of one operation slot (§17.2 table).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SlotState {
-    Free,
-    Pending,
-    Completed,
-    Cancelled,
-}
-
 #[cfg(test)]
 mod tests {
     use super::{HANDLES, Handle, RUNNERS, TABLE, imports_of, is_known_import};
