@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# A loop that points its reference at another list, with a call in the
+# loop, keeps the check: the length its test read is the old list's.
+fn depth(n: i64) -> i64:
+    if n <= 0:
+        return 0
+    1 + depth(n - 1)
+
+fn total(xs: &List[i64], ys: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    let r = xs
+    # subject
+    while i < r.len():
+        s = s + r[i] + depth(3)
+        r = ys
+        i = i + 1
+    s

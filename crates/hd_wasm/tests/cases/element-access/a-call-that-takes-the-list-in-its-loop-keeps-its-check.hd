@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# A call that takes the list may change its length: `xs[i]` keeps its
+# check under `i < xs.len()`.
+fn shrink(xs: &mut List[i64]) -> void:
+    if xs.len() > 2:
+        _ := xs.pop()
+
+fn total(xs: &mut List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        s = s + xs[i]
+        shrink(xs)
+        i = i + 1
+    s

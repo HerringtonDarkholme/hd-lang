@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# No bounds check: `depth` reaches no list, and the hoisting pass lists
+# `*xs` stable for the loop (`Body::stable_lists`), so `i < xs.len()`
+# bounds `xs[i]` though the loop calls a function the list proofs do
+# not know.
+fn depth(n: i64) -> i64:
+    if n <= 0:
+        return 0
+    1 + depth(n - 1)
+
+fn total(xs: &List[i64]) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        s = s + xs[i] + depth(3)
+        i = i + 1
+    s

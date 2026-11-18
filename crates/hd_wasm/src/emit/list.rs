@@ -526,12 +526,19 @@ impl Em<'_, '_, '_> {
         };
         let aliases = self.list_aliases(root);
         let body = self.loop_body(loop_inst);
-        if !self.list_loop_safe(root, &body, &aliases) {
+        // The hoisting pass found nothing in the loop changes the list's
+        // header (`Body::stable_lists`, which the loop caches trust for its
+        // length too), or this proof's own walk does.
+        if self.is_cell(root.local as usize)
+            || !self.stable_roots(loop_inst).any(|r| r == root)
+                && !self.list_loop_safe(root, &body, &aliases)
+        {
             return Vec::new();
         }
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
-        // loop does. Include nested statements of that prelude.
+        // loop does. Include nested statements of that prelude, up to the
+        // statement that holds the loop, whose body the test above took.
         if before {
             let (blk, start) = (
                 self.topo.blk[len as usize],
@@ -540,7 +547,7 @@ impl Em<'_, '_, '_> {
             let Some(finish) = self.position_in(blk, loop_inst) else {
                 return Vec::new();
             };
-            let prelude = self.statements(blk, start + 1, finish);
+            let prelude = self.statements(blk, start + 1, finish - 1);
             if !self.list_loop_safe(root, &prelude, &aliases) {
                 return Vec::new();
             }
@@ -1129,6 +1136,29 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// The stable list places the hoisting pass lists for loop `l`
+    /// (`Body::stable_lists`, sorted by loop) that are a local's list or
+    /// the list a reference local refers to. O(log rows + its rows).
+    fn stable_roots(&self, l: u32) -> impl Iterator<Item = ListRoot> + '_ {
+        let rows = &self.b.stable_lists;
+        let from = rows.partition_point(|r| r.0 < l);
+        rows[from..]
+            .iter()
+            .take_while(move |r| r.0 == l)
+            .filter_map(|&(_, word)| {
+                let p = self.b.decode_place(word)?;
+                let hd_tir::ir::PlaceRoot::Local(local) = p.root else {
+                    return None;
+                };
+                let indirect = match p.proj.as_slice() {
+                    [] => false,
+                    [hd_tir::ir::Proj::Deref] => true,
+                    _ => return None,
+                };
+                Some(ListRoot::new(local.raw(), indirect))
+            })
+    }
+
     /// The new path's loop caches: the stable list places the hoisting pass
     /// lists for loop `l` (`Body::stable_lists`), a local's list or the
     /// list a reference local refers to, with no counted leaf in its
@@ -1136,44 +1166,23 @@ impl Em<'_, '_, '_> {
     /// loop. Their uniqueness, if the
     /// loop changes them, was a hoisted `IsUnique`'s.
     fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
-        let rows = &self.b.stable_lists;
-        let from = rows.partition_point(|r| r.0 < l);
-        let words: Vec<u32> = rows[from..]
-            .iter()
-            .take_while(|r| r.0 == l)
-            .map(|r| r.1)
-            .collect();
+        let stable: Vec<ListRoot> = self.stable_roots(l).collect();
         let mut roots = Vec::new();
-        for word in words {
-            let Some(p) = self.b.decode_place(word) else {
-                continue;
-            };
-            let hd_tir::ir::PlaceRoot::Local(local) = p.root else {
-                continue;
-            };
-            let indirect = match p.proj.as_slice() {
-                [] => false,
-                [hd_tir::ir::Proj::Deref] => true,
-                _ => continue,
-            };
-            let mut ty = self.at_root_ty(p.root);
-            if indirect {
+        for root in stable {
+            let mut ty = self.b.local_ty[root.local as usize];
+            if root.indirect {
                 match self.ref_target(ty) {
                     Some((target, false)) => ty = target,
                     _ => continue,
                 }
             }
-            if self.is_cell(local.idx()) || self.list_root_ty(ty).is_none() {
+            if self.is_cell(root.local as usize) || self.list_root_ty(ty).is_none() {
                 continue;
             }
             let (_, elem) = self.elem(ty)?;
             if elem.walk.is_some() {
                 continue;
             }
-            let root = ListRoot {
-                local: local.raw(),
-                indirect,
-            };
             if !self.list_caches.iter().any(|(key, _)| *key == root) && !roots.contains(&root) {
                 roots.push(root);
             }

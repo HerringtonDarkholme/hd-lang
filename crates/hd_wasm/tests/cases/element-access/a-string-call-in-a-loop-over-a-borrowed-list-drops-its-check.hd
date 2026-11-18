@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# No bounds check: `i < xs.len()` bounds the element reference `xs[i]`
+# passed to `string.len`, which the hoisting pass finds cannot change
+# `*xs` (`Body::stable_lists`).
+fn total(xs: &List[string]) -> usize:
+    let n = 0usize
+    let i = 0usize
+    # subject
+    while i < xs.len():
+        n = n + xs[i].len()
+        i = i + 1
+    n
