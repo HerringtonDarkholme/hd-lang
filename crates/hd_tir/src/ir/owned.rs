@@ -1229,7 +1229,7 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                 exit[l.idx()] = true;
             }
         }
-        for l in entry_locals(b, 0) {
+        for l in root_entry_locals(b, &mut || {}) {
             if !exit[l] && own.counted(b.local_ty[l]) {
                 lent[l] = true;
                 any = true;
@@ -1833,26 +1833,31 @@ impl<'a> Balance<'a> {
         }
     }
 
-    fn walk(mut self, errs: &mut Vec<VerifyError>) {
+    fn walk(self, errs: &mut Vec<VerifyError>) {
+        self.walk_counted(errs, || {});
+    }
+
+    fn walk_counted(mut self, errs: &mut Vec<VerifyError>, mut work: impl FnMut()) {
         let (b, topo) = (self.b, self.topo);
+        let locals = SubBodyLocals::new(b, &mut work);
         let mut s = Flow::default();
         s.arena.words = 3 * self.words + self.lwords + self.pwords;
         for (sub, &root) in b.sub_root.iter().enumerate() {
+            work();
             if root as usize >= b.len() {
                 continue;
             }
-            self.exit.fill(false);
-            for &(at, l) in &b.exit_drops {
-                if at.idx() == sub
-                    && let Some(x) = self.exit.get_mut(l.idx())
-                {
+            for &l in &locals.exit[sub] {
+                work();
+                if let Some(x) = self.exit.get_mut(l) {
                     *x = true;
                 }
             }
             let st = s.arena.alloc(None);
             // An entry local outside the exit set is a lent parameter the
             // body does not own.
-            for l in entry_locals(b, sub) {
+            for &l in &locals.entry[sub] {
+                work();
                 if self.exit[l] {
                     self.set_full(s.arena.row_mut(st), l, true);
                 }
@@ -1862,6 +1867,14 @@ impl<'a> Balance<'a> {
                 self.at_exit(root, s.arena.row(st));
             }
             s.arena.free(st);
+            // Clear only this sub-body's rows, including duplicate rows
+            // on malformed input; never revisit unrelated locals.
+            for &l in &locals.exit[sub] {
+                work();
+                if let Some(x) = self.exit.get_mut(l) {
+                    *x = false;
+                }
+            }
         }
         errs.append(&mut self.errs);
     }
@@ -2253,38 +2266,83 @@ impl Forward for Balance<'_> {
     }
 }
 
-/// The locals of sub-body `s` that hold a value on entry: its parameters,
-/// and a closure body's captures.
-pub(crate) fn entry_locals(b: &Body, s: usize) -> Vec<usize> {
-    let mut out = Vec::new();
-    if s == 0 {
-        let mut in_sub = vec![false; b.local_ty.len()];
-        for sub in 1..b.sub_params.len() {
-            for &local in b.sub_param_locals(sub) {
-                if let Some(x) = in_sub.get_mut(local as usize) {
-                    *x = true;
+/// Sub-body metadata is indexed once, like rustc's per-MIR-body local
+/// domains. hd stores several bodies together, so group their rows first.
+/// Cost: O(sub-bodies + locals + parameters + instructions + captures +
+/// exit rows), with each represented capture and exit row stored once.
+struct SubBodyLocals {
+    entry: Vec<Vec<usize>>,
+    exit: Vec<Vec<usize>>,
+}
+
+impl SubBodyLocals {
+    fn new(b: &Body, work: &mut impl FnMut()) -> Self {
+        let mut entry: Vec<Vec<usize>> = (0..b.sub_root.len())
+            .map(|_| {
+                work();
+                Vec::new()
+            })
+            .collect();
+        let mut exit = vec![Vec::new(); b.sub_root.len()];
+        if let Some(root) = entry.first_mut() {
+            *root = root_entry_locals(b, work);
+        }
+        for (sub, row) in entry.iter_mut().enumerate().skip(1) {
+            if sub < b.sub_params.len() {
+                row.extend(b.sub_param_locals(sub).iter().map(|&local| {
+                    work();
+                    local as usize
+                }));
+            }
+        }
+        for i in 0..b.len() {
+            work();
+            if b.tags[i] != Tag::Closure || b.is_instantiation(i) {
+                continue;
+            }
+            let sub = b.data[i][0] as usize;
+            if sub == 0 {
+                continue;
+            }
+            if let Some(row) = entry.get_mut(sub) {
+                let rec = b.record(b.data[i][1]);
+                for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
+                    work();
+                    row.push(b.cap_local[c].idx());
                 }
             }
         }
-        for (l, (&flags, &sub)) in b.local_flags.iter().zip(&in_sub).enumerate() {
-            if flags & super::local_flags::PARAM != 0 && !sub {
-                out.push(l);
+        for &(sub, local) in &b.exit_drops {
+            work();
+            if let Some(row) = exit.get_mut(sub.idx()) {
+                row.push(local.idx());
             }
         }
-        return out;
+        Self { entry, exit }
     }
-    if s < b.sub_params.len() {
-        out.extend(b.sub_param_locals(s).iter().map(|&local| local as usize));
-    }
-    for i in 0..b.len() {
-        if b.tags[i] == Tag::Closure && b.data[i][0] as usize == s {
-            let rec = b.record(b.data[i][1]);
-            for c in rec[0] as usize..(rec[0] + rec[1]) as usize {
-                out.push(b.cap_local[c].idx());
+}
+
+/// Root parameters exclude all parameters belonging to local functions.
+/// The other caller (binding-local verification) needs only this root row.
+fn root_entry_locals(b: &Body, work: &mut impl FnMut()) -> Vec<usize> {
+    let mut in_sub = vec![false; b.local_ty.len()];
+    for sub in 1..b.sub_params.len() {
+        for &local in b.sub_param_locals(sub) {
+            work();
+            if let Some(x) = in_sub.get_mut(local as usize) {
+                *x = true;
             }
         }
     }
-    out
+    b.local_flags
+        .iter()
+        .zip(&in_sub)
+        .enumerate()
+        .filter_map(|(l, (&flags, &sub))| {
+            work();
+            (flags & super::local_flags::PARAM != 0 && !sub).then_some(l)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -2469,5 +2527,77 @@ mod forwarded_read_tests {
             &mut errors,
         );
         assert!(errors.is_empty(), "{errors:?}");
+    }
+}
+
+#[cfg(test)]
+mod sub_body_metadata_tests {
+    use super::*;
+    use crate::ir::{BodyKind, TirBuilder, TirSink};
+    use hd_base::{DefId, NodeIdx, SubId, Symbol};
+    use hd_types::Ty;
+
+    fn closures(n: usize) -> Result<Body, String> {
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = build.open_block();
+        let mut exits = Vec::new();
+        for sub in 1..=n {
+            let captured = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+            let parameter =
+                build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+            let closure = build.open_sub(&[parameter]);
+            let inner = build.open_block();
+            build.capture(closure, captured);
+            let inner = build.close_block(inner, None, Ty::VOID, NodeIdx::NONE);
+            build.close_sub(closure, inner, Ty::I32, NodeIdx::NONE);
+            exits.extend([
+                (SubId::from_raw(0), captured),
+                (SubId::from_raw(u32_of(sub)), captured),
+                (SubId::from_raw(u32_of(sub)), parameter),
+            ]);
+        }
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let mut body = build
+            .finish(root, &[])
+            .map_err(|errors| format!("{errors:?}"))?;
+        exits.sort_stable_by_key(|(sub, local)| (sub.raw(), local.raw()));
+        body.exit_drops = exits;
+        Ok(body)
+    }
+
+    #[test]
+    fn entry_and_exit_rows_keep_parameters_captures_and_sub_bodies_separate() -> Result<(), String>
+    {
+        let body = closures(2)?;
+        let index = SubBodyLocals::new(&body, &mut || {});
+        assert_eq!(index.entry, [vec![0, 2], vec![1, 0], vec![3, 2]]);
+        assert_eq!(index.exit, [vec![0, 2], vec![0, 1], vec![2, 3]]);
+        assert_eq!(root_entry_locals(&body, &mut || {}), index.entry[0]);
+        Ok(())
+    }
+
+    #[test]
+    fn sub_body_metadata_work_is_linear_in_closures() -> Result<(), String> {
+        fn measured(n: usize) -> Result<usize, String> {
+            let body = closures(n)?;
+            let topo = Topology::new(&body);
+            let neutral = vec![false; body.len()];
+            let mut errors = Vec::new();
+            let mut work = 0;
+            Balance::new(&body, &topo, &crate::own::tests::Cx, &neutral)
+                .walk_counted(&mut errors, || work += 1);
+            assert!(errors.is_empty(), "{errors:?}");
+            Ok(work)
+        }
+        let fixed = measured(0)?;
+        let small = measured(100)? - fixed;
+        let large = measured(1_000)? - fixed;
+        assert!(small > 0);
+        assert_eq!(
+            large,
+            10 * small,
+            "100 closures: {small}; 1000 closures: {large}"
+        );
+        Ok(())
     }
 }
