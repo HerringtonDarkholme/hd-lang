@@ -10398,10 +10398,21 @@ impl Run<'_> {
                     return;
                 }
             };
+            // Which declaration slots have an instance: one pass over the
+            // instances, then one read per definition. A std instance, as the
+            // runtime's allocator, lies past the program's slots and is no
+            // definition of the case.
+            let mut present = vec![false; p.items.slots.len()];
+            for d in &collected.table.item {
+                crate::work::root_lookup();
+                if let Some(x) = present.get_mut(d.raw() as usize) {
+                    *x = true;
+                }
+            }
             let mut notes = Vec::new();
             for d in definitions {
-                let present = collected.table.item.contains(&d);
-                if generic(d) && !present {
+                crate::work::root_lookup();
+                if generic(d) && !present[d.raw() as usize] {
                     notes.push(format!(
                         "skipped {}: no concrete instantiation named by the case",
                         names.path(d)

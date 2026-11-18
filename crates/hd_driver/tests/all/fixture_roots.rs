@@ -334,3 +334,42 @@ fn uncalled_fixture_bodies_keep_origins_and_notes_on_warm_builds() {
         }
     }
 }
+
+/// `n` plain functions, each calling its own generic one at `i32`, and one
+/// generic function nothing instantiates.
+fn calling_generics(n: usize) -> String {
+    let mut s = String::from("fn unused[T](x: T) -> T: x\n");
+    for i in 0..n {
+        let _ = write!(
+            s,
+            "fn generic_{i}[T](x: T) -> T: x\nfn plain_{i}(x: i32) -> i32: generic_{i}(x) + {i}\n"
+        );
+    }
+    s
+}
+
+// #2162: a fixture finds whether each definition was collected in one
+// index of the collected items: a scan of every instance per definition
+// was quadratic in the functions.
+#[test]
+fn fixture_definitions_probe_the_collected_items_once_each() {
+    let goal = Goal::Fixture {
+        module: "main".into(),
+    };
+    let work = |n: usize| {
+        let (out, work) = hd_driver::work::count_root_lookups(|| {
+            built(&calling_generics(n), OptLevel::Dev, &goal)
+        });
+        assert!(!out.diags.has_errors(), "{n}: {}", out.render());
+        assert_eq!(
+            out.fixture_notes,
+            ["skipped app/main/unused: no concrete instantiation named by the case"]
+        );
+        work
+    };
+    let (small, large) = (work(100), work(1_000));
+    assert!(
+        small > 0 && large <= 10 * small + 100,
+        "root lookups for 100 and 1,000 function pairs: {small} and {large}"
+    );
+}
