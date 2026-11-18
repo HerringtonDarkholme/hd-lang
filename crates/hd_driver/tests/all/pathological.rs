@@ -2602,6 +2602,42 @@ fn enum_views(n: usize) -> String {
     s
 }
 
+/// `n` calls each passing `&mut` of an element of one list beside another
+/// argument, which asks `ref.excl.args` (#2134).
+fn element_loan_calls(n: usize) -> String {
+    let mut s = String::from(
+        "fn bump(x: &mut i32, by: i32) -> void:\n    *x += by\n\npub fn main() -> void $ Console:\n    let mut xs: List[i32] = [+0, +0, +0]\n",
+    );
+    for i in 0..n {
+        let _ = writeln!(s, "    bump(&mut xs[{}], xs[{}])", i % 3, (i + 1) % 3);
+    }
+    s.push_str("    println(xs[0])\n");
+    s
+}
+
+// Checker: #2134, a call's exclusivity check reads the body's first users,
+// writes, moves and uses once per body, and each argument's accesses
+// through a window of them: it rescanned the whole body once per element
+// loan per argument.
+#[test]
+fn element_loan_arguments_scan_the_body_once() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&element_loan_calls(n), &Goal::Analyze));
+            assert!(out.diags.is_empty(), "{n}: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        // The body's first users once, then per call its arguments'
+        // components and their windows of later accesses.
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 element-loan calls: {small} and {large}"
+        );
+    });
+}
+
 // Checker: #1910, the enum tagging pass finds each enum's derivation
 // blocks in an index of the heads built once: a scan of every head per
 // enum was quadratic in the items.

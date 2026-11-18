@@ -17,7 +17,7 @@
 //! a place holding it, and with any reference into it. Reads and stores
 //! of its elements stay apart.
 
-use hd_base::{NodeIdx, SliceSort as _};
+use hd_base::{HashMap, NodeIdx, SliceSort as _};
 use hd_tir::ir::{
     Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
@@ -114,9 +114,62 @@ enum Kind {
 /// result holds after that call, and its place.
 type SiteLoan = (u32, u32, Option<(usize, Path)>, Path);
 
-/// The writes, moves and uses of a body, as `Gen::writes`, `Gen::moves`
-/// and `Gen::accesses` list them.
-type Accesses<'x> = (&'x [(u32, Path, u32)], &'x [(u32, Path)], &'x [(u32, Path)]);
+/// What `Gen::call_conflicts` reads of the whole body, built once per
+/// body (#2134): each value's first user, and the writes, moves and uses
+/// of places, each sorted by where it happens, so the accesses between an
+/// argument and its call are one binary search and the window itself.
+struct CallTables {
+    firsts: Vec<u32>,
+    /// `Gen::writes`, by where each write happens.
+    writes: Vec<(u32, Path, u32)>,
+    /// `Gen::moves`, by instruction.
+    moves: Vec<(u32, Path)>,
+    /// `Gen::accesses`, by instruction.
+    touches: Vec<(u32, Path)>,
+}
+
+/// The entries of `xs`, sorted by `key`, with `lo < key < hi`.
+fn window<T>(xs: &[T], key: impl Fn(&T) -> u32, lo: u32, hi: u32) -> &[T] {
+    let a = xs.partition_point(|x| key(x) <= lo);
+    let b = xs.partition_point(|x| key(x) < hi).max(a);
+    crate::work::scan_work(b - a);
+    &xs[a..b]
+}
+
+/// The element and site loans one argument holds, as indexes into
+/// `call_conflicts`' lists, each ascending.
+#[derive(Clone, Default)]
+struct Held {
+    elems: Vec<u32>,
+    sites: Vec<u32>,
+}
+
+/// A loan's place in `call_conflicts`' element or site list.
+#[derive(Clone, Copy)]
+enum Slot {
+    Other,
+    Elem(u32),
+    Site(u32),
+}
+
+/// Call `c`, its argument `v` with the loans it holds, and every
+/// argument of the call with theirs (`Gen::elem_arg_conflict`).
+type ArgLoans<'x> = (usize, (u32, &'x Held), (&'x [u32], &'x [&'x Held]));
+
+/// The sorted union of `lists`, for a value whose regions reach several
+/// components.
+fn merge_held<'x>(lists: impl Iterator<Item = &'x Held>) -> Held {
+    let mut out = Held::default();
+    for h in lists {
+        out.elems.extend_from_slice(&h.elems);
+        out.sites.extend_from_slice(&h.sites);
+    }
+    for v in [&mut out.elems, &mut out.sites] {
+        v.sort_stable();
+        v.dedup();
+    }
+    out
+}
 
 /// What an access that conflicts with an element reference does, for its
 /// message: a `Reference` into the collection is `&mut` when set.
@@ -486,6 +539,7 @@ impl Gen<'_, '_> {
     /// The instruction that first takes each value as an operand.
     fn users(&self) -> Vec<u32> {
         let b = self.s.b;
+        crate::work::scan_work(b.tags.len());
         let mut users = vec![NONE; b.tags.len()];
         for j in 0..b.tags.len() {
             slots(b, j, |_, v, word| {
@@ -830,10 +884,23 @@ impl Gen<'_, '_> {
             .collect();
         // A site a call's result holds covers only its result path after
         // that call.
-        let sites: Vec<_> = (sites.into_iter())
+        let sites: Vec<SiteLoan> = (sites.into_iter())
             .map(|(loan, i, p, k)| (loan, i, held_path(self.s, i, &p, k), p))
             .collect();
-        let (mut uses, mut writes, mut moves) = (None, None, None);
+        // Each loan's place in `elems` or `sites`, so an argument's loans
+        // are read from its regions' values, never by a scan of every
+        // loan per argument.
+        let mut slot = vec![Slot::Other; self.loans.len()];
+        for (k, e) in elems.iter().enumerate() {
+            slot[e.0 as usize] = Slot::Elem(w(k));
+        }
+        for (k, x) in sites.iter().enumerate() {
+            slot[x.0 as usize] = Slot::Site(w(k));
+        }
+        // Per solved component an argument reaches, the loans its value
+        // holds: `lists[by_comp[c]]`.
+        let (mut by_comp, mut lists): (HashMap<u32, u32>, Vec<Held>) = Default::default();
+        let mut tables: Option<CallTables> = None;
         let mut out: Vec<(NodeIdx, String)> = Vec::new();
         for c in 0..b.tags.len() {
             if !matches!(
@@ -857,12 +924,40 @@ impl Gen<'_, '_> {
             let elem = |j: u32, _: &Path| {
                 loan_path(self.s, j).is_some_and(|(_, kind)| matches!(kind, Kind::Elem(_)))
             };
-            for &v in &args {
-                let writes = writes.get_or_insert_with(|| self.writes(&self.users()));
-                let moves = moves.get_or_insert_with(|| self.moves());
-                let touches = uses.get_or_insert_with(|| self.accesses());
-                let all = (writes.as_slice(), moves.as_slice(), touches.as_slice());
-                if let Some(e) = self.elem_arg_conflict(sol, (c, v, &args), &elems, &sites, all) {
+            if args.is_empty() {
+                continue;
+            }
+            let t = tables.get_or_insert_with(|| {
+                let firsts = self.users();
+                let mut writes = self.writes(&firsts);
+                writes.sort_stable_by_key(|x| x.2);
+                CallTables {
+                    firsts,
+                    writes,
+                    moves: self.moves(),
+                    touches: self.accesses(),
+                }
+            });
+            // Each argument's loans: its one component's list as it is,
+            // or the sorted union of its components' lists.
+            let comps: Vec<Vec<u32>> = (args.iter())
+                .map(|&u| self.held_lists(sol, u, &slot, (&mut by_comp, &mut lists)))
+                .collect();
+            let merged: Vec<Held> = (comps.iter())
+                .map(|ks| match ks.as_slice() {
+                    [_] => Held::default(),
+                    _ => merge_held(ks.iter().map(|&k| &lists[k as usize])),
+                })
+                .collect();
+            let held: Vec<&Held> = (comps.iter().zip(&merged))
+                .map(|(ks, m)| match ks.as_slice() {
+                    [k] => &lists[*k as usize],
+                    _ => m,
+                })
+                .collect();
+            for (a, &v) in args.iter().enumerate() {
+                let arg = (c, (v, held[a]), (&args[..], &held[..]));
+                if let Some(e) = self.elem_arg_conflict(arg, &elems, &sites, t) {
                     if !out.iter().any(|x| x.0 == e.0) {
                         out.push(e);
                     }
@@ -876,28 +971,33 @@ impl Gen<'_, '_> {
                 };
                 let hit = |q: &Path| q.0 == root && overlap(&path, &q.1);
                 let mut hits = Vec::new();
-                // A `&`: a write or a move in a later argument.
+                let cw = w(c);
+                // A `&`: a write or a move in a later argument, in the
+                // order the body lists them.
                 let mut moving = false;
                 if !excl {
-                    for (i, q, at) in writes.iter() {
-                        if v < *at && (*at as usize) < c && !elem(*i, q) && hit(q) {
-                            hits.extend([*i, *at]);
-                        }
-                    }
-                    if let Some((i, _)) = (moves.iter()).find(|(i, q)| {
-                        v < *i && (*i as usize) < c && hit(q) && b.syn[*i as usize] != NodeIdx::NONE
-                    }) {
+                    let mut later: Vec<(u32, u32)> = window(&t.writes, |x| x.2, v, cw)
+                        .iter()
+                        .filter(|(i, q, _)| !elem(*i, q) && hit(q))
+                        .map(|x| (x.0, x.2))
+                        .collect();
+                    later.sort_stable_by_key(|x| x.0);
+                    hits.extend(later.into_iter().flat_map(|(i, at)| [i, at]));
+                    if let Some((i, _)) = window(&t.moves, |x| x.0, v, cw)
+                        .iter()
+                        .find(|(i, q)| hit(q) && b.syn[*i as usize] != NodeIdx::NONE)
+                    {
                         hits.insert(0, *i);
                         moving = true;
                     }
                 }
-                for &u in args.iter().filter(|&&u| excl && u != v) {
-                    let held = self.val(u).map(|x| x.0).unwrap_or_default();
-                    if sites.iter().any(|(loan, i, after, q)| {
+                for (u, h) in args.iter().zip(&held).filter(|x| excl && *x.0 != v) {
+                    if h.sites.iter().any(|&k| {
+                        let (_, i, after, q) = &sites[k as usize];
                         let q = after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1);
-                        *i != v && hit(q) && held.iter().any(|&g| sol.value(g).contains(*loan))
+                        *i != v && hit(q)
                     }) {
-                        hits.push(u);
+                        hits.push(*u);
                     }
                 }
                 // A pointer argument accesses its whole pointee for the
@@ -911,11 +1011,10 @@ impl Gen<'_, '_> {
                     );
                 }
                 if excl && site(self.s, v) {
-                    let uses = uses.get_or_insert_with(|| self.accesses());
-                    let after = |j: u32, q: &Path| v < j && (j as usize) < c && !elem(j, q);
                     hits.extend(
-                        uses.iter()
-                            .filter(|(j, q)| after(*j, q) && hit(q))
+                        window(&t.touches, |x| x.0, v, cw)
+                            .iter()
+                            .filter(|(j, q)| !elem(*j, q) && hit(q))
                             .map(|x| x.0),
                     );
                 }
@@ -945,6 +1044,40 @@ impl Gen<'_, '_> {
         out
     }
 
+    /// The lists of the element and site loans value `u` holds, one per
+    /// solved component its regions reach, as indexes into `lists`. A
+    /// component's list is made once, from its value's loans and `slot`,
+    /// each loan's place in `call_conflicts`' element or site list, so its
+    /// loans are read once per body.
+    fn held_lists(
+        &self,
+        sol: &Solution,
+        u: u32,
+        slot: &[Slot],
+        (by_comp, lists): (&mut HashMap<u32, u32>, &mut Vec<Held>),
+    ) -> Vec<u32> {
+        let mut out: Vec<u32> = (self.val(u).map(|x| x.0).unwrap_or_default().into_iter())
+            .map(|g| {
+                *by_comp.entry(sol.component(g)).or_insert_with(|| {
+                    let mut h = Held::default();
+                    crate::work::scan_work(1);
+                    for l in sol.value(g).iter() {
+                        match slot[l as usize] {
+                            Slot::Elem(k) => h.elems.push(k),
+                            Slot::Site(k) => h.sites.push(k),
+                            Slot::Other => {}
+                        }
+                    }
+                    lists.push(h);
+                    w(lists.len() - 1)
+                })
+            })
+            .collect();
+        out.sort_stable();
+        out.dedup();
+        out
+    }
+
     /// `ref.elem.conflict`, `ref.elem.access.mut`: argument `v` of call
     /// `c`, whose arguments are `args`, holds an element reference of
     /// `elems`. It conflicts with a move of its collection or of a place
@@ -956,15 +1089,13 @@ impl Gen<'_, '_> {
     /// in a later one.
     fn elem_arg_conflict(
         &self,
-        sol: &Solution,
-        (c, v, args): (usize, u32, &[u32]),
+        (c, (v, held_v), (args, held)): ArgLoans<'_>,
         elems: &[(u32, u32, Path, bool)],
         sites: &[SiteLoan],
-        (writes, moves, touches): Accesses<'_>,
+        t: &CallTables,
     ) -> Option<(NodeIdx, String)> {
         let b = self.s.b;
-        let held = |u: u32| self.val(u).map(|x| x.0).unwrap_or_default();
-        let holds = |u: u32, loan: u32| held(u).iter().any(|&g| sol.value(g).contains(loan));
+        let cw = w(c);
         let name = |r: u32, sp: &[Proj]| {
             let n = self.s.cx.names.text(b.local_name[r as usize]);
             let place = if n.starts_with('$') {
@@ -980,25 +1111,17 @@ impl Gen<'_, '_> {
                 .map(|&x| b.syn[x as usize])
                 .find(|&n| n != NodeIdx::NONE)
         };
-        for (loan, i, (root, sp), excl) in elems {
-            if !holds(v, *loan) {
-                continue;
-            }
+        for &k in &held_v.elems {
+            let (loan, i, (root, sp), excl) = &elems[k as usize];
             let (mut place, inner) = name(*root, sp);
             let what = if inner {
                 "an element of a collection in it"
             } else {
                 "an element of it"
             };
-            for (mi, (r, q)) in moves {
+            for (mi, (r, q)) in window(&t.moves, |x| x.0, v, cw) {
                 let node = b.syn[*mi as usize];
-                if v < *mi
-                    && (*mi as usize) < c
-                    && r == root
-                    && q.len() <= sp.len()
-                    && overlap(sp, q)
-                    && node != NodeIdx::NONE
-                {
+                if r == root && q.len() <= sp.len() && overlap(sp, q) && node != NodeIdx::NONE {
                     return Some((
                         node,
                         format!(
@@ -1010,9 +1133,12 @@ impl Gen<'_, '_> {
             if inner {
                 place = format!("a collection in {place}");
             }
-            for &(wi, (r, ref q), at) in writes {
-                let during = at as usize == c && wi != v || v < at && (at as usize) < c;
-                if !during || r != *root || !overlap(sp, q) {
+            // The first such write the body lists: a write at the call
+            // itself counts too.
+            let mut first: Option<(NodeIdx, String)> = None;
+            let mut first_at = u32::MAX;
+            for &(wi, (r, ref q), at) in window(&t.writes, |x| x.2, v, cw + 1) {
+                if wi >= first_at || at == cw && wi == v || r != *root || !overlap(sp, q) {
                     continue;
                 }
                 let whole = q.len() <= sp.len();
@@ -1034,33 +1160,37 @@ impl Gen<'_, '_> {
                         "this may change {place} while another argument of the same call refers to an element of it; pass the element's index instead, or make the change outside the call"
                     )
                 };
-                return Some((node, msg));
+                (first, first_at) = (Some((node, msg)), wi);
+            }
+            if first.is_some() {
+                return first;
             }
             if !excl {
                 continue;
             }
             // A `&mut` element reference: another reference into the
             // collection, or a later use of it or of a place holding it.
-            let into = |u: u32| {
+            let into = |u: u32, h: &Held| {
                 if b.tags[u as usize] == Tag::Ref
                     && let Some((r, q)) = path_of(b, b.data[u as usize][0])
                 {
                     return r == *root && overlap(sp, &q);
                 }
-                let other_elem = elems.iter().any(|(l2, _, (r, q), _)| {
-                    l2 != loan && r == root && overlap(sp, q) && holds(u, *l2)
+                let other_elem = h.elems.iter().any(|&k2| {
+                    let (l2, _, (r, q), _) = &elems[k2 as usize];
+                    l2 != loan && r == root && overlap(sp, q)
                 });
-                let other_site = sites.iter().any(|(l2, _, after, q)| {
+                let other_site = h.sites.iter().any(|&k2| {
+                    let (_, _, after, q) = &sites[k2 as usize];
                     let q = after.as_ref().filter(|x| x.0 != c).map_or(q, |x| &x.1);
-                    q.0 == *root && overlap(sp, &q.1) && holds(u, *l2)
+                    q.0 == *root && overlap(sp, &q.1)
                 });
                 other_elem || other_site
             };
             if let Some(node) = node_of(
-                &args
-                    .iter()
-                    .copied()
-                    .filter(|&u| u != v && into(u))
+                &(args.iter().zip(held))
+                    .filter(|&(&u, h)| u != v && into(u, h))
+                    .map(|x| *x.0)
                     .collect::<Vec<_>>(),
             ) {
                 return Some((
@@ -1070,15 +1200,13 @@ impl Gen<'_, '_> {
                     ),
                 ));
             }
-            let firsts = self.users();
-            let later: Vec<u32> = (touches.iter())
+            let later: Vec<u32> = window(&t.touches, |x| x.0, v, cw)
+                .iter()
                 .filter(|(j, (r, q))| {
-                    v < *j
-                        && (*j as usize) < c
-                        && r == root
+                    r == root
                         && q.len() <= sp.len()
                         && overlap(sp, q)
-                        && !self.map_element_operand(*j, &firsts, q.len() == sp.len())
+                        && !self.map_element_operand(*j, &t.firsts, q.len() == sp.len())
                 })
                 .map(|x| x.0)
                 .collect();

@@ -323,8 +323,9 @@ thread_local! {
 /// holds and a literal or field read visits (`crate::expr`), a row's
 /// key index and its probes (`crate::rows`), a trait method lookup's
 /// probes (`crate::call`), the impl methods a call's initialization
-/// facts reach (`crate::init`) and the nodes of a scope path
-/// (`crate::dep_results`). Use the driver's serial executor to measure a
+/// facts reach (`crate::init`), the nodes of a scope path
+/// (`crate::dep_results`), and the body scans and per-argument windows
+/// of a call's exclusivity check (`dep_results::constraints::exclusive`). Use the driver's serial executor to measure a
 /// whole build.
 pub fn count_scan_work<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = SCAN_WORK.with(|c| c.replace(Some(0)));

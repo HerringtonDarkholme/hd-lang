@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# A tuple argument holds two loans of two lifetimes, `&mut xs[0]` and
+# `&ys[0]`: `&xs` beside it conflicts, `&ys` does not (`ref.elem.access.mut`).
+fn take(p: (&mut i32, &i32), n: &List[i32]) -> void:
+    *p._0 += *p._1
+
+pub fn main() -> void $ Console:
+    let mut xs: List[i32] = [+1, +2]
+    let ys: List[i32] = [+3]
+    take((&mut xs[0], &ys[0]), &xs)
+    take((&mut xs[1], &ys[0]), &ys)
+    println(xs[0])
