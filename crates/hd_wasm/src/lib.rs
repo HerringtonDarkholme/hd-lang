@@ -343,6 +343,8 @@ pub enum Entry {
     /// result, as `hd.poll` runs `main`.
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
+        /// Case items indexed once for entry-root membership queries.
+        case_items: hd_base::HashSet<DefId>,
         /// Each unit's inits (a module cycle's), in run order: a unit
         /// runs after every unit it reaches.
         units: Vec<Vec<Hash128>>,
@@ -412,9 +414,10 @@ impl Entry {
     /// `main`, or a test case.
     #[must_use]
     pub fn root(&self, item: DefId) -> bool {
+        work::entry_roots(1);
         match self {
             Entry::Main { main, .. } | Entry::Scenario { main, .. } => *main == item,
-            Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
+            Entry::Tests { case_items, .. } => case_items.contains(&item),
             Entry::Script { .. } | Entry::Inputs(_) | Entry::Fixture { .. } => false,
         }
     }

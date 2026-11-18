@@ -1007,6 +1007,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             graph,
             unit_offsets,
             runtime_inits,
+            ..
         } => {
             // The module under test is not an entry module
             // (`module.init.tests.no-entry`), so every init is forbidden.

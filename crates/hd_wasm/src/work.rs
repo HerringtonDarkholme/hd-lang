@@ -19,6 +19,7 @@ thread_local! {
     static MOVED_PATHS: Cell<Option<u64>> = const { Cell::new(None) };
     static EXIT_ROWS: Cell<Option<u64>> = const { Cell::new(None) };
     static SHARED_CENSUSES: Cell<Option<u64>> = const { Cell::new(None) };
+    static ENTRY_ROOTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
 /// Counts shared-local censuses, independent of the number of cells emitted.
@@ -28,6 +29,16 @@ pub fn count_shared_censuses<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub(crate) fn shared_census() {
     add(&SHARED_CENSUSES, 1);
+}
+
+/// Counts indexed case items and entry-root membership probes.
+pub fn count_entry_roots<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&ENTRY_ROOTS, run)
+}
+
+/// Records index construction or membership work for entry selection.
+pub fn entry_roots(n: usize) {
+    add(&ENTRY_ROOTS, n);
 }
 
 /// Counts control continuations, target-index operations and branch-shape

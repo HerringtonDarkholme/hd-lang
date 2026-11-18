@@ -4733,6 +4733,48 @@ fn test_module_chain(n: usize) -> MemorySources {
     src
 }
 
+#[test]
+fn suspending_test_entry_roots_use_linear_membership_work() {
+    on_test_stack(|| {
+        let mut costs = Vec::new();
+        for width in [100, 1_000] {
+            let mut source = String::new();
+            for i in 0..width {
+                writeln!(source, "it(\"case {i}\"):\n    pass\n").unwrap();
+            }
+            let mut sources = MemorySources::default();
+            sources.insert("main_test.hd", &source);
+            let store = crate::warm_store();
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(SerialOrder::Priority),
+            };
+            let (out, work) = hd_wasm::work::count_entry_roots(|| {
+                build(
+                    &host,
+                    "app",
+                    &Goal::Tests {
+                        module: None,
+                        filter: None,
+                    },
+                )
+            });
+            assert!(!out.diags.has_errors(), "{}", out.render());
+            assert_eq!(out.tests.len(), width);
+            wasmparser::Validator::new()
+                .validate_all(out.wasm.as_deref().unwrap())
+                .unwrap();
+            eprintln!("{width} suspending cases: {work} entry-root work");
+            assert!(work >= width as u64 * 2, "index and queries are counted");
+            costs.push(work);
+        }
+        assert!(costs[1] <= costs[0] * 10);
+    });
+}
+
 // Wasm: #2062, the constants pass indexes the init keys the entry
 // helpers name once and probes the set once per function: it scanned
 // every key for each function.
