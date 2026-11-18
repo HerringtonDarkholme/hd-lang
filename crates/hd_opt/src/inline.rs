@@ -1841,6 +1841,7 @@ fn bounded_inline_metadata_with(body: &Body, mut visit: impl FnMut()) -> Option<
         body.label_inst.len(),
         body.fallback.len(),
         body.held_args.len(),
+        body.loan_slots.len().saturating_mul(4),
         body.inlined.len(),
         body.inlined_origins.len(),
         body.inlined_shared.len(),
@@ -1849,6 +1850,10 @@ fn bounded_inline_metadata_with(body: &Body, mut visit: impl FnMut()) -> Option<
         visit();
         let next = remaining.checked_sub(len)?;
         remaining = next;
+    }
+    for row in &body.loan_slots {
+        visit();
+        remaining = remaining.checked_sub(row.path.len())?;
     }
     for text in &body.strings {
         visit();

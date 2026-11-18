@@ -936,6 +936,34 @@ impl Phase {
     }
 }
 
+/// One reference-bearing fragment of a call's argument or result. Paths
+/// stay relative to a value, so instance layout supplies physical slots.
+/// Equal origins name possible loan sources within this call. An open
+/// type parameter expands its fragment to the instance's reference slots.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoanSlot {
+    pub call: u32,
+    pub value: u32,
+    pub path: Vec<LoanField>,
+    pub origin: u32,
+    pub expand: bool,
+}
+
+impl LoanSlot {
+    /// Both instruction ids follow the existing body's copy map.
+    pub(crate) fn remap_values(&mut self, mut map: impl FnMut(u32) -> Option<u32>) -> Option<()> {
+        self.call = map(self.call)?;
+        self.value = map(self.value)?;
+        Some(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LoanField {
+    Field(u32),
+    Variant(u32),
+}
+
 /// One body: the columns of §4.13.11 "Encoding".
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Body {
@@ -986,6 +1014,9 @@ pub struct Body {
     /// (`ref.excl.call`), which the backend may register as a run-time
     /// loan (`ref.excl.alias.loan`). The checker's output, hashed.
     pub held_args: Vec<(u32, u32)>,
+    /// Per-call origin groups and value-relative reference fragments,
+    /// exported after generic argument/result dependencies are lined up.
+    pub loan_slots: Vec<LoanSlot>,
     /// The ownership passes' exit set (`docs/compiler/tir-v2.md`,
     /// "Ownership statements"): per row, a sub-body and an owned local of
     /// it that may still hold a value at the sub-body's one exit, which
@@ -1099,6 +1130,7 @@ impl Body {
             label: "".into(),
             fallback: vec![],
             held_args: vec![],
+            loan_slots: vec![],
             exit_drops: vec![],
             storage: vec![],
             unwind_drops: vec![],
@@ -2909,6 +2941,27 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
             });
         }
     }
+    for row in &b.loan_slots {
+        let in_range = row.call < n && row.value < n;
+        let mut need_field = false;
+        let mut path_ok = true;
+        for step in &row.path {
+            match step {
+                LoanField::Variant(_) => {
+                    path_ok &= !need_field;
+                    need_field = true;
+                }
+                LoanField::Field(_) => need_field = false,
+            }
+        }
+        if !in_range || !path_ok || need_field {
+            errs.push(VerifyError {
+                invariant: 1,
+                inst: row.call,
+                what: "a call-loan fragment names an invalid value or path".into(),
+            });
+        }
+    }
     types_are_global(b, &mut errs);
     suspension_scopes(b, topo, &mut errs);
     constant_rows(b, &mut errs);
@@ -3173,6 +3226,27 @@ pub fn print(b: &Body) -> String {
     for (call, arg) in &b.held_args {
         let _ = writeln!(o, "heldarg {call} {arg}");
     }
+    for slot in &b.loan_slots {
+        let _ = write!(
+            o,
+            "loanslot {} {} {} {}",
+            slot.call,
+            slot.value,
+            slot.origin,
+            u32::from(slot.expand)
+        );
+        for step in &slot.path {
+            match step {
+                LoanField::Field(index) => {
+                    let _ = write!(o, " 0 {index}");
+                }
+                LoanField::Variant(index) => {
+                    let _ = write!(o, " 1 {index}");
+                }
+            }
+        }
+        let _ = writeln!(o);
+    }
     for (sub, local) in &b.exit_drops {
         let _ = writeln!(o, "exitdrop {} {}", sub.raw(), local.raw());
     }
@@ -3358,6 +3432,30 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 [c, a] => b.held_args.push((c, a)),
                 _ => return Err(e("heldarg needs 2 fields".into())),
             },
+            "loanslot" => {
+                let v = nums(1)?;
+                let [call, value, origin, expand, path @ ..] = v.as_slice() else {
+                    return Err(e("loanslot needs at least 4 fields".into()));
+                };
+                if *expand > 1 || path.len() % 2 != 0 {
+                    return Err(e("bad loanslot path or expansion".into()));
+                }
+                let path = path
+                    .chunks_exact(2)
+                    .map(|p| match p {
+                        [0, index] => Ok(LoanField::Field(*index)),
+                        [1, index] => Ok(LoanField::Variant(*index)),
+                        _ => Err(e("bad loanslot path step".into())),
+                    })
+                    .collect::<Result<_, _>>()?;
+                b.loan_slots.push(LoanSlot {
+                    call: *call,
+                    value: *value,
+                    origin: *origin,
+                    expand: *expand != 0,
+                    path,
+                });
+            }
             "exitdrop" => {
                 let v = nums(1)?;
                 if v.len() != 2 {
@@ -3485,7 +3583,14 @@ mod tests {
 
     #[test]
     fn printer_and_parser_round_trip() {
-        let b = sample();
+        let mut b = sample();
+        b.loan_slots.push(super::LoanSlot {
+            call: 1,
+            value: 0,
+            path: vec![super::LoanField::Variant(1), super::LoanField::Field(2)],
+            origin: 5,
+            expand: true,
+        });
         let text = print(&b);
         let back = parse(&text).expect("parses");
         assert_eq!(back, b);

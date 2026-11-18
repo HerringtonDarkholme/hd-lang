@@ -20,7 +20,12 @@ fn keep['a](left: &'a string, right: &'a string, pick: bool) -> &'a string:
     if pick: left else: right
 
 fn through_call(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
-    r := keep(p.get_ref().expect("slot"), q.get_ref().expect("slot"), false)
+    r := if true:
+        left := p.get_ref().expect("slot")
+        right := q.get_ref().expect("slot")
+        keep(left, right, false)
+    else:
+        p.get_ref().expect("slot")
     alias.push() # panic: borrow-conflict
     *r
 

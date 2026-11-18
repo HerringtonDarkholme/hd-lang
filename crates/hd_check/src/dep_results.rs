@@ -47,6 +47,7 @@ use crate::local_refs::{holds_local_ref, outlives_field, scoped_param, static_bo
 use crate::regions::Category;
 
 mod constraints;
+mod loan_shapes;
 
 /// The lifetime of an input slot that writes none: its own, `ANON` plus
 /// the slot's index. A written lifetime is its 1-based place in scope.
@@ -1179,6 +1180,7 @@ struct Layouts<'a> {
     /// part a search enters ([`Layouts::own_proj`]).
     own_projs: RefCell<HashMap<Ty, bool>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
+    loan_shapes: RefCell<loan_shapes::Shapes>,
 }
 
 impl<'a> Layouts<'a> {
@@ -1191,6 +1193,7 @@ impl<'a> Layouts<'a> {
             slotless: RefCell::default(),
             own_projs: RefCell::default(),
             fields: RefCell::default(),
+            loan_shapes: RefCell::default(),
         }
     }
 
@@ -1554,6 +1557,112 @@ enum Var {
 /// An argument slot's variable, and its check if the callee may keep it.
 type ArgSlot = (Var, Option<Category>);
 
+/// Equivalence classes of the existing call-slot variables, indexed once.
+/// Polonius-style origin sets remain distinct unless the checker links them.
+struct CallOrigins {
+    classes: HashMap<Var, u32>,
+    returned: HashSet<Var>,
+}
+
+/// O(input/output slots + links), with an iterative component worklist.
+fn call_origins(
+    inputs: &[Var],
+    outs: &[Vec<Var>],
+    bare: &[Var],
+    links: &[(Var, Var)],
+    mut work: impl FnMut(),
+) -> CallOrigins {
+    let mut neighbors: HashMap<Var, Vec<Var>> = HashMap::default();
+    for &(a, b) in links {
+        work();
+        neighbors.entry(a).or_default().push(b);
+        neighbors.entry(b).or_default().push(a);
+    }
+    let mut classes = HashMap::default();
+    let mut pending = Vec::new();
+    for variable in inputs
+        .iter()
+        .copied()
+        .chain(outs.iter().flatten().copied())
+        .chain(bare.iter().copied())
+        .chain(links.iter().flat_map(|&(a, b)| [a, b]))
+    {
+        work();
+        if classes.contains_key(&variable) {
+            continue;
+        }
+        let class = w(classes.len());
+        classes.insert(variable, class);
+        pending.push(variable);
+        while let Some(variable) = pending.pop() {
+            work();
+            for &next in neighbors.get(&variable).into_iter().flatten() {
+                work();
+                classes.entry(next).or_insert_with(|| {
+                    pending.push(next);
+                    class
+                });
+            }
+        }
+    }
+    let returned_classes: HashSet<_> = outs
+        .iter()
+        .flatten()
+        .chain(bare)
+        .filter_map(|v| {
+            work();
+            classes.get(v).copied()
+        })
+        .collect();
+    let all = [Var::Held, Var::Life(ANY)]
+        .iter()
+        .any(|v| classes.get(v).is_some_and(|c| returned_classes.contains(c)));
+    let mut returned = HashSet::default();
+    for (&variable, class) in &mut classes {
+        work();
+        if all || returned_classes.contains(class) {
+            returned.insert(variable);
+        }
+        if all {
+            *class = 0;
+        }
+    }
+    CallOrigins { classes, returned }
+}
+
+#[cfg(test)]
+mod returned_variable_tests {
+    use super::*;
+
+    #[test]
+    fn linked_origins_are_indexed_in_linear_width_and_depth() {
+        for depth in [1u32, 20] {
+            let mut small = 0;
+            for width in [1_000u32, 10_000] {
+                let mut links = Vec::new();
+                for branch in 0..width {
+                    let mut previous = Var::Life(0);
+                    for level in 0..depth {
+                        let next = Var::Life(1 + branch * depth + level);
+                        links.push((previous, next));
+                        previous = next;
+                    }
+                }
+                let mut work = 0;
+                let result =
+                    call_origins(&[], &[vec![Var::Life(0)]], &[], &links, || work += 1).returned;
+                assert_eq!(result.len(), (width * depth + 1) as usize);
+                assert!(!result.contains(&Var::Held));
+                if width == 1_000 {
+                    small = work;
+                } else {
+                    assert!(work <= 10 * small);
+                }
+            }
+        }
+    }
+}
+
 /// A call's map over the types it instantiates (`ref.generic.call`).
 struct CallSig {
     /// Each parameter's type, its argument's where the two line up, and
@@ -1573,6 +1682,7 @@ struct CallSig {
     /// The arguments for `&` or `&mut` parameters whose reference the
     /// result holds (`ref.excl.call`).
     held: Vec<u32>,
+    loan_slots: Vec<hd_tir::ir::LoanSlot>,
     /// Each argument the result borrows only through result paths, and the
     /// place steps those paths share (`ref.result.path.caller`).
     paths: Vec<(u32, Vec<Proj>)>,
@@ -2005,15 +2115,6 @@ impl Ck<'_, '_> {
             Some(sig) => self.with_wholes(ls, self.call_dep(ls, sig)),
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
-        let ids = dep.all_ids();
-        let held_args = (dep.params.iter().enumerate())
-            .filter(|(_, (t, s))| {
-                local_ref(pool, *t).is_some_and(|(c, _)| !c)
-                    && (ref_ids_of(ls, *t, s).first())
-                        .is_some_and(|id| ids.contains(id) || ids.contains(&ANY))
-            })
-            .filter_map(|(p, _)| source_arg(b, i, p))
-            .collect();
         let is_trait_self =
             |p: hd_types::ParamRef| trait_.is_some_and(|tr| p.owner == tr && p.index == 0);
         // A slot of the trait's `Self` that the implementation target's
@@ -2363,21 +2464,98 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        // Export runtime dependencies after lining up generic arguments,
+        // not just the reference types spelled in the declaration. Keep
+        // the existing lifetime-variable links, including trait bindings.
+        let bare: Vec<_> = ([dep.elided, dep.capture_elided].map(lifetime).into_iter())
+            .flatten()
+            .filter(|_| elides)
+            .chain(bare)
+            .collect();
+        let (held_args, loan_slots) = if ls.holds(b.ty[i]) {
+            let input_vars: Vec<_> = params
+                .iter()
+                .flat_map(|(_, slots)| slots.iter().map(|s| s.0))
+                .collect();
+            let origins = call_origins(&input_vars, &outs, &bare, &links, || {});
+            let held_args = params
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, slots))| slots.iter().any(|(v, _)| origins.returned.contains(v)))
+                .filter_map(|(p, _)| source_arg(b, i, p))
+                .collect();
+            let loan_slots = self.call_loan_slots(ls, b, i, &params, &outs, &bare, &origins);
+            (held_args, loan_slots)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         Some(CallSig {
             links,
             by_value,
             paths,
             store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
             result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
-            bare: ([dep.elided, dep.capture_elided].map(lifetime).into_iter())
-                .flatten()
-                .filter(|_| elides)
-                .chain(bare)
-                .collect(),
+            bare,
             params,
             outs,
             held: held_args,
+            loan_slots,
         })
+    }
+
+    fn call_loan_slots(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        call: usize,
+        params: &[(Ty, Vec<ArgSlot>)],
+        outs: &[Vec<Var>],
+        bare: &[Var],
+        origins: &CallOrigins,
+    ) -> Vec<hd_tir::ir::LoanSlot> {
+        let mut result = Vec::new();
+        let mut seen = HashSet::default();
+        let mut emit = |value, ty, slots: &[Vec<Var>], whole: &[Var]| {
+            let shapes = ls.loan_shapes.borrow_mut().of(ls, self.cx, ty);
+            for shape in shapes.iter() {
+                let selected: Vec<_> = match &shape.slots {
+                    Some(indices) => indices
+                        .iter()
+                        .flat_map(|&s| slots.get(s).into_iter().flatten())
+                        .copied()
+                        .collect(),
+                    None => slots.iter().flatten().chain(whole).copied().collect(),
+                };
+                for var in selected {
+                    if !origins.returned.contains(&var) {
+                        continue;
+                    }
+                    let Some(&origin) = origins.classes.get(&var) else {
+                        continue;
+                    };
+                    if seen.insert((value, shape.path.clone(), origin, shape.expand)) {
+                        result.push(hd_tir::ir::LoanSlot {
+                            call: w(call),
+                            value,
+                            path: shape.path.clone(),
+                            origin,
+                            expand: shape.expand,
+                        });
+                    }
+                }
+            }
+        };
+        for (parameter, (ty, slots)) in params.iter().enumerate() {
+            if let Some(argument) = source_arg(b, call, parameter) {
+                if hd_tir::ir::Ref(argument).as_inst().is_none() {
+                    continue;
+                }
+                let slots: Vec<_> = slots.iter().map(|&(v, _)| vec![v]).collect();
+                emit(argument, *ty, &slots, &[]);
+            }
+        }
+        emit(w(call), b.ty[call], outs, bare);
+        result
     }
 
     /// The input slots of function value `v` that write a lifetime, each
@@ -3663,7 +3841,13 @@ impl Ck<'_, '_> {
         }
         held_args.sort_stable();
         held_args.dedup();
+        let mut loan_slots: Vec<_> = calls
+            .values()
+            .flat_map(|sig| sig.loan_slots.iter().cloned())
+            .collect();
+        loan_slots.sort_stable_by_key(|row| (row.call, row.value, row.origin));
         self.b.body_mut().held_args = held_args;
+        self.b.body_mut().loan_slots = loan_slots;
         let elided = own.as_ref().map(|o| o.elided);
         // A function value's hidden capture slot may be empty: returning a
         // capture-free function needs no reference source. Only ordinary

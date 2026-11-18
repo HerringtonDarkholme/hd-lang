@@ -1270,3 +1270,6 @@ says that the check covered syntax only.
 | 2026-11-17 | #1813 loan cleanup fixture | api | A caret under the reference expression to inspect its later loan cleanup | `;; ...` after `call $"impl Slots.get_ref"`; the later cleanup was outside the selected span | yes | Put one `# subject` before the complete function | Codex (GPT-6) |
 
 | 2026-11-17 | #1771 default-value repair probe | api | `std.ops.Default::default()` without a use | `` `std` is not defined `` | partly | Add `use std.ops.Default`, then call `Default::default()` | GPT-6 (Codex) |
+| 2026-11-18 | #2120 carrier pricing stage | type | Public `through_generic` names private `Slots` | ``private-type-leak: `Slots` is private, so the public `through_generic` cannot name it in its signature`` | yes | Declare `pub struct Slots` | Codex (GPT-6) |
+| 2026-11-18 | #2120 carrier pricing stage | type | Public `through_optional` names private `Slots` | ``private-type-leak: `Slots` is private, so the public `through_optional` cannot name it in its signature`` | yes | Declare `pub struct Slots` | Codex (GPT-6) |
+| 2026-11-18 | #2120 carrier pricing stage | type | Public `through_struct` names private `Slots` | ``private-type-leak: `Slots` is private, so the public `through_struct` cannot name it in its signature`` | yes | Declare `pub struct Slots` | Codex (GPT-6) |
