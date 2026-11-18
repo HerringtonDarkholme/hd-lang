@@ -60,7 +60,7 @@ type Wide = (Record, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64,
 fn wide_snapshot(before: Wide) -> i64:
     let mut after = before
 > app/main/wide_snapshot
->   release (app.main.Record, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) [0.text.0] (last use)
+>   release counted reference (last use)
     view := &mut after
     view._0.n += 1
     before._0.n * 10 + after._0.n
@@ -201,7 +201,7 @@ type Wide = (Record, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64,
 fn wide_snapshot(before: Wide) -> i64:
     let mut after = before
 > app/main/wide_snapshot
->   release (app.main.Record, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) [0.text.0] (last use)
+>   release counted reference (last use)
     view := &mut after
     view._0.n += 1
     before._0.n * 10 + after._0.n

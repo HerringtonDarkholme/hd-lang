@@ -65,6 +65,10 @@ fn module_bytes(k: usize) -> usize {
 }
 
 fn build_bytes(source: &str) -> usize {
+    build_wasm(source).len()
+}
+
+fn build_wasm(source: &str) -> Vec<u8> {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = crate::warm_store();
@@ -88,7 +92,7 @@ fn build_bytes(source: &str) -> usize {
         },
     );
     assert!(!output.diags.has_errors(), "{}", output.render());
-    output.wasm.as_deref().map_or(0, <[u8]>::len)
+    output.wasm.unwrap_or_default()
 }
 
 #[test]
@@ -298,6 +302,85 @@ fn drop_struct_chain_module_grows_linearly() {
                 assert!(
                     large * 2 <= small * 9,
                     "{label}: K=50 {small}, K=200 {large}"
+                );
+            }
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}
+
+/// #2170's probe: a tuple doubled `depth` times through named types, so
+/// the source is linear in `depth` while `D{depth}` holds 2^(depth+1)
+/// `i32`s; one `make{i}` builds each level, a generic `keep` returns its
+/// parameter whole and `first{i}` reads a field down the chain.
+fn doubling_program(depth: usize) -> String {
+    let mut text = String::from(
+        "type D0 = (i32, i32)\n\nfn keep[T](x: T) -> T: x\n\nfn make0() -> D0: (1, 2)\n",
+    );
+    for i in 1..=depth {
+        let p = i - 1;
+        let _ = write!(
+            text,
+            "\ntype D{i} = (D{p}, D{p})\n\
+             fn make{i}() -> D{i}: (make{p}(), make{p}())\n\
+             fn first{i}(x: D{i}) -> D{p}: x._0\n"
+        );
+    }
+    let mut chain = String::from("v");
+    for i in (1..=depth).rev() {
+        chain = format!("first{i}({chain})");
+    }
+    let _ = write!(
+        text,
+        "\npub fn main() -> void $ Console:\n    let v = keep(make{depth}())\n    \
+         let p = {chain}\n    println(\"${{p._0}}\")\n"
+    );
+    text
+}
+
+/// The Wasm instructions of every function body in `wasm`.
+fn instructions(wasm: &[u8]) -> usize {
+    let mut n = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
+        if let Ok(wasmparser::Payload::CodeSectionEntry(body)) = payload {
+            let mut reader = body.get_operators_reader().expect("operators");
+            while !reader.eof() {
+                reader.read().expect("operator");
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+/// A `Memory` value read whole is copied with one `memory.copy` of its
+/// size, never one load and store per scalar (#2170, rule 3 of the
+/// backend-neutral TIR's layout). So `keep[D20]`, a value of two million
+/// `i32`s, costs what `keep[D13]` does: the module's instructions and the
+/// layouts computed grow linearly in the depth. Before, `keep` took the
+/// scalar calling convention: 49,153 loads at depth 13, and depth 20 did
+/// not build in two minutes.
+#[test]
+fn a_doubling_value_kept_whole_grows_linearly_in_depth() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let measure = |depth: usize| {
+                let (wasm, parts) =
+                    hd_layout::work::count_layout_parts(|| build_wasm(&doubling_program(depth)));
+                let n = instructions(&wasm);
+                eprintln!("doubling keep, depth {depth}: {n} instructions, {parts} layouts");
+                (n, usize::try_from(parts).expect("parts"))
+            };
+            // Depth 1 warms std up and is the fixed part: past it, each
+            // level adds the same work, so the 19 levels past it at depth
+            // 20 cost at most twice 19/12 of the 12 levels at depth 13.
+            let (base, small, large) = (measure(1), measure(13), measure(20));
+            for (k, what) in [(0, "instructions"), (1, "layouts")] {
+                let pick = |m: (usize, usize)| if k == 0 { m.0 } else { m.1 };
+                let (s, l) = (pick(small) - pick(base), pick(large) - pick(base));
+                assert!(
+                    s > 0 && l * 12 <= s * 19 * 2,
+                    "{what}: {base:?} {small:?} {large:?}"
                 );
             }
         });

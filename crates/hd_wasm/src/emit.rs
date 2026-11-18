@@ -2099,7 +2099,8 @@ impl Em<'_, '_, '_> {
             return Ok(ls.clone());
         }
         // ruled out: `indirect::params` keeps a parameter by address only
-        // when its every use is a field read or its whole drop, and
+        // when its every use is a read, whole or by fields, or its whole
+        // drop, and
         // `Em::frame_locals` a local only when it is stored whole once,
         // read by fields or whole and, a counted one, dropped whole;
         // `Em::mem_read`, `Em::mem_store` and `Em::mem_release` emit those

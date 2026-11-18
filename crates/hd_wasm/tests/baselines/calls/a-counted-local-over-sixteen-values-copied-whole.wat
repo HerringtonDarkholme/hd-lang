@@ -18,7 +18,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
   (func $copy_kept (param $x i32) (result i32) (local $t0 i32) (local $t1 i64) (local $t3 i32) (local $t2 i32) (local $t4 i32)
-    ;; 60 |     let a = mk(x)
+    ;; 62 |     let a = mk(x)
     global.get $stack
     i32.const 88
     i32.sub
@@ -27,7 +27,7 @@
     local.get $x
     local.get $t0
     call $mk
-    ;; 62 |     let n = take(a)
+    ;; 64 |     let n = take(a)
     global.get $stack
     i32.const 88
     i32.sub
@@ -45,7 +45,7 @@
     i32.const 88
     i32.add
     global.set $stack
-    ;; 63 |     n + b.inner.f3 + i32(b.tag.len())
+    ;; 65 |     n + b.inner.f3 + i32(b.tag.len())
     local.get $t0
     i32.load $stack offset=20
     local.set $x
@@ -111,14 +111,14 @@
     end
     local.get $t1
     i32.wrap_i64
-    ;; 60 |     let a = mk(x)
+    ;; 62 |     let a = mk(x)
     local.get $t0
     i32.const 88
     i32.add
     global.set $stack
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i64) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t19 i32) (local $t18 i32)
-    ;; 71 |     println("${copied(1)} ${moved(2)} ${moved_on(6)} ${copy_kept(3)} ${field_kept(mk(4))}")
+    ;; 73 |     println("${copied(1)} ${moved(2)} ${moved_on(6)} ${copy_kept(3)} ${field_kept(mk(4))}")
     i32.const 1
     call $copied
     i64.extend_i32_s
@@ -248,54 +248,11 @@
     local.get $t2
     call $mk
     local.get $t2
-    i32.load $stack offset=8
-    local.get $t2
-    i32.load $stack offset=12
-    local.get $t2
-    i32.load $stack offset=16
-    local.get $t2
-    i32.load $stack offset=20
-    local.get $t2
-    i32.load $stack offset=24
-    local.get $t2
-    i32.load $stack offset=28
-    local.get $t2
-    i32.load $stack offset=32
-    local.get $t2
-    i32.load $stack offset=36
-    local.get $t2
-    i32.load $stack offset=40
-    local.get $t2
-    i32.load $stack offset=44
-    local.get $t2
-    i32.load $stack offset=48
-    local.get $t2
-    i32.load $stack offset=52
-    local.get $t2
-    i32.load $stack offset=56
-    local.get $t2
-    i32.load $stack offset=60
-    local.get $t2
-    i32.load $stack offset=64
-    local.get $t2
-    i32.load $stack offset=68
-    local.get $t2
-    i32.load $stack offset=72
-    local.get $t2
-    i32.load $stack
-    local.get $t2
-    i32.load $stack offset=4
-    local.get $t2
-    i32.load $stack offset=76
-    local.get $t2
-    i32.load $stack offset=80
-    local.get $t2
-    i32.load $stack offset=84
+    call $field_kept
     local.get $t2
     i32.const 88
     i32.add
     global.set $stack
-    call $field_kept
     i64.extend_i32_s
     local.tee $t8
     local.tee $t10
@@ -531,7 +488,7 @@
     call $"println[string]"
   )
   (func $copied (param $x i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i64) (local $t3 i32)
-    ;; 43 |     let a = mk(x)
+    ;; 45 |     let a = mk(x)
     global.get $stack
     i32.const 88
     i32.sub
@@ -540,7 +497,7 @@
     local.get $x
     local.get $t0
     call $mk
-    ;; 45 |     let n = take(b)
+    ;; 47 |     let n = take(b)
     global.get $stack
     i32.const 88
     i32.sub
@@ -559,7 +516,7 @@
     i32.add
     global.set $stack
     local.set $x
-    ;; 46 |     n + i32(a.tag.len())
+    ;; 48 |     n + i32(a.tag.len())
     local.get $t0
     i32.load $stack offset=76
     local.get $t0
@@ -604,14 +561,14 @@
     end
     local.get $t4
     i32.wrap_i64
-    ;; 43 |     let a = mk(x)
+    ;; 45 |     let a = mk(x)
     local.get $t0
     i32.const 88
     i32.add
     global.set $stack
   )
   (func $moved_on (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 54 |     let a = mk(x)
+    ;; 56 |     let a = mk(x)
     global.get $stack
     i32.const 88
     i32.sub
@@ -623,12 +580,12 @@
       call $mk
       i32.const 1
       local.set $t1
-    ;; 55 |     if x > 5:
+    ;; 57 |     if x > 5:
       local.get $x
       i32.const 5
       i32.gt_s
       br_if 0
-    ;; 57 |     take(a) + 1
+    ;; 59 |     take(a) + 1
       i32.const 0
       local.set $t1
       local.get $t0
@@ -643,7 +600,7 @@
       local.get $t2
       i32.const 1
       i32.add
-    ;; 54 |     let a = mk(x)
+    ;; 56 |     let a = mk(x)
       local.set $t2
     end
     local.get $t1
@@ -678,7 +635,7 @@
     global.set $stack
   )
   (func $mk (param $t1 i32) (param $t24 i32) (local $t0 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $t19 i64) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32) (local $t25 i32)
-    ;; 38 | fn mk(x: i32) -> Outer: Outer { inner: Big { f0: x, f1: x, f2: x, f3: x, f4: x, f5: x, f6: x, f7: x, f8: x, f9: x, f10: x, f11: x, f12: x, f13: x, f14: x, f15: x, f16: x, name: "n${x}" }, tag: "t${x}", xs: [x] }
+    ;; 40 | fn mk(x: i32) -> Outer: Outer { inner: Big { f0: x, f1: x, f2: x, f3: x, f4: x, f5: x, f6: x, f7: x, f8: x, f9: x, f10: x, f11: x, f12: x, f13: x, f14: x, f15: x, f16: x, name: "n${x}" }, tag: "t${x}", xs: [x] }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -999,7 +956,7 @@
     global.set $locals
   )
   (func $take (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i64) (local $t3 i32)
-    ;; 40 | fn take(o: Outer) -> i32: o.inner.f3 + i32(o.xs.len())
+    ;; 42 | fn take(o: Outer) -> i32: o.inner.f3 + i32(o.xs.len())
     local.get $t0
     i32.load $stack offset=20
     local.get $t0
@@ -1048,102 +1005,83 @@
     end
     local.get $t1
   )
-  (func $field_kept (param $o.inner.f0 i32) (param $o.inner.f1 i32) (param $o.inner.f2 i32) (param $o.inner.f3 i32) (param $o.inner.f4 i32) (param $o.inner.f5 i32) (param $o.inner.f6 i32) (param $o.inner.f7 i32) (param $o.inner.f8 i32) (param $o.inner.f9 i32) (param $o.inner.f10 i32) (param $o.inner.f11 i32) (param $o.inner.f12 i32) (param $o.inner.f13 i32) (param $o.inner.f14 i32) (param $o.inner.f15 i32) (param $o.inner.f16 i32) (param $o.inner.name.0 i32) (param $o.inner.name.1 i32) (param $o.tag.0 i32) (param $o.tag.1 i32) (param $o.xs i32) (result i32) (local $t0 i32) (local $t1 i64)
-    ;; 66 |     let b = o.inner
-    local.get $o.inner.name.0
+  (func $field_kept (param $t0 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $b.f3 i32) (local $t3 i32) (local $t4 i64)
+    ;; 68 |     let b = o.inner
+    local.get $t0
+    i32.load $stack offset=8
+    local.get $t0
+    i32.load $stack offset=12
+    local.get $t0
+    i32.load $stack offset=16
+    local.get $t0
+    i32.load $stack offset=20
+    local.get $t0
+    i32.load $stack offset=24
+    local.get $t0
+    i32.load $stack offset=28
+    local.get $t0
+    i32.load $stack offset=32
+    local.get $t0
+    i32.load $stack offset=36
+    local.get $t0
+    i32.load $stack offset=40
+    local.get $t0
+    i32.load $stack offset=44
+    local.get $t0
+    i32.load $stack offset=48
+    local.get $t0
+    i32.load $stack offset=52
+    local.get $t0
+    i32.load $stack offset=56
+    local.get $t0
+    i32.load $stack offset=60
+    local.get $t0
+    i32.load $stack offset=64
+    local.get $t0
+    i32.load $stack offset=68
+    local.get $t0
+    i32.load $stack offset=72
+    local.get $t0
+    i32.load $stack
+    local.get $t0
+    i32.load $stack offset=4
+    local.set $t1
+    local.tee $t2
     if
-      local.get $o.inner.name.0
+      local.get $t2
       call $retain
     end
-    ;; 67 |     let n = take(o)
-    global.get $stack
-    i32.const 88
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    local.get $o.inner.f0
-    i32.store $stack offset=8
-    local.get $t0
-    local.get $o.inner.f1
-    i32.store $stack offset=12
-    local.get $t0
-    local.get $o.inner.f2
-    i32.store $stack offset=16
-    local.get $t0
-    local.get $o.inner.f3
-    i32.store $stack offset=20
-    local.get $t0
-    local.get $o.inner.f4
-    i32.store $stack offset=24
-    local.get $t0
-    local.get $o.inner.f5
-    i32.store $stack offset=28
-    local.get $t0
-    local.get $o.inner.f6
-    i32.store $stack offset=32
-    local.get $t0
-    local.get $o.inner.f7
-    i32.store $stack offset=36
-    local.get $t0
-    local.get $o.inner.f8
-    i32.store $stack offset=40
-    local.get $t0
-    local.get $o.inner.f9
-    i32.store $stack offset=44
-    local.get $t0
-    local.get $o.inner.f10
-    i32.store $stack offset=48
-    local.get $t0
-    local.get $o.inner.f11
-    i32.store $stack offset=52
-    local.get $t0
-    local.get $o.inner.f12
-    i32.store $stack offset=56
-    local.get $t0
-    local.get $o.inner.f13
-    i32.store $stack offset=60
-    local.get $t0
-    local.get $o.inner.f14
-    i32.store $stack offset=64
-    local.get $t0
-    local.get $o.inner.f15
-    i32.store $stack offset=68
-    local.get $t0
-    local.get $o.inner.f16
-    i32.store $stack offset=72
-    local.get $t0
-    local.get $o.inner.name.0
-    i32.store $stack
-    local.get $t0
-    local.get $o.inner.name.1
-    i32.store $stack offset=4
-    local.get $t0
-    local.get $o.tag.0
-    i32.store $stack offset=76
-    local.get $t0
-    local.get $o.tag.1
-    i32.store $stack offset=80
-    local.get $t0
-    local.get $o.xs
-    i32.store $stack offset=84
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    local.set $b.f3
+    drop
+    drop
+    drop
+    ;; 69 |     let n = take(o)
+    i32.const 1
+    local.set $t3
     local.get $t0
     call $take
-    local.get $t0
-    i32.const 88
-    i32.add
-    global.set $stack
-    ;; 68 |     n + b.f3 + i32(b.name.len())
+    ;; 70 |     n + b.f3 + i32(b.name.len())
     i64.extend_i32_s
-    ;; 66 |     let b = o.inner
-    local.get $o.inner.f3
-    ;; 68 |     n + b.f3 + i32(b.name.len())
+    local.get $b.f3
     i64.extend_i32_s
     i64.add
-    local.tee $t1
+    local.tee $t4
     i64.const 2147483647
     i64.gt_s
-    local.get $t1
+    local.get $t4
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -1151,25 +1089,25 @@
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t4
     i32.wrap_i64
-    local.set $o.inner.f0
-    ;; 66 |     let b = o.inner
-    local.get $o.inner.name.0
-    ;; 68 |     n + b.f3 + i32(b.name.len())
+    local.set $b.f3
+    ;; 68 |     let b = o.inner
+    local.get $t2
+    ;; 70 |     n + b.f3 + i32(b.name.len())
     if
-      local.get $o.inner.name.0
+      local.get $t2
       call $rt:release_ref'2
     end
-    local.get $o.inner.f0
+    local.get $b.f3
     i64.extend_i32_s
-    local.get $o.inner.name.1
+    local.get $t1
     i64.extend_i32_s
     i64.add
-    local.tee $t1
+    local.tee $t4
     i64.const 2147483647
     i64.gt_s
-    local.get $t1
+    local.get $t4
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -1177,11 +1115,40 @@
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $t4
     i32.wrap_i64
+    ;; 68 |     let b = o.inner
+    local.set $t1
+    local.get $t3
+    i32.eqz
+    if
+      local.get $t0
+      call $rt:release_at
+      local.get $t0
+      i32.load $stack offset=76
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'2
+      end
+      local.get $t0
+      i32.load $stack offset=84
+      local.tee $t0
+      if
+        local.get $t0
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t0
+          call $rt:release_ref'1
+        end
+      end
+    end
+    local.get $t1
   )
   (func $moved (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 49 |     let a = mk(x)
+    ;; 51 |     let a = mk(x)
     global.get $stack
     i32.const 88
     i32.sub
@@ -1190,7 +1157,7 @@
     local.get $x
     local.get $t0
     call $mk
-    ;; 51 |     i32(b.tag.len())
+    ;; 53 |     i32(b.tag.len())
     local.get $t0
     i32.load $stack offset=76
     local.get $t0
@@ -1218,7 +1185,7 @@
       call $rt:release_ref'2
     end
     local.get $x
-    ;; 49 |     let a = mk(x)
+    ;; 51 |     let a = mk(x)
     local.get $t0
     i32.const 88
     i32.add

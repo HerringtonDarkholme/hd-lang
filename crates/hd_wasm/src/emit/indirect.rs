@@ -17,7 +17,8 @@
 //!
 //! - *spill*: a direct call whose argument is leaves stores them into a
 //!   block it reserves on the shadow stack around the call;
-//! - *load*: a field read that is not only passed on loads its leaves.
+//! - *load*: a read, whole or of a field, that is neither passed on nor
+//!   copied into a block loads its leaves.
 //!
 //! The instance's own symbol, `Sym::Inst(key)`, stays the leaf ABI: a
 //! wrapper that spills its parameters and calls the worker. Tables,
@@ -43,10 +44,13 @@
 //! one `memory.copy`, or stores leaves; a read of it, whole or of fields,
 //! is an address like a parameter's.
 //!
-//! A parameter keeps the address form only when every use of it is a
-//! read of its fields ([`params`]); any other parameter stays leaves. The
-//! ownership passes write no `Drop` or `LoanEnd` for a type that counts
-//! nothing and holds nothing to drop.
+//! A parameter keeps the address form when every use of it is a read,
+//! whole or of its fields ([`params`]): a whole read that is the result
+//! or a worker's argument is one `memory.copy` or the address itself
+//! (rustc's `OperandValue::Ref`, Go's `Move`). A parameter stored to,
+//! borrowed or captured stays leaves. The ownership passes write no
+//! `Drop` or `LoanEnd` for a type that counts nothing and holds nothing
+//! to drop.
 //!
 //! A parameter whose type holds counted references (step 4,
 //! [`crate::layout::by_address`]) passes by address too when the instance
@@ -205,15 +209,17 @@ fn compute_params(
         let PlaceRoot::Local(l) = p.root else {
             continue;
         };
-        // A whole read takes other paths (`same_value`, moves into
-        // locals), which read the parameter's locals: it stays leaves.
-        let fields = !p.proj.is_empty() && p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
+        // A read, whole or of fields, is the address plus the path's
+        // offset (`Em::mem_read`): a whole one passes on as the address
+        // or is copied with one `memory.copy`.
+        let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
         let kept = match (tag, counted.get(&l.idx())) {
             (Tag::Read, None) => fields,
             // Its whole drop releases from the address.
             (Tag::Drop, Some(_)) => p.proj.is_empty(),
-            // A move out of a counted one is skipped by its drop, which
-            // elaborates only fields passed by address: every proper
+            // A move out of a counted one is skipped by its drop: a whole
+            // move sets its dead flag, and a field move is elaborated
+            // only through fields passed by address, so every proper
             // prefix of the path must be one.
             (Tag::Read, Some(&ty)) if b.data[i][1] == ReadMode::Move as u32 => {
                 fields && moves_through_addresses(pool, env, ty, &p.proj)
@@ -610,12 +616,8 @@ impl Em<'_, '_, '_> {
         if moved {
             self.borrow_moved_slots(i, l, part.first..part.first + part.count);
         }
-        if moved
-            && fields.is_empty()
-            && let Some(&live) = self.mem_live.get(&l)
-        {
-            self.f.i32(0);
-            self.f.set(live);
+        if moved && fields.is_empty() {
+            self.mem_moved_whole(l);
         }
         if moved && !self.mem_move_flags.is_empty() {
             crate::work::moved_paths(1);
@@ -1711,7 +1713,7 @@ impl Em<'_, '_, '_> {
                     let mut by_field: HashMap<u32, (Vec<u32>, Vec<usize>)> = HashMap::default();
                     for k in here {
                         // Each path here is longer than `depth`:
-                        // `compute_params` keeps only nonempty field paths,
+                        // `Em::mem_moves` notes only nonempty field paths,
                         // and a path goes a level deeper only when longer.
                         let (path, flag) = &moved[k];
                         let f = path[depth];
@@ -1752,6 +1754,26 @@ impl Em<'_, '_, '_> {
         self.f.set(flag);
         self.f.op(I::End);
         Ok(true)
+    }
+
+    /// A whole move out of local `l` kept in memory: a counted frame
+    /// local's live flag clears, and a counted parameter's dead flag sets,
+    /// so no later drop or exit releases what moved out (rustc's drop
+    /// flag on the whole place). O(1).
+    fn mem_moved_whole(&mut self, l: usize) {
+        let flag = if let Some(&live) = self.mem_live.get(&l) {
+            self.f.i32(0);
+            live
+        } else if self.parameter_positions.contains_key(&l) && self.released(self.b.local_ty[l]) {
+            self.f.i32(1);
+            *self
+                .mem_dead
+                .entry(l)
+                .or_insert_with(|| self.f.local(Val::I32))
+        } else {
+            return;
+        };
+        self.f.set(flag);
     }
 
     /// The store of counted frame local `l` ([`Em::frame_locals`]): its

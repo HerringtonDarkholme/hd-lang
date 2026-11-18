@@ -8,8 +8,10 @@
 # shares `a`'s bits (no copy is needed), and its exit releases them.
 # `moved_on` moves `a` whole to `take`, clearing its live flag, so its
 # exit releases nothing; the early `return` before it releases `a`.
-# `copy_kept` and `field_kept` move the source on and keep the copy: the
-# callee gets the copy in its block, the same way.
+# `copy_kept` moves the source on and keeps the copy: the callee gets the
+# copy in its block, the same way. `field_kept`'s `b` copies `o.inner`'s
+# leaves; `take(o)` passes `o`'s own address on and sets its dead flag
+# (#2170), so its exit releases nothing.
 struct Big:
     f0: i32
     f1: i32
