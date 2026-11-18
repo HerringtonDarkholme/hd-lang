@@ -366,9 +366,9 @@ obj/
   readable logs and payloads. Windows enforces those locks against readers;
   Unix treats them as advisory. Each changed shard opens one additional
   zero-byte lock file, and each published pack opens one additional marker.
-  Unchanged readers add no work. GC retires idle `pack-v2` data, retaining
-  its membership files, and the unsharded `pack-v1` data. Older namespaces'
-  entries are misses.
+  Unchanged readers add no work. Older namespaces' entries are misses,
+  and GC leaves their directories alone: the build ID in every key makes
+  them unreadable, and `hd clean --cache` removes them.
 - **Logs and folds (#1932).** A batch is framed: its op count and a
   checksum of its 59-byte ops (set a row, remove a row, track or untrack a
   pack). A torn or failing batch ends the log; readers skip it and the

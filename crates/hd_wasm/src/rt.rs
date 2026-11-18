@@ -675,7 +675,7 @@ pub enum Helper {
     /// `(handle)`: registers the current waker, or removes it.
     WakeRegister,
     WakeRemove,
-    /// `(node, bit)`: marks the child and each enclosing all!.
+    /// `(node, bit)`: marks the child and each enclosing join!.
     WakeSignal,
     /// `(mask) -> node`; `(node)` updates its enclosing waker.
     WakerNew,

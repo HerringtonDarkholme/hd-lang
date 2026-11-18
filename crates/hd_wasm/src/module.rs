@@ -404,10 +404,10 @@ pub enum Global {
     SpillTab,
     SpillCap,
     SpillLen,
-    /// The enclosing all! node and child bit while a child is polled.
+    /// The enclosing join! node and child bit while a child is polled.
     Waker,
     WakeBit,
-    /// Child polls executed by all!, in dev builds only.
+    /// Child polls executed by join!, in dev builds only.
     AllPolls,
     /// Dead blocks awaiting their payload release, linked through their
     /// no-longer-counted header word (#625).
@@ -1170,7 +1170,7 @@ pub struct Module {
     /// Concrete collected DAG nodes, once per payload adapter representation.
     /// `bool` distinguishes boxed leaves from a payload already an address.
     pub(crate) dyn_vtables: hd_base::HashMap<(hd_mono::VTableId, Ty, bool), usize>,
-    /// First DFS paths, once per instantiated erased source in this link.
+    /// First DFS paths, once per type made into a trait value in this link.
     pub(crate) dyn_paths: std::cell::RefCell<hd_base::HashMap<Ty, hd_mono::dyn_graph::DynPaths>>,
     /// The recursive boundary types' codecs (`boundary::Named`, #1550).
     pub named_codecs: crate::boundary::Named,
@@ -1267,7 +1267,7 @@ pub struct Module {
     /// at most [`DRAIN_GLUES`]: `rt:release_drain` calls these directly
     /// when a block's descriptor names one (§23.28).
     pub drain_glues: Vec<Sym>,
-    /// Reachable all! nodes use generation-checked weak waker targets.
+    /// Reachable join! nodes use generation-checked weak waker targets.
     pub wakers: bool,
     /// A reachable idle hook: the drivers run it before they wait.
     pub idle: bool,

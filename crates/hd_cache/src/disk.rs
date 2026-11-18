@@ -4058,111 +4058,6 @@ mod packed {
             Some(total)
         }
 
-        /// Retires the namespace of the unsharded index (`pack-v1`), whose
-        /// format this one replaced: its managed files and directories go,
-        /// and a lease a live older writer holds stays. Cost: once, the
-        /// first collection after the change.
-        fn retire_v1(&self) {
-            let Some(old) = self.root.parent().map(|p| p.join("pack-v1")) else {
-                return;
-            };
-            if !is_real_dir(&old) {
-                return;
-            }
-            for dir in [old.join("index"), old.join("index.new"), old.clone()] {
-                if !is_real_dir(&dir) {
-                    continue;
-                }
-                // cost: once, the files of the retired namespace.
-                for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-                    let name = e.file_name();
-                    let Some(name) = name.to_str() else { continue };
-                    if !e.file_type().is_ok_and(|t| t.is_file()) {
-                        continue;
-                    }
-                    let lease = name.strip_suffix(".pending").and_then(parse_key).is_some();
-                    let managed = lease
-                        || Self::pack_id(name).is_some()
-                        || Self::index_file(name)
-                        || matches!(name, "lock" | "index" | "index.old");
-                    let free = !lease
-                        || File::open(e.path()).is_ok_and(|f| LockFile::from(f).try_lock().is_ok());
-                    if managed && free {
-                        let _ = std::fs::remove_file(e.path());
-                    }
-                }
-                let _ = std::fs::remove_dir(&dir);
-            }
-        }
-
-        /// Version 2 locked the readable log itself. Keep live old runs
-        /// isolated from this protocol, and retire their data only when idle.
-        /// Membership files stay, so an older binary can safely join again.
-        fn retire_v2(&self) {
-            let Some(old) = self.root.parent().map(|p| p.join("pack-v2")) else {
-                return;
-            };
-            if !is_real_dir(&old) {
-                return;
-            }
-            let member = match OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(old.join("run"))
-            {
-                Ok(file) => Some(LockFile::from(file)),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-                Err(_) => return,
-            };
-            if member.as_ref().is_some_and(|file| file.try_lock().is_err()) {
-                return;
-            }
-            let index = old.join("index");
-            let claims = old.join("claims");
-            // cost: GC only; sixteen known shard directories, claims, the
-            // index directory and root, then only their obsolete managed files.
-            let dirs = (0..SHARDS)
-                .map(|shard| index.join(format!("{shard:x}")))
-                .chain([claims.clone(), index.clone(), old.clone()]);
-            for dir in dirs {
-                if !is_real_dir(&dir) {
-                    continue;
-                }
-                // cost: explicit collection only, the obsolete namespace's files.
-                for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-                    let name = e.file_name();
-                    let Some(name) = name.to_str() else { continue };
-                    if !e.file_type().is_ok_and(|t| t.is_file()) {
-                        continue;
-                    }
-                    let claim = dir == claims
-                        && name.len() == 36
-                        && name.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
-                    let log = dir == index
-                        && name.strip_suffix(".log").is_some_and(|id| {
-                            id.len() == 1
-                                && id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-                        });
-                    let lease = name.strip_suffix(".pending").and_then(parse_key).is_some();
-                    let managed = claim
-                        || log
-                        || lease
-                        || Self::pack_id(name).is_some()
-                        || Self::index_file(name);
-                    let free = !(claim || log || lease)
-                        || OpenOptions::new()
-                            .read(true)
-                            .write(true)
-                            .open(e.path())
-                            .is_ok_and(|file| LockFile::from(file).try_lock().is_ok());
-                    if managed && free {
-                        let _ = std::fs::remove_file(e.path());
-                    }
-                }
-                let _ = std::fs::remove_dir(&dir);
-            }
-        }
-
         /// The collection (#1932): the only work that grows with the
         /// cache, run by `hd cache gc` and at most once per interval. It
         /// walks and reads the whole index with no lock, evicts the least
@@ -4171,8 +4066,6 @@ mod packed {
         /// files, and records each shard's total. Each shard lock covers
         /// that shard's commits only, never the walk or a copy.
         pub(super) fn collect(&self, cap: u64) -> io::Result<Collected> {
-            self.retire_v1();
-            self.retire_v2();
             if !is_real_dir(&self.root) {
                 return Ok(Collected {
                     before: 0,
@@ -5068,41 +4961,6 @@ mod packed {
             );
         }
 
-        /// The unsharded namespace `pack-v1` an older hd wrote is not read:
-        /// its entries are misses. The first collection removes its
-        /// managed files, keeps a lease a live writer holds, and leaves a
-        /// foreign file with its directory (#1932).
-        #[test]
-        fn the_unsharded_namespace_reads_as_misses_and_a_collection_retires_it() {
-            let root = scratch("retire-v1");
-            let old = root.join("pack-v1");
-            std::fs::create_dir_all(old.join("index")).unwrap();
-            let id = unique();
-            std::fs::write(old.join(format!("{id:032x}.pack")), b"onetwo").unwrap();
-            std::fs::write(old.join("lock"), b"").unwrap();
-            std::fs::write(old.join("index").join("head"), b"old head").unwrap();
-            std::fs::write(old.join("index").join(page_name(0)), b"old page").unwrap();
-            let live = old.join(format!("{:032x}.pending", unique()));
-            let lease = LockFile::from(File::create(&live).unwrap());
-            lease.lock().unwrap();
-            std::fs::write(old.join("index.old"), b"older index").unwrap();
-            let foreign = old.join("notes.txt");
-            std::fs::write(&foreign, b"keep").unwrap();
-            let store = Store::new(&root);
-            assert!(store.get(EntryKind::Check, &Hash128(1)).is_none());
-            store.collect(u64::MAX).unwrap();
-            assert!(!old.join("index").exists());
-            assert!(!old.join("lock").exists());
-            assert!(!old.join("index.old").exists());
-            assert!(!old.join(format!("{id:032x}.pack")).exists());
-            assert!(live.exists(), "a live writer's lease stays");
-            assert!(foreign.exists());
-            drop(lease);
-            std::fs::remove_file(foreign).unwrap();
-            store.collect(u64::MAX).unwrap();
-            assert!(!old.exists());
-        }
-
         #[test]
         fn entry_recency_and_compaction_preserve_the_survivors_ages() {
             let root = scratch("lru");
@@ -5283,55 +5141,6 @@ mod packed {
             drop(pinned);
             assert!(store.collect(cap).unwrap().after <= cap);
             assert!(!path.exists());
-        }
-
-        #[test]
-        fn an_unreadable_previous_membership_keeps_the_old_data() {
-            let root = scratch("retire-v2-unreadable-membership");
-            let old = root.join("pack-v2");
-            std::fs::create_dir_all(old.join("run")).unwrap();
-            let pack = old.join(format!("{:032x}.pack", unique()));
-            std::fs::write(&pack, b"old payload").unwrap();
-            Store::new(&root).collect(u64::MAX).unwrap();
-            assert!(
-                pack.exists(),
-                "an unreadable membership is not proof of idleness"
-            );
-        }
-
-        #[test]
-        fn the_previous_lock_protocol_stays_isolated_and_retires_only_when_idle() {
-            let root = scratch("retire-v2");
-            let old = root.join("pack-v2");
-            std::fs::create_dir_all(old.join("index/0")).unwrap();
-            let member = LockFile::from(
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create_new(true)
-                    .open(old.join("run"))
-                    .unwrap(),
-            );
-            member.lock_shared().unwrap();
-            let log = LockFile::from(File::create(old.join("index/0.log")).unwrap());
-            log.lock().unwrap();
-            let pack = old.join(format!("{:032x}.pack", unique()));
-            std::fs::write(&pack, b"old payload").unwrap();
-            std::fs::write(old.join("index/0/head"), b"old head").unwrap();
-            let store = Store::new(&root);
-            store.publish(&[item(1, b"new protocol")]).unwrap();
-            assert_eq!(
-                store.get(EntryKind::Check, &Hash128(1)).as_deref(),
-                Some(b"new protocol".as_slice())
-            );
-            store.collect(u64::MAX).unwrap();
-            assert!(pack.exists(), "a live older run keeps its namespace");
-            drop(log);
-            drop(member);
-            store.collect(u64::MAX).unwrap();
-            assert!(!pack.exists());
-            assert!(!old.join("index").exists());
-            assert!(old.join("run").exists(), "membership inode stays stable");
         }
 
         #[test]

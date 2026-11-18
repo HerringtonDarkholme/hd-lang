@@ -185,7 +185,7 @@ tests:
                 .Ok(["wave of 1", "wave of 3", "wave of 1"]),
                 reason="deferred notes",
             )
-    it("runs a wave larger than one all! batch"):
+    it("runs a wave larger than one join! batch"):
         $.with(Runner=box(LogRunner { log: [] })):
             names := ["a", "b", "c", "d", "e", "f", "g"]
             assert_equal(run_wave!(names), names, reason="all seven ran, in order")

@@ -963,9 +963,6 @@ that may write, and no control edge in between. The copy becomes a
 
 It catches what move cannot: a value copied into a temporary that is
 dropped at the end of the statement, while the place outlives it.
-Wasm-level pair cancellation in `opt.rs` (§23.25, "Balanced pairs")
-stays for the code the backend generates itself (glue, thunks), which no
-TIR pass sees.
 
 A `Ref` of an element place is never weakened by this pass or by move:
 its count of the buffer is the pin.
@@ -1081,7 +1078,7 @@ splice; the steps after it add statements
 | §23.25 parameters by their type (`layout::Pass`) | `OwnCx::pass` read by insertion and borrow | owned and lent parameters agree with every caller, as today |
 | §23.25 moves at last use, construction consumes (`Moves::sole`, `last_access`, `tails`, `Em::take*`) | move rules 1 and 2 | — |
 | §23.25 round two: immutable reads and loop elements borrow (`live::loans`) | borrow, rule 3's local case; a loop element of the private snapshot borrows because no user code writes the snapshot local | — |
-| §23.25 balanced pairs (`opt.rs`) | pair cancellation for TIR values; `opt.rs` keeps it for generated code | — |
+| §23.25 balanced pairs (`opt.rs`) | pair cancellation for TIR values; `opt.rs` keeps none | — |
 | §23.31 parameter and projection loans (`live::parameter_loans`, `prepare_parameter_loans`) | borrow, rule 3's parameter case | — |
 | §23.31 read the selected field | the place itself: `Read [*$0 [%i] .x]` loads one field | — |
 | §23.31 invariant buffer ownership; #710 loop projections (`unique_once`, `list_caches`) | hoisting, and its stable-list side table | the empty-loop entry test stays |
@@ -1111,8 +1108,7 @@ count operations from them, and stage 2 ends with none above today's.
 | lists: header, literals, push, copy, snapshots, pins (`emit/list.rs`) | `list_field_set` and `ListSet` merged into the element store | pins become `Pin`; uniqueness becomes `IsUnique`; loop caches read hoisting's table | the header and its copy go; element places, `push` and `len` stay lowered over the buffer address (option B); growth, the unique copy and truncation are std code |
 | maps (`emit/map.rs`, `map.rs`) | kept | kept | deleted: std code |
 | suspension (`susp.rs`, `task.rs`) | kept | kept | kept |
-| erased generic methods (`erased.rs`) | open places outlined like open instructions | kept | kept |
-| Wasm peepholes, local cleanup, pair cancellation of generated code (`opt.rs`) | kept | kept | kept |
+| Wasm peepholes and local cleanup (`opt.rs`) | kept | kept | kept |
 
 **Per-instance place resolution.** The emitter resolves a place once per
 use, during its existing walk of the instance:

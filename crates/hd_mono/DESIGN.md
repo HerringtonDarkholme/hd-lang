@@ -573,9 +573,11 @@ The linked module is then validated by `wasmparser`
 (crates/hd_wasm/DESIGN.md §15.7).
 
 Implementation differs: the emitter trusts verified TIR and runs none of
-these assertions; an unexpected shape stops with a structured
-not-implemented (`unsupported`), and only a malformed callee record or
-the layout of a non-concrete type stops as an internal error. Not judged.
+these assertions; an unexpected shape in the emitter stops with a
+structured not-implemented (`unsupported`), and the layout of a
+non-concrete type stops as an internal error. Collection stops at every
+unexpected shape (a malformed callee record, a selection outside the impl
+tables) as an internal error (`NotImplemented::bug`). Not judged.
 
 ### 12.8 Size Versus Speed Policy
 
@@ -720,8 +722,8 @@ compiler-known intrinsic family has no TIR body and therefore no body or
 cache lookup. When collection selects it, it maps the intrinsic key plus
 the substituted self and trait arguments to the compiler-generated body
 and continues the same worklist from that body. A body-less method that
-has no registered intrinsic mapping is an internal unsupported case; it
-must not silently disappear from the reachable program. A body-less
+has no registered intrinsic mapping is an internal error
+(`NotImplemented::bug`); it must not silently disappear from the reachable program. A body-less
 inherent method of std, such as `f64.sqrt`, collects no instance: its
 call target is the built-in lowering at the impl's self type, which the
 backend emits inline, and the backend reports any self type and method it

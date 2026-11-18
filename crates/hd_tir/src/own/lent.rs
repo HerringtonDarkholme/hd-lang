@@ -13,7 +13,7 @@
 //!    local of the root that no closure captures, no `Ref` addresses, and
 //!    whose every read is a whole read used only by such an await.
 //!
-//! A frame in a list (`race!`, `all!` of a list), a returned or passed-on
+//! A frame in a list (`race!`, `join!` of a list), a returned or passed-on
 //! frame, and one a closure awaits keep their counts.
 //!
 //! Each awaiting instruction is then an access of every local the call's

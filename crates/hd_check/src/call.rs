@@ -2789,7 +2789,7 @@ impl Ck<'_, '_> {
                     .intrinsic()
                     .is_some_and(|k| self.cx.names.text(k) == "task_all")
                 {
-                    return self.await_all(args, n, bang);
+                    return self.await_join(args, n, bang);
                 }
                 if item
                     .intrinsic()
@@ -3097,7 +3097,12 @@ impl Ck<'_, '_> {
 
     /// `join!(a(), b())`: cold suspensions, then one `AwaitAll` whose
     /// value is the tuple of their results (`crates/hd_wasm/DESIGN.md` §14.5).
-    fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
+    fn await_join(
+        &mut self,
+        args: &Args<'_>,
+        n: NodeRef<'_>,
+        bang: bool,
+    ) -> StageResult<(Ref, Ty)> {
         if let Some(s) = args.spread {
             return self.await_join_list(args, s, n, bang);
         }

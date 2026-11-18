@@ -1932,10 +1932,8 @@ reads, and the counts of the code it generates.
   exit rows, place words and flattened argument slots, without input-depth recursion.
   Bodies without eligible borrowed inputs or captures build no census.
 - **Balanced pairs.** A part's read moves where no path touches the part
-  again, so no copy and drop of it stand as a pair. In generated code, `opt.rs` cancels a retain and its
-  matching release over a short straight-line span on unchanged locals,
-  after local cleanup; a freeing call, a memory operation, an
-  operand-local write or a control-flow edge ends the span.
+  again, so no copy and drop of it stand as a pair. `opt.rs` cancels no
+  counts.
 - **Counts.** `std.rt.checked` totals retains and releases; a checked
   entry exports them as `hd.retained` and `hd.released`.
 - **Checked by** `crates/hd_driver/tests/std_rt/count_tests.hd`, whose
@@ -2272,8 +2270,7 @@ references, and open values.
   this path for cells, nominal heap objects, closure environments,
   suspension and collection headers, and collection buffers.
 - **Known leaves in walks.** A value's walk (`layout::Walk`) marks each
-  counted leaf whose type proves a payload start (`layout::block_start`)
-  as `Walk::Known`, so aggregate glue counts those leaves through the
+  counted leaf whose type proves a payload start as `Walk::Known`, so aggregate glue counts those leaves through the
   known path: the retain and release helpers of struct and enum values,
   list element and map entry glue. A
   string's bytes, a local reference and an open value stay `Walk::Ref`,
@@ -2285,7 +2282,7 @@ references, and open values.
   kind, `TyData::Ref { counted, .. }`, through every stage to this
   backend, whose `layout::kind` reads it as `Kind::Ref { whole }`. A thin
   counted reference is null or a payload start in every build: its walk
-  is `Walk::Known` and `block_start` holds. A local reference may point
+  is `Walk::Known` (`layout::ref_walk`). A local reference may point
   inside an object (a field, an element), so a local `&T` value keeps
   the page-table path. The checker keeps a counted reference whole
   (`hd_check`'s `lower_body_refs`):
@@ -2340,7 +2337,7 @@ references, and open values.
   `inline_counts` (`crates/hd_opt/DESIGN.md` §3.1), which sets
   `Input::inline_counts`. V8 inlines the helpers itself and ran the inline
   form slower, so Node and browser builds keep the calls. After
-  `Module::finish` has cancelled balanced pairs, every `RetainKnown` and
+  `Module::finish`, every `RetainKnown` and
   `ReleaseKnown` call becomes inline code over `address - 8`. A retain
   adds one unless the address is null or the count is 0 (static data). A
   release takes one off when the count is above 1, the object is not

@@ -54,7 +54,7 @@ export const EXAMPLES: readonly Example[] = [
   single("contracts", "require and ensure: a contract next to the code", contracts),
   single("errors", "Errors are values: ?, .context, and a report", errors),
   single("exhaustive", "Exhaustive match: a new variant lists every place to update", exhaustive),
-  single("concurrency", "all!: two calls at once", concurrency),
+  single("concurrency", "join!: two calls at once", concurrency),
   single("tests", "Tests next to the code: it, it_each, snapshot", tests),
   single("closures", "Closures see your locals", closures),
   single("numbers", "No silent overflow: i64 and u8", numbers),

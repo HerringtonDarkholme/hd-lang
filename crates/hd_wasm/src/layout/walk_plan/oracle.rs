@@ -11,7 +11,7 @@ pub enum Walk {
     /// Value `k` is null, a static object's, or the payload start of a
     /// counted object, eight bytes after its header: a collection's buffer,
     /// a closure's environment, a
-    /// thin counted reference ([`block_start`]); counting
+    /// thin counted reference (`layout::ref_walk`); counting
     /// reads the header at `k - 8` (§23.30).
     Known(u32),
     /// No counted address, but a value whose release runs a

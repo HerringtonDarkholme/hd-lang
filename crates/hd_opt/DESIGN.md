@@ -110,7 +110,7 @@ Collection applies a plan with rules that name no pass:
 1. **Direct calls.** At a `CallValue` with `Made(m)`: if `calls[m]` is
    `Target::Closure(k)`, record `Target::KnownClosure(k)`. With
    `Param(p)` in the instance's own sub-body: if its known list has `p`,
-   record that key (`known_closures`).
+   record that key (`hd_mono`'s `direct_calls`).
 2. **Specialization.** At a `Call` whose callee's plan has `spec_params`:
    for each marked parameter, resolve the caller's `Source` (a `Made`
    through `calls`, a `Param` through the known list). A `Param` outside
@@ -121,11 +121,11 @@ Collection applies a plan with rules that name no pass:
 3. **Carrying.** At a `Closure` of a specialized instance: carry the known
    entries whose parameter the plan lists for it, inside the own sub-body
    only.
-4. **Never in a thunk.** A thunk emits one instruction and takes no plan.
 
 The dev pipeline has no body pass, so its planner returns `None` and
-collection does no plan work: `Counters::body_passes` is 0 in dev (a test
-in `known_closure_calls.rs`). A new body pass that decides the same kinds
+collection does no plan work: `Counters::body_passes` is 0 in dev, since
+the dev planner has no pass (`only_the_optimized_pipeline_has_body_passes`
+in `planner.rs`). A new body pass that decides the same kinds
 of things reuses these rules; a new kind becomes a new generic rule in
 `hd_mono::plan`.
 

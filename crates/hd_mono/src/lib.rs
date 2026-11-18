@@ -1629,8 +1629,10 @@ pub fn adapter_call_body(
     Ok(body)
 }
 
+/// A failed internal check of collection: checked TIR and the impl
+/// tables never give it, so it is a bug, not a construct this build lacks.
 fn err<T>(what: &str) -> StageResult<T> {
-    Err(NotImplemented::new(Stage::Collect, what))
+    Err(NotImplemented::bug(Stage::Collect, what))
 }
 
 impl Cx<'_> {
@@ -2251,7 +2253,7 @@ impl Cx<'_> {
             });
         }
         if !self.env.has_body(def) {
-            return Err(NotImplemented::new(
+            return Err(NotImplemented::bug(
                 Stage::Collect,
                 format!(
                     "a call of the body-less `{}`, which is not an intrinsic",

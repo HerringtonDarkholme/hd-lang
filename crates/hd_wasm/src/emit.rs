@@ -1497,7 +1497,7 @@ struct Em<'i, 'a, 'm> {
     cells: HashMap<usize, u32>,
     /// The cell locals whose cell the prologue made or received, and that
     /// nothing stores into again: a parameter moved into its cell, a
-    /// closure's or a thunk's shared capture (`closure.rs`, [`Em::cell_made`]).
+    /// closure's shared capture (`closure.rs`, [`Em::cell_made`]).
     entry_cells: hd_base::HashSet<usize>,
     /// The Wasm locals a parameter arrived in, for each one that moved
     /// into its cell: a suspending body's cold constructor makes the cell
