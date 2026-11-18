@@ -367,3 +367,4 @@ if-value-without-else-one-error	cli.check.default,cli.exit.hd-failure,cli.json.d
 panic-multiline-call	cli.test.report.frame
 engine-default	cli.engine.default.shipped,cli.engine.default.development,cli.engine.select,cli.file.run,cli.build.output
 ranked-fixits	cli.json.diagnostic.fixes,cli.json.fix.object.v2,cli.json.fix.ranked,cli.json.fix.guess,cli.check.fix.safe
+build-too-large-global-position	cli.json.lines.build,cli.json.diagnostic,cli.json.diagnostic.fields
