@@ -824,6 +824,12 @@ struct CheckOut {
     has_opaque: bool,
     /// The module has an init body, known without reading the entry's bodies.
     has_init: bool,
+    /// The hash of the module's checked items (the entry's items section,
+    /// inferred results and rows written in), hashed once when the module
+    /// is checked and read back from the entry's meta on a hit: what
+    /// `own::Run::program_api_hash` holds of the module. `None` for an
+    /// entry whose meta ends before it.
+    items: Option<Hash128>,
 }
 
 /// One cached generated traversal and its immutable handle dependencies.
@@ -1703,8 +1709,8 @@ struct Run<'a> {
     /// (`BodyForms::inlined`) read: a body that substitutes the cached
     /// form reads them too (`own::Run::package_owned_key`, #2028).
     inlined_reads: Mutex<HashMap<DefId, Arc<[DefId]>>>,
-    /// The hash of every non-std module's declarations, once per run
-    /// (`own::Run::program_api_hash`).
+    /// The hash of every non-std module's checked declarations, once per
+    /// run (`own::Run::program_api_hash`).
     program_api: OnceLock<Hash128>,
     /// Each type's `canon` digest, for the instance store keys
     /// (`own::Run::instance_owned_key`): a type shared by many instances'
@@ -8659,7 +8665,8 @@ impl Run<'_> {
         // An edit to them can leave every body's TIR as it was (#316).
         let mut ih = hd_base::StableHasher::new("items");
         ih.bytes(&items);
-        content.hash(ih.finish());
+        let items_hash = ih.finish();
+        content.hash(items_hash);
         content.hash(regs_hash(regs));
         let mut meta = Writer::default();
         meta.hash(content.finish());
@@ -8677,6 +8684,7 @@ impl Run<'_> {
             "init",
         );
         meta.u8(u8::from(keep.iter().any(|b| b.item == init)));
+        meta.hash(items_hash);
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -8941,6 +8949,7 @@ impl Run<'_> {
         let content = meta_reader.hash();
         let has_opaque = !meta_reader.at_end() && meta_reader.u8() != 0;
         let has_init = !meta_reader.at_end() && meta_reader.u8() != 0;
+        let items = (!meta_reader.at_end()).then(|| meta_reader.hash());
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
@@ -8948,6 +8957,7 @@ impl Run<'_> {
             generic_edges,
             has_opaque,
             has_init,
+            items,
         }));
     }
 

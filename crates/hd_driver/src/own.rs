@@ -3709,9 +3709,10 @@ impl Run<'_> {
     /// reads). Keyed:
     /// - the settings in [`Run::owned_std_key`]'s key, and the root
     ///   package's key and settings;
-    /// - every non-std module's declarations ([`Run::program_api_hash`]):
-    ///   impl selection, associated-type normalization, `has_drop` and
-    ///   layouts read them, private ones included;
+    /// - every non-std module's checked declarations
+    ///   ([`Run::program_api_hash`]): impl selection, associated-type
+    ///   normalization, `has_drop`, layouts and inferred rows read them,
+    ///   private ones included;
     /// - whether the body is an entry root (`OwnCx::entry_root`) and its
     ///   package fetched (`module.dbg.own-code`), and its TIR hash.
     ///
@@ -3824,23 +3825,31 @@ impl Run<'_> {
         Some(k.finish())
     }
 
-    /// One hash of every non-std module's declarations, private ones
-    /// included, and every non-std folder's interface with its impl
-    /// heads; once per run, linear in the modules. A body edit changes
-    /// neither (`HeaderSkeleton::api_text_hash` leaves bodies out, and
-    /// `template_text_hash` keeps only those whose signature is inferred).
+    /// One hash of every non-std module's checked declarations, private
+    /// ones included, and every non-std folder's interface with its impl
+    /// heads; once per run, linear in the modules. A module's part is the
+    /// hash of its `check` entry's items section (`CheckOut::items`):
+    /// signatures with each omitted result and row the checker inferred
+    /// written in, fields and variants (layouts), impl heads and associated
+    /// types, hashed once when the module is checked and read back on a
+    /// hit, never rehashed here. So a body edit, private or public, that
+    /// infers the same signature keeps it, and one that changes an inferred
+    /// result or row changes it (rustc's early cutoff on a query's result,
+    /// with the item signatures as the query). A module this run did not
+    /// check has no items in `Collect`'s tables, so no pass reads it: its
+    /// path alone stands for it.
     fn program_api_hash(&self) -> Hash128 {
         *self.program_api.get_or_init(|| {
             let std = self.table.packages.len() - 1;
-            let mut k = StableHasher::new("owned-program-api-v1");
+            let mut k = StableHasher::new("owned-program-api-v2");
             for (m, module) in self.table.modules.iter().enumerate() {
                 if usize::from(module.package) == std {
                     continue;
                 }
-                let file = &self.skim_of(m).file;
                 k.str(&module.path);
-                k.hash(file.api_text_hash);
-                k.hash(file.template_text_hash);
+                if let Some(items) = self.check[m].get().and_then(|c| c.as_ref()?.items) {
+                    k.hash(items);
+                }
             }
             for (f, folder) in self.table.folders.iter().enumerate() {
                 if usize::from(folder.package) == std {

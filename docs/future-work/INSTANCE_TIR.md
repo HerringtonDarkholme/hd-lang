@@ -147,6 +147,9 @@ owned form is cached under its instance key plus the hashes it read.
   `reads` lists `(query, answer hash)` for each impl chosen, each callee
   summary and each layout of a type outside the body's own package. A
   warm build probes this key per reached instance and decodes on a hit.
+  Step 6 keys the declarations program-wide, by each module's checked
+  items; recording them per instance is step 6b, which needs a dependency
+  list on each run-wide memo the passes answer from (rustc's query nodes).
 
 ## Cost
 
@@ -183,7 +186,8 @@ Each step lands green on its own and names what it deletes.
 | 3 | `hd_mono::instantiate` replaces `Env::inlined_instance`'s substitution | the driver's substitute-and-rechoose block | `own` view unchanged on the stage corpus |
 | 4 | Instantiate generic local functions in instance bodies | 19 `sub_flags::GENERIC` and `is_instantiation` checks in `hd_tir::own`, the inliner, `hd_opt` and the emitter (the checker's stay) | `generic-local-fn-run` cases plus a two-instantiation case |
 | 5 | Emitter lowers instance TIR only | `Em::sub`, `Em::inst_ty`, `hd_mono::instruction_types`, body-type `subst` in `emit/*.rs` | `wat` stage cases byte-identical |
-| 6 | Code cache by instance key plus recorded reads (D01, extends #2028) | the one program-wide `program_api_hash` in `package_owned_key` (question 3) | rebuild test: K and 10K instances, no edit, zero passes run |
+| 6 | Owned-form cache per instance (extends #2028): key `H(settings, instance key, generic body TIR hash, program declarations)`, with the bodies its folded form read checked red-green; the program declarations are each module's checked items (inferred results and rows written in), not its source text | `program_api_hash`'s source-text part (`api_text_hash`, `template_text_hash`) | rebuild tests at 20 and 200 types: no edit, zero passes run; a private body edit that infers the same signature owns only its readers; an inferred row or result change, or a layout edit in another package, owns its readers |
+| 6b | Recorded reads per instance (question 3) and a code cache per instance (D01), after #49 point 4 gives emitted code a relocatable unit | the program-wide `program_api_hash` | an edit to one layout owns exactly its readers; a one-body edit re-emits exactly its readers |
 | 7 | Drop flags as TIR locals (#1420), then counts as statements (§14 T3) | `emit/drop_flags.rs` except cell layout | #1420's done check |
 
 ## Appendix A. Stress test
