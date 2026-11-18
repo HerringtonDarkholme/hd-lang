@@ -18,7 +18,7 @@ use hd_base::SliceSort as _;
 use hd_types::Ty;
 
 use super::Loc;
-use crate::ir::{Body, NONE, Ref, Tag, Topology, slots, u32_of};
+use crate::ir::{Body, NONE, Tag, Topology, u32_of};
 
 /// A checked-body insertion before member `pos` of `block` (the member
 /// count means its end). Operands use the old body's numbering; insertion
@@ -90,16 +90,11 @@ pub(crate) struct Tables {
     anchor: Vec<(u32, u32)>,
     order: Vec<u32>,
     new_of: Vec<u32>,
-    done: Vec<bool>,
     per_block: Vec<(u32, u32, u32)>,
     /// The first anchor of each source position in each inlined frame
     /// ([`frame`]), for the new instructions' anchors.
     by_syn: hd_base::HashMap<(NodeIdx, Option<u32>), u32>,
     words: Vec<u32>,
-    locs: Vec<Loc>,
-    /// Added to every constant word: 0 for a pass, the caller's constant
-    /// count for the inliner's copy of a callee.
-    konst: u32,
 }
 
 impl Tables {
@@ -309,7 +304,13 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         t.new_of[old as usize] = u32_of(new);
     }
     permute_columns(b, &t.order);
-    renumber(b, t)
+    crate::ir::renumber(
+        b,
+        &mut crate::ir::Through {
+            new_of: &t.new_of,
+            konst: 0,
+        },
+    )
 }
 
 /// Puts the instruction columns in `order`: row `k` becomes old row
@@ -327,130 +328,6 @@ pub(crate) fn permute_columns(b: &mut Body, order: &[u32]) {
 fn permute<T: Copy>(v: &mut Vec<T>, order: &[u32]) {
     let old = std::mem::take(v);
     v.extend(order.iter().map(|&o| old[o as usize]));
-}
-
-/// Renumbers every instruction word of `b` through `new_of`, and moves
-/// every constant word `konst` rows on: the inliner's caller and copy.
-pub(crate) fn renumber_through(b: &mut Body, new_of: Vec<u32>, konst: u32) -> Result<(), String> {
-    let mut t = Tables {
-        new_of,
-        konst,
-        ..Tables::default()
-    };
-    renumber(b, &mut t)
-}
-
-/// Renumbers every word of `b` that names an instruction, by the operand
-/// schema ([`slots`]); a record several instructions share is renumbered
-/// once.
-fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
-    let map = |t: &Tables, w: u32| -> u32 {
-        if w == NONE {
-            return w;
-        }
-        if w & Ref::CONST_BIT != 0 {
-            return w + t.konst;
-        }
-        t.new_of.get(w as usize).copied().unwrap_or(w)
-    };
-    t.done.clear();
-    t.done.resize(b.extra.len(), false);
-    for i in 0..b.len() {
-        t.locs.clear();
-        slots(b, i, |at, _, _| t.locs.push(at));
-        for x in 0..t.locs.len() {
-            // A shared record already contains destination IDs after its first
-            // visit. Validate only source IDs, before that word is remapped.
-            if let Loc::Extra(p) = t.locs[x]
-                && t.done.get(p as usize).copied().unwrap_or(false)
-            {
-                continue;
-            }
-            let word = match t.locs[x] {
-                Loc::Data(k) => b.data[i][usize::from(k)],
-                Loc::Extra(p) => *b
-                    .extra
-                    .get(p as usize)
-                    .ok_or_else(|| format!("operand record {p} out of range"))?,
-            };
-            if word != NONE && word & Ref::CONST_BIT == 0 && word as usize >= t.new_of.len() {
-                return Err(format!(
-                    "instruction operand %{word} out of range while splicing"
-                ));
-            }
-            match t.locs[x] {
-                Loc::Data(k) => {
-                    let k = usize::from(k);
-                    b.data[i][k] = map(t, b.data[i][k]);
-                }
-                Loc::Extra(p) => remap_extra(b, t, p, &map),
-            }
-        }
-    }
-    for x in &mut b.label_inst {
-        *x = map(t, *x);
-    }
-    for x in &mut b.sub_root {
-        *x = map(t, *x);
-    }
-    let mut scopes = Vec::new();
-    for row in &mut b.susp {
-        row.inst = map(t, row.inst);
-        scopes.push(row.scopes);
-    }
-    for r in scopes {
-        for p in r.start..r.start + r.len {
-            remap_extra(b, t, p, &map);
-        }
-    }
-    for row in &mut b.fallback {
-        row[0] = map(t, row[0]);
-    }
-    for row in &mut b.regions {
-        row.0 = map(t, row.0);
-    }
-    for row in &mut b.forwarded_reads {
-        *row = (map(t, row.0), map(t, row.1));
-    }
-    b.forwarded_reads
-        .retain(|&(value, read)| value != NONE && read != NONE);
-    // A row whose call or argument an edit deletes goes with it.
-    b.held_args = (b.held_args.iter())
-        .map(|&(c, a)| (map(t, c), map(t, a)))
-        .filter(|&(c, a)| c != NONE && a != NONE)
-        .collect();
-    b.loan_slots.retain_mut(|row| {
-        row.remap_values(|value| {
-            let mapped = map(t, value);
-            (mapped != NONE).then_some(mapped)
-        })
-        .is_some()
-    });
-    // Both words name instructions no edit deletes (a suspension point and
-    // a value), and the splice keeps their order.
-    for row in &mut b.unwind_drops {
-        *row = (map(t, row.0), map(t, row.1));
-    }
-    // A read the edits delete takes its row with it; the splice keeps
-    // the order of the rest.
-    for row in &mut b.full_cells {
-        row.0 = map(t, row.0);
-    }
-    b.full_cells.retain(|r| r.0 != NONE);
-    // A loop is never deleted; the place is rooted at a local.
-    for row in &mut b.stable_lists {
-        row.0 = map(t, row.0);
-    }
-    Ok(())
-}
-
-fn remap_extra(b: &mut Body, t: &mut Tables, p: u32, map: &dyn Fn(&Tables, u32) -> u32) {
-    let p = p as usize;
-    if p >= b.extra.len() || t.done[p] {
-        return;
-    }
-    t.done[p] = true;
-    b.extra[p] = map(t, b.extra[p]);
 }
 
 #[cfg(test)]

@@ -7,7 +7,8 @@ use crate::own::splice::{self, Tables};
 use hd_base::{HashMap, HashSet, Range32, SliceSort as _, SubId};
 
 use crate::ir::{
-    Body, BodyKind, INLINED, Loc, NONE, Op, Ref, Root, Tag, local_flags, place, slots, u32_of,
+    Body, BodyKind, INLINED, Loc, NONE, Op, Ref, Remap, SideRows, Tag, copy_rows, grow,
+    local_flags, local_words, place, push_frame, slots, u32_of,
 };
 
 // Test-only work accounting: absent from the compiler used by benchmarks.
@@ -35,9 +36,7 @@ mod measurements {
 /// Shared instruction and side-row groups for all closure copies of a body.
 struct Index {
     rows: Vec<Vec<usize>>,
-    fallback: Vec<Vec<[u32; 2]>>,
-    held: Vec<Vec<(u32, u32)>>,
-    loan_slots: Vec<Vec<crate::ir::LoanSlot>>,
+    side: Vec<SideRows>,
     shared: Vec<Vec<u32>>,
     roots: HashSet<u32>,
     params: Vec<Vec<u32>>,
@@ -56,21 +55,14 @@ impl Index {
             work!(1);
             rows[sub as usize].push(i);
         }
-        let mut fallback = vec![Vec::new(); rows.len()];
-        for &row in &body.fallback {
-            work!(1);
-            fallback[subs[row[0] as usize] as usize].push(row);
-        }
-        let mut held = vec![Vec::new(); rows.len()];
-        for &row in &body.held_args {
-            work!(1);
-            held[subs[row.0 as usize] as usize].push(row);
-        }
-        let mut loan_slots = vec![Vec::new(); rows.len()];
-        for row in &body.loan_slots {
-            work!(4 + row.path.len());
-            loan_slots[subs[row.call as usize] as usize].push(row.clone());
-        }
+        work!(body.fallback.len() + body.held_args.len() + body.susp.len());
+        work!(
+            body.loan_slots
+                .iter()
+                .map(|row| 4 + row.path.len())
+                .sum::<usize>()
+        );
+        let side = SideRows::group(body, rows.len(), |i| subs[i as usize] as usize);
         let mut shared = vec![Vec::new(); rows.len()];
         for &(sub, capture) in &body.inlined_shared {
             work!(1);
@@ -97,9 +89,7 @@ impl Index {
             roots: body.sub_root.iter().copied().collect(),
             shared,
             rows,
-            fallback,
-            held,
-            loan_slots,
+            side,
         }
     }
 
@@ -112,16 +102,14 @@ impl Index {
     ) -> Option<(Body, HashMap<u32, u32>)> {
         let order = self.rows.get(sub)?;
         let params = self.params.get(sub)?;
+        let side = self.side.get(sub)?;
         budget = budget.checked_sub(
             order.len()
                 + params.len()
                 + captures.len()
-                + self.fallback.get(sub)?.len() * 2
-                + self.held.get(sub)?.len() * 2
-                + self
-                    .loan_slots
-                    .get(sub)?
-                    .iter()
+                + side.fallback.len() * 2
+                + side.held.len() * 2
+                + (side.loan_slots.iter())
                     .map(|row| 4 + row.path.len())
                     .sum::<usize>()
                 + self.shared.get(sub)?.len() * 4
@@ -147,14 +135,7 @@ impl Index {
             locals.insert(snapshot.raw());
             locals.insert(creator.raw());
         }
-        let mut records = HashMap::default();
-        let mut labels = HashMap::default();
-        let mut places = HashSet::default();
-        let mut out = Body::new(body.item, BodyKind::Fn);
-        out.fallback.clone_from(self.fallback.get(sub)?);
-        out.held_args.clone_from(self.held.get(sub)?);
-        out.loan_slots.clone_from(self.loan_slots.get(sub)?);
-        for &[_, local] in &out.fallback {
+        for &[_, local] in &side.fallback {
             work!(1);
             if local != 0 {
                 locals.insert(local - 1);
@@ -162,84 +143,9 @@ impl Index {
         }
         for &old in order {
             work!(1);
-            let tag = body.tags[old];
-            let mut data = body.data[old];
-            let ops = tag.operands();
-            for (word, op) in data.iter_mut().zip([ops.0, ops.1]) {
-                work!(1);
-                if *word == NONE {
-                    continue;
-                }
-                match op {
-                    Op::Values | Op::Blocks | Op::Record | Op::Place => {
-                        if op == Op::Place && *word & place::BARE_LOCAL != 0 {
-                            locals.insert(*word & !place::BARE_LOCAL);
-                            continue;
-                        }
-                        if !records.contains_key(word) {
-                            budget = budget.checked_sub(body.record(*word).len() + 1)?;
-                        }
-                        let at = *records.entry(*word).or_insert_with(|| {
-                            let at = u32_of(out.extra.len());
-                            let words = body.record(*word);
-                            // A block list may declare another sub-body. It
-                            // has no execution in this selected sub-body.
-                            let copied: Vec<_> = words
-                                .iter()
-                                .copied()
-                                .filter(|x| {
-                                    !(op == Op::Blocks || tag == Tag::Block)
-                                        || values.contains_key(x)
-                                        || !self.roots.contains(x)
-                                })
-                                .collect();
-                            out.extra.push(u32_of(copied.len()));
-                            work!(words.len());
-                            out.extra.extend_from_slice(&copied);
-                            at
-                        });
-                        if op == Op::Place {
-                            places.insert(at);
-                            // The copy's local table is populated below. Its
-                            // record still names the source body's locals.
-                            if let Root::Local(local) = body.view(*word).root {
-                                locals.insert(local);
-                            }
-                        }
-                        *word = at;
-                    }
-                    Op::Meta if matches!(tag, Tag::ItemRef | Tag::ProviderGet) => {
-                        if !records.contains_key(word) {
-                            budget = budget.checked_sub(body.record(*word).len() + 1)?;
-                        }
-                        let at = *records.entry(*word).or_insert_with(|| {
-                            let at = u32_of(out.extra.len());
-                            out.extra.push(u32_of(body.record(*word).len()));
-                            work!(body.record(*word).len());
-                            out.extra.extend_from_slice(body.record(*word));
-                            at
-                        });
-                        *word = at;
-                    }
-                    Op::Label => {
-                        let next = u32_of(labels.len());
-                        let label = *labels.entry(*word).or_insert(next);
-                        if label as usize == out.label_inst.len() {
-                            out.label_inst
-                                .push(*values.get(body.label_inst.get(*word as usize)?)?);
-                        }
-                        *word = label;
-                    }
-                    // Scalar metadata is unchanged; value/block identities
-                    // are relocated after their records have been copied.
-                    Op::None | Op::Value | Op::Inst | Op::Block | Op::Meta => {}
-                }
-            }
-            out.tags.push(tag);
-            out.data.push(data);
-            out.ty.push(body.ty[old]);
-            out.syn.push(body.syn[old]);
-            out.anchors.push(body.anchor(u32_of(old)));
+            local_words(body, old, &mut |l| {
+                locals.insert(l);
+            });
         }
         let mut locals: Vec<_> = locals.into_iter().collect();
         locals.sort_stable();
@@ -248,6 +154,7 @@ impl Index {
             .enumerate()
             .map(|(new, &old)| (old, u32_of(new)))
             .collect();
+        let mut out = Body::new(body.item, BodyKind::Fn);
         for &local in &locals {
             work!(1);
             let l = local as usize;
@@ -280,80 +187,33 @@ impl Index {
                 hd_base::LocalId::from_raw(local_map[&creator.raw()]),
             ));
         }
-        for at in places {
-            work!(1);
-            if out.extra[at as usize + 1] == place::ROOT_LOCAL {
-                let local = &mut out.extra[at as usize + 2];
-                *local = *local_map.get(local)?;
-            }
-        }
-        let mut constants = HashMap::default();
-        let mut mapped = HashSet::default();
-        for i in 0..out.len() {
-            work!(1);
-            let mut operands = Vec::new();
-            slots(&out, i, |loc, value, _| {
-                if value != NONE {
-                    operands.push((loc, value));
-                }
-            });
-            for (loc, value) in operands {
-                work!(1);
-                if let Loc::Extra(at) = loc
-                    && !mapped.insert(at)
-                {
-                    continue;
-                }
-                let value = if value & Ref::CONST_BIT != 0 {
-                    let old = value & !Ref::CONST_BIT;
-                    let new = if let Some(&new) = constants.get(&old) {
-                        new
-                    } else {
-                        budget = budget.checked_sub(1)?;
-                        let mut constant = body.consts[old as usize];
-                        if constant.0 == hd_types::Ty::STRING {
-                            let string = &body.strings[usize::try_from(constant.1).ok()?];
-                            budget = budget.checked_sub(string.len())?;
-                            work!(string.len());
-                            constant.1 = out.strings.len() as u64;
-                            out.strings.push(string.clone());
-                        }
-                        let new = u32_of(out.consts.len());
-                        out.consts.push(constant);
-                        constants.insert(old, new);
-                        new
-                    };
-                    Ref::CONST_BIT | new
-                } else {
-                    *values.get(&value)?
-                };
-                match loc {
-                    Loc::Data(k) => out.data[i][usize::from(k)] = value,
-                    Loc::Extra(at) => out.extra[at as usize] = value,
-                }
-            }
-            let ops = out.tags[i].operands();
-            for (word, op) in out.data[i].iter_mut().zip([ops.0, ops.1]) {
-                work!(1);
-                if op == Op::Place && *word & place::BARE_LOCAL != 0 {
-                    *word = local_map.get(&(*word & !place::BARE_LOCAL))? | place::BARE_LOCAL;
-                }
-            }
-        }
-        for row in &mut out.fallback {
-            work!(1);
-            row[0] = *values.get(&row[0])?;
-            if row[1] != 0 {
-                row[1] = local_map.get(&(row[1] - 1))? + 1;
-            }
-        }
-        for row in &mut out.held_args {
-            work!(1);
-            *row = (*values.get(&row.0)?, *values.get(&row.1)?);
-        }
-        for row in &mut out.loan_slots {
-            work!(1);
-            row.remap_values(|value| values.get(&value).copied())?;
+        let rows: Vec<(u32, u32)> = (order.iter().enumerate())
+            .map(|(new, &old)| (u32_of(old), u32_of(new)))
+            .collect();
+        grow(&mut out, rows.len());
+        let mut map = Sparse {
+            body,
+            values: &values,
+            locals: &local_map,
+            roots: &self.roots,
+            labels: HashMap::default(),
+            consts: HashMap::default(),
+        };
+        work!(rows.len());
+        copy_rows(body, &rows, &mut out, &mut map).ok()?;
+        // The copied records, constants and text count against the budget.
+        let text: usize = out.strings.iter().map(|s| s.len()).sum();
+        work!(out.extra.len() + text);
+        budget = budget.checked_sub(out.extra.len() + out.consts.len() + text)?;
+        // Every side row names the sub-body's own instructions.
+        side.copy(&mut out, &mut map).ok()?;
+        if (
+            out.fallback.len(),
+            out.held_args.len(),
+            out.loan_slots.len(),
+        ) != (side.fallback.len(), side.held.len(), side.loan_slots.len())
+        {
+            return None;
         }
         out.sub_root.push(*values.get(body.sub_root.get(sub)?)?);
         out.sub_params.push(Range32::default());
@@ -361,6 +221,61 @@ impl Index {
         out.sub_flags.push(0);
         copy_frames(body, &mut out, budget)?;
         Some((out, local_map))
+    }
+}
+
+/// A sparse copy's tables: the sub-body's rows, its referenced locals, its
+/// labels and constants as first named, and the roots of other sub-bodies,
+/// which a block list declares but the copy does not run.
+struct Sparse<'a> {
+    body: &'a Body,
+    values: &'a HashMap<u32, u32>,
+    locals: &'a HashMap<u32, u32>,
+    roots: &'a HashSet<u32>,
+    labels: HashMap<u32, u32>,
+    consts: HashMap<u32, u32>,
+}
+
+impl Remap for Sparse<'_> {
+    fn inst(&self, w: u32) -> Option<u32> {
+        self.values.get(&w).copied()
+    }
+
+    fn konst(&mut self, out: &mut Body, c: u32) -> Option<u32> {
+        if let Some(&new) = self.consts.get(&c) {
+            return Some(new);
+        }
+        let mut constant = self.body.consts[c as usize];
+        if constant.0 == hd_types::Ty::STRING {
+            let text = self.body.strings.get(usize::try_from(constant.1).ok()?)?;
+            constant.1 = out.strings.len() as u64;
+            out.strings.push(text.clone());
+        }
+        out.consts.push(constant);
+        self.consts.insert(c, u32_of(out.consts.len() - 1));
+        Some(u32_of(out.consts.len() - 1))
+    }
+
+    fn local(&self, l: u32) -> Option<u32> {
+        self.locals.get(&l).copied()
+    }
+
+    fn label(&mut self, out: &mut Body, l: u32) -> Option<u32> {
+        if let Some(&label) = self.labels.get(&l) {
+            return Some(label);
+        }
+        let at = *self.values.get(self.body.label_inst.get(l as usize)?)?;
+        out.label_inst.push(at);
+        self.labels.insert(l, u32_of(out.label_inst.len() - 1));
+        Some(u32_of(out.label_inst.len() - 1))
+    }
+
+    fn members(&self, m: u32, push: &mut dyn FnMut(u32)) -> bool {
+        match self.values.get(&m) {
+            Some(&n) => push(n),
+            None => return self.roots.contains(&m),
+        }
+        true
     }
 }
 
@@ -404,23 +319,23 @@ fn copy_frames(source: &Body, out: &mut Body, mut budget: usize) -> Option<()> {
     let mut cursor = 0;
     while cursor < used.len() {
         work!(1);
-        let k = used[cursor].0;
-        let first = cursor;
+        let (k, first) = (used[cursor].0, cursor);
         while cursor < used.len() && used[cursor].0 == k {
             work!(1);
-            let at = used[cursor].1;
-            let original = source
-                .inlined_origins
-                .binary_search_by_key(&at, |row| row[0])
-                .map_or(at - source.inlined[k][0], |i| source.inlined_origins[i][1]);
-            if original != u32_of(cursor - first) {
-                out.inlined_origins.push([u32_of(cursor), original]);
-            }
             cursor += 1;
         }
         let f = source.inlined[k];
-        out.inlined
-            .push([u32_of(first), u32_of(cursor - first), f[2], remap(f[3])]);
+        let original = |&(_, at): &(usize, u32)| {
+            (source.inlined_origins)
+                .binary_search_by_key(&at, |row| row[0])
+                .map_or(at - f[0], |i| source.inlined_origins[i][1])
+        };
+        push_frame(
+            out,
+            used[first..cursor].iter().map(original),
+            f[2],
+            remap(f[3]),
+        );
     }
     Some(())
 }

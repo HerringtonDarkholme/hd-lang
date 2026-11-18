@@ -37,10 +37,13 @@
 //! functions nest.
 
 use hd_base::SliceSort as _;
-use hd_base::{HashMap, LocalId, Range32, SubId};
+use hd_base::{HashMap, Range32, SubId};
 use hd_types::{InternPool, Ty, TyList};
 
-use super::{Body, Loc, NONE, Op, Ref, Tag, Topology, place, slots, sub_flags, u32_of};
+use super::{
+    Body, NONE, Remap, SideRows, Tag, Topology, copy_rows, local_words, push_record, sub_flags,
+    u32_of,
+};
 
 /// The types of one context: `t` with the generic local functions' own
 /// parameters bound by `bind`, each `(parameter index of the item's
@@ -137,21 +140,7 @@ pub fn instantiate_local_functions(
         }
     }
     // Each side row's region, so a context copies only its own rows.
-    let mut side = vec![Side::default(); nsub];
-    for (k, &[i, _]) in b.fallback.iter().enumerate() {
-        side[region_of(i as usize)].fallback.push(u32_of(k));
-    }
-    for (k, &(call, _)) in b.held_args.iter().enumerate() {
-        side[region_of(call as usize)].held.push(u32_of(k));
-    }
-    for (k, row) in b.loan_slots.iter().enumerate() {
-        side[region_of(row.call as usize)]
-            .loan_slots
-            .push(u32_of(k));
-    }
-    for (k, row) in b.susp.iter().enumerate() {
-        side[region_of(row.inst as usize)].susp.push(u32_of(k));
-    }
+    let side = SideRows::group(b, nsub, |i| region_of(i as usize));
     let mut labels: Vec<Vec<u32>> = vec![Vec::new(); nsub];
     for (l, &at) in b.label_inst.iter().enumerate() {
         labels[region_of(at as usize)].push(u32_of(l));
@@ -408,77 +397,6 @@ impl Map<'_> {
     }
 }
 
-/// Appends a record of `words`; its length word's position.
-fn push_record(out: &mut Body, words: &[u32]) -> u32 {
-    let at = u32_of(out.extra.len());
-    out.extra.push(u32_of(words.len()));
-    out.extra.extend_from_slice(words);
-    at
-}
-
-/// Record `w` of `b` copied into `out`, once per context (`memo`).
-fn copy_record(out: &mut Body, b: &Body, memo: &mut HashMap<u32, u32>, w: u32) -> u32 {
-    if let Some(&at) = memo.get(&w) {
-        return at;
-    }
-    let at = push_record(out, b.record(w));
-    memo.insert(w, at);
-    at
-}
-
-/// The `extra` words one context has mapped, from where its records
-/// start, so a record its instructions share is mapped once.
-struct Done {
-    base: usize,
-    seen: Vec<bool>,
-}
-
-/// Whether `extra` word `at` was already mapped; marks it.
-fn done_at(done: &mut Done, at: usize) -> bool {
-    let k = at - done.base;
-    if done.seen.len() <= k {
-        done.seen.resize(k + 1, false);
-    }
-    std::mem::replace(&mut done.seen[k], true)
-}
-
-fn mark(done: &mut Done, at: usize, len: usize) {
-    for p in at..at + len {
-        done_at(done, p);
-    }
-}
-
-/// Calls `f` with each local instruction `i` names: a place's root, and
-/// a closure's captures.
-fn local_words(b: &Body, i: usize, f: &mut dyn FnMut(u32)) {
-    let (oa, ob) = b.tags[i].operands();
-    for (w, op) in [(b.data[i][0], oa), (b.data[i][1], ob)] {
-        if op != Op::Place || w == NONE {
-            continue;
-        }
-        if w & place::BARE_LOCAL != 0 {
-            f(w & !place::BARE_LOCAL);
-        } else if b.extra.get(w as usize + 1) == Some(&place::ROOT_LOCAL) {
-            f(b.extra[w as usize + 2]);
-        }
-    }
-    if b.tags[i] == Tag::Closure {
-        let rec = b.record(b.data[i][1]);
-        for l in &b.cap_local[rec[0] as usize..(rec[0] + rec[1]) as usize] {
-            f(l.raw());
-        }
-    }
-}
-
-/// One region's side rows (`fallback`, `held_args`, `susp`), by index.
-#[derive(Clone, Default)]
-struct Side {
-    fallback: Vec<u32>,
-    held: Vec<u32>,
-    loan_slots: Vec<u32>,
-    susp: Vec<u32>,
-}
-
 struct Tables<'a> {
     b: &'a Body,
     newpos: &'a [Vec<u32>],
@@ -499,7 +417,95 @@ struct Tables<'a> {
     subs: &'a [Vec<u32>],
     target: &'a HashMap<(u32, u32), u32>,
     children: &'a HashMap<(u32, u32), Vec<u32>>,
-    side: &'a [Side],
+    side: &'a [SideRows],
+}
+
+/// One context's copy tables ([`Remap`]): its instructions, locals,
+/// labels and sub-bodies, its types, and a constant whose type it maps.
+struct CtxMap<'a, 'm> {
+    t: &'a Tables<'a>,
+    c: u32,
+    map: Map<'m>,
+    consts: HashMap<u32, u32>,
+}
+
+impl Remap for CtxMap<'_, '_> {
+    /// Instruction `w`'s copy in this context, when it copies it.
+    fn inst(&self, w: u32) -> Option<u32> {
+        let (t, c) = (self.t, self.c as usize);
+        let w = w as usize;
+        (t.inst_region.get(w) == Some(&t.ctxs[c].region))
+            .then(|| t.newpos[c][t.inst_pos[w] as usize])
+    }
+
+    fn konst(&mut self, out: &mut Body, c: u32) -> Option<u32> {
+        let (t, bits) = self.t.b.consts[c as usize];
+        let u = self.map.ty(t);
+        if u == t {
+            return Some(c);
+        }
+        Some(*self.consts.entry(c).or_insert_with(|| {
+            out.consts.push((u, bits));
+            u32_of(out.consts.len() - 1)
+        }))
+    }
+
+    /// Local `l` seen from this context: its own copy, or its ancestors'.
+    fn local(&self, l: u32) -> Option<u32> {
+        let mut c = self.c;
+        while c != NONE {
+            let x = &self.t.ctxs[c as usize];
+            if let Some(n) = find(&self.t.locals[x.region as usize], l, x.local_base) {
+                return Some(n);
+            }
+            c = x.parent;
+        }
+        None
+    }
+
+    fn label(&mut self, _: &mut Body, l: u32) -> Option<u32> {
+        let x = &self.t.ctxs[self.c as usize];
+        find(&self.t.labels[x.region as usize], l, x.label_base)
+    }
+
+    fn sub(&self, i: u32, s: u32) -> Option<u32> {
+        if self.t.b.is_instantiation(i as usize) {
+            // ruled out: the context loop gives each instantiation in each
+            // context's region a target.
+            Some(self.t.ctxs[self.t.target[&(self.c, i)] as usize].sub_base)
+        } else {
+            let x = &self.t.ctxs[self.c as usize];
+            find(&self.t.subs[x.region as usize], s, x.sub_base)
+        }
+    }
+
+    fn types(&self) -> bool {
+        !self.map.bind.is_empty()
+    }
+
+    fn ty(&mut self, t: Ty) -> Ty {
+        self.map.ty(t)
+    }
+
+    fn list(&mut self, l: TyList) -> TyList {
+        self.map.list(l)
+    }
+
+    fn members(&self, m: u32, push: &mut dyn FnMut(u32)) -> bool {
+        let t = self.t;
+        if let Some(new) = self.inst(m) {
+            push(new);
+        } else if let Some(&g) = t.generic_roots.get(&m) {
+            // A generic function's root lists its copies made here; copy
+            // `k` copies `g`'s region, which holds its root `m`.
+            for &k in t.children.get(&(self.c, g)).map_or(&[][..], Vec::as_slice) {
+                push(t.newpos[k as usize][t.inst_pos[m as usize] as usize]);
+            }
+        } else if !t.defining.contains(&m) {
+            return false;
+        }
+        true
+    }
 }
 
 fn find(list: &[u32], x: u32, base: u32) -> Option<u32> {
@@ -507,62 +513,33 @@ fn find(list: &[u32], x: u32, base: u32) -> Option<u32> {
 }
 
 impl Tables<'_> {
-    /// Instruction `i`'s copy in context `c`, when `c` copies it.
-    fn inst(&self, c: u32, i: u32) -> Option<u32> {
-        let i = i as usize;
-        if self.inst_region.get(i) != Some(&self.ctxs[c as usize].region) {
-            return None;
-        }
-        Some(self.newpos[c as usize][self.inst_pos[i] as usize])
-    }
-
     /// Sub-body `s`'s copy in context `c`, which copies `s`'s region.
     fn sub_in(&self, c: u32, s: u32) -> u32 {
         self.ctxs[c as usize].sub_base + self.sub_pos[s as usize]
     }
 
-    /// Local `l` seen from context `c`: its own copy, or its ancestors'.
-    fn local(&self, mut c: u32, l: u32) -> Result<u32, String> {
-        while c != NONE {
-            let x = &self.ctxs[c as usize];
-            if let Some(n) = find(&self.locals[x.region as usize], l, x.local_base) {
-                return Ok(n);
-            }
-            c = x.parent;
-        }
-        Err(format!("local {l} outside its scope"))
-    }
-
-    fn sub(&self, c: u32, s: u32) -> Option<u32> {
-        let x = &self.ctxs[c as usize];
-        find(&self.subs[x.region as usize], s, x.sub_base)
-    }
-
     /// Copies context `c` into `out`.
-    #[allow(clippy::too_many_lines)]
     fn copy(&self, out: &mut Body, c: u32, types: &mut dyn LocalTypes) -> Result<(), String> {
         let b = self.b;
         let x = &self.ctxs[c as usize];
         let r = x.region as usize;
         let bind = &x.bind[..];
-        let mut map = Map {
-            types,
-            pool: self.pool,
-            ctx: c,
-            bind,
-            lists: HashMap::default(),
+        let mut cm = CtxMap {
+            t: self,
+            c,
+            map: Map {
+                types,
+                pool: self.pool,
+                ctx: c,
+                bind,
+                lists: HashMap::default(),
+            },
+            consts: HashMap::default(),
         };
-        let mut records: HashMap<u32, u32> = HashMap::default();
-        let mut consts: HashMap<u32, u32> = HashMap::default();
-        let mut done = Done {
-            base: out.extra.len(),
-            seen: Vec::new(),
-        };
-        let bad = |what: &str, w: u32| format!("{what} {w} outside its context");
         // Locals, labels and sub-bodies of the region.
         for (k, &l) in self.locals[r].iter().enumerate() {
             let (n, l) = ((x.local_base as usize) + k, l as usize);
-            out.local_ty[n] = map.ty(b.local_ty[l]);
+            out.local_ty[n] = cm.map.ty(b.local_ty[l]);
             out.local_name[n] = b.local_name[l];
             out.local_syn[n] = b.local_syn[l];
             out.local_flags[n] = b.local_flags[l];
@@ -570,7 +547,7 @@ impl Tables<'_> {
         for (k, &l) in self.labels[r].iter().enumerate() {
             let at = b.label_inst[l as usize];
             out.label_inst[x.label_base as usize + k] =
-                self.inst(c, at).ok_or_else(|| bad("label target", at))?;
+                (cm.inst(at)).ok_or_else(|| format!("label target {at} outside its context"))?;
         }
         for (k, &s) in self.subs[r].iter().enumerate() {
             let n = x.sub_base as usize + k;
@@ -599,7 +576,10 @@ impl Tables<'_> {
             } else {
                 let mut words = Vec::with_capacity(params.len());
                 for &l in params {
-                    words.push(self.local(c, l)?);
+                    words.push(
+                        cm.local(l)
+                            .ok_or_else(|| format!("local {l} outside its scope"))?,
+                    );
                 }
                 let at = push_record(out, &words);
                 out.sub_params[n] = Range32 {
@@ -608,226 +588,13 @@ impl Tables<'_> {
                 };
             }
         }
-        // Instructions: columns and records first, then every word.
-        for (k, &i) in self.insts[r].iter().enumerate() {
-            let (n, i) = (self.newpos[c as usize][k] as usize, i as usize);
-            let tag = b.tags[i];
-            out.tags[n] = tag;
-            out.ty[n] = map.ty(b.ty[i]);
-            out.syn[n] = b.syn[i];
-            out.anchors[n] = b.anchor(u32_of(i));
-            let (oa, ob) = tag.operands();
-            let mut data = b.data[i];
-            for (slot, op) in [oa, ob].into_iter().enumerate() {
-                let w = data[slot];
-                if w == NONE {
-                    continue;
-                }
-                data[slot] = match op {
-                    Op::Place if w & place::BARE_LOCAL != 0 => {
-                        place::BARE_LOCAL | self.local(c, w & !place::BARE_LOCAL)?
-                    }
-                    Op::Place => {
-                        let at = copy_record(out, b, &mut records, w);
-                        // A local root is renumbered and a global root's type
-                        // mapped here; a value, frame or pointer root's word
-                        // is an instruction, which `slots` renumbers below.
-                        let root = out.extra[at as usize + 1];
-                        if root == place::ROOT_LOCAL && !done_at(&mut done, at as usize + 2) {
-                            let l = out.extra[at as usize + 2];
-                            out.extra[at as usize + 2] = self.local(c, l)?;
-                        } else if root == place::ROOT_GLOBAL && !done_at(&mut done, at as usize + 3)
-                        {
-                            out.extra[at as usize + 3] = map.ty(Ty(out.extra[at as usize + 3])).0;
-                        }
-                        at
-                    }
-                    Op::Label => {
-                        find(&self.labels[r], w, x.label_base).ok_or_else(|| bad("label", w))?
-                    }
-                    Op::Meta if tag == Tag::Closure => {
-                        if b.is_instantiation(i) {
-                            // ruled out: the context loop gives each
-                            // instantiation in each context's region a target.
-                            self.ctxs[self.target[&(c, u32_of(i))] as usize].sub_base
-                        } else {
-                            self.sub(c, w).ok_or_else(|| bad("sub-body", w))?
-                        }
-                    }
-                    Op::Record if tag == Tag::Closure => {
-                        let rec = b.record(w);
-                        let (start, count) = (rec[0], rec[1]);
-                        // Each closure its own rows: the passes read a
-                        // capture's row as that closure's use.
-                        let first = u32_of(out.cap_local.len());
-                        for j in start..start + count {
-                            let l = self.local(c, b.cap_local[j as usize].raw())?;
-                            out.cap_local.push(LocalId::from_raw(l));
-                            // The checker's `Move` assumed the one
-                            // defining closure; each instantiation
-                            // makes an environment, so it copies.
-                            let mode = b.cap_mode[j as usize];
-                            out.cap_mode.push(
-                                if b.is_instantiation(i) && mode == super::CaptureMode::Move {
-                                    super::CaptureMode::Copy
-                                } else {
-                                    mode
-                                },
-                            );
-                        }
-                        push_record(out, &[first, count])
-                    }
-                    Op::Record if tag == Tag::Block => {
-                        let mut members = Vec::new();
-                        for &m in b.record(w) {
-                            if let Some(new) = self.inst(c, m) {
-                                members.push(new);
-                            } else if let Some(&t) = self.generic_roots.get(&m) {
-                                // A generic function's root lists its
-                                // copies made here.
-                                for &k in self.children.get(&(c, t)).map_or(&[][..], Vec::as_slice)
-                                {
-                                    // Copy `k` copies `t`'s region, which
-                                    // holds its root `m`.
-                                    members.push(
-                                        self.newpos[k as usize][self.inst_pos[m as usize] as usize],
-                                    );
-                                }
-                            } else if !self.defining.contains(&m) {
-                                return Err(bad("block member", m));
-                            }
-                        }
-                        let at = push_record(out, &members);
-                        mark(&mut done, at as usize, members.len() + 1);
-                        at
-                    }
-                    Op::Values | Op::Blocks | Op::Record => {
-                        let at = copy_record(out, b, &mut records, w);
-                        if let Some(footer) = b.call_footer(i)
-                            && slot == 1
-                            && let super::Providers::Pairs(p) = b.call_providers(i)
-                            && p.len > 0
-                        {
-                            let foot = at as usize + (footer - w as usize);
-                            if !done_at(&mut done, foot + 1) {
-                                let start = u32_of(out.extra.len());
-                                for q in 0..p.len {
-                                    let word = b.extra[(p.start + q) as usize];
-                                    out.extra.push(if q % 2 == 0 {
-                                        map.ty(Ty(word)).0
-                                    } else {
-                                        word
-                                    });
-                                }
-                                out.extra[foot + 1] = start;
-                            }
-                        }
-                        at
-                    }
-                    Op::Meta if matches!(tag, Tag::ItemRef | Tag::ProviderGet) => {
-                        copy_record(out, b, &mut records, w)
-                    }
-                    _ => w,
-                };
-            }
-            out.data[n] = data;
-            // The type words of its records.
-            if !bind.is_empty() {
-                let mut words = Vec::new();
-                super::inst_record_type_words(out, n, &mut |at, word| words.push((at, word)));
-                for (at, word) in words {
-                    if done_at(&mut done, at) {
-                        continue;
-                    }
-                    let w = out.extra[at];
-                    out.extra[at] = match word {
-                        super::TypeWord::Ty => map.ty(Ty(w)).0,
-                        super::TypeWord::List => map.list(TyList(w)).0,
-                    };
-                }
-            }
-        }
-        // Every instruction and constant word.
-        for k in 0..self.insts[r].len() {
-            let n = self.newpos[c as usize][k] as usize;
-            let mut locs = Vec::new();
-            slots(out, n, |loc, w, _| locs.push((loc, w)));
-            for (loc, w) in locs {
-                if w == NONE {
-                    continue;
-                }
-                if let Loc::Extra(p) = loc
-                    && done_at(&mut done, p as usize)
-                {
-                    continue;
-                }
-                let new = if w & Ref::CONST_BIT != 0 {
-                    let old = w & !Ref::CONST_BIT;
-                    let (t, bits) = b.consts[old as usize];
-                    let u = map.ty(t);
-                    Ref::CONST_BIT
-                        | if u == t {
-                            old
-                        } else {
-                            *consts.entry(old).or_insert_with(|| {
-                                out.consts.push((u, bits));
-                                u32_of(out.consts.len() - 1)
-                            })
-                        }
-                } else {
-                    self.inst(c, w).ok_or_else(|| bad("instruction", w))?
-                };
-                match loc {
-                    Loc::Data(d) => out.data[n][usize::from(d)] = new,
-                    Loc::Extra(p) => out.extra[p as usize] = new,
-                }
-            }
-        }
-        // Side rows.
-        let side = &self.side[r];
-        for &k in &side.fallback {
-            let [i, l] = b.fallback[k as usize];
-            if let Some(n) = self.inst(c, i) {
-                let l = if l == 0 { 0 } else { self.local(c, l - 1)? + 1 };
-                out.fallback.push([n, l]);
-            }
-        }
-        for &k in &side.held {
-            let (call, arg) = b.held_args[k as usize];
-            if let (Some(call), Some(arg)) = (self.inst(c, call), self.inst(c, arg)) {
-                out.held_args.push((call, arg));
-            }
-        }
-        for &k in &side.loan_slots {
-            let mut row = b.loan_slots[k as usize].clone();
-            if row.remap_values(|value| self.inst(c, value)).is_some() {
-                out.loan_slots.push(row);
-            }
-        }
-        for &k in &side.susp {
-            let row = &b.susp[k as usize];
-            let Some(inst) = self.inst(c, row.inst) else {
-                continue;
-            };
-            let (s, len) = (row.scopes.start as usize, row.scopes.len as usize);
-            let mut words = Vec::with_capacity(len);
-            for &w in &b.extra[s..s + len] {
-                words.push(self.inst(c, w).ok_or_else(|| bad("scope", w))?);
-            }
-            let at = push_record(out, &words);
-            out.susp.push(super::SuspRow {
-                inst,
-                scopes: Range32 {
-                    start: at,
-                    len: u32_of(len),
-                },
-                hook_site: if row.hook_site == NONE {
-                    NONE
-                } else {
-                    self.inst(c, row.hook_site).unwrap_or(NONE)
-                },
-            });
-        }
+        // Instructions, then side rows.
+        let rows: Vec<(u32, u32)> = (self.insts[r].iter())
+            .zip(&self.newpos[c as usize])
+            .map(|(&i, &n)| (i, n))
+            .collect();
+        copy_rows(b, &rows, out, &mut cm)?;
+        self.side[r].copy(out, &mut cm)?;
         Ok(())
     }
 }

@@ -14,6 +14,7 @@ use hd_base::{
 };
 use hd_types::{Ty, TyList};
 
+mod copy;
 mod instance;
 mod local_fns;
 mod owned;
@@ -21,6 +22,9 @@ mod root;
 mod slots;
 mod topo;
 mod view;
+pub(crate) use copy::{
+    Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, push_record, renumber,
+};
 pub use instance::verify_instance;
 pub use local_fns::{LocalTypes, instantiate_local_functions};
 pub use owned::verify_owned;

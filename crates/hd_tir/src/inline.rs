@@ -14,10 +14,10 @@ use hd_base::{DefId, HashMap, LocalId, NodeIdx, SubId};
 use hd_types::{Ty, TyList};
 
 use crate::ir::{
-    Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Role, Tag, Word, local_flags, place,
-    slots, u32_of,
+    Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Remap, Role, SideRows, Tag, Through,
+    Word, copy_rows, grow, local_flags, place, push_frame, push_record, renumber, slots, u32_of,
 };
-use crate::own::splice::{permute_columns, renumber_through};
+use crate::own::splice::permute_columns;
 
 mod closures;
 pub use closures::{called_parameters, inline_local_closures, literal_arguments};
@@ -321,7 +321,13 @@ fn inline_bound_calls(
         }
         fin.push(u32_of(i + shift));
     }
-    renumber_through(b, fin, 0)?;
+    renumber(
+        b,
+        &mut Through {
+            new_of: &fin,
+            konst: 0,
+        },
+    )?;
     // Rows keep their places until the permutation below.
     let mut unaddressed = Vec::new();
     for (i, ty) in by_value_reads {
@@ -465,10 +471,52 @@ fn prepare(b: &Body, site: Site, outer: &[u32]) -> Option<Ready> {
     })
 }
 
+/// The copy's tables: its rows' numbers once permuted, its records,
+/// constants, locals and labels after the caller's, a captured local's the
+/// caller's.
+struct Moved<'a> {
+    new_of: Vec<u32>,
+    xbase: u32,
+    konst: u32,
+    lbase: u32,
+    environment: &'a [(u32, u32)],
+    lab: u32,
+}
+
+impl Remap for Moved<'_> {
+    fn inst(&self, w: u32) -> Option<u32> {
+        self.new_of.get(w as usize).copied()
+    }
+
+    fn konst(&mut self, _: &mut Body, c: u32) -> Option<u32> {
+        Some(c + self.konst)
+    }
+
+    fn local(&self, l: u32) -> Option<u32> {
+        Some(relocated_local(l, self.lbase, self.environment))
+    }
+
+    fn label(&mut self, _: &mut Body, l: u32) -> Option<u32> {
+        Some(l + self.lab)
+    }
+
+    fn at(&self, w: u32) -> Option<u32> {
+        Some(w + self.xbase)
+    }
+}
+
+fn relocated_local(local: u32, lbase: u32, environment: &[(u32, u32)]) -> u32 {
+    environment
+        .binary_search_by_key(&local, |&(copy, _)| copy)
+        .map_or(local + lbase, |i| environment[i].1)
+}
+
 /// Appends site `r`'s rows to the renumbered caller, numbered as they will
 /// stand once permuted: the `Store`s, the callee's instructions but its
-/// root, the final `Break`, the root, the `Scope`. Returns the call's
-/// block, the `Scope`, and the members the block lists before it.
+/// root, the captured reads and their cleanup, the final `Break`, the
+/// root, the `Scope`. Each `Return` becomes a `Break` to the root. Returns
+/// the call's block, the `Scope`, and the members the block lists before
+/// it.
 fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let Ready {
         c,
@@ -484,33 +532,55 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let args = out.record(out.data[c][1]).to_vec();
     let keep = environment.len() + usize::from(!environment.is_empty());
     let root_at = base + u32_of(np + m + keep);
-    let mut new_of = Vec::with_capacity(m);
-    for j in 0..m {
-        new_of.push(if j + 1 == m {
-            root_at
-        } else {
-            base + u32_of(np + j)
-        });
+    let (start, lbase) = (out.len(), u32_of(out.local_ty.len()));
+    let label = u32_of(out.label_inst.len() + k.label_inst.len());
+    let mut map = Moved {
+        new_of: (0..m)
+            .map(|j| {
+                if j + 1 == m {
+                    root_at
+                } else {
+                    base + u32_of(np + j)
+                }
+            })
+            .collect(),
+        xbase: u32_of(out.extra.len()),
+        konst: u32_of(out.consts.len()),
+        lbase,
+        environment: &environment,
+        lab: u32_of(out.label_inst.len()),
+    };
+    let root = start + np + m + keep;
+    grow(out, root + 2);
+    // The callee's records move whole, after the caller's.
+    out.extra.extend_from_slice(&k.extra);
+    let rows: Vec<(u32, u32)> = (0..m)
+        .map(|j| {
+            (
+                u32_of(j),
+                u32_of(if j + 1 == m { root } else { start + np + j }),
+            )
+        })
+        .collect();
+    copy_rows(&k, &rows, out, &mut map)?;
+    SideRows::take(&mut k).copy(out, &mut map)?;
+    out.label_inst
+        .extend(k.label_inst.iter().map(|&x| map.new_of[x as usize]));
+    out.label_inst.push(root_at);
+    for &(_, n) in &rows[..m - 1] {
+        let n = n as usize;
+        if out.tags[n] == Tag::Return {
+            out.tags[n] = Tag::Break;
+            out.data[n] = [label, out.data[n][0]];
+        }
     }
-    renumber_through(&mut k, new_of, u32_of(out.consts.len()))?;
     let refs: Vec<(u32, u32)> = refs
         .into_iter()
-        .map(|(local, arg)| (local, args[arg]))
+        .map(|(local, arg)| (relocated_local(local, lbase, &environment), args[arg]))
         .collect();
-    substitute_refs(&mut k, &refs)?;
-    let (xbase, lbase) = (u32_of(out.extra.len()), u32_of(out.local_ty.len()));
-    let label = u32_of(out.label_inst.len() + k.label_inst.len());
-    relocate(
-        &mut k,
-        xbase,
-        lbase,
-        u32_of(out.label_inst.len()),
-        label,
-        &environment,
-    );
+    substitute_refs(out, start + np..start + np + m - 1, &refs)?;
     let syn = out.syn[c];
     let ty = out.ty[c];
-    out.extra.append(&mut k.extra);
     // The bindings stand right before the `Scope` in the call's block, so
     // an argument is consumed in the block that made it; the block also
     // lists the root, which the `Scope` runs.
@@ -521,7 +591,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     }
     before.push(root_at);
     // The root's members: the callee's, then the final `Break`.
-    let [members, tail] = k.data[m - 1];
+    let [members, tail] = out.data[root];
     let mut list = out.record(members).to_vec();
     list.push(root_at - 1);
     let rec = push_record(out, &list);
@@ -581,67 +651,56 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         // Ruled out: the same anchor and call-site columns populated source_ids.
         a => INLINED | (first + source_ids[&a]),
     };
-    out.inlined
-        .push([first, u32_of(source_rows.len()), k.item.raw(), anchor]);
-    for (i, &source) in source_rows.iter().enumerate() {
-        if source != u32_of(i) {
-            out.inlined_origins.push([first + u32_of(i), source]);
-        }
-    }
+    push_frame(out, source_rows.iter().copied(), k.item.raw(), anchor);
     for &[f, len, callee, call] in &k.inlined {
         out.inlined.push([nested + f, len, callee, moved(call)]);
     }
     for &[at, source] in &k.inlined_origins {
         out.inlined_origins.push([nested + at, source]);
     }
-    let anchors: Vec<u32> = if k.anchors.is_empty() {
-        (0..u32_of(m)).map(moved).collect()
-    } else {
-        k.anchors.iter().map(|&a| moved(a)).collect()
-    };
-    // The arguments, renumbered with the caller.
-    let mut put = |tag: Tag, data: [u32; 2], ty: Ty, at: Option<usize>| {
-        out.tags.push(tag);
-        out.data.push(data);
-        out.ty.push(ty);
-        let own = at.map(|j| (k.syn[j], anchors[j]));
-        out.syn.push(match own {
+    // Each row the copy adds takes the call's position; the callee's keep
+    // theirs, or none.
+    let mut put = |n: usize, row: Option<(Tag, [u32; 2], Ty)>, own: Option<usize>| {
+        if let Some((tag, data, ty)) = row {
+            out.tags[n] = tag;
+            out.data[n] = data;
+            out.ty[n] = ty;
+        }
+        let own = own.map(|j| (k.syn[j], moved(k.anchor(u32_of(j)))));
+        out.syn[n] = match own {
             Some((NodeIdx::NONE, _)) => NodeIdx::NONE,
             _ => syn,
-        });
-        out.anchors.push(own.map_or(anchor, |o| o.1));
+        };
+        out.anchors[n] = own.map_or(anchor, |o| o.1);
     };
-    for &(p, a) in &params {
-        put(
-            Tag::Store,
-            [(p + lbase) | place::BARE_LOCAL, args[a]],
-            Ty::VOID,
-            None,
-        );
+    for (p, &(l, a)) in params.iter().enumerate() {
+        let data = [(l + lbase) | place::BARE_LOCAL, args[a]];
+        put(start + p, Some((Tag::Store, data, Ty::VOID)), None);
     }
     for j in 0..m - 1 {
-        put(k.tags[j], k.data[j], k.ty[j], Some(j));
+        put(start + np + j, None, Some(j));
     }
+    let mut n = start + np + m - 1;
     for &(local, parent) in &environment {
-        put(
-            Tag::Read,
-            [
-                place::BARE_LOCAL | parent,
-                crate::ir::ReadMode::Borrow as u32,
-            ],
-            k.local_ty[local as usize],
-            None,
-        );
+        let data = [
+            place::BARE_LOCAL | parent,
+            crate::ir::ReadMode::Borrow as u32,
+        ];
+        put(n, Some((Tag::Read, data, k.local_ty[local as usize])), None);
+        n += 1;
     }
     if !environment.is_empty() {
-        put(Tag::Block, [cleanup_record, NONE], Ty::VOID, None);
+        put(
+            n,
+            Some((Tag::Block, [cleanup_record, NONE], Ty::VOID)),
+            None,
+        );
+        n += 1;
     }
-    put(Tag::Break, [label, tail], Ty::NEVER, None);
+    put(n, Some((Tag::Break, [label, tail], Ty::NEVER)), None);
     // The root takes the call's type, which its `Break`s carry.
-    put(Tag::Block, [rec, NONE], ty, Some(m - 1));
-    put(Tag::Scope, [root_at, cleanups], ty, None);
-    out.label_inst.extend_from_slice(&k.label_inst);
-    out.label_inst.push(root_at);
+    put(root, Some((Tag::Block, [rec, NONE], ty)), Some(m - 1));
+    put(root + 1, Some((Tag::Scope, [root_at, cleanups], ty)), None);
     let sbase = out.strings.len() as u64;
     for l in 0..k.local_ty.len() {
         out.local_ty.push(k.local_ty[l]);
@@ -649,24 +708,14 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         out.local_syn.push(syn);
         out.local_flags.push(k.local_flags[l] & !local_flags::PARAM);
     }
+    for &(local, _) in &refs {
+        out.local_flags[local as usize] = 0;
+    }
     for &(t, bits) in &k.consts {
         out.consts
             .push((t, if t == Ty::STRING { bits + sbase } else { bits }));
     }
     out.strings.append(&mut k.strings);
-    // The copy's fallback rows, sorted with the caller's once all are in.
-    for &[i, l] in &k.fallback {
-        out.fallback.push([
-            i,
-            if l == 0 {
-                0
-            } else {
-                relocated_local(l - 1, lbase, &environment) + 1
-            },
-        ]);
-    }
-    out.held_args.append(&mut k.held_args);
-    out.loan_slots.append(&mut k.loan_slots);
     let captures = u32_of(out.cap_local.len());
     out.cap_local.extend(
         k.cap_local
@@ -693,13 +742,17 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
 
 /// The reader proof permits only reads through a reference parameter,
 /// including a whole read used as a match scrutinee. Substitute the
-/// caller's evaluated reference after the copy's values are renumbered,
-/// so the argument is neither duplicated nor mistaken for a callee value.
-fn substitute_refs(body: &mut Body, refs: &[(u32, u32)]) -> Result<(), String> {
+/// caller's evaluated reference in the copied rows `rows`, so the argument
+/// is neither duplicated nor mistaken for a callee value.
+fn substitute_refs(
+    body: &mut Body,
+    rows: std::ops::Range<usize>,
+    refs: &[(u32, u32)],
+) -> Result<(), String> {
     if refs.is_empty() {
         return Ok(());
     }
-    for i in 0..body.len() {
+    for i in rows {
         let ops = body.tags[i].operands();
         for (x, op) in [ops.0, ops.1].into_iter().enumerate() {
             if op != Op::Place {
@@ -727,83 +780,7 @@ fn substitute_refs(body: &mut Body, refs: &[(u32, u32)]) -> Result<(), String> {
             }
         }
     }
-    for &(local, _) in refs {
-        body.local_flags[local as usize] = 0;
-    }
     Ok(())
-}
-
-/// Moves the copy's record words `xbase` on, its locals `lbase` on and
-/// its labels `lab` on, and turns each `Return` into a `Break` to `label`.
-fn relocated_local(local: u32, lbase: u32, environment: &[(u32, u32)]) -> u32 {
-    environment
-        .binary_search_by_key(&local, |&(copy, _)| copy)
-        .map_or(local + lbase, |i| environment[i].1)
-}
-
-fn relocate(
-    k: &mut Body,
-    xbase: u32,
-    lbase: u32,
-    lab: u32,
-    label: u32,
-    environment: &[(u32, u32)],
-) {
-    let mut pairs = Vec::new();
-    for i in 0..k.len() {
-        if let Some(footer) = k.call_footer(i)
-            && matches!(k.call_providers(i), crate::ir::Providers::Pairs(r) if r.len > 0)
-        {
-            pairs.push(footer + 1);
-        }
-    }
-    pairs.sort_stable();
-    pairs.dedup();
-    for at in pairs {
-        k.extra[at] += xbase;
-    }
-    let mut places = Vec::new();
-    for i in 0..k.len() {
-        let (oa, ob) = k.tags[i].operands();
-        for (x, op) in [oa, ob].into_iter().enumerate() {
-            let w = &mut k.data[i][x];
-            match op {
-                Op::Values | Op::Blocks | Op::Record if *w != NONE => *w += xbase,
-                Op::Place if *w & place::BARE_LOCAL != 0 => {
-                    *w = place::BARE_LOCAL
-                        | relocated_local(*w & !place::BARE_LOCAL, lbase, environment);
-                }
-                Op::Place => {
-                    places.push(*w as usize);
-                    *w += xbase;
-                }
-                Op::Label => *w += lab,
-                // Item and provider references keep their IDs in records.
-                Op::Meta if matches!(k.tags[i], Tag::ItemRef | Tag::ProviderGet) => {
-                    *w += xbase;
-                }
-                _ => {}
-            }
-        }
-        if k.tags[i] == Tag::Return {
-            k.tags[i] = Tag::Break;
-            k.data[i] = [label, k.data[i][0]];
-        }
-    }
-    places.sort_stable();
-    places.dedup();
-    for at in places {
-        if k.extra[at + 1] == place::ROOT_LOCAL {
-            k.extra[at + 2] = relocated_local(k.extra[at + 2], lbase, environment);
-        }
-    }
-}
-
-fn push_record(b: &mut Body, words: &[u32]) -> u32 {
-    let at = u32_of(b.extra.len());
-    b.extra.push(u32_of(words.len()));
-    b.extra.extend_from_slice(words);
-    at
 }
 
 #[cfg(test)]
