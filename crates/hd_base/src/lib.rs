@@ -16,6 +16,7 @@ pub mod path;
 pub mod scc;
 pub mod sort;
 pub mod stable;
+pub mod stack;
 pub mod unsupported;
 pub mod wire;
 pub mod work;

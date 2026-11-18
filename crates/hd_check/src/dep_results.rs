@@ -758,69 +758,45 @@ fn line_up_call(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
     line_up_in(ls, d, t, true)
 }
 
+/// Parts are pushed in reverse ([`hd_base::stack::all`]), so keys append
+/// in order; a part that keys a slot after its own parts (a local
+/// reference's whole referent, a suspension's retained origins) pushes
+/// that step under them. One step per pair of parts.
 fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
-    /// The next declared slot, and the keys so far.
-    type St = (usize, Vec<Key>, bool);
-    fn walk(ls: &Layouts<'_>, d: Ty, t: Ty, st: &mut St, depth: u32) -> bool {
-        let (pool, d1) = (ls.pool, depth + 1);
-        let list = |a: hd_types::TyList, b: hd_types::TyList, st: &mut St| {
-            let (a, b) = (pool.list_items(a), pool.list_items(b));
-            a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| walk(ls, x, y, st, d1))
-        };
-        let param = |t: Ty| match pool.get(t) {
-            TyData::Param(p) => Some(p),
-            _ => None,
-        };
-        let decl = |st: &mut St, n: usize| {
-            st.1.extend(std::iter::repeat_n(Key::Decl(st.0), n));
-            st.0 += 1;
-        };
-        match (pool.get(d), pool.get(t)) {
-            _ if depth > hd_base::limits::TYPE_DEPTH => false,
-            (TyData::Param(p), _) => {
-                st.1.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
-                true
+    /// A pair to line up at a depth, or what a part does after its parts.
+    enum Step {
+        Pair(Ty, Ty, u32),
+        /// The whole referent of a local reference, declared and
+        /// instantiated.
+        Whole(Ty, Ty),
+        /// A suspension's slot of retained origins.
+        Retained,
+    }
+    let pool = ls.pool;
+    // The next declared slot, and the keys so far.
+    let (mut next, mut keys) = (0, Vec::new());
+    let param = |t: Ty| match pool.get(t) {
+        TyData::Param(p) => Some(p),
+        _ => None,
+    };
+    let decl = |next: &mut usize, keys: &mut Vec<Key>, n: usize| {
+        keys.extend(std::iter::repeat_n(Key::Decl(*next), n));
+        *next += 1;
+    };
+    let lined = hd_base::stack::all(Step::Pair(d, t, 0), |step, stack| {
+        let (d, t, depth) = match step {
+            Step::Pair(d, t, depth) => (d, t, depth),
+            Step::Retained => {
+                decl(&mut next, &mut keys, 1);
+                return true;
             }
-            // A function value's one capture slot (`fn.capture.local-parameter`).
-            (TyData::Fn { .. }, TyData::Fn { .. }) => {
-                decl(st, 1);
-                true
-            }
-            // Each slot of an opaque type's hidden type, or of its instance,
-            // takes the opaque type's lifetime (`types.opaque.borrows`).
-            (TyData::Opaque { borrows: true, .. }, _) => {
-                decl(st, ls.of(t).slots.len());
-                true
-            }
-            (TyData::Opaque { .. }, _) => {
-                st.1.extend(std::iter::repeat_n(Key::None, ls.of(t).slots.len()));
-                true
-            }
-            (TyData::Assoc { self_ty, .. }, _)
-                if st.2
-                    && let Some(p) = param(self_ty) =>
-            {
-                st.1.extend(std::iter::repeat_n(Key::AllOf(p, d), ls.of(t).slots.len()));
-                true
-            }
-            (
-                TyData::Ref {
-                    counted: false,
-                    inner: a,
-                    ..
-                },
-                TyData::Ref {
-                    counted: false,
-                    inner: b,
-                    ..
-                },
-            ) => {
-                decl(st, 1);
-                let ok = walk(ls, a, b, st, d1);
-                // The whole slot of each side's referent ([`Slot::whole`]):
-                // the declared one, or what a type parameter there stands
-                // for whole, its slot 0, as a call passes it
-                // ([`Ck::call_sig`]).
+            // The whole slot of each side's referent ([`Slot::whole`]):
+            // the declared one, or what a type parameter there stands for
+            // whole, its slot 0, as a call passes it ([`Ck::call_sig`]).
+            Step::Whole(d, t) => {
+                let TyData::Ref { inner: a, .. } = pool.get(d) else {
+                    return true;
+                };
                 let whole = |r: Ty| ls.of(r).slots.get(1).is_some_and(|s| s.whole);
                 let bare = || bare_parts(pool, a).0.first().copied();
                 // The first projection of a type parameter there, as
@@ -837,29 +813,75 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                         _ => None,
                     })
                 };
-                match (ok, whole(d), whole(t)) {
-                    (false, ..) | (_, false, false) => {}
-                    (_, true, true) => decl(st, 1),
-                    (_, false, true) if let Some(p) = bare() => st.1.push(Key::Param(p, 0)),
-                    (_, false, true)
-                        if st.2
-                            && let Some((p, proj)) = param_proj(a) =>
-                    {
-                        st.1.push(Key::AllOf(p, proj));
+                match (whole(d), whole(t)) {
+                    (false, false) => {}
+                    (true, true) => decl(&mut next, &mut keys, 1),
+                    (false, true) if let Some(p) = bare() => keys.push(Key::Param(p, 0)),
+                    (false, true) if call && let Some((p, proj)) = param_proj(a) => {
+                        keys.push(Key::AllOf(p, proj));
                     }
-                    (_, true, false) => st.0 += 1,
-                    (_, false, true) => st.1.push(Key::None),
+                    (true, false) => next += 1,
+                    (false, true) => keys.push(Key::None),
                 }
-                ok
+                return true;
+            }
+        };
+        let d1 = depth + 1;
+        let list = |stack: &mut Vec<Step>, a: hd_types::TyList, b: hd_types::TyList| {
+            let (a, b) = (pool.list_items(a), pool.list_items(b));
+            stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| Step::Pair(x, y, d1)));
+            a.len() == b.len()
+        };
+        match (pool.get(d), pool.get(t)) {
+            _ if depth > hd_base::limits::TYPE_DEPTH => false,
+            (TyData::Param(p), _) => {
+                keys.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
+                true
+            }
+            // A function value's one capture slot (`fn.capture.local-parameter`).
+            (TyData::Fn { .. }, TyData::Fn { .. }) => {
+                decl(&mut next, &mut keys, 1);
+                true
+            }
+            // Each slot of an opaque type's hidden type, or of its instance,
+            // takes the opaque type's lifetime (`types.opaque.borrows`).
+            (TyData::Opaque { borrows: true, .. }, _) => {
+                decl(&mut next, &mut keys, ls.of(t).slots.len());
+                true
+            }
+            (TyData::Opaque { .. }, _) => {
+                keys.extend(std::iter::repeat_n(Key::None, ls.of(t).slots.len()));
+                true
+            }
+            (TyData::Assoc { self_ty, .. }, _) if call && let Some(p) = param(self_ty) => {
+                keys.extend(std::iter::repeat_n(Key::AllOf(p, d), ls.of(t).slots.len()));
+                true
+            }
+            (
+                TyData::Ref {
+                    counted: false,
+                    inner: a,
+                    ..
+                },
+                TyData::Ref {
+                    counted: false,
+                    inner: b,
+                    ..
+                },
+            ) => {
+                decl(&mut next, &mut keys, 1);
+                stack.push(Step::Whole(d, t));
+                stack.push(Step::Pair(a, b, d1));
+                true
             }
             (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
+            // A rest that does not line up fails the whole walk, so it
+            // fails before the elements are entered.
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-                list(a, b, st)
-                    && match (ra, rb) {
-                        (Some(x), Some(y)) => walk(ls, x, y, st, d1),
-                        (None, None) => true,
-                        _ => false,
-                    }
+                if let (Some(x), Some(y)) = (ra, rb) {
+                    stack.push(Step::Pair(x, y, d1));
+                }
+                ra.is_some() == rb.is_some() && list(stack, a, b)
             }
             (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
             | (
@@ -870,21 +892,17 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                     def: y, args: b, ..
                 },
             ) if x == y => {
-                if !list(a, b, st) {
-                    return false;
-                }
                 // Layout::walk puts the suspension's retained origins after
                 // its result slots, including inside another type argument.
                 if x == ls.suspend {
-                    decl(st, 1);
+                    stack.push(Step::Retained);
                 }
-                true
+                list(stack, a, b)
             }
             _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
         }
-    }
-    let mut st = (0, Vec::new(), call);
-    walk(ls, d, t, &mut st, 0).then_some(st.1)
+    });
+    lined.then_some(keys)
 }
 
 /// Whether `t` is a direct function value. Such a value has
@@ -1662,6 +1680,55 @@ mod returned_variable_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod line_up_tests {
+    use super::*;
+    use hd_types::{InternPool, ParamRef};
+
+    /// [`line_up`] keys a type on its own stack: a declared type 1,000
+    /// levels deep, a local reference beside the next level at each, with
+    /// a type parameter at the bottom, lines up with its instance on a
+    /// 96 KiB thread.
+    #[test]
+    fn a_line_up_at_the_type_depth_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let r = pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable: false,
+                    counted: false,
+                });
+                let p = ParamRef {
+                    owner: DefId::from_raw(1),
+                    index: 0,
+                };
+                let mut deep = (pool.intern_ty(&TyData::Param(p)), r);
+                for _ in 1..hd_base::limits::TYPE_DEPTH {
+                    let pair = |x| {
+                        pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[r, x]),
+                            rest: None,
+                        })
+                    };
+                    deep = (pair(deep.0), pair(deep.1));
+                }
+                let lifetimed = |_: DefId| false;
+                let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+                let keys = line_up(&ls, deep.0, deep.1).expect("the two line up");
+                let n = hd_base::limits::TYPE_DEPTH as usize;
+                assert_eq!(keys.len(), n);
+                assert_eq!(keys[n - 2], Key::Decl(n - 2));
+                assert_eq!(keys[n - 1], Key::Param(p, 0));
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
     }
 }
 

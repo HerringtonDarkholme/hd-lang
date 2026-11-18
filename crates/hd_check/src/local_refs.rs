@@ -419,95 +419,138 @@ fn fn_type_source(src: &Src<'_>, ret: NodeRef<'_>, ins: &[Option<&str>], diags: 
 /// tuple, an optional, a counted reference or another generic type's
 /// instance at the top (`ref.local.holding`), as a function type's
 /// parameter or behind a local reference is no escape.
-fn escape_in(
-    pool: Types<'_>,
-    t: Ty,
-    top_ok: bool,
-    depth: u32,
-    memo: &mut EscapeMemo,
-) -> Option<Escape> {
-    if depth > hd_base::limits::TYPE_DEPTH || !pool.has_ref(t) {
-        return None;
-    }
-    if let Some(&e) = memo.get(&(t, top_ok)) {
-        return e;
-    }
-    let d = depth + 1;
-    let list = |l, top: bool, memo: &mut EscapeMemo| {
-        pool.list_items(l)
-            .iter()
-            .find_map(|&a| escape_in(pool, a, top, d, memo))
-    };
-    let e = match pool.get(t) {
-        TyData::Ref {
-            counted: false,
-            inner,
-            ..
-        } => {
-            if top_ok {
-                escape_in(pool, inner, true, d, memo)
+///
+/// A part's answer is its parts' first, kept in `memo`; the walk keeps
+/// its own frames, so the native stack is constant in the depth.
+fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Option<Escape> {
+    // A part to enter: its type, whether its top may hold a reference, its
+    // depth, and whether it is the result of a function type with no
+    // source, whose own local reference escapes as the result. A frame is
+    // a part being entered, where its own parts start in `parts`, and the
+    // part it is entering.
+    type Part = (Ty, bool, u32, bool);
+    let (mut frames, mut parts) = (Vec::<(Part, usize, Part)>::new(), Vec::<Part>::new());
+    let mut next = Some((t, top_ok, 0, false));
+    loop {
+        // Enter `next`: answer it at once, or open a frame for its parts.
+        let mut answer = None;
+        if let Some(p @ (t, top_ok, depth, _)) = next.take() {
+            let (d, base) = (depth + 1, parts.len());
+            let part = |t, top_ok| (t, top_ok, d, false);
+            let list = |parts: &mut Vec<Part>, l, top| {
+                parts.extend(pool.list_items(l).iter().rev().map(|&a| part(a, top)));
+            };
+            if depth > hd_base::limits::TYPE_DEPTH || !pool.has_ref(t) {
+                answer = Some(None);
+            } else if let Some(&e) = memo.get(&(t, top_ok)) {
+                answer = Some(e);
             } else {
-                Some(Escape::TypeArgument)
+                match pool.get(t) {
+                    TyData::Ref {
+                        counted: false,
+                        inner,
+                        ..
+                    } => {
+                        if top_ok {
+                            parts.push(part(inner, true));
+                        } else {
+                            answer = Some(Some(Escape::TypeArgument));
+                        }
+                    }
+                    // A counted reference holds what its referent holds
+                    // (`ref.local.holding.counted`), as a generic instance does.
+                    TyData::Ref { inner, .. } => parts.push(part(inner, top_ok)),
+                    TyData::Tuple { elems, rest } => {
+                        parts.extend(rest.map(|r| part(r, top_ok)));
+                        list(&mut parts, elems, top_ok);
+                    }
+                    TyData::Adt { args, .. } | TyData::Union(args) => {
+                        list(&mut parts, args, top_ok);
+                    }
+                    // An opaque type that borrows holds a local reference of
+                    // its own, at the top as a reference is
+                    // (`types.opaque.borrows`).
+                    TyData::Opaque { borrows: true, .. } if !top_ok => {
+                        answer = Some(Some(Escape::TypeArgument));
+                    }
+                    TyData::Opaque { args, .. } => list(&mut parts, args, false),
+                    TyData::TraitValue { args, bindings, .. } => {
+                        parts.extend(bindings.iter().rev().map(|&(_, b)| part(b, false)));
+                        parts.extend(pool.list_items(args).iter().rev().map(|&a| {
+                            let top = top_ok && hd_resolve::iface::is_lifetime_arg(pool, a);
+                            part(a, top)
+                        }));
+                    }
+                    // A projection holds what its base and its trait's
+                    // arguments hold, at the top as a generic instance does
+                    // (`ref.local.holding`). Its arguments are a bound's, a
+                    // lifetime argument or a `&'a T` the bound wrote, which
+                    // the bound itself answers for
+                    // (`ref.lifetime.trait.bound-argument`), so they escape
+                    // nowhere here.
+                    TyData::Assoc { self_ty, args, .. } => {
+                        list(&mut parts, args, top_ok);
+                        parts.push(part(self_ty, top_ok));
+                    }
+                    // A result with a source may hold a local reference at
+                    // the top, as a function's may (`fn.type.lifetime.result`).
+                    TyData::Fn { params, result, .. } => {
+                        let sourced = pool.fn_ty_deps(t).is_some_and(|(_, outs)| !outs.is_empty());
+                        parts.push((result, sourced, d, !sourced));
+                        list(&mut parts, params, true);
+                    }
+                    // Not entered: no reference value inside, a goal in error
+                    // or still open, or a row or context, whose keys name
+                    // providers.
+                    TyData::Param(_)
+                    | TyData::Prim(_)
+                    | TyData::Never
+                    | TyData::Poison
+                    | TyData::Const(_)
+                    | TyData::Infer(_)
+                    | TyData::Canon(_)
+                    | TyData::Row(_)
+                    | TyData::Context(_) => answer = Some(None),
+                }
+            }
+            if answer.is_none() {
+                frames.push((p, base, p));
             }
         }
-        // A counted reference holds what its referent holds
-        // (`ref.local.holding.counted`), as a generic instance does.
-        TyData::Ref { inner, .. } => escape_in(pool, inner, top_ok, d, memo),
-        TyData::Tuple { elems, rest } => list(elems, top_ok, memo)
-            .or_else(|| rest.and_then(|r| escape_in(pool, r, top_ok, d, memo))),
-        TyData::Adt { args, .. } | TyData::Union(args) => list(args, top_ok, memo),
-        // An opaque type that borrows holds a local reference of its own,
-        // at the top as a reference is (`types.opaque.borrows`).
-        TyData::Opaque { borrows: true, .. } if !top_ok => Some(Escape::TypeArgument),
-        TyData::Opaque { args, .. } => list(args, false, memo),
-        TyData::TraitValue { args, bindings, .. } => pool
-            .list_items(args)
-            .iter()
-            .find_map(|&a| {
-                let top = top_ok && hd_resolve::iface::is_lifetime_arg(pool, a);
-                escape_in(pool, a, top, d, memo)
-            })
-            .or_else(|| {
-                bindings
-                    .iter()
-                    .find_map(|&(_, b)| escape_in(pool, b, false, d, memo))
-            }),
-        // A projection holds what its base and its trait's arguments hold,
-        // at the top as a generic instance does (`ref.local.holding`). Its
-        // arguments are a bound's, a lifetime argument or a `&'a T` the
-        // bound wrote, which the bound itself answers for
-        // (`ref.lifetime.trait.bound-argument`), so they escape nowhere here.
-        TyData::Assoc { self_ty, args, .. } => {
-            escape_in(pool, self_ty, top_ok, d, memo).or_else(|| list(args, top_ok, memo))
-        }
-        // A result with a source may hold a local reference at the top,
-        // as a function's may (`fn.type.lifetime.result`).
-        TyData::Fn { params, result, .. } => list(params, true, memo).or_else(|| {
-            let sourced = pool.fn_ty_deps(t).is_some_and(|(_, outs)| !outs.is_empty());
-            match escape_in(pool, result, sourced, d, memo) {
-                Some(Escape::TypeArgument) if !sourced && is_local_ref(pool, result) => {
+        // Give the answer to the frame that entered the part: a frame ends
+        // on its first escape, or when it has no part left, and its answer
+        // goes to the frame below.
+        loop {
+            let Some((part, base, entering)) = frames.last_mut() else {
+                return answer.flatten();
+            };
+            let e = match answer {
+                Some(Some(Escape::TypeArgument))
+                    if entering.3 && is_local_ref(pool, entering.0) =>
+                {
                     Some(Escape::Result)
                 }
-                other => other,
+                Some(e) => e,
+                None => None,
+            };
+            if e.is_none()
+                && parts.len() > *base
+                && let Some(p) = parts.pop()
+            {
+                *entering = p;
+                next = Some(p);
+                break;
             }
-        }),
-        // Not entered: no reference value inside, a goal in error or still
-        // open, or a row or context, whose keys name providers.
-        TyData::Param(_)
-        | TyData::Prim(_)
-        | TyData::Never
-        | TyData::Poison
-        | TyData::Const(_)
-        | TyData::Infer(_)
-        | TyData::Canon(_)
-        | TyData::Row(_)
-        | TyData::Context(_) => None,
-    };
-    // Only a walk the depth limit cut nowhere is the type's answer.
-    if depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
-        memo.insert((t, top_ok), e);
+            parts.truncate(*base);
+            let (t, top_ok, depth, _) = *part;
+            frames.pop();
+            // Only a walk the depth limit cut nowhere is the type's answer.
+            if depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH {
+                memo.insert((t, top_ok), e);
+            }
+            answer = Some(e);
+        }
     }
-    e
 }
 
 /// [`escape_in`]'s answers, by type and whether the top may hold a
@@ -519,7 +562,7 @@ pub(crate) type EscapeMemo = HashMap<(Ty, bool), Option<Escape>>;
 /// Whether a value of type `t` holds a local reference anywhere, its top
 /// included (`ref.local.holding`).
 pub(crate) fn holds_local_ref(pool: Types<'_>, t: Ty) -> bool {
-    escape_in(pool, t, false, 0, &mut EscapeMemo::default()).is_some()
+    escape_in(pool, t, false, &mut EscapeMemo::default()).is_some()
 }
 
 /// `ref.generic.outlives.position`: the lifetime that bounds field type `f`
@@ -589,6 +632,37 @@ pub(crate) fn static_bounded(
         .any(|&b| pool.trait_value(b).is_some_and(|(d, _)| d == static_bound))
 }
 
+/// Whether `t` names `p` under a position ([`scoped_param`]).
+fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef) -> bool {
+    !hd_base::stack::all((t, false, 0), |(t, under, depth), stack| {
+        if depth > hd_base::limits::TYPE_DEPTH || !pool.has_param(t) {
+            return true;
+        }
+        let d = depth + 1;
+        let list = |stack: &mut Vec<_>, l: hd_types::TyList, under: bool| {
+            stack.extend(pool.list_items(l).iter().map(|&a| (a, under, d)));
+        };
+        match pool.get(t) {
+            TyData::Param(q) => return !(under && q == p),
+            TyData::Ref { inner: i, .. } => stack.push((i, under, d)),
+            TyData::Tuple { elems, rest } => {
+                list(stack, elems, under);
+                stack.extend(rest.map(|r| (r, under, d)));
+            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(stack, args, under),
+            TyData::Fn { params, result, .. } => {
+                list(stack, params, true);
+                stack.push((result, true, d));
+            }
+            // No parameter names an opaque type
+            // (`grammar.fn.impl-type.positions`), and a result that does
+            // is answered below before this walk.
+            _ => return true,
+        }
+        true
+    })
+}
+
 /// `ref.generic.outlives.instance`: whether an argument of type parameter
 /// `p` may hold a closure's captured origins at a call of `sig`. Each
 /// type `sig` names `p` in gives it a position, except a function type
@@ -598,37 +672,9 @@ pub(crate) fn scoped_param(
     sig: &hd_resolve::FnSig,
     p: hd_types::ParamRef,
 ) -> bool {
-    fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef, under: bool, depth: u32) -> bool {
-        if depth > hd_base::limits::TYPE_DEPTH || !pool.has_param(t) {
-            return false;
-        }
-        let d = depth + 1;
-        let list = |l: hd_types::TyList, under: bool| {
-            pool.list_items(l)
-                .iter()
-                .any(|&a| hidden(pool, a, p, under, d))
-        };
-        match pool.get(t) {
-            TyData::Param(q) => under && q == p,
-            TyData::Ref { inner: i, .. } => hidden(pool, i, p, under, d),
-            TyData::Tuple { elems, rest } => {
-                list(elems, under) || rest.is_some_and(|r| hidden(pool, r, p, under, d))
-            }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(args, under),
-            TyData::Fn { params, result, .. } => {
-                list(params, true) || hidden(pool, result, p, true, d)
-            }
-            // No parameter names an opaque type (`grammar.fn.impl-type.positions`),
-            // and a result that does is answered below before this walk.
-            _ => false,
-        }
-    }
     !pool.has_opaque(sig.ret)
-        && !sig
-            .params
-            .iter()
-            .any(|&(_, t)| hidden(pool, t, p, false, 0))
-        && !hidden(pool, sig.ret, p, false, 0)
+        && !sig.params.iter().any(|&(_, t)| hidden(pool, t, p))
+        && !hidden(pool, sig.ret, p)
 }
 
 fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
@@ -644,76 +690,81 @@ fn is_local_ref(pool: Types<'_>, t: Ty) -> bool {
 /// differ lends a counted reference as a local one, or in a function
 /// type's parameter takes the local one where a counted one is passed.
 /// Other positions keep their kind (`ref.type.kind-distinct`).
-pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8, depth: u32) -> bool {
-    if from == to {
-        return true;
-    }
-    if depth > hd_base::limits::TYPE_DEPTH {
-        return false;
-    }
-    let d = depth + 1;
-    let list = |a: hd_types::TyList, b: hd_types::TyList, p: i8| {
-        let (a, b) = (pool.list_items(a), pool.list_items(b));
-        a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| lends(pool, x, y, p, d))
-    };
-    match (pool.get(from), pool.get(to)) {
-        (
-            TyData::Ref {
-                inner: a,
-                mutable: ma,
-                counted: ka,
-            },
-            TyData::Ref {
-                inner: b,
-                mutable: mb,
-                counted: kb,
-            },
-        ) if ma == mb => {
-            let kind = match polarity {
-                1 => ka || !kb,
-                -1 => kb || !ka,
-                _ => ka == kb,
+pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8) -> bool {
+    hd_base::stack::all(
+        (from, to, polarity, 0),
+        |(from, to, polarity, depth), stack| {
+            if from == to {
+                return true;
+            }
+            if depth > hd_base::limits::TYPE_DEPTH {
+                return false;
+            }
+            let d = depth + 1;
+            let list = |stack: &mut Vec<_>, a: hd_types::TyList, b: hd_types::TyList, p: i8| {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                stack.extend(a.iter().zip(b).map(|(&x, &y)| (x, y, p, d)));
+                a.len() == b.len()
             };
-            kind && lends(pool, a, b, 0, d)
-        }
-        (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b }) if x == y => {
-            list(a, b, 0)
-        }
-        (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-            list(a, b, polarity)
-                && match (ra, rb) {
-                    (Some(x), Some(y)) => lends(pool, x, y, polarity, d),
-                    (None, None) => true,
-                    _ => false,
+            match (pool.get(from), pool.get(to)) {
+                (
+                    TyData::Ref {
+                        inner: a,
+                        mutable: ma,
+                        counted: ka,
+                    },
+                    TyData::Ref {
+                        inner: b,
+                        mutable: mb,
+                        counted: kb,
+                    },
+                ) if ma == mb => {
+                    stack.push((a, b, 0, d));
+                    match polarity {
+                        1 => ka || !kb,
+                        -1 => kb || !ka,
+                        _ => ka == kb,
+                    }
                 }
-        }
-        (
-            TyData::Fn {
-                params: pa,
-                result: ra,
-                row: wa,
-                suspends: sa,
-                inputs: ia,
-                deps: da,
-            },
-            TyData::Fn {
-                params: pb,
-                result: rb,
-                row: wb,
-                suspends: sb,
-                inputs: ib,
-                deps: db,
-            },
-        ) => {
-            wa == wb
-                && da == db
-                && sa == sb
-                && ia == ib
-                && list(pa, pb, -polarity)
-                && lends(pool, ra, rb, polarity, d)
-        }
-        _ => false,
-    }
+                (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b }) if x == y => {
+                    list(stack, a, b, 0)
+                }
+                (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
+                    list(stack, a, b, polarity)
+                        && match (ra, rb) {
+                            (Some(x), Some(y)) => {
+                                stack.push((x, y, polarity, d));
+                                true
+                            }
+                            (None, None) => true,
+                            _ => false,
+                        }
+                }
+                (
+                    TyData::Fn {
+                        params: pa,
+                        result: ra,
+                        row: wa,
+                        suspends: sa,
+                        inputs: ia,
+                        deps: da,
+                    },
+                    TyData::Fn {
+                        params: pb,
+                        result: rb,
+                        row: wb,
+                        suspends: sb,
+                        inputs: ib,
+                        deps: db,
+                    },
+                ) => {
+                    stack.push((ra, rb, polarity, d));
+                    wa == wb && da == db && sa == sb && ia == ib && list(stack, pa, pb, -polarity)
+                }
+                _ => false,
+            }
+        },
+    )
 }
 
 impl Ck<'_, '_> {
@@ -728,7 +779,7 @@ impl Ck<'_, '_> {
         if !pool.has_ref(g) || !pool.has_ref(w) || pool.has_infer(g) || pool.has_infer(w) {
             return false;
         }
-        lends(pool, g, w, 1, 0)
+        lends(pool, g, w, 1)
     }
 
     /// The kind step of `coerce` (`ref.convert.lend`,
@@ -991,7 +1042,7 @@ impl Ck<'_, '_> {
                     return;
                 }
                 let e = if top_ok || !is_local_ref(pool, t) {
-                    escape_in(pool, t, top_ok, 0, &mut memo)
+                    escape_in(pool, t, top_ok, &mut memo)
                 } else {
                     Some(Escape::TypeArgument)
                 };
@@ -1025,5 +1076,80 @@ impl Ck<'_, '_> {
             }
             self.err(Code::LocalReferenceEscapes, node, &message(e));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hd_types::{InternPool, Ty, TyData};
+
+    /// [`super::lends`] compares two types on its own stack: a pair of
+    /// types 1,000 levels deep, counted references against local ones at
+    /// each level, converts on a 96 KiB thread, and a pair that differs
+    /// only at the bottom does not. [`super::hidden`] finds a type
+    /// parameter, and [`super::escape_in`] a local reference, at the same
+    /// depth.
+    #[test]
+    fn walks_at_the_type_depth_fit_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let rf = |inner, counted| {
+                    pool.intern_ty(&TyData::Ref {
+                        inner,
+                        mutable: false,
+                        counted,
+                    })
+                };
+                let pair = |a, b| {
+                    pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&[a, b]),
+                        rest: None,
+                    })
+                };
+                let (mut counted, mut local, mut wrong) = (Ty::I32, Ty::I32, rf(Ty::I32, false));
+                for _ in 1..hd_base::limits::TYPE_DEPTH {
+                    counted = pair(rf(Ty::I32, true), counted);
+                    local = pair(rf(Ty::I32, false), local);
+                    wrong = pair(rf(Ty::I32, false), wrong);
+                }
+                assert!(super::lends(types, counted, local, 1));
+                assert!(!super::lends(types, wrong, local, 1));
+                // The same depth under a function type's parameter names
+                // the type parameter in a position; beside it, it does not.
+                let p = hd_types::ParamRef {
+                    owner: hd_base::DefId::from_raw(1),
+                    index: 0,
+                };
+                let mut deep = pool.intern_ty(&TyData::Param(p));
+                for _ in 2..hd_base::limits::TYPE_DEPTH {
+                    deep = pair(rf(Ty::I32, false), deep);
+                }
+                let f = pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&[deep]),
+                    result: Ty::I32,
+                    row: hd_types::RowId::EMPTY,
+                    suspends: false,
+                    inputs: hd_types::Inputs::Fixed,
+                    deps: hd_types::FnDeps::NONE,
+                });
+                assert!(super::hidden(types, f, p));
+                assert!(!super::hidden(types, deep, p));
+                // A local reference at the bottom of 1,000 levels of
+                // tuples is held, and at the top it is no escape.
+                let mut bottom = rf(Ty::I32, false);
+                for _ in 1..hd_base::limits::TYPE_DEPTH {
+                    bottom = pair(Ty::I32, bottom);
+                }
+                assert!(super::holds_local_ref(types, bottom));
+                let mut memo = super::EscapeMemo::default();
+                assert!(super::escape_in(types, bottom, true, &mut memo).is_none());
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
     }
 }

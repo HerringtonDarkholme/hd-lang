@@ -104,86 +104,90 @@ impl Ck<'_, '_> {
     /// false for an invariant place.
     pub(crate) fn perm_fits(&self, got: Ty, want: Ty, weaken: bool, depth: u32) -> bool {
         let pool = self.pool();
-        let g = self.infer.resolve(pool, got);
-        let w = self.infer.resolve(pool, want);
-        if depth > hd_base::limits::TYPE_DEPTH || g == w {
-            return true;
-        }
-        let d = depth + 1;
-        match (pool.get(g), pool.get(w)) {
-            (TyData::Adt { def, args: ga }, TyData::Adt { def: d2, args: wa }) if def == d2 => {
-                let vs = self.declared_variances(def);
-                pool.list_items(ga)
-                    .iter()
-                    .copied()
-                    .zip(pool.list_items(wa).iter().copied())
-                    .enumerate()
-                    .all(|(j, (a, b))| match vs.get(j).copied().unwrap_or(0) {
-                        1 => self.perm_fits(a, b, true, d),
-                        -1 => self.perm_fits(b, a, true, d),
-                        _ => self.perm_fits(a, b, false, d),
-                    })
-            }
-            // `ref.type.distinct`: a reference type is invariant in its
-            // operand.
-            (
-                TyData::Ref {
-                    inner: a,
-                    mutable: am,
-                    ..
-                },
-                TyData::Ref {
-                    inner: b,
-                    mutable: bm,
-                    ..
-                },
-            ) => {
-                (am == bm || (weaken && am && !bm))
-                    && self.perm_fits(self.resolved(a), self.resolved(b), false, d)
-            }
-            (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => pool
-                .list_items(a)
-                .iter()
-                .copied()
-                .zip(pool.list_items(b).iter().copied())
-                .all(|(x, y)| self.perm_fits(x, y, weaken, d)),
-            (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => pool
-                .list_items(a)
-                .iter()
-                .copied()
-                .zip(pool.list_items(b).iter().copied())
-                .all(|(x, y)| self.perm_fits(x, y, false, d)),
-            // `fn.type.declared-variance`: contravariant in each input,
-            // covariant in the output.
-            (
-                TyData::Fn {
-                    params: a,
-                    result: ar,
-                    row: aw,
-                    ..
-                },
-                TyData::Fn {
-                    params: b,
-                    result: br,
-                    row: bw,
-                    ..
-                },
-            ) => {
-                // `types.variance.function`: the row is invariant, so only
-                // a function value at the top widens it
-                // (`req.row.subsume`); a function type inside another type
-                // keeps its row exactly.
-                (depth == 0 || self.rows_equal(aw, bw))
-                    && pool
-                        .list_items(a)
-                        .iter()
-                        .copied()
-                        .zip(pool.list_items(b).iter().copied())
-                        .all(|(x, y)| self.perm_fits(y, x, true, d))
-                    && self.perm_fits(ar, br, true, d)
-            }
-            _ => true,
-        }
+        hd_base::stack::all(
+            (got, want, weaken, depth),
+            |(got, want, weaken, depth), stack| {
+                let g = self.infer.resolve(pool, got);
+                let w = self.infer.resolve(pool, want);
+                if depth > hd_base::limits::TYPE_DEPTH || g == w {
+                    return true;
+                }
+                let d = depth + 1;
+                let pairs =
+                    |stack: &mut Vec<_>, a: hd_types::TyList, b: hd_types::TyList, weaken: bool| {
+                        let (a, b) = (pool.list_items(a), pool.list_items(b));
+                        stack.extend(a.iter().zip(b).map(|(&x, &y)| (x, y, weaken, d)));
+                    };
+                match (pool.get(g), pool.get(w)) {
+                    (TyData::Adt { def, args: ga }, TyData::Adt { def: d2, args: wa })
+                        if def == d2 =>
+                    {
+                        let vs = self.declared_variances(def);
+                        let (ga, wa) = (pool.list_items(ga), pool.list_items(wa));
+                        stack.extend(ga.iter().zip(wa).enumerate().map(|(j, (&a, &b))| {
+                            match vs.get(j).copied().unwrap_or(0) {
+                                1 => (a, b, true, d),
+                                -1 => (b, a, true, d),
+                                _ => (a, b, false, d),
+                            }
+                        }));
+                    }
+                    // `ref.type.distinct`: a reference type is invariant in its
+                    // operand.
+                    (
+                        TyData::Ref {
+                            inner: a,
+                            mutable: am,
+                            ..
+                        },
+                        TyData::Ref {
+                            inner: b,
+                            mutable: bm,
+                            ..
+                        },
+                    ) => {
+                        if !(am == bm || (weaken && am && !bm)) {
+                            return false;
+                        }
+                        stack.push((a, b, false, d));
+                    }
+                    (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
+                        pairs(stack, a, b, weaken);
+                    }
+                    (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
+                        pairs(stack, a, b, false);
+                    }
+                    // `fn.type.declared-variance`: contravariant in each input,
+                    // covariant in the output.
+                    (
+                        TyData::Fn {
+                            params: a,
+                            result: ar,
+                            row: aw,
+                            ..
+                        },
+                        TyData::Fn {
+                            params: b,
+                            result: br,
+                            row: bw,
+                            ..
+                        },
+                    ) => {
+                        // `types.variance.function`: the row is invariant, so
+                        // only a function value at the top widens it
+                        // (`req.row.subsume`); a function type inside another
+                        // type keeps its row exactly.
+                        if depth != 0 && !self.rows_equal(aw, bw) {
+                            return false;
+                        }
+                        stack.push((ar, br, true, d));
+                        pairs(stack, b, a, true);
+                    }
+                    _ => return true,
+                }
+                true
+            },
+        )
     }
 
     /// A plain `let mut name` binding of type `t`, local or top-level. A

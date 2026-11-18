@@ -86,6 +86,16 @@ pub(crate) enum Operand {
     Value(Ref, Ty),
 }
 
+/// One comparison of the variance walk ([`Ck::variance_fits`],
+/// [`Ck::readonly_reference_fits`]), with its depth; `Exact` is an
+/// invariant argument, which unifies and keeps its permissions.
+#[derive(Clone, Copy)]
+enum Fit {
+    Variance(Ty, Ty, u32),
+    Readonly(Ty, Ty, u32),
+    Exact(Ty, Ty, u32),
+}
+
 impl Ck<'_, '_> {
     /// `(T, mutable)` when `t` is a reference type `&T` or `&mut T`.
     pub(crate) fn ref_of(&self, t: Ty) -> Option<(Ty, bool)> {
@@ -156,18 +166,59 @@ impl Ck<'_, '_> {
     /// representation-preserving permission weakening through a readonly
     /// container reference. A mutable reference and an invariant argument keep
     /// their exact operands. The caller rolls back a failed inference trial.
-    pub(crate) fn readonly_reference_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
+    pub(crate) fn readonly_reference_fits(&mut self, from: Ty, to: Ty) -> bool {
+        self.fits(Fit::Readonly(from, to, 0))
+    }
+
+    /// Representation-preserving variance inside a function signature.
+    /// Unlike a readonly container reference, an ordinary optional or invariant
+    /// argument cannot weaken permissions (`types.option.invariant`).
+    pub(crate) fn variance_fits(&mut self, from: Ty, to: Ty) -> bool {
+        self.fits(Fit::Variance(from, to, 0))
+    }
+
+    /// The variance walk from `first` ([`hd_base::stack::all`]): parts are
+    /// pushed in reverse, so inference unifies in the order the rules name
+    /// them; the callers roll back a failed walk. One step per pair of
+    /// parts, each with one [`Ck::perm_fits`] walk at most.
+    fn fits(&mut self, first: Fit) -> bool {
+        hd_base::stack::all(first, |fit, stack| self.fit_step(fit, stack))
+    }
+
+    /// One step of [`Ck::fits`]: false when the pair does not fit here,
+    /// else pushes what its parts must fit.
+    fn fit_step(&mut self, fit: Fit, stack: &mut Vec<Fit>) -> bool {
+        let pool = self.pool();
+        let (readonly, from, to, depth) = match fit {
+            Fit::Variance(from, to, depth) => (false, from, to, depth),
+            Fit::Readonly(from, to, depth) => (true, from, to, depth),
+            Fit::Exact(a, b, d) => {
+                return self.infer.unify(pool, a, b).is_ok() && self.perm_fits(a, b, false, d);
+            }
+        };
         if depth > hd_base::limits::TYPE_DEPTH {
             return false;
         }
-        let pool = self.pool();
         let from = self.infer.resolve(pool, from);
         let to = self.infer.resolve(pool, to);
         if from == to {
             return true;
         }
         let d = depth + 1;
+        let part = |a, b| {
+            if readonly {
+                Fit::Readonly(a, b, d)
+            } else {
+                Fit::Variance(a, b, d)
+            }
+        };
         match (pool.get(from), pool.get(to)) {
+            (TyData::Fn { .. }, TyData::Fn { .. })
+            | (TyData::Ref { .. }, TyData::Ref { mutable: false, .. })
+                if !readonly =>
+            {
+                stack.push(Fit::Readonly(from, to, depth));
+            }
             // A counted reference lends itself as a local one
             // (`ref.convert.lend`); a local one never becomes counted.
             (
@@ -181,7 +232,7 @@ impl Ck<'_, '_> {
                     mutable: false,
                     counted: kb,
                 },
-            ) if ka || !kb => self.readonly_reference_fits(a, b, d),
+            ) if ka || !kb => stack.push(Fit::Readonly(a, b, d)),
             (
                 TyData::Adt { def, args: a },
                 TyData::Adt {
@@ -190,28 +241,31 @@ impl Ck<'_, '_> {
                 },
             ) if def == other => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
+                if a.len() != b.len() {
+                    return false;
+                }
                 let variance = self.declared_variances(def);
-                let whole = self.whole_payload_params(def);
-                a.len() == b.len()
-                    && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
-                        if variance.get(i) == Some(&1) || whole.get(i) == Some(&true) {
-                            self.readonly_reference_fits(a, b, d)
-                        } else {
-                            self.infer.unify(pool, a, b).is_ok() && self.perm_fits(a, b, false, d)
-                        }
-                    })
+                let whole = if readonly {
+                    self.whole_payload_params(def)
+                } else {
+                    Vec::new()
+                };
+                stack.extend(a.iter().zip(b).enumerate().rev().map(|(i, (&a, &b))| {
+                    match variance.get(i).copied().unwrap_or(0) {
+                        1 => part(a, b),
+                        _ if whole.get(i) == Some(&true) => Fit::Readonly(a, b, d),
+                        -1 if !readonly => Fit::Variance(b, a, d),
+                        _ => Fit::Exact(a, b, d),
+                    }
+                }));
             }
             (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
-                a.len() == b.len()
-                    && a.iter()
-                        .zip(b)
-                        .all(|(&a, &b)| self.readonly_reference_fits(a, b, d))
-                    && match (ar, br) {
-                        (Some(a), Some(b)) => self.readonly_reference_fits(a, b, d),
-                        (None, None) => true,
-                        _ => false,
-                    }
+                if a.len() != b.len() || ar.is_some() != br.is_some() {
+                    return false;
+                }
+                stack.extend(ar.zip(br).map(|(a, b)| part(a, b)));
+                stack.extend(a.iter().zip(b).rev().map(|(&a, &b)| part(a, b)));
             }
             // Function inputs reverse the conversion; results preserve it.
             // Nested rows stay invariant (`types.variance.function`). A
@@ -235,70 +289,18 @@ impl Ck<'_, '_> {
                 },
             ) if ac == bc && ai == bi && self.fn_deps_fit(ad, bd) => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
-                a.len() == b.len()
-                    && (depth == 0 || self.rows_equal(aw, bw))
-                    && a.iter().zip(b).all(|(&a, &b)| self.variance_fits(b, a, d))
-                    && self.variance_fits(ar, br, d)
-            }
-            _ => self.infer.unify(pool, from, to).is_ok() && self.perm_fits(from, to, false, d),
-        }
-    }
-
-    /// Representation-preserving variance inside a function signature.
-    /// Unlike a readonly container reference, an ordinary optional or invariant
-    /// argument cannot weaken permissions (`types.option.invariant`).
-    pub(crate) fn variance_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return false;
-        }
-        let pool = self.pool();
-        let from = self.infer.resolve(pool, from);
-        let to = self.infer.resolve(pool, to);
-        if from == to {
-            return true;
-        }
-        let d = depth + 1;
-        match (pool.get(from), pool.get(to)) {
-            (TyData::Fn { .. }, TyData::Fn { .. })
-            | (TyData::Ref { .. }, TyData::Ref { mutable: false, .. }) => {
-                self.readonly_reference_fits(from, to, depth)
-            }
-            (
-                TyData::Adt { def, args: a },
-                TyData::Adt {
-                    def: other,
-                    args: b,
-                },
-            ) if def == other => {
-                let (a, b) = (pool.list_items(a), pool.list_items(b));
-                let variance = self.declared_variances(def);
-                a.len() == b.len()
-                    && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
-                        match variance.get(i).copied().unwrap_or(0) {
-                            1 => self.variance_fits(a, b, d),
-                            -1 => self.variance_fits(b, a, d),
-                            _ => {
-                                self.infer.unify(pool, a, b).is_ok()
-                                    && self.perm_fits(a, b, false, d)
-                            }
-                        }
-                    })
-            }
-            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
-                let (a, b) = (pool.list_items(a), pool.list_items(b));
-                a.len() == b.len()
-                    && a.iter().zip(b).all(|(&a, &b)| self.variance_fits(a, b, d))
-                    && match (ar, br) {
-                        (Some(a), Some(b)) => self.variance_fits(a, b, d),
-                        (None, None) => true,
-                        _ => false,
-                    }
+                if a.len() != b.len() || (depth != 0 && !self.rows_equal(aw, bw)) {
+                    return false;
+                }
+                stack.push(Fit::Variance(ar, br, d));
+                stack.extend(a.iter().zip(b).rev().map(|(&a, &b)| Fit::Variance(b, a, d)));
             }
             _ => {
-                self.infer.unify(pool, from, to).is_ok()
-                    && self.perm_fits(from, to, self.option_arg(from).is_none(), d)
+                return self.infer.unify(pool, from, to).is_ok()
+                    && self.perm_fits(from, to, !readonly && self.option_arg(from).is_none(), d);
             }
         }
+        true
     }
 
     /// What the value `v` reads when it is a `Read` through a reference
@@ -1388,7 +1390,7 @@ impl Ck<'_, '_> {
                 && v & Ref::CONST_BIT == 0
                 && let Some(&got) = b.ty.get(v as usize)
                 && got != want
-                && crate::local_refs::lends(pool, got, want, 1, 0)
+                && crate::local_refs::lends(pool, got, want, 1)
             {
                 b.ty[v as usize] = want;
             }

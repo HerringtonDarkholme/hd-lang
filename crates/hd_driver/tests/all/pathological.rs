@@ -488,6 +488,36 @@ fn a_top_first_alias_chain_checks_on_a_small_stack() {
         .expect("no stack overflow");
 }
 
+// Checker: #2161, the type walks a value's conversion takes keep their own
+// stacks: a value that weakens `*mut i32` to `*i32` under 990 levels of
+// `List` checks on a 96 KiB stack, through the variance walk
+// (`Ck::variance_fits`, `readonly_reference_fits`, `perm_fits`), the
+// nested rows (`Ck::solve_nested_rows`) and the escape check
+// (`local_refs::escape_in`). A program 5 levels deep needs the same stack.
+#[test]
+fn a_variance_at_the_type_depth_checks_on_a_small_stack() {
+    let n = 990;
+    let mut src = String::from("type A0 = *mut i32\ntype B0 = *i32\n");
+    for i in 1..=n {
+        let _ = writeln!(
+            src,
+            "type A{i} = List[A{}]\ntype B{i} = List[B{}]",
+            i - 1,
+            i - 1
+        );
+    }
+    let _ = writeln!(src, "fn f(x: A{n}) -> B{n}: x");
+    std::thread::Builder::new()
+        .stack_size(96 << 10)
+        .spawn(move || {
+            let out = compile(&src, &Goal::Analyze);
+            assert!(out.diags.code.is_empty(), "{}", out.render());
+        })
+        .expect("thread")
+        .join()
+        .expect("no stack overflow");
+}
+
 // Checker: #1825, a public alias chain's interface and signature walks
 // (`InterfaceCheck`, `ItemCheck::private_in`) keep each type's answer
 // across the items of a pass, with their own stacks, so each alias costs

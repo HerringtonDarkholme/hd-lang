@@ -683,57 +683,51 @@ impl Ck<'_, '_> {
     /// A function type at the top keeps `fit_row`'s least solution.
     pub(crate) fn solve_nested_rows(&mut self, got: Ty, want: Ty, depth: u32) {
         let pool = self.pool();
-        let (g, w) = (
-            self.infer.resolve(pool, got),
-            self.infer.resolve(pool, want),
-        );
-        if depth > hd_base::limits::TYPE_DEPTH || g == w {
-            return;
-        }
-        let strip = |t: Ty| t;
-        let (g, w) = (strip(g), strip(w));
-        let d = depth + 1;
-        let pairs = |a: hd_types::TyList, b: hd_types::TyList| -> Vec<(Ty, Ty)> {
-            pool.list_items(a)
-                .iter()
-                .copied()
-                .zip(pool.list_items(b).iter().copied())
-                .collect()
-        };
-        let items = match (pool.get(g), pool.get(w)) {
-            (TyData::Adt { def, args: a }, TyData::Adt { def: e, args: b }) if def == e => {
-                pairs(a, b)
+        hd_base::stack::all((got, want, depth), |(got, want, depth), stack| {
+            let (g, w) = (
+                self.infer.resolve(pool, got),
+                self.infer.resolve(pool, want),
+            );
+            if depth > hd_base::limits::TYPE_DEPTH || g == w {
+                return true;
             }
-            (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
-            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
-                pairs(a, b)
-            }
-            (
-                TyData::Fn {
-                    params: a,
-                    result: ar,
-                    row: aw,
-                    ..
-                },
-                TyData::Fn {
-                    params: b,
-                    result: br,
-                    row: bw,
-                    ..
-                },
-            ) => {
-                if depth > 0 {
-                    self.solve_exact_row(aw, bw);
+            let d = depth + 1;
+            let pairs = |stack: &mut Vec<_>, a: hd_types::TyList, b: hd_types::TyList| {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| (x, y, d)));
+            };
+            match (pool.get(g), pool.get(w)) {
+                (TyData::Adt { def, args: a }, TyData::Adt { def: e, args: b }) if def == e => {
+                    pairs(stack, a, b);
                 }
-                let mut v = pairs(a, b);
-                v.push((ar, br));
-                v
+                (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
+                | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
+                    pairs(stack, a, b);
+                }
+                (
+                    TyData::Fn {
+                        params: a,
+                        result: ar,
+                        row: aw,
+                        ..
+                    },
+                    TyData::Fn {
+                        params: b,
+                        result: br,
+                        row: bw,
+                        ..
+                    },
+                ) => {
+                    stack.push((ar, br, d));
+                    pairs(stack, a, b);
+                    if depth > 0 {
+                        self.solve_exact_row(aw, bw);
+                    }
+                }
+                _ => return true,
             }
-            _ => return,
-        };
-        for (x, y) in items {
-            self.solve_nested_rows(x, y, d);
-        }
+            true
+        });
     }
 
     /// Makes the rows `a` and `b` one row by solving the variables in them.

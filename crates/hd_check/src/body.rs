@@ -2342,7 +2342,7 @@ impl Ck<'_, '_> {
             && matches!(pool.get(w), TyData::Ref { mutable: false, .. })
         {
             let snapshot = self.infer.snapshot();
-            if self.readonly_reference_fits(g, w, 0) {
+            if self.readonly_reference_fits(g, w) {
                 return self.b.coerce(Coercion::Weaken, NONE, r, want, n.index());
             }
             self.infer.rollback(snapshot);
@@ -2444,7 +2444,7 @@ impl Ck<'_, '_> {
             (TyData::Fn { .. }, TyData::Fn { .. })
                 | (TyData::Adt { .. }, TyData::Adt { .. })
                 | (TyData::Tuple { .. }, TyData::Tuple { .. })
-        ) && self.variance_fits(g, w, 0);
+        ) && self.variance_fits(g, w);
         if !variance_view {
             self.infer.rollback(snapshot);
         }

@@ -1295,13 +1295,13 @@ impl<'a> Types<'a> {
         let mut ins = Vec::new();
         let mut at = 0;
         for (&g, &i) in gp.iter().zip(ip) {
-            if !self.slot_origins(g, i, &mut at, &mut ins, 0) {
+            if !self.slot_origins(g, i, &mut at, &mut ins) {
                 return gd;
             }
         }
         let mut outs = Vec::new();
         let mut at_out = 0;
-        if gp.len() != ip.len() || !self.slot_origins(gr, ir, &mut at_out, &mut outs, 0) {
+        if gp.len() != ip.len() || !self.slot_origins(gr, ir, &mut at_out, &mut outs) {
             return gd;
         }
         let (g_ins, g_outs, open) = match self.deps_of(gd) {
@@ -1359,77 +1359,80 @@ impl<'a> Types<'a> {
 
     /// Appends the origin of each reference slot of `i`, an instance of
     /// `g`, in [`Self::ref_slots`] order, numbering `g`'s own slots from
-    /// `at`. False when the two do not line up.
-    fn slot_origins(self, g: Ty, i: Ty, at: &mut usize, out: &mut Vec<Origin>, depth: u32) -> bool {
-        if depth > hd_base::limits::TYPE_DEPTH {
-            return false;
-        }
-        if g == i {
-            let n = self.ref_slots(g);
-            out.extend((*at..*at + n).map(Origin::Slot));
-            *at += n;
-            return true;
-        }
-        if !self.has_ref(i) && !self.has_ref(g) {
-            return true;
-        }
-        let d = depth + 1;
-        let pairs = |a: TyList, b: TyList, at: &mut usize, out: &mut Vec<Origin>| {
-            let (a, b) = (self.list_items(a), self.list_items(b));
-            a.len() == b.len()
-                && a.iter()
-                    .zip(b)
-                    .all(|(&x, &y)| self.slot_origins(x, y, at, out, d))
-        };
-        match (self.get(g), self.get(i)) {
-            (TyData::Param(_) | TyData::Infer(_) | TyData::Assoc { .. }, _)
-                if self.ref_slots(g) == 0 =>
-            {
-                let mut m: u32 = 0;
-                for _ in 0..self.ref_slots(i) {
-                    out.push(Origin::Hole(g, m));
-                    m = m.saturating_add(1);
-                }
-                true
+    /// `at`. False when the two do not line up. Parts are pushed in
+    /// reverse ([`hd_base::stack::all`]), so slots append in order.
+    fn slot_origins(self, g: Ty, i: Ty, at: &mut usize, out: &mut Vec<Origin>) -> bool {
+        hd_base::stack::all((g, i, 0), |(g, i, depth), stack| {
+            if depth > hd_base::limits::TYPE_DEPTH {
+                return false;
             }
-            (
-                TyData::Ref {
-                    inner: a,
-                    counted: ca,
-                    ..
-                },
-                TyData::Ref {
-                    inner: b,
-                    counted: cb,
-                    ..
-                },
-            ) if ca == cb => {
-                if !ca {
-                    out.push(Origin::Slot(*at));
-                    *at += 1;
-                }
-                self.slot_origins(a, b, at, out, d)
+            if g == i {
+                let n = self.ref_slots(g);
+                out.extend((*at..*at + n).map(Origin::Slot));
+                *at += n;
+                return true;
             }
-            (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-                pairs(a, b, at, out)
-                    && match (ra, rb) {
-                        (Some(x), Some(y)) => self.slot_origins(x, y, at, out, d),
-                        _ => ra.is_none() && rb.is_none(),
+            if !self.has_ref(i) && !self.has_ref(g) {
+                return true;
+            }
+            let d = depth + 1;
+            let pairs = |stack: &mut Vec<_>, a: TyList, b: TyList| {
+                let (a, b) = (self.list_items(a), self.list_items(b));
+                stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| (x, y, d)));
+                a.len() == b.len()
+            };
+            match (self.get(g), self.get(i)) {
+                (TyData::Param(_) | TyData::Infer(_) | TyData::Assoc { .. }, _)
+                    if self.ref_slots(g) == 0 =>
+                {
+                    let mut m: u32 = 0;
+                    for _ in 0..self.ref_slots(i) {
+                        out.push(Origin::Hole(g, m));
+                        m = m.saturating_add(1);
                     }
+                    true
+                }
+                (
+                    TyData::Ref {
+                        inner: a,
+                        counted: ca,
+                        ..
+                    },
+                    TyData::Ref {
+                        inner: b,
+                        counted: cb,
+                        ..
+                    },
+                ) if ca == cb => {
+                    if !ca {
+                        out.push(Origin::Slot(*at));
+                        *at += 1;
+                    }
+                    stack.push((a, b, d));
+                    true
+                }
+                // A rest that does not line up fails the whole walk, so it
+                // fails before the elements' slots are appended.
+                (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
+                    if let (Some(x), Some(y)) = (ra, rb) {
+                        stack.push((x, y, d));
+                    }
+                    ra.is_some() == rb.is_some() && pairs(stack, a, b)
+                }
+                // A function type inside has no slot of the outer one.
+                (TyData::Fn { .. }, TyData::Fn { .. }) => true,
+                (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
+                | (
+                    TyData::TraitValue {
+                        def: x, args: a, ..
+                    },
+                    TyData::TraitValue {
+                        def: y, args: b, ..
+                    },
+                ) if x == y => pairs(stack, a, b),
+                _ => false,
             }
-            // A function type inside has no slot of the outer one.
-            (TyData::Fn { .. }, TyData::Fn { .. }) => true,
-            (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
-            | (
-                TyData::TraitValue {
-                    def: x, args: a, ..
-                },
-                TyData::TraitValue {
-                    def: y, args: b, ..
-                },
-            ) if x == y => pairs(a, b, at, out),
-            _ => false,
-        }
+        })
     }
 
     /// A dependency map's input and result lifetimes; `None` for `NONE`.
@@ -3569,6 +3572,47 @@ mod tests {
             Some(if p.index == 0 { Ty::I32 } else { r })
         });
         assert_eq!(deps(too_deep), None);
+    }
+
+    /// [`Types::instance_deps`] lines a generic type up with its
+    /// instance on its own stack: a type 1,000 levels deep, each level a
+    /// local reference beside the next, maps on a 96 KiB thread.
+    #[test]
+    fn an_instance_map_at_the_type_depth_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let r = pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable: false,
+                    counted: false,
+                });
+                let t = pool.intern_ty(&TyData::Param(ParamRef {
+                    owner: DefId::from_raw(1),
+                    index: 0,
+                }));
+                let mut deep = (t, r);
+                for _ in 1..hd_base::limits::TYPE_DEPTH {
+                    let pair = |x| {
+                        pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[r, x]),
+                            rest: None,
+                        })
+                    };
+                    deep = (pair(deep.0), pair(deep.1));
+                }
+                let n = hd_base::limits::TYPE_DEPTH as usize;
+                let open = types.fn_deps_written(&[deep.0], t, &[0]);
+                let map = types.instance_deps((&[deep.0], t, open), (&[deep.1], r));
+                let (ins, outs) = types.deps_of(map).expect("a map");
+                assert_eq!((ins.len(), outs.len()), (n, 1));
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
     }
 
     #[test]
