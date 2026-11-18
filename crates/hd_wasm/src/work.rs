@@ -18,6 +18,16 @@ thread_local! {
     static INIT_PROBES: Cell<Option<u64>> = const { Cell::new(None) };
     static MOVED_PATHS: Cell<Option<u64>> = const { Cell::new(None) };
     static EXIT_ROWS: Cell<Option<u64>> = const { Cell::new(None) };
+    static SHARED_CENSUSES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Counts shared-local censuses, independent of the number of cells emitted.
+pub fn count_shared_censuses<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&SHARED_CENSUSES, run)
+}
+
+pub(crate) fn shared_census() {
+    add(&SHARED_CENSUSES, 1);
 }
 
 /// Counts control continuations, target-index operations and branch-shape

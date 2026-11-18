@@ -117,3 +117,55 @@ fn sibling_captures_share_the_census_and_visit_only_their_subbody() {
     assert!(small > 0, "the generated program did not query loan facts");
     assert!(large <= small * 11, "width25 {small}, width250 {large}");
 }
+
+#[cfg(feature = "checked-report")]
+#[test]
+fn checked_cells_share_one_body_census() {
+    let mut counts = Vec::new();
+    for width in [100, 1_000] {
+        let mut source = String::from("fn concrete() -> usize:\n");
+        for i in 0..width {
+            writeln!(source, "    let value{i} = 0").unwrap();
+        }
+        source.push_str("    callback := fn() -> usize:\n        let sum = 0\n");
+        for i in 0..width {
+            writeln!(source, "        sum += value{i}").unwrap();
+        }
+        source.push_str("        sum\n");
+        for i in 0..width {
+            writeln!(source, "    value{i} += 1").unwrap();
+        }
+        source.push_str("    callback()\n");
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", &source);
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+        };
+        let (out, count) = hd_wasm::work::count_shared_censuses(|| {
+            hd_driver::build_packages(
+                &host,
+                "app",
+                &hd_driver::Packages {
+                    checked: true,
+                    ..hd_driver::Packages::default()
+                },
+                &Goal::Fixture {
+                    module: "main".into(),
+                },
+            )
+        });
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        wasmparser::Validator::new()
+            .validate_all(out.wasm.as_deref().unwrap())
+            .unwrap();
+        eprintln!("{width} checked cells: {count} shared-local censuses");
+        counts.push(count);
+    }
+    assert!(counts[0] > 0);
+    assert_eq!(counts[0], counts[1], "one census per body at either width");
+}

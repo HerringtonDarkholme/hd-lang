@@ -72,6 +72,7 @@ pub(super) fn shared_locals_with(
     b: &Body,
     recursive: &hd_tir::own::RecursiveBindings,
 ) -> hd_base::HashSet<usize> {
+    crate::work::shared_census();
     (0..b.len())
         .filter(|&ci| b.tags[ci] == Tag::Closure)
         .flat_map(|ci| hd_tir::own::closure_captures(b, ci, recursive))
@@ -382,7 +383,9 @@ impl Em<'_, '_, '_> {
         let drops = self.cell_drop_calls(ty);
         let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
         #[cfg(feature = "checked-report")]
-        if self.input.runtime.checked.is_some() && shared_locals(self.b).contains(&l) {
+        if self.input.runtime.checked.is_some()
+            && self.m.loan_holders[self.inst.idx()].shared.contains(&l)
+        {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
         let part = Part {
