@@ -2333,10 +2333,13 @@ impl Em<'_, '_, '_> {
         local: usize,
         slots: impl IntoIterator<Item = usize>,
     ) {
-        let Some(ends) = self.borrows.temporary_ends.values.get(i as usize) else {
-            return;
-        };
-        let ends = std::sync::Arc::clone(ends);
+        let ends = self.borrows.temporary_ends.values.get(
+            i as usize,
+            self.b,
+            self.pool(),
+            self.env(),
+            &|t| self.sub(t),
+        );
         for slot in slots {
             let held = Held { local, slot };
             if !self.borrows.excl.contains_key(&held) {

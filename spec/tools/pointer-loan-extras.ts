@@ -1174,6 +1174,144 @@ pub fn main() -> void $ Console:
     seen := probe(boxed, boxed)
 @@TAIL@@`,
   },
+  {
+    name: "through-call-two-sources-left",
+    panic: true,
+    rule: "ref.excl.alias.loan",
+    what: "a never-inlined call returns its left reference and an alias grows that source",
+    source: `use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        for round in 0..64:
+            self.items.push("new-" + "x".repeat(40 + round))
+
+@inline(.Never)
+fn keep['a](left: &'a string, right: &'a string, pick: bool) -> &'a string:
+    if pick: left else: right
+
+fn through_call(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
+    r := keep(p.get_ref().expect("slot"), q.get_ref().expect("slot"), true)
+    alias.push() # panic: borrow-conflict
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original-" + "z".repeat(40)] })
+    q := box(Slots { items: ["other-" + "q".repeat(40)] })
+    println(through_call(p, q, p))
+`,
+  },
+  {
+    name: "through-call-two-sources-right",
+    panic: true,
+    rule: "ref.excl.alias.loan",
+    what: "a never-inlined call returns its right reference and an alias grows that source",
+    source: `use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        for round in 0..64:
+            self.items.push("new-" + "x".repeat(40 + round))
+
+@inline(.Never)
+fn keep['a](left: &'a string, right: &'a string, pick: bool) -> &'a string:
+    if pick: left else: right
+
+fn through_call(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
+    r := keep(p.get_ref().expect("slot"), q.get_ref().expect("slot"), false)
+    alias.push() # panic: borrow-conflict
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original-" + "z".repeat(40)] })
+    q := box(Slots { items: ["other-" + "q".repeat(40)] })
+    println(through_call(p, q, q))
+`,
+  },
+  {
+    name: "through-call-function-value",
+    panic: true,
+    rule: "ref.excl.alias.loan",
+    what: "a reference returned through a function-value keeps its loan across an aliasing grow",
+    source: `use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        for round in 0..64:
+            self.items.push("new-" + "x".repeat(40 + round))
+
+@inline(.Never)
+fn keep['a](value: &'a string) -> &'a string:
+    value
+
+@inline(.Never)
+fn through_call(p: *mut Slots, alias: *mut Slots, forward: fn(&string) -> &string) -> string:
+    r := forward(p.get_ref().expect("slot"))
+    alias.push() # panic: borrow-conflict
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original-" + "z".repeat(40)] })
+    println(through_call(p, p, keep))
+`,
+  },
+  {
+    name: "through-call-trait-value",
+    panic: true,
+    rule: "ref.excl.alias.loan",
+    what: "a reference returned through a trait-value keeps its loan across an aliasing grow",
+    source: `use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn get_ref['a](&'a self) -> (&'a string)?:
+        if self.items.len() > 0: .Some(&self.items[0]) else: .None
+
+    fn push(&mut self) -> void:
+        for round in 0..64:
+            self.items.push("new-" + "x".repeat(40 + round))
+
+trait Forward:
+    fn keep['a](&self, value: &'a string) -> &'a string
+
+struct Identity: pass
+
+impl Forward for Identity:
+    fn keep['a](&self, value: &'a string) -> &'a string:
+        value
+
+@inline(.Never)
+fn through_call(p: *mut Slots, alias: *mut Slots, forward: *dyn Forward) -> string:
+    r := forward.keep(p.get_ref().expect("slot"))
+    alias.push() # panic: borrow-conflict
+    *r
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["original-" + "z".repeat(40)] })
+    let forward: *dyn Forward = box(Identity {})
+    println(through_call(p, p, forward))
+`,
+  },
 ];
 /** Each adversarial case's columns: elision under loans (A), keep-alive (B). */
 export const extraColumns: Record<string, [string, string]> = {
@@ -1221,4 +1359,8 @@ export const extraColumns: Record<string, [string, string]> = {
   "pointer-lent-as-mut-binding-panics": ["loan needed", "runs"],
   "pointer-lent-as-shared-binding-panics": ["loan needed", "runs"],
   "pointer-lent-as-two-shared-bindings": ["elided", "runs"],
+  "through-call-two-sources-left": ["loan needed", "runs, stale"],
+  "through-call-two-sources-right": ["loan needed", "runs, stale"],
+  "through-call-function-value": ["loan needed", "runs, stale"],
+  "through-call-trait-value": ["loan needed", "runs, stale"],
 };

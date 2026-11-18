@@ -7,7 +7,6 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
@@ -108,15 +107,6 @@
     local.get $ps
     i32.const 4
     i32.sub
-    i32.const 0
-    local.get $ps
-    i32.load $heap
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic'2
-      unreachable
-    end
     local.get $ps
     i32.load $heap
     local.set $d
@@ -133,14 +123,6 @@
     call $name_of
     local.set $d
     local.tee $t1
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'3
-      unreachable
-    end
-    local.get $t1
     i32.load $heap
     local.tee $t2
     i32.const 2031616

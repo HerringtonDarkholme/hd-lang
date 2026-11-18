@@ -571,29 +571,286 @@ pub(super) fn carried_refs(
     })
 }
 
-/// Lifetime-ending uses of forwarded values, using ownership's existing
-/// unique-consumer index. Transparent control and aggregate construction
-/// carry the lifetime onward; a store hands it to the destination holder.
-/// Members precede their owners, so each forwarding edge is priced once.
-fn value_ends(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Vec<Arc<[u32]>> {
+/// Shared, interned endpoint unions. Forwarding chains reuse one root;
+/// branching adds one DAG edge per held-argument row, without copying a
+/// transitive endpoint list into every intermediate value. Queries are
+/// iterative and cached by root, so aliases of a chain share the answer.
+#[derive(Default)]
+pub(super) struct ValueEnds {
+    roots: Vec<Option<usize>>,
+    nodes: Vec<EndNode>,
+    points: hd_base::HashMap<u32, usize>,
+    unions: hd_base::HashMap<[usize; 2], usize>,
+    calls: hd_base::HashMap<u32, usize>,
+}
+
+enum EndNode {
+    Point(u32),
+    Union([usize; 2]),
+    Call { at: u32, forwarded: Option<usize> },
+}
+
+impl ValueEnds {
+    fn point(&mut self, at: u32) -> usize {
+        *self.points.entry(at).or_insert_with(|| {
+            let id = self.nodes.len();
+            self.nodes.push(EndNode::Point(at));
+            id
+        })
+    }
+
+    fn join(&mut self, left: Option<usize>, right: Option<usize>) -> Option<usize> {
+        let (Some(left), Some(right)) = (left, right) else {
+            return left.or(right);
+        };
+        if left == right {
+            return Some(left);
+        }
+        let children = [left.min(right), left.max(right)];
+        Some(*self.unions.entry(children).or_insert_with(|| {
+            let id = self.nodes.len();
+            self.nodes.push(EndNode::Union(children));
+            id
+        }))
+    }
+
+    fn call(&mut self, at: u32) -> usize {
+        *self.calls.entry(at).or_insert_with(|| {
+            let id = self.nodes.len();
+            self.nodes.push(EndNode::Call {
+                at,
+                forwarded: self.roots[at as usize],
+            });
+            id
+        })
+    }
+}
+
+/// Concrete reference-slot decisions and endpoint answers belong to one
+/// emitter. The immutable graph remains shared across body instances.
+#[derive(Default)]
+pub(super) struct EndValues {
+    graph: Arc<ValueEnds>,
+    empty: Arc<[u32]>,
+    answers: std::cell::RefCell<hd_base::HashMap<usize, Arc<[u32]>>>,
+    ref_types: std::cell::RefCell<hd_base::HashMap<Ty, bool>>,
+    resolved: std::cell::RefCell<hd_base::HashMap<usize, Option<usize>>>,
+    nodes: std::cell::RefCell<hd_base::HashMap<usize, ConcreteEnd>>,
+}
+
+#[derive(Clone, Copy)]
+enum ConcreteEnd {
+    Point(u32),
+    Union([usize; 2]),
+}
+
+impl EndValues {
+    fn new(graph: Arc<ValueEnds>) -> Self {
+        Self {
+            graph,
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn get(
+        &self,
+        value: usize,
+        b: &Body,
+        pool: &InternPool,
+        env: &dyn ProgramEnv,
+        sub: &dyn Fn(Ty) -> Ty,
+    ) -> Arc<[u32]> {
+        self.get_counted(
+            value,
+            |at| {
+                let ty = b.ty[at as usize];
+                *self
+                    .ref_types
+                    .borrow_mut()
+                    .entry(ty)
+                    .or_insert_with(|| !ref_slots(pool, env, sub(ty)).is_empty())
+            },
+            || crate::work::use_facts(1),
+        )
+    }
+
+    /// Normalize type-dependent forwarding once per reachable node. A
+    /// chain aliases its final point instead of being walked per query.
+    fn resolve(
+        &self,
+        root: usize,
+        returns_refs: &mut impl FnMut(u32) -> bool,
+        work: &mut impl FnMut(),
+    ) -> Option<usize> {
+        let mut done = self.resolved.borrow_mut();
+        let mut nodes = self.nodes.borrow_mut();
+        if let Some(&answer) = done.get(&root) {
+            return answer;
+        }
+        let mut pending = vec![root];
+        while let Some(id) = pending.pop() {
+            if done.contains_key(&id) {
+                continue;
+            }
+            work();
+            let answer = match self.graph.nodes[id] {
+                EndNode::Point(at) => {
+                    nodes.insert(id, ConcreteEnd::Point(at));
+                    Some(id)
+                }
+                EndNode::Call { at, forwarded } if returns_refs(at) => {
+                    let Some(child) = forwarded else {
+                        done.insert(id, None);
+                        continue;
+                    };
+                    if let Some(&answer) = done.get(&child) {
+                        answer
+                    } else {
+                        pending.extend([id, child]);
+                        continue;
+                    }
+                }
+                EndNode::Call { at, .. } => {
+                    nodes.insert(id, ConcreteEnd::Point(at));
+                    Some(id)
+                }
+                EndNode::Union(children) => {
+                    if children.iter().any(|c| !done.contains_key(c)) {
+                        pending.push(id);
+                        pending.extend(children.into_iter().filter(|c| !done.contains_key(c)));
+                        continue;
+                    }
+                    match children.map(|c| done[&c]) {
+                        [None, other] | [other, None] => other,
+                        [Some(left), Some(right)] if left == right => Some(left),
+                        [Some(left), Some(right)] => {
+                            nodes.insert(id, ConcreteEnd::Union([left, right]));
+                            Some(id)
+                        }
+                    }
+                }
+            };
+            done.insert(id, answer);
+        }
+        done[&root]
+    }
+
+    fn get_counted(
+        &self,
+        value: usize,
+        mut returns_refs: impl FnMut(u32) -> bool,
+        mut work: impl FnMut(),
+    ) -> Arc<[u32]> {
+        work();
+        let Some(root) = self.graph.roots.get(value).copied().flatten() else {
+            return Arc::clone(&self.empty);
+        };
+        let Some(root) = self.resolve(root, &mut returns_refs, &mut work) else {
+            return Arc::clone(&self.empty);
+        };
+        if let Some(answer) = self.answers.borrow().get(&root) {
+            return Arc::clone(answer);
+        }
+        let mut pending = vec![root];
+        let mut seen = hd_base::HashSet::default();
+        let mut points = hd_base::HashSet::default();
+        let mut out = Vec::new();
+        let nodes = self.nodes.borrow();
+        while let Some(id) = pending.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            work();
+            match nodes[&id] {
+                ConcreteEnd::Point(at) => {
+                    if points.insert(at) {
+                        out.push(at);
+                    }
+                }
+                ConcreteEnd::Union(children) => pending.extend(children),
+            }
+        }
+        let out: Arc<[u32]> = out.into();
+        self.answers.borrow_mut().insert(root, Arc::clone(&out));
+        out
+    }
+}
+
+/// Lifetime-ending uses include dependency-bearing call arguments even
+/// when ownership does not count the borrowed argument as a consumer.
+/// In particular, a temporary's Drop after a call cannot end the loan
+/// before the call result reaches its holder. Like OSSA forwarding uses,
+/// these edges extend the introducing borrow through the result's uses.
+/// Preparation: O(instructions + call operands + held rows + drops), with shared unions.
+fn value_ends(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> ValueEnds {
+    value_ends_counted(b, topo, consumers, || crate::work::use_facts(1))
+}
+
+fn value_ends_counted(
+    b: &Body,
+    topo: &hd_tir::ir::Topology,
+    consumers: &[u32],
+    mut work: impl FnMut(),
+) -> ValueEnds {
     use hd_tir::ir::{NONE, u32_of};
-    let mut drops: hd_base::HashMap<u32, Vec<u32>> = hd_base::HashMap::default();
+    let mut ends = ValueEnds {
+        roots: vec![None; b.len()],
+        ..ValueEnds::default()
+    };
+    let held: hd_base::HashSet<_> = b.held_args.iter().copied().collect();
+    let mut users = vec![Vec::new(); b.len()];
+    for &(call, arg) in &b.held_args {
+        work();
+        if let Some(row) = users.get_mut(arg as usize) {
+            row.push((call, true));
+        }
+    }
     for i in 0..b.len() {
+        work();
         if b.tags[i] == Tag::Drop
             && let Some(p) = b.decode_place(b.data[i][0])
             && p.proj.is_empty()
             && let PlaceRoot::Value(v) = p.root
             && v.as_inst().is_some()
         {
-            drops.entry(v.0).or_default().push(u32_of(i));
+            let at = ends.point(u32_of(i));
+            ends.roots[v.0 as usize] = ends.join(ends.roots[v.0 as usize], Some(at));
+        }
+        if matches!(
+            b.tags[i],
+            Tag::Call | Tag::CallValue | Tag::DefaultCall | Tag::CallDyn
+        ) {
+            for arg in call_args(b, i) {
+                work();
+                if !held.contains(&(u32_of(i), arg))
+                    && let Some(row) = users.get_mut(arg as usize)
+                {
+                    row.push((u32_of(i), false));
+                }
+            }
         }
     }
-    let mut ends = vec![Arc::<[u32]>::from([]); b.len()];
-    for (v, drops) in drops {
-        ends[v as usize] = drops.into();
-    }
-    let held: hd_base::HashSet<_> = b.held_args.iter().copied().collect();
     for v in (0..b.len()).rev() {
+        work();
+        if !users[v].is_empty() {
+            let mut root = None;
+            for &(call, forwarded) in &users[v] {
+                work();
+                // ruled out: a call follows its SSA argument.
+                debug_assert!(call as usize > v);
+                let next = if forwarded {
+                    Some(ends.call(call))
+                } else {
+                    // A borrowed argument's temporary loan ends at a call
+                    // that does not return it, even without an ownership
+                    // consumer. Its count-free Drop may emit no operation.
+                    Some(ends.point(call))
+                };
+                root = ends.join(root, next);
+            }
+            ends.roots[v] = root;
+            continue;
+        }
         let Some(&user) = consumers.get(v).filter(|&&u| u != NONE) else {
             continue;
         };
@@ -609,20 +866,18 @@ fn value_ends(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Vec<A
                 }
             }),
             Tag::NewStruct | Tag::NewTuple | Tag::NewVariant | Tag::Coerce => Some(user),
-            Tag::Call | Tag::CallValue | Tag::DefaultCall if held.contains(&(user, u32_of(v))) => {
-                Some(user)
-            }
             Tag::Store | Tag::Call | Tag::CallValue | Tag::DefaultCall => {
-                ends[v] = Arc::from([user]);
+                let at = ends.point(user);
+                ends.roots[v] = Some(at);
                 None
             }
             _ => None,
         };
         if let Some(next) = forwarded.filter(|&next| next != NONE) {
-            // ruled out: SSA consumers and their postorder control owners
-            // follow the definitions they forward, including break targets.
+            // ruled out: SSA consumers and postorder control owners follow
+            // the definitions they forward, including break targets.
             debug_assert!(next as usize > v);
-            ends[v] = Arc::clone(&ends[next as usize]);
+            ends.roots[v] = ends.roots[next as usize];
         }
     }
     ends
@@ -632,12 +887,12 @@ fn value_ends(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Vec<A
 /// and sibling closures. The lazy `BorrowFacts` cell builds these once.
 pub(super) struct LifetimeFacts {
     stored: Vec<(usize, usize)>,
-    ends: Arc<[Arc<[u32]>]>,
+    ends: Arc<ValueEnds>,
 }
 
 impl LifetimeFacts {
     pub fn new(b: &Body, topo: &hd_tir::ir::Topology, consumers: &[u32]) -> Self {
-        crate::work::use_facts(3 * b.len() + b.local_ty.len() + b.held_args.len());
+        crate::work::use_facts(b.len() + b.local_ty.len());
         let mut stored = vec![(usize::MAX, 0); b.local_ty.len()];
         for i in 0..b.len() {
             if let Some((local, true)) = b.stored_local(i) {
@@ -689,7 +944,7 @@ pub(super) fn temporary_ends(
             _ => None,
         })
         .collect();
-    let ends = &facts.ends;
+    let ends = EndValues::new(Arc::clone(&facts.ends));
     let mut ranges = ScopeHolderRanges::default();
     let mut declared: Vec<_> = found
         .iter()
@@ -700,7 +955,7 @@ pub(super) fn temporary_ends(
     declared.dedup();
     let mut out: hd_base::HashMap<u32, Vec<Held>> = hd_base::HashMap::default();
     for &value in rows {
-        if b.tags[value] != Tag::Scope || ends[value].is_empty() {
+        if b.tags[value] != Tag::Scope {
             continue;
         }
         let first = topo.first[value] as usize;
@@ -713,7 +968,7 @@ pub(super) fn temporary_ends(
         let answer = graph.answer(value, |v, graph| context.prepare(v, graph));
         if let Some(root) = graph.collapse(answer) {
             for held in ranges.collect(&graph.sets, root, stored, (first, value), &mut || {}) {
-                for &end in ends[value].iter() {
+                for &end in ends.get(value, b, pool, env, sub).iter() {
                     if b.tags[end as usize] != Tag::Store || handoffs.contains(&(end, held)) {
                         out.entry(end).or_default().push(held);
                     }
@@ -727,7 +982,7 @@ pub(super) fn temporary_ends(
     }
     LoanEnds {
         holders: out,
-        values: Arc::clone(ends),
+        values: ends,
         handoffs,
     }
 }
@@ -787,7 +1042,7 @@ impl ScopeHolderRanges {
 #[derive(Default)]
 pub(super) struct LoanEnds {
     pub holders: hd_base::HashMap<u32, Vec<Held>>,
-    pub values: Arc<[Arc<[u32]>]>,
+    pub values: EndValues,
     pub handoffs: hd_base::HashSet<(u32, Held)>,
 }
 
@@ -1263,6 +1518,26 @@ impl OriginContext<'_> {
             });
         }
         if direct.is_some() {
+            if matches!(
+                b.tags[c],
+                Tag::Call | Tag::CallValue | Tag::DefaultCall | Tag::CallDyn
+            ) {
+                // A borrowed result forwards the argument's existing loan,
+                // as OSSA forwarding uses extend the introducing borrow.
+                // The direct loan remains the fallback for an untracked
+                // argument; returning a reference does not end its loan.
+                let values = self.index.argument(c).map_or_else(Vec::new, |argument| {
+                    ref_slots(self.pool, self.env, (self.sub)(b.ty[c]))
+                        .into_iter()
+                        .filter_map(|(slot, _)| self.part(argument, OriginMap::Offset(slot)))
+                        .collect()
+                });
+                return Some(OriginPlan::Scope {
+                    values,
+                    fallback: direct,
+                    parents: None,
+                });
+            }
             return Some(OriginPlan::Ready(direct));
         }
         if matches!(b.tags[c], Tag::If | Tag::Match) {
@@ -3099,5 +3374,131 @@ mod origin_index_tests {
         for slot in 0..1024 {
             assert_eq!(forward.map.slot(slot), Some(reverse.slot(slot)));
         }
+    }
+}
+
+#[cfg(test)]
+mod value_end_tests {
+    use super::*;
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_tir::ir::{BodyKind, Providers, TirBuilder, TirSink, local_flags};
+    use hd_types::TyList;
+
+    // Endpoint propagation is type-independent. Integer stand-ins keep this
+    // generated test about the dependency graph, without runtime layouts.
+    fn body(n: usize, branching: bool) -> Result<(Body, Vec<u32>), String> {
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let block = build.open_block();
+        let source = build.local(Ty::I32, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+        let first = build.get(source, Ty::I32, NodeIdx::NONE);
+        let mut value = first;
+        let mut held = Vec::new();
+        let mut consumers = Vec::new();
+        let callee = Callee::Item {
+            def: DefId::from_raw(2),
+            targs: TyList::EMPTY,
+        };
+        for _ in 0..n {
+            let argument = if branching { first } else { value };
+            let call = build.call(
+                &callee,
+                &[argument],
+                Providers::None,
+                Ty::I32,
+                NodeIdx::NONE,
+            );
+            held.push((call.0, argument.0));
+            if !branching {
+                let word = build.place(&Place {
+                    root: PlaceRoot::Value(argument),
+                    proj: Vec::new(),
+                });
+                build.emit(Tag::Drop, word, 0, Ty::VOID, NodeIdx::NONE);
+            }
+            value = call;
+            if branching {
+                let local = build.local(Ty::I32, Symbol::NONE, 0, NodeIdx::NONE);
+                build.set(local, value, NodeIdx::NONE);
+                consumers.push((value.0, hd_tir::ir::u32_of(build.body().len() - 1)));
+            }
+        }
+        if !branching {
+            let local = build.local(Ty::I32, Symbol::NONE, 0, NodeIdx::NONE);
+            build.set(local, value, NodeIdx::NONE);
+            consumers.push((value.0, hd_tir::ir::u32_of(build.body().len() - 1)));
+        }
+        let block = build.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+        let mut body = build
+            .finish_tolerating(block, &[], &[22])
+            .map_err(|errors| format!("{errors:?}"))?;
+        body.held_args = held;
+        let mut users = vec![hd_tir::ir::NONE; body.len()];
+        for (value, user) in consumers {
+            users[value as usize] = user;
+        }
+        Ok((body, users))
+    }
+
+    #[test]
+    fn value_copy_results_end_loans_without_changing_other_instances() -> Result<(), String> {
+        let (body, consumers) = body(3, false)?;
+        let topo = hd_tir::ir::Topology::new(&body);
+        let graph = Arc::new(value_ends(&body, &topo, &consumers));
+        let last = body.held_args.last().ok_or("missing generated call")?.0;
+        let borrowed = EndValues::new(Arc::clone(&graph));
+        let copied = EndValues::new(graph);
+        assert_eq!(
+            borrowed.get_counted(0, |_| true, || {}).as_ref(),
+            &[consumers[last as usize]]
+        );
+        assert_eq!(
+            copied.get_counted(0, |at| at != last, || {}).as_ref(),
+            &[last]
+        );
+        assert_eq!(
+            borrowed.get_counted(0, |_| true, || {}).as_ref(),
+            &[consumers[last as usize]]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn dependency_endpoints_scale_with_call_chain_depth_and_branch_width() -> Result<(), String> {
+        for branching in [false, true] {
+            let mut small = 0;
+            for n in [1_000usize, 10_000] {
+                let (body, consumers) = body(n, branching)?;
+                let topo = hd_tir::ir::Topology::new(&body);
+                let mut work = 0;
+                let ends = EndValues::new(Arc::new(value_ends_counted(
+                    &body,
+                    &topo,
+                    &consumers,
+                    || work += 1,
+                )));
+                let first = ends.get_counted(0, |_| true, || work += 1);
+                assert_eq!(first.len(), if branching { n } else { 1 });
+                for &(call, argument) in &body.held_args {
+                    assert!(
+                        !ends
+                            .get_counted(call as usize, |_| true, || work += 1)
+                            .is_empty()
+                    );
+                    assert!(
+                        !ends
+                            .get_counted(argument as usize, |_| true, || work += 1)
+                            .is_empty()
+                    );
+                }
+                assert!(ends.graph.nodes.len() <= 3 * body.len());
+                eprintln!("borrowed call endpoints: branching={branching} n={n} work={work}");
+                if n == 1_000 {
+                    small = work;
+                } else {
+                    assert!(work <= 11 * small, "small={small}, large={work}");
+                }
+            }
+        }
+        Ok(())
     }
 }

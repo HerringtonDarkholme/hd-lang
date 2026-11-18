@@ -11,7 +11,6 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:panic'5" (func $rt:panic'5))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
@@ -241,15 +240,6 @@
     local.get $ps
     i32.const 4
     i32.sub
-    i32.const 0
-    local.get $ps
-    i32.load $heap
-    i32.load $heap offset=4
-    i32.ge_u
-    if
-      call $rt:panic'3
-      unreachable
-    end
     local.get $ps
     i32.load $heap
     local.set $d
@@ -266,14 +256,6 @@
     call $name_of
     local.set $d
     local.tee $t0
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'5
-      unreachable
-    end
-    local.get $t0
     i32.load $heap
     local.tee $t1
     i32.const 2031616
@@ -421,14 +403,6 @@
     call $name_of
     local.set $d
     local.tee $t0
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'5
-      unreachable
-    end
-    local.get $t0
     i32.load $heap
     local.tee $t1
     i32.const 2031616
