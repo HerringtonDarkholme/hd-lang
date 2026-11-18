@@ -428,7 +428,7 @@ The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 
 | --- | --- | --- |
 | 0 | 4 | capacity, in elements |
 | 4 | 4 | length |
-| 8 | 4 | reserved, always 0 (`rt::LIST_OWN`); it held a pinned list's owner word until element references stopped counting their buffer (#1336 phase 10) |
+| 8 | 4 | unused, never written: it keeps the elements 8-aligned; it held a pinned list's owner word until element references stopped counting their buffer (#1336 phase 10) |
 | 16 | capacity times the element size | the elements, inline |
 
 The value is the buffer's address, not a header's, because every change
@@ -1343,8 +1343,8 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   the list's own when the reference writes. The ownership passes keep the
   list's holder alive until the reference's last use, and the checker
   forbids changing the collection meanwhile (`ref.elem.access.*`). The
-  buffer's third word ([`LIST_OWN`]) is reserved and stays 0; it held the
-  pin's owner word before.
+  buffer's third word, which held the pin's owner word, is unused and
+  never written.
 - **Short loans.** A reference from a `map_probe` or `ptr_ref`
   intrinsic or a shared element `Ref` of a local's list (or of a read of
   all of it, as `for x in &xs` makes) whose every holder ends before

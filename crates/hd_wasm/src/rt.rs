@@ -905,15 +905,9 @@ impl DropCall {
     }
 }
 
-/// A reserved word of a list buffer and of a map table (§23.7), at the
-/// same payload offset of both, which stays 0. It held the owner word of a
-/// pinned collection until element references stopped counting their
-/// buffer (#1336 phase 10); the elements still start after it.
-pub const LIST_OWN: u64 = 8;
-
-/// A list buffer's payload: the capacity in elements, the length, a
-/// reserved word ([`LIST_OWN`]), then the elements inline from
-/// [`LIST_ELEMS`].
+/// A list buffer's payload: the capacity in elements, the length, four
+/// bytes no code reads or writes, which keep the elements 8-aligned, then
+/// the elements inline from [`LIST_ELEMS`].
 pub const LIST_LEN: u64 = 4;
 pub const LIST_ELEMS: u32 = 16;
 
@@ -3851,9 +3845,6 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.get(b);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
-    f.get(b);
-    f.i32(0);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.get(b);
     f
 }

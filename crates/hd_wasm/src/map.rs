@@ -19,11 +19,11 @@ use hd_types::Ty;
 use crate::Input;
 use crate::layout::{Leaf, Pass, Walk};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
-use crate::rt::{Helper, LIST_OWN, own_arg, retain_call, walk_code};
+use crate::rt::{Helper, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
-/// (removed ones included), a reserved word that stays 0 at the same
-/// offset as a list buffer's ([`LIST_OWN`]), the entry capacity (0, or a power of two of at least 4:
+/// (removed ones included), four bytes no code reads or writes, the
+/// entry capacity (0, or a power of two of at least 4:
 /// growth, literals and the boundary all round up to 4), how many
 /// times growth rebuilt the entries, a 64-bit per-map seed, then the index,
 /// the hashes and the entries.
@@ -410,7 +410,7 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
     descriptor(&mut f, entry);
     f.helper(Helper::New);
     f.set(t);
-    for at in [LIVE, USED, LIST_OWN, GROWN] {
+    for at in [LIVE, USED, GROWN] {
         store_u32(&mut f, t, at, &|f| f.i32(0));
     }
     store_u32(&mut f, t, CAP, &|f| f.get(0));
@@ -1206,7 +1206,6 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.get(t);
     table_bytes(&mut f, cap, entry.size);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    store_u32(&mut f, nt, LIST_OWN, &|f| f.i32(0));
     let walk = entry.walk().and_then(|w| w.without(&entry.colls));
     let retain = retain_call(m);
     if walk.is_some() || !entry.colls.is_empty() {

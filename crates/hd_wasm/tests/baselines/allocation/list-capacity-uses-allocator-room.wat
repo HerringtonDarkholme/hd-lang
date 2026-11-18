@@ -92,9 +92,6 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $t0
-    i32.const 0
-    i32.store $heap offset=8
-    local.get $t0
   )
   (func $rt:list_buf'2 (param $t0 i32) (result i32)
     ;; (no span)
@@ -125,9 +122,6 @@
     local.get $t0
     i32.const 0
     i32.store $heap offset=4
-    local.get $t0
-    i32.const 0
-    i32.store $heap offset=8
     local.get $t0
   )
   (func $rt:list_grow'1 (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i32)
