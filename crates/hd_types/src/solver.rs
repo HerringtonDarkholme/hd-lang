@@ -1989,7 +1989,7 @@ impl CanonAnswer {
 }
 
 /// The outcome of matching one impl head against a goal's type (§3.4).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum M {
     Yes,
     Maybe,
@@ -2004,10 +2004,100 @@ fn both(a: M, b: M) -> M {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum MatchNode {
+    Ty(Ty, Ty),
+    List(TyList, TyList),
+    Row(crate::RowId, crate::RowId),
+    Answer(M),
+}
+
+enum MatchWork {
+    Enter(MatchNode),
+    Save(MatchNode),
+    Fold(std::vec::IntoIter<MatchNode>, M, bool),
+}
+
+fn match_parts(
+    parts: impl IntoIterator<Item = MatchNode>,
+    stop: bool,
+    stack: &mut Vec<MatchWork>,
+) -> M {
+    stack.push(MatchWork::Fold(
+        parts.into_iter().collect::<Vec<_>>().into_iter(),
+        M::Yes,
+        stop,
+    ));
+    M::Yes
+}
+
+// Completed pairs can be reused: a binding is filled once and never revised
+// during matching. The continuation preserves local short circuits, including
+// the function's eager result/row checks after a failed inputs match.
+fn match_nodes(pool: Types<'_>, owner: DefId, first: MatchNode, binds: &mut Vec<Option<Ty>>) -> M {
+    let mut memo = HashMap::default();
+    let mut out = M::Yes;
+    hd_base::stack::all(MatchWork::Enter(first), |work, stack| {
+        match work {
+            MatchWork::Enter(node) => {
+                if let Some(&answer) = memo.get(&node) {
+                    out = answer;
+                    return true;
+                }
+                crate::work::type_node();
+                stack.push(MatchWork::Save(node));
+                out = match node {
+                    MatchNode::Ty(p, t) => match_head(pool, owner, p, t, binds, stack),
+                    MatchNode::List(a, b) => {
+                        let (x, y) = (pool.list_items(a), pool.list_items(b));
+                        if x.len() == y.len() {
+                            match_parts(
+                                x.iter().zip(y).map(|(&p, &t)| MatchNode::Ty(p, t)),
+                                true,
+                                stack,
+                            )
+                        } else {
+                            M::No
+                        }
+                    }
+                    MatchNode::Row(a, b) => match_row_parts(pool, owner, a, b, stack),
+                    MatchNode::Answer(answer) => answer,
+                };
+            }
+            MatchWork::Save(node) => {
+                memo.insert(node, out);
+            }
+            MatchWork::Fold(mut parts, acc, stop) => {
+                out = both(acc, out);
+                if (!stop || out != M::No)
+                    && let Some(next) = parts.next()
+                {
+                    stack.push(MatchWork::Fold(parts, out, stop));
+                    stack.push(MatchWork::Enter(next));
+                    out = M::Yes;
+                }
+            }
+        }
+        true
+    });
+    out
+}
+
+fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Option<Ty>>) -> M {
+    match_nodes(pool, owner, MatchNode::Ty(pat, t), binds)
+}
+
 /// Matches an impl head pattern (its parameters owned by `owner`) against
 /// a goal type, binding the parameters. A variable in the goal where the
 /// pattern has structure is a "maybe": the goal stalls on it.
-fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Option<Ty>>) -> M {
+fn match_head(
+    pool: Types<'_>,
+    owner: DefId,
+    pat: Ty,
+    t: Ty,
+    binds: &mut Vec<Option<Ty>>,
+    stack: &mut Vec<MatchWork>,
+) -> M {
     if let TyData::Param(p) = pool.get(pat)
         && p.owner == owner
     {
@@ -2038,7 +2128,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         (_, TyData::Poison) => M::Yes,
         (_, TyData::Infer(_)) => M::Maybe,
         (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
-            match_list(pool, owner, a1, a2, binds)
+            match_parts([MatchNode::List(a1, a2)], true, stack)
         }
         // An impl for a reference covers only its own kind
         // (`ref.type.kind-impl`).
@@ -2053,7 +2143,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 mutable: m2,
                 counted: c2,
             },
-        ) if m1 == m2 && c1 == c2 => match_ty(pool, owner, p, x, binds),
+        ) if m1 == m2 && c1 == c2 => match_parts([MatchNode::Ty(p, x)], true, stack),
         (
             TyData::Tuple {
                 elems: e1,
@@ -2063,7 +2153,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 elems: e2,
                 rest: None,
             },
-        ) => match_list(pool, owner, e1, e2, binds),
+        ) => match_parts([MatchNode::List(e1, e2)], true, stack),
         (
             TyData::Tuple {
                 elems: e1,
@@ -2073,14 +2163,12 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 elems: e2,
                 rest: Some(r2),
             },
-        ) => {
-            let r = match_list(pool, owner, e1, e2, binds);
-            if r == M::No {
-                return r;
-            }
-            both(r, match_ty(pool, owner, r1, r2, binds))
-        }
-        (TyData::Union(a), TyData::Union(b)) => match_list(pool, owner, a, b, binds),
+        ) => match_parts(
+            [MatchNode::List(e1, e2), MatchNode::Ty(r1, r2)],
+            true,
+            stack,
+        ),
+        (TyData::Union(a), TyData::Union(b)) => match_parts([MatchNode::List(a, b)], true, stack),
         (
             TyData::Fn {
                 params: p1,
@@ -2100,16 +2188,17 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
             },
         ) if s1 == s2 && d1 == d2 && (i1 == i2 || i1 == Inputs::Tuple || i2 == Inputs::Tuple) => {
             let inputs = if i1 == i2 {
-                match_list(pool, owner, p1, p2, binds)
+                MatchNode::List(p1, p2)
             } else {
                 // An inputs tuple of unknown arity matches the other
                 // side's whole inputs (`fn.type.ctor.inputs`).
                 let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
-                match_ty(pool, owner, t1, t2, binds)
+                MatchNode::Ty(t1, t2)
             };
-            both(
-                both(inputs, match_ty(pool, owner, r1, r2, binds)),
-                match_row(pool, owner, w1, w2, binds),
+            match_parts(
+                [inputs, MatchNode::Ty(r1, r2), MatchNode::Row(w1, w2)],
+                false,
+                stack,
             )
         }
         // A data type's row argument keeps the row parameter as a
@@ -2117,7 +2206,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         // as a function-head row parameter above does
         // (`req.row.param.data-substitute`). Row extensions in an impl head
         // are rejected before solver tables are built.
-        (TyData::Row(w1), TyData::Row(w2)) => match_row(pool, owner, w1, w2, binds),
+        (TyData::Row(w1), TyData::Row(w2)) => match_parts([MatchNode::Row(w1, w2)], true, stack),
         (
             TyData::TraitValue {
                 def: d1, args: a1, ..
@@ -2125,7 +2214,7 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
             TyData::TraitValue {
                 def: d2, args: a2, ..
             },
-        ) if d1 == d2 => match_list(pool, owner, a1, a2, binds),
+        ) if d1 == d2 => match_parts([MatchNode::List(a1, a2)], true, stack),
         _ if pat == t => M::Yes,
         // A context's row holding a variable may equal the head's once
         // the variable is decided (`req.context.row`).
@@ -2144,12 +2233,12 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
 /// decided (`req.context.row`). Cost: none for two closed rows, which
 /// interning makes equal only when they are one id; otherwise one hash
 /// probe per key of each row.
-fn match_row(
+fn match_row_parts(
     pool: Types<'_>,
     owner: DefId,
     w1: crate::RowId,
     w2: crate::RowId,
-    binds: &mut Vec<Option<Ty>>,
+    stack: &mut Vec<MatchWork>,
 ) -> M {
     if w1 == w2 {
         return M::Yes;
@@ -2157,13 +2246,17 @@ fn match_row(
     let (d1, d2) = (pool.row_data(w1), pool.row_data(w2));
     if !d1.params.is_empty() && d1.params.iter().all(|p| p.owner == owner) {
         let row = pool.intern_ty(&TyData::Row(w2));
-        return d1.params.iter().fold(M::Yes, |acc, p| {
-            let param = pool.intern_ty(&TyData::Param(ParamRef {
-                owner,
-                index: p.index,
-            }));
-            both(acc, match_ty(pool, owner, param, row, binds))
-        });
+        return match_parts(
+            d1.params.iter().map(|p| {
+                let param = pool.intern_ty(&TyData::Param(ParamRef {
+                    owner,
+                    index: p.index,
+                }));
+                MatchNode::Ty(param, row)
+            }),
+            false,
+            stack,
+        );
     }
     let open = pool.has_infer(pool.intern_ty(&TyData::Row(w2)));
     // Rows are interned as sorted key sets, so two closed rows are one
@@ -2182,21 +2275,17 @@ fn match_row(
             by.entry(def).and_modify(|e| *e = None).or_insert(Some(k));
         }
     }
-    let mut r = M::Yes;
-    for &k1 in &d1.keys {
-        let m = match pool.get(k1) {
+    match_parts(
+        d1.keys.iter().map(|&k1| match pool.get(k1) {
             TyData::TraitValue { def, .. } => match by.get(&def) {
-                Some(Some(k2)) => match_ty(pool, owner, k1, *k2, binds),
-                _ => miss,
+                Some(Some(k2)) => MatchNode::Ty(k1, *k2),
+                _ => MatchNode::Answer(miss),
             },
-            _ => miss,
-        };
-        r = both(r, m);
-        if r == M::No {
-            return r;
-        }
-    }
-    r
+            _ => MatchNode::Answer(miss),
+        }),
+        true,
+        stack,
+    )
 }
 
 fn match_list(
@@ -2206,18 +2295,7 @@ fn match_list(
     l2: TyList,
     binds: &mut Vec<Option<Ty>>,
 ) -> M {
-    let (x, y) = (pool.list_items(l1), pool.list_items(l2));
-    if x.len() != y.len() {
-        return M::No;
-    }
-    let mut r = M::Yes;
-    for (&p, &t) in x.iter().zip(y) {
-        r = both(r, match_ty(pool, owner, p, t, binds));
-        if r == M::No {
-            return r;
-        }
-    }
-    r
+    match_nodes(pool, owner, MatchNode::List(l1, l2), binds)
 }
 
 /// Whether a numeric-family head can match `self_ty` (§3.9). A target
@@ -4224,6 +4302,264 @@ mod tests {
         assert_eq!(a, u.intern(&[(f(1), &x), (f(2), &x), (f(2), &x)]).0);
         assert_ne!(a, u.intern(&[(f(1), &x)]).0);
         assert_eq!(u.len(), 2);
+    }
+
+    #[test]
+    fn solver_matching_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let gp = InternPool::new();
+                let lp = LocalPool::new();
+                let p = Types::with_local(&gp, &lp);
+                let owner = DefId::from_raw(1);
+                let param = p.intern_ty(&TyData::Param(crate::ParamRef { owner, index: 0 }));
+                let var = InferTable::default().fresh(p, VarKind::General);
+                let tuple = |x, n| {
+                    p.intern_ty(&TyData::Tuple {
+                        elems: p.list(&vec![x; n]),
+                        rest: None,
+                    })
+                };
+                for depth in [100, 1000] {
+                    for (leaf, goal, answer) in [
+                        (param, Ty::BOOL, M::Yes),
+                        (Ty::I32, var, M::Maybe),
+                        (Ty::I32, Ty::BOOL, M::No),
+                    ] {
+                        let (mut a, mut b) = (leaf, goal);
+                        for _ in 0..depth {
+                            a = tuple(a, 2);
+                            b = tuple(b, 2);
+                        }
+                        let mut binds = Vec::new();
+                        let (got, work) =
+                            crate::work::count_type_nodes(|| match_ty(p, owner, a, b, &mut binds));
+                        assert_eq!(got, answer);
+                        assert_eq!(work, 2 * depth + 1);
+                        if answer == M::Yes {
+                            assert_eq!(binds, [Some(goal)]);
+                        }
+                    }
+                }
+                let (mut a, mut b) = (param, Ty::BOOL);
+                for _ in 0..20 {
+                    a = tuple(a, 2);
+                    b = tuple(b, 2);
+                }
+                for width in [100, 1000] {
+                    let mut binds = Vec::new();
+                    let (got, work) = crate::work::count_type_nodes(|| {
+                        match_ty(p, owner, tuple(a, width), tuple(b, width), &mut binds)
+                    });
+                    assert_eq!(got, M::Yes);
+                    assert_eq!(binds, [Some(Ty::BOOL)]);
+                    assert_eq!(work, 43);
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn solver_matching_nested_holders_and_row_keys_fit_a_small_stack() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for this generated depth test.
+            .spawn(|| {
+                let gp = InternPool::new();
+                let p = gp.types();
+                let owner = DefId::from_raw(1);
+                let param = p.intern_ty(&TyData::Param(crate::ParamRef { owner, index: 0 }));
+                let empty = p.row(&RowData::default());
+                let key = |t| {
+                    p.intern_ty(&TyData::TraitValue {
+                        def: DefId::from_raw(3),
+                        args: p.list(&[t]),
+                        bindings: Vec::new(),
+                    })
+                };
+                let wrap = |t, i| {
+                    p.intern_ty(&match i % 7 {
+                        0 => TyData::Ref {
+                            inner: t,
+                            mutable: false,
+                            counted: true,
+                        },
+                        1 => TyData::Adt {
+                            def: DefId::from_raw(2),
+                            args: p.list(&[t]),
+                        },
+                        2 => TyData::Union(p.list(&[t, Ty::BOOL])),
+                        3 => TyData::Tuple {
+                            elems: p.list(&[Ty::BOOL]),
+                            rest: Some(t),
+                        },
+                        4 => TyData::Fn {
+                            params: p.list(&[t]),
+                            result: Ty::BOOL,
+                            inputs: crate::Inputs::Fixed,
+                            row: empty,
+                            suspends: false,
+                            deps: crate::FnDeps::NONE,
+                        },
+                        5 => TyData::Row(p.row(&RowData {
+                            keys: vec![key(t)],
+                            params: Vec::new(),
+                        })),
+                        _ => return key(t),
+                    })
+                };
+                let (mut a, mut b) = (param, Ty::I32);
+                for i in 0..1000 {
+                    a = wrap(a, i);
+                    b = wrap(b, i);
+                }
+                let mut binds = Vec::new();
+                assert_eq!(match_ty(p, owner, a, b, &mut binds), M::Yes);
+                assert_eq!(binds, [Some(Ty::I32)]);
+                // Rows match keys by trait, rather than their sorted type IDs.
+                let extra = p.intern_ty(&TyData::TraitValue {
+                    def: DefId::from_raw(4),
+                    args: TyList::EMPTY,
+                    bindings: Vec::new(),
+                });
+                let row = |keys| {
+                    p.intern_ty(&TyData::Row(p.row(&RowData {
+                        keys,
+                        params: Vec::new(),
+                    })))
+                };
+                binds.clear();
+                assert_eq!(
+                    match_ty(
+                        p,
+                        owner,
+                        row(vec![extra, key(param)]),
+                        row(vec![key(Ty::I32), extra]),
+                        &mut binds
+                    ),
+                    M::Yes
+                );
+                assert_eq!(binds, [Some(Ty::I32)]);
+                assert_eq!(
+                    match_ty(
+                        p,
+                        owner,
+                        row(vec![key(param)]),
+                        row(vec![extra]),
+                        &mut Vec::new()
+                    ),
+                    M::No
+                );
+                // Duplicate traits have no unique partner.
+                assert_eq!(
+                    match_ty(
+                        p,
+                        owner,
+                        row(vec![key(param), extra]),
+                        row(vec![key(Ty::I32), key(Ty::BOOL)]),
+                        &mut Vec::new()
+                    ),
+                    M::No
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn solver_matching_keeps_binding_and_failure_order() {
+        let gp = InternPool::new();
+        let lp = LocalPool::new();
+        let p = Types::with_local(&gp, &lp);
+        let owner = DefId::from_raw(1);
+        let param = |index| p.intern_ty(&TyData::Param(crate::ParamRef { owner, index }));
+        let tuple = |xs: &[Ty], rest| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(xs),
+                rest,
+            })
+        };
+        let row = |params| {
+            p.row(&RowData {
+                keys: Vec::new(),
+                params,
+            })
+        };
+        let fn_ty = |params: &[Ty], result, inputs, row| {
+            p.intern_ty(&TyData::Fn {
+                params: p.list(params),
+                result,
+                inputs,
+                row,
+                suspends: false,
+                deps: crate::FnDeps::NONE,
+            })
+        };
+        let empty = row(Vec::new());
+        let row_param = row(vec![RowParamRef { owner, index: 2 }]);
+        let mut binds = Vec::new();
+        // A failed input list skips its later slot, but a function still
+        // visits its result and row, in that order.
+        let a = fn_ty(
+            &[Ty::I32, param(0)],
+            param(1),
+            crate::Inputs::Fixed,
+            row_param,
+        );
+        let b = fn_ty(&[Ty::BOOL, Ty::I32], Ty::BOOL, crate::Inputs::Fixed, empty);
+        assert_eq!(match_ty(p, owner, a, b, &mut binds), M::No);
+        assert_eq!(
+            binds,
+            [None, Some(Ty::BOOL), Some(p.intern_ty(&TyData::Row(empty)))]
+        );
+        // Tuple rests are skipped on a failed elements list.
+        binds.clear();
+        assert_eq!(
+            match_ty(
+                p,
+                owner,
+                tuple(&[Ty::I32], Some(param(0))),
+                tuple(&[Ty::BOOL], Some(Ty::I32)),
+                &mut binds
+            ),
+            M::No
+        );
+        assert!(binds.is_empty());
+        // Reusing a completed pair cannot turn a conflict into success.
+        let shared = tuple(&[param(0)], None);
+        for (goals, want) in [
+            ([Ty::I32, Ty::BOOL, Ty::I32], M::No),
+            ([Ty::I32; 3], M::Yes),
+        ] {
+            binds.clear();
+            let got = goals.map(|x| tuple(&[x], None));
+            assert_eq!(
+                match_ty(
+                    p,
+                    owner,
+                    tuple(&[shared; 3], None),
+                    tuple(&got, None),
+                    &mut binds
+                ),
+                want
+            );
+            assert_eq!(binds, [Some(Ty::I32)]);
+        }
+        // An unknown-arity inputs tuple binds the whole input product.
+        binds.clear();
+        let a = fn_ty(&[param(0)], Ty::I32, crate::Inputs::Tuple, empty);
+        let b = fn_ty(&[Ty::I32, Ty::BOOL], Ty::I32, crate::Inputs::Fixed, empty);
+        assert_eq!(match_ty(p, owner, a, b, &mut binds), M::Yes);
+        assert_eq!(binds, [Some(tuple(&[Ty::I32, Ty::BOOL], None))]);
+        // Identical open heads still bind their parameters.
+        binds.clear();
+        assert_eq!(match_ty(p, owner, shared, shared, &mut binds), M::Yes);
+        assert_eq!(binds, [Some(param(0))]);
     }
 
     #[test]
