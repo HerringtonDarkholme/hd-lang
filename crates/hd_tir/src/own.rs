@@ -1,40 +1,30 @@
-//! The ownership passes (`docs/compiler/tir-v2.md`, "The ownership
-//! passes"): a fixed pipeline over one body that decides every count once
-//! per generic body, after decoding and before any instance is emitted.
-//! The checker's TIR reads every place with mode `use` and has no
-//! ownership statement (invariant 22); the passes leave every read's mode
-//! decided, the `Drop`s each owned value and local needs, and the exit
-//! set (invariant 23, [`crate::ir::verify_owned`]).
+//! The ownership pipeline (`docs/compiler/tir-v2.md`, "The ownership
+//! passes") decides read modes, drops and count statements for one body
+//! after checking and before emission. Checked TIR has `use` reads and no
+//! ownership statements (invariant 22); the result satisfies invariant 23
+//! ([`crate::ir::verify_owned`]). [`run`] executes these stages in order:
 //!
-//! Built so far: **late operand reads** (`late`), which moves an operand
-//! read of a local's place to just before its consumer when a later
-//! operand reads the local, so the read is its last access; then
-//! **insertion** (`insert`), over places the checker roots at their local
-//! on this path (`crate::ir::root_places`), the naive,
-//! correct ownership of `crates/hd_wasm/DESIGN.md` §23.16 with
-//! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
-//! collection place and the pins of element references; then the
-//! **derivation** (`derive`), which turns a `copy` whose value only lends and
-//! whose source does not change while it lives into a `borrow` and deletes its
-//! `Drop`s; then **move** (`moves`),
-//! which turns a `copy` that no path reads after into a `move` and deletes
-//! the `Drop` it leaves with nothing to release; then **known-null** (`known`),
-//! which deletes the `Drop`s no path reaches with a count, drops the exit
-//! rows of locals empty at every way out, and writes each suspension
-//! point's unwind set; then **hoisting** (`hoist`), which moves an
-//! `IsUnique` out of a loop that cannot make a second owner of its place,
-//! to run once before it under the loop's entry test, and lists the
-//! loops' stable list places. Each pass only weakens, deletes or moves
-//! what insertion writes, so the pipeline is correct after any prefix.
-//! Insertion rebuilds the body once ([`splice`]); borrow, move, pair
-//! cancellation, known-null and hoisting record their edits for one more
-//! rebuild at the end.
+//! - **Prepare places and values:** forward returned loans, normalize local
+//!   references, expand struct copies, bind temporaries, remove local aliases,
+//!   forward values, and place late operand reads. Each structural rewrite
+//!   materializes before the next stage reads its changed instructions.
+//! - **Insert ownership:** frame/cell analysis and storage planning feed
+//!   insertion's initial read modes, lifetime ends and uniqueness checks.
+//! - **Derive and optimize:** borrowing, moves, capture moves, known-null,
+//!   hoisting and arm drops share one edit batch. Self-store narrowing and
+//!   copied-parameter lending then consume the materialized result, each
+//!   applying its own edits when needed.
+//! - **Finalize counts:** plain-reference loan ends, overwritten-value
+//!   releases, borrowed-result retains, and operation/boundary counts. The
+//!   latter three share one splice; stable edit order puts a result's retain
+//!   before its operation cleanup. Normalize anchors and check non-Copy reads.
 //!
-//! The passes read the body and [`OwnCx`], signature and layout facts the
-//! driver gives; never another body. They follow "Data layout of the
-//! passes": dense tables indexed by instruction and local in one
-//! [`OwnScratch`] reused across bodies, no hash maps, and every edit
-//! recorded in a side table and spliced in once ([`splice`]).
+//! There are eleven possible materialization boundaries, including the
+//! optional self-store and copied-parameter rewrites. Empty batches do not
+//! rebuild. The main analyses reuse dense instruction/local tables in
+//! [`OwnScratch`]; edits retain stable instruction numbers within a batch.
+//! Frame-use queries analyze an immutable body and discard sparse marks;
+//! insertion applies those marks after the same analysis, without a clone.
 //!
 //! The late [`pointer`] analysis is separate from this per-body pipeline:
 //! it reads resolved whole-program facts at link time and returns loan tables.
@@ -1091,13 +1081,11 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
     }
 }
 
-/// Runs the ownership passes over every sub-body of `b`, in order: late
-/// operand reads, insertion, derivation, move, known-null, then hoisting. The
-/// last four record their deletions and insertions in
-/// one set of edits, applied once at the end. Then the copy verifier
-/// ([`uncopied`]) leaves its findings in `scratch`, for the driver to
-/// refuse. A body the passes cannot handle is refused, with what stopped
-/// them.
+/// Runs the pipeline documented above over every sub-body. Dependent
+/// structural stages materialize their edits before the next reader;
+/// derivation through hoisting share one batch, as do final count producers.
+/// The copy verifier ([`uncopied`]) leaves its findings in `scratch`.
+/// Malformed insertion or splice inputs return their structural error.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     return_loan::forward_places(b, cx);
     local_refs::run(b, cx, &mut scratch.topo, &mut scratch.splice)?;
@@ -1162,9 +1150,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     plain::loan_ends(b, cx);
     scratch.splice.clear();
     overwrites::plan(b, cx, &scratch.topo, &mut scratch.splice);
-    retains::run(b, cx, &scratch.topo, &mut scratch.splice)?;
-    scratch.topo.build(b);
-    scratch.splice.clear();
+    retains::plan(b, cx, &scratch.topo, &mut scratch.splice)?;
     counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
     scratch.topo.build(b);
@@ -1216,10 +1202,9 @@ pub(crate) fn frame_reference_uses(
     if !wanted.contains(&true) {
         return;
     }
-    let mut copy = b.clone();
     let mut t = frame::Tables::default();
     // Ending a reference reads nothing through it.
-    frame::run(&mut copy, topo, cx, &mut t, |i, l, in_frame| {
+    frame::uses(b, topo, cx, &mut t, |i, l, in_frame| {
         if in_frame && wanted[l as usize] && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
         {
             out.push((i, l));

@@ -73,9 +73,15 @@ use crate::ir::{
     is_suspension, local_flags, slots, u32_of,
 };
 
+enum Mark {
+    Reference(usize),
+    Capture(usize),
+}
+
 /// Frame locals' dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
+    marks: Vec<Mark>,
     /// Per local: its candidate bit, or 0.
     bit: Vec<Origins>,
     /// Per local: whether some `Ref` of its storage rules it out.
@@ -350,7 +356,38 @@ pub(crate) fn run(
     topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
+    uses: impl FnMut(u32, u32, bool),
+) {
+    let mut marks = std::mem::take(&mut t.marks);
+    marks.clear();
+    analyze(b, topo, cx, t, uses, &mut |mark| marks.push(mark));
+    for mark in marks.drain(..) {
+        match mark {
+            Mark::Reference(i) => b.data[i][1] |= crate::ir::ref_word::FRAME,
+            Mark::Capture(c) => b.cap_mode[c] = crate::ir::CaptureMode::Frame,
+        }
+    }
+    t.marks = marks;
+}
+
+/// Observe frame/cell uses without changing reference or capture marks.
+pub(crate) fn uses(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    uses: impl FnMut(u32, u32, bool),
+) {
+    analyze(b, topo, cx, t, uses, &mut |_| {});
+}
+
+fn analyze(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
     mut uses: impl FnMut(u32, u32, bool),
+    marks: &mut impl FnMut(Mark),
 ) {
     let (n, locals) = (b.len(), b.local_ty.len());
     fill(&mut t.bit, locals, Origins::default());
@@ -367,7 +404,7 @@ pub(crate) fn run(
         root_uses(b, cx, &mut uses);
         return;
     }
-    cell_uses(b, topo, cx, &mut uses);
+    cell_uses(b, topo, cx, &mut uses, marks);
     for c in &b.cap_local {
         t.bad[c.idx()] = true;
     }
@@ -425,7 +462,7 @@ pub(crate) fn run(
     let frame = tracked.without(&t.out);
     t.frame = frame.clone();
     for i in 0..n {
-        let [a, w] = b.data[i];
+        let a = b.data[i][0];
         let mut m = Origins::default();
         if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
             && let Some(l) = b.view(a).local()
@@ -443,7 +480,7 @@ pub(crate) fn run(
             && let Some(l) = b.local_in_place(a)
             && frame.clone() & t.bit[l.idx()].clone() != 0
         {
-            b.data[i][1] = w | crate::ir::ref_word::FRAME;
+            marks(Mark::Reference(i));
         }
     }
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
@@ -565,7 +602,13 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> Orig
 /// cell's captures become `CaptureMode::Frame`, and `uses` gets each
 /// instruction that uses a value or a local that may point into one, as
 /// (instruction, local, true), so its drop follows the closure's last use.
-fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
+fn cell_uses(
+    b: &Body,
+    topo: &Topology,
+    cx: &dyn OwnCx,
+    uses: &mut impl FnMut(u32, u32, bool),
+    marks: &mut impl FnMut(Mark),
+) {
     if !b.cap_mode.iter().any(|m| m.shares()) {
         return;
     }
@@ -595,7 +638,7 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
                 if b.cap_mode[c] == crate::ir::CaptureMode::Shared
                     && t.bit[b.cap_local[c].idx()].clone() & frame.clone() != 0
                 {
-                    b.cap_mode[c] = crate::ir::CaptureMode::Frame;
+                    marks(Mark::Capture(c));
                 }
             }
         }
@@ -603,7 +646,7 @@ fn cell_uses(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, uses: &mut impl FnMu
     for &(_, capture) in &b.inlined_shared {
         let c = capture as usize;
         if t.bit[b.cap_local[c].idx()].clone() & frame.clone() != 0 {
-            b.cap_mode[c] = crate::ir::CaptureMode::Frame;
+            marks(Mark::Capture(c));
         }
     }
 }

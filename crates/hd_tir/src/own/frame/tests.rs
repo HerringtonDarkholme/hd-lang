@@ -32,6 +32,12 @@ impl OwnCx for Cx {
     fn may_write(&self, _: &Callee) -> bool {
         false
     }
+    fn keeps(&self, _: &Callee, _: usize, _: usize) -> bool {
+        false
+    }
+    fn suspending(&self, _: DefId) -> bool {
+        false
+    }
     fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
         false
     }
@@ -242,4 +248,39 @@ fn cell_origin_worklist_does_not_rescan_the_body_per_alias_depth() {
             body.len()
         );
     }
+}
+
+#[test]
+fn immutable_frame_queries_match_marking_at_width_and_depth() {
+    let mut work = Vec::new();
+    for (width, depth) in [(100, 20), (1000, 20), (20, 1000)] {
+        let (mut body, _) = local_chains(width, depth);
+        let topo = Topology::new(&body);
+        let before = (body.data.clone(), body.cap_mode.clone());
+        let cx = Cx::default();
+        let mut observed = Vec::new();
+        uses(&body, &topo, &cx, &mut Tables::default(), |i, l, f| {
+            observed.push((i, l, f));
+        });
+        assert_eq!((&body.data, &body.cap_mode), (&before.0, &before.1));
+        let marking = Cx::default();
+        let mut marked = Vec::new();
+        run(
+            &mut body,
+            &topo,
+            &marking,
+            &mut Tables::default(),
+            |i, l, f| marked.push((i, l, f)),
+        );
+        assert_eq!(observed, marked);
+        assert_eq!(cx.transfers.get(), marking.transfers.get());
+        assert!(
+            body.tags
+                .iter()
+                .enumerate()
+                .any(|(i, &tag)| tag == Tag::Ref && body.data[i][1] & ref_word::FRAME != 0)
+        );
+        work.push(cx.transfers.get());
+    }
+    assert!(work[1] <= 11 * work[0], "tenfold width: {work:?}");
 }

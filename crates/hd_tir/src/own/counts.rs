@@ -140,7 +140,10 @@ pub(super) fn run(
         };
         edits.insert(block, position, tag, [target, record], Ty::VOID, syn);
     }
+    // Borrowed-result retains were queued first. At the same position,
+    // stable edit order keeps them before their operation cleanup packet.
     splice::apply(b, topo, edits)?;
+    super::retains::anchor(b);
     if !b.anchors.is_empty() {
         for i in 0..b.len() {
             if Info::read(b, i).is_some_and(|c| c.at == At::Operation) {

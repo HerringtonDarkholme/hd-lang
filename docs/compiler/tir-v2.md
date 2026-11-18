@@ -58,20 +58,24 @@ The duty is **visible ownership**. Each `Read` says how it reads: `copy`
 (takes a count), `move` (takes the place's count and leaves it empty)
 or `borrow` (no count). `Drop` and `IsUnique` are statements (`Pin`
 went with counted element references, #1336 phase 10). The checker
-writes none of this: it emits plain reads. The design had a fixed
-sequence of six passes in `hd_tir` (insertion, borrow, move, pair
-cancellation, known-null, hoisting) decide every count once per generic
-body, replacing the emitter's count decisions. What was built differs;
-see [As built](#as-built-2026-11-13).
+writes none of this: it emits plain reads. The initial design named six
+core passes: insertion, borrow, move, pair cancellation, known-null and
+hoisting. The built pipeline also normalizes values and finalizes explicit
+count packets; see [As built](#as-built-2026-11-13).
 
 ### As built (2026-11-13)
 
-- **Steps.** `hd_tir::own::run` (`crates/hd_tir/src/own.rs`) runs about
-  21 steps: local references, struct copies, temporaries, value aliases
-  and forwarding, late reads, insertion, derivation, move, capture moves,
-  known-null, hoisting and arm drops, one splice, then self stores, loan
-  ends, overwrites, retains, counts, liveness and the copy verifier.
-  Pair cancellation (`own/pairs.rs`, #1399) and `Pin` are gone.
+- **Steps.** [The pipeline source](../../crates/hd_tir/src/own.rs) lists
+  the complete order: returned-loan places, local references, struct copies,
+  temporaries, value aliases/forwarding, late reads, and insertion. Borrow,
+  move, capture moves, known-null, hoisting and arm drops share one batch.
+  Self-store narrowing and copied-parameter lending consume that result.
+  Plain-reference ends precede overwritten-value releases, borrowed-result
+  retains and operation/boundary counts, which share the final splice.
+  Anchors and the non-Copy verifier finish the pipeline. There are eleven
+  possible materialization boundaries; empty batches do not rebuild.
+  Read-only frame-use queries run the same analysis without cloning the body.
+
 - **Only weakening holds up to the splice.** Insertion to hoisting only
   weaken, delete or move what insertion wrote. The steps after the
   splice add statements again (`LoanEnd`, `Release`, `Retain`, boundary

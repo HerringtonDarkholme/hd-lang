@@ -10,7 +10,7 @@ use crate::ir::{
 };
 use hd_types::Ty;
 
-pub(super) fn run(
+pub(super) fn plan(
     b: &mut Body,
     cx: &dyn OwnCx,
     topo: &Topology,
@@ -49,15 +49,30 @@ pub(super) fn run(
             b.syn[i],
         );
     }
+    Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn run(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    edits: &mut splice::Tables,
+) -> Result<(), String> {
+    plan(b, cx, topo, edits)?;
     splice::apply(b, topo, edits)?;
+    anchor(b);
+    Ok(())
+}
+
+pub(super) fn anchor(b: &mut Body) {
     if !b.anchors.is_empty() {
         for i in 0..b.len() {
-            if b.tags[i] == Tag::Retain {
+            if b.tags[i] == Tag::Retain && Info::read(b, i).is_some_and(|c| c.at == At::Value) {
                 b.anchors[i] = b.anchors[b.data[i][0] as usize];
             }
         }
     }
-    Ok(())
 }
 
 /// Cancel a read-only returned loan only when its whole source parameter
@@ -542,7 +557,7 @@ pub fn took_source(b: &Body, topo: &Topology, i: usize) -> bool {
 /// body's instruction and packet words, with at most one parent step.
 fn next_after(b: &Body, topo: &Topology, i: usize) -> Option<u32> {
     // Operation count packets describe their target's ABI action rather
-    // than a new value use. counts::run adds them after retains::run;
+    // than a new value use. counts::run appends them after this plan;
     // producer and verifier must see the same adjacent source cleanup.
     let next = |members: &[u32]| {
         members
@@ -842,6 +857,73 @@ mod tests {
         );
         let root = b.close_block(block, Some(value), Ty::STRING, syn);
         b.finish(root, &[]).expect("slice body")
+    }
+
+    #[test]
+    fn queued_value_retain_precedes_operation_cleanup_in_one_splice() -> Result<(), String> {
+        struct Rows;
+        impl OwnCx for Rows {
+            fn temporary_owner_name(&self) -> hd_base::Symbol {
+                hd_base::Symbol::NONE
+            }
+            fn counted(&self, ty: Ty) -> bool {
+                Facts.counted(ty)
+            }
+            fn retains_result(&self, c: &Callee) -> bool {
+                Facts.retains_result(c)
+            }
+            fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
+                Facts.pass(c, k, n)
+            }
+            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
+                Facts.pass_value(ty, k, n)
+            }
+            fn may_write(&self, c: &Callee) -> bool {
+                Facts.may_write(c)
+            }
+            fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+                Facts.parts(ty, variant, out)
+            }
+            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+                Facts.received(item, k, n)
+            }
+            fn holds_coll(&self, ty: Ty) -> bool {
+                Facts.holds_coll(ty)
+            }
+            fn call_has_requirement_context(&self, _: &Callee) -> bool {
+                true
+            }
+        }
+        let mut b = body();
+        let topo = Topology::new(&b);
+        let mut edits = splice::Tables::default();
+        plan(&mut b, &Rows, &topo, &mut edits)?;
+        assert!(!b.tags.contains(&Tag::Retain), "the retain is still queued");
+        crate::own::counts::run(&mut b, &Rows, &topo, &mut edits)?;
+        let call = b
+            .tags
+            .iter()
+            .position(|&tag| tag == Tag::Call)
+            .ok_or("call")?;
+        let members = b.record(b.data[b.sub_root[0] as usize][0]);
+        let at = members
+            .iter()
+            .position(|&i| i as usize == call)
+            .ok_or("call member")?;
+        let packet: Vec<_> = members[at + 1..]
+            .iter()
+            .take(3)
+            .map(|&i| (b.tags[i as usize], Info::read(&b, i as usize)))
+            .collect();
+        assert_eq!(
+            packet,
+            [
+                (Tag::Retain, Some(Info::new(At::Value, Part::Result, 0))),
+                (Tag::Retain, Some(Info::new(At::Operation, Part::Row, 0))),
+                (Tag::Release, Some(Info::new(At::Operation, Part::Row, 2))),
+            ]
+        );
+        Ok(())
     }
 
     #[test]
