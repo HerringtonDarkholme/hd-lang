@@ -2480,68 +2480,98 @@ impl SubstMemo {
 /// arguments implicitly: fills them in from the call's.
 #[must_use]
 pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> Ty {
-    if args == TyList::EMPTY {
+    if args == TyList::EMPTY || !pool.has_assoc(t) {
         return t;
     }
-    let list = |l: TyList| {
-        pool.list(
-            &pool
-                .list_items(l)
-                .iter()
-                .copied()
-                .map(|x| with_assoc_args(pool, x, trait_, args))
-                .collect::<Vec<_>>(),
-        )
-    };
-    let d = match pool.get(t) {
-        TyData::Assoc {
-            assoc,
-            trait_: tr,
-            self_ty,
-            args: a,
-        } => TyData::Assoc {
-            assoc,
-            trait_: tr,
-            self_ty: with_assoc_args(pool, self_ty, trait_, args),
-            args: if tr == trait_ && a == TyList::EMPTY {
-                args
-            } else {
-                list(a)
+    let mut memo = HashMap::default();
+    let mut children = Vec::new();
+    hd_base::stack::all((t, false), |(t, ready), stack| {
+        if !pool.has_assoc(t) || memo.contains_key(&t) {
+            return true;
+        }
+        if !ready {
+            children.clear();
+            // Preserve this substitution's boundaries: tuple rests and
+            // function rows stay as written, as do opaque/trait-value types.
+            match pool.get(t) {
+                TyData::Tuple { elems, .. } => children.extend_from_slice(pool.list_items(elems)),
+                TyData::Fn { params, result, .. } => {
+                    children.extend_from_slice(pool.list_items(params));
+                    children.push(result);
+                }
+                TyData::Opaque { .. }
+                | TyData::TraitValue { .. }
+                | TyData::Row(_)
+                | TyData::Context(_) => return true,
+                _ => pool.children(t, &mut children),
+            }
+            stack.push((t, true));
+            stack.extend(children.iter().rev().map(|&t| (t, false)));
+            return true;
+        }
+        crate::work::type_node();
+        let mapped = |t| memo.get(&t).copied().unwrap_or(t);
+        let list = |l| {
+            pool.list(
+                &pool
+                    .list_items(l)
+                    .iter()
+                    .map(|&t| mapped(t))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let d = match pool.get(t) {
+            TyData::Assoc {
+                assoc,
+                trait_: tr,
+                self_ty,
+                args: a,
+            } => TyData::Assoc {
+                assoc,
+                trait_: tr,
+                self_ty: mapped(self_ty),
+                args: if tr == trait_ && a == TyList::EMPTY {
+                    args
+                } else {
+                    list(a)
+                },
             },
-        },
-        TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
-        TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: list(elems),
-            rest,
-        },
-        TyData::Union(members) => TyData::Union(list(members)),
-        TyData::Ref {
-            inner,
-            mutable,
-            counted,
-        } => TyData::Ref {
-            inner: with_assoc_args(pool, inner, trait_, args),
-            mutable,
-            counted,
-        },
-        TyData::Fn {
-            params,
-            result,
-            row,
-            suspends,
-            inputs,
-            deps,
-        } => TyData::Fn {
-            params: list(params),
-            result: with_assoc_args(pool, result, trait_, args),
-            row,
-            suspends,
-            inputs,
-            deps,
-        },
-        _ => return t,
-    };
-    pool.intern_ty(&d)
+            TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: list(elems),
+                rest,
+            },
+            TyData::Union(members) => TyData::Union(list(members)),
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            } => TyData::Ref {
+                inner: mapped(inner),
+                mutable,
+                counted,
+            },
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+                deps,
+            } => TyData::Fn {
+                params: list(params),
+                result: mapped(result),
+                row,
+                suspends,
+                inputs,
+                deps,
+            },
+            _ => return true,
+        };
+        memo.insert(t, pool.intern_ty(&d));
+        true
+    });
+    memo.get(&t).copied().unwrap_or(t)
 }
 
 /// What [`Types::erase_fn_deps`] and [`Types::erase_ref_kinds`] erase:
@@ -3657,6 +3687,102 @@ mod tests {
                         assert_eq!(found, expected);
                         assert_eq!(work, depth + if leaf == named { 2 } else { 1 });
                     }
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
+    #[test]
+    fn associated_arguments_at_depth_1000_fit_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let owner = DefId::from_raw(1);
+                let this = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+                let args = pool.list(&[Ty::I32]);
+                let projection = |trait_, args| {
+                    pool.intern_ty(&TyData::Assoc {
+                        assoc: DefId::from_raw(2),
+                        trait_,
+                        self_ty: this,
+                        args,
+                    })
+                };
+                let original = projection(owner, TyList::EMPTY);
+                let filled = projection(owner, args);
+                for depth in [100, 1_000] {
+                    let mut chain = [original, filled];
+                    for _ in 0..depth {
+                        for t in &mut chain {
+                            *t = pool.intern_ty(&TyData::Tuple {
+                                elems: pool.list(&[*t, *t]),
+                                rest: None,
+                            });
+                        }
+                    }
+                    let (out, work) = crate::work::count_type_nodes(|| {
+                        super::with_assoc_args(types, chain[0], owner, args)
+                    });
+                    assert_eq!(out, chain[1]);
+                    assert_eq!(work, depth + 1);
+                    assert_eq!(
+                        super::with_assoc_args(types, chain[0], owner, TyList::EMPTY),
+                        chain[0]
+                    );
+                }
+                let other = projection(DefId::from_raw(3), TyList::EMPTY);
+                assert_eq!(super::with_assoc_args(types, other, owner, args), other);
+                assert_eq!(
+                    super::with_assoc_args(
+                        types,
+                        projection(owner, pool.list(&[original])),
+                        owner,
+                        args
+                    ),
+                    projection(owner, pool.list(&[filled]))
+                );
+                let row = pool.row(&RowData {
+                    keys: vec![original],
+                    params: vec![],
+                });
+                for t in [
+                    pool.intern_ty(&TyData::Opaque {
+                        owner,
+                        site: 0,
+                        borrows: false,
+                        args: pool.list(&[original]),
+                        bound: original,
+                    }),
+                    pool.intern_ty(&TyData::TraitValue {
+                        def: owner,
+                        args: pool.list(&[original]),
+                        bindings: vec![(owner, original)],
+                    }),
+                    pool.intern_ty(&TyData::Row(row)),
+                    pool.intern_ty(&TyData::Context(row)),
+                    pool.intern_ty(&TyData::Tuple {
+                        elems: TyList::EMPTY,
+                        rest: Some(original),
+                    }),
+                    pool.intern_ty(&TyData::Fn {
+                        params: TyList::EMPTY,
+                        result: Ty::I32,
+                        row,
+                        suspends: false,
+                        inputs: Inputs::Fixed,
+                        deps: FnDeps::NONE,
+                    }),
+                ] {
+                    assert_eq!(
+                        super::with_assoc_args(types, t, owner, args),
+                        t,
+                        "existing substitution boundary"
+                    );
                 }
             })
             .expect("thread")
