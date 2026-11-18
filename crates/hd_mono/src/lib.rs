@@ -1604,8 +1604,12 @@ pub fn adapter_call_body(
     let operands: Vec<_> = params.iter().map(|&(l, t)| tb.get(l, t, none)).collect();
     let call = tb.call(&callee, &operands, Providers::None, call_ty, none);
     let root = tb.close_block(blk, Some(call), call_ty, none);
-    tb.finish(root, &[])
-        .map_err(|_| NotImplemented::bug(Stage::Collect, "a function reference's call body"))
+    let mut body = tb
+        .finish(root, &[])
+        .map_err(|_| NotImplemented::bug(Stage::Collect, "a function reference's call body"))?;
+    // Every type it records is the instance's, substituted (`s`).
+    body.phase = hd_tir::ir::Phase::Instance;
+    Ok(body)
 }
 
 fn err<T>(what: &str) -> StageResult<T> {

@@ -40,7 +40,7 @@ impl hd_tir::own::short::Context for Em<'_, '_, '_> {
         self.ty_of(value)
     }
     fn local_type(&self, local: u32) -> Ty {
-        self.sub(self.b.local_ty[local as usize])
+        self.b.local_ty[local as usize]
     }
     fn mutable_ref(&self, ty: Ty) -> bool {
         crate::layout::ref_mutable(self.pool(), self.env(), ty)

@@ -2966,6 +2966,32 @@ impl Env<'_> {
         Some((body, hash))
     }
 
+    /// The instance body of `node`, whose type arguments are past
+    /// [`MAX_INSTANCE_LEAVES`] (gap: #2102): its generic item's body as
+    /// the passes owned it, its types substituted at the arguments
+    /// (`hd_mono::substitute_body`, one `subst` per distinct type), so
+    /// the emitter lowers it as any instance and substitutes nothing.
+    /// Its counts are the generic body's and its bound calls stay bound,
+    /// chosen by collection's call targets, so it is marked but not
+    /// verified. A supplied method's or factory's generated body is owned
+    /// here as the generic body. `None` for any other node, and for an
+    /// item with no body. Cost: one copy of the body per such instance.
+    pub(super) fn leaf_fallback(&self, (def, args): Node) -> Option<std::sync::Arc<Body>> {
+        if instance_leaves(&self.run.pool, args) <= MAX_INSTANCE_LEAVES {
+            return None;
+        }
+        let mut body = match self.supplied_member((def, args)) {
+            Some((family, at)) => self.owned_generated(family.bodies[at].clone()).ok()?,
+            None => self.run.body_of(self.p, def)?.0.clone(),
+        };
+        let pool = &self.run.pool;
+        hd_mono::instance::substitute_body(pool, &mut body, &mut |t| {
+            hd_mono::subst(pool, self, def, args, t)
+        });
+        body.phase = hd_tir::ir::Phase::Instance;
+        Some(std::sync::Arc::new(body))
+    }
+
     /// Generic instance `node`'s body after the passes
     /// (`ProgramEnv::instance_body`), owned once: in release with its
     /// callees first ([`Run::owned_bottom_up`]), in dev alone, since no

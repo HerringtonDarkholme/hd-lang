@@ -369,7 +369,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn type_id_of(&mut self, i: u32, targs: hd_types::TyList) -> StageResult<()> {
         // `TypeId::of[T]`.
         let t = self.pool().list_items(targs)[0];
-        let parts = self.type_id_parts(self.sub(t));
+        let parts = self.type_id_parts(t);
         self.f.helper(Helper::TypeIdOf(parts));
         self.store(i)
     }
@@ -387,7 +387,7 @@ impl Em<'_, '_, '_> {
             // ruled out: the intrinsic's shape (`Opt`) checks its result.
             unreachable!("a recovery intrinsic returns `(&T)?`");
         };
-        let concrete = self.sub(self.pool().list_items(targs)[0]);
+        let concrete = self.pool().list_items(targs)[0];
         let recv_t = self.ty_of(recv);
         // The receiver is a trait value or a reference to one.
         let value_t = self.ref_target(recv_t).map_or(recv_t, |(t, _)| t);
@@ -520,11 +520,7 @@ impl Em<'_, '_, '_> {
         targs: hd_types::TyList,
     ) -> StageResult<Vec<u32>> {
         let pool = self.pool();
-        let targs: Vec<Ty> = pool
-            .list_items(targs)
-            .iter()
-            .map(|t| self.sub(*t))
-            .collect();
+        let targs: Vec<Ty> = pool.list_items(targs).to_vec();
         let n = self.env().trait_arity(trait_).min(targs.len());
         let want = pool.list(&targs[..n]);
         // Checking finds a trait value's methods in its trait and supertraits.

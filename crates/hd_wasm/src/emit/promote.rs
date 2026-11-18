@@ -3,10 +3,10 @@
 //! read of its place, of the referent's type, and its local needs no
 //! memory for it.
 
-use hd_base::{DefId, HashMap, HashSet};
-use hd_mono::{Target, TargetKind, subst};
+use hd_base::{HashMap, HashSet};
+use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{Body, Ref, Tag};
-use hd_types::{Ty, TyList};
+use hd_types::Ty;
 
 use super::Em;
 use crate::Input;
@@ -94,7 +94,6 @@ pub(super) fn promoted_refs(
     input: &Input<'_>,
     m: &Module,
     b: &Body,
-    (item, args): (DefId, TyList),
     targets: &HashMap<u32, Target>,
     own: bool,
     rows: &[usize],
@@ -106,7 +105,7 @@ pub(super) fn promoted_refs(
             continue;
         };
         let operands = b.call_args(i);
-        let arg_ty = |a: usize| subst(pool, env, item, args, b.ty[a]);
+        let arg_ty = |a: usize| b.ty[a];
         match &ct.kind {
             TargetKind::Instance => {
                 let Some(&id) = m.inst_of.get(&ct.key) else {
@@ -169,7 +168,7 @@ impl Em<'_, '_, '_> {
             // ruled out: promoted copies select only lent_referent types;
             // primitive comparisons use promotable_referent. Both are thin.
             if let Some((target, false)) = self.ref_target(self.ty(a)) {
-                self.inst_ty.get_mut().insert(a, target);
+                self.retyped.insert(a, target);
                 let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
                 if self.tracked(target) && !takes {
                     self.loans.insert(a);

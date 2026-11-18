@@ -167,13 +167,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
     let worker = body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)?;
     let leaves = param_locals(b)
         .into_iter()
-        .map(|l| {
-            vals(
-                input.pool,
-                input.env,
-                subst(input.pool, input.env, item, args, b.local_ty[l]),
-            )
-        })
+        .map(|l| vals(input.pool, input.env, b.local_ty[l]))
         .collect::<StageResult<Vec<_>>>()?;
     let results = vals(
         input.pool,
@@ -245,7 +239,6 @@ fn body_func<'a>(
         closure::closure_of(
             input,
             b,
-            args,
             // ruled out: verified non-root sub-bodies have a defining closure.
             facts.closures[sub as usize].expect("a sub-body's closure"),
         )
@@ -262,18 +255,9 @@ fn body_func<'a>(
     // where its declaration takes a reference. A plain function picks
     // its own for primitive comparisons in the optimized pipeline.
     let pick = input.promote_args && sub == 0 && !suspending && own.cold.is_none();
-    let promoted = promote::promoted_refs(
-        input,
-        m,
-        b,
-        (item, args),
-        targets,
-        pick,
-        &facts.rows[sub as usize],
-    );
+    let promoted = promote::promoted_refs(input, m, b, targets, pick, &facts.rows[sub as usize]);
     // Where each local lives (`Body::storage`).
-    let (stored, mut slots) =
-        closure::stored_locals(input, b, (item, args), (sub, facts), &promoted);
+    let (stored, mut slots) = closure::stored_locals(input, b, (sub, facts), &promoted);
     // A root with a suspension point keeps its slots in its frame object
     // (#1707): none in the plain function that only makes its cold call,
     // and none for a local an await of no known body takes, which counts
@@ -299,7 +283,7 @@ fn body_func<'a>(
         input,
         m,
         b,
-        (item, args),
+        item,
         targets,
         cells,
         (sub, inst, loan_uses, facts),
@@ -323,17 +307,21 @@ fn body_func<'a>(
     // parameters and one context (`closure.rs`, `ctx.rs`).
     let (plocals, ret, keys, closure) = if let Some((ci, _, result)) = closure {
         params.push(Val::I32);
-        (
-            sub_param_locals(b, sub),
-            em.sub(result),
-            Vec::new(),
-            Some(ci),
-        )
+        (sub_param_locals(b, sub), result, Vec::new(), Some(ci))
     } else {
         (
             param_locals(b),
-            own.cold
-                .unwrap_or_else(|| em.sub(input.env.ret(item).unwrap_or(Ty::VOID))),
+            own.cold.unwrap_or_else(|| {
+                // The declared result at the instance's arguments: a
+                // signature's, which no body column holds.
+                subst(
+                    input.pool,
+                    input.env,
+                    item,
+                    args,
+                    input.env.ret(item).unwrap_or(Ty::VOID),
+                )
+            }),
             hd_mono::declared_row_keys(input.pool, input.env, item, args),
             None,
         )
@@ -353,7 +341,7 @@ fn body_func<'a>(
             params.push(Val::I32);
             continue;
         }
-        let ty = em.sub(b.local_ty[l]);
+        let ty = b.local_ty[l];
         let vs = em.vals(ty)?;
         let at = u32::try_from(params.len()).expect("params");
         em.locals.insert(
@@ -379,7 +367,7 @@ fn body_func<'a>(
     // context for the keys it does not name.
     let mut row = Vec::new();
     if let Some(ci) = closure {
-        let (ks, open) = em.fn_row(em.sub(b.ty[ci]));
+        let (ks, open) = em.fn_row(b.ty[ci]);
         row = ks;
         if open {
             em.open_ctx = ctx;
@@ -528,9 +516,9 @@ fn body_func<'a>(
     // count nothing (for example Option[&i32]). It still needs its normal
     // counting exit so completion releases those saved owners.
     let frame_counts = suspending
-        && plocals.iter().any(|&local| {
-            crate::frame_referent_type(em.pool(), em.env(), em.sub(b.local_ty[local]))
-        });
+        && plocals
+            .iter()
+            .any(|&local| crate::frame_referent_type(em.pool(), em.env(), b.local_ty[local]));
     em.counting = em.counts_anything() || frame_counts || once.is_some() || reentry.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_stable();
@@ -584,7 +572,7 @@ fn body_func<'a>(
             // A parameter still holds its value until it moves into its
             // cell below.
             if let Some(k) = em.parameter_positions.get(l).copied() {
-                let t = em.sub(b.local_ty[*l]);
+                let t = b.local_ty[*l];
                 // A lent parameter the passes leave unowned is outside the
                 // exit set: the body takes no count of it, and an instance
                 // that owns it releases it by the stated exit `Release`.
@@ -651,7 +639,7 @@ fn body_func<'a>(
                 let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
                 // ruled out: own::capture_entry states the shared/counted
                 // captures' entry retain. Read its actual reason below.
-                assert!(copy.is_some() || !(em.is_cell(*l) || em.tracked(em.sub(b.local_ty[*l]))));
+                assert!(copy.is_some() || !(em.is_cell(*l) || em.tracked(b.local_ty[*l])));
                 if let Some(reason) = copy {
                     em.because(reason, |em| em.count_local(*l, ls, true))?;
                 }
@@ -672,7 +660,7 @@ fn body_func<'a>(
     }
     for &l in &plocals {
         if !em.is_cell(l) && !em.borrowed.contains(&l) && !em.mem_locals.contains_key(&l) {
-            em.mark_drop_root(drop_flags::Root::Local(l), em.sub(b.local_ty[l]), true);
+            em.mark_drop_root(drop_flags::Root::Local(l), b.local_ty[l], true);
         }
     }
     if suspending {
@@ -686,7 +674,7 @@ fn body_func<'a>(
         // and the frame counts each one's object the same way.
         if em.counting {
             for &l in &plocals {
-                let t = em.sub(b.local_ty[l]);
+                let t = b.local_ty[l];
                 if em
                     .stated_count(
                         Tag::Retain,
@@ -1246,11 +1234,7 @@ pub(crate) fn callee_params(
         && t.sub[id.idx()] == Sub::Body(0)
         && let Some(b) = (input.body)(id)
     {
-        let (it, ia) = (t.item[id.idx()], t.args[id.idx()]);
-        return param_locals(b)
-            .into_iter()
-            .map(|l| subst(pool, env, it, ia, b.local_ty[l]))
-            .collect();
+        return param_locals(b).into_iter().map(|l| b.local_ty[l]).collect();
     }
     env.params(item)
         .unwrap_or_default()
@@ -1363,13 +1347,13 @@ struct Em<'i, 'a, 'm> {
     parameter_positions: HashMap<usize, usize>,
     argument_loans: std::cell::RefCell<HashMap<u32, hd_base::HashSet<u32>>>,
     recursive_bindings: std::sync::Arc<hd_tir::own::RecursiveBindings>,
-    /// This final body's instruction types at the instance's arguments.
-    // Only instructions queried by this emitted sub-body are substituted.
-    // Local promotion and builtin overrides stay private to the emitter.
-    inst_ty: std::cell::RefCell<HashMap<u32, Ty>>,
+    /// The instructions the emitter types otherwise than the body does:
+    /// a promoted argument, or a builtin's operand read through its
+    /// reference, as its referent. Every other instruction's type is the
+    /// instance body's own (`Body::ty`): it substitutes nothing.
+    retyped: HashMap<u32, Ty>,
     item: DefId,
     origin_root: u32,
-    args: TyList,
     calls: &'i HashMap<u32, Target>,
     f: Func,
     /// Where each inlined frame (callee, instruction, parent anchor) sits
@@ -1685,17 +1669,25 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         }
     }
 
-    /// An emitter of `b`'s instance of `item` at `args`, with no function
-    /// yet.
+    /// An emitter of `b`, an instance body of `item`, with no function
+    /// yet. The emitter lowers instance TIR only
+    /// (`docs/future-work/INSTANCE_TIR.md`, "Passes and emission"): every
+    /// type `b` records is its instance's, closed, so it substitutes none.
     fn new(
         input: &'i Input<'a>,
         m: &'m mut Module,
         b: &'a Body,
-        (item, args): (DefId, TyList),
+        item: DefId,
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
         (sub, inst, loan_uses, facts): (u16, Option<InstId>, LoanCell, &body_facts::BodyFacts),
     ) -> Self {
+        assert_eq!(
+            b.phase,
+            hd_tir::ir::Phase::Instance,
+            "the emitter lowers instance bodies only: `{}`",
+            (input.path)(item)
+        );
         let boundary_counts = inst
             .and_then(|id| m.boundary_counts.get(id.idx()))
             .and_then(Clone::clone)
@@ -1711,10 +1703,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             parameter_positions: HashMap::default(),
             argument_loans: std::cell::RefCell::new(HashMap::default()),
             recursive_bindings: std::sync::Arc::clone(&facts.recursive),
-            inst_ty: std::cell::RefCell::default(),
+            retyped: HashMap::default(),
             item,
             origin_root: b.anchor(b.sub_root[0]),
-            args,
             calls,
             f,
             vals: HashMap::default(),
@@ -1831,10 +1822,6 @@ impl Em<'_, '_, '_> {
         self.input.release || p.starts_with("std/rt.") || p.starts_with("std/rt/")
     }
 
-    fn sub(&self, t: Ty) -> Ty {
-        subst(self.input.pool, self.input.env, self.item, self.args, t)
-    }
-
     fn vals(&self, t: Ty) -> StageResult<Vec<Val>> {
         vals(self.input.pool, self.input.env, t)
     }
@@ -1887,19 +1874,17 @@ impl Em<'_, '_, '_> {
         }
         match Ref(r).as_inst() {
             Some(i) => self.ty(i.0),
-            None => self.sub(self.b.consts[(r & !Ref::CONST_BIT) as usize].0),
+            None => self.b.consts[(r & !Ref::CONST_BIT) as usize].0,
         }
     }
 
-    /// The type of instruction `i`, substituted.
+    /// The type of instruction `i`: the instance body's, unless the
+    /// emitter retyped it ([`Em::retyped`]).
     fn ty(&self, i: u32) -> Ty {
-        if let Some(&t) = self.inst_ty.borrow().get(&i) {
-            return t;
-        }
-        crate::work::use_facts(1);
-        let t = self.sub(self.b.ty[i as usize]);
-        self.inst_ty.borrow_mut().insert(i, t);
-        t
+        self.retyped
+            .get(&i)
+            .copied()
+            .unwrap_or(self.b.ty[i as usize])
     }
 
     /// The position of the first of `items`, a block's, that has type
@@ -1984,11 +1969,8 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             // A local of several values names each by its field path.
-            let paths = crate::layout::value_paths(
-                self.input.pool,
-                self.input.env,
-                self.sub(self.b.local_ty[l]),
-            );
+            let paths =
+                crate::layout::value_paths(self.input.pool, self.input.env, self.b.local_ty[l]);
             for (k, w) in ls.iter().enumerate() {
                 let name = if paths.len() == ls.len() {
                     format!("${l}.{}", paths[k])
@@ -2039,7 +2021,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
-        matches!(self.vals(self.sub(ty)).ok()?.as_slice(), [Val::I64]).then(|| bits.cast_signed())
+        matches!(self.vals(ty).ok()?.as_slice(), [Val::I64]).then(|| bits.cast_signed())
     }
 
     /// The value of `r` when it is a constant of one `i32`.
@@ -2048,7 +2030,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
-        matches!(self.vals(self.sub(ty)).ok()?.as_slice(), [Val::I32])
+        matches!(self.vals(ty).ok()?.as_slice(), [Val::I32])
             .then(|| u32::try_from(bits & 0xffff_ffff).expect("low bits"))
     }
 
@@ -2057,7 +2039,6 @@ impl Em<'_, '_, '_> {
     /// and length.
     fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Ins>>> {
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
-        let ty = self.sub(ty);
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
         if stripped == Ty::STRING {
             let text = self.b.strings[usize::try_from(bits).expect("string constant")].clone();
@@ -2199,7 +2180,7 @@ impl Em<'_, '_, '_> {
         let vs = if self.is_cell(l) {
             vec![Val::I32]
         } else {
-            self.vals(self.sub(self.b.local_ty[l]))?
+            self.vals(self.b.local_ty[l])?
         };
         self.f.stack_values |= vs.len() > crate::wide::WIDTH;
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
@@ -2811,16 +2792,14 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::ProviderGet => {
-                let key = self.sub(Ty(self.rec(a).first().copied().unwrap_or(NONE)));
+                let key = Ty(self.rec(a).first().copied().unwrap_or(NONE));
                 let [d, v] = self.provider(key);
                 self.f.get(d);
                 self.f.get(v);
                 // The `&dyn` a `$.use` makes of the caller-held provider
                 // borrows it.
-                if hd_tir::own::provider_view(self.b, i as usize, |t| {
-                    self.fat_local_ref(self.sub(t))
-                })
-                .is_some()
+                if hd_tir::own::provider_view(self.b, i as usize, |t| self.fat_local_ref(t))
+                    .is_some()
                 {
                     self.loans.insert(i);
                 }
@@ -3134,7 +3113,7 @@ impl Em<'_, '_, '_> {
         let pairs = self.rec(rec);
         let mut pushed = 0;
         for (operand, c) in (0_u32..).zip(pairs.chunks(2)) {
-            let key = self.sub(Ty(c[0]));
+            let key = Ty(c[0]);
             // A spread context's providers, key by key.
             if matches!(self.pool().get(key), TyData::Context(_)) {
                 pushed += self.push_context(c[1], key)?;
@@ -3170,12 +3149,8 @@ impl Em<'_, '_, '_> {
                 .iter()
                 .copied()
                 .filter(|&l| {
-                    crate::layout::function_input(
-                        self.pool(),
-                        self.env(),
-                        self.sub(self.b.local_ty[l]),
-                    )
-                    .transfer
+                    crate::layout::function_input(self.pool(), self.env(), self.b.local_ty[l])
+                        .transfer
                 })
                 .collect();
         }
@@ -3184,9 +3159,11 @@ impl Em<'_, '_, '_> {
             .unwrap_or_default()
             .into_iter()
             .zip(locals.iter().copied())
-            .filter_map(|(t, l)| {
+            // A parameter local's type is its declared type at the
+            // instance's arguments.
+            .filter_map(|(_, l)| {
                 self.env()
-                    .cold_transfers(self.item, self.sub(t))
+                    .cold_transfers(self.item, self.b.local_ty[l])
                     .then_some(l)
             })
             .collect()
@@ -3728,9 +3705,7 @@ impl Em<'_, '_, '_> {
             unreachable!("collection dispatches only a trait method dynamically");
         };
         // The trait value's arguments as this instance has them.
-        let targs: Vec<Ty> = (self.pool().list_items(targs).iter())
-            .map(|t| self.sub(*t))
-            .collect();
+        let targs: Vec<Ty> = self.pool().list_items(targs).to_vec();
         let targs = self.pool().list(&targs);
         let takes_ctx = ctx::slot_ctx(self.pool(), self.env(), method);
         let results = match (result, drive) {
@@ -4320,7 +4295,7 @@ impl Em<'_, '_, '_> {
         // Each is a method of `impl[T] Ptr[T]` or `size_of[T]`.
         let targs = self.pool().list_items(targs);
         let t = targs[targs.len() - 1];
-        let m = crate::layout::mem(self.pool(), self.env(), self.sub(t))?;
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
         if key == "ptr_offset" {
             self.push(args[0])?;
             self.push(args[1])?;
@@ -4573,12 +4548,12 @@ impl Em<'_, '_, '_> {
             let loaded = crate::rt::ref_load(&mut self.f, addr, &layout);
             let old = self.vals.insert(a, loaded);
             let ty = self.ty(a);
-            self.inst_ty.get_mut().insert(a, target);
+            self.retyped.insert(a, target);
             saved.push((a, at, old, ty));
         }
         let done = self.builtin_values(i, name, self_ty, args);
         for (a, _, old, t) in saved {
-            self.inst_ty.get_mut().insert(a, t);
+            self.retyped.insert(a, t);
             match old {
                 Some(ls) => self.vals.insert(a, ls),
                 None => self.vals.remove(&a),

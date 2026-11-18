@@ -42,7 +42,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         match p.root {
-            PlaceRoot::Local(l) => Some((Root::Local(l.idx()), self.sub(self.b.local_ty[l.idx()]))),
+            PlaceRoot::Local(l) => Some((Root::Local(l.idx()), self.b.local_ty[l.idx()])),
             PlaceRoot::Value(r) => Some((Root::Value(r.0), self.ty_of(r.0))),
             _ => None,
         }
@@ -58,7 +58,7 @@ impl Em<'_, '_, '_> {
             return None;
         }
         let ty = match root {
-            Root::Local(l) if self.is_cell(l) => self.sub(self.b.local_ty[l]),
+            Root::Local(l) if self.is_cell(l) => self.b.local_ty[l],
             _ => ty,
         };
         let paths = self.drop_node_paths(ty);

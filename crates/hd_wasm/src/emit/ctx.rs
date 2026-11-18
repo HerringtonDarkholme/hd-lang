@@ -108,7 +108,7 @@ impl Em<'_, '_, '_> {
             if let Providers::Pairs(range) = providers {
                 let start = range.start as usize;
                 for pair in self.b.extra[start..start + range.len as usize].chunks_exact(2) {
-                    pairs.entry(self.sub(Ty(pair[0]))).or_insert(pair[1]);
+                    pairs.entry(Ty(pair[0])).or_insert(pair[1]);
                 }
             }
             self.call_provider_pairs.insert(i, pairs);
@@ -167,7 +167,6 @@ impl Em<'_, '_, '_> {
         let keys: Vec<Ty> = data
             .keys
             .into_iter()
-            .map(|k| self.sub(k))
             .filter(|k| !matches!(self.pool().get(*k), TyData::Canon(_)))
             .collect();
         let env = self.env();
@@ -390,7 +389,7 @@ impl Em<'_, '_, '_> {
         // earlier ones, matching the context's nearest-provider rule.
         let mut sources = hd_base::HashMap::default();
         for (j, pair) in pairs.chunks_exact(2).enumerate() {
-            let key = self.sub(Ty(pair[0]));
+            let key = Ty(pair[0]);
             if matches!(self.pool().get(key), TyData::Context(_)) {
                 for (at, key) in self.context_keys(key).into_iter().enumerate() {
                     sources.insert(key, (j, Some(at)));

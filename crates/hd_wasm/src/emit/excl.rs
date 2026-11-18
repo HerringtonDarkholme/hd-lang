@@ -300,17 +300,11 @@ fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
 
 /// The loan argument `a` of a call takes: a `Ref`'s place inside a
 /// counted object, or the whole object a counted reference refers to.
-fn arg_loan(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
-    a: u32,
-) -> Option<Loan> {
+fn arg_loan(pool: &InternPool, env: &dyn ProgramEnv, b: &Body, a: u32) -> Option<Loan> {
     let v = direct_value(b, a)?;
-    let excl = ref_mutable(pool, env, sub(*b.ty.get(a as usize)?));
+    let excl = ref_mutable(pool, env, *b.ty.get(a as usize)?);
     if b.tags[v] == Tag::Ref {
-        let (_, (object, path, guards)) = ref_loan_place(pool, env, b, sub, v)?;
+        let (_, (object, path, guards)) = ref_loan_place(pool, env, b, v)?;
         return Some(Loan {
             object,
             path,
@@ -318,7 +312,7 @@ fn arg_loan(
             excl,
         });
     }
-    let t = sub(*b.ty.get(v)?);
+    let t = *b.ty.get(v)?;
     match kind(pool, env, t) {
         Kind::Ref {
             target,
@@ -339,13 +333,12 @@ fn ref_loan_place(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
     v: usize,
 ) -> Option<(Place, LoanPlace)> {
     let p = b.decode_place(b.data[v][0])?;
     let root = match p.root {
-        PlaceRoot::Local(r) => sub(b.local_ty[r.idx()]),
-        PlaceRoot::Global(_, t) => sub(t),
+        PlaceRoot::Local(r) => b.local_ty[r.idx()],
+        PlaceRoot::Global(_, t) => t,
         _ => return None,
     };
     let place = loan_place(pool, env, root, &p)?;
@@ -507,14 +500,8 @@ fn projection_slots(
 }
 
 /// Whether holder slot `held` holds a `&mut`.
-pub(super) fn held_mutable(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
-    held: Held,
-) -> bool {
-    ref_slots(pool, env, sub(b.local_ty[held.local]))
+pub(super) fn held_mutable(pool: &InternPool, env: &dyn ProgramEnv, b: &Body, held: Held) -> bool {
+    ref_slots(pool, env, b.local_ty[held.local])
         .into_iter()
         .any(|(slot, t)| slot == held.slot && ref_mutable(pool, env, t))
 }
@@ -530,11 +517,10 @@ pub(super) fn carried_refs(
     b: &Body,
     index: &OriginIndex,
     graph: &mut OriginGraph,
-    sub: &dyn Fn(Ty) -> Ty,
     v: usize,
 ) -> Vec<u32> {
     if b.tags.get(v) == Some(&Tag::Ref)
-        || b.tags.get(v) == Some(&Tag::Read) && ref_slots(pool, env, sub(b.ty[v])).is_empty()
+        || b.tags.get(v) == Some(&Tag::Read) && ref_slots(pool, env, b.ty[v]).is_empty()
     {
         return Vec::new();
     }
@@ -544,7 +530,6 @@ pub(super) fn carried_refs(
             env,
             body: b,
             index,
-            sub,
             call_argument: true,
         };
         let mut out = Vec::new();
@@ -662,7 +647,6 @@ pub(super) fn temporary_ends(
     env: &dyn ProgramEnv,
     (b, topo): (&Body, &hd_tir::ir::Topology),
     index: &OriginIndex,
-    sub: &dyn Fn(Ty) -> Ty,
     found: &[(usize, Held, Bind, Option<Loan>)],
     (facts, rows): (&LifetimeFacts, &[usize]),
 ) -> LoanEnds {
@@ -678,7 +662,6 @@ pub(super) fn temporary_ends(
         env,
         body: b,
         index,
-        sub,
         call_argument: false,
     };
     let stored = &facts.stored;
@@ -1158,7 +1141,6 @@ struct OriginContext<'a> {
     env: &'a dyn ProgramEnv,
     body: &'a Body,
     index: &'a OriginIndex,
-    sub: &'a dyn Fn(Ty) -> Ty,
     /// A call argument has no holder registration to follow its reborrow root.
     /// Retain the inlined argument's Ref origin until the consuming call.
     call_argument: bool,
@@ -1176,12 +1158,12 @@ impl OriginContext<'_> {
         let Some(a) = self.index.argument(c) else {
             return OriginGraph::empty();
         };
-        let slots = ref_slots(self.pool, self.env, (self.sub)(self.body.ty[c]));
+        let slots = ref_slots(self.pool, self.env, self.body.ty[c]);
         if slots.is_empty() {
             return None;
         }
         let set = graph.sets.atom_with(Bind::Call(a), || {
-            arg_loan(self.pool, self.env, self.body, self.sub, a)
+            arg_loan(self.pool, self.env, self.body, a)
         });
         graph
             .rows
@@ -1192,7 +1174,6 @@ impl OriginContext<'_> {
         let b = self.body;
         let place = b.decode_place(b.data[c][0])?;
         let (root_ty, root) = origin_root_ty(b, place.root)?;
-        let root_ty = (self.sub)(root_ty);
         let projected = projection_slots(self.pool, self.env, root_ty, &place.proj)?;
         Some(match root {
             OriginReadRoot::Local(local) => OriginPlan::Local {
@@ -1237,7 +1218,7 @@ impl OriginContext<'_> {
                 && (self.call_argument && b.tags[v] == Tag::Ref
                     || b.tags[v] == Tag::Read
                         && matches!(
-                            kind(self.pool, self.env, (self.sub)(b.ty[v])),
+                            kind(self.pool, self.env, b.ty[v]),
                             Kind::Ref {
                                 whole: true,
                                 fat: false,
@@ -1245,9 +1226,9 @@ impl OriginContext<'_> {
                             }
                         ))
             {
-                let set = graph.sets.atom_with(Bind::CallParent(a), || {
-                    arg_loan(self.pool, self.env, b, self.sub, a)
-                });
+                let set = graph
+                    .sets
+                    .atom_with(Bind::CallParent(a), || arg_loan(self.pool, self.env, b, a));
                 parents = graph.rows.build(
                     graph
                         .rows
@@ -1275,12 +1256,12 @@ impl OriginContext<'_> {
             ));
         }
         if b.tags[c] == Tag::Call
-            && let [(slot, _)] = ref_slots(self.pool, self.env, (self.sub)(b.ty[c]))[..]
+            && let [(slot, _)] = ref_slots(self.pool, self.env, b.ty[c])[..]
         {
             let values = call_args(b, c)
                 .into_iter()
                 .filter_map(|a| {
-                    let t = (self.sub)(*b.ty.get(a as usize)?);
+                    let t = *b.ty.get(a as usize)?;
                     if ref_slots(self.pool, self.env, t).is_empty()
                         || matches!(
                             kind(self.pool, self.env, strip(self.pool, self.env, t)),
@@ -1297,7 +1278,7 @@ impl OriginContext<'_> {
         match b.tags[c] {
             Tag::Ref => {
                 let r = u32::try_from(c).expect("insts"); // ruled out: u32 TIR IDs.
-                let loan = arg_loan(self.pool, self.env, b, self.sub, r);
+                let loan = arg_loan(self.pool, self.env, b, r);
                 Some(OriginPlan::Ready(graph.ready(vec![(
                     0,
                     Bind::Begin(r),
@@ -1311,10 +1292,10 @@ impl OriginContext<'_> {
                     if b.data[c][0] != hd_tir::ir::NONE {
                         values.push(b.data[c][0]);
                     }
-                    (tuple_members(self.pool, (self.sub)(b.ty[c])), values)
+                    (tuple_members(self.pool, b.ty[c]), values)
                 } else {
                     (
-                        value_parts(self.pool, self.env, (self.sub)(b.ty[c])),
+                        value_parts(self.pool, self.env, b.ty[c]),
                         b.record(b.data[c][1]).to_vec(),
                     )
                 };
@@ -1336,7 +1317,7 @@ impl OriginContext<'_> {
                 ))
             }
             Tag::NewVariant => {
-                let ty = (self.sub)(b.ty[c]);
+                let ty = b.ty[c];
                 let all = variants(self.pool, self.env, ty)?;
                 let layout = flat(self.pool, self.env, ty).ok()??;
                 let case = b.data[c][0] as usize;
@@ -1979,7 +1960,6 @@ impl<'a> OriginWalk<'a> {
         env: &'a dyn ProgramEnv,
         body: &'a Body,
         index: &'a OriginIndex,
-        sub: &'a dyn Fn(Ty) -> Ty,
     ) -> Self {
         Self {
             context: OriginContext {
@@ -1987,7 +1967,6 @@ impl<'a> OriginWalk<'a> {
                 env,
                 body,
                 index,
-                sub,
                 call_argument: false,
             },
             graph: OriginGraph::default(),
@@ -2105,11 +2084,10 @@ pub(super) fn binds(
     env: &dyn ProgramEnv,
     b: &Body,
     index: &OriginIndex,
-    sub: &dyn Fn(Ty) -> Ty,
     stores: &[usize],
 ) -> Vec<(usize, Held, Bind, Option<Loan>)> {
     let mut out: Vec<(usize, Held, Bind, Option<Loan>)> = Vec::new();
-    let mut graph = OriginWalk::new(pool, env, b, index, sub);
+    let mut graph = OriginWalk::new(pool, env, b, index);
     let mut registrations = OriginStores::default();
     let mut types = hd_base::HashMap::default();
     // Primitive/constant stores have no runtime holder facts and never enter
@@ -2123,9 +2101,9 @@ pub(super) fn binds(
                 .and_then(|(local, whole)| whole.then_some(local))?
                 .idx();
             let value = index.value(b.data[instruction][1] as usize)?;
-            let slots = types.entry(sub(b.local_ty[local])).or_insert_with(|| {
+            let slots = types.entry(b.local_ty[local]).or_insert_with(|| {
                 Arc::new(
-                    ref_slots(pool, env, sub(b.local_ty[local]))
+                    ref_slots(pool, env, b.local_ty[local])
                         .into_iter()
                         .map(|x| x.0)
                         .collect::<hd_base::HashSet<usize>>(),

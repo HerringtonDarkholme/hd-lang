@@ -47,13 +47,13 @@ impl Em<'_, '_, '_> {
         };
         let mut abi = vec![Val::I32];
         for ty in self.pool().list_items(params).to_vec() {
-            abi.extend(self.vals(self.sub(ty))?);
+            abi.extend(self.vals(ty)?);
         }
         abi.push(Val::I32);
         let results = if suspends {
             vec![Val::I32]
         } else {
-            self.vals(self.sub(result))?
+            self.vals(result)?
         };
         let (source_keys, open) = self.fn_row(source_ty);
         // Substitution can collapse distinct generic keys into one row key.
@@ -61,7 +61,7 @@ impl Em<'_, '_, '_> {
         let mut seen = hd_base::HashSet::default();
         let mut entries = Vec::new();
         for pair in pairs.chunks_exact(2) {
-            let (required, supplier) = (self.sub(pair[0]), self.sub(pair[1]));
+            let (required, supplier) = (pair[0], pair[1]);
             if !seen.insert(required) {
                 continue;
             }

@@ -54,7 +54,6 @@ pub trait Context {
     /// Original-order instructions belonging to this instance's sub-body.
     fn instructions(&self, id: InstId) -> &[usize];
     fn source(&self, id: InstId) -> Option<(DefId, TyList, u16)>;
-    fn substitute(&self, id: InstId, ty: Ty) -> Ty;
     fn reference(&self, ty: Ty) -> Option<Reference>;
     fn strip(&self, ty: Ty) -> Ty;
     fn place_crossings(&self, id: InstId, place: &Place) -> Option<Vec<(usize, Ty)>>;
@@ -271,7 +270,7 @@ fn accesses(
                 };
                 let write = match b.tags[i] {
                     Tag::Store | Tag::IsUnique => true,
-                    Tag::Ref => mutable(cx, cx.substitute(id, b.ty[i])),
+                    Tag::Ref => mutable(cx, b.ty[i]),
                     _ => false,
                 };
                 let last = crossed.len().wrapping_sub(1);
@@ -428,7 +427,6 @@ pub fn decide(cx: &impl Context) -> Decisions {
     let mut kept: Vec<(LoanSite, Ty, bool)> = Vec::new();
     for id in &ids {
         let b = cx.body(*id).expect("body");
-        let sub = |ty| cx.substitute(*id, ty);
         let n = u32::try_from(b.tags.len()).expect("insts");
         let effects = std::cell::OnceCell::new();
         let meets = |from, to, excluded: &[u32], ty, exclusive| {
@@ -473,8 +471,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
             if !b.held_args.contains(&(cu, a)) {
                 continue;
             }
-            let excl =
-                [c, s].iter().any(|&x| mutable(cx, sub(b.ty[x]))) || cx.held_mutable(*id, held);
+            let excl = [c, s].iter().any(|&x| mutable(cx, b.ty[x])) || cx.held_mutable(*id, held);
             let mut heads: Vec<(u32, Ty)> = Vec::new();
             match b.tags[v] {
                 Tag::Ref => {
@@ -494,7 +491,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
                         whole: true,
                         fat: false,
                         ..
-                    }) = cx.reference(sub(b.ty[v]))
+                    }) = cx.reference(b.ty[v])
                     {
                         // The result also depends on every object that keeps
                         // the counted pointer slot alive. A local-reference
@@ -629,7 +626,7 @@ fn lent_objects(
     k: usize,
     receiver: Option<bool>,
 ) -> Vec<(bool, Ty)> {
-    let value = cx.substitute(id, b.ty[v]);
+    let value = b.ty[v];
     if let Some(Reference {
         target,
         whole: true,
@@ -695,8 +692,7 @@ fn ref_sites(
     let Some(crossed) = cx.place_crossings(id, &p) else {
         return;
     };
-    let exclusive =
-        b.tags[v as usize] == Tag::Ref && mutable(cx, cx.substitute(id, b.ty[v as usize]));
+    let exclusive = b.tags[v as usize] == Tag::Ref && mutable(cx, b.ty[v as usize]);
     let last = crossed.len().wrapping_sub(1);
     for (n, (k, object)) in crossed.into_iter().enumerate() {
         f(
@@ -715,7 +711,7 @@ fn returned_inner(cx: &impl Context, callee: InstId, k: usize) -> Vec<Ty> {
     let Some(&l) = cx.param_locals(callee).get(k) else {
         return Vec::new();
     };
-    let param = cx.substitute(callee, b.local_ty[l]);
+    let param = b.local_ty[l];
     let counted = cx.reference(param).is_some_and(|r| r.whole && !r.fat);
     let mut out = Vec::new();
     for &i in cx.instructions(callee) {

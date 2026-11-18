@@ -93,7 +93,6 @@ pub(super) fn shared_locals_with(
 pub(super) fn stored_locals(
     input: &crate::Input<'_>,
     b: &Body,
-    (item, args): (hd_base::DefId, hd_types::TyList),
     (sub, facts): (u16, &super::body_facts::BodyFacts),
     promoted: &HashSet<u32>,
 ) -> (Vec<usize>, Vec<usize>) {
@@ -107,11 +106,7 @@ pub(super) fn stored_locals(
                 super::shape::ref_local(b, i) == Some(l)
                     && !promoted.contains(&u32::try_from(i).expect("insts"))
                     && matches!(
-                        crate::layout::kind(
-                            pool,
-                            env,
-                            hd_mono::subst(pool, env, item, args, b.ty[i])
-                        ),
+                        crate::layout::kind(pool, env, b.ty[i]),
                         crate::layout::Kind::Ref { fat: false, .. }
                     )
             })
@@ -158,14 +153,9 @@ pub(super) fn keep_awaited_slots(b: &Body, targets: &HashMap<u32, Target>, slots
 /// generic local function, at type arguments `args`: the instruction,
 /// whether its function suspends, and its result type. A sub-body past
 /// the root is a closure's (`crates/hd_tir/DESIGN.md`, "sub-body").
-pub(super) fn closure_of(
-    input: &crate::Input<'_>,
-    b: &Body,
-    args: hd_types::TyList,
-    ci: usize,
-) -> (usize, bool, Ty) {
+pub(super) fn closure_of(input: &crate::Input<'_>, b: &Body, ci: usize) -> (usize, bool, Ty) {
     let (pool, env) = (input.pool, input.env);
-    let t = hd_mono::subst(pool, env, b.item, args, b.ty[ci]);
+    let t = b.ty[ci];
     let TyData::Fn {
         suspends, result, ..
     } = pool.get(strip(pool, env, t))
@@ -219,7 +209,7 @@ impl Em<'_, '_, '_> {
     /// The layout of the value in local `l`'s cell, and its counted
     /// references.
     pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.b.local_ty[l];
         let mut m = mem_of(self.pool(), self.env(), t)?;
         let flags = self.drop_node_paths(t).len();
         if flags != 0 {
@@ -242,7 +232,7 @@ impl Em<'_, '_, '_> {
         let own = self.own_caps(ci).into_iter().map(|_| (Ty::I32, true));
         let fields: Vec<(Ty, bool)> = caps
             .iter()
-            .map(|(l, shared)| (self.sub(self.b.local_ty[*l]), *shared))
+            .map(|(l, shared)| (self.b.local_ty[*l], *shared))
             .chain(own)
             .collect();
         let (m, parts, walk) = env_mem(self.pool(), self.env(), &fields)?;
@@ -359,7 +349,7 @@ impl Em<'_, '_, '_> {
     /// holds, or 0 when it holds none: the slot's end, as the last count
     /// of a cell is the cell's.
     fn release_slot(&mut self, l: usize, c: u32) -> StageResult<()> {
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.b.local_ty[l];
         if !self.needs_drop(t) {
             return Ok(());
         }
@@ -426,7 +416,7 @@ impl Em<'_, '_, '_> {
                 offset: 0,
             };
             self.store_part(at, &m, part, src)?;
-            self.init_cell_drop(at, self.sub(self.b.local_ty[l]), live);
+            self.init_cell_drop(at, self.b.local_ty[l], live);
             return Ok(at);
         }
         // A local a top-level binding's initializer takes a local
@@ -447,11 +437,11 @@ impl Em<'_, '_, '_> {
         });
         if let Some(key) = key {
             let at = self.static_cell(key, l, src)?;
-            self.init_cell_drop(at, self.sub(self.b.local_ty[l]), live);
+            self.init_cell_drop(at, self.b.local_ty[l], live);
             return Ok(at);
         }
         let (m, walk) = self.cell_mem(l)?;
-        let ty = self.sub(self.b.local_ty[l]);
+        let ty = self.b.local_ty[l];
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
         let drops = self.cell_drop_calls(ty);
@@ -482,7 +472,7 @@ impl Em<'_, '_, '_> {
         let addr = base + header;
         let mut bytes = key.0.to_le_bytes().to_vec();
         bytes.extend_from_slice(&u32::try_from(l).expect("locals").to_le_bytes());
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.b.local_ty[l];
         self.note_stored(
             hd_base::hash128(&bytes),
             t,
@@ -549,7 +539,7 @@ impl Em<'_, '_, '_> {
             self.store_part(c, &m, all, &zero)?;
         }
         if !slot {
-            self.init_cell_drop(c, self.sub(self.b.local_ty[l]), false);
+            self.init_cell_drop(c, self.b.local_ty[l], false);
             self.f.get(c);
             let reason = self.operation_count(
                 i,
@@ -620,7 +610,7 @@ impl Em<'_, '_, '_> {
         let (m, _) = self.cell_mem(l)?;
         let d = Dst::Mem(at, 0, &m.leaves);
         let old = self.old_locals(d);
-        self.replace_late(d, self.sub(self.b.local_ty[l]), src, &old)
+        self.replace_late(d, self.b.local_ty[l], src, &old)
     }
 
     /// One count less on the cell address on the stack.
@@ -676,10 +666,7 @@ impl Em<'_, '_, '_> {
             let c = self.own_cell_for(l)?;
             srcs.push(Src::Locals(vec![c]));
         }
-        let tys: Vec<Ty> = caps
-            .iter()
-            .map(|(l, _)| self.sub(self.b.local_ty[*l]))
-            .collect();
+        let tys: Vec<Ty> = caps.iter().map(|(l, _)| self.b.local_ty[*l]).collect();
         // The literal knows whether it captures a shared cell. Its
         // value type alone cannot describe that mutable reference edge.
         let cyclic = caps.iter().any(|(_, shared)| *shared) || self.cyclic_holding(&tys);
@@ -807,7 +794,7 @@ impl Em<'_, '_, '_> {
         let mut ps = vec![Val::I32];
         let mut tys = Vec::new();
         for p in self.pool().list_items(params).to_vec() {
-            let t = self.sub(p);
+            let t = p;
             ps.extend(self.vals(t)?);
             tys.push(t);
         }
@@ -828,7 +815,7 @@ impl Em<'_, '_, '_> {
             self.f.call_indirect(ps, results);
         }
         let ty = match self.pool().get(strip(self.pool(), self.env(), ft)) {
-            TyData::Fn { result, .. } if !suspends => self.sub(result),
+            TyData::Fn { result, .. } if !suspends => result,
             _ => self.ty(i),
         };
         self.call_results(i, ty)?;

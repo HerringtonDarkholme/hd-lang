@@ -13113,7 +13113,11 @@ impl ProgramEnv for Env<'_> {
         if args == TyList::EMPTY {
             return Ok(None);
         }
-        self.owned_instance(self.node(def, args))
+        let node = self.node(def, args);
+        match self.owned_instance(node)? {
+            Some(owned) => Ok(Some(owned)),
+            None => Ok(self.leaf_fallback(node)),
+        }
     }
     fn opaque_result(
         &self,

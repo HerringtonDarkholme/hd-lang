@@ -734,14 +734,14 @@ fn walk_crossings(
 pub(super) fn dyn_receiver(
     pool: &InternPool,
     env: &dyn ProgramEnv,
-    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    b: &Body,
     v: usize,
 ) -> Option<hd_base::DefId> {
     if b.tags[v] != Tag::Read {
         return None;
     }
     let p = b.decode_place(b.data[v][0])?;
-    let (Some(Proj::Deref), Some(root)) = (p.proj.last(), root_ty(b, sub, p.root)) else {
+    let (Some(Proj::Deref), Some(root)) = (p.proj.last(), root_ty(b, p.root)) else {
         return None;
     };
     let pointer = walk_crossings(pool, env, root, &p.proj[..p.proj.len() - 1]).1?;
@@ -872,20 +872,20 @@ pub(super) fn root_read(b: &Body, p: &hd_tir::ir::Place) -> Option<(u32, hd_tir:
 /// the dereferences of the read its root value is ([`root_read`]).
 pub(super) fn place_crossings(
     pool: &InternPool,
-    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    b: &Body,
     roots: &Roots<'_>,
     root: Ty,
     p: &hd_tir::ir::Place,
 ) -> Vec<(usize, Ty)> {
     let mut out = Vec::new();
     if let Some((_, t)) = roots.of(b, p) {
-        out.push((ROOT, sub(t)));
+        out.push((ROOT, t));
     }
-    if let Some(t) = pointer_root(pool, roots.env, (b, sub), roots.pointers, p) {
+    if let Some(t) = pointer_root(pool, roots.env, b, roots.pointers, p) {
         out.push((0, t));
     }
     if let Some((_, q)) = root_read(b, p)
-        && let Some(qt) = root_ty(b, sub, q.root)
+        && let Some(qt) = root_ty(b, q.root)
     {
         out.extend(
             (crossings(pool, roots.env, qt, &q.proj).into_iter()).map(|(k, t)| (READ + k, t)),
@@ -904,7 +904,6 @@ pub(super) fn pointer_locals(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     b: &Body,
-    sub: &dyn Fn(Ty) -> Ty,
     stores: &[usize],
 ) -> hd_base::HashSet<usize> {
     let thin_local = |t: Ty| {
@@ -933,10 +932,10 @@ pub(super) fn pointer_locals(
             continue;
         };
         let l = l.idx();
-        if !thin_local(sub(b.local_ty[l])) {
+        if !thin_local(b.local_ty[l]) {
             continue;
         }
-        let pointer = direct_value(b, b.data[i][1]).is_some_and(|v| whole_ptr(sub(b.ty[v])));
+        let pointer = direct_value(b, b.data[i][1]).is_some_and(|v| whole_ptr(b.ty[v]));
         let e = ok.entry(l).or_insert(true);
         *e &= pointer;
     }
@@ -948,7 +947,7 @@ pub(super) fn pointer_locals(
 fn pointer_root(
     pool: &InternPool,
     env: &dyn ProgramEnv,
-    (b, sub): (&Body, &dyn Fn(Ty) -> Ty),
+    b: &Body,
     pointers: &hd_base::HashSet<usize>,
     p: &hd_tir::ir::Place,
 ) -> Option<Ty> {
@@ -958,18 +957,18 @@ fn pointer_root(
     if p.proj.first() != Some(&Proj::Deref) || !pointers.contains(&l.idx()) {
         return None;
     }
-    match kind(pool, env, sub(b.local_ty[l.idx()])) {
+    match kind(pool, env, b.local_ty[l.idx()]) {
         Kind::Ref { target, .. } => Some(target),
         _ => None,
     }
 }
 
 /// The type of a place's root, `sub` giving a type at this instance.
-pub(super) fn root_ty(b: &Body, sub: &dyn Fn(Ty) -> Ty, root: PlaceRoot) -> Option<Ty> {
+pub(super) fn root_ty(b: &Body, root: PlaceRoot) -> Option<Ty> {
     match root {
-        PlaceRoot::Local(l) => Some(sub(b.local_ty[l.idx()])),
-        PlaceRoot::Global(_, t) => Some(sub(t)),
-        PlaceRoot::Value(r) => r.as_inst().map(|v| sub(b.ty[v.0 as usize])),
+        PlaceRoot::Local(l) => Some(b.local_ty[l.idx()]),
+        PlaceRoot::Global(_, t) => Some(t),
+        PlaceRoot::Value(r) => r.as_inst().map(|v| b.ty[v.0 as usize]),
         PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
     }
 }
@@ -998,7 +997,7 @@ pub(crate) fn lent_receiver_reads(
             continue;
         };
         let lent = pointer_lent(input.pool, input.env, None, b.ty[v], 0, Some(mutable)).is_some()
-            || dyn_receiver(input.pool, input.env, (b, &|t| t), v).is_some();
+            || dyn_receiver(input.pool, input.env, b, v).is_some();
         if lent {
             out.insert(v);
         }
@@ -1106,8 +1105,7 @@ impl Em<'_, '_, '_> {
         // ruled out: loan preparation indexes every emitted body's topology.
         let origin_index = std::sync::Arc::clone(&self.m.loan_origins[self.inst.idx()]);
         let mut carried_graph = super::excl::OriginGraph::default();
-        let sub = |t| self.sub(t);
-        let found = binds(self.pool(), self.env(), self.b, &origin_index, &sub, &sites);
+        let found = binds(self.pool(), self.env(), self.b, &origin_index, &sites);
         let facts = std::sync::Arc::clone(&self.borrow_facts);
         let immutable = facts.get_or_init(|| BorrowFacts::new(self.b, &self.recursive_bindings));
         let mut st = Borrows {
@@ -1115,7 +1113,7 @@ impl Em<'_, '_, '_> {
             storage_roots: std::sync::Arc::clone(&immutable.storage_roots),
             shared: std::sync::Arc::clone(&immutable.shared),
             frames: std::sync::Arc::clone(&immutable.frames),
-            pointers: pointer_locals(self.pool(), self.env(), self.b, &sub, &sites),
+            pointers: pointer_locals(self.pool(), self.env(), self.b, &sites),
             ..Borrows::default()
         };
         // A closure inherits its creator's own-loan cells for captured
@@ -1137,7 +1135,6 @@ impl Em<'_, '_, '_> {
                 self.env(),
                 (self.b, &self.topo),
                 &origin_index,
-                &sub,
                 &found,
                 (lifetime, &self.rows),
             );
@@ -1217,11 +1214,10 @@ impl Em<'_, '_, '_> {
                         st.via_call.entry(from).or_default().push(held.local);
                     }
                     let s = u32::try_from(s).expect("insts");
-                    let sub = |t| self.sub(t);
                     let excl = [c, s]
                         .iter()
                         .any(|&x| ref_mutable(self.pool(), self.env(), self.ty(x)))
-                        || super::excl::held_mutable(self.pool(), self.env(), self.b, &sub, held);
+                        || super::excl::held_mutable(self.pool(), self.env(), self.b, held);
                     st.excl.insert(held, excl);
                 }
             }
@@ -1257,8 +1253,7 @@ impl Em<'_, '_, '_> {
                     let pool = self.pool();
                     let env = self.env();
                     let param = params.get(k).copied();
-                    let sub = |t| self.sub(t);
-                    let dyn_recv = dyn_receiver(pool, env, (self.b, &sub), v as usize);
+                    let dyn_recv = dyn_receiver(pool, env, self.b, v as usize);
                     let lent = pointer_lent(pool, env, param, self.ty(v), k, receiver).or(
                         match (k, receiver, dyn_recv) {
                             (0, Some(m), Some(_)) => Some((m, m)),
@@ -1289,14 +1284,12 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 if !matches!(self.b.tags[v as usize], Tag::Ref | Tag::Closure) {
-                    let sub = |t| self.sub(t);
                     let carried = super::excl::carried_refs(
                         self.pool(),
                         self.env(),
                         self.b,
                         &origin_index,
                         &mut carried_graph,
-                        &sub,
                         v as usize,
                     );
                     for r in carried {
@@ -1388,7 +1381,7 @@ impl Em<'_, '_, '_> {
     }
 
     fn own_pointer(&self, l: hd_base::LocalId) -> bool {
-        matches!(self.kind(self.sub(self.b.local_ty[l.idx()])), Kind::Ref {
+        matches!(self.kind(self.b.local_ty[l.idx()]), Kind::Ref {
                 target,
                 fat: false,
                 whole: true,
@@ -1703,14 +1696,11 @@ impl Em<'_, '_, '_> {
                 }
                 _ => true,
             });
-        let ptr_root = {
-            let sub = |t| self.sub(t);
-            pointer_root(self.pool(), self.env(), (self.b, &sub), &pointers, &p)
-        };
+        let ptr_root = { pointer_root(self.pool(), self.env(), self.b, &pointers, &p) };
         self.borrows.shared = shared;
         self.borrows.pointers = pointers;
         if let Some((_, t)) = root_obj {
-            crossed.push((ROOT, self.sub(t)));
+            crossed.push((ROOT, t));
         }
         // The dereferences of the read the place's root value is.
         let read = root_read(self.b, &p);
@@ -2472,8 +2462,7 @@ impl Em<'_, '_, '_> {
         }
         // A `*dyn` receiver lends the object at its data address, of one
         // of the types the program converts to its trait.
-        let sub = |t| self.sub(t);
-        let dyn_recv = dyn_receiver(self.pool(), self.env(), (self.b, &sub), i as usize);
+        let dyn_recv = dyn_receiver(self.pool(), self.env(), self.b, i as usize);
         let (target, lent) = match (self.kind(self.ty(i)), dyn_recv) {
             (_, Some(tr)) => (
                 strip(self.pool(), self.env(), self.ty(i)),

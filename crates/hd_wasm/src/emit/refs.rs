@@ -758,7 +758,6 @@ impl Em<'_, '_, '_> {
     /// nothing in the frame or the heap holds the value.
     fn literal_ref(&mut self, i: u32, r: Ref) -> StageResult<()> {
         let (ty, bits) = self.b.consts[(r.0 & !Ref::CONST_BIT) as usize];
-        let ty = self.sub(ty);
         let m = mem_of(self.pool(), self.env(), ty)?;
         let mut pointers = Vec::new();
         let words: Vec<u64> =
@@ -1069,7 +1068,7 @@ impl Em<'_, '_, '_> {
             return Ok(false);
         }
         let (m, _) = self.cell_mem(l)?;
-        let (pt, part) = self.fold_path(self.sub(self.b.local_ty[l]), &path)?;
+        let (pt, part) = self.fold_path(self.b.local_ty[l], &path)?;
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
         let c = self.cell_of(l)?;
         for leaf in &leaves {
@@ -1404,7 +1403,6 @@ impl Em<'_, '_, '_> {
     /// slot, or its Wasm globals read into locals) or an instruction's.
     fn at_root(&mut self, root: PlaceRoot) -> StageResult<(At, Ty)> {
         if let PlaceRoot::Global(def, t) = root {
-            let t = self.sub(t);
             if let Some(slot) = self.def_slot(def) {
                 let a = self.f.local(Val::I32);
                 self.f.address(slot);
@@ -1651,9 +1649,9 @@ impl Em<'_, '_, '_> {
     /// The type of a place's root.
     pub(super) fn at_root_ty(&self, root: PlaceRoot) -> Ty {
         match root {
-            PlaceRoot::Local(l) => self.sub(self.b.local_ty[l.idx()]),
+            PlaceRoot::Local(l) => self.b.local_ty[l.idx()],
             PlaceRoot::Value(r) => self.ty_of(r.0),
-            PlaceRoot::Global(_, t) => self.sub(t),
+            PlaceRoot::Global(_, t) => t,
             PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => Ty::VOID,
         }
     }

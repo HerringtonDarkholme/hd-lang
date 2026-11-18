@@ -127,7 +127,7 @@ impl Em<'_, '_, '_> {
                 return None;
             }
             let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
-            if self.vals(self.sub(ty)).ok()?.as_slice() != [leaf.val] {
+            if self.vals(ty).ok()?.as_slice() != [leaf.val] {
                 return None;
             }
             let raw = match prim {
@@ -585,7 +585,7 @@ impl Em<'_, '_, '_> {
             (self.list_root(list)?, index.0)
         } else {
             let (root, index) = self.rooted_elem(x)?;
-            let mut ty = self.sub(self.b.local_ty[root.local as usize]);
+            let mut ty = self.b.local_ty[root.local as usize];
             if root.indirect {
                 ty = self.ref_target(ty)?.0;
             }
@@ -981,9 +981,7 @@ impl Em<'_, '_, '_> {
                     return false;
                 }
                 Tag::Store
-                    if external
-                        && store
-                            .is_some_and(|(l, _)| self.tracked(self.sub(self.b.local_ty[l]))) =>
+                    if external && store.is_some_and(|(l, _)| self.tracked(self.b.local_ty[l])) =>
                 {
                     return false;
                 }

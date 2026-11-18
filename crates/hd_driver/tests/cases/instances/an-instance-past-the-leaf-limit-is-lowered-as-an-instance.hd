@@ -1,0 +1,17 @@
+# @dump: stdout
+# @build: dev | release
+# Instance TIR step 5 (#2105): an instance whose type arguments hold more
+# than 4,096 leaves keeps its generic item's owned body (gap: #2102), and
+# the emitter lowers it as an instance with its own concrete types, as it
+# lowers every body. `twice` doubles its tuple 13 times (8,192 leaves),
+# and comparing two such tuples runs the compiler-supplied walk at the
+# widest one, so both a source item and a supplied body take that path.
+# expected: both builds print `true` then `false`.
+fn twice[T](x: T) -> (T, T):
+    (x, x)
+
+pub fn main() -> void $ Console:
+    a := twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(1)))))))))))))
+    b := twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(twice(2)))))))))))))
+    println("${a == a}")
+    println("${a == b}")

@@ -1511,7 +1511,7 @@ pub(super) fn finish(
             if em.is_cell(l) {
                 em.count_local(l, &loaded, false)
             } else {
-                em.release_drop_place(&loaded, em.sub(em.b.local_ty[l]), &Em::local_place(l))
+                em.release_drop_place(&loaded, em.b.local_ty[l], &Em::local_place(l))
             }
         })?;
     }
@@ -1554,7 +1554,7 @@ pub(super) fn finish(
                 em.f.set(x);
                 loaded.push(x);
             }
-            let t = em.sub(em.b.local_ty[l]);
+            let t = em.b.local_ty[l];
             em.because(Reason::ByDesign, |em| em.release_locals(&loaded, t))?;
         }
     }
@@ -1609,7 +1609,7 @@ pub(super) fn finish(
         let transferred = em.cold_transferred_locals(plocals);
         for &l in plocals {
             let ls = arrived(em, l);
-            let t = em.sub(em.b.local_ty[l]);
+            let t = em.b.local_ty[l];
             let local = u32::try_from(l).map_err(|_| {
                 hd_base::NotImplemented::bug(
                     hd_base::Stage::Emit,

@@ -242,7 +242,7 @@ impl Em<'_, '_, '_> {
             return 0;
         }
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
-        let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.sub(ty));
+        let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
         if stripped != Ty::STRING {
             return 0;
         }

@@ -406,12 +406,7 @@ impl Em<'_, '_, '_> {
                 "function-value argument carrier has a non-function callee",
             ));
         };
-        let params: Vec<_> = self
-            .pool()
-            .list_items(params)
-            .iter()
-            .map(|&t| self.sub(t))
-            .collect();
+        let params: Vec<_> = self.pool().list_items(params).to_vec();
         crate::work::loan_queries(args.len() + params.len());
         if params.len() == args.len() {
             return Ok(args
@@ -779,7 +774,7 @@ impl Em<'_, '_, '_> {
             });
             return Ok(());
         }
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.b.local_ty[l];
         self.count_locals(ls, t, retain)
     }
 
@@ -952,7 +947,7 @@ impl Em<'_, '_, '_> {
         let Some(ls) = self.locals.get(&l).cloned() else {
             return Ok(());
         };
-        if !self.is_cell(l) && !self.needs_drop(self.sub(self.b.local_ty[l])) {
+        if !self.is_cell(l) && !self.needs_drop(self.b.local_ty[l]) {
             return Ok(());
         }
         self.release_owned_local(l, &ls)?;
@@ -967,7 +962,7 @@ impl Em<'_, '_, '_> {
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
         self.borrow_release(l);
         if self.owned_locals.contains(&l) {
-            let t = self.sub(self.b.local_ty[l]);
+            let t = self.b.local_ty[l];
             if self.fat_local_ref(t) {
                 return self.release_owned_ref(ls, t);
             }
@@ -980,7 +975,7 @@ impl Em<'_, '_, '_> {
         }
         match self.loan_locals.get(&l) {
             None if !self.is_cell(l) => {
-                self.release_drop_place(ls, self.sub(self.b.local_ty[l]), &Self::local_place(l))
+                self.release_drop_place(ls, self.b.local_ty[l], &Self::local_place(l))
             }
             None => self.count_local(l, ls, false),
             Some(_) => Ok(()),
@@ -994,7 +989,7 @@ impl Em<'_, '_, '_> {
         let b = self.b;
         self.borrow_needs_exit()
             || !self.cells.is_empty()
-            || (0..b.local_ty.len()).any(|l| self.needs_drop(self.sub(b.local_ty[l])))
+            || (0..b.local_ty.len()).any(|l| self.needs_drop(b.local_ty[l]))
             || (0..b.ty.len()).any(|i| self.needs_drop(self.ty(u32::try_from(i).expect("insts"))))
     }
 
@@ -1063,7 +1058,7 @@ impl Em<'_, '_, '_> {
                 (c.at == At::Exit
                     && self.topo.sub[i] == u32::from(self.sub_id)
                     && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
-                        let ty = self.sub(self.b.local_ty[local as usize]);
+                        let ty = self.b.local_ty[local as usize];
                         matches!(self.parameter_pass(k, ty), Pass::Owned(_))
                     }))
                 .then_some((local as usize, Reason::from_word(c.reason)))
@@ -1079,11 +1074,7 @@ impl Em<'_, '_, '_> {
                 if self.is_cell(l) {
                     self.count_local(l, &ls, false)?;
                 } else {
-                    self.release_drop_place(
-                        &ls,
-                        self.sub(self.b.local_ty[l]),
-                        &Self::local_place(l),
-                    )?;
+                    self.release_drop_place(&ls, self.b.local_ty[l], &Self::local_place(l))?;
                 }
             }
         }
@@ -1143,7 +1134,7 @@ impl Em<'_, '_, '_> {
         let facts = shared.get_or_init(|| Box::new(Boundaries::new(b)));
         let uses = &facts.parameter_uses;
         for (k, &l) in plocals.iter().enumerate() {
-            let t = self.sub(b.local_ty[l]);
+            let t = b.local_ty[l];
             // A framed parameter (a suspending body's with no suspension
             // point) is held by the frame, as a borrowed one by its caller;
             // one holding a collection is not: the frame holds a copy of
@@ -1204,7 +1195,7 @@ impl Em<'_, '_, '_> {
         let mut out = hd_base::HashSet::default();
         let mut captures = super::closure::captures(b, ci, &self.recursive_bindings);
         captures.retain(|&(l, shared)| {
-            !shared && !self.is_cell(l) && self.copied(self.sub(b.local_ty[l])).is_empty()
+            !shared && !self.is_cell(l) && self.copied(b.local_ty[l]).is_empty()
         });
         if captures.is_empty() {
             return out;
@@ -1289,7 +1280,6 @@ impl Em<'_, '_, '_> {
             params
                 .iter()
                 .map(|&t| {
-                    let t = self.sub(t);
                     !crate::layout::function_input(self.pool(), self.env(), t).transfer
                         && matches!(self.argument_pass(None, 0, t), Pass::Borrowed)
                 })
@@ -1307,12 +1297,7 @@ impl Em<'_, '_, '_> {
             // its erased receiver, but owning cold arguments and native
             // Drop values arrive with their counts: the slot does not
             // acquire those from the caller a second time.
-            let targs: Vec<_> = self
-                .pool()
-                .list_items(targs)
-                .iter()
-                .map(|&ty| self.sub(ty))
-                .collect();
+            let targs: Vec<_> = self.pool().list_items(targs).to_vec();
             let value_ty = self.dyn_value_ty(self.ty_of(receiver));
             let slot_args = self.pool().list(&[&[value_ty], &targs[..]].concat());
             let declared = self.env().params(method).unwrap_or_default();
@@ -1411,10 +1396,9 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_loan_end(&mut self, i: u32) {
         let p = self.b.view(self.b.data[i as usize][0]);
         let (t, ls) = match p.root {
-            hd_tir::ir::Root::Local(l) if !self.borrowed.contains(&(l as usize)) => (
-                self.sub(self.b.local_ty[l as usize]),
-                self.locals.get(&(l as usize)),
-            ),
+            hd_tir::ir::Root::Local(l) if !self.borrowed.contains(&(l as usize)) => {
+                (self.b.local_ty[l as usize], self.locals.get(&(l as usize)))
+            }
             hd_tir::ir::Root::Value(v) => (self.ty(v), self.vals.get(&v)),
             _ => return,
         };
@@ -1578,7 +1562,7 @@ impl Em<'_, '_, '_> {
         if mode == Some(ReadMode::Move)
             && (self.owned_locals.contains(&l)
                 || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
-                    && self.counted(self.sub(self.b.local_ty[l])).is_some()))
+                    && self.counted(self.b.local_ty[l]).is_some()))
         {
             self.owned_refs.insert(i);
         }
@@ -1605,11 +1589,7 @@ impl Em<'_, '_, '_> {
         match mode {
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
-                self.mark_drop_root(
-                    super::drop_flags::Root::Local(l),
-                    self.sub(self.b.local_ty[l]),
-                    false,
-                );
+                self.mark_drop_root(super::drop_flags::Root::Local(l), self.b.local_ty[l], false);
                 if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);

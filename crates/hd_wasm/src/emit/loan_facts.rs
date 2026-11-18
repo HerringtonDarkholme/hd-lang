@@ -2,7 +2,7 @@
 //! This adapter never reads the emitter's loan-answer tables.
 
 use hd_base::{DefId, HashMap, HashSet, InstId};
-use hd_mono::{Sub, Target, TargetKind, subst};
+use hd_mono::{Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Place, Proj, Tag};
 use hd_tir::own::pointer::{self, Binding, Call, Context, Conversion, Holder, Reference};
 use hd_types::{Ty, TyList};
@@ -78,22 +78,12 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
         rows[id.idx()] = Arc::clone(&groups.rows[usize::from(scope)]);
         let sites = Arc::clone(&groups.stores[usize::from(scope)]);
         stores[id.idx()] = Arc::clone(&sites);
-        let t = &input.collected.table;
-        let sub = |ty| {
-            subst(
-                input.pool,
-                input.env,
-                t.item[id.idx()],
-                t.args[id.idx()],
-                ty,
-            )
-        };
         roots.insert(
             id,
             LocalRoots {
                 storage: Arc::clone(&groups.storage),
                 shared: Arc::clone(&groups.shared),
-                pointers: borrow::pointer_locals(input.pool, input.env, b, &sub, &sites),
+                pointers: borrow::pointer_locals(input.pool, input.env, b, &sites),
             },
         );
     }
@@ -142,17 +132,6 @@ impl Context for Facts<'_, '_> {
         }
     }
 
-    fn substitute(&self, id: InstId, ty: Ty) -> Ty {
-        let t = &self.input.collected.table;
-        subst(
-            self.input.pool,
-            self.input.env,
-            t.item[id.idx()],
-            t.args[id.idx()],
-            ty,
-        )
-    }
-
     fn reference(&self, ty: Ty) -> Option<Reference> {
         match layout::kind(self.input.pool, self.input.env, ty) {
             Kind::Ref { target, whole, fat } => Some(Reference {
@@ -171,8 +150,7 @@ impl Context for Facts<'_, '_> {
 
     fn place_crossings(&self, id: InstId, p: &Place) -> Option<Vec<(usize, Ty)>> {
         let b = self.body(id)?;
-        let sub = |ty| self.substitute(id, ty);
-        let root = borrow::root_ty(b, &sub, p.root)?;
+        let root = borrow::root_ty(b, p.root)?;
         let locals = &self.roots[&id];
         let roots = Roots {
             storage: &locals.storage,
@@ -181,13 +159,7 @@ impl Context for Facts<'_, '_> {
             objects: &self.module.objects,
             env: self.input.env,
         };
-        Some(borrow::place_crossings(
-            self.input.pool,
-            (b, &sub),
-            &roots,
-            root,
-            p,
-        ))
+        Some(borrow::place_crossings(self.input.pool, b, &roots, root, p))
     }
 
     fn type_crossings(&self, root: Ty, steps: &[Proj]) -> Vec<(usize, Ty)> {
@@ -241,12 +213,7 @@ impl Context for Facts<'_, '_> {
     }
 
     fn dyn_receiver(&self, id: InstId, value: usize) -> Option<DefId> {
-        borrow::dyn_receiver(
-            self.input.pool,
-            self.input.env,
-            (self.body(id)?, &|ty| self.substitute(id, ty)),
-            value,
-        )
+        borrow::dyn_receiver(self.input.pool, self.input.env, self.body(id)?, value)
     }
 
     fn bindings(&self, id: InstId) -> Vec<Holder> {
@@ -258,7 +225,6 @@ impl Context for Facts<'_, '_> {
             self.input.env,
             b,
             self.origin_index(id),
-            &|ty| self.substitute(id, ty),
             &self.module.loan_stores[id.idx()],
         )
         .into_iter()
@@ -279,13 +245,7 @@ impl Context for Facts<'_, '_> {
 
     fn held_mutable(&self, id: InstId, (local, slot): (usize, usize)) -> bool {
         self.body(id).is_some_and(|b| {
-            excl::held_mutable(
-                self.input.pool,
-                self.input.env,
-                b,
-                &|ty| self.substitute(id, ty),
-                Held { local, slot },
-            )
+            excl::held_mutable(self.input.pool, self.input.env, b, Held { local, slot })
         })
     }
 
@@ -297,7 +257,6 @@ impl Context for Facts<'_, '_> {
                 b,
                 self.origin_index(id),
                 self.carried.borrow_mut().entry(id).or_default(),
-                &|ty| self.substitute(id, ty),
                 value,
             )
         })
@@ -338,7 +297,7 @@ impl Context for Facts<'_, '_> {
                     todo.extend(node.parents.iter().rev().copied());
                 }
                 out.push(Conversion {
-                    from: self.substitute(id, from),
+                    from,
                     traits: parents,
                 });
             }

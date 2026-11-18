@@ -525,7 +525,7 @@ impl Em<'_, '_, '_> {
         let (leaves, address) = if root & OWN != 0 {
             let c = (root & !OWN) as usize;
             if !self.is_cell(c) {
-                let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
+                let (_, part) = self.fold_path(self.b.local_ty[c], &path)?;
                 let values = self.local_value(root & !OWN)?;
                 let Some(&source) = values.get(part.first).filter(|_| part.count == 1) else {
                     return Ok(None);
@@ -536,7 +536,7 @@ impl Em<'_, '_, '_> {
                 return Ok(Some(kept));
             }
             let (m, _) = self.cell_mem(c)?;
-            let (_, part) = self.fold_path(self.sub(self.b.local_ty[c]), &path)?;
+            let (_, part) = self.fold_path(self.b.local_ty[c], &path)?;
             let leaves = m.leaves[part.first..part.first + part.count].to_vec();
             let made = self.cell_made(c);
             (leaves, if made { Some(self.cell_of(c)?) } else { None })
@@ -549,7 +549,7 @@ impl Em<'_, '_, '_> {
             // A thin `*T` is one address word.
             (leaves, self.root_load(holder, holder_path, Val::I32)?)
         } else {
-            let ref_ty = self.sub(self.b.local_ty[root as usize]);
+            let ref_ty = self.b.local_ty[root as usize];
             let target = pool.ref_inner(crate::layout::strip(pool, env, ref_ty));
             let m = crate::layout::mem(pool, env, target)?;
             let (_, part) = self.fold_path(target, &path)?;
@@ -723,7 +723,7 @@ impl Proof<'_, '_, '_, '_> {
             }
         }
         for (l, &changed) in modified.iter().enumerate() {
-            let ty = em.sub(b.local_ty[l]);
+            let ty = b.local_ty[l];
             let target = em.ref_target(ty);
             self.fixed[l] = b.local_flags[l] & local_flags::PARAM != 0
                 && !self.addressed[l]
@@ -1175,12 +1175,12 @@ impl Proof<'_, '_, '_, '_> {
     /// Ordinary scalar field keys need just the packed path.
     fn field_ty(&mut self, root: u32, path: Path) -> Option<Ty> {
         let mut ty = if root & OWN != 0 {
-            self.em.sub(self.em.b.local_ty[(root & !OWN) as usize])
+            self.em.b.local_ty[(root & !OWN) as usize]
         } else {
             let reference = if root & BOX != 0 {
                 self.boxes[(root & !BOX) as usize].2
             } else {
-                self.em.sub(self.em.b.local_ty[root as usize])
+                self.em.b.local_ty[root as usize]
             };
             let (target, false) = self.em.ref_target(reference)? else {
                 return None;

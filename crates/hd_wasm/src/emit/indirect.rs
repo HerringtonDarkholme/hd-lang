@@ -170,7 +170,7 @@ fn compute_params(
     let mut found: HashMap<usize, Mem> = HashMap::default();
     let mut counted: HashMap<usize, hd_types::Ty> = HashMap::default();
     for (k, &l) in locals.iter().enumerate() {
-        let ty = subst(pool, env, item, args, b.local_ty[l]);
+        let ty = b.local_ty[l];
         if let Ok(Some(m)) = by_address(pool, env, ty) {
             if crate::layout::walk(pool, env, ty).is_some()
                 || crate::layout::holds_drop(pool, env, ty)
@@ -590,7 +590,7 @@ impl Em<'_, '_, '_> {
         let Some((at, off, mem, fields, l)) = self.mem_field(i) else {
             return Ok(false);
         };
-        let declared = self.sub(self.b.local_ty[l]);
+        let declared = self.b.local_ty[l];
         let (_, part) = self.fold_path(declared, &fields)?;
         // A move out of a counted parameter: its drop skips the field. A
         // whole move out of a counted frame local leaves its slot dead.
@@ -1228,7 +1228,7 @@ impl Em<'_, '_, '_> {
         // elaborates only fields passed by address (as `compute_params`).
         let mut far: HashSet<usize> = HashSet::default();
         for (l, i) in moves {
-            let ty = self.sub(b.local_ty[l]);
+            let ty = b.local_ty[l];
             if far.contains(&l) || !self.moved_field_flagged(ty, self.ty(i)) {
                 continue;
             }
@@ -1278,7 +1278,7 @@ impl Em<'_, '_, '_> {
             {
                 continue;
             }
-            let ty = self.sub(b.local_ty[l]);
+            let ty = b.local_ty[l];
             let Ok(Some(m)) = by_address(self.pool(), self.env(), ty) else {
                 continue;
             };
@@ -1317,7 +1317,7 @@ impl Em<'_, '_, '_> {
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
-            if self.released(self.sub(b.local_ty[l])) {
+            if self.released(b.local_ty[l]) {
                 let live = self.f.local(Val::I32);
                 self.mem_live.insert(l, live);
             }
@@ -1608,7 +1608,7 @@ impl Em<'_, '_, '_> {
             .copied()
             .filter(|l| {
                 (self.parameter_positions.contains_key(l) || self.mem_live.contains_key(l))
-                    && self.released(self.sub(b.local_ty[*l]))
+                    && self.released(b.local_ty[*l])
             })
             .collect();
         if counted.is_empty() {
@@ -1625,7 +1625,7 @@ impl Em<'_, '_, '_> {
             // A whole move clears the local's live flag ([`Em::mem_read`]).
             if fields.is_empty()
                 || !counted.contains(&l)
-                || !self.moved_field_flagged(self.sub(b.local_ty[l]), self.ty(u32_of(i)))
+                || !self.moved_field_flagged(b.local_ty[l], self.ty(u32_of(i)))
             {
                 continue;
             }
@@ -1663,7 +1663,7 @@ impl Em<'_, '_, '_> {
         if live.is_none() && !self.parameter_positions.contains_key(&l) {
             return Ok(false);
         }
-        let ty = self.sub(self.b.local_ty[l]);
+        let ty = self.b.local_ty[l];
         let (pool, env) = (self.input.pool, self.input.env);
         let plan = release_plan(pool, env, &mut self.m.release_plans, ty)?;
         let hooks = if crate::layout::holds_drop(pool, env, ty) {
