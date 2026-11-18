@@ -98,6 +98,9 @@ pub struct Counters {
     /// The item bodies the ownership passes ran on, by path, rather than
     /// reading their owned form from the store (#2028).
     pub bodies_owned: Vec<String>,
+    /// The generic instances the ownership passes ran on, by item path,
+    /// rather than reading their owned form from the store (#2106).
+    pub instances_owned: Vec<String>,
     /// Work performed by the inliner's explicit callee-preparation stack.
     pub inline_work: hd_opt::inline::InlineWork,
     /// Generic instance bodies built (`hd_mono::instantiate`): one per

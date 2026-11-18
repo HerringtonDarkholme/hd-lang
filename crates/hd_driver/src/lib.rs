@@ -1166,6 +1166,9 @@ struct BodyForms {
     inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
     /// Set once a rendering build has offered the body to its view.
     rendered: OnceLock<()>,
+    /// The body's TIR hash, read from its bytes once per run
+    /// ([`LazyBody::tir_hash`]).
+    tir: OnceLock<Option<Hash128>>,
 }
 
 impl std::ops::Deref for LazyBody {
@@ -1176,6 +1179,17 @@ impl std::ops::Deref for LazyBody {
 }
 
 impl LazyBody {
+    /// The TIR hash of the body's stored bytes (`hd_tir::wire::tir_hash`),
+    /// once per run: every store key and recorded read that names the body
+    /// hashes its bytes once, not once per reader. `None` for a body built
+    /// in this run, which has no bytes.
+    fn tir_hash(&self) -> Option<Hash128> {
+        *self.tir.get_or_init(|| {
+            let (_, entry, at) = self.wire.as_ref()?;
+            entry.get(at.clone()).map(hd_tir::wire::tir_hash)
+        })
+    }
+
     fn ready(body: Body, tir: Hash128) -> Self {
         let forms = BodyForms {
             body: OnceLock::from(Some((body, tir))),
@@ -1692,6 +1706,10 @@ struct Run<'a> {
     /// The hash of every non-std module's declarations, once per run
     /// (`own::Run::program_api_hash`).
     program_api: OnceLock<Hash128>,
+    /// Each type's `canon` digest, for the instance store keys
+    /// (`own::Run::instance_owned_key`): a type shared by many instances'
+    /// arguments is digested once per run.
+    own_canons: Mutex<hd_mono::layout::CanonMemo>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -2728,6 +2746,7 @@ fn build_packages_inner(
         entry_roots: OnceLock::new(),
         inlined_reads: Mutex::new(HashMap::default()),
         program_api: OnceLock::new(),
+        own_canons: Mutex::new(hd_mono::layout::CanonMemo::default()),
         promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"arg_promote"),

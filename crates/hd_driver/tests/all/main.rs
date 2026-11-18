@@ -51,6 +51,7 @@ mod match_decision_tree_run;
 mod match_work;
 mod method_chain_depth;
 mod module_row_work;
+mod owned_instance_edit;
 mod owned_package_edit;
 mod parallel_bodies;
 mod pathological;

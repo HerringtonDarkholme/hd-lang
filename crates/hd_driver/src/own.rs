@@ -5,7 +5,9 @@
 //! `dbg` body); a std body in a dev build is owned once per toolchain
 //! and settings and stored (`Run::owned_std_key`), and a package body
 //! once per body, program declarations and bodies read
-//! (`Run::package_owned_key`). Checked and debug
+//! (`Run::package_owned_key`), and a generic instance once per instance
+//! key, generic body, program declarations and bodies read
+//! (`Run::instance_owned_key`). Checked and debug
 //! builds, and any build that asks
 //! (`Packages::verify_own`), verify the result
 //! (`hd_tir::ir::verify_owned`). [`Env`] answers the passes' own
@@ -2995,7 +2997,11 @@ impl Env<'_> {
     /// Generic instance `node`'s body after the passes
     /// (`ProgramEnv::instance_body`), owned once: in release with its
     /// callees first ([`Run::owned_bottom_up`]), in dev alone, since no
-    /// summary is read; `None` when it has no body.
+    /// summary is read; `None` when it has no body. A dev build takes it
+    /// from the store while its key ([`Run::instance_owned_key`]) and the
+    /// bodies it read are unchanged, and stores it with those reads
+    /// otherwise (#2106): one key probe per instance, and no instance
+    /// body built or owned on a hit.
     pub(super) fn owned_instance(&self, node: Node) -> StageResult<Option<std::sync::Arc<Body>>> {
         let instances = &self.run.instances;
         if self.run.summaries.is_some() && !lock(instances).contains_key(&node) {
@@ -3004,12 +3010,37 @@ impl Env<'_> {
         if let Some(owned) = lock(instances).get(&node).cloned().flatten() {
             return Ok(Some(owned));
         }
-        // The walk keeps no error: the passes' refusal is reported here.
-        let Some((body, hash)) = self.inlined_instance(node) else {
+        let supplied = self
+            .supplied_member(node)
+            .map(|(family, at)| (family.hash, at));
+        let key = self.run.instance_owned_key(self.p, node, supplied);
+        if let Some(key) = key
+            && let Some((body, _)) = self.run.stored_package_owned(self.p, key)
+        {
+            #[cfg(test)]
+            owned_cache_tests::verify_stored(self.run, self.p, &body);
+            let owned = std::sync::Arc::new(body);
+            lock(instances).insert(node, Some(owned.clone()));
+            return Ok(Some(owned));
+        }
+        let (owned, reads) = reading(|| {
+            // The walk keeps no error: the passes' refusal is reported here.
+            let Some((body, hash)) = self.inlined_instance(node) else {
+                return Ok(None);
+            };
+            lock(&self.run.counters)
+                .instances_owned
+                .push(self.run.names().path(node.0));
+            self.own_inlined(body, hash, node.1).map(Some)
+        });
+        let Some(owned) = owned? else {
             return Ok(None);
         };
-        let (owned, _) = self.own_inlined(body, hash, node.1)?;
-        let owned = std::sync::Arc::new(owned);
+        if let Some(key) = key {
+            self.run
+                .store_package_owned(self.p, node.0, key, &owned, reads);
+        }
+        let owned = std::sync::Arc::new(owned.0);
         if self.run.summaries.is_none() {
             lock(instances).insert(node, Some(owned.clone()));
         }
@@ -3619,7 +3650,7 @@ impl Run<'_> {
     ///   (`OwnCx::entry_root`, the program's `main` or test cases). std is
     ///   never a fetched package (`Run::fetched`) or a host package.
     pub(super) fn owned_std_key(&self, def: DefId, b: &LazyBody) -> Option<Hash128> {
-        let (m, entry, at) = b.wire.as_ref()?;
+        let (m, ..) = b.wire.as_ref()?;
         let std = self.table.packages.len() - 1;
         let entry_root = self
             .entry_roots
@@ -3638,7 +3669,7 @@ impl Run<'_> {
         k.u8(self.build_profile as u8);
         k.u8(u8::from(self.checked()));
         k.u8(u8::from(self.verifies_own()));
-        k.hash(hd_tir::wire::tir_hash(entry.get(at.clone())?));
+        k.hash(b.tir_hash()?);
         Some(k.finish())
     }
 
@@ -3688,7 +3719,7 @@ impl Run<'_> {
     /// callees' summaries, and a build that promotes arguments, which
     /// reads callees' owned bodies.
     pub(super) fn package_owned_key(&self, def: DefId, b: &LazyBody) -> Option<Hash128> {
-        let (m, entry, at) = b.wire.as_ref()?;
+        let (m, ..) = b.wire.as_ref()?;
         let package = usize::from(self.table.modules[*m].package);
         if self.summaries.is_some() || self.promote_args || package == self.table.packages.len() - 1
         {
@@ -3699,6 +3730,19 @@ impl Run<'_> {
             .get()
             .is_some_and(|roots| roots.contains(&def));
         let mut k = StableHasher::new("owned-package-body-v1");
+        self.hash_owned_settings(&mut k);
+        k.hash(self.paths.hash(hd_base::PathId::from_raw(def.raw())));
+        k.u8(u8::from(entry_root));
+        k.u8(u8::from(self.fetched[package]));
+        k.hash(b.tir_hash()?);
+        Some(k.finish())
+    }
+
+    /// What every package body's and instance's owned key holds besides
+    /// the unit itself: the settings in [`Run::owned_std_key`]'s key, the
+    /// root package's key and settings, and the program's declarations
+    /// ([`Run::program_api_hash`]).
+    fn hash_owned_settings(&self, k: &mut StableHasher) {
         k.hash(self.toolchain);
         k.hash(self.pipeline);
         k.u8(self.build_profile as u8);
@@ -3707,10 +3751,76 @@ impl Run<'_> {
         k.hash(self.package_key);
         k.hash(self.root_settings);
         k.hash(self.program_api_hash());
-        k.hash(self.paths.hash(hd_base::PathId::from_raw(def.raw())));
-        k.u8(u8::from(entry_root));
-        k.u8(u8::from(self.fetched[package]));
-        k.hash(hd_tir::wire::tir_hash(entry.get(at.clone())?));
+    }
+
+    /// The store key of generic instance `(def, args)`'s owned form in a
+    /// dev build, or `None` where a build may not share it (#2106):
+    /// `H(settings, instance key, generic body TIR hash)`, where the
+    /// instance key is `hd_mono::layout::instance_key` over each
+    /// argument's `canon` (types by stable path, so the program's
+    /// declarations in the settings say what each path holds). The
+    /// passes read the instance body, built from the generic body and the
+    /// impls the arguments choose (the declarations), and the bodies the
+    /// folds and the inliner copied into the generic body's folded form
+    /// (`Env::generic_inlined`, whose reads every instance notes): the
+    /// entry holds those, as a package body's does
+    /// ([`Run::store_package_owned`]), and a later build takes it only
+    /// while each still hashes the same.
+    ///
+    /// The root package's key is in it, so a dependency's instance lives
+    /// in its client's entries only, never in a build of the dependency
+    /// (Swift's `@inlinable` client copy, `INSTANCE_TIR.md` decision 4).
+    /// A compiler-supplied member's instance (`supplied`: its family's
+    /// hash and its index there) runs a body generated for its target, the
+    /// first argument: the generator is the toolchain's and reads the
+    /// target's declarations, so the family's hash, the root body's wire
+    /// hash, stands for the generic body. Left out, as for package
+    /// bodies: a release build and a build that promotes arguments.
+    ///
+    /// Cost: the generic body's TIR hash once per run
+    /// ([`LazyBody::tir_hash`]) and one `canon` digest per distinct type
+    /// (`Run::own_canons`), so a key is linear in its arguments.
+    pub(super) fn instance_owned_key(
+        &self,
+        p: &ProgramTables,
+        (def, args): Node,
+        supplied: Option<(Hash128, usize)>,
+    ) -> Option<Hash128> {
+        if self.summaries.is_some() || self.promote_args || args == TyList::EMPTY {
+            return None;
+        }
+        let mut k = StableHasher::new("owned-instance-v1");
+        self.hash_owned_settings(&mut k);
+        if let Some((family, at)) = supplied {
+            k.u8(1);
+            k.hash(family);
+            k.len(at);
+        } else {
+            let b = self.lazy_body(p, def)?;
+            let (m, ..) = b.wire.as_ref()?;
+            let package = usize::from(self.table.modules[*m].package);
+            k.u8(0);
+            k.u8(u8::from(
+                self.fetched.get(package).copied().unwrap_or(false),
+            ));
+            k.hash(b.tir_hash()?);
+        }
+        let names = self.names();
+        let args: Vec<_> = self
+            .pool
+            .list_items(args)
+            .iter()
+            .map(|&t| hd_mono::layout::KeyArg::Canon(t))
+            .collect();
+        let instance = hd_mono::layout::instance_key(
+            &self.pool,
+            &|d| names.path_hash(d),
+            &mut lock(&self.own_canons),
+            def,
+            hd_mono::layout::Sub::Body(0),
+            &args,
+        );
+        k.hash(instance);
         Some(k.finish())
     }
 
@@ -3761,8 +3871,7 @@ impl Run<'_> {
         for read in reads.chunks(32) {
             let path = Hash128(u128::from_le_bytes(read.get(..16)?.try_into().ok()?));
             let then = Hash128(u128::from_le_bytes(read.get(16..)?.try_into().ok()?));
-            let (_, entry, at) = p.bodies.all.get(&path)?.wire.as_ref()?;
-            if hd_tir::wire::tir_hash(entry.get(at.clone())?) != then {
+            if p.bodies.all.get(&path)?.tir_hash()? != then {
                 return None;
             }
         }
@@ -3800,9 +3909,7 @@ impl Run<'_> {
             }
             // A body built in this run has no bytes, and no later build
             // finds its zero hash.
-            let then = wire
-                .and_then(|(_, entry, at)| entry.get(at.clone()))
-                .map_or(Hash128::default(), hd_tir::wire::tir_hash);
+            let then = lazy.tir_hash().unwrap_or_default();
             sorted.push((self.paths.hash(hd_base::PathId::from_raw(read.raw())), then));
         }
         // Path order, so equal reads give equal bytes in any run.
