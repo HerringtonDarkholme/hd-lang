@@ -15,10 +15,14 @@ use crate::Input;
 use crate::layout::{self, Kind};
 use crate::module::Module;
 
-struct LocalRoots {
-    shared: Arc<HashSet<usize>>,
-    pointers: HashSet<usize>,
-    storage: Arc<borrow::StorageRoots>,
+/// Final holder facts retained from link analysis for emission.
+#[derive(Default)]
+pub(crate) struct HolderFacts {
+    pub(super) shared: Arc<HashSet<usize>>,
+    pub(super) pointers: Arc<HashSet<usize>>,
+    pub(super) storage: Arc<borrow::StorageRoots>,
+    pub(super) bindings: Vec<(usize, Held, Bind)>,
+    pub(super) carried: Arc<HashMap<usize, Vec<u32>>>,
 }
 
 struct PreparedBody {
@@ -29,35 +33,41 @@ struct PreparedBody {
     storage: Arc<borrow::StorageRoots>,
 }
 
+#[derive(Default)]
+struct Carried {
+    graph: excl::OriginGraph,
+    answers: HashMap<usize, Vec<u32>>,
+}
+
 struct Facts<'a, 'b> {
     input: &'a Input<'b>,
     module: &'a Module,
-    roots: HashMap<InstId, LocalRoots>,
+    roots: HashMap<InstId, HolderFacts>,
     /// Each instance's body, by instance number, which every fact reads.
     bodies: Vec<Option<&'a Body>>,
     rows: Vec<Arc<[usize]>>,
-    carried: RefCell<HashMap<InstId, excl::OriginGraph>>,
+    carried: RefCell<HashMap<InstId, Carried>>,
 }
 
 pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisions {
     let empty_origins = Arc::new(excl::OriginIndex::default());
     let mut origins = vec![empty_origins; input.collected.table.item.len()];
     let mut roots = HashMap::default();
+    let empty_carried = Arc::new(HashMap::default());
     let mut bodies = vec![None; input.collected.table.item.len()];
     // The retained body references keep these identities live throughout
     // preparation; no pointer key survives in Module. A generic body's
     // instruction groups are built once, shared by all its instances.
     let mut grouped: HashMap<*const Body, PreparedBody> = HashMap::default();
     let mut rows: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
-    let mut stores: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
             continue;
         };
         bodies[id.idx()] = Some(b);
-        let groups = grouped
-            .entry(std::ptr::from_ref(b))
-            .or_insert_with(|| PreparedBody {
+        let groups = grouped.entry(std::ptr::from_ref(b)).or_insert_with(|| {
+            let origins = Arc::new(excl::OriginIndex::new(b));
+            PreparedBody {
                 rows: {
                     let mut rows = vec![Vec::new(); b.sub_root.len()];
                     for (i, sub) in b.inst_subs().into_iter().enumerate() {
@@ -67,41 +77,56 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
                     rows.into_iter().map(Arc::from).collect()
                 },
                 shared: Arc::new(super::closure::shared_locals(b)),
-                origins: Arc::new(excl::OriginIndex::new(b)),
+                origins,
                 stores: excl::binding_stores(b),
                 storage: Arc::new(borrow::StorageRoots::new(b)),
-            });
+            }
+        });
         origins[id.idx()] = Arc::clone(&groups.origins);
         let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
             continue;
         };
         rows[id.idx()] = Arc::clone(&groups.rows[usize::from(scope)]);
         let sites = Arc::clone(&groups.stores[usize::from(scope)]);
-        stores[id.idx()] = Arc::clone(&sites);
         roots.insert(
             id,
-            LocalRoots {
+            HolderFacts {
                 storage: Arc::clone(&groups.storage),
                 shared: Arc::clone(&groups.shared),
-                pointers: borrow::pointer_locals(input.pool, input.env, b, &sites),
+                pointers: Arc::new(borrow::pointer_locals(input.pool, input.env, b, &sites)),
+                bindings: excl::binds(input.pool, input.env, b, &groups.origins, &sites)
+                    .into_iter()
+                    .map(|(i, held, bind, _)| (i, held, bind))
+                    .collect(),
+                carried: Arc::clone(&empty_carried),
             },
         );
     }
-    module.loan_stores = stores;
     module.loan_origins = origins;
-    pointer::decide(&Facts {
+    let facts = Facts {
         input,
         module,
         roots,
         bodies,
         rows,
         carried: RefCell::default(),
-    })
+    };
+    let decisions = pointer::decide(&facts);
+    let mut carried = facts.carried.into_inner();
+    let empty = Arc::new(HolderFacts::default());
+    let mut retained = vec![empty; input.collected.table.item.len()];
+    for (id, mut holder) in facts.roots {
+        if let Some(cache) = carried.remove(&id) {
+            holder.carried = Arc::new(cache.answers);
+        }
+        retained[id.idx()] = Arc::new(holder);
+    }
+    module.loan_holders = retained;
+    decisions
 }
 
 impl Facts<'_, '_> {
     fn origin_index(&self, id: InstId) -> &excl::OriginIndex {
-        // ruled out: decide indexes every retained body before querying facts.
         &self.module.loan_origins[id.idx()]
     }
 
@@ -217,30 +242,26 @@ impl Context for Facts<'_, '_> {
     }
 
     fn bindings(&self, id: InstId) -> Vec<Holder> {
-        let Some(b) = self.body(id) else {
+        let Some(holder) = self.roots.get(&id) else {
             return Vec::new();
         };
-        excl::binds(
-            self.input.pool,
-            self.input.env,
-            b,
-            self.origin_index(id),
-            &self.module.loan_stores[id.idx()],
-        )
-        .into_iter()
-        .map(|(i, held, bind, _)| {
-            (
-                i,
-                (held.local, held.slot),
-                match bind {
-                    Bind::Begin(a) => Binding::Reference(a),
-                    Bind::Call(a) => Binding::CallArgument(a),
-                    Bind::CallParent(a) => Binding::CallParent(a),
-                    Bind::Share(_) | Bind::Move(_) => Binding::Other,
-                },
-            )
-        })
-        .collect()
+        holder
+            .bindings
+            .iter()
+            .copied()
+            .map(|(i, held, bind)| {
+                (
+                    i,
+                    (held.local, held.slot),
+                    match bind {
+                        Bind::Begin(a) => Binding::Reference(a),
+                        Bind::Call(a) => Binding::CallArgument(a),
+                        Bind::CallParent(a) => Binding::CallParent(a),
+                        Bind::Share(_) | Bind::Move(_) => Binding::Other,
+                    },
+                )
+            })
+            .collect()
     }
 
     fn held_mutable(&self, id: InstId, (local, slot): (usize, usize)) -> bool {
@@ -251,14 +272,21 @@ impl Context for Facts<'_, '_> {
 
     fn carried_refs(&self, id: InstId, value: usize) -> Vec<u32> {
         self.body(id).map_or_else(Vec::new, |b| {
-            excl::carried_refs(
-                self.input.pool,
-                self.input.env,
-                b,
-                self.origin_index(id),
-                self.carried.borrow_mut().entry(id).or_default(),
-                value,
-            )
+            let mut cache = self.carried.borrow_mut();
+            let Carried { graph, answers } = cache.entry(id).or_default();
+            answers
+                .entry(value)
+                .or_insert_with(|| {
+                    excl::carried_refs(
+                        self.input.pool,
+                        self.input.env,
+                        b,
+                        self.origin_index(id),
+                        graph,
+                        value,
+                    )
+                })
+                .clone()
         })
     }
 

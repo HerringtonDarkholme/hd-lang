@@ -1190,10 +1190,8 @@ pub struct Module {
     /// Each instance by its key, for a caller to read how its callee takes
     /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
-    /// The whole-local stores of each emitted instance's own sub-body.
-    /// Shared groups are prepared once per distinct checked body before
-    /// loan analysis; the stable instance number is the only lookup key.
-    pub(crate) loan_stores: Vec<std::sync::Arc<[usize]>>,
+    /// Holder and carried-reference answers computed once at link time.
+    pub(crate) loan_holders: Vec<std::sync::Arc<crate::emit::HolderFacts>>,
     /// Immutable origin-query topology, shared by instances of each body.
     pub(crate) loan_origins: Vec<std::sync::Arc<crate::emit::OriginIndex>>,
     /// Straight-line element checks, indexed by instance. An owned body
@@ -1341,7 +1339,7 @@ impl Module {
             retained: Vec::default(),
             runtime: *runtime,
             inst_of: hd_base::HashMap::default(),
-            loan_stores: Vec::default(),
+            loan_holders: Vec::default(),
             loan_origins: Vec::default(),
             element_checks: Vec::default(),
             body_facts: Vec::default(),
