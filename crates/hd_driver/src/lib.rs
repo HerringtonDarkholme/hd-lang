@@ -3489,18 +3489,15 @@ fn describe_cycles(
             if !test_code && into_tests {
                 continue;
             }
-            if let Err(at) = adj[from].binary_search(&to) {
-                adj[from].insert(at, to);
-            }
+            adj[from].push(to);
             edges.entry((from, to)).or_insert((m, *lo, *hi));
         }
     }
-    // The folders on some loop: every folder of every reported cycle, a
-    // strongly connected component of the folder graph.
-    let mut looping = HashSet::default();
-    for c in cycles {
-        looping.extend(c.iter().map(|f| f.idx()));
+    for out in &mut adj {
+        out.sort_stable();
+        out.dedup();
     }
+    let files: HashSet<&str> = table.files.iter().map(String::as_str).collect();
     cycles
         .iter()
         .map(|c| {
@@ -3534,24 +3531,16 @@ fn describe_cycles(
                 message.push('\n');
                 message.push_str(line);
             }
-            // The tangle: the folders on some loop with the shown ones.
-            let shown_set: HashSet<usize> = shown.iter().copied().collect();
-            let tangle = looping
-                .iter()
-                .filter(|f| {
-                    cycles.iter().any(|c| {
-                        c.iter().any(|g| shown_set.contains(&g.idx()))
-                            && c.iter().any(|g| g.idx() == **f)
-                    })
-                })
-                .count();
+            // The tangle: the folders on some loop with the shown ones,
+            // which is their strongly connected component, `c`.
+            let tangle = c.len();
             // The fix moves a lone `x.hd` on the loop beside its own
             // `mod.hd`, which keeps its module name.
             let mut fix = None;
             for f in &shown {
                 let display = folder_display(table, *f);
                 let from = format!("{display}.hd");
-                if table.files.contains(&from) {
+                if files.contains(from.as_str()) {
                     fix = Some((from.clone(), format!("{display}/mod.hd")));
                     break;
                 }
