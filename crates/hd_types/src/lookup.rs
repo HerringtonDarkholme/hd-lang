@@ -4,6 +4,8 @@
 //! through a trait argument. The last two are merged per impl universe, so
 //! a context sees only the folders of its own closure.
 
+use std::sync::{Arc, OnceLock};
+
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
@@ -318,9 +320,20 @@ impl Unseen<'_> {
 /// program folder made each module's view, and each walk of it, cost the
 /// program's folders: k modules in k folders cost k^2 (Cranelift's
 /// `SparseMap` keeps members apart from the key space the same way).
-#[derive(Clone, Copy, Default)]
-pub struct FolderSlots<'a> {
-    slots: &'a [(u32, &'a FolderImpls)],
+/// A program's view, whose closure is every folder, reads the run's own
+/// per-folder table instead, so building one costs nothing per body.
+#[derive(Clone, Copy)]
+pub enum FolderSlots<'a> {
+    /// The closure's folders, sorted by folder id with no id twice.
+    Closure(&'a [(u32, &'a FolderImpls)]),
+    /// The run's table by folder id, and its built folders' ids in order.
+    Program(&'a [OnceLock<Option<Arc<FolderImpls>>>], &'a [u32]),
+}
+
+impl Default for FolderSlots<'_> {
+    fn default() -> Self {
+        FolderSlots::Closure(&[])
+    }
 }
 
 impl<'a> FolderSlots<'a> {
@@ -328,20 +341,33 @@ impl<'a> FolderSlots<'a> {
     #[must_use]
     pub fn new(slots: &'a [(u32, &'a FolderImpls)]) -> Self {
         debug_assert!(slots.windows(2).all(|w| w[0].0 < w[1].0), "sorted slots");
-        FolderSlots { slots }
+        FolderSlots::Closure(slots)
     }
 
-    /// Folder `i`'s tables, when the closure holds it: a binary search.
+    /// Folder `i`'s tables, when the closure holds it: a binary search,
+    /// or a program view's index.
     #[must_use]
     pub fn get(self, i: usize) -> Option<&'a FolderImpls> {
-        let i = u32::try_from(i).ok()?;
-        let at = self.slots.binary_search_by_key(&i, |s| s.0).ok()?;
-        Some(self.slots[at].1)
+        match self {
+            FolderSlots::Closure(slots) => {
+                let i = u32::try_from(i).ok()?;
+                let at = slots.binary_search_by_key(&i, |s| s.0).ok()?;
+                Some(slots[at].1)
+            }
+            FolderSlots::Program(table, _) => table.get(i)?.get()?.as_deref(),
+        }
     }
 
     /// The closure's folders in id order.
     pub fn iter(self) -> impl Iterator<Item = (usize, &'a FolderImpls)> {
-        self.slots.iter().map(|&(i, f)| (i as usize, f))
+        let (slots, built): (&[_], &[u32]) = match self {
+            FolderSlots::Closure(slots) => (slots, &[]),
+            FolderSlots::Program(_, built) => (&[], built),
+        };
+        let built = built
+            .iter()
+            .filter_map(move |&i| Some((i as usize, self.get(i as usize)?)));
+        slots.iter().map(|&(i, f)| (i as usize, f)).chain(built)
     }
 }
 

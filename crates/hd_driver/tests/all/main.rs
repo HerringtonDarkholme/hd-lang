@@ -56,6 +56,7 @@ mod owned_package_edit;
 mod parallel_bodies;
 mod pathological;
 mod profile_handles;
+mod program_view_work;
 mod provider_evidence_work;
 mod recursive_layouts;
 mod release_profile_run;

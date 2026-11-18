@@ -3616,12 +3616,32 @@ impl Run<'_> {
         p.body_entry(self.paths.hash(hd_base::PathId::from_raw(def.raw())), def)
     }
 
-    /// Runs `f` with the passes' view of the program.
+    /// Runs `f` with the passes' view of the program: every `Env` is built
+    /// here. Its impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2)
+    /// are owner lookup over every folder, read from the run's own table,
+    /// so no body pays for them: the built folders' ids are listed once
+    /// per run. A test program's `tests:` impls are its own table
+    /// ([`ProgramTables::test_impls`]); a layout normalizes associated
+    /// types through them.
     pub(super) fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
-        // The program's impls: a layout normalizes associated types.
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
+        let built = self.built_folders.get_or_init(|| {
+            lock(&self.counters).view_folders += self.table.folders.len();
+            (0..self.table.folders.len())
+                .map(super::u32_of)
+                .filter(|&f| self.folder_impls(hd_base::FolderId::from_raw(f)).is_some())
+                .collect()
+        });
+        let view = hd_types::lookup::ImplView {
+            paths: &self.paths,
+            owners: self.owners(),
+            own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
+            folders: hd_types::lookup::FolderSlots::Program(&self.folder_impls, built),
+            universe: p.universe,
+            extra: &p.extra,
+            arity: &p.arity(),
+            hidden: hd_types::lookup::Unseen::default(),
+            plans: Some(self),
+        };
         f(&Env {
             run: self,
             p,

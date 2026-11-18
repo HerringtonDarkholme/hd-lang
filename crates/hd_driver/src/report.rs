@@ -136,6 +136,9 @@ pub struct Counters {
     /// How many body-unit pass runs collection's planner made
     /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2): 0 in a pipeline with no body pass.
     pub body_passes: usize,
+    /// Folders the program view read to list its built folders
+    /// (`Run::with_env`): the program's folders once, whatever its bodies.
+    pub view_folders: usize,
 }
 
 impl Counters {

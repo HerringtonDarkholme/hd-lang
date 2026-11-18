@@ -1638,6 +1638,9 @@ struct Run<'a> {
     /// Per folder: its impl table and `arg_impls` section, built once per
     /// run from its interface on first use.
     folder_impls: Vec<OnceLock<Option<Arc<FolderImpls>>>>,
+    /// The folders whose impls were built, in id order: the program view's
+    /// walk (`Run::with_env`), built once per run.
+    built_folders: OnceLock<Vec<u32>>,
     toolchain: Hash128,
     package_key: Hash128,
     root_settings: Hash128,
@@ -2703,6 +2706,7 @@ fn build_packages_inner(
         memo: GlobalMemo::default(),
         owners: OnceLock::new(),
         folder_impls: (0..nf).map(|_| OnceLock::new()).collect(),
+        built_folders: OnceLock::new(),
         toolchain,
         package_key,
         root_settings,
@@ -9734,40 +9738,6 @@ impl Run<'_> {
             .as_ref()
     }
 
-    /// Every folder's impls, by folder id: the program's tables, for
-    /// `FolderSlots`.
-    fn program_folders(&self) -> Vec<(u32, &FolderImpls)> {
-        (0..self.table.folders.len())
-            .filter_map(|f| {
-                let id = u32_of(f);
-                Some((id, self.folder_impls(FolderId::from_raw(id))?))
-            })
-            .collect()
-    }
-
-    /// The program's view of the impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): owner
-    /// lookup over every folder, the `tests:` blocks' impls of a test
-    /// program as its own table ([`ProgramTables::test_impls`]), the
-    /// program's universe.
-    fn program_view<'a>(
-        &'a self,
-        p: &'a ProgramTables,
-        folders: &'a [(u32, &'a FolderImpls)],
-        arity: &'a (dyn Fn(DefId) -> usize + Sync),
-    ) -> ImplView<'a> {
-        ImplView {
-            paths: &self.paths,
-            owners: self.owners(),
-            own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
-            folders: hd_types::lookup::FolderSlots::new(folders),
-            universe: p.universe,
-            extra: &p.extra,
-            arity,
-            hidden: hd_types::lookup::Unseen::default(),
-            plans: Some(self),
-        }
-    }
-
     /// The scenario hold target: the held function's item, when the
     /// program checks its body. Held polls are stubbed at emission and
     /// never touch the code cache, so a held build shares nothing with
@@ -9980,319 +9950,312 @@ impl Run<'_> {
             );
             return;
         }
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        // An earlier REPL input's init ran in its own build: collection
-        // would leave it out (`Session::inits_run`), so it is left out
-        // here, before its bodies are decoded.
-        let kept_module = |m: &str| self.table.module(m).is_some_and(|k| self.is_kept(k.idx()));
-        let has_init = |m: &str| {
-            !kept_module(m) && self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some()
-        };
-        // The init groups each root module reaches, in order, and their union.
-        // Each list keeps first-reach order and a set answers membership,
-        // so the groups cost the inits they list, not that times the
-        // roots or the inits seen.
-        let mut root_modules: Vec<String> = Vec::new();
-        let mut seen_modules: HashSet<&str> = HashSet::default();
-        for (_, m) in &roots {
-            let m = if m.is_empty() { &entry_key } else { m };
-            if seen_modules.insert(m.as_str()) {
-                root_modules.push(m.clone());
-            }
-        }
-        let mut all_inits: Vec<DefId> = Vec::new();
-        let mut seen_inits: HashSet<DefId> = HashSet::default();
-        // The entry module's own init bodies, in order: its whole init, or
-        // one body per run when its module cycle's statements split it.
-        // Only they may `block_on`, and a script runs them with its entry
-        // providers.
-        let mut own: Vec<DefId> = Vec::new();
-        // A joined build's one root is its last input, whose init order
-        // every input's inits are split from.
-        let mut order: Vec<(DefId, &str)> = Vec::new();
-        // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
-        // runs its module's inits first, in every root's group.
-        let runtime = hd_wasm::runtime_module(self.checked());
-        let graph = self.init_graph();
-        let mut query = InitQuery::new(&graph);
-        let runtime_inits: Vec<DefId> =
-            match self.root_init_order(&graph, &mut query, runtime, &init_of, &has_init) {
-                Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
-                Err(e) => {
-                    self.stage::<()>(Stage::Collect, Err(e));
-                    return;
-                }
+        self.with_env(p, |env| {
+            // An earlier REPL input's init ran in its own build: collection
+            // would leave it out (`Session::inits_run`), so it is left out
+            // here, before its bodies are decoded.
+            let kept_module = |m: &str| self.table.module(m).is_some_and(|k| self.is_kept(k.idx()));
+            let has_init = |m: &str| {
+                !kept_module(m) && self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some()
             };
-        all_inits.extend(&runtime_inits);
-        seen_inits.extend(runtime_inits.iter().copied());
-        // A test program names each unit's inits once and each group's
-        // root units ([`Self::test_init_units`]); every other plan has one
-        // root module.
-        let tests_plan = match &self.goal {
-            Goal::ReplInput { .. } if self.repl_inputs.joined => false,
-            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } => false,
-            _ => true,
-        };
-        let mut test_units: Option<TestUnits<'_>> = None;
-        if tests_plan {
-            let units = match self.test_init_units(
-                &graph,
-                &mut query,
-                runtime,
-                &root_modules,
-                &init_of,
-                &has_init,
-            ) {
-                Ok(u) => u,
-                Err(e) => {
-                    self.stage::<()>(Stage::Collect, Err(e));
-                    return;
-                }
-            };
-            for (d, module) in units.bodies.iter().flatten() {
-                if seen_inits.insert(*d) {
-                    all_inits.push(*d);
-                    if *module == entry_key {
-                        own.push(*d);
-                    }
+            // The init groups each root module reaches, in order, and their union.
+            // Each list keeps first-reach order and a set answers membership,
+            // so the groups cost the inits they list, not that times the
+            // roots or the inits seen.
+            let mut root_modules: Vec<String> = Vec::new();
+            let mut seen_modules: HashSet<&str> = HashSet::default();
+            for (_, m) in &roots {
+                let m = if m.is_empty() { &entry_key } else { m };
+                if seen_modules.insert(m.as_str()) {
+                    root_modules.push(m.clone());
                 }
             }
-            test_units = Some(units);
-        }
-        for m in root_modules.iter().filter(|_| !tests_plan) {
-            let defs = match self.root_init_order(&graph, &mut query, m, &init_of, &has_init) {
-                Ok(o) => o,
-                Err(e) => {
-                    self.stage::<()>(Stage::Collect, Err(e));
-                    return;
-                }
-            };
-            if self.repl_inputs.joined {
-                order.clone_from(&defs);
-            }
-            for (d, module) in &defs {
-                if seen_inits.insert(*d) {
-                    all_inits.push(*d);
-                    if *module == entry_key {
-                        own.push(*d);
-                    }
-                }
-            }
-        }
-        // A script's root is its first own body; the rest run after it.
-        let root = match own.first() {
-            Some(first) if script => *first,
-            _ => root,
-        };
-        // Extra roots: the other cases, then each distinct report function.
-        // `extra` keeps the order collection reports their instances in;
-        // `extra_at` maps each root to its position, so adding a root and
-        // finding its instance are one probe each, not a scan of the roots.
-        let mut extra = ExtraRoots::default();
-        for (d, _) in &roots[1..] {
-            extra.insert((*d, TyList::EMPTY));
-        }
-        // A scenario's cleanup function is an extra root, so its instance
-        // is collected even though no case calls it.
-        if matches!(self.goal, Goal::Scenario { .. }) {
-            let def = names.item(&entry_key, "cleanup_ran");
-            if self.body_of(p, def).is_some() {
-                extra.insert((def, TyList::EMPTY));
-            }
-        }
-        let reports: Vec<Option<(DefId, TyList)>> = roots
-            .iter()
-            .enumerate()
-            .map(|(i, (d, _))| {
-                let d = if script && i == 0 { &root } else { d };
-                // A REPL input reports no result. A script's result is
-                // `Result[void, dyn Error]` when its top level uses `?`
-                // (`module.init.script-try.reference-values`), else `void`: its entry is
-                // its init.
-                if matches!(self.goal, Goal::ReplInput { .. }) {
-                    return None;
-                }
-                self.report_fn(env.ret(*d).unwrap_or(Ty::VOID))
-            })
-            .collect();
-        for r in reports.iter().flatten() {
-            extra.insert(*r);
-        }
-        // A host provider of a key whose trait has a `&self` or `&mut self`
-        // method is installed behind a new object (req.ref.host.reference-values): one
-        // `std.rt.host_provider` instance per such key of a root's row. A
-        // script's or a REPL input's root is one of its init bodies.
-        let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
-        let mut host_ref_keys: HashSet<Ty> = HashSet::default();
-        let host_provider = names.item(ENTRY_MODULE, "host_provider");
-        for d in std::iter::once(root)
-            .chain(roots.iter().map(|(d, _)| *d))
-            .chain(all_inits.iter().copied())
-        {
-            for key in env.row_keys(d, TyList::EMPTY) {
-                let TyData::TraitValue { .. } = self.pool.get(key) else {
-                    continue;
-                };
-                work::root_lookup();
-                if !host_ref_keys.insert(key) {
-                    continue;
-                }
-                let r = env
-                    .host_bridge(key)
-                    .map_or((host_provider, self.pool.list(&[key])), |bridge| {
-                        (bridge.adapter, self.pool.list(&[bridge.wire]))
-                    });
-                host_refs.push((key, r));
-                extra.insert(r);
-            }
-        }
-        for (module, name) in hd_wasm::runtime_items(self.checked()) {
-            let r = (names.item(module, name), TyList::EMPTY);
-            if self.body_of(p, r.0).is_some() {
-                extra.insert(r);
-            }
-        }
-        for name in hd_wasm::FLOAT_FNS {
-            let r = (names.item(hd_wasm::FLOAT_MODULE, name), TyList::EMPTY);
-            if self.body_of(p, r.0).is_some() {
-                extra.insert(r);
-            }
-        }
-        let collected = hd_mono::collect(
-            &self.pool,
-            &env,
-            &TableSolver,
-            root,
-            &all_inits,
-            &extra.roots,
-            &[],
-            self.session.is_some(),
-            &self.planner,
-        );
-        // Bodies decode as collection reaches them: a body whose bytes did
-        // not decode fails the stage as a whole entry would.
-        let collected = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
-            Err(NotImplemented::bug(
-                Stage::Collect,
-                "a module's check entry did not decode",
-            ))
-        } else if let Some(what) = lock(&p.bodies.own_error).clone() {
-            Err(NotImplemented::bug(Stage::Collect, what))
-        } else {
-            collected
-        };
-        let Some(collected) = self.stage(Stage::Collect, collected) else {
-            return;
-        };
-        let collected = match collected {
-            Ok(c) => c,
-            Err(deep) => {
-                self.too_deep(&deep);
-                return;
-            }
-        };
-        let key_of_extra = |r: &(DefId, TyList)| {
-            extra
-                .position(*r)
-                .and_then(|i| collected.extra.get(i).copied())
-        };
-        // An init's instance, when this module runs it: a session leaves
-        // out the inits earlier modules ran. The set is built once, so each
-        // lookup is one probe, not a scan of every init.
-        let run_inits: HashSet<Hash128> = collected.inits.iter().copied().collect();
-        let key_of_init = |d: &DefId| {
-            work::root_lookup();
-            collected
-                .table
-                .get(*d, hd_mono::Sub::Body(0), TyList::EMPTY)
-                .map(|id| collected.table.key[id.idx()])
-                .filter(|k| run_inits.contains(k))
-        };
-        let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
-        let host_refs: Vec<(Ty, Hash128)> = host_refs
-            .iter()
-            .filter_map(|(k, r)| key_of_extra(r).map(|h| (*k, h)))
-            .collect();
-        let plan = match &self.goal {
-            Goal::ReplInput { .. } if self.repl_inputs.joined => {
-                match self.joined_inputs(&order, &key_of_init) {
-                    Ok(inputs) => Roots::Inputs(inputs),
+            let mut all_inits: Vec<DefId> = Vec::new();
+            let mut seen_inits: HashSet<DefId> = HashSet::default();
+            // The entry module's own init bodies, in order: its whole init, or
+            // one body per run when its module cycle's statements split it.
+            // Only they may `block_on`, and a script runs them with its entry
+            // providers.
+            let mut own: Vec<DefId> = Vec::new();
+            // A joined build's one root is its last input, whose init order
+            // every input's inits are split from.
+            let mut order: Vec<(DefId, &str)> = Vec::new();
+            // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
+            // runs its module's inits first, in every root's group.
+            let runtime = hd_wasm::runtime_module(self.checked());
+            let graph = self.init_graph();
+            let mut query = InitQuery::new(&graph);
+            let runtime_inits: Vec<DefId> =
+                match self.root_init_order(&graph, &mut query, runtime, &init_of, &has_init) {
+                    Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
                     Err(e) => {
                         self.stage::<()>(Stage::Collect, Err(e));
                         return;
                     }
+                };
+            all_inits.extend(&runtime_inits);
+            seen_inits.extend(runtime_inits.iter().copied());
+            // A test program names each unit's inits once and each group's
+            // root units ([`Self::test_init_units`]); every other plan has one
+            // root module.
+            let tests_plan = match &self.goal {
+                Goal::ReplInput { .. } if self.repl_inputs.joined => false,
+                Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } => false,
+                _ => true,
+            };
+            let mut test_units: Option<TestUnits<'_>> = None;
+            if tests_plan {
+                let units = match self.test_init_units(
+                    &graph,
+                    &mut query,
+                    runtime,
+                    &root_modules,
+                    &init_of,
+                    &has_init,
+                ) {
+                    Ok(u) => u,
+                    Err(e) => {
+                        self.stage::<()>(Stage::Collect, Err(e));
+                        return;
+                    }
+                };
+                for (d, module) in units.bodies.iter().flatten() {
+                    if seen_inits.insert(*d) {
+                        all_inits.push(*d);
+                        if *module == entry_key {
+                            own.push(*d);
+                        }
+                    }
+                }
+                test_units = Some(units);
+            }
+            for m in root_modules.iter().filter(|_| !tests_plan) {
+                let defs = match self.root_init_order(&graph, &mut query, m, &init_of, &has_init) {
+                    Ok(o) => o,
+                    Err(e) => {
+                        self.stage::<()>(Stage::Collect, Err(e));
+                        return;
+                    }
+                };
+                if self.repl_inputs.joined {
+                    order.clone_from(&defs);
+                }
+                for (d, module) in &defs {
+                    if seen_inits.insert(*d) {
+                        all_inits.push(*d);
+                        if *module == entry_key {
+                            own.push(*d);
+                        }
+                    }
                 }
             }
-            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } if script => {
-                Roots::Script {
+            // A script's root is its first own body; the rest run after it.
+            let root = match own.first() {
+                Some(first) if script => *first,
+                _ => root,
+            };
+            // Extra roots: the other cases, then each distinct report function.
+            // `extra` keeps the order collection reports their instances in;
+            // `extra_at` maps each root to its position, so adding a root and
+            // finding its instance are one probe each, not a scan of the roots.
+            let mut extra = ExtraRoots::default();
+            for (d, _) in &roots[1..] {
+                extra.insert((*d, TyList::EMPTY));
+            }
+            // A scenario's cleanup function is an extra root, so its instance
+            // is collected even though no case calls it.
+            if matches!(self.goal, Goal::Scenario { .. }) {
+                let def = names.item(&entry_key, "cleanup_ran");
+                if self.body_of(p, def).is_some() {
+                    extra.insert((def, TyList::EMPTY));
+                }
+            }
+            let reports: Vec<Option<(DefId, TyList)>> = roots
+                .iter()
+                .enumerate()
+                .map(|(i, (d, _))| {
+                    let d = if script && i == 0 { &root } else { d };
+                    // A REPL input reports no result. A script's result is
+                    // `Result[void, dyn Error]` when its top level uses `?`
+                    // (`module.init.script-try.reference-values`), else `void`: its entry is
+                    // its init.
+                    if matches!(self.goal, Goal::ReplInput { .. }) {
+                        return None;
+                    }
+                    self.report_fn(env.ret(*d).unwrap_or(Ty::VOID))
+                })
+                .collect();
+            for r in reports.iter().flatten() {
+                extra.insert(*r);
+            }
+            // A host provider of a key whose trait has a `&self` or `&mut self`
+            // method is installed behind a new object (req.ref.host.reference-values): one
+            // `std.rt.host_provider` instance per such key of a root's row. A
+            // script's or a REPL input's root is one of its init bodies.
+            let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
+            let mut host_ref_keys: HashSet<Ty> = HashSet::default();
+            let host_provider = names.item(ENTRY_MODULE, "host_provider");
+            for d in std::iter::once(root)
+                .chain(roots.iter().map(|(d, _)| *d))
+                .chain(all_inits.iter().copied())
+            {
+                for key in env.row_keys(d, TyList::EMPTY) {
+                    let TyData::TraitValue { .. } = self.pool.get(key) else {
+                        continue;
+                    };
+                    work::root_lookup();
+                    if !host_ref_keys.insert(key) {
+                        continue;
+                    }
+                    let r = env
+                        .host_bridge(key)
+                        .map_or((host_provider, self.pool.list(&[key])), |bridge| {
+                            (bridge.adapter, self.pool.list(&[bridge.wire]))
+                        });
+                    host_refs.push((key, r));
+                    extra.insert(r);
+                }
+            }
+            for (module, name) in hd_wasm::runtime_items(self.checked()) {
+                let r = (names.item(module, name), TyList::EMPTY);
+                if self.body_of(p, r.0).is_some() {
+                    extra.insert(r);
+                }
+            }
+            for name in hd_wasm::FLOAT_FNS {
+                let r = (names.item(hd_wasm::FLOAT_MODULE, name), TyList::EMPTY);
+                if self.body_of(p, r.0).is_some() {
+                    extra.insert(r);
+                }
+            }
+            let collected = hd_mono::collect(
+                &self.pool,
+                env,
+                &TableSolver,
+                root,
+                &all_inits,
+                &extra.roots,
+                &[],
+                self.session.is_some(),
+                &self.planner,
+            );
+            // Bodies decode as collection reaches them: a body whose bytes did
+            // not decode fails the stage as a whole entry would.
+            let collected = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
+                Err(NotImplemented::bug(
+                    Stage::Collect,
+                    "a module's check entry did not decode",
+                ))
+            } else if let Some(what) = lock(&p.bodies.own_error).clone() {
+                Err(NotImplemented::bug(Stage::Collect, what))
+            } else {
+                collected
+            };
+            let Some(collected) = self.stage(Stage::Collect, collected) else {
+                return;
+            };
+            let collected = match collected {
+                Ok(c) => c,
+                Err(deep) => {
+                    self.too_deep(&deep);
+                    return;
+                }
+            };
+            let key_of_extra = |r: &(DefId, TyList)| {
+                extra
+                    .position(*r)
+                    .and_then(|i| collected.extra.get(i).copied())
+            };
+            // An init's instance, when this module runs it: a session leaves
+            // out the inits earlier modules ran. The set is built once, so each
+            // lookup is one probe, not a scan of every init.
+            let run_inits: HashSet<Hash128> = collected.inits.iter().copied().collect();
+            let key_of_init = |d: &DefId| {
+                work::root_lookup();
+                collected
+                    .table
+                    .get(*d, hd_mono::Sub::Body(0), TyList::EMPTY)
+                    .map(|id| collected.table.key[id.idx()])
+                    .filter(|k| run_inits.contains(k))
+            };
+            let entry_inits: Vec<Hash128> = own.iter().filter_map(key_of_init).collect();
+            let host_refs: Vec<(Ty, Hash128)> = host_refs
+                .iter()
+                .filter_map(|(k, r)| key_of_extra(r).map(|h| (*k, h)))
+                .collect();
+            let plan = match &self.goal {
+                Goal::ReplInput { .. } if self.repl_inputs.joined => {
+                    match self.joined_inputs(&order, &key_of_init) {
+                        Ok(inputs) => Roots::Inputs(inputs),
+                        Err(e) => {
+                            self.stage::<()>(Stage::Collect, Err(e));
+                            return;
+                        }
+                    }
+                }
+                Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Scenario { .. } if script => {
+                    Roots::Script {
+                        def: root,
+                        key: collected.table.key[0],
+                        own: entry_inits,
+                        report: reports[0].as_ref().and_then(key_of_extra),
+                    }
+                }
+                Goal::Program { .. } => Roots::Main {
                     def: root,
                     key: collected.table.key[0],
-                    own: entry_inits,
+                    entry_inits,
                     report: reports[0].as_ref().and_then(key_of_extra),
-                }
-            }
-            Goal::Program { .. } => Roots::Main {
-                def: root,
-                key: collected.table.key[0],
-                entry_inits,
-                report: reports[0].as_ref().and_then(key_of_extra),
-            },
-            Goal::Scenario { .. } => Roots::Scenario {
-                def: root,
-                key: collected.table.key[0],
-                entry_inits,
-                report: reports[0].as_ref().and_then(key_of_extra),
-                cleanup: {
-                    let def = names.item(&entry_key, "cleanup_ran");
-                    if self.body_of(p, def).is_some() {
-                        key_of_extra(&(def, TyList::EMPTY))
-                    } else {
-                        None
-                    }
                 },
-            },
-            _ => Roots::Tests {
-                cases: roots
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (d, _))| {
-                        let key = if i == 0 {
-                            collected.table.key[0]
+                Goal::Scenario { .. } => Roots::Scenario {
+                    def: root,
+                    key: collected.table.key[0],
+                    entry_inits,
+                    report: reports[0].as_ref().and_then(key_of_extra),
+                    cleanup: {
+                        let def = names.item(&entry_key, "cleanup_ran");
+                        if self.body_of(p, def).is_some() {
+                            key_of_extra(&(def, TyList::EMPTY))
                         } else {
-                            key_of_extra(&(*d, TyList::EMPTY)).unwrap_or(Hash128(0))
-                        };
-                        (*d, key, reports[i].as_ref().and_then(key_of_extra))
-                    })
-                    .collect(),
-                units: test_units.as_ref().map_or_else(Vec::new, |u| {
-                    u.bodies
+                            None
+                        }
+                    },
+                },
+                _ => Roots::Tests {
+                    cases: roots
                         .iter()
-                        .map(|ds| ds.iter().filter_map(|(d, _)| key_of_init(d)).collect())
-                        .collect()
-                }),
-                deps: test_units
-                    .as_ref()
-                    .map_or_else(Vec::new, |u| u.deps.clone()),
-                groups: test_units.map_or_else(Vec::new, |u| u.groups),
-            },
-        };
-        let order = collected.table.content_order();
-        let _ = self.collect.set(CollectOut {
-            collected,
-            order,
-            prog_key: pkey,
-            roots: plan,
-            host_refs,
+                        .enumerate()
+                        .map(|(i, (d, _))| {
+                            let key = if i == 0 {
+                                collected.table.key[0]
+                            } else {
+                                key_of_extra(&(*d, TyList::EMPTY)).unwrap_or(Hash128(0))
+                            };
+                            (*d, key, reports[i].as_ref().and_then(key_of_extra))
+                        })
+                        .collect(),
+                    units: test_units.as_ref().map_or_else(Vec::new, |u| {
+                        u.bodies
+                            .iter()
+                            .map(|ds| ds.iter().filter_map(|(d, _)| key_of_init(d)).collect())
+                            .collect()
+                    }),
+                    deps: test_units
+                        .as_ref()
+                        .map_or_else(Vec::new, |u| u.deps.clone()),
+                    groups: test_units.map_or_else(Vec::new, |u| u.groups),
+                },
+            };
+            let order = collected.table.content_order();
+            let _ = self.collect.set(CollectOut {
+                collected,
+                order,
+                prog_key: pkey,
+                roots: plan,
+                host_refs,
+            });
+            sp.add(TaskKind::Ext(ExtTask::Link), &[]);
         });
-        sp.add(TaskKind::Ext(ExtTask::Link), &[]);
     }
 
     /// Roots the case's declarations at their declared types. It is not an
@@ -10301,196 +10264,191 @@ impl Run<'_> {
     fn collect_fixture(&self, sp: &dyn Spawn, p: &ProgramTables, pkey: Hash128, module: &str) {
         let names = self.names();
         let module_node = names.module(module);
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        let mut layouts = Vec::new();
-        for (m, data) in self
-            .table
-            .modules
-            .iter()
-            .enumerate()
-            .filter(|(_, m)| m.path == module)
-        {
-            let src = self.src(m);
-            for head in hd_resolve::heads(&names, &src, module, false) {
-                let Some(item) = p.items.get(head.def) else {
-                    continue;
-                };
-                if !matches!(item.data, ItemData::Struct(_, _)) || !item.generics.is_empty() {
-                    continue;
+        self.with_env(p, |env| {
+            let mut layouts = Vec::new();
+            for (m, data) in self
+                .table
+                .modules
+                .iter()
+                .enumerate()
+                .filter(|(_, m)| m.path == module)
+            {
+                let src = self.src(m);
+                for head in hd_resolve::heads(&names, &src, module, false) {
+                    let Some(item) = p.items.get(head.def) else {
+                        continue;
+                    };
+                    if !matches!(item.data, ItemData::Struct(_, _)) || !item.generics.is_empty() {
+                        continue;
+                    }
+                    let ty = self.pool.intern_ty(&TyData::Adt {
+                        def: head.def,
+                        args: TyList::EMPTY,
+                    });
+                    let Some(layout) = self.stage(
+                        Stage::Collect,
+                        hd_wasm::views::inspect_layout(&self.pool, env, ty),
+                    ) else {
+                        return;
+                    };
+                    let span = src.span(head.node);
+                    layouts.push(FixtureLayout {
+                        item: names.path(head.def),
+                        file: self.table.files[data.file.idx()].clone(),
+                        lo: span.lo,
+                        hi: span.hi,
+                        layout,
+                    });
                 }
-                let ty = self.pool.intern_ty(&TyData::Adt {
-                    def: head.def,
-                    args: TyList::EMPTY,
-                });
-                let Some(layout) = self.stage(
+            }
+            layouts.sort_stable_by(|a, b| a.item.cmp(&b.item));
+            let _ = self.fixture_layouts.set(layouts);
+            // Every declaration the program holds, by its slot, without
+            // reading a record first.
+            let mut definitions: Vec<DefId> = (p.items.slots.iter().enumerate())
+                .filter(|(_, slot)| slot.is_some())
+                .map(|(def, _)| DefId::from_raw(u32_of(def)))
+                .filter(|def| {
+                    names.module_node(*def) == module_node
+                        && p.items.get(*def).is_some_and(|item| item.sig().is_some())
+                        && self
+                            .body_of(p, *def)
+                            .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn)
+                })
+                .collect();
+            definitions.sort_stable_by_key(|d| names.path(*d));
+            let generic = |d: DefId| {
+                p.items
+                    .get(d)
+                    .expect("fixture definition")
+                    .sig()
+                    .is_some_and(|s| !s.generics.is_empty())
+                    || env.parent(d).is_some_and(|(_, n)| n != 0)
+            };
+            let mut roots: Vec<(DefId, TyList)> = definitions
+                .iter()
+                .copied()
+                .filter(|d| !generic(*d))
+                .map(|d| (d, TyList::EMPTY))
+                .collect();
+            // Code generation can introduce allocator/count calls even when the
+            // source has none. Their bodies are collected but retained only when
+            // the emitted fixture reaches them.
+            for (m, n) in hd_wasm::runtime_items(self.checked()) {
+                let d = names.item(m, n);
+                if self.body_of(p, d).is_some() {
+                    roots.push((d, TyList::EMPTY));
+                }
+            }
+            for name in hd_wasm::FLOAT_FNS {
+                let d = names.item(hd_wasm::FLOAT_MODULE, name);
+                if self.body_of(p, d).is_some() {
+                    roots.push((d, TyList::EMPTY));
+                }
+            }
+            let init_of =
+                |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
+            let has_init =
+                |m: &str| self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some();
+            // The runtime's inits first, then the module's; a set drops the
+            // ones both reach.
+            let graph = self.init_graph();
+            let mut query = InitQuery::new(&graph);
+            let mut inits = Vec::new();
+            let mut seen: HashSet<DefId> = HashSet::default();
+            for m in [hd_wasm::runtime_module(self.checked()), module] {
+                let Some(order) = self.stage(
                     Stage::Collect,
-                    hd_wasm::views::inspect_layout(&self.pool, &env, ty),
+                    self.root_init_order(&graph, &mut query, m, &init_of, &has_init),
                 ) else {
                     return;
                 };
-                let span = src.span(head.node);
-                layouts.push(FixtureLayout {
-                    item: names.path(head.def),
-                    file: self.table.files[data.file.idx()].clone(),
-                    lo: span.lo,
-                    hi: span.hi,
-                    layout,
-                });
+                inits.extend(
+                    order
+                        .into_iter()
+                        .map(|(d, _)| d)
+                        .filter(|d| seen.insert(*d)),
+                );
             }
-        }
-        layouts.sort_stable_by(|a, b| a.item.cmp(&b.item));
-        let _ = self.fixture_layouts.set(layouts);
-        // Every declaration the program holds, by its slot, without
-        // reading a record first.
-        let mut definitions: Vec<DefId> = (p.items.slots.iter().enumerate())
-            .filter(|(_, slot)| slot.is_some())
-            .map(|(def, _)| DefId::from_raw(u32_of(def)))
-            .filter(|def| {
-                names.module_node(*def) == module_node
-                    && p.items.get(*def).is_some_and(|item| item.sig().is_some())
-                    && self
-                        .body_of(p, *def)
-                        .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn)
-            })
-            .collect();
-        definitions.sort_stable_by_key(|d| names.path(*d));
-        let generic = |d: DefId| {
-            p.items
-                .get(d)
-                .expect("fixture definition")
-                .sig()
-                .is_some_and(|s| !s.generics.is_empty())
-                || env.parent(d).is_some_and(|(_, n)| n != 0)
-        };
-        let mut roots: Vec<(DefId, TyList)> = definitions
-            .iter()
-            .copied()
-            .filter(|d| !generic(*d))
-            .map(|d| (d, TyList::EMPTY))
-            .collect();
-        // Code generation can introduce allocator/count calls even when the
-        // source has none. Their bodies are collected but retained only when
-        // the emitted fixture reaches them.
-        for (m, n) in hd_wasm::runtime_items(self.checked()) {
-            let d = names.item(m, n);
-            if self.body_of(p, d).is_some() {
-                roots.push((d, TyList::EMPTY));
-            }
-        }
-        for name in hd_wasm::FLOAT_FNS {
-            let d = names.item(hd_wasm::FLOAT_MODULE, name);
-            if self.body_of(p, d).is_some() {
-                roots.push((d, TyList::EMPTY));
-            }
-        }
-        let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
-        let has_init = |m: &str| self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some();
-        // The runtime's inits first, then the module's; a set drops the
-        // ones both reach.
-        let graph = self.init_graph();
-        let mut query = InitQuery::new(&graph);
-        let mut inits = Vec::new();
-        let mut seen: HashSet<DefId> = HashSet::default();
-        for m in [hd_wasm::runtime_module(self.checked()), module] {
-            let Some(order) = self.stage(
-                Stage::Collect,
-                self.root_init_order(&graph, &mut query, m, &init_of, &has_init),
-            ) else {
+            let result = hd_mono::collect_fixtures(
+                &self.pool,
+                env,
+                &TableSolver,
+                &inits,
+                &roots,
+                &self.planner,
+            );
+            let result = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
+                Err(NotImplemented::bug(
+                    Stage::Collect,
+                    "a module's check entry did not decode",
+                ))
+            } else if let Some(what) = lock(&p.bodies.own_error).clone() {
+                Err(NotImplemented::bug(Stage::Collect, what))
+            } else {
+                result
+            };
+            let Some(result) = self.stage(Stage::Collect, result) else {
                 return;
             };
-            inits.extend(
-                order
-                    .into_iter()
-                    .map(|(d, _)| d)
-                    .filter(|d| seen.insert(*d)),
-            );
-        }
-        let result = hd_mono::collect_fixtures(
-            &self.pool,
-            &env,
-            &TableSolver,
-            &inits,
-            &roots,
-            &self.planner,
-        );
-        let result = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
-            Err(NotImplemented::bug(
-                Stage::Collect,
-                "a module's check entry did not decode",
-            ))
-        } else if let Some(what) = lock(&p.bodies.own_error).clone() {
-            Err(NotImplemented::bug(Stage::Collect, what))
-        } else {
-            result
-        };
-        let Some(result) = self.stage(Stage::Collect, result) else {
-            return;
-        };
-        let collected = match result {
-            Ok(c) => c,
-            Err(deep) => {
-                self.too_deep(&deep);
-                return;
-            }
-        };
-        let mut notes = Vec::new();
-        for d in definitions {
-            let present = collected.table.item.contains(&d);
-            if generic(d) && !present {
-                notes.push(format!(
-                    "skipped {}: no concrete instantiation named by the case",
-                    names.path(d)
-                ));
-            }
-            // A generic local function nothing instantiates gets no copy
-            // (`hd_mono::instantiate_locals`): its checker's body names it.
-            // Cost: one pass over each definition's checker's body.
-            if let Some((body, _)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) {
-                let mut instantiated = vec![false; body.sub_root.len()];
-                for i in 0..body.len() {
-                    if body.is_instantiation(i)
-                        && let Some(x) = instantiated.get_mut(body.data[i][0] as usize)
-                    {
-                        *x = true;
-                    }
+            let collected = match result {
+                Ok(c) => c,
+                Err(deep) => {
+                    self.too_deep(&deep);
+                    return;
                 }
-                for (sub, made) in instantiated.into_iter().enumerate() {
-                    if body.sub_is_generic(sub) && !made {
-                        notes.push(format!(
-                            "skipped {}#{sub}: no concrete instantiation named by the case",
-                            names.path(d)
-                        ));
+            };
+            let mut notes = Vec::new();
+            for d in definitions {
+                let present = collected.table.item.contains(&d);
+                if generic(d) && !present {
+                    notes.push(format!(
+                        "skipped {}: no concrete instantiation named by the case",
+                        names.path(d)
+                    ));
+                }
+                // A generic local function nothing instantiates gets no copy
+                // (`hd_mono::instantiate_locals`): its checker's body names it.
+                // Cost: one pass over each definition's checker's body.
+                if let Some((body, _)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) {
+                    let mut instantiated = vec![false; body.sub_root.len()];
+                    for i in 0..body.len() {
+                        if body.is_instantiation(i)
+                            && let Some(x) = instantiated.get_mut(body.data[i][0] as usize)
+                        {
+                            *x = true;
+                        }
+                    }
+                    for (sub, made) in instantiated.into_iter().enumerate() {
+                        if body.sub_is_generic(sub) && !made {
+                            notes.push(format!(
+                                "skipped {}#{sub}: no concrete instantiation named by the case",
+                                names.path(d)
+                            ));
+                        }
                     }
                 }
             }
-        }
-        notes.sort_stable();
-        let _ = self.fixture_notes.set(notes);
-        let keep = collected
-            .table
-            .item
-            .iter()
-            .enumerate()
-            .filter(|(_, d)| names.module_node(**d) == module_node)
-            .map(|(i, _)| collected.table.key[i])
-            .collect();
-        let order = collected.table.content_order();
-        let _ = self.collect.set(CollectOut {
-            collected,
-            order,
-            prog_key: pkey,
-            roots: Roots::Fixture(keep),
-            host_refs: Vec::new(),
+            notes.sort_stable();
+            let _ = self.fixture_notes.set(notes);
+            let keep = collected
+                .table
+                .item
+                .iter()
+                .enumerate()
+                .filter(|(_, d)| names.module_node(**d) == module_node)
+                .map(|(i, _)| collected.table.key[i])
+                .collect();
+            let order = collected.table.content_order();
+            let _ = self.collect.set(CollectOut {
+                collected,
+                order,
+                prog_key: pkey,
+                roots: Roots::Fixture(keep),
+                host_refs: Vec::new(),
+            });
+            sp.add(TaskKind::Ext(ExtTask::Link), &[]);
         });
-        sp.add(TaskKind::Ext(ExtTask::Link), &[]);
     }
 
     #[cfg(not(feature = "fixtures"))]
@@ -11156,16 +11114,7 @@ impl Run<'_> {
         let Some(p) = self.program() else {
             return Vec::new();
         };
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        env.init_keys(def)
+        self.with_env(p, |env| env.init_keys(def))
     }
 
     fn capabilities_for_keys(
@@ -11294,319 +11243,314 @@ impl Run<'_> {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        let names = self.names();
-        let path = |d: DefId| names.path(d);
-        let collected = |id: hd_base::InstId| {
-            let item = c.collected.table.item[id.idx()];
-            let args = c.collected.table.args[id.idx()];
-            c.collected
-                .instance_bodies
-                .get(&id)
-                .map(AsRef::as_ref)
-                .or_else(|| c.collected.supplied_body(&self.pool, item, args))
-                .or_else(|| self.body_of(p, item).map(|b| &b.0))
-        };
-        // Each instance body with its final storage rows, once emission's
-        // input exists (`hd_wasm::settled`).
-        let settled = OnceLock::<hd_wasm::Settled>::new();
-        let body = |id| {
-            settled
-                .get()
-                .and_then(|s| s.bodies.get(&id).map(AsRef::as_ref))
-                .or_else(|| collected(id))
-        };
-        let boundary = |id| {
-            settled
-                .get()
-                .and_then(|s| s.boundaries.get(&id))
-                .map(Arc::clone)
-        };
-        let inits = &c.collected.inits;
-        let entry = match &c.roots {
-            #[cfg(feature = "fixtures")]
-            Roots::Fixture(roots) => hd_wasm::Entry::Fixture {
-                roots: roots.clone(),
-            },
-            Roots::Main {
-                def,
-                key,
-                entry_inits,
-                report,
-            } => hd_wasm::Entry::Main {
-                main: *def,
-                key: *key,
-                inits: inits
-                    .iter()
-                    .map(|k| (*k, !entry_inits.contains(k)))
-                    .collect(),
-                report: *report,
-            },
-            // This whole-history build runs every
-            // init, so the first own body is among them.
-            Roots::Script {
-                def,
-                key,
-                own,
-                report,
-            } => {
-                // The inits before the script's root body, then those after
-                // it: the later runs of its module cycle and the cycles
-                // after it. ruled out: the root is the entry's first own
-                // init body, and `hd_mono::collect` pushes every init's
-                // instance into `inits` in order, so `key` is there. A `?`
-                // report ends the script, so no init may follow it; none
-                // does, as no module may use an entry module
-                // (`module.path.main-no-use`, `cli.exe.entry-no-use`,
-                // `cli.task.program-use`), so its cycle is itself alone and
-                // `init_graph`'s order puts it after every cycle it uses
-                // (`module.init.cycle.once`).
-                let before = inits.iter().take_while(|k| *k != key);
-                let after: Vec<_> = inits.iter().skip_while(|k| *k != key).skip(1).collect();
-                debug_assert!(inits.contains(key), "a script's init that is not run");
-                debug_assert!(
-                    report.is_none() || after.is_empty(),
-                    "a script using `?` whose module cycle runs inits after it"
-                );
-                hd_wasm::Entry::Script {
-                    init: *def,
-                    key: *key,
-                    before: before.map(|k| (*k, true)).collect(),
-                    after: after.into_iter().map(|k| (*k, !own.contains(k))).collect(),
-                    report: *report,
-                }
-            }
-            Roots::Inputs(inputs) => {
-                // The inits no input reaches through its uses, as the
-                // linear runtime's, which the compiler roots: they run
-                // first, before the first input's.
-                let mut first: Vec<(Hash128, bool)> = inits
-                    .iter()
-                    .filter(|k| !inputs.iter().any(|i| i.inits.contains(k)))
-                    .map(|k| (*k, true))
-                    .collect();
-                let mut out = Vec::new();
-                for i in inputs {
-                    // As `Roots::Script`'s split, over the input's own inits.
-                    let Some(at) = i.inits.iter().position(|k| *k == i.key) else {
-                        self.stage::<()>(
-                            Stage::Link,
-                            Err(NotImplemented::bug(
-                                Stage::Link,
-                                "a joined REPL input whose init is not run",
-                            )),
-                        );
-                        return;
-                    };
-                    out.push(hd_wasm::ReplInput {
-                        number: i.number,
-                        init: i.def,
-                        key: i.key,
-                        before: std::mem::take(&mut first)
-                            .into_iter()
-                            .chain(i.inits[..at].iter().map(|k| (*k, true)))
-                            .collect(),
-                        after: i.inits[at + 1..]
-                            .iter()
-                            .map(|k| (*k, !i.own.contains(k)))
-                            .collect(),
-                    });
-                }
-                hd_wasm::Entry::Inputs(out)
-            }
-            Roots::Tests {
-                cases,
-                units,
-                deps,
-                groups,
-            } => hd_wasm::Entry::Tests {
-                cases: cases.clone(),
-                units: units.clone(),
-                graph: test_graph_words(groups, deps),
-                unit_offsets: u32_of(groups.len() + groups.iter().map(Vec::len).sum::<usize>() + 1),
-                runtime_inits: {
-                    // One pass over the instance table for the inits the
-                    // groups name, not a scan of it per init.
-                    let table = &c.collected.table;
-                    let runtime = names.module("std.rt");
-                    let wanted: HashSet<Hash128> = units.iter().flatten().copied().collect();
-                    table
-                        .key
-                        .iter()
-                        .zip(&table.item)
-                        .filter(|(k, item)| {
-                            wanted.contains(*k) && {
-                                let mut module = names.module_node(**item);
-                                let mut inside = false;
-                                while module.get().is_some() && !inside {
-                                    inside = module == runtime;
-                                    module = names.paths.parent(module);
-                                }
-                                inside
-                            }
-                        })
-                        .map(|(k, _)| *k)
-                        .collect()
+        self.with_env(p, |env| {
+            let names = self.names();
+            let path = |d: DefId| names.path(d);
+            let collected = |id: hd_base::InstId| {
+                let item = c.collected.table.item[id.idx()];
+                let args = c.collected.table.args[id.idx()];
+                c.collected
+                    .instance_bodies
+                    .get(&id)
+                    .map(AsRef::as_ref)
+                    .or_else(|| c.collected.supplied_body(&self.pool, item, args))
+                    .or_else(|| self.body_of(p, item).map(|b| &b.0))
+            };
+            // Each instance body with its final storage rows, once emission's
+            // input exists (`hd_wasm::settled`).
+            let settled = OnceLock::<hd_wasm::Settled>::new();
+            let body = |id| {
+                settled
+                    .get()
+                    .and_then(|s| s.bodies.get(&id).map(AsRef::as_ref))
+                    .or_else(|| collected(id))
+            };
+            let boundary = |id| {
+                settled
+                    .get()
+                    .and_then(|s| s.boundaries.get(&id))
+                    .map(Arc::clone)
+            };
+            let inits = &c.collected.inits;
+            let entry = match &c.roots {
+                #[cfg(feature = "fixtures")]
+                Roots::Fixture(roots) => hd_wasm::Entry::Fixture {
+                    roots: roots.clone(),
                 },
-            },
-            Roots::Scenario {
-                def,
-                key,
-                entry_inits,
-                report,
-                cleanup,
-            } => hd_wasm::Entry::Scenario {
-                main: *def,
-                key: *key,
-                inits: inits
-                    .iter()
-                    .map(|k| (*k, !entry_inits.contains(k)))
-                    .collect(),
-                report: *report,
-                cleanup: *cleanup,
-                hold: self.scenario_hold(p),
-            },
-        };
-        let runtime_keys: Vec<Option<Hash128>> = hd_wasm::runtime_items(self.checked())
-            .into_iter()
-            .map(|(module, n)| {
-                let def = names.item(module, n);
+                Roots::Main {
+                    def,
+                    key,
+                    entry_inits,
+                    report,
+                } => hd_wasm::Entry::Main {
+                    main: *def,
+                    key: *key,
+                    inits: inits
+                        .iter()
+                        .map(|k| (*k, !entry_inits.contains(k)))
+                        .collect(),
+                    report: *report,
+                },
+                // This whole-history build runs every
+                // init, so the first own body is among them.
+                Roots::Script {
+                    def,
+                    key,
+                    own,
+                    report,
+                } => {
+                    // The inits before the script's root body, then those after
+                    // it: the later runs of its module cycle and the cycles
+                    // after it. ruled out: the root is the entry's first own
+                    // init body, and `hd_mono::collect` pushes every init's
+                    // instance into `inits` in order, so `key` is there. A `?`
+                    // report ends the script, so no init may follow it; none
+                    // does, as no module may use an entry module
+                    // (`module.path.main-no-use`, `cli.exe.entry-no-use`,
+                    // `cli.task.program-use`), so its cycle is itself alone and
+                    // `init_graph`'s order puts it after every cycle it uses
+                    // (`module.init.cycle.once`).
+                    let before = inits.iter().take_while(|k| *k != key);
+                    let after: Vec<_> = inits.iter().skip_while(|k| *k != key).skip(1).collect();
+                    debug_assert!(inits.contains(key), "a script's init that is not run");
+                    debug_assert!(
+                        report.is_none() || after.is_empty(),
+                        "a script using `?` whose module cycle runs inits after it"
+                    );
+                    hd_wasm::Entry::Script {
+                        init: *def,
+                        key: *key,
+                        before: before.map(|k| (*k, true)).collect(),
+                        after: after.into_iter().map(|k| (*k, !own.contains(k))).collect(),
+                        report: *report,
+                    }
+                }
+                Roots::Inputs(inputs) => {
+                    // The inits no input reaches through its uses, as the
+                    // linear runtime's, which the compiler roots: they run
+                    // first, before the first input's.
+                    let mut first: Vec<(Hash128, bool)> = inits
+                        .iter()
+                        .filter(|k| !inputs.iter().any(|i| i.inits.contains(k)))
+                        .map(|k| (*k, true))
+                        .collect();
+                    let mut out = Vec::new();
+                    for i in inputs {
+                        // As `Roots::Script`'s split, over the input's own inits.
+                        let Some(at) = i.inits.iter().position(|k| *k == i.key) else {
+                            self.stage::<()>(
+                                Stage::Link,
+                                Err(NotImplemented::bug(
+                                    Stage::Link,
+                                    "a joined REPL input whose init is not run",
+                                )),
+                            );
+                            return;
+                        };
+                        out.push(hd_wasm::ReplInput {
+                            number: i.number,
+                            init: i.def,
+                            key: i.key,
+                            before: std::mem::take(&mut first)
+                                .into_iter()
+                                .chain(i.inits[..at].iter().map(|k| (*k, true)))
+                                .collect(),
+                            after: i.inits[at + 1..]
+                                .iter()
+                                .map(|k| (*k, !i.own.contains(k)))
+                                .collect(),
+                        });
+                    }
+                    hd_wasm::Entry::Inputs(out)
+                }
+                Roots::Tests {
+                    cases,
+                    units,
+                    deps,
+                    groups,
+                } => hd_wasm::Entry::Tests {
+                    cases: cases.clone(),
+                    units: units.clone(),
+                    graph: test_graph_words(groups, deps),
+                    unit_offsets: u32_of(
+                        groups.len() + groups.iter().map(Vec::len).sum::<usize>() + 1,
+                    ),
+                    runtime_inits: {
+                        // One pass over the instance table for the inits the
+                        // groups name, not a scan of it per init.
+                        let table = &c.collected.table;
+                        let runtime = names.module("std.rt");
+                        let wanted: HashSet<Hash128> = units.iter().flatten().copied().collect();
+                        table
+                            .key
+                            .iter()
+                            .zip(&table.item)
+                            .filter(|(k, item)| {
+                                wanted.contains(*k) && {
+                                    let mut module = names.module_node(**item);
+                                    let mut inside = false;
+                                    while module.get().is_some() && !inside {
+                                        inside = module == runtime;
+                                        module = names.paths.parent(module);
+                                    }
+                                    inside
+                                }
+                            })
+                            .map(|(k, _)| *k)
+                            .collect()
+                    },
+                },
+                Roots::Scenario {
+                    def,
+                    key,
+                    entry_inits,
+                    report,
+                    cleanup,
+                } => hd_wasm::Entry::Scenario {
+                    main: *def,
+                    key: *key,
+                    inits: inits
+                        .iter()
+                        .map(|k| (*k, !entry_inits.contains(k)))
+                        .collect(),
+                    report: *report,
+                    cleanup: *cleanup,
+                    hold: self.scenario_hold(p),
+                },
+            };
+            let runtime_keys: Vec<Option<Hash128>> = hd_wasm::runtime_items(self.checked())
+                .into_iter()
+                .map(|(module, n)| {
+                    let def = names.item(module, n);
+                    let table = &c.collected.table;
+                    table
+                        .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
+                        .map(|id| table.key[id.idx()])
+                })
+                .collect();
+            let Some(runtime) = hd_wasm::Runtime::from_keys(&runtime_keys) else {
+                self.stage::<()>(
+                    Stage::Link,
+                    Err(NotImplemented::bug(
+                        Stage::Link,
+                        "a rooted std runtime item was not collected",
+                    )),
+                );
+                return;
+            };
+            // A checked build never falls back to unchecked counts.
+            if self.checked() && runtime.checked.is_none() {
+                self.stage::<()>(
+                    Stage::Link,
+                    Err(NotImplemented::new(
+                        Stage::Link,
+                        "checked mode without std's checked runtime",
+                    )),
+                );
+                return;
+            }
+            let float_keys = hd_wasm::FLOAT_FNS.map(|name| {
+                let def = names.item(hd_wasm::FLOAT_MODULE, name);
                 let table = &c.collected.table;
                 table
                     .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
                     .map(|id| table.key[id.idx()])
-            })
-            .collect();
-        let Some(runtime) = hd_wasm::Runtime::from_keys(&runtime_keys) else {
-            self.stage::<()>(
-                Stage::Link,
-                Err(NotImplemented::bug(
+            });
+            let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys) else {
+                self.stage::<()>(
                     Stage::Link,
-                    "a rooted std runtime item was not collected",
-                )),
-            );
-            return;
-        };
-        // A checked build never falls back to unchecked counts.
-        if self.checked() && runtime.checked.is_none() {
-            self.stage::<()>(
-                Stage::Link,
-                Err(NotImplemented::new(
-                    Stage::Link,
-                    "checked mode without std's checked runtime",
-                )),
-            );
-            return;
-        }
-        let float_keys = hd_wasm::FLOAT_FNS.map(|name| {
-            let def = names.item(hd_wasm::FLOAT_MODULE, name);
-            let table = &c.collected.table;
-            table
-                .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
-                .map(|id| table.key[id.idx()])
-        });
-        let Some(float_ops) = hd_wasm::FloatOps::from_keys(float_keys) else {
-            self.stage::<()>(
-                Stage::Link,
-                Err(NotImplemented::bug(
-                    Stage::Link,
-                    "std.num floating operator implementations were not collected",
-                )),
-            );
-            return;
-        };
-        let package_trait = |d| self.package_trait_identity(d);
-        let package_host = |d| self.package_host_identity(d);
-        let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
-        let package_selectors = |d| self.package_host_selectors(d);
-        let instances = hd_opt::whole::Instances {
-            table: &c.collected.table,
-            order: &c.order,
-            body: &body,
-        };
-        env.own_program(&instances);
-        let mutation_targets =
-            || hd_opt::whole::mutation_targets(&self.pool, &env, &env, &instances);
-        let coinductive_flags =
-            hd_opt::whole::coinductive_flags(&env, &instances, &c.collected.calls);
-        let input = hd_wasm::Input {
-            pool: &self.pool,
-            env: &env,
-            path: &path,
-            package_host: &package_host,
-            package_trait: &package_trait,
-            package_selectors: &package_selectors,
-            collected: &c.collected,
-            order: &c.order,
-            body: &body,
-            boundary: &boundary,
-            float_ops,
-            entry,
-            release: self.build_profile == BuildProfile::Release,
-            optimized: self.level == OptLevel::Optimized,
-            promote_args: self.promote_args,
-            runtime,
-            inline_counts: self.inline_counts,
-            host_refs: &c.host_refs,
-            own_cx: &env,
-            mutation_targets: &mutation_targets,
-            coinductive_flags: &coinductive_flags,
-        };
-        // The `own` view shows an item's plain instance's final rows.
-        let t = &c.collected.table;
-        for (id, b) in &settled.get_or_init(|| hd_wasm::settled(&input)).bodies {
-            if !self.host.render_tir.is_empty()
-                && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
-            {
-                self.render_own(p, t.item[id.idx()], b, true);
-            }
-        }
-        // A session's build always links: a REPL input over earlier
-        // modules imports them.
-        let base = hd_wasm::Session::default();
-        let linked = self.session.map(|s| s.linked.as_ref().unwrap_or(&base));
-        let built = if let Some(previous) = linked {
-            let built = if previous.is_empty() {
-                hd_wasm::build_session_base(&input, self.map_instructions)
-            } else {
-                hd_wasm::build_session_extension(&input, previous, self.map_instructions)
+                    Err(NotImplemented::bug(
+                        Stage::Link,
+                        "std.num floating operator implementations were not collected",
+                    )),
+                );
+                return;
             };
-            built.map(|(mapped, linked)| {
-                let _ = self.session_added.set(Session {
-                    linked: Some(linked),
-                    ..Session::default()
-                });
-                if self.map_instructions {
-                    let _ = self.instruction_origins.set(mapped.functions);
+            let package_trait = |d| self.package_trait_identity(d);
+            let package_host = |d| self.package_host_identity(d);
+            let package_trait = |d| package_trait(d).map(|(_, identity)| identity);
+            let package_selectors = |d| self.package_host_selectors(d);
+            let instances = hd_opt::whole::Instances {
+                table: &c.collected.table,
+                order: &c.order,
+                body: &body,
+            };
+            env.own_program(&instances);
+            let mutation_targets =
+                || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
+            let coinductive_flags =
+                hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
+            let input = hd_wasm::Input {
+                pool: &self.pool,
+                env,
+                path: &path,
+                package_host: &package_host,
+                package_trait: &package_trait,
+                package_selectors: &package_selectors,
+                collected: &c.collected,
+                order: &c.order,
+                body: &body,
+                boundary: &boundary,
+                float_ops,
+                entry,
+                release: self.build_profile == BuildProfile::Release,
+                optimized: self.level == OptLevel::Optimized,
+                promote_args: self.promote_args,
+                runtime,
+                inline_counts: self.inline_counts,
+                host_refs: &c.host_refs,
+                own_cx: env,
+                mutation_targets: &mutation_targets,
+                coinductive_flags: &coinductive_flags,
+            };
+            // The `own` view shows an item's plain instance's final rows.
+            let t = &c.collected.table;
+            for (id, b) in &settled.get_or_init(|| hd_wasm::settled(&input)).bodies {
+                if !self.host.render_tir.is_empty()
+                    && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
+                {
+                    self.render_own(p, t.item[id.idx()], b, true);
                 }
-                mapped.wasm
-            })
-        } else if self.map_instructions {
-            hd_wasm::build_with_origins(&input).map(|mapped| {
-                let _ = self.instruction_origins.set(mapped.functions);
-                mapped.wasm
-            })
-        } else {
-            hd_wasm::build(&input)
-        };
-        let Some(wasm) = self.stage(Stage::Link, built) else {
-            return;
-        };
-        if !self.map_instructions
-            && self.session.is_none()
-            && !matches!(self.goal, Goal::Fixture { .. })
-        {
-            self.put(EntryKind::Link, c.prog_key, &[&wasm]);
-        }
-        let _ = self.wasm.set(wasm);
+            }
+            // A session's build always links: a REPL input over earlier
+            // modules imports them.
+            let base = hd_wasm::Session::default();
+            let linked = self.session.map(|s| s.linked.as_ref().unwrap_or(&base));
+            let built = if let Some(previous) = linked {
+                let built = if previous.is_empty() {
+                    hd_wasm::build_session_base(&input, self.map_instructions)
+                } else {
+                    hd_wasm::build_session_extension(&input, previous, self.map_instructions)
+                };
+                built.map(|(mapped, linked)| {
+                    let _ = self.session_added.set(Session {
+                        linked: Some(linked),
+                        ..Session::default()
+                    });
+                    if self.map_instructions {
+                        let _ = self.instruction_origins.set(mapped.functions);
+                    }
+                    mapped.wasm
+                })
+            } else if self.map_instructions {
+                hd_wasm::build_with_origins(&input).map(|mapped| {
+                    let _ = self.instruction_origins.set(mapped.functions);
+                    mapped.wasm
+                })
+            } else {
+                hd_wasm::build(&input)
+            };
+            let Some(wasm) = self.stage(Stage::Link, built) else {
+                return;
+            };
+            if !self.map_instructions
+                && self.session.is_none()
+                && !matches!(self.goal, Goal::Fixture { .. })
+            {
+                self.put(EntryKind::Link, c.prog_key, &[&wasm]);
+            }
+            let _ = self.wasm.set(wasm);
+        });
     }
 }
 
