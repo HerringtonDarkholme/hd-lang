@@ -60,16 +60,16 @@
 //!   place it replaced ([`change_places`]);
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
-//! The walks follow the body's layout: dense tables indexed by instruction,
-//! bit sets over the body's moves and drops, values and locals, no hash
-//! maps.
+//! A census groups facts and sparse part keys by sub-body. The walks use
+//! dense instruction tables and bitsets sized to that sub-body's moves,
+//! borrows, values, locals and parts, including imported borrow dependencies.
 
 use super::{
     Body, Callee, ELEM, INLINED, NONE, Op, Place, PlaceRoot, Proj, ReadMode, Ref, Root, Tag,
     Topology, VerifyError, is_suspension, local_flags, place, ref_word, u32_of, verify_structure,
 };
 use crate::own::flow::{
-    Backward, BitArena, Flow, Forward, Suites, backward, forward, get_bit, set_bit,
+    Backward, BitArena, Flow, Forward, Suites, backward_blocks, charge, forward, get_bit, set_bit,
 };
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes_counts as consumes, operands, tracked};
@@ -1016,6 +1016,9 @@ struct Empties<'a> {
     id: Vec<u32>,
     /// The instruction of each move or drop.
     at: Vec<u32>,
+    domains: Vec<Vec<usize>>,
+    number: Vec<u32>,
+    domain: usize,
     /// (value, move or drop number) for each move or drop of a place
     /// rooted at an instruction's value, sorted: running that instruction
     /// again makes a new value, which refills the place.
@@ -1049,6 +1052,15 @@ impl<'a> Empties<'a> {
                 *slot = u32_of(at.len());
                 at.push(u32_of(i));
             }
+        }
+        let mut domains = vec![Vec::new(); b.sub_root.len()];
+        let mut number = vec![NONE; at.len()];
+        for (global, &instruction) in at.iter().enumerate() {
+            let Some(row) = domains.get_mut(cx.topo.sub[instruction as usize] as usize) else {
+                continue;
+            };
+            number[global] = u32_of(row.len());
+            row.push(global);
         }
         let mut by_value: Vec<(u32, u32)> = at
             .iter()
@@ -1090,6 +1102,9 @@ impl<'a> Empties<'a> {
             cx,
             id,
             at,
+            domains,
+            number,
+            domain: 0,
             by_value,
             part_uses,
             reported: vec![false; b.len()],
@@ -1103,8 +1118,9 @@ impl<'a> Empties<'a> {
         }
         let (b, topo) = (self.cx.b, self.cx.topo);
         let mut s = Flow::default();
-        s.arena.words = self.at.len().div_ceil(64);
-        for &root in &b.sub_root {
+        for (sub, &root) in b.sub_root.iter().enumerate() {
+            self.domain = sub;
+            s.arena.words = self.domains[sub].len().div_ceil(64);
             let st = s.arena.alloc(None);
             forward(b, topo, &mut s, &mut self, root, st);
             s.arena.free(st);
@@ -1116,7 +1132,7 @@ impl<'a> Empties<'a> {
     fn empty(&mut self, x: u32, s: &mut Set) {
         let k = self.id[x as usize];
         if k != NONE {
-            set_bit(s, k as usize, true);
+            set_bit(s, self.number[k as usize] as usize, true);
         }
     }
 
@@ -1125,12 +1141,20 @@ impl<'a> Empties<'a> {
         let Some(q) = &self.cx.places[x as usize] else {
             return;
         };
-        for (k, &e) in self.at.iter().enumerate() {
-            if get_bit(s, k)
-                && let Some(p) = &self.cx.places[e as usize]
-                && covers(q, p)
-            {
-                set_bit(s, k, false);
+        for word in 0..s.len() {
+            charge(1);
+            let mut bits = s[word];
+            while bits != 0 {
+                charge(1);
+                let k = word * 64 + bits.trailing_zeros() as usize;
+                bits &= bits - 1;
+                let global = self.domains[self.domain][k];
+                let e = self.at[global];
+                if let Some(p) = &self.cx.places[e as usize]
+                    && covers(q, p)
+                {
+                    set_bit(s, k, false);
+                }
             }
         }
     }
@@ -1164,10 +1188,12 @@ impl<'a> Empties<'a> {
         if self.reported[x as usize] {
             return;
         }
-        for (k, &e) in self.at.iter().enumerate() {
-            if get_bit(s, k)
-                && let Some(p) = &self.cx.places[e as usize]
-                && (self.empties(e, p, q) || self.part_uses.binary_search(&(x, u32_of(k))).is_ok())
+        for k in set_indices(s) {
+            let global = self.domains[self.domain][k];
+            let e = self.at[global];
+            if let Some(p) = &self.cx.places[e as usize]
+                && (self.empties(e, p, q)
+                    || self.part_uses.binary_search(&(x, u32_of(global))).is_ok())
             {
                 self.reported[x as usize] = true;
                 let what = format!(
@@ -1203,7 +1229,9 @@ impl Forward for Empties<'_> {
     fn enter(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
         let from = self.by_value.partition_point(|&(v, _)| v < x);
         for &(_, k) in self.by_value[from..].iter().take_while(|&&(v, _)| v == x) {
-            s.set(st, k, false);
+            if self.cx.topo.sub[self.at[k as usize] as usize] as usize == self.domain {
+                s.set(st, self.number[k as usize], false);
+            }
         }
     }
 }
@@ -1464,6 +1492,8 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         .collect();
     let mut capture_drops = crate::own::capture_env::ReferenceDrops::default();
     capture_drops.build(b, own, cx.topo);
+    let domains = borrow_domains(cx, &bit, &holds, &root_uses, at.len());
+    let number = vec![NONE; at.len()];
     let mut walk = Live {
         cx,
         words,
@@ -1477,13 +1507,134 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         at,
         holds,
         inside,
+        number,
+        domains,
+        domain: 0,
+        pending: Vec::new(),
+        touched: Vec::new(),
+        seen: vec![false; n],
         reported: vec![false; n],
         errs: Vec::new(),
     };
     let mut back = Flow::default();
-    back.arena.words = walk.at.len().div_ceil(64);
-    backward(b, cx.topo, &mut back, &mut walk);
+    for (sub, &root) in b.sub_root.iter().enumerate() {
+        walk.domain = sub;
+        back.arena.words = walk.domains[sub].len().div_ceil(64);
+        for (local, &global) in walk.domains[sub].iter().enumerate() {
+            walk.number[global] = u32_of(local);
+        }
+        backward_blocks(b, cx.topo, &mut back, &mut walk, &[root]);
+        for &global in &walk.domains[sub] {
+            walk.number[global] = NONE;
+        }
+    }
     errs.append(&mut walk.errs);
+}
+
+/// One node of the borrow-dependency graph, shared by domain discovery
+/// and the backward transfer. A parameter join contributes its leaf reads.
+fn expand_borrow(
+    cx: &Cx<'_>,
+    bit: &[u32],
+    holds: &[u32],
+    x: u32,
+    pending: &mut Vec<u32>,
+    mut add: impl FnMut(u32),
+) {
+    let b = cx.b;
+    let i = x as usize;
+    if bit[i] != NONE {
+        add(bit[i]);
+    }
+    if let Some(&local) = cx.reference_roots.get(i)
+        && local != NONE
+        && holds[local as usize] != NONE
+    {
+        pending.push(holds[local as usize]);
+    } else if let Some(alias) = b.borrowed_alias(x) {
+        pending.push(alias);
+    } else if let Some(reads) = b.parameter_join_reads(x)
+        && reads.iter().all(|&r| b.is_borrow(r))
+    {
+        for r in reads {
+            if bit[r as usize] != NONE {
+                add(bit[r as usize]);
+            }
+        }
+    } else if bit[i] != NONE {
+        let root = cx.places[i].as_ref().map(|p| p.root);
+        if let Some(PlaceRoot::Value(value)) = root {
+            pending.push(value.0);
+        } else if let Some(PlaceRoot::Local(local)) = root
+            && holds[local.idx()] != NONE
+        {
+            pending.push(holds[local.idx()]);
+        }
+    }
+}
+
+/// A sub-body needs its own borrows and the dependencies its uses can
+/// reach through captured bindings. Preserve those foreign facts too;
+/// partitioning by definition alone would lose their conflict checks.
+fn borrow_domains(
+    cx: &Cx<'_>,
+    bit: &[u32],
+    holds: &[u32],
+    root_uses: &[(u32, u32)],
+    facts: usize,
+) -> Vec<Vec<usize>> {
+    let b = cx.b;
+    let mut seeds = vec![Vec::new(); b.sub_root.len()];
+    for i in 0..b.len() {
+        charge(1);
+        let Some(row) = seeds.get_mut(cx.topo.sub[i] as usize) else {
+            continue;
+        };
+        row.push(u32_of(i));
+        super::slots(b, i, |_, value, word| {
+            charge(1);
+            if matches!(word, super::Word::Value(_)) {
+                row.push(value);
+            }
+        });
+        if let Some(Place {
+            root: PlaceRoot::Local(local),
+            ..
+        }) = &cx.places[i]
+            && holds[local.idx()] != NONE
+        {
+            row.push(holds[local.idx()]);
+        }
+    }
+    for &(instruction, local) in root_uses {
+        if let Some(row) = seeds.get_mut(cx.topo.sub[instruction as usize] as usize) {
+            row.push(holds[local as usize]);
+        }
+    }
+    let mut seen = vec![NONE; b.len()];
+    let mut present = vec![NONE; facts];
+    let mut domains = vec![Vec::new(); b.sub_root.len()];
+    for (sub, mut pending) in seeds.into_iter().enumerate() {
+        let stamp = u32_of(sub);
+        let row = &mut domains[sub];
+        let mut add = |fact: u32| {
+            if fact != NONE && present[fact as usize] != stamp {
+                present[fact as usize] = stamp;
+                row.push(fact as usize);
+            }
+        };
+        while let Some(x) = pending.pop() {
+            let i = x as usize;
+            if i >= b.len() || seen[i] == stamp {
+                continue;
+            }
+            charge(1);
+            seen[i] = stamp;
+            expand_borrow(cx, bit, holds, x, &mut pending, &mut add);
+        }
+        row.sort_stable();
+    }
+    domains
 }
 
 /// The borrow walk's state ([`borrow_spans`]).
@@ -1513,6 +1664,12 @@ struct Live<'a> {
     holds: Vec<u32>,
     /// Per instruction, the bits of the borrows inside the blocks it runs.
     inside: Vec<Vec<u32>>,
+    domains: Vec<Vec<usize>>,
+    number: Vec<u32>,
+    domain: usize,
+    pending: Vec<u32>,
+    touched: Vec<u32>,
+    seen: Vec<bool>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
@@ -1541,13 +1698,23 @@ fn behind_param(cx: &Cx<'_>, p: &Place) -> Option<u32> {
 }
 
 impl Live<'_> {
+    fn mark(&self, arena: &mut BitArena, state: usize, global: u32, on: bool) {
+        let local = self.number[global as usize];
+        // A clear of a foreign block's borrow is immaterial when that
+        // fact is absent from this sub-body's dependency domain.
+        if local != NONE {
+            arena.set(state, local, on);
+        }
+    }
+
     /// An error at `x` for the first live borrow whose place `hit` names.
     fn check(&mut self, x: u32, s: &BitArena, live: usize, hit: impl Fn(u32, &Place) -> bool) {
         if self.reported[x as usize] {
             return;
         }
-        for (k, &r) in self.at.iter().enumerate() {
-            if !s.get(live, u32_of(k)) || r == x {
+        for k in set_indices(s.row(live)) {
+            let r = self.at[self.domains[self.domain][k]];
+            if r == x {
                 continue;
             }
             let Some(p) = &self.cx.places[r as usize] else {
@@ -1571,7 +1738,7 @@ impl Backward for Live<'_> {
         let i = x as usize;
         let w = b.data[i][1];
         if self.bit[i] != NONE {
-            s.set(live, self.bit[i], false);
+            self.mark(s, live, self.bit[i], false);
         }
         let writes = match b.tags[i] {
             // A provider reference's `Drop` releases nothing: the provider
@@ -1647,7 +1814,7 @@ impl Backward for Live<'_> {
     /// Before `x` runs its blocks, none of the borrows in them is made.
     fn ran(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
         for &k in &self.inside[x as usize] {
-            s.set(live, k, false);
+            self.mark(s, live, k, false);
         }
     }
 
@@ -1688,53 +1855,58 @@ impl Backward for Live<'_> {
     /// A use of value `v`: it, and every borrow it lives on. A coercion
     /// of a borrow is that borrow ([`Body::is_borrowed_coercion`]).
     fn uses(&mut self, b: &Body, v: u32, s: &mut BitArena, live: usize) {
-        let mut x = v;
-        for _ in 0..b.len() {
-            if let Some(&bit) = self.bit.get(x as usize)
-                && bit != NONE
-            {
-                s.set(live, bit, true);
-            }
-            if let Some(&local) = self.cx.reference_roots.get(x as usize)
-                && local != NONE
-                && self.holds[local as usize] != NONE
-            {
-                x = self.holds[local as usize];
+        let mut pending = std::mem::take(&mut self.pending);
+        let mut touched = std::mem::take(&mut self.touched);
+        pending.push(v);
+        while let Some(value) = pending.pop() {
+            let i = value as usize;
+            if i >= b.len() || self.seen[i] {
                 continue;
             }
-            if let Some(r) = b.borrowed_alias(x) {
-                x = r;
-                continue;
-            }
-            if let Some(reads) = b.parameter_join_reads(x)
-                && reads.iter().all(|&r| b.is_borrow(r))
-            {
-                // These reads are whole parameters, so they depend on no
-                // binding local or other value. Mark every alternative.
-                for r in reads {
-                    let k = self.bit[r as usize];
-                    if k != NONE {
-                        s.set(live, k, true);
-                    }
-                }
-                return;
-            }
-            let Some(&k) = self.bit.get(x as usize) else {
-                return;
-            };
-            if k == NONE {
-                return;
-            }
-            s.set(live, k, true);
-            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
-                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
-                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
-                    x = self.holds[l.idx()];
-                }
-                _ => return,
-            }
+            charge(1);
+            self.seen[i] = true;
+            touched.push(value);
+            expand_borrow(
+                self.cx,
+                &self.bit,
+                &self.holds,
+                value,
+                &mut pending,
+                |global| self.mark(s, live, global, true),
+            );
         }
+        for value in touched.drain(..) {
+            self.seen[value as usize] = false;
+        }
+        self.pending = pending;
+        self.touched = touched;
     }
+}
+
+/// Set bits only, charging the actual domain words and live facts visited.
+fn set_indices(words: &[u64]) -> impl Iterator<Item = usize> + '_ {
+    words.iter().enumerate().flat_map(|(word, &bits)| {
+        charge(1);
+        let mut bits = bits;
+        std::iter::from_fn(move || {
+            if bits == 0 {
+                return None;
+            }
+            charge(1);
+            let bit = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            Some(word * 64 + bit)
+        })
+    })
+}
+
+#[derive(Clone, Default)]
+struct BalanceDomain {
+    values: Vec<u32>,
+    locals: Vec<usize>,
+    /// Original value/local key and its sub-body-specific part key.
+    keys: Vec<(u32, u32)>,
+    parts: usize,
 }
 
 /// The one-consumer walk: a forward walk over the structured control flow
@@ -1755,7 +1927,12 @@ struct Balance<'a> {
     neutral_stores: &'a [bool],
     /// Each tracked value's number among the tracked values, or `NONE`.
     num: Vec<u32>,
-    /// Each local's number among the locals, all of them.
+    domains: Vec<BalanceDomain>,
+    domain: usize,
+    local_num: Vec<u32>,
+    part_keys: Vec<u32>,
+    part_num: Vec<u32>,
+    /// Widths of this sub-body's value, local and part domains.
     words: usize,
     lwords: usize,
     /// The parts of values and locals that `move` reads and `Drop`s take,
@@ -1777,13 +1954,34 @@ struct Balance<'a> {
 impl<'a> Balance<'a> {
     fn new(b: &'a Body, topo: &'a Topology, cx: &'a dyn OwnCx, neutral_stores: &'a [bool]) -> Self {
         let n = b.len();
-        let mut num = vec![NONE; n];
-        let mut k = 0u32;
-        for (i, x) in num.iter_mut().enumerate() {
-            if tracked(b, cx, i) {
-                *x = k;
-                k += 1;
+        let num = vec![NONE; n];
+        let mut tracked_values = vec![false; n];
+        let mut domains = vec![BalanceDomain::default(); b.sub_root.len()];
+        for (i, tracked_value) in tracked_values.iter_mut().enumerate() {
+            charge(1);
+            *tracked_value = tracked(b, cx, i);
+            if *tracked_value && let Some(domain) = domains.get_mut(topo.sub[i] as usize) {
+                domain.values.push(u32_of(i));
             }
+        }
+        // Include referenced foreign values too: a verifier must preserve
+        // their old checks even on a malformed cross-sub-body operand.
+        for i in 0..n {
+            charge(1);
+            if let Some(domain) = domains.get_mut(topo.sub[i] as usize) {
+                super::slots(b, i, |_, value, word| {
+                    charge(1);
+                    if matches!(word, super::Word::Value(_))
+                        && tracked_values.get(value as usize).copied().unwrap_or(false)
+                    {
+                        domain.values.push(value);
+                    }
+                });
+            }
+        }
+        for domain in &mut domains {
+            domain.values.sort_stable();
+            domain.values.dedup();
         }
         let mut held: Vec<bool> = b.local_ty.iter().map(|t| cx.counted(*t)).collect();
         for i in 0..n {
@@ -1802,28 +2000,52 @@ impl<'a> Balance<'a> {
                 *x = true;
             }
         }
-        let takes = crate::own::parts::takes(b, |_| true).filter_map(|(i, a)| {
-            let p = b.view(a);
-            let key = match p.root {
-                _ if p.whole() => return None,
-                Root::Value(v) => v,
-                Root::Local(l) => u32_of(n) + l,
-                _ => return None,
-            };
-            Some((key, u32_of(i), a))
-        });
+        let mut keys = hd_base::HashMap::default();
+        let takes: Vec<_> = crate::own::parts::takes(b, |_| true)
+            .filter_map(|(i, a)| {
+                let p = b.view(a);
+                let root = match p.root {
+                    _ if p.whole() => return None,
+                    Root::Value(v) => v,
+                    Root::Local(l) => u32_of(n) + l,
+                    _ => return None,
+                };
+                let sub = topo.sub[i] as usize;
+                let domain = domains.get_mut(sub)?;
+                let count = u32_of(keys.len());
+                let key = *keys.entry((sub, root)).or_insert_with(|| {
+                    domain.keys.push((root, count));
+                    count
+                });
+                Some((key, u32_of(i), a))
+            })
+            .collect();
         let mut slots = Slots::default();
-        let pwords = (slots.build(b, n, n + b.local_ty.len(), takes) as usize).div_ceil(64);
+        slots.build(b, n, keys.len(), takes.into_iter());
+        let mut part_num = vec![NONE; slots.word.len()];
+        for domain in &mut domains {
+            for &(_, key) in &domain.keys {
+                for slot in slots.of_key(key) {
+                    part_num[slot as usize] = u32_of(domain.parts);
+                    domain.parts += 1;
+                }
+            }
+        }
         Balance {
             b,
             topo,
             cx,
             neutral_stores,
             num,
-            words: (k as usize).div_ceil(64),
-            lwords: b.local_ty.len().div_ceil(64),
+            domains,
+            domain: 0,
+            local_num: vec![NONE; b.local_ty.len()],
+            part_keys: vec![NONE; n + b.local_ty.len()],
+            part_num,
+            words: 0,
+            lwords: 0,
             slots,
-            pwords,
+            pwords: 0,
             empty_variants: std::cell::OnceCell::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
@@ -1834,18 +2056,49 @@ impl<'a> Balance<'a> {
     }
 
     fn walk(self, errs: &mut Vec<VerifyError>) {
-        self.walk_counted(errs, || {});
+        self.walk_counted(errs, || charge(1));
     }
 
     fn walk_counted(mut self, errs: &mut Vec<VerifyError>, mut work: impl FnMut()) {
         let (b, topo) = (self.b, self.topo);
         let locals = SubBodyLocals::new(b, &mut work);
+        for (sub, domain) in self.domains.iter_mut().enumerate() {
+            domain.locals.extend_from_slice(&locals.entry[sub]);
+            domain.locals.extend_from_slice(&locals.exit[sub]);
+        }
+        for i in 0..b.len() {
+            work();
+            if b.tags[i].operands().0 == Op::Place
+                && let Some(local) = b.view(b.data[i][0]).local()
+                && let Some(domain) = self.domains.get_mut(topo.sub[i] as usize)
+            {
+                domain.locals.push(local as usize);
+            }
+        }
+        for domain in &mut self.domains {
+            domain.locals.sort_stable();
+            domain.locals.dedup();
+        }
         let mut s = Flow::default();
-        s.arena.words = 3 * self.words + self.lwords + self.pwords;
         for (sub, &root) in b.sub_root.iter().enumerate() {
             work();
             if root as usize >= b.len() {
                 continue;
+            }
+            self.domain = sub;
+            let domain = &self.domains[sub];
+            self.words = domain.values.len().div_ceil(64);
+            self.lwords = domain.locals.len().div_ceil(64);
+            self.pwords = domain.parts.div_ceil(64);
+            s.arena.words = 3 * self.words + self.lwords + self.pwords;
+            for (number, &value) in domain.values.iter().enumerate() {
+                self.num[value as usize] = u32_of(number);
+            }
+            for (number, &local) in domain.locals.iter().enumerate() {
+                self.local_num[local] = u32_of(number);
+            }
+            for &(root, key) in &domain.keys {
+                self.part_keys[root as usize] = key;
             }
             for &l in &locals.exit[sub] {
                 work();
@@ -1875,6 +2128,15 @@ impl<'a> Balance<'a> {
                     *x = false;
                 }
             }
+            for &value in &self.domains[sub].values {
+                self.num[value as usize] = NONE;
+            }
+            for &local in &self.domains[sub].locals {
+                self.local_num[local] = NONE;
+            }
+            for &(root, _) in &self.domains[sub].keys {
+                self.part_keys[root as usize] = NONE;
+            }
         }
         errs.append(&mut self.errs);
     }
@@ -1899,7 +2161,10 @@ impl<'a> Balance<'a> {
 
     fn set_full(&self, st: &mut Set, l: usize, on: bool) {
         if self.owned.get(l).copied().unwrap_or(false) {
-            set_bit(st, 3 * self.words * 64 + l, on);
+            let number = self.local_num[l];
+            if number != NONE {
+                set_bit(st, 3 * self.words * 64 + number as usize, on);
+            }
         }
     }
 
@@ -1998,7 +2263,7 @@ impl<'a> Balance<'a> {
                 // refers to, leaves it as it was.
                 if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {
                     self.set_full(st, l, true);
-                    for s in self.slots.of_key(u32_of(b.len() + l)) {
+                    for s in self.part_slots(u32_of(b.len() + l)) {
                         self.put_slot(st, s, false);
                     }
                 }
@@ -2033,7 +2298,7 @@ impl<'a> Balance<'a> {
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
             // A value computed again has none of its parts taken.
-            for s in self.slots.of_key(x) {
+            for s in self.part_slots(x) {
                 self.put_slot(st, s, false);
             }
         }
@@ -2052,8 +2317,8 @@ impl<'a> Balance<'a> {
             let view = b.view(w);
             &b.extra[view.from as usize..view.to as usize]
         };
-        self.slots.of_key(v).all(|s| {
-            !get_bit(st, base + s as usize)
+        self.part_slots(v).all(|s| {
+            !get_bit(st, base + self.part_num[s as usize] as usize)
                 || !steps(self.slots.word[s as usize])
                     .iter()
                     .zip(steps(word))
@@ -2061,8 +2326,18 @@ impl<'a> Balance<'a> {
         })
     }
 
+    fn part_slots(&self, root: u32) -> std::ops::Range<u32> {
+        let key = self.part_keys[root as usize];
+        if key == NONE {
+            0..0
+        } else {
+            self.slots.of_key(key)
+        }
+    }
+
     fn put_slot(&self, st: &mut Set, s: u32, on: bool) {
-        set_bit(st, (3 * self.words + self.lwords) * 64 + s as usize, on);
+        let bit = self.part_num[s as usize] as usize;
+        set_bit(st, (3 * self.words + self.lwords) * 64 + bit, on);
     }
 
     /// Instruction `x` takes a part of value `v`: an error after its
@@ -2108,8 +2383,12 @@ impl<'a> Balance<'a> {
     fn rest(&mut self, key: u32, ty: hd_types::Ty, st: &Set) -> bool {
         let (b, base) = (self.b, (3 * self.words + self.lwords) * 64);
         let mut bad = false;
+        let key = self.part_keys[key as usize];
+        if key == NONE {
+            return self.cx.counted(ty);
+        }
         let rest = self.slots.rest(b, self.cx, key, ty, |s, word| {
-            let on = get_bit(st, base + s as usize);
+            let on = get_bit(st, base + self.part_num[s as usize] as usize);
             bad |= on && b.decode_place(word).is_none();
             on
         });
@@ -2119,26 +2398,26 @@ impl<'a> Balance<'a> {
     /// Where a sub-body ends: no value owned, and every local that may
     /// hold a value in the exit set.
     fn at_exit(&mut self, x: u32, st: &Set) {
-        for k in 0..self.words * 64 {
-            let k = u32_of(k);
-            if k / 64 < u32_of(self.words) && self.bit(st, 0, k) {
-                let v = self.num.iter().position(|&n| n == k).map_or(NONE, u32_of);
-                self.err(
-                    x,
-                    format!("%{v} is still owned where its sub-body ends at %{x}"),
-                );
-                break;
-            }
+        if let Some(k) = set_indices(&st[..self.words]).next() {
+            let v = self.domains[self.domain].values[k];
+            self.err(
+                x,
+                format!("%{v} is still owned where its sub-body ends at %{x}"),
+            );
         }
-        for l in 0..self.b.local_ty.len() {
-            if get_bit(st, 3 * self.words * 64 + l) && !self.exit[l] {
-                self.err(
-                    x,
-                    format!("local ${l} may hold a value at the exit, which does not drop it"),
-                );
-                break;
-            }
+        let missing = self.live_locals(st).find(|&l| !self.exit[l]);
+        if let Some(l) = missing {
+            self.err(
+                x,
+                format!("local ${l} may hold a value at the exit, which does not drop it"),
+            );
         }
+    }
+
+    fn live_locals<'s>(&'s self, st: &'s Set) -> impl Iterator<Item = usize> + 's {
+        let start = 3 * self.words;
+        set_indices(&st[start..start + self.lwords])
+            .map(|bit| self.domains[self.domain].locals[bit])
     }
 
     /// Suspension point `x`, whose cancellation leaves through the exit:
@@ -2149,7 +2428,9 @@ impl<'a> Balance<'a> {
         let at = rows.partition_point(|r| r.0 < x);
         let mut row = rows[at..].iter().take_while(|r| r.0 == x).map(|r| r.1);
         let mut next = row.next();
-        for v in 0..self.num.len() {
+        for position in 0..self.domains[self.domain].values.len() {
+            charge(1);
+            let v = self.domains[self.domain].values[position] as usize;
             let k = self.num[v];
             while next.is_some_and(|w| (w as usize) < v) {
                 next = row.next();
@@ -2161,21 +2442,19 @@ impl<'a> Balance<'a> {
                 return;
             }
         }
-        for l in 0..self.b.local_ty.len() {
-            if get_bit(st, 3 * self.words * 64 + l) && !self.exit[l] {
-                self.err(
-                    x,
-                    format!("local ${l} may hold a value at suspension point %{x}, and the exit does not drop it"),
-                );
-                return;
-            }
+        let missing = self.live_locals(st).find(|&l| !self.exit[l]);
+        if let Some(l) = missing {
+            self.err(x, format!("local ${l} may hold a value at suspension point %{x}, and the exit does not drop it"));
         }
     }
 
     /// Where loop `lp` goes round again: no value it computes still owned.
     fn round(&mut self, x: u32, lp: u32, st: &Set) {
-        for (v, &k) in self.num.iter().enumerate() {
-            if k == NONE || !self.bit(st, 0, k) {
+        for position in 0..self.domains[self.domain].values.len() {
+            charge(1);
+            let v = self.domains[self.domain].values[position] as usize;
+            let k = self.num[v];
+            if !self.bit(st, 0, k) {
                 continue;
             }
             let mut l = self.topo.loop_of[v];
@@ -2573,6 +2852,170 @@ mod sub_body_metadata_tests {
         assert_eq!(index.entry, [vec![0, 2], vec![1, 0], vec![3, 2]]);
         assert_eq!(index.exit, [vec![0, 2], vec![0, 1], vec![2, 3]]);
         assert_eq!(root_entry_locals(&body, &mut || {}), index.entry[0]);
+        Ok(())
+    }
+
+    #[test]
+    fn borrow_domains_keep_a_captured_bindings_foreign_borrow() -> Result<(), String> {
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = build.open_block();
+        let owner = build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+        let binding = build.local(Ty::STRING, Symbol::NONE, 0, NodeIdx::NONE);
+        let outside = build.emit(
+            Tag::Read,
+            owner.raw() | place::BARE_LOCAL,
+            ReadMode::Use as u32,
+            Ty::STRING,
+            NodeIdx::NONE,
+        );
+        build.emit(
+            Tag::Store,
+            binding.raw() | place::BARE_LOCAL,
+            outside.0,
+            Ty::VOID,
+            NodeIdx::NONE,
+        );
+        let sub = build.open_sub(&[]);
+        let inner = build.open_block();
+        build.capture(sub, binding);
+        let inside = build.emit(
+            Tag::Read,
+            binding.raw() | place::BARE_LOCAL,
+            ReadMode::Use as u32,
+            Ty::STRING,
+            NodeIdx::NONE,
+        );
+        let inner = build.close_block(inner, None, Ty::VOID, NodeIdx::NONE);
+        build.close_sub(sub, inner, Ty::I32, NodeIdx::NONE);
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let mut body = build.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        body.data[outside.0 as usize][1] = ReadMode::Borrow as u32;
+        body.data[inside.0 as usize][1] = ReadMode::Borrow as u32;
+        let topo = Topology::new(&body);
+        let places: Vec<_> = (0..body.len())
+            .map(|i| {
+                (body.tags[i].operands().0 == Op::Place)
+                    .then(|| body.decode_place(body.data[i][0]))
+                    .flatten()
+            })
+            .collect();
+        let roots = vec![NONE; body.len()];
+        let cx = Cx {
+            b: &body,
+            topo: &topo,
+            places: &places,
+            addressed: &[],
+            reference_calls: &[],
+            reference_values: &[],
+            reference_roots: &roots,
+            frame_lends: &[],
+            neutral_stores: &[],
+        };
+        let mut bit = vec![NONE; body.len()];
+        bit[outside.0 as usize] = 0;
+        bit[inside.0 as usize] = 1;
+        let mut holds = vec![NONE; body.local_ty.len()];
+        holds[binding.idx()] = outside.0;
+        assert_eq!(
+            borrow_domains(&cx, &bit, &holds, &[], 2),
+            [vec![0], vec![0, 1]]
+        );
+        Ok(())
+    }
+
+    fn owned_closures(width: usize, depth: usize) -> Result<Body, String> {
+        use crate::ir::Providers;
+        use hd_types::TyList;
+        let mut build = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = build.open_block();
+        for _ in 0..width {
+            let mut captured =
+                build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+            let mut stack = Vec::new();
+            for _ in 0..depth {
+                let parameter =
+                    build.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+                let sub = build.open_sub(&[parameter]);
+                let block = build.open_block();
+                build.capture(sub, captured);
+                let read = build.emit(
+                    Tag::Read,
+                    parameter.raw() | place::BARE_LOCAL,
+                    ReadMode::Use as u32,
+                    Ty::STRING,
+                    NodeIdx::NONE,
+                );
+                build.call(
+                    &Callee::Item {
+                        def: DefId::from_raw(8),
+                        targs: TyList::EMPTY,
+                    },
+                    &[read],
+                    Providers::None,
+                    Ty::I32,
+                    NodeIdx::NONE,
+                );
+                stack.push((sub, block, parameter));
+                captured = parameter;
+            }
+            while let Some((sub, block, parameter)) = stack.pop() {
+                let read = build.emit(
+                    Tag::Read,
+                    parameter.raw() | place::BARE_LOCAL,
+                    ReadMode::Use as u32,
+                    Ty::STRING,
+                    NodeIdx::NONE,
+                );
+                build.call(
+                    &Callee::Item {
+                        def: DefId::from_raw(9),
+                        targs: TyList::EMPTY,
+                    },
+                    &[read],
+                    Providers::None,
+                    Ty::VOID,
+                    NodeIdx::NONE,
+                );
+                let block = build.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+                build.close_sub(sub, block, Ty::STRING, NodeIdx::NONE);
+            }
+        }
+        let root = build.close_block(root, None, Ty::VOID, NodeIdx::NONE);
+        let mut body = build
+            .finish(root, &[])
+            .map_err(|errors| format!("{errors:?}"))?;
+        crate::own::run(
+            &mut body,
+            &crate::own::tests::Cx,
+            &mut crate::own::OwnScratch::default(),
+        )?;
+        Ok(body)
+    }
+
+    #[test]
+    fn whole_verifier_work_is_linear_in_closures() -> Result<(), String> {
+        for depth in [1, 20] {
+            let mut costs = Vec::new();
+            for width in [100, 1_000] {
+                let body = owned_closures(width, depth)?;
+                assert!(body.tags.iter().enumerate().any(
+                    |(i, tag)| *tag == Tag::Read && body.data[i][1] == ReadMode::Borrow as u32
+                ));
+                assert!(
+                    body.tags
+                        .iter()
+                        .enumerate()
+                        .any(|(i, tag)| *tag == Tag::Read
+                            && body.data[i][1] == ReadMode::Move as u32)
+                );
+                let (errors, work) =
+                    crate::own::flow::work::measure(|| verify_owned(&body, &crate::own::tests::Cx));
+                assert!(errors.is_empty(), "first error: {:?}", errors.first());
+                costs.push(work);
+            }
+            assert!(costs[0] > 0);
+            assert!(costs[1] <= 11 * costs[0], "depth={depth}: {costs:?}");
+        }
         Ok(())
     }
 

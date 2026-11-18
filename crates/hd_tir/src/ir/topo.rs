@@ -2,8 +2,8 @@
 //! shared by reference by the ownership passes, the verifier and the
 //! backend (`docs/compiler/tir-v2.md`, "Data layout of the passes"):
 //! which block lists each instruction, which instruction runs each
-//! block, and what follows from the two. A block's members and an
-//! instruction's blocks come before it, so each column takes one pass.
+//! block, and what follows from the two. Lowering may append a block
+//! after its owner; inheritance follows parent links in memoized order.
 
 use super::{Body, NONE, Tag, Word, slots, u32_of};
 use crate::own::fill;
@@ -50,7 +50,7 @@ impl Topology {
         fill(&mut self.blk, n, NONE);
         fill(&mut self.pos, n, 0);
         fill(&mut self.owner, n, NONE);
-        fill(&mut self.sub, n, 0);
+        fill(&mut self.sub, n, NONE);
         fill(&mut self.is_root, n, false);
         fill(&mut self.label_of, n, NONE);
         fill(&mut self.loop_of, n, NONE);
@@ -91,25 +91,49 @@ impl Topology {
                 *slot = u32_of(l);
             }
         }
-        // A child block's parent is the instruction that runs it, not the
-        // block that also lists it, so a loop's body sees its `Loop`.
-        for i in (0..n).rev() {
-            let p = if self.owner[i] == NONE {
+        self.inherit(b, || {});
+    }
+
+    /// Resolve parents before children, independently of instruction
+    /// numbering. Like rustc's iterative graph postorder, each node is
+    /// pushed and popped once; the heap stack handles input-sized depth.
+    /// Provisional zero also terminates malformed parent cycles.
+    fn inherit(&mut self, b: &Body, mut visit: impl FnMut()) {
+        let parent = |i: usize| {
+            // A child block inherits from the instruction that runs it,
+            // so a loop body sees its Loop rather than the listing block.
+            if self.owner[i] == NONE {
                 self.blk[i]
             } else {
                 self.owner[i]
-            };
-            if self.is_root[i] || p == NONE {
-                continue;
             }
-            let p = p as usize;
-            self.sub[i] = self.sub[p];
-            self.loop_of[i] =
-                if b.tags[i] == Tag::Block && b.tags[p] == Tag::Loop && b.data[p][0] == u32_of(i) {
+        };
+        let mut pending = Vec::new();
+        for start in (0..b.len()).rev() {
+            visit();
+            let mut i = start;
+            while i < b.len() && self.sub[i] == NONE {
+                visit();
+                self.sub[i] = 0;
+                pending.push(i);
+                i = parent(i) as usize;
+            }
+            while let Some(i) = pending.pop() {
+                visit();
+                let p = parent(i) as usize;
+                if p >= b.len() {
+                    continue;
+                }
+                self.sub[i] = self.sub[p];
+                self.loop_of[i] = if b.tags[i] == Tag::Block
+                    && b.tags[p] == Tag::Loop
+                    && b.data[p][0] == u32_of(i)
+                {
                     u32_of(p)
                 } else {
                     self.loop_of[p]
                 };
+            }
         }
     }
 
@@ -168,5 +192,75 @@ pub(crate) fn inside(
             stack.extend_from_slice(b.record(b.data[i][0]));
         }
         for_blocks(b, i, |blk| stack.push(blk));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::BodyKind;
+    use hd_base::{DefId, NodeIdx};
+    use hd_types::Ty;
+
+    /// Owners precede their blocks, as deferred propagation lowering can
+    /// produce. Each sub-body has its own chain of nested loops.
+    fn appended_blocks(width: usize, depth: usize) -> Body {
+        let mut b = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        let n = 1 + width * (1 + 2 * depth);
+        b.tags.resize(n, Tag::Block);
+        b.data.resize(n, [0, NONE]);
+        b.ty.resize(n, Ty::VOID);
+        b.syn.resize(n, NodeIdx::NONE);
+        b.extra.push(0);
+        b.sub_root.push(0);
+        for group in 0..width {
+            let root = 1 + group * (1 + 2 * depth);
+            b.sub_root.push(u32_of(root));
+            for level in 0..depth {
+                let lp = root + 1 + 2 * level;
+                let block = lp + 1;
+                b.tags[lp] = Tag::Loop;
+                b.data[lp] = [u32_of(block), NONE];
+                let parent = if level == 0 { root } else { lp - 1 };
+                b.data[parent][0] = u32_of(b.extra.len());
+                b.extra.extend([1, u32_of(lp)]);
+                b.label_inst.push(u32_of(lp));
+            }
+        }
+        b
+    }
+
+    #[test]
+    fn inheritance_resolves_appended_blocks_once_at_width_and_depth() {
+        for depth in [1, 20] {
+            let mut costs = Vec::new();
+            for width in [100, 1_000] {
+                let b = appended_blocks(width, depth);
+                let mut t = Topology::new(&b);
+                for group in 0..width {
+                    let root = 1 + group * (1 + 2 * depth);
+                    for level in 0..depth {
+                        let lp = root + 1 + 2 * level;
+                        assert_eq!(t.sub[lp], u32_of(group + 1));
+                        assert_eq!(t.sub[lp + 1], u32_of(group + 1));
+                        assert_eq!(t.loop_of[lp + 1], u32_of(lp));
+                        assert_eq!(
+                            t.loop_of[lp],
+                            if level == 0 { NONE } else { u32_of(lp - 2) }
+                        );
+                    }
+                }
+                t.sub.fill(NONE);
+                t.loop_of.fill(NONE);
+                for (sub, &root) in b.sub_root.iter().enumerate() {
+                    t.sub[root as usize] = u32_of(sub);
+                }
+                let mut visits = 0;
+                t.inherit(&b, || visits += 1);
+                assert_eq!(visits, b.len() + 4 * width * depth);
+                costs.push(visits - 1);
+            }
+            assert_eq!(costs[1], 10 * costs[0], "depth={depth}");
+        }
     }
 }
