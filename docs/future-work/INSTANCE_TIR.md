@@ -303,8 +303,8 @@ types, and generics are the frontend's job.
 
 ## Appendix D. Today in hd
 
-The three substitution sites, measured with temporary counters (not
-committed) on `2ebf4a5b1`: `hd build --jobs 1`, a fresh `HD_CACHE` per
+The historical driver and emitter measurements below used temporary counters
+(not committed) on `2ebf4a5b1`: `hd build --jobs 1`, a fresh `HD_CACHE` per
 program for the 19 bench programs, one warm cache for the stage corpus.
 
 | Site | Code | Bench, dev | Bench, release |
@@ -314,6 +314,26 @@ program for the 19 bench programs, one warm cache for the stage corpus.
 | Emitter: memo misses (`inst_ty`) | `emit.rs:1895` | 95,204 | 99,621 |
 | Generic local functions | `sub_flags::GENERIC`, `closure.rs:646` | 0 | 0 |
 | Leaf fallback | `MAX_INSTANCE_LEAVES`, `own.rs:199` | 0 | 0 |
+
+The original census omitted three release copies in `hd_opt`. #2124 routes
+all three through `hd_mono::instantiate`, including its distinct-type memo,
+bound-call reselection and generic local-function instantiation. The builder
+consumes a fresh owned body or clones a borrowed template once.
+
+| Substitution caller | Current path | Original measurements |
+| --- | --- | --- |
+| Driver instance body | `Env::inlined_instance` → `hd_mono::instantiate` | included above |
+| Driver fact handle | `Env::fact_handle_body` → `hd_mono::instantiate` | not measured separately |
+| Release callee copy | `hd_opt::inline::instance` → `hd_mono::instantiate` | omitted |
+| Parameterless constant copy | `hd_opt::inline::prepared` → `hd_mono::instantiate` | omitted |
+| Structure traversal copy | `hd_opt::structure_specialize::instantiate` → `hd_mono::instantiate` | omitted |
+| Caller after inline copies | `hd_opt::inline::inline_into` → `substitute_body`, then rechoose | omitted |
+| Generic local-function contexts | `hd_mono::instantiate_locals` → the builder's context memo | included above |
+| Non-generic opaque results | `hd_mono::close_body` → `substitute_body` | added after this census |
+
+The emitter's historical substitution paths are deleted. `map_body_types`
+is the TIR mapping primitive; its substituting callers live in `hd_mono`,
+behind the shared distinct-type memo.
 
 The stage corpus: the 416 `hd_driver` and `hd_wasm` stage cases with a
 `main`, built as packages in dev; 248 emit code (the rest stop at a

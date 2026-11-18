@@ -562,23 +562,20 @@ fn instance(env: &dyn StructureEnv, def: DefId, args: TyList) -> Option<(Body, H
 
 fn instantiate(
     env: &dyn StructureEnv,
-    mut copy: Body,
+    copy: Body,
     hash: Hash128,
     def: DefId,
     args: TyList,
 ) -> Option<(Body, Hash128)> {
     let pool = env.pool();
-    let ty = |t: Ty| hd_mono::subst(pool, env, def, args, t);
-    let list = |l| {
-        pool.list(
-            &pool
-                .list_items(l)
-                .iter()
-                .map(|&t| ty(t))
-                .collect::<Vec<_>>(),
-        )
-    };
-    hd_tir::ir::map_body_types(&mut copy, &ty, &list);
+    let copy = hd_mono::instantiate(
+        pool,
+        env,
+        def,
+        args,
+        std::borrow::Cow::Owned(copy),
+        &|trait_, self_ty, targs| env.select_choice(trait_, self_ty, targs),
+    );
     if copy
         .ty
         .iter()
@@ -587,8 +584,5 @@ fn instantiate(
     {
         return None;
     }
-    hd_tir::inline::rechoose(&mut copy, &|trait_, self_ty, targs| {
-        env.select_choice(trait_, self_ty, targs)
-    });
     Some((copy, hash))
 }

@@ -19,6 +19,7 @@
 //! body, and a default body's result type is its checked body's root.
 
 use hd_base::SliceSort as _;
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Write as _;
 
@@ -2608,9 +2609,14 @@ impl FactEnv for Env<'_> {
         let (raw, hash) = self.checked_body(def)?;
         // The one builder of an instance's body (`hd_mono::instantiate`),
         // with the choices collection makes.
-        let body = hd_mono::instantiate(&self.run.pool, self, def, args, raw, &|t, s, a| {
-            InlineEnv::select_choice(self, t, s, a)
-        });
+        let body = hd_mono::instantiate(
+            &self.run.pool,
+            self,
+            def,
+            args,
+            Cow::Borrowed(raw),
+            &|t, s, a| InlineEnv::select_choice(self, t, s, a),
+        );
         Some((body, *hash))
     }
 
@@ -2944,12 +2950,19 @@ impl Env<'_> {
             let walk = ProgramEnv::dbg_structure(self)
                 .filter(|&(show, ..)| show == def)
                 .map(|(_, structure, _)| structure);
-            hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|t, s, a| {
-                if walk == Some(t) {
-                    return Some(Chosen::Builtin(0));
-                }
-                InlineEnv::select_choice(self, t, s, a)
-            })
+            hd_mono::instantiate(
+                &self.run.pool,
+                self,
+                def,
+                args,
+                Cow::Borrowed(generic),
+                &|t, s, a| {
+                    if walk == Some(t) {
+                        return Some(Chosen::Builtin(0));
+                    }
+                    InlineEnv::select_choice(self, t, s, a)
+                },
+            )
         };
         if supplied.is_some() && !walk {
             // A generated body's places are rooted at their locals, as the

@@ -519,17 +519,12 @@ impl dyn InlineEnv + '_ {
                 // not open stays as it is: no copy names it (`fits_call`).
                 // A bound's call at a receiver that opened is chosen
                 // again, as an instance's is (`hd_mono::instantiate`).
-                let ty = |t: Ty| hd_mono::reveal(pool, self, t).unwrap_or(t);
-                let list = |l| {
-                    pool.list(
-                        &pool
-                            .list_items(l)
-                            .iter()
-                            .map(|&t| ty(t))
-                            .collect::<Vec<_>>(),
-                    )
-                };
-                hd_tir::ir::map_body_types(body, &ty, &list);
+                // This is the caller after copies, not a new callee
+                // instance. Reveal in place through the builder's memo,
+                // then rechoose only the calls whose receiver opened.
+                hd_mono::substitute_body(pool, body, &mut |t| {
+                    hd_mono::reveal(pool, self, t).unwrap_or(t)
+                });
                 hd_tir::inline::rechoose(body, &|t, s, a| self.select_choice(t, s, a));
             }
             hash = h;
@@ -1041,25 +1036,20 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         let hash = self.checked_body(def)?.1;
-        let mut scratch = self.fresh_body(def)?;
         let pool = self.pool();
-        let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
-        let list = |l| {
-            pool.list(
-                &pool
-                    .list_items(l)
-                    .iter()
-                    .map(|&t| ty(t))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        hd_tir::ir::map_body_types(&mut scratch, &ty, &list);
+        let mut scratch = hd_mono::instantiate(
+            pool,
+            self,
+            def,
+            targs,
+            Cow::Owned(self.fresh_body(def)?),
+            &|t, s, a| self.select_choice(t, s, a),
+        );
         if scratch.ty.iter().chain(&scratch.local_ty).any(|&t| {
             t == Ty::POISON || pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t)
         }) {
             return None;
         }
-        hd_tir::inline::rechoose(&mut scratch, &|t, s, a| self.select_choice(t, s, a));
         let prepared = self.prepare_copy(&mut scratch, hash);
         Some((scratch, hash, prepared))
     }
@@ -1216,18 +1206,10 @@ impl dyn InlineEnv + '_ {
     /// (`inline_callee`), or its types do not settle.
     fn instance(&self, def: DefId, targs: TyList) -> Option<(Body, Hash128, bool)> {
         let pool = self.pool();
-        let (mut copy, hash) = self.inline_callee(def)?;
-        let ty = |t: Ty| hd_mono::subst(pool, self, def, targs, t);
-        let list = |l| {
-            pool.list(
-                &pool
-                    .list_items(l)
-                    .iter()
-                    .map(|&t| ty(t))
-                    .collect::<Vec<_>>(),
-            )
-        };
-        hd_tir::ir::map_body_types(&mut copy, &ty, &list);
+        let (copy, hash) = self.inline_callee(def)?;
+        let copy = hd_mono::instantiate(pool, self, def, targs, Cow::Owned(copy), &|t, s, a| {
+            self.select_choice(t, s, a)
+        });
         // A projection left open names a type the caller's bounds may
         // fix, which the call's type already shows; such a copy waits.
         // An opaque result `subst` could not open (a trait method's at a
@@ -1247,7 +1229,6 @@ impl dyn InlineEnv + '_ {
         {
             return None;
         }
-        hd_tir::inline::rechoose(&mut copy, &|t, s, a| self.select_choice(t, s, a));
         let fits = self.fits(def, targs, &copy);
         Some((copy, hash, fits))
     }
