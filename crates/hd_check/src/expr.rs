@@ -3806,32 +3806,11 @@ impl Ck<'_, '_> {
         Ok((self.b.emit(Tag::NewStruct, NONE, rec, ty, n.index()), ty))
     }
 
-    /// The identifier segments of a name or field-path expression.
+    /// The identifier segments of a name or field-path expression
+    /// ([`hd_resolve::facts::name_path`]).
     pub(crate) fn segments_expr(&self, n: NodeRef<'_>) -> Vec<String> {
-        // Walk down the chain to its first name, then read the segments
-        // back up: a loop, so a long `a.b.c...` takes no stack per link. A
-        // chain whose base is not a name (`make().helper`) names no path,
-        // so it has no segments: its last link alone would name an
-        // unrelated top-level `helper`.
-        let mut links = Vec::new();
-        let mut at = n;
-        loop {
-            match at.kind() {
-                SyntaxKind::NameExpr => break,
-                SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                    links.push(at);
-                    let Some(base) = at.children().next() else {
-                        return vec![];
-                    };
-                    at = base;
-                }
-                _ => return vec![],
-            }
-        }
-        let mut v = Vec::with_capacity(links.len() + 1);
-        v.push(self.cx.src.text(self.cx.src.first(at)).to_owned());
-        v.extend((links.iter().rev()).map(|l| self.cx.src.text(self.cx.src.last(*l)).to_owned()));
-        v
+        let path = hd_resolve::facts::name_path(&self.cx.src, n);
+        path.into_iter().map(str::to_owned).collect()
     }
 
     /// `if c: a else if d: b else: e` as a statement or a value. The

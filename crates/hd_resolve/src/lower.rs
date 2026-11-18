@@ -5678,13 +5678,7 @@ impl Lower<'_, '_, '_> {
     /// The literal marker of one decorator, resolved through the module's
     /// scope rather than matched by its written first segment.
     fn literal_marker(&self, d: NodeRef<'_>) -> Option<u8> {
-        let def = crate::facts::decorator_def(
-            &self.src,
-            &self.names,
-            self.scope,
-            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
-            d,
-        )?;
+        let def = self.decorator_def(d)?;
         if def == self.names.known.num_suffix {
             Some(crate::iface::LITERAL_SUFFIX)
         } else if def == self.names.known.str_prefix {
@@ -5694,17 +5688,14 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    /// Whether a decorator names std's `inline` or `cold`, which attach
-    /// no value (`annot.inline.recognized`).
-    fn inline_marker(&self, d: NodeRef<'_>) -> bool {
-        let def = crate::facts::decorator_def(
-            &self.src,
-            &self.names,
-            self.scope,
-            &|module, name| self.r.export(module, name).ok().map(|x| x.0),
-            d,
-        );
-        def.is_some_and(|def| def == self.names.known.inline || def == self.names.known.cold)
+    /// Whether a decorator names a literal marker or std's `inline` or
+    /// `cold`, which attach no value (`annot.inline.recognized`), resolved
+    /// once.
+    fn valueless_marker(&self, d: NodeRef<'_>) -> bool {
+        let known = &self.names.known;
+        let markers = [known.num_suffix, known.str_prefix, known.inline, known.cold];
+        self.decorator_def(d)
+            .is_some_and(|def| markers.contains(&def))
     }
 
     /// `@num_suffix` or `@str_prefix` before a function.
@@ -6970,7 +6961,7 @@ impl Lower<'_, '_, '_> {
                     literal_fn: self.literal_fn(n),
                     auto_closing: self.auto_closing(n),
                     has_facts: !crate::facts::fact_lines(&self.src, n, |d| {
-                        self.literal_marker(d).is_some() || self.inline_marker(d)
+                        self.valueless_marker(d)
                     })
                     .is_empty(),
                     track_caller: self.track_caller(n),

@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# A decorator's callee resolves as a path of names: `@cold` and
+# `@annotation.cold` name std's marker, which attaches no value
+# (`annot.inline.recognized`). A chain whose base is a call names no path,
+# so `@make().cold` is an ordinary value whose field `cold` does not exist.
+use std.annotation
+use std.annotation.{cold}
+
+fn make() -> i32:
+    1
+
+@cold
+fn bare() -> i32:
+    1
+
+@annotation.cold
+fn qualified() -> i32:
+    2
+
+@make().cold
+fn through_call() -> i32:
+    3
+
+pub fn main() -> void $ Console:
+    println(bare() + qualified() + through_call())

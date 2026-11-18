@@ -18,9 +18,9 @@
 use hd_base::{DefId, HashMap, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
-use hd_resolve::facts::fact_lines as resolved_fact_lines;
+use hd_resolve::facts::{callee_of, fact_lines as resolved_fact_lines, name_path};
 use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
-use hd_resolve::{BindingKind, Head, HeadKind, Item, ItemData};
+use hd_resolve::{Head, HeadKind, Item, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
@@ -52,12 +52,17 @@ fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
     (ty, items)
 }
 
-/// A decorator's resolved declaration, including a qualified path.
-fn decorator_def(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<DefId> {
-    hd_resolve::facts::decorator_def(
-        &cx.src,
+/// The declaration the path expression `e` names, under its call and
+/// type-argument wrappers ([`hd_resolve::facts::name_path`]).
+fn expression_def(cx: &BodyCx<'_>, e: NodeRef<'_>) -> Option<DefId> {
+    path_def(cx, e, &name_path(&cx.src, callee_of(e)?))
+}
+
+/// The declaration the names `path`, written at `at`, reach.
+fn path_def(cx: &BodyCx<'_>, at: NodeRef<'_>, path: &[&str]) -> Option<DefId> {
+    hd_resolve::facts::path_def(
         &cx.names,
-        cx.scope_at(cx.src.span(d).lo),
+        cx.scope_at(cx.src.span(at).lo),
         &|module, name| {
             cx.lookup
                 .ifaces
@@ -65,112 +70,21 @@ fn decorator_def(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<DefId> {
                 .find_map(|f| f.export(module, name))
                 .map(|e| e.def)
         },
-        d,
+        path,
     )
 }
 
-/// The identifier segments of an expression's callee, excluding its call.
-fn expression_segments(cx: &BodyCx<'_>, e: NodeRef<'_>) -> Vec<String> {
-    fn segments(cx: &BodyCx<'_>, n: NodeRef<'_>) -> Vec<String> {
-        match n.kind() {
-            SyntaxKind::NameExpr => vec![cx.src.text(cx.src.first(n)).to_owned()],
-            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-                let mut out = n
-                    .children()
-                    .next()
-                    .map(|base| segments(cx, base))
-                    .unwrap_or_default();
-                out.push(cx.src.text(cx.src.last(n)).to_owned());
-                out
-            }
-            _ => Vec::new(),
-        }
-    }
-
-    let mut callee = e;
-    if callee.kind() == SyntaxKind::CallExpr {
-        let Some(inner) = callee.children().next() else {
-            return Vec::new();
-        };
-        callee = inner;
-    }
-    if callee.kind() == SyntaxKind::TypeArgsExpr {
-        let Some(inner) = callee.children().next() else {
-            return Vec::new();
-        };
-        callee = inner;
-    }
-    segments(cx, callee)
+/// A decorator's resolved declaration, including a qualified path.
+fn decorator_def(cx: &BodyCx<'_>, d: NodeRef<'_>) -> Option<DefId> {
+    path_def(cx, d, &name_path(&cx.src, callee_of(d.children().next()?)?))
 }
 
-fn expression_def(cx: &BodyCx<'_>, e: NodeRef<'_>) -> Option<DefId> {
-    let segs = expression_segments(cx, e);
-    let first = segs.first()?;
-    let binding = cx
-        .scope_at(cx.src.span(e).lo)
-        .lookup(cx.names.syms.intern(first))?;
-    match (binding.kind, segs.len()) {
-        (BindingKind::Item, 1) => Some(DefId::from_raw(binding.value)),
-        (BindingKind::Module, _) if segs.len() >= 2 => {
-            let base = cx
-                .scope_at(cx.src.span(e).lo)
-                .modules
-                .get(binding.value as usize)?
-                .clone();
-            if segs.len() > 2 && base.contains('.') {
-                return None;
-            }
-            let module = if segs.len() == 2 {
-                base
-            } else {
-                format!("{base}.{}", segs[1..segs.len() - 1].join("."))
-            };
-            let name = cx.names.syms.intern(segs.last()?);
-            Some(
-                cx.lookup
-                    .ifaces
-                    .iter()
-                    .find_map(|f| f.export(&module, name))?
-                    .def,
-            )
-        }
-        _ => None,
-    }
-}
-
+/// The variant of `expected_owner` that the path expression `e` names.
 fn expression_variant_def(cx: &BodyCx<'_>, e: NodeRef<'_>, expected_owner: DefId) -> Option<DefId> {
-    let mut segs = expression_segments(cx, e);
-    let variant = segs.pop()?;
-    let first = segs.first()?;
-    let binding = cx
-        .scope_at(cx.src.span(e).lo)
-        .lookup(cx.names.syms.intern(first))?;
-    let owner = match (binding.kind, segs.len()) {
-        (BindingKind::Item, 1) => DefId::from_raw(binding.value),
-        (BindingKind::Module, _) if segs.len() >= 2 => {
-            let base = cx
-                .scope_at(cx.src.span(e).lo)
-                .modules
-                .get(binding.value as usize)?
-                .clone();
-            if segs.len() > 2 && base.contains('.') {
-                return None;
-            }
-            let module = if segs.len() == 2 {
-                base
-            } else {
-                format!("{base}.{}", segs[1..segs.len() - 1].join("."))
-            };
-            let name = cx.names.syms.intern(segs.last()?);
-            cx.lookup
-                .ifaces
-                .iter()
-                .find_map(|f| f.export(&module, name))?
-                .def
-        }
-        _ => return None,
-    };
-    (owner == expected_owner).then(|| cx.names.member(owner, PathKind::Variant, &variant))
+    let mut path = name_path(&cx.src, callee_of(e)?);
+    let variant = path.pop()?;
+    (path_def(cx, e, &path)? == expected_owner)
+        .then(|| cx.names.member(expected_owner, PathKind::Variant, variant))
 }
 
 /// The literal marker of a decorator, by its resolved declaration.
@@ -199,9 +113,9 @@ fn is_path(n: NodeRef<'_>) -> bool {
 /// same resolved identity as the function's marker.
 pub(crate) fn fact_lines<'t>(cx: &BodyCx<'t>, node: NodeRef<'t>) -> Vec<NodeRef<'t>> {
     let known = &cx.names.known;
+    let markers = [known.num_suffix, known.str_prefix, known.inline, known.cold];
     resolved_fact_lines(&cx.src, node, |d| {
-        let def = decorator_def(cx, d);
-        literal_marker(cx, d).is_some() || def == Some(known.inline) || def == Some(known.cold)
+        decorator_def(cx, d).is_some_and(|def| markers.contains(&def))
     })
 }
 

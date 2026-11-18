@@ -82,7 +82,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// The declaration a decorator's possibly qualified callee reaches.
-    fn decorator_def(&self, d: NodeRef<'_>) -> Option<DefId> {
+    pub(super) fn decorator_def(&self, d: NodeRef<'_>) -> Option<DefId> {
         crate::facts::decorator_def(
             &self.src,
             &self.names,

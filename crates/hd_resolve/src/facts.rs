@@ -24,7 +24,12 @@ const COMPILER_DECORATORS: &[&str] = &[
 
 /// A decorator line's callee, without its call and type-argument wrappers.
 fn callee(d: NodeRef<'_>) -> Option<NodeRef<'_>> {
-    let e = d.children().next()?;
+    callee_of(d.children().next()?)
+}
+
+/// Expression `e` without its call and type-argument wrappers.
+#[must_use]
+pub fn callee_of(e: NodeRef<'_>) -> Option<NodeRef<'_>> {
     let callee = match e.kind() {
         SyntaxKind::CallExpr => e.children().next()?,
         _ => e,
@@ -86,27 +91,65 @@ fn line<'t>(src: &Src<'t>, d: NodeRef<'t>) -> Option<(Option<String>, NodeRef<'t
     Some((name, e))
 }
 
-/// The identifier segments of a name or field-path expression.
-fn segments(src: &Src<'_>, n: NodeRef<'_>) -> Vec<String> {
-    match n.kind() {
-        SyntaxKind::NameExpr => vec![src.text(src.first(n)).to_owned()],
-        SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
-            let mut v = n
-                .children()
-                .next()
-                .map(|b| segments(src, b))
-                .unwrap_or_default();
-            v.push(src.text(src.last(n)).to_owned());
-            v
+/// The names a path expression writes, outermost first: `a`, `a.b` or
+/// `m.T.V`. A chain
+/// whose base is not a name (`make().helper`) names no path, so it has
+/// none: its last link alone would name an unrelated top-level `helper`.
+/// A loop down the chain, so a long `a.b.c...` takes no stack per link.
+#[must_use]
+pub fn name_path<'t>(src: &Src<'t>, n: NodeRef<'_>) -> Vec<&'t str> {
+    let mut at = n;
+    let mut out = Vec::new();
+    loop {
+        match at.kind() {
+            SyntaxKind::NameExpr => break,
+            SyntaxKind::FieldExpr | SyntaxKind::PathExpr => {
+                out.push(src.text(src.last(at)));
+                let Some(base) = at.children().next() else {
+                    return Vec::new();
+                };
+                at = base;
+            }
+            _ => return Vec::new(),
         }
-        _ => vec![],
+    }
+    out.push(src.text(src.first(at)));
+    out.reverse();
+    out
+}
+
+/// The declaration the names `path` reach from `scope`: an item it binds,
+/// or an export of a module it binds, which `export` looks up. `None` when
+/// the path does not resolve; this emits no error.
+#[must_use]
+pub fn path_def(
+    names: &Names<'_>,
+    scope: &ModuleScope,
+    export: &dyn Fn(&str, Symbol) -> Option<DefId>,
+    path: &[&str],
+) -> Option<DefId> {
+    let (&first, rest) = path.split_first()?;
+    let binding = scope.lookup(names.syms.intern(first))?;
+    match (binding.kind, rest) {
+        (BindingKind::Item, []) => Some(DefId::from_raw(binding.value)),
+        (BindingKind::Module, [.., last]) => {
+            let base = scope.modules.get(binding.value as usize)?;
+            // A `use` of a module brings in that module alone, not its
+            // children. A root module's name is the exception.
+            let module = match &rest[..rest.len() - 1] {
+                [] => base.clone(),
+                _ if base.contains('.') => return None,
+                inner => format!("{base}.{}", inner.join(".")),
+            };
+            export(&module, names.syms.intern(last))
+        }
+        _ => None,
     }
 }
 
-/// Resolves a decorator's callee through the module's scope and its exports.
-/// `export` looks up one name in a module; `None` means the path does not
-/// resolve. Unlike the ordinary expression checker, this emits no error: an
-/// unresolved decorator is checked there as an ordinary expression.
+/// Resolves a decorator's callee through the module's scope and its
+/// exports ([`path_def`]). An unresolved decorator is checked as an
+/// ordinary expression, which reports it.
 #[must_use]
 pub fn decorator_def(
     src: &Src<'_>,
@@ -115,27 +158,7 @@ pub fn decorator_def(
     export: &dyn Fn(&str, Symbol) -> Option<DefId>,
     d: NodeRef<'_>,
 ) -> Option<DefId> {
-    let segs = segments(src, callee(d)?);
-    let first = segs.first()?;
-    let binding = scope.lookup(names.syms.intern(first))?;
-    match (binding.kind, segs.len()) {
-        (BindingKind::Item, 1) => Some(DefId::from_raw(binding.value)),
-        (BindingKind::Module, _) if segs.len() >= 2 => {
-            let base = scope.modules.get(binding.value as usize)?.clone();
-            // A `use` of a module brings in that module alone, not its
-            // children. A root module's name is the exception.
-            if segs.len() > 2 && base.contains('.') {
-                return None;
-            }
-            let module = if segs.len() == 2 {
-                base
-            } else {
-                format!("{base}.{}", segs[1..segs.len() - 1].join("."))
-            };
-            export(&module, names.syms.intern(segs.last()?))
-        }
-        _ => None,
-    }
+    path_def(names, scope, export, &name_path(src, callee(d)?))
 }
 
 /// The expressions of the decorators before `node` that attach a value, in
