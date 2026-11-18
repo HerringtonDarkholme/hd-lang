@@ -28,7 +28,7 @@
 //! derivation's `Structure` without bodies (a call of it then stops at
 //! collection): the shared constructor data of a generic enum.
 
-use hd_base::{DefId, Stage, StageResult};
+use hd_base::{DefId, HashMap, HashSet, Stage, StageResult};
 use hd_diag::DiagBuf;
 use hd_resolve::{Item, ItemData};
 use hd_structure::{Mem, Shape, Shared, Target, Var, hidden_method};
@@ -632,6 +632,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
             declared.to_owned()
         }
     };
+    let self_refs = SelfRefs::new(cx, data);
     let member = |v: usize, i: usize, f: &hd_resolve::Field, omitted: bool| {
         let declared = names.text(f.name).to_owned();
         let t = sub(f.ty);
@@ -651,7 +652,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                 None
             },
             rest: false,
-            self_ref: SelfRefs::new(cx, data).member(t),
+            self_ref: self_refs.member(t),
             facts: fact(v, i),
         }
     };
@@ -719,14 +720,32 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
 
 /// Self references (`annot.self-ref.*`): whether a member's type refers
 /// to, or needs, the enclosing type `data`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum RefNode {
+    Type(Ty),
+    Fields(DefId),
+}
+
+#[derive(Default)]
+struct ReferenceGraph {
+    visited: HashSet<RefNode>,
+    parents: HashMap<RefNode, Vec<RefNode>>,
+    found: HashSet<RefNode>,
+}
+
 struct SelfRefs<'a, 'c> {
     cx: &'a BodyCx<'c>,
     data: DefId,
+    references: std::cell::RefCell<ReferenceGraph>,
 }
 
 impl<'a, 'c> SelfRefs<'a, 'c> {
     fn new(cx: &'a BodyCx<'c>, data: DefId) -> Self {
-        Self { cx, data }
+        Self {
+            cx,
+            data,
+            references: std::cell::RefCell::default(),
+        }
     }
 
     /// `SelfRef`'s index for a member of type `t`.
@@ -734,7 +753,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         if self.needs(t, &mut Vec::new()) {
             2
         } else {
-            u32::from(self.refers(t, &mut Vec::new()))
+            u32::from(self.refers(t))
         }
     }
 
@@ -761,28 +780,109 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         }
     }
 
-    /// `annot.self-ref.refers` and `.refers.members`.
-    fn refers(&self, t: Ty, seen: &mut Vec<Ty>) -> bool {
+    /// `annot.self-ref.refers` and `.refers.members`. Every argument
+    /// already contributes, so substitution cannot reveal a reference that
+    /// the argument walk did not see. Read each declaration's raw fields
+    /// once, even for a recursive generic that grows its arguments.
+    fn refers(&self, t: Ty) -> bool {
         let pool = self.cx.names.pool;
-        if seen.contains(&t) {
-            return false;
+        let root = RefNode::Type(t);
+        let mut graph = self.references.borrow_mut();
+        if graph.visited.contains(&root) {
+            return graph.found.contains(&root);
         }
-        seen.push(t);
-        match pool.get(t) {
-            TyData::Ref { inner: x, .. } => self.refers(x, seen),
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().any(|e| self.refers(*e, seen))
-                    || rest.is_some_and(|r| self.refers(r, seen))
+        let mut found = Vec::new();
+        hd_base::stack::all((root, None), |(node, parent), stack| {
+            if let Some(parent) = parent {
+                graph.parents.entry(node).or_default().push(parent);
+                if graph.found.contains(&node) {
+                    found.push(parent);
+                }
             }
-            TyData::Adt { def, args } => {
-                def == self.data
-                    || pool.list_items(args).iter().any(|a| self.refers(*a, seen))
-                    || self
-                        .fields(def, args)
-                        .is_some_and(|(_, vs)| vs.iter().flatten().any(|f| self.refers(*f, seen)))
+            if !graph.visited.insert(node) {
+                return true;
             }
-            _ => false,
+            hd_types::work::type_node();
+            match node {
+                RefNode::Type(t) => match pool.get(t) {
+                    TyData::Ref { inner, .. } => stack.push((RefNode::Type(inner), Some(node))),
+                    TyData::Tuple { elems, rest } => {
+                        if let Some(rest) = rest {
+                            stack.push((RefNode::Type(rest), Some(node)));
+                        }
+                        stack.extend(
+                            pool.list_items(elems)
+                                .iter()
+                                .rev()
+                                .map(|&t| (RefNode::Type(t), Some(node))),
+                        );
+                    }
+                    TyData::Adt { def, args } => {
+                        if def == self.data {
+                            found.push(node);
+                        } else {
+                            stack.push((RefNode::Fields(def), Some(node)));
+                            stack.extend(
+                                pool.list_items(args)
+                                    .iter()
+                                    .rev()
+                                    .map(|&t| (RefNode::Type(t), Some(node))),
+                            );
+                        }
+                    }
+                    TyData::Prim(_)
+                    | TyData::Never
+                    | TyData::Poison
+                    | TyData::Union(_)
+                    | TyData::Fn { .. }
+                    | TyData::TraitValue { .. }
+                    | TyData::Opaque { .. }
+                    | TyData::Param(_)
+                    | TyData::Const(_)
+                    | TyData::Assoc { .. }
+                    | TyData::Infer(_)
+                    | TyData::Canon(_)
+                    | TyData::Row(_)
+                    | TyData::Context(_) => {}
+                },
+                RefNode::Fields(def) => match self.cx.lookup.item(def).map(|it| &it.data) {
+                    Some(ItemData::Struct(fields, _)) => stack.extend(
+                        fields
+                            .iter()
+                            .rev()
+                            .map(|f| (RefNode::Type(f.ty), Some(node))),
+                    ),
+                    Some(ItemData::Enum { variants, .. }) => stack.extend(
+                        variants
+                            .iter()
+                            .rev()
+                            .flat_map(|v| v.fields.iter().rev())
+                            .map(|f| (RefNode::Type(f.ty), Some(node))),
+                    ),
+                    Some(
+                        ItemData::Fn(..)
+                        | ItemData::Trait(_)
+                        | ItemData::Impl { .. }
+                        | ItemData::Method { .. }
+                        | ItemData::AssocType { .. }
+                        | ItemData::Alias { .. }
+                        | ItemData::Newtype(..)
+                        | ItemData::Builtin,
+                    )
+                    | None => {}
+                },
+            }
+            true
+        });
+        // Reachability is monotone: each positive node wakes its parents
+        // once, including recursive declaration components.
+        while let Some(node) = found.pop() {
+            if graph.found.insert(node) {
+                hd_types::work::type_node();
+                found.extend(graph.parents.get(&node).into_iter().flatten().copied());
+            }
         }
+        graph.found.contains(&root)
     }
 
     /// `annot.self-ref.needs.*`.
@@ -825,5 +925,195 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             }
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod self_reference_walk_tests {
+    use super::*;
+    use hd_resolve::{Field, Generic, TypeAttrs};
+
+    #[test]
+    fn refers_at_depth_1000_and_growing_declaration_cycles_stay_linear() {
+        std::thread::Builder::new()
+            .stack_size(96 << 10)
+            // cost: one 96 KiB thread for the generated graph cases.
+            .spawn(|| {
+                crate::body::with_checker_items(
+                    |names| {
+                        let p = names.pool.types();
+                        let target = p.intern_ty(&TyData::Adt {
+                            def: names.item("app.main", "Target"),
+                            args: TyList::EMPTY,
+                        });
+                        let field = |ty| Field {
+                            name: names.syms.intern("field"),
+                            ty,
+                            public: true,
+                            has_default: false,
+                            embedded: false,
+                            lifetimes: Vec::new(),
+                            fn_lifetimes: Vec::new(),
+                        };
+                        let growing = |name, more: &[Ty]| {
+                            let def = names.item("app.main", name);
+                            let param = p.intern_ty(&TyData::Param(ParamRef {
+                                owner: def,
+                                index: 0,
+                            }));
+                            let list = p.intern_ty(&TyData::Adt {
+                                def: names.known.list,
+                                args: p.list(&[param]),
+                            });
+                            let again = p.intern_ty(&TyData::Adt {
+                                def,
+                                args: p.list(&[list]),
+                            });
+                            let again = p.intern_ty(&TyData::Ref {
+                                inner: again,
+                                mutable: false,
+                                counted: true,
+                            });
+                            let mut fields = vec![field(again)];
+                            fields.extend(more.iter().copied().map(field));
+                            let mut item = Item::new(
+                                def,
+                                names.syms.intern(name),
+                                true,
+                                ItemData::Struct(fields, TypeAttrs::default()),
+                            );
+                            item.generics.push(Generic::plain(names.syms.intern("T")));
+                            item
+                        };
+                        let a = growing("Grow", &[]);
+                        let a_ty = p.intern_ty(&TyData::Adt {
+                            def: a.def,
+                            args: p.list(&[Ty::I32]),
+                        });
+                        let b = Item::new(
+                            names.item("app.main", "Hidden"),
+                            names.syms.intern("Hidden"),
+                            true,
+                            ItemData::Struct(
+                                vec![field(a_ty), field(target)],
+                                TypeAttrs::default(),
+                            ),
+                        );
+                        let b_ty = p.intern_ty(&TyData::Adt {
+                            def: b.def,
+                            args: TyList::EMPTY,
+                        });
+                        vec![a, b, growing("Positive", &[b_ty])]
+                    },
+                    |ck| {
+                        let p = ck.cx.names.pool.types();
+                        let data = ck.cx.names.item("app.main", "Target");
+                        let target = p.intern_ty(&TyData::Adt {
+                            def: data,
+                            args: TyList::EMPTY,
+                        });
+                        for depth in [100, 1000] {
+                            let refs = SelfRefs::new(ck.cx, data);
+                            for leaf in [target, Ty::I32] {
+                                let mut root = leaf;
+                                for _ in 0..depth {
+                                    root = p.intern_ty(&TyData::Tuple {
+                                        elems: p.list(&[root, root]),
+                                        rest: None,
+                                    });
+                                }
+                                let positive = leaf == target;
+                                let work = (depth + 1) * if positive { 2 } else { 1 };
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(|| refs.refers(root)),
+                                    (positive, work)
+                                );
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(|| refs.refers(root)),
+                                    (positive, 0)
+                                );
+                            }
+                        }
+                        let refs = SelfRefs::new(ck.cx, data);
+                        let adt = |name: &str, args: &[Ty]| {
+                            p.intern_ty(&TyData::Adt {
+                                def: ck.cx.names.item("app.main", name),
+                                args: p.list(args),
+                            })
+                        };
+                        let negative = adt("Grow", &[Ty::I32]);
+                        let (answer, work) =
+                            hd_types::work::count_type_nodes(|| refs.refers(negative));
+                        assert!(!answer);
+                        assert!(work < 20, "raw generic cycle is finite: {work}");
+                        assert!(
+                            refs.refers(adt("Grow", &[target])),
+                            "actual arguments always contribute"
+                        );
+                        assert!(refs.refers(adt("Hidden", &[])));
+                        assert!(refs.refers(adt("Positive", &[Ty::I32])));
+                        assert!(!refs.refers(negative));
+                        for mutable in [false, true] {
+                            for counted in [false, true] {
+                                assert!(refs.refers(p.intern_ty(&TyData::Ref {
+                                    inner: target,
+                                    mutable,
+                                    counted
+                                })));
+                            }
+                        }
+                        for data in [
+                            TyData::Union(p.list(&[target])),
+                            TyData::TraitValue {
+                                def: data,
+                                args: p.list(&[target]),
+                                bindings: Vec::new(),
+                            },
+                            TyData::Opaque {
+                                owner: data,
+                                site: 0,
+                                borrows: true,
+                                args: p.list(&[target]),
+                                bound: target,
+                            },
+                            TyData::Fn {
+                                params: p.list(&[target]),
+                                result: target,
+                                row: hd_types::RowId::EMPTY,
+                                suspends: false,
+                                inputs: hd_types::Inputs::Fixed,
+                                deps: hd_types::FnDeps::NONE,
+                            },
+                        ] {
+                            assert!(!refs.refers(p.intern_ty(&data)), "original boundary");
+                        }
+                        for width in [100, 1000] {
+                            let refs = SelfRefs::new(ck.cx, data);
+                            let mut root = Ty::I32;
+                            for _ in 0..20 {
+                                root = p.intern_ty(&TyData::Tuple {
+                                    elems: p.list(&[root, root]),
+                                    rest: None,
+                                });
+                            }
+                            assert!(!refs.refers(root));
+                            for i in 0..width {
+                                let unrelated = adt(&format!("Unrelated{i}"), &[]);
+                                assert_eq!(
+                                    hd_types::work::count_type_nodes(|| refs.refers(unrelated)),
+                                    (false, 2)
+                                );
+                            }
+                            assert_eq!(
+                                hd_types::work::count_type_nodes(|| refs.refers(root)),
+                                (false, 0)
+                            );
+                        }
+                    },
+                );
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }
