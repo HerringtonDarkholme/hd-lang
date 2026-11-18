@@ -109,8 +109,9 @@ impl EnvKey {
 
 /// The elaborated parameter environment, as columns (§2.3). Clauses are
 /// added only through [`ParamEnv::push`], which keeps two indexes: the
-/// clauses on each self type, and the (self, trait, arguments) triples
-/// present. A lookup and a duplicate check are each one hash probe.
+/// clauses on each self type, and the clause of each (self, trait,
+/// arguments) triple present. A lookup and a duplicate check are each one
+/// hash probe.
 ///
 /// The clauses an associated type's bounds give a projection
 /// (`trait.assoc.bound-use`) are added on demand, once per projection a
@@ -125,7 +126,7 @@ pub struct ParamEnv {
     clause_mut: Vec<bool>,
     clause_origin: Vec<u16>,
     by_self: HashMap<Ty, Vec<u32>>,
-    present: HashSet<(Ty, DefId, TyList)>,
+    present: HashMap<(Ty, DefId, TyList), u32>,
     /// The projections whose bounds are elaborated, in order, each with
     /// the clause count once it was: truncating below that count drops
     /// the record with the clauses.
@@ -135,6 +136,9 @@ pub struct ParamEnv {
     /// made at one count stays valid while this does, and needs only the
     /// clauses pushed since ([`Self::epoch`]).
     truncations: u64,
+    /// How many pushes gave a present clause bindings it lacked: with
+    /// [`Self::len`], whether the environment changed ([`Self::changes`]).
+    merges: usize,
 }
 
 impl ParamEnv {
@@ -144,6 +148,13 @@ impl ParamEnv {
     #[must_use]
     pub fn epoch(&self) -> u64 {
         self.truncations
+    }
+
+    /// A count that grows with every change [`Self::push`] makes: a
+    /// clause appended or a binding merged.
+    #[must_use]
+    pub fn changes(&self) -> usize {
+        self.clause_self.len() + self.merges
     }
 
     /// How many clauses the environment holds.
@@ -158,8 +169,13 @@ impl ParamEnv {
     }
 
     /// Appends a clause unless the same self type, trait and arguments
-    /// are already present: whether it was appended. Its origin is its
-    /// index.
+    /// are already present: whether the environment changed. Its origin
+    /// is its index. A present clause takes the bindings it lacks
+    /// (`trait.binding.meaning`): `IndexMut[K]` elaborates `Index[K]`
+    /// with none, and a written `Index[K, Out = i32]` beside it still
+    /// fixes `Out`, as rustc keeps a projection predicate beside its trait
+    /// predicate. A binding already present wins. Cost: one hash probe,
+    /// and a merge linear in the two binding lists.
     pub fn push(
         &mut self,
         self_ty: Ty,
@@ -168,14 +184,23 @@ impl ParamEnv {
         bindings: Vec<(DefId, Ty)>,
         mut_: bool,
     ) -> bool {
-        if !self.present.insert((self_ty, trait_, args)) {
-            return false;
-        }
         let i = self.clause_self.len();
-        self.by_self
-            .entry(self_ty)
-            .or_default()
-            .push(u32::try_from(i).unwrap_or(u32::MAX));
+        let at = u32::try_from(i).unwrap_or(u32::MAX);
+        if let Some(&c) = self.present.get(&(self_ty, trait_, args)) {
+            let have = &mut self.clause_bindings[c as usize];
+            let before = have.len();
+            if have.is_empty() {
+                *have = bindings;
+            } else if !bindings.is_empty() {
+                let known: HashSet<DefId> = have.iter().map(|&(a, _)| a).collect();
+                have.extend(bindings.into_iter().filter(|(a, _)| !known.contains(a)));
+            }
+            let merged = have.len() != before;
+            self.merges += usize::from(merged);
+            return merged;
+        }
+        self.present.insert((self_ty, trait_, args), at);
+        self.by_self.entry(self_ty).or_default().push(at);
         self.clause_self.push(self_ty);
         self.clause_trait.push(trait_);
         self.clause_args.push(args);
@@ -189,7 +214,7 @@ impl ParamEnv {
     /// Whether a clause on `self_ty`, `trait_` and `args` is present.
     #[must_use]
     pub fn contains(&self, self_ty: Ty, trait_: DefId, args: TyList) -> bool {
-        self.present.contains(&(self_ty, trait_, args))
+        self.present.contains_key(&(self_ty, trait_, args))
     }
 
     /// The indices of the clauses on `self_ty`, in order.
@@ -5569,6 +5594,20 @@ mod tests {
         env.mark_elaborated(inner);
         assert!(env.elaborated(inner));
         assert_eq!(env.clauses_of(inner), [2]);
+        // A present clause takes the bindings it lacks, once, and keeps
+        // its own (`trait.binding.meaning`): no second clause.
+        let (out, other) = (DefId::from_raw(50), DefId::from_raw(51));
+        let changes = env.changes();
+        assert!(env.push(tp, show, TyList::EMPTY, vec![(out, Ty::I32)], false));
+        assert!(!env.push(tp, show, TyList::EMPTY, vec![(out, Ty::BOOL)], false));
+        assert!(env.push(tp, show, TyList::EMPTY, vec![(other, Ty::STRING)], false));
+        assert!(!env.push(tp, show, TyList::EMPTY, vec![], false));
+        assert_eq!(env.changes(), changes + 2);
+        assert_eq!(env.clauses_of(tp), [0]);
+        assert_eq!(
+            env.clause_bindings()[0],
+            [(out, Ty::I32), (other, Ty::STRING)]
+        );
     }
 
     /// §2.2: body memo entries are canonical, so a trial that cached one

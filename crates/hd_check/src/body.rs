@@ -1242,9 +1242,9 @@ pub(crate) fn add_projection_bounds(
     if !pool.has_assoc(t) {
         return false;
     }
-    let before = env.len();
+    let before = env.changes();
     projection_bounds_in(lookup, pool, env, t, copy);
-    env.len() != before
+    env.changes() != before
 }
 
 fn projection_bounds_in(

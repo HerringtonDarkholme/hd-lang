@@ -1,0 +1,46 @@
+# test: a binding written on a supertrait bound fixes the projection a subtrait bound also reaches, in either order
+use std.ops.{Index, IndexMut}
+use std.testing.assert_equal
+
+struct Grid:
+    cells: List[i32]
+    width: usize
+
+impl Index[(usize, usize)] for Grid:
+    type Out = i32
+    fn index(&self, key: (usize, usize)) -> &i32:
+        &self.cells[key._1 * self.width + key._0]
+
+impl IndexMut[(usize, usize)] for Grid:
+    fn index_mut(&mut self, key: (usize, usize)) -> &mut i32:
+        &mut self.cells[key._1 * self.width + key._0]
+
+fn bump[T < IndexMut[(usize, usize)] & Index[(usize, usize), Out = i32]](g: &mut T) -> void:
+    let k: (usize, usize) = (1, 0)
+    g[k] += +10
+
+fn bump_first[T < Index[(usize, usize), Out = i32] & IndexMut[(usize, usize)]](g: &mut T) -> void:
+    g[(0, 1)] += +20
+
+fn bump_sub[T < IndexMut[(usize, usize), Out = i32]](g: &mut T) -> void:
+    g[(1, 1)] += +30
+
+struct Reader[X < Index[usize, Out = i32]]:
+    items: X
+
+fn first[T < IndexMut[usize] & Index[usize, Out = i32]](r: Reader[T]) -> i32:
+    r.items[0]
+
+fn bump_list[C < IndexMut[usize] & Index[usize, Out = i32]](items: &mut C) -> void:
+    items[0] += +5
+
+pub fn main() -> void:
+    let mut g = Grid { cells: [1, 2, 3, 4], width: 2 }
+    bump(&mut g)
+    bump_first(&mut g)
+    bump_sub(&mut g)
+    assert_equal(g.cells, [1, 12, 23, 34])
+    let mut items: List[i32] = [7]
+    bump_list(&mut items)
+    assert_equal(items[0], 12)
+    assert_equal(first(Reader { items: items }), 12)

@@ -6192,7 +6192,7 @@ impl Ck<'_, '_> {
         if !pool.has_opaque(t) {
             return;
         }
-        let before = self.env.len();
+        let before = self.env.changes();
         let mut todo = vec![t];
         let mut seen = Vec::new();
         while let Some(t) = todo.pop() {
@@ -6209,7 +6209,7 @@ impl Ck<'_, '_> {
                 pool.children(t, &mut todo);
             }
         }
-        if self.env.len() != before {
+        if self.env.changes() != before {
             self.env.key = Some(self.cx.global.env_key(&self.env));
         }
     }

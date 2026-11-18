@@ -929,6 +929,7 @@ lang/traits/generic-bounds-and-static-dispatch/associated-type-bindings-in-bound
 lang/traits/generic-bounds-and-static-dispatch/associated-binding-mismatch.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#associated-type-bindings
 lang/traits/generic-bounds-and-static-dispatch/unknown-associated-type.hd	type	reject:unknown-associated-type	lang/09-traits.md#associated-type-bindings
 lang/traits/generic-bounds-and-static-dispatch/supertrait-associated-binding.hd	type	accept	lang/09-traits.md#binding-names
+lang/traits/generic-bounds-and-static-dispatch/a-binding-on-a-written-supertrait-bound-fixes-the-projection-its-subtrait-reaches.hd	runtime	accept	lang/09-traits.md#r-trait.binding.inside
 lang/traits/generic-bounds-and-static-dispatch/duplicate-associated-binding.hd	type	reject:duplicate-associated-binding	lang/09-traits.md#associated-type-bindings
 lang/traits/generic-bounds-and-static-dispatch/an-associated-type-binding-fixes-a-projection-and-drives-inference.hd	runtime	accept	lang/09-traits.md#associated-type-bindings
 lang/traits/generic-bounds-and-static-dispatch/bounds-a-bound-two-levels-deep-proves.hd	type	accept	lang/09-traits.md#r-trait.bound.depth

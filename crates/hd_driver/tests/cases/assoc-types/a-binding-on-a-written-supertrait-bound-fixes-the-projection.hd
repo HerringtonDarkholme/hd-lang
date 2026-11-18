@@ -1,0 +1,26 @@
+# @dump: wat
+# @build: release
+# `IndexMut[K]` elaborates `Index[K]` with no binding; the written
+# `Index[K, Out = i32]` beside it still fixes `T::Out` (#2156), so the
+# compound assignment through `index_mut` is a plain i32 add.
+use std.ops.{Index, IndexMut}
+
+struct Cells:
+    items: List[i32]
+
+impl Index[usize] for Cells:
+    type Out = i32
+    fn index(&self, key: usize) -> &i32:
+        &self.items[key]
+
+impl IndexMut[usize] for Cells:
+    fn index_mut(&mut self, key: usize) -> &mut i32:
+        &mut self.items[key]
+
+fn bump[T < IndexMut[usize] & Index[usize, Out = i32]](g: &mut T) -> void:
+    g[0] += +10
+
+pub fn main() -> void $ Console:
+    let mut c = Cells { items: [1, 2] }
+    bump(&mut c)
+    println(c.items[0])
