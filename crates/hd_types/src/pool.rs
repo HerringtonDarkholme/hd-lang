@@ -2591,17 +2591,6 @@ impl Erase {
         p.list(&items)
     }
 
-    fn row_in(self, p: Types<'_>, r: RowId, memo: &mut hd_base::HashMap<Ty, Ty>) -> RowId {
-        if !self.holds(p.row_meta(r)) {
-            return r;
-        }
-        let d = p.row_data(r);
-        p.row(&RowData {
-            keys: d.keys.iter().map(|&k| self.ty_in(p, k, memo)).collect(),
-            params: d.params,
-        })
-    }
-
     fn ty_in(self, p: Types<'_>, t: Ty, memo: &mut hd_base::HashMap<Ty, Ty>) -> Ty {
         if !self.holds(p.meta_of(t)) {
             return t;
@@ -2609,90 +2598,120 @@ impl Erase {
         if let Some(&r) = memo.get(&t) {
             return r;
         }
-        let d = match p.get(t) {
-            TyData::Ref {
-                inner,
-                mutable,
-                counted,
-            } => TyData::Ref {
-                inner: self.ty_in(p, inner, memo),
-                mutable,
-                counted: counted && matches!(self, Erase::Deps),
-            },
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: self.list_in(p, args, memo),
-            },
-            TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args,
-                bound,
-            } => TyData::Opaque {
-                owner,
-                site,
-                borrows,
-                args: self.list_in(p, args, memo),
-                bound: self.ty_in(p, bound, memo),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: self.list_in(p, elems, memo),
-                rest: rest.map(|r| self.ty_in(p, r, memo)),
-            },
-            TyData::Union(members) => TyData::Union(self.list_in(p, members, memo)),
-            TyData::Fn {
-                params,
-                result,
-                row,
-                suspends,
-                inputs,
-                deps: _,
-            } => TyData::Fn {
-                params: self.list_in(p, params, memo),
-                result: self.ty_in(p, result, memo),
-                row: self.row_in(p, row, memo),
-                suspends,
-                inputs,
-                deps: FnDeps::NONE,
-            },
-            TyData::Row(r) => TyData::Row(self.row_in(p, r, memo)),
-            TyData::Context(r) => TyData::Context(self.row_in(p, r, memo)),
-            TyData::TraitValue {
-                def,
-                args,
-                bindings,
-            } => TyData::TraitValue {
-                def,
-                args: self.list_in(p, args, memo),
-                bindings: bindings
-                    .into_iter()
-                    .map(|(d, b)| (d, self.ty_in(p, b, memo)))
-                    .collect(),
-            },
-            TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty,
-                args,
-            } => TyData::Assoc {
-                assoc,
-                trait_,
-                self_ty: self.ty_in(p, self_ty, memo),
-                args: self.list_in(p, args, memo),
-            },
-            // A leaf holds nothing to erase.
-            TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Param(_)
-            | TyData::Const(_)
-            | TyData::Infer(_)
-            | TyData::Canon(_) => return t,
-        };
-        let r = p.intern_ty(&d);
-        memo.insert(t, r);
-        r
+        let mut children = Vec::new();
+        hd_base::stack::all((t, false), |(t, ready), stack| {
+            if !self.holds(p.meta_of(t)) || memo.contains_key(&t) {
+                return true;
+            }
+            if !ready {
+                stack.push((t, true));
+                children.clear();
+                p.children(t, &mut children);
+                stack.extend(children.iter().rev().map(|&t| (t, false)));
+                return true;
+            }
+            crate::work::type_node();
+            let mapped = |t| memo.get(&t).copied().unwrap_or(t);
+            let list = |l| {
+                p.list(
+                    &p.list_items(l)
+                        .iter()
+                        .map(|&t| mapped(t))
+                        .collect::<Vec<_>>(),
+                )
+            };
+            let map_row = |r| {
+                if !self.holds(p.row_meta(r)) {
+                    return r;
+                }
+                let d = p.row_data(r);
+                p.row(&RowData {
+                    keys: d.keys.into_iter().map(mapped).collect(),
+                    params: d.params,
+                })
+            };
+            let d = match p.get(t) {
+                TyData::Ref {
+                    inner,
+                    mutable,
+                    counted,
+                } => TyData::Ref {
+                    inner: mapped(inner),
+                    mutable,
+                    counted: counted && matches!(self, Erase::Deps),
+                },
+                TyData::Adt { def, args } => TyData::Adt {
+                    def,
+                    args: list(args),
+                },
+                TyData::Opaque {
+                    owner,
+                    site,
+                    borrows,
+                    args,
+                    bound,
+                } => TyData::Opaque {
+                    owner,
+                    site,
+                    borrows,
+                    args: list(args),
+                    bound: mapped(bound),
+                },
+                TyData::Tuple { elems, rest } => TyData::Tuple {
+                    elems: list(elems),
+                    rest: rest.map(mapped),
+                },
+                TyData::Union(members) => TyData::Union(list(members)),
+                TyData::Fn {
+                    params,
+                    result,
+                    row,
+                    suspends,
+                    inputs,
+                    deps: _,
+                } => TyData::Fn {
+                    params: list(params),
+                    result: mapped(result),
+                    row: map_row(row),
+                    suspends,
+                    inputs,
+                    deps: FnDeps::NONE,
+                },
+                TyData::Row(r) => TyData::Row(map_row(r)),
+                TyData::Context(r) => TyData::Context(map_row(r)),
+                TyData::TraitValue {
+                    def,
+                    args,
+                    bindings,
+                } => TyData::TraitValue {
+                    def,
+                    args: list(args),
+                    bindings: bindings.into_iter().map(|(d, b)| (d, mapped(b))).collect(),
+                },
+                TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty,
+                    args,
+                } => TyData::Assoc {
+                    assoc,
+                    trait_,
+                    self_ty: mapped(self_ty),
+                    args: list(args),
+                },
+                // A leaf holds nothing to erase.
+                TyData::Prim(_)
+                | TyData::Never
+                | TyData::Poison
+                | TyData::Param(_)
+                | TyData::Const(_)
+                | TyData::Infer(_)
+                | TyData::Canon(_) => return true,
+            };
+            memo.insert(t, p.intern_ty(&d));
+            true
+        });
+        memo.get(&t).copied().unwrap_or(t)
     }
 }
 
@@ -3638,6 +3657,66 @@ mod tests {
                         assert_eq!(found, expected);
                         assert_eq!(work, depth + if leaf == named { 2 } else { 1 });
                     }
+                }
+            })
+            .expect("thread")
+            .join()
+            .expect("no stack overflow");
+    }
+
+    #[test]
+    fn erasing_at_depth_1000_fits_a_small_stack() {
+        std::thread::Builder::new()
+            // cost: one 96 KiB thread for this test.
+            .stack_size(96 << 10)
+            .spawn(|| {
+                let pool = InternPool::new();
+                let types = pool.types();
+                let reference = |counted| {
+                    pool.intern_ty(&TyData::Ref {
+                        inner: Ty::I32,
+                        mutable: true,
+                        counted,
+                    })
+                };
+                let function = |r, deps| {
+                    pool.intern_ty(&TyData::Fn {
+                        params: pool.list(&[r]),
+                        result: r,
+                        row: RowId::EMPTY,
+                        suspends: false,
+                        inputs: Inputs::Fixed,
+                        deps,
+                    })
+                };
+                let counted = reference(true);
+                let deps = types.fn_deps(&[1], &[1]);
+                let leaf = function(counted, deps);
+                let plain = function(counted, FnDeps::NONE);
+                let local = function(reference(false), FnDeps::NONE);
+                for depth in [100, 1_000] {
+                    let mut chain = [leaf, plain, local];
+                    for _ in 0..depth {
+                        for t in &mut chain {
+                            *t = pool.intern_ty(&TyData::Tuple {
+                                elems: pool.list(&[*t, *t]),
+                                rest: None,
+                            });
+                        }
+                    }
+                    let (out, work) =
+                        crate::work::count_type_nodes(|| types.erase_fn_deps(chain[0]));
+                    assert_eq!(out, chain[1]);
+                    assert_eq!(work, depth + 1);
+                    let (out, work) =
+                        crate::work::count_type_nodes(|| types.erase_ref_kinds(chain[0]));
+                    assert_eq!(out, chain[2]);
+                    assert_eq!(work, depth + 2);
+                    let (out, work) = crate::work::count_type_nodes(|| {
+                        types.erase_fn_deps_list(pool.list(&[chain[0], chain[0]]))
+                    });
+                    assert_eq!(pool.list_items(out), &[chain[1], chain[1]]);
+                    assert_eq!(work, depth + 1, "one memo shared by list roots");
                 }
             })
             .expect("thread")
