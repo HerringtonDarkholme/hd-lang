@@ -6,9 +6,10 @@
 //! a copy or a move; and the calls' arguments those loans read.
 
 use hd_base::SliceSort as _;
-use hd_mono::{ProgramEnv, Target, subst};
+use hd_layout::field_ty;
+use hd_mono::{ProgramEnv, Target};
 use hd_tir::ir::{Body, Callee, Place, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
-use hd_types::{InternPool, Ty, TyData};
+use hd_types::{InternPool, Ty};
 
 use crate::Input;
 use crate::layout::{
@@ -229,20 +230,6 @@ impl KnownOrigins {
     #[cfg(test)]
     fn slots(&self, local: usize) -> &[usize] {
         self.locals.get(&local).map_or(&[], Vec::as_slice)
-    }
-}
-
-/// The type at the end of the struct field `f` of type `t`.
-fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
-    match pool.get(t) {
-        TyData::Adt { def, args } => {
-            let fs = env.data_fields(def)?;
-            Some(subst(pool, env, def, args, *fs.get(f as usize)?))
-        }
-        TyData::Tuple { .. } => crate::layout::tuple_members(pool, t)
-            .get(f as usize)
-            .copied(),
-        _ => None,
     }
 }
 

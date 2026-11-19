@@ -281,6 +281,18 @@ pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKi
     }
 }
 
+/// The type of struct, tuple or newtype field `f` of `t`.
+pub fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
+    match pool.get(t) {
+        TyData::Adt { def, args } => {
+            let fs = env.data_fields(def)?;
+            Some(hd_mono::subst(pool, env, def, args, *fs.get(f as usize)?))
+        }
+        TyData::Tuple { .. } => tuple_members(pool, t).get(f as usize).copied(),
+        _ => None,
+    }
+}
+
 /// A tuple type's members in order: its elements, then its rest list
 /// when it has one, laid out as one more member.
 pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {

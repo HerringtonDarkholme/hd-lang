@@ -459,6 +459,9 @@ impl hd_opt::prove::Cx for Env<'_> {
             _ => None,
         }
     }
+    fn field(&self, t: Ty, k: u32) -> Option<Ty> {
+        hd_layout::field_ty(&self.run.pool, self, t, k)
+    }
     fn intrinsic(&self, callee: &Callee) -> Option<String> {
         match callee {
             Callee::Item { def, .. } => ProgramEnv::intrinsic(self, *def),

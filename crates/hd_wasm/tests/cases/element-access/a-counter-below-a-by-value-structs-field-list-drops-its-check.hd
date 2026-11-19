@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# A counter below the length of a list in a field of a struct held by
+# value (`bag.xs`, the place `[$0 .xs]`, no dereference) drops its
+# bounds check (#2187).
+struct Bag:
+    xs: List[i64]
+
+fn total(bag: Bag) -> i64:
+    let s = 0i64
+    # subject
+    for i in 0..bag.xs.len():
+        s = s + bag.xs[i]
+    s

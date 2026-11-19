@@ -44,6 +44,11 @@ pub trait Cx {
     fn tuple(&self, t: Ty) -> bool;
     /// The type reference type `t` refers to, and whether it is fat.
     fn ref_target(&self, t: Ty) -> Option<(Ty, bool)>;
+    /// The type of struct, tuple or newtype field `k` of `t`; `None`
+    /// proves nothing behind a field.
+    fn field(&self, _t: Ty, _k: u32) -> Option<Ty> {
+        None
+    }
     /// The intrinsic `callee` names, if it names one.
     fn intrinsic(&self, callee: &Callee) -> Option<String>;
 }
@@ -101,19 +106,55 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) {
     proven.sort_stable();
     proven.dedup();
     for i in proven {
-        // The step `[x [%i] ..]` or `[$l * [%i] ..]` names first.
-        let deref = b
+        // The first element step: `[x [%i] ..]`, `[$l * .xs [%i] ..]`.
+        if let Some(k) = b
             .decode_place(b.data[i][0])
-            .is_some_and(|p| p.proj.first() == Some(&Proj::Deref));
-        b.uncheck_elem(i, usize::from(deref));
+            .and_then(|p| p.proj.iter().position(|s| matches!(s, Proj::Elem(_))))
+        {
+            b.uncheck_elem(i, k);
+        }
     }
 }
 
-/// A list in a local, or behind the reference a local holds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A list place as a `Body::stable_lists` row names it: a local and a
+/// path of fields and dereferences from it (`[$l]`, `[*$l]`,
+/// `[*$l .xs]`, #2187).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListRoot {
     pub local: u32,
-    pub indirect: bool,
+    pub path: Vec<Proj>,
+}
+
+impl ListRoot {
+    /// The list at `path` from `local`, which holds fields and
+    /// dereferences only.
+    fn at(local: u32, path: Vec<Proj>) -> Option<Self> {
+        path.iter()
+            .all(|s| matches!(s, Proj::Field(_) | Proj::Deref))
+            .then_some(ListRoot { local, path })
+    }
+
+    /// A local's own list, or the list the reference it holds refers to.
+    #[must_use]
+    pub fn of_local(local: u32, indirect: bool) -> Self {
+        let path = if indirect {
+            vec![Proj::Deref]
+        } else {
+            Vec::new()
+        };
+        ListRoot { local, path }
+    }
+
+    /// Whether the list is behind the reference the local holds, for
+    /// those two forms only.
+    #[must_use]
+    pub fn indirect(&self) -> Option<bool> {
+        match self.path.as_slice() {
+            [] => Some(false),
+            [Proj::Deref] => Some(true),
+            _ => None,
+        }
+    }
 }
 
 /// Each local's stores, the locals a `Ref` names, and the element
@@ -190,30 +231,24 @@ pub fn read_local(b: &Body, r: u32) -> Option<usize> {
         .map(hd_base::LocalId::idx)
 }
 
-/// The list and index of `Read` or `Store` `i` whose place starts with an
-/// element of a local's list or of the list its reference refers to
-/// (`[$l [%i] ..]`, `[$l * [%i] ..]`).
+/// The list and index of `Read` or `Store` `i` whose place's first
+/// element step indexes a list a local roots through fields and
+/// dereferences (`[$l [%i] ..]`, `[$l * [%i] ..]`, `[$l * .xs [%i] ..]`).
 #[must_use]
 pub fn rooted_elem(b: &Body, i: usize) -> Option<(ListRoot, u32)> {
     if !matches!(b.tags[i], Tag::Read | Tag::Store) {
         return None;
     }
-    let p = b.decode_place(b.data[i][0])?;
+    let mut p = b.decode_place(b.data[i][0])?;
     let PlaceRoot::Local(l) = p.root else {
         return None;
     };
-    let (indirect, ix) = match p.proj.as_slice() {
-        [Proj::Elem(ix), ..] => (false, *ix),
-        [Proj::Deref, Proj::Elem(ix), ..] => (true, *ix),
-        _ => return None,
-    };
-    Some((
-        ListRoot {
-            local: l.raw(),
-            indirect,
-        },
-        ix.0,
-    ))
+    let (k, ix) = p.proj.iter().enumerate().find_map(|(k, s)| match *s {
+        Proj::Elem(ix) => Some((k, ix)),
+        _ => None,
+    })?;
+    p.proj.truncate(k);
+    Some((ListRoot::at(l.raw(), p.proj)?, ix.0))
 }
 
 /// The list root value `r` reads: a local's list, or the list a
@@ -224,14 +259,8 @@ pub fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
     if !cx.list(b.ty[i]) {
         return None;
     }
-    let root = |l: usize, indirect| {
-        Some(ListRoot {
-            local: hd_tir::ir::u32_of(l),
-            indirect,
-        })
-    };
     match b.tags[i] {
-        Tag::Read if let Some(l) = b.local_read(i) => root(l.idx(), false),
+        Tag::Read if let Some(l) = b.local_read(i) => Some(ListRoot::of_local(l.raw(), false)),
         // A field, element or payload of a value, not a read through a
         // reference.
         Tag::Read
@@ -240,16 +269,19 @@ pub fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
         {
             None
         }
+        // A list a local roots through fields and dereferences
+        // (`[*$l]`, `[$s .xs]`, `[*$l .xs]`), or one a reference value
+        // read from a local refers to (`[*%r .xs]`).
         Tag::Read => {
             let p = b.decode_place(b.data[i][0])?;
-            if p.proj.as_slice() != [Proj::Deref] {
-                return None;
-            }
-            match p.root {
-                PlaceRoot::Local(l) => root(l.idx(), true),
-                PlaceRoot::Value(v) => root(read_local(b, v.0)?, true),
-                _ => None,
-            }
+            let local = match p.root {
+                PlaceRoot::Local(l) => l.raw(),
+                PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
+                    hd_tir::ir::u32_of(read_local(b, v.0)?)
+                }
+                _ => return None,
+            };
+            ListRoot::at(local, p.proj)
         }
         Tag::Coerce => list_root(b, cx, b.data[i][0]),
         _ => None,
@@ -442,9 +474,13 @@ impl Lists<'_> {
             (self.list_root(list)?, access_index(b, x)?)
         } else {
             let (root, index) = rooted_elem(b, x)?;
+            // A map's entry is an element step too.
             let mut ty = b.local_ty[root.local as usize];
-            if root.indirect {
-                ty = self.cx.ref_target(ty)?.0;
+            for step in &root.path {
+                ty = match *step {
+                    Proj::Field(k) => self.cx.field(ty, k)?,
+                    _ => self.cx.ref_target(ty)?.0,
+                };
             }
             if !self.cx.list(ty) {
                 return None;
@@ -528,7 +564,7 @@ impl Lists<'_> {
         else {
             return Vec::new();
         };
-        if !self.keeps_length(root, l, len) {
+        if !self.keeps_length(&root, l, len) {
             return Vec::new();
         }
         self.loop_body(l)
@@ -543,7 +579,7 @@ impl Lists<'_> {
                         _ => return false,
                     },
                 };
-                if list != Some(root) || self.ty_of(index) != usize_ty() {
+                if list.as_ref() != Some(&root) || self.ty_of(index) != usize_ty() {
                     return false;
                 }
                 let index = self.source(index);
@@ -672,7 +708,7 @@ impl Lists<'_> {
             }) {
                 continue;
             }
-            if self.keeps_length(root, l, x) {
+            if self.keeps_length(&root, l, x) {
                 roots.push(root);
             }
         }
@@ -732,33 +768,33 @@ impl Lists<'_> {
                 let Some((root, index)) = self.elem_access(x as usize) else {
                     return false;
                 };
-                let Some((n, and)) = self.masked_len(root, index) else {
+                let Some((n, and)) = self.masked_len(&root, index) else {
                     return false;
                 };
-                let Some(t) = self.positive_len(root, and) else {
+                let Some(t) = self.positive_len(&root, and) else {
                     return false;
                 };
-                let keeps = |d: u32| self.dominates(d, x) && self.keeps_length(root, l, d);
+                let keeps = |d: u32| self.dominates(d, x) && self.keeps_length(&root, l, d);
                 keeps(n) && keeps(t)
             })
             .collect()
     }
 
     /// The `xs.len()` read of list `root` that value `r` stands for.
-    fn len_of(&self, root: ListRoot, r: u32) -> Option<u32> {
+    fn len_of(&self, root: &ListRoot, r: u32) -> Option<u32> {
         let n = self.source(r);
         (self.is_op(n, Tag::Intrinsic, IntrinsicOp::ListLen as u32)
             && self
                 .b
                 .record(self.b.data[n as usize][1])
                 .first()
-                .is_some_and(|&list| self.list_root(list) == Some(root)))
+                .is_some_and(|&list| self.list_root(list).as_ref() == Some(root)))
         .then_some(n)
     }
 
     /// The length read `n` and the `&` of index `index` when it is
     /// `y & (n - 1)` in either order, `n` a length of list `root`.
-    fn masked_len(&self, root: ListRoot, index: u32) -> Option<(u32, u32)> {
+    fn masked_len(&self, root: &ListRoot, index: u32) -> Option<(u32, u32)> {
         let and = self.source(index);
         if !self.is_op(and, Tag::Prim, PrimOp::BitAnd as u32) {
             return None;
@@ -773,7 +809,7 @@ impl Lists<'_> {
     /// A length read of list `root` that a test showed above zero before
     /// `at` runs: a test whose arm holds `at`, or an earlier statement of
     /// a block around `at` whose other arm never falls through.
-    fn positive_len(&self, root: ListRoot, at: u32) -> Option<u32> {
+    fn positive_len(&self, root: &ListRoot, at: u32) -> Option<u32> {
         let b = self.b;
         let shown = |test: u32, outcome: bool| {
             let c = self.source(b.data[test as usize][0]);
@@ -813,9 +849,9 @@ impl Lists<'_> {
     /// `from` runs before the loop, starts before `from` and ends after
     /// the statement of `from`'s block that holds the loop. A frame cell's
     /// list has no row. O(log rows + the loop's rows + the block depth).
-    fn keeps_length(&self, root: ListRoot, l: u32, from: u32) -> bool {
+    fn keeps_length(&self, root: &ListRoot, l: u32, from: u32) -> bool {
         let Some([first, after, _]) =
-            stable_rows(self.b, l).find_map(|(r, w)| (r == root).then_some(w))
+            stable_rows(self.b, l).find_map(|(r, w)| (r == *root).then_some(w))
         else {
             return false;
         };
@@ -937,9 +973,8 @@ impl Lists<'_> {
 }
 
 /// The stable list places the hoisting pass lists for loop `l`
-/// (`Body::stable_lists`, sorted by loop) that are a local's list or the
-/// list a reference local refers to, each with its region's bounds and
-/// whether the loop keeps its buffer too (else only its length).
+/// (`Body::stable_lists`, sorted by loop), each with its region's bounds
+/// and whether the loop keeps its buffer too (else only its length).
 /// O(log rows + its rows).
 pub fn stable_rows(b: &Body, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 3])> + '_ {
     let rows = &b.stable_lists;
@@ -952,18 +987,7 @@ pub fn stable_rows(b: &Body, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 3]
             let PlaceRoot::Local(local) = p.root else {
                 return None;
             };
-            let indirect = match p.proj.as_slice() {
-                [] => false,
-                [Proj::Deref] => true,
-                _ => return None,
-            };
-            Some((
-                ListRoot {
-                    local: local.raw(),
-                    indirect,
-                },
-                [before, after, buffer],
-            ))
+            Some((ListRoot::at(local.raw(), p.proj)?, [before, after, buffer]))
         })
 }
 

@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# A masked index `y & (b.xs.len() - 1)` into a field's list, behind a
+# test that its length is above zero, drops its bounds check (#2187):
+# the masked proof keys the list by its place `[*$0 .xs]`.
+struct Bag:
+    xs: List[i64]
+
+fn total(b: &Bag, y: usize) -> i64:
+    let s = 0i64
+    if b.xs.len() > 0:
+        # subject
+        for k in 0..3usize:
+            s = s + b.xs[(y + k) & (b.xs.len() - 1)]
+    s

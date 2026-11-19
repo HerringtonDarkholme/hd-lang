@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: v8 release
+# A counter below the length of a list in a field of a borrowed struct
+# drops its bounds check, in the `while` form shown and the `for i in
+# 0..b.xs.len()` form below alike (#2187): nothing in the loop changes
+# `b.xs`, whose region row keys the place `[*$0 .xs]`.
+struct Bag:
+    xs: List[i64]
+
+fn total(b: &Bag) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < b.xs.len():
+        s = s + b.xs[i]
+        i = i + 1
+    s
+
+fn total_for(b: &Bag) -> i64:
+    let s = 0i64
+    for i in 0..b.xs.len():
+        s = s + b.xs[i]
+    s

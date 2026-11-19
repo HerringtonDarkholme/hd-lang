@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# A counter below the length of a field's list keeps its bounds check
+# when the loop may push onto that list: its header changes, so the
+# hoisting pass writes no region row for `[*$0 .xs]` (#2187's
+# neighbour).
+struct Bag:
+    xs: List[i64]
+
+fn total(b: &mut Bag) -> i64:
+    let s = 0i64
+    let i = 0usize
+    # subject
+    while i < b.xs.len():
+        s = s + b.xs[i]
+        if s < 0:
+            b.xs.push(1)
+        i = i + 1
+    s

@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# An entry of a map in a field (`t.m[y & 3]`) is an element step too, but
+# no list: the list proofs type the place's path (`[*$0 .m]`) and prove
+# nothing of it, so the lookup keeps its missing-key check (#2187's
+# neighbour).
+struct Tab:
+    m: Map[usize, i64]
+
+fn total(t: &Tab, y: usize) -> i64:
+    let s = 0i64
+    # subject
+    for k in 0..3usize:
+        s = s + t.m[(y + k) & 3]
+    s

@@ -53,6 +53,7 @@
 //! ([`Em::borrow_abandon`]), so no object stays borrowed after it.
 
 use hd_base::{HashMap, SliceSort as _, StageResult};
+use hd_layout::field_ty;
 use hd_mono::{ProgramEnv, Target};
 use hd_tir::ir::NONE;
 use hd_tir::ir::{Body, PlaceRoot, Proj, Tag};
@@ -645,20 +646,6 @@ struct CallLoan {
 enum KeyOf {
     Known(Option<usize>),
     Local(u32),
-}
-
-/// The type of struct, tuple or newtype field `f` of `t`.
-fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
-    match pool.get(t) {
-        TyData::Adt { def, args } => {
-            let fs = env.data_fields(def)?;
-            Some(hd_mono::subst(pool, env, def, args, *fs.get(f as usize)?))
-        }
-        TyData::Tuple { .. } => crate::layout::tuple_members(pool, t)
-            .get(f as usize)
-            .copied(),
-        _ => None,
-    }
 }
 
 /// The `*T` dereferences on `steps` from a value of type `root`: each

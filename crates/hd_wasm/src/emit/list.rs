@@ -219,8 +219,11 @@ impl Em<'_, '_, '_> {
             .collect();
         let mut roots = Vec::new();
         for root in stable {
+            let Some(indirect) = root.indirect() else {
+                continue;
+            };
             let mut ty = self.b.local_ty[root.local as usize];
-            if root.indirect {
+            if indirect {
                 match self.ref_target(ty) {
                     Some((target, false)) => ty = target,
                     _ => continue,
@@ -240,10 +243,10 @@ impl Em<'_, '_, '_> {
         if roots.is_empty() {
             return Ok(roots);
         }
-        for &root in &roots {
+        for root in &roots {
             let local = self.local_value(root.local)?[0];
             self.f.get(local);
-            if root.indirect {
+            if root.indirect() == Some(true) {
                 self.f.op(I::I32Load(mem(HEAP, 0, 2)));
             }
             let buffer = self.f.local(Val::I32);
@@ -252,7 +255,8 @@ impl Em<'_, '_, '_> {
             self.f.get(buffer);
             self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
             self.f.set(len);
-            self.list_caches.push((root, ListCache { buffer, len }));
+            self.list_caches
+                .push((root.clone(), ListCache { buffer, len }));
         }
         Ok(roots)
     }
