@@ -350,8 +350,8 @@ fn named_command_children_keep_arguments_input_environment_and_cwd() {
     let (stdout, stderr, status) = ran.into_result().unwrap();
     assert_eq!(stdout, b"argument:override:input");
     assert_eq!(
-        String::from_utf8(stderr).unwrap(),
-        cwd.canonicalize().unwrap().to_string_lossy()
+        std::fs::canonicalize(String::from_utf8(stderr).unwrap()).unwrap(),
+        std::fs::canonicalize(&cwd).unwrap()
     );
     assert_eq!(status, 0);
     assert_eq!(std::env::current_dir().unwrap(), parent);
