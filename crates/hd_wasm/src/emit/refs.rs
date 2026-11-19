@@ -20,7 +20,8 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::excl::fields;
 use super::value::{Dst, Src};
-use crate::layout::{Kind, Leaf, LeafOps as _, Part, Walk, mem as mem_of, walk};
+use crate::layout::facts::place_part;
+use crate::layout::{Kind, Leaf, LeafOps as _, Part, mem as mem_of};
 use crate::module::{EMPTY, HEAP, Val, mem};
 use crate::rt::{self, LIST_ELEMS, LIST_LEN, RefLayout};
 
@@ -257,129 +258,6 @@ impl Em<'_, '_, '_> {
         ))
     }
 
-    /// The part at projection `proj` of a value of type `t` laid out in
-    /// its locals: the part's type and which of the value's locals hold
-    /// it, through struct and tuple fields, a newtype's one field and an
-    /// enum's payload fields (`as .v .f`). `None` when a step leaves the
-    /// locals: a boxed enum, an open value, a dereference, an element.
-    pub(super) fn part_slots(&self, t: Ty, proj: &[Proj]) -> StageResult<Option<(Ty, Vec<usize>)>> {
-        let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
-        let mut ty = t;
-        let mut k = 0;
-        while k < proj.len() {
-            // A newtype's one field is all of it, whatever it holds.
-            let whole = self.newtype(ty) && proj[k] == Proj::Field(0);
-            if !(whole || matches!(self.kind(ty), Kind::Value)) {
-                return Ok(None);
-            }
-            match proj[k] {
-                Proj::Field(f) => {
-                    let (ft, part) = self.path_step(ty, f)?;
-                    slots = slots[part.first..part.first + part.count].to_vec();
-                    ty = ft;
-                    k += 1;
-                }
-                Proj::Variant(v) => {
-                    let Some(&Proj::Field(f)) = proj.get(k + 1) else {
-                        return Ok(None);
-                    };
-                    // A checked place's payload step names a field of
-                    // its variant.
-                    // A `Proj::Variant` step, into an enum or an optional.
-                    let at = self.enum_flat(ty)?.selection(v as usize, f as usize);
-                    slots = at.iter().map(|&p| slots[p]).collect();
-                    ty = self.variant_tys(ty)[v as usize][f as usize];
-                    k += 2;
-                }
-                Proj::Deref | Proj::Elem(_) => return Ok(None),
-            }
-        }
-        Ok(Some((ty, slots)))
-    }
-
-    /// The values of a `t` value to write after zeros in the values
-    /// `zeroed`, a part's at `proj` ([`Em::zero_part`]), so that the value
-    /// still says the variant the part moved out of: each enum on the way
-    /// whose niche cell the zeros cover and whose niche reads 0 as another
-    /// variant (a null address's). The release of the rest then walks the
-    /// right variant, wherever its drop is. A counted cell gets the static
-    /// empty buffer's address (`None`), which no count changes; any other
-    /// the last value of its valid range, which `reserve` left just below
-    /// the niche's values.
-    fn niche_repairs(
-        &self,
-        t: Ty,
-        proj: &[Proj],
-        zeroed: &[usize],
-    ) -> StageResult<Vec<(usize, Option<u32>)>> {
-        let mut out = Vec::new();
-        let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
-        let mut ty = t;
-        let mut k = 0;
-        while k < proj.len() {
-            let whole = self.newtype(ty) && proj[k] == Proj::Field(0);
-            if !(whole || matches!(self.kind(ty), Kind::Value)) {
-                return Ok(out);
-            }
-            match proj[k] {
-                Proj::Field(f) => {
-                    let (ft, part) = self.path_step(ty, f)?;
-                    slots = slots[part.first..part.first + part.count].to_vec();
-                    ty = ft;
-                    k += 1;
-                }
-                Proj::Variant(v) => {
-                    let Some(&Proj::Field(f)) = proj.get(k + 1) else {
-                        return Ok(out);
-                    };
-                    // A `Proj::Variant` step, into an enum or an optional.
-                    let flat = self.enum_flat(ty)?;
-                    if let Some(d) = flat.cell()
-                        && let crate::layout::Enc::Niche { start, bytes, .. } = d.enc
-                        && d.enc.reads(0) != v
-                        && zeroed.contains(&slots[d.value as usize])
-                    {
-                        let counted = match walk(self.pool(), self.env(), ty).map(|w| w.kind()) {
-                            Some(crate::layout::WalkKind::Switch(_, arms)) => arms
-                                .get(v as usize)
-                                .and_then(Option::as_ref)
-                                .is_some_and(|arm| counts(arm, d.value)),
-                            Some(_) | None => false,
-                        };
-                        let last =
-                            start.wrapping_sub(1) & (u32::MAX >> (32 - 8 * u32::from(bytes)));
-                        out.push((slots[d.value as usize], (!counted).then_some(last)));
-                    }
-                    let at = flat.selection(v as usize, f as usize);
-                    slots = at.iter().map(|&p| slots[p]).collect();
-                    ty = self.variant_tys(ty)[v as usize][f as usize];
-                    k += 2;
-                }
-                Proj::Deref | Proj::Elem(_) => return Ok(out),
-            }
-        }
-        Ok(out)
-    }
-
-    /// Zeros the locals `ls` of a value of type `t` that hold the bytes of
-    /// its part in `slots`: the part's own, and those of other variants of
-    /// an enum that overlap them (`layout::Flat`), so no copy of a moved
-    /// counted address stays.
-    fn zero_part(&mut self, t: Ty, ls: &[u32], slots: &[usize]) -> StageResult<()> {
-        for k in self.zeroed(t, slots)? {
-            self.f.zero(ls[k]);
-        }
-        Ok(())
-    }
-
-    /// The values of a `t` value that [`Em::zero_part`] zeros for its part
-    /// in `slots`: those whose bytes overlap the part's.
-    fn zeroed(&self, t: Ty, slots: &[usize]) -> StageResult<Vec<usize>> {
-        let values = mem_of(self.pool(), self.env(), t)?.leaves;
-        let part: Vec<Leaf> = slots.iter().map(|&k| values[k]).collect();
-        Ok(crate::layout::overlapping(&values, &part))
-    }
-
     /// The locals of place `p`'s root, when the root's value lives in
     /// them (a local in no cell, or an instruction's value), and its type.
     fn root_locals(&mut self, p: &Place) -> StageResult<Option<(Ty, Vec<u32>)>> {
@@ -398,8 +276,8 @@ impl Em<'_, '_, '_> {
     /// or a value laid out in the root's locals (`[$l .a]`,
     /// `[%v as .1 .0]`): the part's locals with their counts, and zeros
     /// left in their place. False, emitting nothing, when the part is not
-    /// in the root's locals at this instance (a boxed enum's payload, an
-    /// open value's part), where the read is emitted as a copy and the
+    /// in the root's locals at this instance (`place_part` says `None`),
+    /// where the read is emitted as a copy and the
     /// root's `Drop`, which the move pass keeps for such a root, releases
     /// the whole.
     pub(super) fn own_move_part(&mut self, i: u32) -> StageResult<bool> {
@@ -412,24 +290,28 @@ impl Em<'_, '_, '_> {
             ledger!("partial-move/TIR-move-emitted-as-copy(root not in locals)");
             return Ok(false);
         };
-        let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
+        let Some(part) = place_part(self.pool(), self.env(), t, &p.proj)? else {
             ledger!("partial-move/TIR-move-emitted-as-copy(part not in place)");
             return Ok(false);
         };
-        ledger!(if self.needs_drop(pt) => "partial-move/zeroed-in-place"
+        let empty = (self.needs_drop(part.ty))
+            .then(|| part.empty_pattern(self.pool(), self.env(), t))
+            .transpose()?;
+        ledger!(if empty.is_some() => "partial-move/zeroed-in-place"
             else "partial-move/plain-untracked");
-        ledger!(if self.needs_drop(pt) => "partial-move/niche-repairs" +=
-            self.niche_repairs(t, &p.proj, &self.zeroed(t, &slots)?)?.len());
+        ledger!("partial-move/niche-repairs" += empty.as_ref().map_or(0, |e| e.1.len()));
         if let PlaceRoot::Local(local) = p.root {
-            self.borrow_moved_slots(i, local.idx(), slots.iter().copied());
+            self.borrow_moved_slots(i, local.idx(), part.slots.iter().copied());
         }
-        for &k in &slots {
+        for &k in &part.slots {
             self.f.get(ls[k]);
         }
         self.store_owned(i)?;
-        if self.needs_drop(pt) {
-            self.zero_part(t, &ls, &slots)?;
-            for (slot, value) in self.niche_repairs(t, &p.proj, &self.zeroed(t, &slots)?)? {
+        if let Some((zeroed, repairs)) = empty {
+            for k in zeroed {
+                self.f.zero(ls[k]);
+            }
+            for (slot, value) in repairs {
                 let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
                 self.f.u32(value);
                 self.f.set(ls[slot]);
@@ -505,11 +387,11 @@ impl Em<'_, '_, '_> {
         let mut rest = Vec::new();
         for (f, _) in fields.iter().enumerate() {
             let f = u32::try_from(f).expect("fields");
-            let Some((ft, slots)) = self.part_slots(t, &step(f))? else {
+            let Some(part) = place_part(self.pool(), self.env(), t, &step(f))? else {
                 return Ok(false);
             };
-            if !taken.contains(&f) && self.needs_drop(ft) {
-                rest.push((ft, slots, f));
+            if !taken.contains(&f) && self.needs_drop(part.ty) {
+                rest.push((part, f));
             }
         }
         // More than one part left: the whole value's glue releases them in
@@ -519,14 +401,16 @@ impl Em<'_, '_, '_> {
         if rest.len() > 1 {
             return Ok(false);
         }
-        for (ft, slots, field) in rest {
-            let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
+        for (part, field) in rest {
+            let held: Vec<u32> = part.slots.iter().map(|&k| ls[k]).collect();
             let place = Place {
                 root: PlaceRoot::Value(hd_tir::ir::Ref(r)),
                 proj: step(field),
             };
-            self.release_drop_place(&part, ft, &place)?;
-            self.zero_part(t, &ls, &slots)?;
+            self.release_drop_place(&held, part.ty, &place)?;
+            for k in part.empty_pattern(self.pool(), self.env(), t)?.0 {
+                self.f.zero(ls[k]);
+            }
         }
         Ok(true)
     }
@@ -1699,11 +1583,6 @@ fn place_field(step: Option<&Proj>) -> u32 {
         // with Field; counted_ref splits only at Elem/Deref or the end.
         _ => super::required(None, "a checked place suffix must name its Field"),
     }
-}
-
-/// Whether walk `arm` counts the address in value `k`.
-fn counts(arm: &Walk, k: u32) -> bool {
-    arm.indices(true).contains(&k)
 }
 
 /// The one value instruction `k` of `b` uses only to decide on its tag

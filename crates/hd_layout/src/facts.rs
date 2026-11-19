@@ -3,7 +3,9 @@
 //! the parts a value holds in place, and the referents a promoted copy
 //! may take by value.
 
+use hd_base::StageResult;
 use hd_mono::ProgramEnv;
+use hd_tir::ir::Proj;
 use hd_types::{InternPool, Ty, TyData};
 
 use crate::{Kind, kind};
@@ -245,5 +247,118 @@ fn declared_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<T
     match pool.get(t) {
         TyData::Ref { inner, .. } => Some(inner),
         _ => None,
+    }
+}
+
+/// The part [`place_part`] names: its type, the root's values that hold
+/// it, and per enum on the way whose niche reads 0 as another variant
+/// than the one stepped into, (its tag's slot in the root, the enum, the
+/// variant, its tag value in the enum, the niche's last valid value).
+pub struct PlacePart {
+    pub ty: Ty,
+    pub slots: Vec<usize>,
+    niches: Vec<(usize, Ty, u32, u32, u32)>,
+}
+
+/// The values a move zeroes, then each (value, repair) after the zeros
+/// ([`PlacePart::empty_pattern`]).
+pub type EmptyPattern = (Vec<usize>, Vec<(usize, Option<u32>)>);
+
+/// The part at projection `proj` of a value of type `t` laid out in its
+/// locals, through fields and variants' payload fields, or `None` where a
+/// step leaves the locals: a dereference, an element, a reference's or a
+/// boxed enum's part. O(d) cached layout probes for d steps.
+pub fn place_part(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    proj: &[Proj],
+) -> StageResult<Option<PlacePart>> {
+    let slots = (0..crate::vals(pool, env, t)?.len()).collect();
+    let mut part = PlacePart {
+        ty: t,
+        slots,
+        niches: Vec::new(),
+    };
+    let mut rest = proj;
+    while !rest.is_empty() {
+        let ty = part.ty;
+        let newtype = (pool.adt(ty)).and_then(|(def, args)| {
+            Some(hd_mono::subst(pool, env, def, args, env.newtype_base(def)?))
+        });
+        let value = matches!(kind(pool, env, ty), Kind::Value);
+        let payload = match rest {
+            [Proj::Variant(_), ..] => {
+                crate::flat(pool, env, ty)?.zip(crate::variants(pool, env, ty))
+            }
+            _ => None,
+        };
+        rest = match (rest, newtype, value, payload) {
+            // A newtype's one field is all of its values, whatever it holds.
+            ([Proj::Field(0), tail @ ..], Some(base), _, _) => {
+                part.ty = base;
+                tail
+            }
+            ([Proj::Field(f), tail @ ..], _, true, _) => {
+                let members = crate::members(pool, env, ty)?;
+                let at = members.parts[*f as usize];
+                part.slots.drain(at.first + at.count..);
+                part.slots.drain(..at.first);
+                part.ty = members.tys[*f as usize];
+                tail
+            }
+            ([Proj::Variant(v), Proj::Field(f), tail @ ..], _, true, Some((flat, vs))) => {
+                let (v, f) = (*v, *f as usize);
+                if let Some(d) = flat.cell()
+                    && let crate::Enc::Niche { start, bytes, .. } = d.enc
+                    && d.enc.reads(0) != v
+                {
+                    let last = start.wrapping_sub(1) & (u32::MAX >> (32 - 8 * u32::from(bytes)));
+                    part.niches
+                        .push((part.slots[d.value as usize], ty, v, d.value, last));
+                }
+                let at = &flat.positions[v as usize][f];
+                part.slots = at.iter().map(|&k| part.slots[k as usize]).collect();
+                part.ty = vs[v as usize][f];
+                tail
+            }
+            _ => return Ok(None),
+        };
+    }
+    Ok(Some(part))
+}
+
+impl PlacePart {
+    /// The empty pattern a move out of this part of a `t` value leaves:
+    /// zeros in the values that overlap the part's (other variants' too,
+    /// so no copy of a moved counted address stays), then the repairs
+    /// that keep each enum on the way reading its variant. A repaired
+    /// cell the variant counts gets the static empty buffer (`None`),
+    /// any other its niche's last valid value. One overlap pass over
+    /// `t`'s leaves, then a binary search of the sorted zeros per enum.
+    pub fn empty_pattern(
+        &self,
+        pool: &InternPool,
+        env: &dyn ProgramEnv,
+        t: Ty,
+    ) -> StageResult<EmptyPattern> {
+        let values = crate::mem(pool, env, t)?.leaves;
+        let part: Vec<crate::Leaf> = self.slots.iter().map(|&k| values[k]).collect();
+        let zeroed = crate::overlapping(&values, &part);
+        let mut repairs = Vec::new();
+        for &(slot, ty, v, value, last) in &self.niches {
+            if zeroed.binary_search(&slot).is_err() {
+                continue;
+            }
+            // The part needs a drop, so its variant's arm walks it and the
+            // enum's walk is a switch on its cell.
+            let counted = crate::walk(pool, env, ty).is_some_and(|w| {
+                matches!(w.kind(), crate::WalkKind::Switch(_, arms)
+                    if arms.get(v as usize).and_then(Option::as_ref)
+                        .is_some_and(|arm| arm.indices(true).contains(&value)))
+            });
+            repairs.push((slot, (!counted).then_some(last)));
+        }
+        Ok((zeroed, repairs))
     }
 }

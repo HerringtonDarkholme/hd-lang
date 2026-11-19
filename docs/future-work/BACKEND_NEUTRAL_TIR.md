@@ -164,6 +164,7 @@ knowing no hd rule.
 | a captured variable | a local of type `*mut (T, flags)`, made by a `Box` instruction (one counted allocation) | a pointer and a runtime allocation |
 | a closure | a boxed tuple of captures and a code pointer | an indirect call, environment first |
 | a drop flag | a `bool` local or field | a branch |
+| a move out of a part | a `Read move` of an in-place place; its empty pattern (the values zeroed and each enum cell's niche repair) is `hd_layout::facts::place_part(..).empty_pattern(..)` | the zero and repair stores |
 | a count | `Retain v` or `Release v` on one counted address; an aggregate calls its shim | a runtime call or inline header code |
 | a loan | `LoanBegin`, `LoanEnd` and `Access` on one object | header bit code |
 | a suspending function | plain functions over a frame tuple | plain functions |

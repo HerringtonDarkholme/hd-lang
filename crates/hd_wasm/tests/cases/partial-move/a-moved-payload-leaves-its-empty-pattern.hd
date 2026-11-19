@@ -1,0 +1,64 @@
+# @dump: wat
+# A move out of a part leaves `hd_layout`'s empty pattern
+# (`place_part(..).empty_pattern(..)`): zeros in the part's values, then
+# a repair of each enum cell on the way that would read 0 as another
+# variant. Each function reaches one case: `first` moves the string whose
+# address is `Two.Both`'s niche (a repair, counted by `Both`), `second`
+# the other string (no repair: the niche keeps its value),
+# `from_speaker` a trait value whose vtable is `Speaker.Talks`'s niche
+# (a repair `Talks` does not count), and `take_name` a newtype's one
+# field and a struct field. The optimizer drops the zero and repair
+# stores here, since nothing reads the rest after the move.
+enum Two:
+    Both(string, string)
+    Neither
+
+fn two() -> Two:
+    .Both("a", "b")
+
+fn eat(s: string) -> usize:
+    s.len()
+
+fn first() -> usize:
+    match two():
+        .Both(a, _) => eat(a)
+        .Neither => 0
+
+fn second() -> usize:
+    match two():
+        .Both(_, b) => eat(b)
+        .Neither => 0
+
+trait Greet:
+    fn greet(&self) -> string
+
+struct User:
+    name: string
+
+impl Greet for User:
+    fn greet(&self) -> string:
+        self.name
+
+enum Speaker:
+    Talks(*dyn Greet, i32)
+    Quiet
+
+fn speaker() -> Speaker:
+    .Talks(box(User { name: "a" }), 1)
+
+fn speak(g: *dyn Greet) -> string:
+    g.greet()
+
+fn from_speaker() -> string:
+    match speaker():
+        .Talks(g, _) => speak(g)
+        .Quiet => ""
+
+type Name(string)
+
+struct Pair:
+    a: Name
+    b: string
+
+fn take_name(p: Pair) -> string:
+    string(p.a)

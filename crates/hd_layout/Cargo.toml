@@ -10,6 +10,7 @@ description = "Target-independent type layout: sizes, offsets, niches, enum enco
 hd_base = { path = "../hd_base" }
 hd_types = { path = "../hd_types" }
 hd_mono = { path = "../hd_mono" }
+hd_tir = { path = "../hd_tir" }
 
 [lints]
 workspace = true
