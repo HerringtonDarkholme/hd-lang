@@ -1342,6 +1342,10 @@ pub fn fields_walk_by(
     fields: &[Ty],
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
+    // Empty child walks need no physical leaves or field positions.
+    if !fields.iter().any(|&f| part(f).is_some()) {
+        return None;
+    }
     let (_, parts) = payload_mem(pool, env, fields).ok()?;
     let first = |p: &Part| u32::try_from(p.first).expect("values");
     Walk::seq(
@@ -1403,6 +1407,9 @@ fn switch_walk_by(
     part: &dyn Fn(Ty) -> Option<Walk>,
 ) -> Option<Walk> {
     let variants = variants(pool, env, t)?;
+    if !variants.iter().flatten().any(|&f| part(f).is_some()) {
+        return None;
+    }
     let flat = flat(pool, env, t).ok()??;
     let arms: Vec<Option<Walk>> = variants
         .iter()
