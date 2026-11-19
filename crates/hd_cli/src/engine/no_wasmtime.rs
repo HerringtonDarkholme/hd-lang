@@ -22,10 +22,11 @@ pub(crate) enum Prepared {}
 /// No child programs are ever held.
 pub(crate) enum Programs {}
 
-impl TryFrom<Vec<(String, Vec<u8>, hd_run::Grants)>> for Programs {
-    type Error = String;
-
-    fn try_from(_list: Vec<(String, Vec<u8>, hd_run::Grants)>) -> Result<Self, String> {
+impl Programs {
+    pub(crate) fn new(
+        _list: Vec<super::TestProgram>,
+        _cwd: &std::path::Path,
+    ) -> Result<Self, String> {
         missing()
     }
 }

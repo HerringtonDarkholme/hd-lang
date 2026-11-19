@@ -1,9 +1,26 @@
 [package]
 name = "runner"
 
+[[executable]]
+name = "runner"
+module = "main"
+
+[[executable]]
+name = "other"
+module = "other"
+
+[[executable]]
+name = "plain"
+module = "plain"
+
 [host]
 "main.Server" = "provider.ts"
+"other.Counter" = "provider.ts"
 
 [capabilities]
 Console = true
 "pkg.main.Server" = true
+"pkg.other.Counter" = true
+
+[dev-capabilities]
+Process = true

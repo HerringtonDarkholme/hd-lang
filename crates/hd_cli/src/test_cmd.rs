@@ -1334,8 +1334,8 @@ fn imports(wasm: &[u8], module: &str) -> bool {
 /// The package's executables and tasks, built for the test runner's
 /// `Process` provider (`cli.test.process`, `.process.tasks`). Each gets
 /// the package's `[capabilities]` table and no flags, as `hd run NAME`
-/// would (`cli.cap.source.hd-run.entry`). They run on the tests' `engine`, so
-/// they are built with the tests' `pipeline`.
+/// would (`cli.cap.source.hd-run.entry`). Each child's contract chooses its
+/// engine independently of the test module (`cli.host.package.native-cli-node`).
 fn build_programs(
     root: &Path,
     package: &str,
@@ -1356,7 +1356,27 @@ fn build_programs(
             p.package_dir.as_deref().unwrap_or(root),
             &[],
         );
-        list.push((r.name, wasm, grants));
+        let contract = crate::host_contract(&wasm).map_err(|e| rep.fail(&e))?;
+        let kind = crate::engine::Choice {
+            kind: engine,
+            named: false,
+        }
+        .for_module(contract.as_ref())
+        .map_err(|e| rep.fail(&e))?;
+        let providers = if kind == crate::engine::EngineKind::Node {
+            crate::node::manifest_providers(contract.as_ref(), Some(&p), &grants)
+                .map_err(|e| rep.fail(&e))?
+        } else {
+            Vec::new()
+        };
+        list.push(crate::engine::TestProgram {
+            name: r.name,
+            wasm,
+            grants,
+            providers,
+            #[cfg(feature = "wasmtime")]
+            engine: kind,
+        });
     }
     TestPrograms::new(engine, list, root).map_err(|e| rep.fail(&e))
 }

@@ -154,9 +154,20 @@ impl TestEngine {
 #[derive(Clone)]
 pub struct NamedProgram {
     pub(crate) name: String,
-    pub(crate) engine: Arc<WasmtimeEngine>,
-    pub(crate) module: Arc<Module>,
-    pub(crate) grants: Grants,
+    pub(crate) code: NamedCode,
+}
+
+#[derive(Clone)]
+pub(crate) enum NamedCode {
+    Native {
+        engine: Arc<WasmtimeEngine>,
+        module: Arc<Module>,
+        grants: Grants,
+    },
+    Command {
+        program: String,
+        args: Vec<String>,
+    },
 }
 
 impl NamedProgram {
@@ -174,10 +185,22 @@ impl NamedProgram {
         );
         Ok(Self {
             name,
-            engine,
-            module,
-            grants,
+            code: NamedCode::Native {
+                engine,
+                module,
+                grants,
+            },
         })
+    }
+
+    /// A named child supplied by another engine's process launcher. Its
+    /// configuration remains owned by the caller for the test session.
+    #[must_use]
+    pub fn command(name: String, program: String, args: Vec<String>) -> Self {
+        Self {
+            name,
+            code: NamedCode::Command { program, args },
+        }
     }
 }
 

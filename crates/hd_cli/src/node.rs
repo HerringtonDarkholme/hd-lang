@@ -297,29 +297,13 @@ impl NodeInstance {
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
         let killed = dir.0.join("status.txt");
-        let mut text = run_config(
+        let text = run_config(
             &self.program,
             &self.grants,
             (self.wall_ms, self.cleanup_ms),
             Some((&frames, &killed)),
+            &self.host_providers,
         );
-        if !self.host_providers.is_empty() {
-            text.pop();
-            text.push_str(",\"hostProviders\":[");
-            for (n, r) in self.host_providers.iter().enumerate() {
-                if n != 0 {
-                    text.push(',');
-                }
-                let _ = write!(
-                    text,
-                    "{{\"module\":{},\"grantPath\":{},\"path\":{}}}",
-                    quote(&r.module),
-                    quote(&r.grant_path),
-                    quote(&r.path.to_string_lossy())
-                );
-            }
-            text.push_str("]}");
-        }
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
@@ -591,23 +575,48 @@ fn host_config(env: &TestEnv<'_>, cases: &[HostCase], node: &str) -> String {
 /// module, with the run host and a configuration of its `Args.program` and
 /// grant, in a scratch directory that lives as long as this value.
 pub struct Programs {
-    _dir: Scratch,
+    _dirs: Vec<Scratch>,
     json: String,
+    #[cfg(feature = "wasmtime")]
+    commands: Vec<(String, Vec<String>)>,
 }
 
 impl Programs {
     /// `list` holds each program's name, module and grant; each runs with
     /// `cwd`, the package directory, as its working directory
     /// (`cli.test.process.cwd`).
-    pub fn new(list: &[(String, Vec<u8>, Grants)], cwd: &Path) -> Result<Programs, String> {
-        let dir = Scratch::new(&[])?;
+    pub(crate) fn new(list: &[crate::engine::TestProgram], cwd: &Path) -> Result<Programs, String> {
+        let mut dirs = Vec::with_capacity(list.len());
         let mut json = String::from("{");
-        for (i, (name, wasm, grants)) in list.iter().enumerate() {
-            let module = dir.0.join(format!("program-{i}.wasm"));
+        #[cfg(feature = "wasmtime")]
+        let mut commands = Vec::with_capacity(list.len());
+        for (i, child) in list.iter().enumerate() {
+            let crate::engine::TestProgram {
+                name,
+                wasm,
+                grants,
+                providers,
+                ..
+            } = child;
+            // Each contract needs its own generated main.host.mjs beside
+            // the runner, as an ordinary Node program does.
+            let dir = Scratch::new(wasm)?;
+            let module = dir.0.join("main.wasm");
             let config = dir.0.join(format!("program-{i}.json"));
-            std::fs::write(&module, wasm).map_err(|e| format!("{}: {e}", module.display()))?;
-            std::fs::write(&config, run_config(name, grants, (None, None), None))
-                .map_err(|e| format!("{}: {e}", config.display()))?;
+            std::fs::write(
+                &config,
+                run_config(name, grants, (None, None), None, providers),
+            )
+            .map_err(|e| format!("{}: {e}", config.display()))?;
+            #[cfg(feature = "wasmtime")]
+            commands.push((
+                name.clone(),
+                vec![
+                    dir.0.join("run.js").to_string_lossy().into_owned(),
+                    module.to_string_lossy().into_owned(),
+                    config.to_string_lossy().into_owned(),
+                ],
+            ));
             if i > 0 {
                 json.push(',');
             }
@@ -620,9 +629,20 @@ impl Programs {
                 quote(&config.to_string_lossy()),
                 quote(&cwd.to_string_lossy())
             );
+            dirs.push(dir);
         }
         json.push('}');
-        Ok(Programs { _dir: dir, json })
+        Ok(Programs {
+            _dirs: dirs,
+            json,
+            #[cfg(feature = "wasmtime")]
+            commands,
+        })
+    }
+
+    #[cfg(feature = "wasmtime")]
+    pub(crate) fn commands(&self) -> &[(String, Vec<String>)] {
+        &self.commands
     }
 }
 
@@ -648,6 +668,7 @@ fn run_config(
     grants: &Grants,
     (wall_ms, cleanup_ms): (Option<u64>, Option<u64>),
     files: Option<(&Path, &Path)>,
+    providers: &[HostProvider],
 ) -> String {
     let launcher = process_launcher();
     let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
@@ -663,11 +684,29 @@ fn run_config(
             quote(&status.to_string_lossy())
         )
     });
-    format!(
+    let mut text = format!(
         "{{\"program\":{},\"grants\":{}{limit}{files}{launcher}}}",
         quote(program),
         grants_json(grants)
-    )
+    );
+    if !providers.is_empty() {
+        text.pop();
+        text.push_str(",\"hostProviders\":[");
+        for (n, r) in providers.iter().enumerate() {
+            if n != 0 {
+                text.push(',');
+            }
+            let _ = write!(
+                text,
+                "{{\"module\":{},\"grantPath\":{},\"path\":{}}}",
+                quote(&r.module),
+                quote(&r.grant_path),
+                quote(&r.path.to_string_lossy())
+            );
+        }
+        text.push_str("]}");
+    }
+    text
 }
 
 /// A grant as the JS host reads it: each trait with a limit, as `false`

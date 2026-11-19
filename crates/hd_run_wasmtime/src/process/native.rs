@@ -53,6 +53,7 @@ pub(crate) enum Start {
 /// (the process's own when `None`).
 pub(crate) struct Request {
     pub(crate) name: String,
+    pub(crate) program: String,
     pub(crate) argv: Vec<String>,
     pub(crate) input: Vec<u8>,
     pub(crate) env: Vec<(String, String)>,
@@ -90,6 +91,7 @@ pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmti
         Err(message) => return Ok(Start::Refused(failed(ProcessError::Other { message }))),
     };
     Ok(Start::Run(Request {
+        program: call.program.clone(),
         name: call.program,
         argv: call.args,
         input: call.stdin.into_bytes(),
@@ -199,7 +201,7 @@ pub(crate) fn validate(call: &Call) -> Option<String> {
 /// Spawns the child, feeds its input while draining both outputs, and
 /// reaps it once both outputs close.
 async fn run_child(request: &Request) -> io::Result<Output> {
-    let mut command = Command::new(&request.name);
+    let mut command = Command::new(&request.program);
     command
         .args(&request.argv)
         .stdin(Stdio::piped())

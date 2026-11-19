@@ -1,4 +1,16 @@
-use std.testing.assert_equal
+use std.process.Command
+use std.testing.{assert_equal, hd_run}
 
 it("runs beside an executable that declares a host trait"):
-    assert_equal(1 + 1, 2, reason="arithmetic")
+    output := hd_run!(*Command::new("runner"))
+    assert_equal(output.stderr, "", reason="the child's package consent")
+    assert_equal(output.stdout, "guest started\n7\n", reason="the child's package provider")
+    assert_equal(output.status, 0, reason="the child succeeds")
+    other := hd_run!(*Command::new("other"))
+    assert_equal(other.stderr, "", reason="the other child's package adapter")
+    assert_equal(other.stdout, "other 42\n", reason="a different contract")
+    assert_equal(other.status, 0, reason="the other child succeeds")
+    plain := hd_run!(*Command::new("plain"))
+    assert_equal(plain.stderr, "", reason="the ordinary child's host")
+    assert_equal(plain.stdout, "plain\n", reason="a child with no package contract")
+    assert_equal(plain.status, 0, reason="the ordinary child succeeds")

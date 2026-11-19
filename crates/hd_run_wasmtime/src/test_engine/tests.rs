@@ -299,6 +299,64 @@ fn child_arguments() -> crate::codec::Enc {
     arguments
 }
 
+#[test]
+fn named_command_children_keep_arguments_input_environment_and_cwd() {
+    use crate::abi::Command;
+    use crate::codec::{Enc, Wire};
+    use crate::runtime::reactor::{Done, Work};
+    let owner = State::new(TestCase::default());
+    let cwd = std::path::PathBuf::from(owner.temp_dir().unwrap());
+    let parent = std::env::current_dir().unwrap();
+    let child = super::NamedProgram::command(
+        "child".into(),
+        hd_testkit::node::binary().to_string_lossy().into_owned(),
+        vec!["-e".into(), "process.stdout.write(process.argv[1] + ':' + process.env.HD_NAMED_CHILD + ':' + require('fs').readFileSync(0, 'utf8')); process.stderr.write(process.cwd());".into()],
+    );
+    let environment = TestEnvironment {
+        cwd: cwd.clone(),
+        program: "test".into(),
+        children: vec![child],
+    };
+    let call = Command {
+        program: "child".into(),
+        args: vec!["argument".into()],
+        stdin: "input".into(),
+        current_dir: None,
+        env: vec![("HD_NAMED_CHILD".into(), "override".into())],
+    };
+    let mut encoded = Enc::default();
+    call.enc(&mut encoded);
+    let start = test_child::start(
+        encoded.done(),
+        &Grants::default(),
+        &environment,
+        &[("HD_NAMED_CHILD".into(), "parent".into())],
+        None,
+    )
+    .unwrap();
+    let test_child::Start::Process(request) = start else {
+        panic!("the command uses the process runner")
+    };
+    assert_eq!(request.name, "child");
+    let mut reactor = Reactor::new(None);
+    let h = reactor.offload(request.run()).unwrap();
+    while !reactor.is_completed(h) && !reactor.due().contains(&h) {
+        assert!(reactor.wait(), "the process is pending");
+    }
+    let Some(Work::Offloaded(Some(Done::Process(ran)))) = reactor.remove(h).map(|op| op.work)
+    else {
+        panic!("the process has a result")
+    };
+    let (stdout, stderr, status) = ran.into_result().unwrap();
+    assert_eq!(stdout, b"argument:override:input");
+    assert_eq!(
+        String::from_utf8(stderr).unwrap(),
+        cwd.canonicalize().unwrap().to_string_lossy()
+    );
+    assert_eq!(status, 0);
+    assert_eq!(std::env::current_dir().unwrap(), parent);
+}
+
 /// Starts the child as `run.start` does.
 fn start_child(
     environment: &TestEnvironment,
@@ -315,7 +373,9 @@ fn start_child(
     .unwrap()
     {
         test_child::Start::Run(run) => run,
-        test_child::Start::Ready(_) => panic!("the child starts"),
+        test_child::Start::Ready(_) | test_child::Start::Process(_) => {
+            panic!("the native child starts")
+        }
     }
 }
 

@@ -47,6 +47,12 @@ pub(crate) fn call(
                 test_child::Start::Run(run) => {
                     pending(host.reactor.offload(run.wait()), test_child::not_run)
                 }
+                test_child::Start::Process(request) => {
+                    let name = request.name.clone();
+                    pending(host.reactor.offload(request.run()), |error| {
+                        native::not_run(&name, error)
+                    })
+                }
             }
         }
         environment => {

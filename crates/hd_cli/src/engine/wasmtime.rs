@@ -15,13 +15,31 @@ pub(crate) type Prepared = hd_run_wasmtime::PreparedTest;
 
 /// The named child programs of a test run: name, module and grants. They
 /// stay typed here; only Node needs a scratch-file configuration.
-pub(crate) struct Programs(pub(crate) Vec<(String, Vec<u8>, hd_run::Grants)>);
+pub(crate) struct Programs {
+    pub(crate) native: Vec<(String, Vec<u8>, hd_run::Grants)>,
+    node: Option<crate::node::Programs>,
+}
 
-impl TryFrom<Vec<(String, Vec<u8>, hd_run::Grants)>> for Programs {
-    type Error = String;
-
-    fn try_from(list: Vec<(String, Vec<u8>, hd_run::Grants)>) -> Result<Self, String> {
-        Ok(Self(list))
+impl Programs {
+    pub(crate) fn new(
+        list: Vec<super::TestProgram>,
+        cwd: &std::path::Path,
+    ) -> Result<Self, String> {
+        let (node, native): (Vec<_>, Vec<_>) = list
+            .into_iter()
+            .partition(|child| child.engine == super::EngineKind::Node);
+        let node = if node.is_empty() {
+            None
+        } else {
+            Some(crate::node::Programs::new(&node, cwd)?)
+        };
+        Ok(Self {
+            native: native
+                .into_iter()
+                .map(|child| (child.name, child.wasm, child.grants))
+                .collect(),
+            node,
+        })
     }
 }
 
@@ -57,17 +75,30 @@ impl Session {
             },
         )?;
         let children = match programs {
-            Some(TestPrograms::Wasmtime(Programs(list))) => list
-                .iter()
-                .map(|(name, wasm, grants)| {
-                    hd_run_wasmtime::NamedProgram::compile(
-                        config,
-                        name.clone(),
-                        wasm,
-                        grants.clone(),
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?,
+            Some(TestPrograms::Wasmtime(programs)) => {
+                let mut children = programs
+                    .native
+                    .iter()
+                    .map(|(name, wasm, grants)| {
+                        hd_run_wasmtime::NamedProgram::compile(
+                            config,
+                            name.clone(),
+                            wasm,
+                            grants.clone(),
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if let Some(node) = &programs.node {
+                    for (name, args) in node.commands() {
+                        children.push(hd_run_wasmtime::NamedProgram::command(
+                            name.clone(),
+                            crate::node::node_program().to_string_lossy().into_owned(),
+                            args.clone(),
+                        ));
+                    }
+                }
+                children
+            }
             None => Vec::new(),
             Some(TestPrograms::Node(_)) => {
                 return Err("internal: Node child programs on Wasmtime".into());

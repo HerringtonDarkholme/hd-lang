@@ -1,3 +1,3 @@
-# A [host] entry names a trait declared in the package's executable; hd test resolves it against every package file, even one no test program builds.
+# A named executable keeps its package provider and consent when a test runs it, including from a Wasmtime test module.
 run: hd test --format json
 stdout-json: [{"kind":"test","name":"runs beside an executable that declares a host trait","outcome":"passed"},{"kind":"summary","errors":0,"passed":1,"failed":0,"status":0}]

@@ -1,0 +1,6 @@
+@host
+pub trait Counter:
+    fn count(&self) -> i32
+
+pub fn main() -> void $ Console + Counter:
+    println("other ${$.use(Counter).count()}")

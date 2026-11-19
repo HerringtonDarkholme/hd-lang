@@ -34,15 +34,24 @@ pub(crate) enum TestPrograms {
     Wasmtime(wasmtime::Programs),
 }
 
+pub(crate) struct TestProgram {
+    pub(crate) name: String,
+    pub(crate) wasm: Vec<u8>,
+    pub(crate) grants: hd_run::Grants,
+    pub(crate) providers: Vec<crate::node::HostProvider>,
+    #[cfg(feature = "wasmtime")]
+    pub(crate) engine: EngineKind,
+}
+
 impl TestPrograms {
     pub(crate) fn new(
         kind: EngineKind,
-        list: Vec<(String, Vec<u8>, hd_run::Grants)>,
+        list: Vec<TestProgram>,
         cwd: &std::path::Path,
     ) -> Result<Self, String> {
         match kind {
             EngineKind::Node => crate::node::Programs::new(&list, cwd).map(Self::Node),
-            EngineKind::Wasmtime => wasmtime::Programs::try_from(list).map(Self::Wasmtime),
+            EngineKind::Wasmtime => wasmtime::Programs::new(list, cwd).map(Self::Wasmtime),
         }
     }
 }
@@ -867,16 +876,23 @@ mod tests {
     fn native_named_children_retain_modules_and_grants_without_node_configuration() {
         use super::TestPrograms;
         let grants = hd_run::Grants::with_limits(vec![("Env".into(), hd_run::Limit::Deny)]);
-        let list = vec![("tool".to_owned(), vec![0, 97, 115, 109], grants.clone())];
+        let list = vec![super::TestProgram {
+            name: "tool".to_owned(),
+            wasm: vec![0, 97, 115, 109],
+            grants: grants.clone(),
+            providers: Vec::new(),
+            engine: EngineKind::Wasmtime,
+        }];
         let programs = TestPrograms::new(
             EngineKind::Wasmtime,
             list,
             std::path::Path::new("unused-native-cwd"),
         )
         .unwrap();
-        let TestPrograms::Wasmtime(super::wasmtime::Programs(list)) = programs else {
+        let TestPrograms::Wasmtime(programs) = programs else {
             panic!("native children must not use Node's scratch configuration");
         };
+        let list = programs.native;
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].0, "tool");
         assert_eq!(list[0].1, [0, 97, 115, 109]);

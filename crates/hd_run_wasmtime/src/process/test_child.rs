@@ -20,6 +20,8 @@ pub(crate) enum Start {
     Ready(Enc),
     /// The child runs on its own thread.
     Run(ChildRun),
+    /// A named child whose selected engine runs in a separate process.
+    Process(super::native::Request),
 }
 
 /// A child instance running on its own big-stack thread. A child needs the
@@ -99,11 +101,30 @@ pub(crate) fn start(
     let mut overlay = env_overlay.to_vec();
     overlay.extend(call.env);
     let (name, args, input) = (call.program, call.args, call.stdin.into_bytes());
+    let (engine, module, child_grants) = match &child.code {
+        crate::test_engine::engine::NamedCode::Native {
+            engine,
+            module,
+            grants,
+        } => (Arc::clone(engine), Arc::clone(module), grants.clone()),
+        crate::test_engine::engine::NamedCode::Command {
+            program,
+            args: prefix,
+        } => {
+            let mut arguments = prefix.clone();
+            arguments.extend(args);
+            return Ok(Start::Process(super::native::Request {
+                name,
+                program: program.clone(),
+                argv: arguments,
+                input,
+                env: overlay,
+                cwd: Some(cwd),
+            }));
+        }
+    };
     let stop = Arc::new(AtomicBool::new(false));
     let (sender, result) = oneshot::channel();
-    let engine = Arc::clone(&child.engine);
-    let module = Arc::clone(&child.module);
-    let child_grants = child.grants.clone();
     let interrupt = Arc::clone(&stop);
     let spawned = std::thread::Builder::new()
         .name("hd-test-process".into())
