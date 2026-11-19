@@ -6,7 +6,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $length (result i32) (local $t0 i32) (local $t1 i32) (local $user i32)
+  (func $length (result i32) (local $seen i32) (local $t0 i32) (local $user i32)
     ;; 19 |     let mut seen = +0
     global.get $locals
     global.get $locals_base
@@ -43,10 +43,9 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $seen
     i32.const 0
     i32.store $heap
-    ;; 20 |     user := User { name: "ada", age: 36 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -54,6 +53,7 @@
     i32.const 24
     i32.add
     local.tee $user
+    ;; 20 |     user := User { name: "ada", age: 36 }
     i32.const 65 ;; &"ada"
     i32.store $heap
     local.get $user
@@ -62,14 +62,13 @@
     local.get $user
     i32.const 36
     i32.store $heap offset=8
-    local.get $user
-    ;; 19 |     let mut seen = +0
-    local.get $t1
     ;; 21 |     n := user.name(&mut seen)
+    local.get $user
+    local.get $seen
     call $"impl User.name"
     ;; 22 |     n.len()
     call $"impl string.len"
-    local.set $t1
+    local.set $seen
     ;; 19 |     let mut seen = +0
     local.get $user
     if
@@ -81,7 +80,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $seen
     local.get $t0
     i32.const 40
     i32.add

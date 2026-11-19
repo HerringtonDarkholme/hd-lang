@@ -39,7 +39,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 29 |     reader := fn() -> usize:
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -47,10 +46,11 @@
     i32.const 8
     i32.add
     local.tee $values'1
+    ;; 29 |     reader := fn() -> usize:
     local.get $values'2
     i32.store $heap
-    local.get $values'1
     ;; (no span)
+    local.get $values'1
     i32.const 8
     call_indirect $table0 (param i32) (result i32)
     call $"impl string.len"

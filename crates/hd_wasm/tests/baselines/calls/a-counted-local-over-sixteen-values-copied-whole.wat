@@ -634,7 +634,7 @@
     i32.add
     global.set $stack
   )
-  (func $mk (param $t1 i32) (param $t23 i32) (local $t0 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t20 i32) (local $t22 i32) (local $t21 i32) (local $t24 i32)
+  (func $mk (param $t1 i32) (param $t23 i32) (local $x i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t20 i32) (local $t22 i32) (local $t21 i32) (local $t24 i32)
     ;; 40 | fn mk(x: i32) -> Outer: Outer { inner: Big { f0: x, f1: x, f2: x, f3: x, f4: x, f5: x, f6: x, f7: x, f8: x, f9: x, f10: x, f11: x, f12: x, f13: x, f14: x, f15: x, f16: x, name: "n${x}" }, tag: "t${x}", xs: [x] }
     global.get $locals
     global.get $locals_base

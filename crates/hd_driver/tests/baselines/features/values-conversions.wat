@@ -50,10 +50,9 @@
     local.get $origin
     i32.const 0
     i32.store $heap offset=8
-    local.get $origin
     ;; 27 |     nudge(&mut origin)
-    local.tee $s.0
-    local.get $s.0
+    local.get $origin
+    local.get $origin
     i32.load $heap offset=8
     i32.const 1
     i32.add

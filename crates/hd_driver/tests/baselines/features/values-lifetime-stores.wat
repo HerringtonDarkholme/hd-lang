@@ -105,7 +105,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $total (param $b i32) (param $seen i32) (param $self.1'1 i32) (param $by i32) (result i32) (local $t0 i32) (local $a i32) (local $self.1'2 i32)
+  (func $total (param $b i32) (param $seen i32) (param $self.1'1 i32) (param $by i32) (result i32) (local $a i32) (local $t0 i32) (local $self.1'2 i32)
     ;; 17 |     let mut seen: List[&User] = []
     global.get $locals
     global.get $locals_base
@@ -169,8 +169,8 @@
     local.tee $seen
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $seen
     ;; 18 |     remember(&mut seen, &a)
+    local.get $seen
     local.get $a
     call $remember
     ;; 19 |     remember(&mut seen, &b)
@@ -182,6 +182,7 @@
     call $rt:map_seed
     call $rt:map_table
     local.set $self.1'1
+    ;; 17 |     let mut seen: List[&User] = []
     local.get $t0
     i64.const 0
     i64.store $heap offset=48
@@ -189,10 +190,11 @@
     i32.const 56
     i32.add
     local.tee $by
+    ;; 20 |     let mut by: Map[string, &User] = {}
     local.get $self.1'1
     i32.store $heap
-    local.get $by
     ;; 21 |     index(&mut by, &a)
+    local.get $by
     local.get $a
     call $index
     ;; 22 |     seen[0].name.len() + seen[1].name.len() + by.len()

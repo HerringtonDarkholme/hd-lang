@@ -8,7 +8,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs'1 i32) (local $xs'2 i32) (local $out i32) (local $t2 i32) (local $value.1 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $xs'1 i32) (local $t0 i32) (local $xs'2 i32) (local $out i32) (local $t2 i32) (local $value.1 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base

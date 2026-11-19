@@ -30,7 +30,7 @@
     ;; 25 |     state.word
     local.get $state.word
   )
-  (func $identity (param $value i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $identity (param $value i32) (result i32) (local $state i32) (local $t0 i32)
     ;; 32 |     let mut state = State { word: value, salt: +7 }
     global.get $locals
     global.get $locals_base
@@ -67,14 +67,16 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $state
     local.get $value
     i32.store $heap
-    local.get $t1
+    local.get $state
     i32.const 7
     i32.store $heap offset=4
-    local.get $t1
-    local.get $t1
+    ;; 33 |     first := &state
+    local.get $state
+    ;; 34 |     second := &state
+    local.get $state
     ;; 35 |     first is second
     i32.eq
     ;; 32 |     let mut state = State { word: value, salt: +7 }

@@ -1,0 +1,69 @@
+# @dump: own
+# @build: std
+# Each cell's `Box` stands in the innermost block holding its local's
+# declaration and every use, right before the first statement there that
+# holds one (#2172), as Swift's `alloc_box` follows an early return. Its
+# word is the kind (`box_word`: 0 a frame slot, 1 a heap cell) plus 256
+# (`ZERO`) when a return, break or continue may run between the box and
+# the declaration. `early` returns before `s` and `t`, which are boxed
+# after the return; `maker`'s `s` outlives its call in a heap cell.
+# `rounds` boxes `s` before the `continue`, whose drop of `s` reads the
+# box, so it starts zero. A match arm's binding `v`, which its pattern
+# block stores and its body block borrows, is boxed before the match, and
+# the other arm's return makes it start zero. The parameter `p` is boxed
+# at the root.
+use std.annotation.inline
+
+@inline(.Never)
+fn bang(s: &mut string) -> void:
+    *s = "${*s}!"
+
+@inline(.Never)
+fn show(s: &string) -> string:
+    "${*s}?"
+
+fn early(n: i32) -> string:
+    if n > 1:
+        return "early"
+    let mut s = "a"
+    add := fn() -> void:
+        s = "${s}+"
+    add()
+    let mut t = "b"
+    bang(&mut t)
+    "${s}${t}"
+
+fn maker(n: i32) -> fn() -> string:
+    if n > 1:
+        return fn() -> string: "early"
+    let mut s = "m"
+    bump := fn() -> string:
+        s = "${s}+"
+        s
+    bump
+
+fn rounds(n: i32) -> string:
+    let mut out = ""
+    for i in 0..n:
+        if i == 1:
+            continue
+        let mut s = "r"
+        add := fn() -> void:
+            s = "${s}+"
+        add()
+        out = "${out}${s}"
+    out
+
+fn arm(x: Option[string]) -> string:
+    match x:
+        .Some(v) => show(&v)
+        .None => return "-"
+
+fn param(p: string) -> string:
+    let mut q = p
+    bang(&mut q)
+    add := fn() -> string: "${p}${q}"
+    add()
+
+pub fn main() -> void $ Console:
+    println("${early(1)} ${maker(1)()} ${rounds(3)} ${arm(.Some("v"))} ${param("p")}")

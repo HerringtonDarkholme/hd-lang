@@ -2,20 +2,21 @@
 app/main/impl Probes.captured_copy
   local $0 value: string [param read captured] place
   local $1 borrowed: &string [:= read assigned] value
-    uses $1: %3 -> %4 lend last
-  %0 = Retain %8 Entry captures #0 : ()
-  %1 = Retain %12 Entry local $0 #0 : ()
-  %2 = Ref local [$0] : &string
-  %3 = Store [$1] %2 : ()
-  %4 = Read move [$1] : &string
-  %5 = Call std/text/impl string.len[] (%4) : usize
-  %6 = Drop [%4] : ()
-  %7 = Drop [$0] : ()
-  %8 = Block %5 : usize
-  %9 = Closure #1 : fn() -> usize
-  %10 = Retain %9 Operation captures #0 : ()
-  %11 = Drop [$0] : ()
-  %12 = Block %9 : fn() -> usize
+    uses $1: %4 -> %5 lend last
+  %0 = Retain %9 Entry captures #0 : ()
+  %1 = Box #0 #1 : ()
+  %2 = Retain %13 Entry local $0 #0 : ()
+  %3 = Ref local [$0] : &string
+  %4 = Store [$1] %3 : ()
+  %5 = Read move [$1] : &string
+  %6 = Call std/text/impl string.len[] (%5) : usize
+  %7 = Drop [%5] : ()
+  %8 = Drop [$0] : ()
+  %9 = Block %6 : usize
+  %10 = Closure #1 : fn() -> usize
+  %11 = Retain %10 Operation captures #0 : ()
+  %12 = Drop [$0] : ()
+  %13 = Block %10 : fn() -> usize
   exit sub 0 drops [$0]
   exit sub 1 drops [$0]
   storage sub 0: $0 cell
@@ -25,27 +26,27 @@ app/main/impl Probes.new_object
     uses $0: entry -> %1 lend last
   local $1 $ref: string [read assigned captured captured-assigned] place
   local $2 borrowed: &string [:= read assigned] value
-    uses $2: %5 -> %6 consume, %8 lend last
+    uses $2: %6 -> %7 consume, %9 lend last
   local $3 copy: &string [:= read assigned] value
-    uses $3: %7 -> %11 lend last
-  %0 = Release %16 Exit local $0 #2 : ()
+    uses $3: %8 -> %12 lend last
+  %0 = Release %17 Exit local $0 #2 : ()
   %1 = Read borrow [$0] : string
   %2 = Intrinsic StrConcat [%1 "!"] : string
-  %3 = Store [$1] %2 : ()
-  %4 = Ref local frame [$1] : &string
-  %5 = Store [$2] %4 : ()
-  %6 = Read copy [$2] : &string
-  %7 = Store [$3] %6 : ()
-  %8 = Read move [$2] : &string
-  %9 = Call std/text/impl string.len[] (%8) : usize
-  %10 = LoanEnd [%8] : ()
-  %11 = Read move [$3] : &string
-  %12 = Call std/text/impl string.len[] (%11) : usize
-  %13 = LoanEnd [%11] : ()
-  %14 = Drop [$1] : ()
-  %15 = Prim Add [%9 %12] : usize
-  %16 = Block %15 : usize
-  %4 finds [$1] full
+  %3 = Box #1 #0 : ()
+  %4 = Store [$1] %2 : ()
+  %5 = Ref local frame [$1] : &string
+  %6 = Store [$2] %5 : ()
+  %7 = Read copy [$2] : &string
+  %8 = Store [$3] %7 : ()
+  %9 = Read move [$2] : &string
+  %10 = Call std/text/impl string.len[] (%9) : usize
+  %11 = LoanEnd [%9] : ()
+  %12 = Read move [$3] : &string
+  %13 = Call std/text/impl string.len[] (%12) : usize
+  %14 = LoanEnd [%12] : ()
+  %15 = Drop [$1] : ()
+  %16 = Prim Add [%10 %13] : usize
+  %17 = Block %16 : usize
   storage sub 0: $1 slot
   summary kept [] borrows [$0]
 app/main/impl Probes.pointer

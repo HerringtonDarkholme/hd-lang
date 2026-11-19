@@ -1152,6 +1152,7 @@ impl Gen<'_, '_> {
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
+            | Tag::Box
             | Tag::ContextFor
             | Tag::Block
             | Tag::Scope

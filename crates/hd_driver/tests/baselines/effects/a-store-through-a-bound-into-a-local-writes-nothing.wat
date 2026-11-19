@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $local_store (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $local_store (result i32) (local $p i32) (local $t0 i32) (local $q i32) (local $k i32)
     ;; 21 |     p := Point { x: 3 }
     global.get $locals
     global.get $locals_base
@@ -40,39 +40,36 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $p
     i32.const 3
     i32.store $heap
-    ;; 22 |     q := Point { x: 4 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
     local.get $t0
     i32.const 24
     i32.add
-    local.tee $t2
+    local.tee $q
+    ;; 22 |     q := Point { x: 4 }
     i32.const 4
     i32.store $heap
-    ;; 23 |     let mut k = Keep { last: &p }
+    ;; 21 |     p := Point { x: 3 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=32
     local.get $t0
     i32.const 40
     i32.add
-    local.tee $t3
-    ;; 21 |     p := Point { x: 3 }
-    local.get $t1
+    local.tee $k
     ;; 23 |     let mut k = Keep { last: &p }
+    local.get $p
     i32.store $heap
-    local.get $t3
-    ;; 22 |     q := Point { x: 4 }
-    local.get $t2
     ;; 24 |     fill(&mut k, &q)
+    local.get $k
+    local.get $q
     i32.store $heap
-    ;; 23 |     let mut k = Keep { last: &p }
-    local.get $t3
     ;; 25 |     k.last.x
+    local.get $k
     i32.load $heap
     i32.load $heap
     ;; 21 |     p := Point { x: 3 }

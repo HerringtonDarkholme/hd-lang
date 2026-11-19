@@ -10,11 +10,11 @@
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.tee $callback.0
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.store $heap
     ;; 31 |         println(invoke(callback))
@@ -33,11 +33,12 @@
       local.get $t0
       call $rt:release_ref
     end
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
     i32.const 6
     i32.store $heap
     local.get $t0
@@ -73,11 +74,11 @@
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.tee $callback.0
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.const 0
     call $rt:new
     local.tee $t0
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.store $heap
     ;; 31 |         println(invoke(callback))
@@ -98,11 +99,12 @@
     else
       call $skipped_test
     end
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     i32.const 0
     call $rt:new
     local.tee $t0
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
     i32.const 6
     i32.store $heap
     local.get $t0
@@ -141,11 +143,11 @@
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.set $callback.0
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.store $heap
     local.get $t0
@@ -188,11 +190,12 @@
       local.get $t0
       call $rt:release_ref
     end
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $t0
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
     i32.const 6
     i32.store $heap
     local.get $t0
@@ -251,11 +254,11 @@
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     local.set $callback.0
-    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.const 0
     call $rt:new
     local.tee $t0
+    ;; 30 |     $.with(Named=box(S { n: 4 })):
     i32.const 4
     i32.store $heap
     local.get $t0
@@ -304,11 +307,12 @@
     else
       call $skipped_test
     end
-    ;; 32 |     $.with(Named=box(S { n: 6 })):
+    ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
     i32.const 0
     call $rt:new
     local.tee $t0
+    ;; 32 |     $.with(Named=box(S { n: 6 })):
     i32.const 6
     i32.store $heap
     local.get $t0

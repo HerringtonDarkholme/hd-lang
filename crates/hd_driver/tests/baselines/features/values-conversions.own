@@ -90,50 +90,48 @@ fn local(s: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 origin: Point [read assigned captured captured-assigned] place
 >   local $2 r: &mut Point [read assigned] value
->     uses $2: %13 -> %14 lend last
+>     uses $2: %14 -> %15 lend last
 >   local $3 p: Point [read] value
->     uses $3: %18 -> %19 consume last
+>     uses $3: %19 -> %20 consume last
 >   local $4 self: string [read] value
->     uses $4: %20 -> %21 lend last
->   %0 = Retain %30 Entry local $0 #0 : ()
+>     uses $4: %21 -> %22 lend last
+>   %0 = Retain %31 Entry local $0 #0 : ()
     let mut origin = Point { name: s, n: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
->   %3 = Store [$1] %2 : ()
->   %30 = Block %28 : usize
+>   %3 = Box #1 #0 : ()
+>   %4 = Store [$1] %2 : ()
+>   %31 = Block %29 : usize
     nudge(&mut origin)
->   %4 = Ref mut local frame [$1] : &mut Point
->   %5 = Read copy [*%4 .n] : i32
->   %6 = Prim Add [%5 1:i32] : i32
->   %7 = Store [*%4 .n] %6 : ()
->   %8 = Break L2 - : never
->   %9 = Block - : ()
->   %10 = Scope %9 [] : ()
->   %11 = LoanEnd [%4] : ()
->   %4 finds [$1] full
+>   %5 = Ref mut local frame [$1] : &mut Point
+>   %6 = Read copy [*%5 .n] : i32
+>   %7 = Prim Add [%6 1:i32] : i32
+>   %8 = Store [*%5 .n] %7 : ()
+>   %9 = Break L2 - : never
+>   %10 = Block - : ()
+>   %11 = Scope %10 [] : ()
+>   %12 = LoanEnd [%5] : ()
     let r: &mut Point = &mut origin
->   %12 = Ref mut local frame [$1] : &mut Point
->   %13 = Store [$2] %12 : ()
->   %12 finds [$1] full
+>   %13 = Ref mut local frame [$1] : &mut Point
+>   %14 = Store [$2] %13 : ()
     bump(r)
->   %14 = Read move [$2] : &mut Point
->   %15 = Call app/main/bump[] (%14) : ()
->   %16 = LoanEnd [%14] : ()
+>   %15 = Read move [$2] : &mut Point
+>   %16 = Call app/main/bump[] (%15) : ()
+>   %17 = LoanEnd [%15] : ()
     view(&origin)
->   %17 = Read move [$1] : Point
->   %18 = Store [$3] %17 : ()
->   %19 = Read borrow [$3 .name] : string
->   %20 = Store [$4] %19 : ()
->   %21 = Read borrow [$4] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L0 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Break L1 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Drop [$3] : ()
->   %17 finds [$1] full
+>   %18 = Read move [$1] : Point
+>   %19 = Store [$3] %18 : ()
+>   %20 = Read borrow [$3 .name] : string
+>   %21 = Store [$4] %20 : ()
+>   %22 = Read borrow [$4] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$3] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0]

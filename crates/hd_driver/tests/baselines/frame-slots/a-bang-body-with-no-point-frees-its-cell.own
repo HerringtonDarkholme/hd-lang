@@ -2,22 +2,21 @@
 app/main/helper
   local $0 sink: Sink [read assigned captured captured-assigned] place
   local $2 value: string [read] value
-    uses $2: %3 -> %4 consume last
+    uses $2: %4 -> %5 consume last
   %0 = NewStruct [""] : Sink
-  %1 = Store [$0] %0 : ()
-  %2 = Ref mut local [$0] : &mut Sink
-  %3 = Store [$2] "helper" : ()
-  %4 = Read move [$2] : string
-  %5 = Store [*%2 .text] %4 : ()
-  %6 = Release %5 Operation #3 : ()
-  %7 = Break L0 - : never
-  %8 = Block - : ()
-  %9 = Scope %8 [] : ()
-  %10 = LoanEnd [%2] : ()
-  %11 = Read copy [$0 .text] : string
-  %12 = Drop [$0] : ()
-  %13 = Block %11 : string
-  %2 finds [$0] full
-  %11 finds [$0] full
+  %1 = Box #0 #1 : ()
+  %2 = Store [$0] %0 : ()
+  %3 = Ref mut local [$0] : &mut Sink
+  %4 = Store [$2] "helper" : ()
+  %5 = Read move [$2] : string
+  %6 = Store [*%3 .text] %5 : ()
+  %7 = Release %6 Operation #3 : ()
+  %8 = Break L0 - : never
+  %9 = Block - : ()
+  %10 = Scope %9 [] : ()
+  %11 = LoanEnd [%3] : ()
+  %12 = Read copy [$0 .text] : string
+  %13 = Drop [$0] : ()
+  %14 = Block %12 : string
   storage sub 0: $0 cell
   summary none

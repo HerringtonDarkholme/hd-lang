@@ -241,7 +241,8 @@ fn tag_ids(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
         | Tag::MakeUnique
         | Tag::IsUnique
         | Tag::FlagSet
-        | Tag::FlagClear => {}
+        | Tag::FlagClear
+        | Tag::Box => {}
         Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
@@ -551,7 +552,6 @@ fn owned(b: &Body) -> bool {
         && b.exit_drops.is_empty()
         && b.storage.is_empty()
         && b.cancel.is_empty()
-        && b.full_cells.is_empty()
         && b.stable_lists.is_empty()
         && b.forwarded_reads.is_empty()
         && b.anchors.is_empty()
@@ -601,7 +601,6 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
             .into_iter(),
     );
     pairs(w, &b.cancel);
-    pairs(w, &b.full_cells);
     u32s(
         w,
         b.stable_lists
@@ -677,7 +676,6 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         })
         .collect::<Option<_>>()?;
     b.cancel = pairs(col(r));
-    b.full_cells = pairs(col(r));
     b.stable_lists = col(r)
         .chunks_exact(5)
         .map(|c| [c[0], c[1], c[2], c[3], c[4]])
@@ -1037,7 +1035,6 @@ mod tests {
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Static)];
         body.cancel = vec![(1, 2)];
-        body.full_cells = vec![(0, 0)];
         body.stable_lists = vec![[2, crate::ir::place::BARE_LOCAL, 0, crate::ir::NONE, 1]];
         body.forwarded_reads = vec![(2, 0)];
         body.anchors = vec![0, crate::ir::NONE, 2];

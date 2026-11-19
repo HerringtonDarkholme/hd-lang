@@ -197,8 +197,8 @@
     local.get $t
     local.get $s.1
     i32.store $heap offset=4
-    local.get $t
     ;; 23 |     by_mut(&mut t)
+    local.get $t
     call $by_mut
     ;; 24 |     by_value(s) + by_ref(&s) + by_value(t) + by_ptr(n)
     local.get $s.0

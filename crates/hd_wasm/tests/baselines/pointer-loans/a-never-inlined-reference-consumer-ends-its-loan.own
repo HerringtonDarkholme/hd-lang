@@ -252,10 +252,10 @@ fn make() -> *mut Outer:
 >   %2 = Call app/main/slots[] (%0, %1) : Slots
 >   %3 = Call app/main/second[] () : string
 >   %4 = NewStruct [%2 %3] : Outer
->   %5 = Store [$0] %4 : ()
->   %6 = Ref take mut [$0] : *mut Outer
->   %7 = Block %6 : *mut Outer
->   %6 finds [$0] full
+>   %5 = Box #0 #1 : ()
+>   %6 = Store [$0] %4 : ()
+>   %7 = Ref take mut [$0] : *mut Outer
+>   %8 = Block %7 : *mut Outer
 >   storage sub 0: $0 cell
 
 fn length(slot: &string) -> string:

@@ -14,16 +14,16 @@ fn make(n: string) -> *Node:
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Node [read assigned captured captured-assigned] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     box(Node { name: n, next: .None })
 >   %1 = Read move [$0] : string
 >   %2 = NewVariant #0 [] : *Node?
 >   %3 = NewStruct [%1 %2] : Node
->   %4 = Store [$1] %3 : ()
->   %5 = Ref take mut [$1] : *mut Node
->   %6 = Coerce %5 [Weaken -] : *Node
->   %7 = Block %6 : *Node
->   %5 finds [$1] full
+>   %4 = Box #1 #1 : ()
+>   %5 = Store [$1] %3 : ()
+>   %6 = Ref take mut [$1] : *mut Node
+>   %7 = Coerce %6 [Weaken -] : *Node
+>   %8 = Block %7 : *Node
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

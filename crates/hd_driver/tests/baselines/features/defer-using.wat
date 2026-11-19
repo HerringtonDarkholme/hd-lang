@@ -67,21 +67,21 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $r i32)
+  (func $with_using (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
     ;; 23 |     using r = box(Res { name: s, log: log })
     i32.const 12
     i32.const -2147483647
     call $rt:new/class-2
-    local.tee $r
+    local.tee $t0
     local.get $s.0
     i32.store $heap
-    local.get $r
+    local.get $t0
     local.get $s.1
     i32.store $heap offset=4
-    local.get $r
+    local.get $t0
     local.get $log
     i32.store $heap offset=8
-    local.get $r
+    local.get $t0
     ;; 24 |     r.name.len()
     local.tee $log
     i32.load $heap
@@ -94,28 +94,28 @@
     i32.const 1
     i32.add
     global.set $forbid
-    local.get $r
+    local.get $t0
     call $"impl Disposable for Res.dispose"
     global.get $forbid
     i32.const -1
     i32.add
     global.set $forbid
-    local.get $r
+    local.get $t0
     if
-      local.get $r
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $r
+        local.get $t0
         call $rt:release_ref'1
       end
     end
     local.get $log
   )
-  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $with_defer (param $log i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 19 |     defer(fn() -> void: log.push(s))
     global.get $locals
     global.get $locals_base
@@ -146,64 +146,52 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    i32.const 5
-    i32.const 12
-    i32.const -2147483646
-    call $rt:new/class-2
-    local.tee $t1
-    local.get $log
-    i32.store $heap
-    local.get $t1
-    local.get $s.0
-    i32.store $heap offset=4
-    local.get $t1
-    local.get $s.1
-    i32.store $heap offset=8
-    local.get $t1
-    call $rt:retain_fields
-    local.set $t2
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t3
-    local.get $t2
+    local.tee $t1
+    i32.const 0
     i32.store $heap
-    local.get $t3
     local.get $t1
+    i32.const 0
     i32.store $heap offset=4
-    local.get $t3
+    local.get $t1
+    i32.const 5
+    i32.const 12
+    i32.const -2147483646
+    call $rt:new/class-2
+    local.tee $t2
+    local.get $log
+    i32.store $heap
+    local.get $t2
+    local.get $s.0
+    i32.store $heap offset=4
+    local.get $t2
+    local.get $s.1
+    i32.store $heap offset=8
+    local.get $t2
+    call $rt:retain_fields
+    i32.store $heap
+    local.get $t1
+    local.get $t2
+    i32.store $heap offset=4
     global.get $forbid
     i32.const 1
     i32.add
     global.set $forbid
-    i32.eqz
-    if
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t3
-      i32.const 0
-      i32.store $heap
-      local.get $t3
-      i32.const 0
-      i32.store $heap offset=4
-    end
-    local.get $t3
+    local.get $t1
     i32.const 0
     call $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> ()]"
     global.get $forbid
     i32.const -1
     i32.add
     global.set $forbid
-    local.get $t3
+    local.get $t1
     if
-      local.get $t3
+      local.get $t1
       i32.load $heap offset=4
       local.tee $t1
       if

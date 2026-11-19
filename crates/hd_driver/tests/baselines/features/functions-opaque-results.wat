@@ -14,7 +14,7 @@
     call $rt:coll_copy
     i32.const 0
   )
-  (func $count_long (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $n i32) (local $t2 i32) (local $x.1 i32)
+  (func $count_long (param $x.1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $n i32) (local $t1 i32)
     ;; 12 |     let n: usize = 0
     global.get $locals
     global.get $locals_base
@@ -52,13 +52,13 @@
     i32.const 8
     i32.add
     local.tee $xs
-    local.get $t1
+    local.get $x.1
     i32.store $heap
     ;; 13 |     for x in names(&xs):
     local.get $xs
     i32.load $heap
     call $rt:coll_copy
-    local.set $t1
+    local.set $x.1
     local.get $xs
     if
       local.get $xs
@@ -75,6 +75,7 @@
         end
       end
     end
+    ;; 12 |     let n: usize = 0
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -82,23 +83,22 @@
     i32.const 24
     i32.add
     local.tee $xs
-    local.get $t1
+    ;; 13 |     for x in names(&xs):
+    local.get $x.1
     i32.store $heap
     local.get $xs
     i32.const 0
     i32.store $heap offset=4
-    local.get $xs
-    local.set $t1
     block
       loop
-        local.get $t1
+        local.get $xs
         call $"impl[T] Iterator[T] for ListIter[T].next[string]"
         local.set $x.1
-        local.set $t2
+        local.set $t1
         block
           block
             block
-              local.get $t2
+              local.get $t1
               i32.eqz
               br_if 1
               br 0
@@ -114,7 +114,7 @@
           end
           br 2
         end
-        local.get $t2
+        local.get $t1
         local.get $x.1
         call $rt:release
         br 0
@@ -124,14 +124,14 @@
     if
       local.get $xs
       i32.load $heap
-      local.tee $t1
+      local.tee $x.1
       if
-        local.get $t1
+        local.get $x.1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $x.1
           call $rt:release_ref
         end
       end

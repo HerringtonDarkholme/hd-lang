@@ -15,7 +15,7 @@
     ;; 31 |     make(s).label_len()
     local.get $s.1
   )
-  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t2 i64) (local $t0 i32) (local $t1 i32)
+  (func $place_receiver (param $s.0 i32) (param $s.1 i32) (result i64) (local $t1 i64) (local $p i32) (local $t0 i32)
     ;; 40 |     let mut p = make(s)
     global.get $locals
     global.get $locals_base
@@ -52,25 +52,24 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $p
     local.get $s.0
     i32.store $heap
-    local.get $t1
+    local.get $p
     local.get $s.1
     i32.store $heap offset=4
+    local.get $p
     local.get $t1
-    local.get $t2
     i64.store $heap offset=8
-    local.get $t1
-    local.get $t1
     ;; 41 |     p.shift(2)
+    local.get $p
+    local.get $p
     i64.load $heap offset=8
     i64.const 2
     i64.add
     i64.store $heap offset=8
-    ;; 40 |     let mut p = make(s)
-    local.get $t1
     ;; 42 |     p.x
+    local.get $p
     i64.load $heap offset=8
     ;; 40 |     let mut p = make(s)
     local.get $t0

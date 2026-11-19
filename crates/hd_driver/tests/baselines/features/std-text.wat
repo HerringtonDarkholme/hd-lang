@@ -67,7 +67,7 @@
     ;; 20 |     n
     local.get $n
   )
-  (func $build (param $parts i32) (result i32 i32) (local $p.0 i32) (local $p.1 i32) (local $t0 i32) (local $sb i32) (local $t1 i32)
+  (func $build (param $parts i32) (result i32 i32) (local $p.0 i32) (local $p.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     sb := StringBuilder::new()
     call $"impl[T < ?Copy] UniqList[T].new[u8]"
     local.set $t0
@@ -76,31 +76,31 @@
     i32.const 36
     i32.const 1
     call $rt:new/class-3
-    local.tee $sb
+    local.tee $t1
     local.get $p.0
     i32.store $heap
-    local.get $sb
+    local.get $t1
     local.get $p.1
     i32.store $heap offset=4
-    local.get $sb
+    local.get $t1
     local.get $t0
     i32.store $heap offset=8
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=12
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=16
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=20
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=24
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=28
-    local.get $sb
+    local.get $t1
     i32.const 1
     i32.store $heap offset=32
     ;; 11 |     for p in parts:
@@ -112,13 +112,13 @@
     local.set $t0
     block
       loop
-        local.get $t1
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $parts
-        local.get $t1
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
@@ -128,21 +128,21 @@
         i32.load $heap offset=20
         local.set $p.1
         local.set $p.0
-        local.get $t1
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t2
         block
           br 0
           unreachable
         end
     ;; 12 |         sb.push(p)
-        local.get $sb
+        local.get $t1
         local.get $p.0
         local.get $p.1
         call $"impl StringBuilder.push"
     ;; 13 |         sb.push(",")
-        local.get $sb
+        local.get $t1
         i32.const 65 ;; &","
         i32.const 1
         call $"impl StringBuilder.push"
@@ -162,17 +162,17 @@
       end
     end
     ;; 14 |     sb.build()
-    local.get $sb
+    local.get $t1
     call $"impl StringBuilder.build"
-    local.get $sb
+    local.get $t1
     ;; 10 |     sb := StringBuilder::new()
     if
-      local.get $sb
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $sb
+        local.get $t1
         call $rt:release_ref
       end
     end

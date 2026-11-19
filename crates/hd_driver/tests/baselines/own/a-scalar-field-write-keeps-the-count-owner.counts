@@ -416,6 +416,7 @@ pub fn main() -> void $ Console:
 >   retain string (stored)
 >   release *mut app.main.Record (last use)
 >   release *mut app.main.Record (last use)
+>   release counted reference (last use)
     println(indexed([1]))
 >   copy List[i64] (stored)
 >   unique List[i64] (may be shared)

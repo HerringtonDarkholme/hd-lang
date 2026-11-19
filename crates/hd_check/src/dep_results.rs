@@ -4212,6 +4212,7 @@ impl Ck<'_, '_> {
                 | Tag::IsUnique
                 | Tag::FlagSet
                 | Tag::FlagClear
+                | Tag::Box
                 | Tag::With
                 | Tag::ContextNew
                 | Tag::ContextFor
@@ -4966,6 +4967,7 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
+            | Tag::Box
             | Tag::With
             | Tag::ContextNew
             | Tag::ContextFor

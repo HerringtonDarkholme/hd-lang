@@ -31,10 +31,12 @@
       i32.sub
       call $make
       local.set $depth
+    ;; 14 |     else:
       i32.const 8
       i32.const -2147483647
       call $rt:new/class-1
       local.tee $t1
+    ;; 15 |         box(Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) })
       local.get $t0
       i32.store $heap
       local.get $t1

@@ -1,0 +1,84 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A shared or addressed local's box is made where its scope starts
+# (#2172): a heap cell for a local a closure assigns, a frame slot for one
+# a reference reaches, made after a return, a continue or a break before
+# the declaration, and after an await, so a frame cancelled there holds
+# none; in a loop each round's box ends the last one's. A match binding's
+# box stands before the match, so another arm's return leaves it unfilled
+# and zero. The checked runs' exit audit fails on a leak or a double free.
+use std.annotation.inline
+use std.task.race
+use std.time.{Clock, Duration, sleep}
+
+@inline(.Never)
+fn text(n: i32) -> string:
+    "t${n}"
+
+@inline(.Never)
+fn bang(s: &mut string) -> void:
+    *s = "${*s}!"
+
+fn heap_after_return(n: i32) -> string:
+    if n > 1:
+        return "early"
+    let mut s = text(n)
+    add := fn() -> void:
+        s = "${s}+"
+    add()
+    s
+
+fn slot_after_return(n: i32) -> string:
+    if n > 1:
+        return "early"
+    let mut s = text(n)
+    bang(&mut s)
+    s
+
+fn rounds(n: i32) -> string:
+    let mut out = ""
+    for i in 0..n:
+        if i == 1:
+            continue
+        if i == 4:
+            break
+        let mut s = text(i)
+        add := fn() -> void:
+            s = "${s}+"
+        add()
+        let mut t = text(i)
+        bang(&mut t)
+        out = "${out}${s}${t}"
+    out
+
+fn arm(x: Option[string]) -> string:
+    match x:
+        .Some(v) => text2(&v)
+        .None => return "none"
+
+@inline(.Never)
+fn text2(s: &string) -> string:
+    "${*s}?"
+
+fn nap!(ms: i64) -> string $ Clock:
+    sleep!(Duration::milliseconds(ms))
+    "x"
+
+fn after_await!(ms: i64) -> string $ Clock:
+    a := nap!(ms)
+    let mut s = text(7)
+    add := fn() -> void:
+        s = "${s}${a}"
+    add()
+    s
+
+fn quick!() -> string $ Clock:
+    nap!(20)
+
+pub fn main!() -> void $ Console + Clock:
+    println("${heap_after_return(1)} ${heap_after_return(2)}")
+    println("${slot_after_return(1)} ${slot_after_return(2)}")
+    println(rounds(6))
+    println("${arm(.Some("v"))} ${arm(.None)}")
+    println(race!(after_await(500), quick()))
+    println(after_await!(1))

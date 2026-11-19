@@ -196,20 +196,20 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   local $0 $ref: Slots [read assigned captured captured-assigned] place
 >   local $1 p: *mut Slots [:= read assigned] value
->     uses $1: %7 -> %8 consume, %9 consume last
+>     uses $1: %8 -> %9 consume, %10 consume last
 >   %0 = Call std/text/impl string.repeat[] ("z", 40:usize) : string
 >   %1 = Intrinsic StrConcat ["original-" %0] : string
 >   %2 = Drop [%0] : ()
 >   %3 = NewList - [%1] : List[string]
 >   %4 = NewStruct [%3] : Slots
->   %5 = Store [$0] %4 : ()
->   %6 = Ref take mut [$0] : *mut Slots
->   %7 = Store [$1] %6 : ()
->   %12 = Block - : ()
->   %6 finds [$0] full
+>   %5 = Box #0 #1 : ()
+>   %6 = Store [$0] %4 : ()
+>   %7 = Ref take mut [$0] : *mut Slots
+>   %8 = Store [$1] %7 : ()
+>   %13 = Block - : ()
     println(through_call(p, p))
->   %8 = Read copy [$1] : *mut Slots
->   %9 = Read move [$1] : *mut Slots
->   %10 = Call app/main/through_call[] (%9, %8) : string
->   %11 = Call std/console/println[string] (%10) : ()
+>   %9 = Read copy [$1] : *mut Slots
+>   %10 = Read move [$1] : *mut Slots
+>   %11 = Call app/main/through_call[] (%10, %9) : string
+>   %12 = Call std/console/println[string] (%11) : ()
 >   storage sub 0: $0 cell

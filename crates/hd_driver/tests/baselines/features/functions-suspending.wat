@@ -2525,10 +2525,12 @@
       local.get $t2
       local.get $loader.1
       i32.store $heap offset=8
+    ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
       i32.const 8
       i32.const 1
       call $rt:new/class-1
       local.tee $key.0
+    ;; 23 |     loader!(key).len()
       local.get $t5
       i32.store $heap
       local.get $key.0

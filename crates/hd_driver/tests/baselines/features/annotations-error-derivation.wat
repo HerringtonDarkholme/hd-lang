@@ -241,10 +241,12 @@
       local.get $t1
       local.get $self
       call $rt:retain
+    ;; 27 |     @error("cannot read $path")
       i32.const 8
       i32.const 1
       call $rt:new/class-1
       local.tee $t2
+    ;; 30 |         @source
       local.get $t1
       i32.store $heap
       local.get $t2
@@ -272,11 +274,11 @@
       i32.const 1
       i32.eq
       if (result i32)
-    ;; 35 |         @from
         i32.const 8
         i32.const 0
         call $rt:new/class-1
         local.tee $t3
+    ;; 35 |         @from
         local.get $t0
         i64.store $heap
         local.get $t3

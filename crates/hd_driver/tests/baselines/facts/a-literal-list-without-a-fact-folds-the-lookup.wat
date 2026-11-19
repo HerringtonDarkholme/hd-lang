@@ -5,7 +5,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $absent (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t6 i32) (local $t7 i32)
+  (func $absent (param $value i64) (result i64) (local $t0 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t6 i32)
     ;; ...
     ;; 13 |     if facts.find::[EnumTagging]().is_some():
     call $"impl Facts.find[std.serde.EnumTagging]"
@@ -27,13 +27,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t6
-    i64.const 0
-    i64.store $heap
-    local.get $t6
-    i32.const 8
-    i32.add
-    local.tee $t5
+    ;; ...
     local.get $t4
     i32.store $heap
     local.get $t5
@@ -48,12 +42,10 @@
     local.get $t5
     local.get $t0
     i32.store $heap offset=16
-    local.get $t5
-    local.set $t0
     block
       block
         block
-          local.get $t0
+          local.get $t5
           i32.load $heap
           i32.const 3
           i32.ne
@@ -62,7 +54,7 @@
           unreachable
         end
         i32.const 1
-        local.set $t7
+        local.set $t6
         br 1
       end
     end
@@ -80,7 +72,7 @@
       i32.load $heap offset=16
       call $rt:release
     end
-    local.get $t7
+    local.get $t6
     if (result i64)
     ;; 14 |         value + 1
       local.get $value

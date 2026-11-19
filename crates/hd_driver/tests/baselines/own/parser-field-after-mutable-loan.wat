@@ -34,11 +34,12 @@
       return
     ;; 20 |         if self.at < self.chars.len():
     end
-    ;; 23 |         .Ok(box(+1))
+    ;; 19 |         self.whitespace()
     i32.const 4
     i32.const 0
     call $rt:new/class-1'1
     local.tee $self
+    ;; 23 |         .Ok(box(+1))
     i32.const 1
     i32.store $heap
     i32.const 0
@@ -272,8 +273,8 @@
       local.get $text.1
       i32.const 0
       i32.store $heap offset=4
-      local.get $text.1
     ;; 27 |     root := parser.expression()?
+      local.get $text.1
       call $"impl Parser.expression"
       local.set $text.0
       local.tee $t0

@@ -50,28 +50,28 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   local $1 provider: Named [read] value
 >     uses $1: %3 -> %4 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %19 Entry local $0 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
     $.context(Tag=Named { label: s })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read move [$1] : Named
->   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : *mut Named
->   %7 = Break L0 %6 : never
->   %8 = Block - : *mut Named
->   %9 = Scope %8 [] : *mut Named
->   %10 = Coerce %9 [RefToTraitValue -] : Tag
->   %11 = Block %10 : Tag
->   %12 = RefDyn %11 : *dyn Tag
->   %13 = LoanEnd [%9] : ()
->   %14 = Coerce %12 [RefAsProvider -] : Tag
->   %15 = LoanEnd [%12] : ()
->   %16 = ContextNew [Tag %14] : $.Context[$ Tag]
->   %17 = Retain %16 Operation row #0 : ()
->   %18 = Release %16 Operation operand 0 #2 : ()
->   %19 = Block %16 : $.Context[$ Tag]
->   %6 finds [$2] full
+>   %5 = Box #2 #1 : ()
+>   %6 = Store [$2] %4 : ()
+>   %7 = Ref take mut [$2] : *mut Named
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : *mut Named
+>   %10 = Scope %9 [] : *mut Named
+>   %11 = Coerce %10 [RefToTraitValue -] : Tag
+>   %12 = Block %11 : Tag
+>   %13 = RefDyn %12 : *dyn Tag
+>   %14 = LoanEnd [%10] : ()
+>   %15 = Coerce %13 [RefAsProvider -] : Tag
+>   %16 = LoanEnd [%13] : ()
+>   %17 = ContextNew [Tag %15] : $.Context[$ Tag]
+>   %18 = Retain %17 Operation row #0 : ()
+>   %19 = Release %17 Operation operand 0 #2 : ()
+>   %20 = Block %17 : $.Context[$ Tag]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary kept [$0] writes

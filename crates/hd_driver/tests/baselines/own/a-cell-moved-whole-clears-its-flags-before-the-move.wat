@@ -104,12 +104,14 @@
         i32.const 12
         i32.const 1
         call $rt:new/class-2
-        local.tee $t5
-        i32.const 1
-        i32.store $heap
+        local.set $t5
         local.get $t2
         local.get $t5
         i32.store $heap offset=4
+        local.get $t2
+        i32.load $heap offset=4
+        i32.const 1
+        i32.store $heap
         local.get $t2
         i32.load $heap offset=4
         i32.const 1

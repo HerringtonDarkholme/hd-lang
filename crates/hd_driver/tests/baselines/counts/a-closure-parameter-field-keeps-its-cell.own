@@ -4,17 +4,18 @@ app/main/absent
     uses $0: entry -> %1 consume last
   local $1 value: Envelope [param read captured] place
   %1 = Read move [$0] : Result[Envelope, string]
-  %2 = Retain %8 Entry local $1 #0 : ()
-  %3 = Ref local [$1 .filter] : &(Payload?)
-  %4 = Call app/main/missing[] (%3) : bool
-  %5 = LoanEnd [%3] : ()
-  %6 = Drop [$1] : ()
-  %7 = Coerce %4 [Identity -] : bool
-  %8 = Block %7 : bool
-  %9 = Closure #1 : fn(Envelope) -> bool
-  %10 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map[Envelope, string, bool] (%1, %9) : Result[bool, string]
-  %10 keeps %9
-  %11 = Block %10 : Result[bool, string]
+  %2 = Box #1 #1 : ()
+  %3 = Retain %9 Entry local $1 #0 : ()
+  %4 = Ref local [$1 .filter] : &(Payload?)
+  %5 = Call app/main/missing[] (%4) : bool
+  %6 = LoanEnd [%4] : ()
+  %7 = Drop [$1] : ()
+  %8 = Coerce %5 [Identity -] : bool
+  %9 = Block %8 : bool
+  %10 = Closure #1 : fn(Envelope) -> bool
+  %11 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map[Envelope, string, bool] (%1, %10) : Result[bool, string]
+  %11 keeps %10
+  %12 = Block %11 : Result[bool, string]
   exit sub 0 drops [$0]
   exit sub 1 drops [$1]
   storage sub 0: $1 cell

@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $"println[string]" (param $t2 i32) (param $t3 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t5 i64) (local $t6 i32)
+  (func $"println[string]" (param $t2 i32) (param $t3 i32) (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t4 i32) (local $t5 i64) (local $t6 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base

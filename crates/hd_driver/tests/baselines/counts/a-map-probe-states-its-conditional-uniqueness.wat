@@ -86,8 +86,8 @@
     local.tee $items
     local.get $saved
     i32.store $heap
-    local.get $items
     ;; 20 |     saved := items
+    local.get $items
     i32.load $heap
     call $rt:coll_copy
     local.tee $saved
@@ -281,6 +281,7 @@
     i32.const 3
     call $rt:map_put'2
     local.set $saved
+    ;; 19 |     let mut items = { "a": +1 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -288,10 +289,11 @@
     i32.const 24
     i32.add
     local.tee $items
+    ;; 27 |     let mut numbers: Map[usize, i32] = { 1: +3 }
     local.get $saved
     i32.store $heap
-    local.get $items
     ;; 28 |     scalar(&mut numbers, 1)
+    local.get $items
     i32.const 1
     i32.const 6
     call_indirect $table0 (param i32 i32)

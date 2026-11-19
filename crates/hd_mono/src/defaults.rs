@@ -716,7 +716,6 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     out.loan_slots
         .retain(|r| live[r.call as usize] && live[r.value as usize]);
     out.stable_lists.retain(|r| live[r[0] as usize]);
-    out.full_cells.retain(|r| live[r.0 as usize]);
     Some(out)
 }
 

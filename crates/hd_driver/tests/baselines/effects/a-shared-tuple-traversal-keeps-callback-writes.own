@@ -84,21 +84,23 @@ fn ordered(left: Values, right: Values) -> bool:
 > app/main/ordered
 >   local $0 left: (Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed) [param read captured] place
 >   local $1 right: (Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed) [param read captured] place
->   %0 = Ref local frame [$0] : &(Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed)
->   %1 = Ref local frame [$1] : &(Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed)
->   %2 = Call std/cmp/PartialOrd.partial_cmp for (Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed) [] via Impl (%0, %1) : Ordering?
->   %3 = LoanEnd [%1] : ()
->   %4 = LoanEnd [%0] : ()
->   %5 = Drop [$0] : ()
->   %6 = Drop [$1] : ()
->   %7 = Read copy [%2 as #1 .0] : Ordering
->   %8 = Block 1:bool : bool
->   %9 = Block 0:bool : bool
->   %10 = SwitchTag %7 [#0 %8 %9] : bool
->   %11 = Block %10 : bool
->   %12 = Block 0:bool : bool
->   %13 = SwitchTag %2 [#1 %11 %12] : bool
->   %14 = Block %13 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %2 = Ref local frame [$0] : &(Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed)
+>   %3 = Ref local frame [$1] : &(Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed)
+>   %4 = Call std/cmp/PartialOrd.partial_cmp for (Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed, Observed) [] via Impl (%2, %3) : Ordering?
+>   %5 = LoanEnd [%3] : ()
+>   %6 = LoanEnd [%2] : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Read copy [%4 as #1 .0] : Ordering
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = SwitchTag %9 [#0 %10 %11] : bool
+>   %13 = Block %12 : bool
+>   %14 = Block 0:bool : bool
+>   %15 = SwitchTag %4 [#1 %13 %14] : bool
+>   %16 = Block %15 : bool
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] writes

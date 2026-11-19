@@ -16,17 +16,17 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 $ref: Chain [read assigned captured captured-assigned] place
->   %0 = Retain %8 Entry local $0 #0 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     box(Chain { name: name, next: head })
 >   %2 = Read move [$1] : string
 >   %3 = Read move [$0] : *Chain?
 >   %4 = NewStruct [%2 %3] : Chain
->   %5 = Store [$2] %4 : ()
->   %6 = Ref take mut [$2] : *mut Chain
->   %7 = Coerce %6 [Weaken -] : *Chain
->   %8 = Block %7 : *Chain
->   %6 finds [$2] full
+>   %5 = Box #2 #1 : ()
+>   %6 = Store [$2] %4 : ()
+>   %7 = Ref take mut [$2] : *mut Chain
+>   %8 = Coerce %7 [Weaken -] : *Chain
+>   %9 = Block %8 : *Chain
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1]

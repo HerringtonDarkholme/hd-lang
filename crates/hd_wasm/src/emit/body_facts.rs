@@ -27,7 +27,7 @@ pub(crate) struct BodyFacts {
     pub(super) rows: Vec<Arc<[usize]>>,
     pub(super) break_counts: Arc<[u32]>,
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
-    pub(super) cell_stores: HashMap<usize, u32>,
+    pub(super) cell_stores: Arc<[u32]>,
     pub(super) closures: Vec<Option<usize>>,
     pub(super) root_params: Arc<[usize]>,
     pub(super) transfers: Arc<HashMap<(u32, u32), u32>>,
@@ -69,8 +69,7 @@ impl BodyFacts {
         for &(sub, local, kind) in &b.storage {
             storage[sub.idx()].push((local, kind));
         }
-        let stored: Vec<_> = b.storage.iter().map(|&(_, local, _)| local.idx()).collect();
-        let cell_stores = super::closure::cell_locals(b, &stored);
+        let cell_stores = hd_tir::own::declarations(b, &topo.sub).into();
         let transfers = hd_tir::own::scoped_provider_transfers(b, &topo)
             .into_iter()
             .map(|(scope, operand, call)| ((scope, operand), call))

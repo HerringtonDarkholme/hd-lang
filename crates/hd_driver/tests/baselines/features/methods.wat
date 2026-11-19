@@ -136,8 +136,8 @@
     local.tee $t
     local.get $t1
     i32.store $heap
-    local.get $t
     ;; 24 |     t.by_mut(b)
+    local.get $t
     local.get $b.0
     local.get $b.1
     call $"impl Shelf.by_mut"

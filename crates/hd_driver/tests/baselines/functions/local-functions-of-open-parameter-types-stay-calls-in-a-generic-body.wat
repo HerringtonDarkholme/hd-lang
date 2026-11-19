@@ -492,7 +492,7 @@
     end
     i32.const 0
   )
-  (func $"borrowed[usize]" (param $t1 i32) (result i32) (local $t0 i32) (local $x i32)
+  (func $"borrowed[usize]" (param $t1 i32) (result i32) (local $x i32) (local $t0 i32)
     ;; 21 |     fn read(s: &T) -> i32:
     global.get $locals
     global.get $locals_base

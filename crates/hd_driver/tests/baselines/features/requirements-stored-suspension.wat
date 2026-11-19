@@ -1090,10 +1090,12 @@
       local.get $t2
       i32.const 0
       i32.store $heap offset=8
+    ;; 29 |     let mut pending = fetch(key)
       i32.const 8
       i32.const 1
       call $rt:new/class-1
       local.tee $pending
+    ;; 30 |     pending!().len()
       local.get $key.1
       i32.store $heap
       local.get $pending

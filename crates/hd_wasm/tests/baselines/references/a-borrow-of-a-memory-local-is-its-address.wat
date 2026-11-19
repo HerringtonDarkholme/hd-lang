@@ -10,7 +10,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
-  (func $show (result i32 i32) (local $t1 i32) (local $t32 i32) (local $t31 i32) (local $t30 i32) (local $t29 i32) (local $t28 i32) (local $t27 i32) (local $t26 i32) (local $t25 i32) (local $t24 i32) (local $t23 i32) (local $t22 i32) (local $t21 i32) (local $t20 i32) (local $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t33 i32) (local $t34 i64) (local $value i64) (local $t35 i32)
+  (func $show (result i32 i32) (local $t1 i32) (local $t32 i32) (local $t31 i32) (local $t30 i32) (local $t29 i32) (local $t28 i32) (local $t27 i32) (local $t26 i32) (local $t25 i32) (local $t24 i32) (local $t23 i32) (local $t22 i32) (local $t21 i32) (local $t20 i32) (local $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $v i32) (local $t0 i32) (local $t33 i64) (local $value i64) (local $t34 i32)
     ;; 28 |     let v = make4()
     global.get $locals
     global.get $locals_base
@@ -154,107 +154,107 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t33
+    local.tee $v
     local.get $t32
     i32.store $heap
-    local.get $t33
+    local.get $v
     local.get $t31
     i32.store $heap offset=4
-    local.get $t33
+    local.get $v
     local.get $t30
     i32.store $heap offset=8
-    local.get $t33
+    local.get $v
     local.get $t29
     i32.store $heap offset=12
-    local.get $t33
+    local.get $v
     local.get $t28
     i32.store $heap offset=16
-    local.get $t33
+    local.get $v
     local.get $t27
     i32.store $heap offset=20
-    local.get $t33
+    local.get $v
     local.get $t26
     i32.store $heap offset=24
-    local.get $t33
+    local.get $v
     local.get $t25
     i32.store $heap offset=28
-    local.get $t33
+    local.get $v
     local.get $t24
     i32.store $heap offset=32
-    local.get $t33
+    local.get $v
     local.get $t23
     i32.store $heap offset=36
-    local.get $t33
+    local.get $v
     local.get $t22
     i32.store $heap offset=40
-    local.get $t33
+    local.get $v
     local.get $t21
     i32.store $heap offset=44
-    local.get $t33
+    local.get $v
     local.get $t20
     i32.store $heap offset=48
-    local.get $t33
+    local.get $v
     local.get $t19
     i32.store $heap offset=52
-    local.get $t33
+    local.get $v
     local.get $t18
     i32.store $heap offset=56
-    local.get $t33
+    local.get $v
     local.get $t17
     i32.store $heap offset=60
-    local.get $t33
+    local.get $v
     local.get $t16
     i32.store $heap offset=64
-    local.get $t33
+    local.get $v
     local.get $t15
     i32.store $heap offset=68
-    local.get $t33
+    local.get $v
     local.get $t14
     i32.store $heap offset=72
-    local.get $t33
+    local.get $v
     local.get $t13
     i32.store $heap offset=76
-    local.get $t33
+    local.get $v
     local.get $t12
     i32.store $heap offset=80
-    local.get $t33
+    local.get $v
     local.get $t11
     i32.store $heap offset=84
-    local.get $t33
+    local.get $v
     local.get $t10
     i32.store $heap offset=88
-    local.get $t33
+    local.get $v
     local.get $t9
     i32.store $heap offset=92
-    local.get $t33
+    local.get $v
     local.get $t8
     i32.store $heap offset=96
-    local.get $t33
+    local.get $v
     local.get $t7
     i32.store $heap offset=100
-    local.get $t33
+    local.get $v
     local.get $t6
     i32.store $heap offset=104
-    local.get $t33
+    local.get $v
     local.get $t5
     i32.store $heap offset=108
-    local.get $t33
+    local.get $v
     local.get $t4
     i32.store $heap offset=112
-    local.get $t33
+    local.get $v
     local.get $t3
     i32.store $heap offset=116
-    local.get $t33
+    local.get $v
     local.get $t2
     i32.store $heap offset=120
-    local.get $t33
+    local.get $v
     local.get $t1
     i32.store $heap offset=124
-    local.get $t33
     ;; 29 |     "${v._0._0._0._0._0}"
+    local.get $v
     i32.load $heap
     i64.extend_i32_s
-    local.tee $t34
+    local.tee $t33
     local.tee $value
     call $signed_magnitude
     call $unsigned_width
@@ -264,11 +264,11 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t35
+      local.set $t34
     end
     local.get $t1
     i64.extend_i32_u
-    local.get $t35
+    local.get $t34
     i64.extend_i32_u
     i64.add
     local.tee $value
@@ -280,7 +280,7 @@
     end
     local.get $value
     i32.wrap_i64
-    local.tee $t35
+    local.tee $t34
     local.tee $t1
     i32.const 16
     local.set $t2
@@ -289,9 +289,9 @@
       call $rt:str
       local.set $t2
     end
-    local.get $t34
+    local.get $t33
     local.get $t2
-    local.get $t35
+    local.get $t34
     call $write_signed_sized
     local.get $t2
     local.get $t1

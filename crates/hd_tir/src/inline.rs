@@ -144,6 +144,7 @@ pub fn copyable(c: &Body) -> bool {
                 | Tag::IsUnique
                 | Tag::FlagSet
                 | Tag::FlagClear
+                | Tag::Box
         ),
     };
     matches!(c.kind, BodyKind::Fn | BodyKind::Default)

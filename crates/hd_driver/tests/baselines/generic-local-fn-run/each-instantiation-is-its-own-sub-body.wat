@@ -281,14 +281,15 @@
     local.set $value.0
     local.set $a.1
     local.set $a.0
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.set $n
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $n
+      local.get $n
       local.get $value.0
       i32.store $heap
       br 0
@@ -301,14 +302,17 @@
     local.set $value.0
     local.set $t.1
     local.set $t.0
+    ;; 64 |     let (a, n, s) = generic("c")
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=16
+    local.get $t0
+    i32.const 24
+    i32.add
+    local.set $k
+    ;; 65 |     let (t, k) = outer("o")
     block
-      local.get $t0
-      i64.const 0
-      i64.store $heap offset=16
-      local.get $t0
-      i32.const 24
-      i32.add
-      local.tee $k
+      local.get $k
       local.get $value.0
       i32.store $heap
       br 0

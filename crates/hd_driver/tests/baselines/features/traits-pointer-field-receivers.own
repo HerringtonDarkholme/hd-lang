@@ -68,45 +68,44 @@ fn total(items: Erased) -> i64:
 >   local $1 cursor: Erased [read assigned captured captured-assigned] place
 >   local $2 sum: i64 [read assigned mutated] place
 >   local $3 x: i64 [read assigned] value
->     uses $3: %15 -> %8 lend last
->   %0 = Retain %31 Entry local $0 #0 : ()
+>     uses $3: %16 -> %9 lend last
+>   %0 = Retain %32 Entry local $0 #0 : ()
     let mut cursor = items
 >   %1 = Read move [$0] : Erased
->   %2 = Store [$1] %1 : ()
->   %31 = Block %30 : i64
+>   %2 = Box #1 #0 : ()
+>   %3 = Store [$1] %1 : ()
+>   %32 = Block %31 : i64
     let sum: i64 = 0
->   %3 = Store [$2] 0:i64 : ()
+>   %4 = Store [$2] 0:i64 : ()
     while true:
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If 1:bool [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = Drop [$1] : ()
->   %28 finds [$1] full
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If 1:bool [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Drop [$1] : ()
         match cursor.step():
->   %4 = Ref mut local frame [$1] : &mut Erased
->   %5 = Call app/main/Step.step for Erased [] via Impl (%4) : i64?
->   %6 = LoanEnd [%4] : ()
->   %21 = Block - : never
->   %22 = Match %5 [%21 %11 %13] : ()
->   %23 = Block - : ()
->   %4 finds [$1] full
+>   %5 = Ref mut local frame [$1] : &mut Erased
+>   %6 = Call app/main/Step.step for Erased [] via Impl (%5) : i64?
+>   %7 = LoanEnd [%5] : ()
+>   %22 = Block - : never
+>   %23 = Match %6 [%22 %12 %14] : ()
+>   %24 = Block - : ()
             .Some(x) => sum = sum + x
->   %7 = Read copy [$2] : i64
->   %8 = Read copy [$3] : i64
->   %9 = Prim Add [%7 %8] : i64
->   %10 = Store [$2] %9 : ()
->   %11 = Block - : ()
->   %14 = Read copy [%5 as #1 .0] : i64
->   %15 = Store [$3] %14 : ()
->   %17 = Block - : never
->   %20 = SwitchTag %5 [#1 %17 %19] : never
+>   %8 = Read copy [$2] : i64
+>   %9 = Read copy [$3] : i64
+>   %10 = Prim Add [%8 %9] : i64
+>   %11 = Store [$2] %10 : ()
+>   %12 = Block - : ()
+>   %15 = Read copy [%6 as #1 .0] : i64
+>   %16 = Store [$3] %15 : ()
+>   %18 = Block - : never
+>   %21 = SwitchTag %6 [#1 %18 %20] : never
             .None => break
->   %12 = Break L0 - : never
->   %13 = Block - : never
+>   %13 = Break L0 - : never
+>   %14 = Block - : never
     sum
->   %30 = Read copy [$2] : i64
+>   %31 = Read copy [$2] : i64
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes
@@ -118,20 +117,20 @@ pub fn count(n: i64) -> i64:
 >     uses $0: entry -> %0 consume last
 >   local $1 $ref: Counter [read assigned captured captured-assigned] place
 >   local $2 $ref: *mut Counter [read assigned captured] value
->     uses $2: %4 -> %5 lend last
+>     uses $2: %5 -> %6 lend last
 >   %0 = Read copy [$0] : i64
 >   %1 = NewStruct [0:i64 %0] : Counter
->   %2 = Store [$1] %1 : ()
->   %3 = Ref take mut [$1] : *mut Counter
->   %4 = Store [$2] %3 : ()
->   %5 = Read move [$2] : *mut Counter
->   %6 = Coerce %5 [RefToTraitValue -] : Step
->   %7 = LoanEnd [%5] : ()
->   %8 = Block %6 : Step
->   %9 = RefDyn %8 : *mut dyn Step
->   %10 = NewStruct [%9] : Erased
->   %11 = Call app/main/total[] (%10) : i64
->   %12 = Block %11 : i64
->   %3 finds [$1] full
+>   %2 = Box #1 #1 : ()
+>   %3 = Store [$1] %1 : ()
+>   %4 = Ref take mut [$1] : *mut Counter
+>   %5 = Store [$2] %4 : ()
+>   %6 = Read move [$2] : *mut Counter
+>   %7 = Coerce %6 [RefToTraitValue -] : Step
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Block %7 : Step
+>   %10 = RefDyn %9 : *mut dyn Step
+>   %11 = NewStruct [%10] : Erased
+>   %12 = Call app/main/total[] (%11) : i64
+>   %13 = Block %12 : i64
 >   storage sub 0: $1 cell
 >   summary kept [] writes

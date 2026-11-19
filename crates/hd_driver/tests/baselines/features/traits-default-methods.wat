@@ -54,7 +54,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $l i32) (local $t3 i32) (local $t4 i32)
+  (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $l i32) (local $t0 i32) (local $t3 i32) (local $t4 i32)
     ;; 31 |     Describe::headline(&l).len()
     global.get $locals
     global.get $locals_base

@@ -80,6 +80,7 @@
     local.get $rest
     i32.const 1
     i32.store $heap offset=20
+    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -87,12 +88,13 @@
     i32.const 8
     i32.add
     local.tee $rest
+    ;; 23 |     let rest: (i32, List[string]...) = (+1, "a", "b")
     i32.const 1
     i32.store $heap offset=4
     local.get $rest
     local.get $wrapped
     i32.store $heap
-    ;; 24 |     wrapped := Wrap { value: union }
+    ;; 22 |     let union: i32 | string = ._1("a")
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -100,7 +102,6 @@
     i32.const 24
     i32.add
     local.tee $wrapped
-    ;; 22 |     let union: i32 | string = ._1("a")
     i32.const 113 ;; &"a"
     ;; 24 |     wrapped := Wrap { value: union }
     i32.store $heap
@@ -109,8 +110,8 @@
     i32.const 1
     ;; 24 |     wrapped := Wrap { value: union }
     i32.store $heap offset=4
-    local.get $wrapped
     ;; 25 |     println("${wrapped.size()} ${rest.size()}")
+    local.get $wrapped
     call $"impl[A, B] Size for Wrap[A | B].size[i32, string]"
     local.set $t1
     local.get $wrapped

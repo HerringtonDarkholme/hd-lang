@@ -79,29 +79,13 @@
     local.get $t
     local.get $s.1
     i32.store $heap offset=4
-    local.get $t
     ;; 20 |     add()
+    local.get $t
     i32.load $heap
     local.tee $s.0
     if
       local.get $s.0
       call $retain
-    end
-    local.get $t
-    i32.eqz
-    if
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t
-      i32.const 0
-      i32.store $heap
-      local.get $t
-      i32.const 0
-      i32.store $heap offset=4
     end
     local.get $s.0
     if

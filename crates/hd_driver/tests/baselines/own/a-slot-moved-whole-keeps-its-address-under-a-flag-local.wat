@@ -104,8 +104,8 @@
     local.get $held
     i32.const 1
     i32.store $heap offset=8
-    local.get $held
     ;; 74 |     bump(&mut held)
+    local.get $held
     call $bump
     ;; 75 |     held.id
     local.get $held
@@ -186,6 +186,7 @@
         local.get $t2
         i32.const 1
         i32.store $heap offset=20
+    ;; 59 |     for i in 0..n:
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -193,10 +194,11 @@
         i32.const 8
         i32.add
         local.tee $xs
+    ;; 60 |         let mut xs: List[string] = ["a"]
         local.get $t2
         i32.store $heap
-        local.get $xs
     ;; 61 |         grow(&mut xs)
+        local.get $xs
         call $grow
     ;; 62 |         if i % 2 == 0:
         i32.const 1
@@ -308,7 +310,6 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 41 |         let mut held = Held { id: i }
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -316,6 +317,7 @@
         i32.const 8
         i32.add
         local.tee $held
+    ;; 41 |         let mut held = Held { id: i }
         local.get $i
         i32.store $heap
         local.get $held
@@ -576,7 +578,7 @@
     end
     local.get $t0
   )
-  (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $t0 i32) (local $held i32)
+  (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $held i32) (local $t0 i32)
     ;; 67 |     bump(&mut held)
     global.get $locals
     global.get $locals_base

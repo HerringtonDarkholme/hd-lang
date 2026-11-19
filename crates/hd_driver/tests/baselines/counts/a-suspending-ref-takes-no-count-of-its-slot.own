@@ -28,21 +28,20 @@ fn direct!() -> i64:
     let mut tally = Tally { n: 0 }
 > app/main/direct
 >   local $0 tally: Tally [read assigned captured captured-assigned] place
->   %0 = Release %9 FrameDrop child #2 : ()
+>   %0 = Release %10 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i64] : Tally
->   %2 = Store [$0] %1 : ()
->   %9 = Block %7 : i64
+>   %2 = Box #0 #0 : ()
+>   %3 = Store [$0] %1 : ()
+>   %10 = Block %8 : i64
     bump!(&mut tally)
->   %3 = Ref mut local [$0] : &mut Tally
->   %4 = Await app/main/bump[] (%3) : ()
->   %5 = Release %4 Operation child #2 : ()
->   %6 = LoanEnd [%3] : ()
->   %3 finds [$0] full
+>   %4 = Ref mut local [$0] : &mut Tally
+>   %5 = Await app/main/bump[] (%4) : ()
+>   %6 = Release %5 Operation child #2 : ()
+>   %7 = LoanEnd [%4] : ()
     tally.n
->   %7 = Read copy [$0 .n] : i64
->   %8 = Drop [$0] : ()
->   %7 finds [$0] full
+>   %8 = Read copy [$0 .n] : i64
+>   %9 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary none
->   cancel %4 releases [%3]
+>   cancel %5 releases [%4]

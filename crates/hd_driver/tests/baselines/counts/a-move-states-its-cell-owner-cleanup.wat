@@ -1256,7 +1256,7 @@
     end
     local.get $t0
   )
-  (func $"stack[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32) (local $value i32)
+  (func $"stack[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 18 |     _ := same(&value, &value)
     global.get $locals
     global.get $locals_base

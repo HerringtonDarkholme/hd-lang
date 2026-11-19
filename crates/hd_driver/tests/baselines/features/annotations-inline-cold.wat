@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $use_first (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $self.1 i32)
+  (func $use_first (param $t1 i32) (result i32) (local $xs i32) (local $t0 i32) (local $self.1 i32)
     ;; 28 |     first_len(&xs) + checksum(&xs)
     global.get $locals
     global.get $locals_base

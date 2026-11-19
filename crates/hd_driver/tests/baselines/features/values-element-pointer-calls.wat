@@ -91,7 +91,7 @@
       end
     end
   )
-  (func $run (param $root i32) (result i64) (local $t0 i32) (local $t1 i32) (local $keeper i32)
+  (func $run (param $root i32) (result i64) (local $total i32) (local $t0 i32) (local $keeper i32)
     ;; 39 |     let mut total = Total { sum: 0 }
     global.get $locals
     global.get $locals_base
@@ -128,17 +128,15 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $total
     i64.const 0
     i64.store $heap
     ;; 40 |     walk(root, &mut total)
     local.get $root
-    ;; 39 |     let mut total = Total { sum: 0 }
-    local.get $t1
-    ;; 40 |     walk(root, &mut total)
+    local.get $total
     i32.const 320 ;; &vtable[rt:dyn_slot]
     call $walk
-    ;; 41 |     let mut keeper = Keeper { saved: [] }
+    ;; 39 |     let mut total = Total { sum: 0 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -146,15 +144,15 @@
     i32.const 24
     i32.add
     local.tee $keeper
+    ;; 41 |     let mut keeper = Keeper { saved: [] }
     i32.const 80 ;; &empty-buffer
     i32.store $heap
     ;; 42 |     save(root, &mut keeper)
     local.get $root
     local.get $keeper
     call $save
-    ;; 39 |     let mut total = Total { sum: 0 }
-    local.get $t1
     ;; 43 |     total.sum + i64(keeper.saved.len())
+    local.get $total
     i64.load $heap
     local.get $keeper
     i32.load $heap

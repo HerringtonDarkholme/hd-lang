@@ -68,8 +68,8 @@
     local.get $sink
     i32.const 0
     i32.store $heap offset=4
-    local.get $sink
     ;; 20 |     sink() = "kept"
+    local.get $sink
     i32.const 113 ;; &"kept"
     i32.const 4
     call $"impl Update[string] for Sink.update"
@@ -133,8 +133,8 @@
     local.get $sink
     i32.const 0
     i32.store $heap offset=4
-    local.get $sink
     ;; 15 |     sink() = "helper"
+    local.get $sink
     i32.const 117 ;; &"helper"
     i32.const 6
     call $"impl Update[string] for Sink.update"

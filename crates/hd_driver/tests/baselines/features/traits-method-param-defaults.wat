@@ -10,7 +10,7 @@
     i32.const 65 ;; &", "
     i32.const 2
   )
-  (func $joined (param $t1 i32) (result i32) (local $t0 i32) (local $j i32) (local $t2 i32)
+  (func $joined (param $t1 i32) (result i32) (local $j i32) (local $t0 i32) (local $t2 i32)
     ;; 18 |     j.join()
     global.get $locals
     global.get $locals_base

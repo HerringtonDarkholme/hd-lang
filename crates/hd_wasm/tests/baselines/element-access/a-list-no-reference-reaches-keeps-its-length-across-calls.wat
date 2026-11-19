@@ -80,8 +80,8 @@
     local.tee $b
     local.get $t1
     i32.store $heap
-    local.get $b
     ;; 75 |     s := pick(&mut b, true)
+    local.get $b
     i32.const 1
     call $pick
     ;; 76 |     println("$s ${b.items.len()}")
@@ -760,8 +760,8 @@
     local.tee $ys
     local.get $xs
     i32.store $heap
-    local.get $ys
     ;; 54 |     n := ys.len()
+    local.get $ys
     i32.load $heap
     i32.load $heap offset=4
     local.set $xs

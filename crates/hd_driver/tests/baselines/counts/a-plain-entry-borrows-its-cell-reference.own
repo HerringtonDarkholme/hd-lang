@@ -27,40 +27,38 @@ fn helper!() -> string:
 > app/main/helper
 >   local $0 sink: Sink [read assigned captured captured-assigned] place
 >   %0 = NewStruct [""] : Sink
->   %1 = Store [$0] %0 : ()
->   %7 = Block %5 : string
+>   %1 = Box #0 #1 : ()
+>   %2 = Store [$0] %0 : ()
+>   %8 = Block %6 : string
     sink() = "helper"
->   %2 = Ref mut local [$0] : &mut Sink
->   %3 = Call std/ops/Update.update for Sink [string] via Impl (%2, "helper") : ()
->   %4 = LoanEnd [%2] : ()
->   %2 finds [$0] full
+>   %3 = Ref mut local [$0] : &mut Sink
+>   %4 = Call std/ops/Update.update for Sink [string] via Impl (%3, "helper") : ()
+>   %5 = LoanEnd [%3] : ()
     sink.text
->   %5 = Read copy [$0 .text] : string
->   %6 = Drop [$0] : ()
->   %5 finds [$0] full
+>   %6 = Read copy [$0 .text] : string
+>   %7 = Drop [$0] : ()
 >   storage sub 0: $0 cell
 
 pub fn main!() -> void $ Console:
     let mut sink = Sink { text: "" }
 > app/main/main
 >   local $0 sink: Sink [read assigned captured captured-assigned] place
->   %0 = Retain %13 Cold row #0 : ()
->   %1 = Retain %13 Materialize row #0 : ()
->   %2 = Release %13 FrameDrop row #2 : ()
+>   %0 = Retain %14 Cold row #0 : ()
+>   %1 = Retain %14 Materialize row #0 : ()
+>   %2 = Release %14 FrameDrop row #2 : ()
 >   %3 = NewStruct [""] : Sink
->   %4 = Store [$0] %3 : ()
->   %13 = Block - : ()
+>   %4 = Box #0 #1 : ()
+>   %5 = Store [$0] %3 : ()
+>   %14 = Block - : ()
     sink() = "kept"
->   %5 = Ref mut local [$0] : &mut Sink
->   %6 = Call std/ops/Update.update for Sink [string] via Impl (%5, "kept") : ()
->   %7 = LoanEnd [%5] : ()
->   %5 finds [$0] full
+>   %6 = Ref mut local [$0] : &mut Sink
+>   %7 = Call std/ops/Update.update for Sink [string] via Impl (%6, "kept") : ()
+>   %8 = LoanEnd [%6] : ()
     println(sink.text)
->   %8 = Read copy [$0 .text] : string
->   %9 = Drop [$0] : ()
->   %10 = Call std/console/println[string] (%8) : ()
->   %8 finds [$0] full
+>   %9 = Read copy [$0 .text] : string
+>   %10 = Drop [$0] : ()
+>   %11 = Call std/console/println[string] (%9) : ()
     _ := helper()
->   %11 = Call app/main/helper[] () : Suspend[string]
->   %12 = Drop [%11] : ()
+>   %12 = Call app/main/helper[] () : Suspend[string]
+>   %13 = Drop [%12] : ()
 >   storage sub 0: $0 cell

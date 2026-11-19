@@ -990,8 +990,11 @@ after a `Drop`; full after a `Store`. It joins at the ends of `If` and
 3. A local empty on every path to the exit leaves `exit_drops`.
 4. A `move` whose source is certainly never read or dropped again needs
    no zeroing; the emitter skips the zero store.
-5. A celled local whose declaration certainly ran (it dominates the use)
-   is full, so its uses read the cell with no null test (#678).
+
+A celled local needs no rule: its `Box`, right before the statement that
+declares it in the block holding every use (`own::storage::boxes`), makes
+the cell on every path that reaches a use, so every use reads the cell
+with no null test (#678, #2172).
 
 Why it is sound: each rule removes work only on a place whose state is
 certain on every path; an unknown state keeps the drop, the zeroing or
@@ -1098,7 +1101,7 @@ splice; the steps after it add statements
 | §23.31 invariant buffer ownership; #710 loop projections (`unique_once`, `list_caches`) | hoisting, and its stable-list side table | the empty-loop entry test stays |
 | §23.36 span loans (`live::span_loans`, #676) | borrow, rules 1 to 4 | the three boundary fixtures (`local-replaced-inside-the-span`, `local-moved-inside-the-span`, `local-lent-by-mut-reference`) keep their counts by rules 2 and 3 |
 | #677 known-null releases | known-null rules 1 to 3 | — |
-| #678 cells made before use (`Em::cell_made`) | known-null rule 5 | a use before every path stored, or inside a cleanup suite, keeps its test; a move leaves the cell (#2172) |
+| #678 cells made before use (`Em::cell_made`) | a `Box` before the declaring statement (#2172) | — |
 | #679 matching an owned temporary moves its payload (`match_payloads`) | move rule 3 | — |
 | #701 `&x` at the last access takes the cell's count (`Em::take_cell`) | move rule 4 | — |
 | #710 hoisted uniqueness and buffer loads | hoisting | — |

@@ -125,8 +125,8 @@
     local.get $v
     local.get $u.name.1
     i32.store $heap offset=4
-    local.get $v
     ;; 35 |     through_mut(&mut v, n)
+    local.get $v
     i32.const 196 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
     local.get $n.0
     local.get $n.1

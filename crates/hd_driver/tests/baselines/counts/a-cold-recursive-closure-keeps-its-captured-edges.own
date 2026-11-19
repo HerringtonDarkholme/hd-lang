@@ -24,8 +24,6 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %27 = Store [$2] %25 : ()
 >   %28 = Release %27 Operation #3 : ()
 >   %31 = Block %29 : fn!(usize) -> string
->   %25 finds [$2] full
->   %27 finds [$2] full
         if n == 0: value else: read!(n - 1)
 >   %7 = Read copy [$1] : usize
 >   %8 = Prim Eq [%7 0:usize] : bool
@@ -46,7 +44,6 @@ fn make(value: string) -> fn!(usize) -> string:
     read
 >   %29 = Read copy [$2] : fn!(usize) -> string
 >   %30 = Drop [$2] : ()
->   %29 finds [$2] full
 >   exit sub 0 drops [$0 $2]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes

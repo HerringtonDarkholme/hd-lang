@@ -28,28 +28,28 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $tally i32) (local $t0 i32) (local $rec.0'1 i32) (local $rec.1'1 i32) (local $rec.0'2 i32) (local $rec.1'2 i32)
+  (func $demo (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $rec.0'1 i32) (local $rec.1'1 i32) (local $rec.0'2 i32) (local $rec.1'2 i32)
     ;; 28 |     tally := box(Log { lines: [] })
     i32.const 4
     i32.const 1
     call $rt:new/class-1
-    local.tee $tally
+    local.tee $t0
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $tally
+    local.get $t0
     ;; 29 |     $.with(Recorder=tally):
-    local.tee $t0
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $t1
         call $rt:retain_known
       end
     end
-    local.get $t0
+    local.get $t1
     local.tee $rec.0'1
     i32.const 276 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
     local.tee $rec.1'1
@@ -79,24 +79,24 @@
     call_indirect $table0 (param i32) (result i32)
     drop
     ;; 29 |     $.with(Recorder=tally):
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref'1
     end
     ;; 32 |     tally.lines.len()
-    local.get $tally
+    local.get $t0
     i32.load $heap
     i32.load $heap offset=4
     ;; 28 |     tally := box(Log { lines: [] })
-    local.get $tally
+    local.get $t0
     if
-      local.get $tally
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $tally
+        local.get $t0
         call $rt:release_ref'2
       end
     end

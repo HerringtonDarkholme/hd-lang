@@ -40,10 +40,6 @@ impl Em<'_, '_, '_> {
             .contains(&(u32::from(self.sub_id), local))
     }
 
-    pub(super) fn whole_local_stored(&self, local: usize) -> bool {
-        self.boundary_facts().stored.contains(&local)
-    }
-
     pub(super) fn exit_owners(&self) -> &[usize] {
         self.boundary_facts()
             .exits

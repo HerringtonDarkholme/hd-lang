@@ -13,12 +13,10 @@
     local.tee $t0
     i32.const 0
     i32.store $heap
-    ;; 10 |     parent := box(Node { next: .Some(node) })
     i32.const 4
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t1
-    ;; 9 |     let node = box(Node { next: .None })
     local.get $t0
     ;; 10 |     parent := box(Node { next: .Some(node) })
     i32.store $heap
@@ -34,6 +32,7 @@
         call $rt:retain_known
       end
     end
+    ;; 9 |     let node = box(Node { next: .None })
     i32.const 4
     i32.const -2147483647
     call $rt:new/class-1

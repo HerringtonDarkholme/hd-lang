@@ -380,11 +380,6 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
     for row in &mut b.cancel {
         *row = (word(row.0), word(row.1));
     }
-    // A read the edits delete takes its row with it.
-    for row in &mut b.full_cells {
-        row.0 = word(row.0);
-    }
-    b.full_cells.retain(|r| r.0 != NONE);
     // A loop is never deleted; the place is rooted at a local. A region
     // bound the edits delete closes the region at the loop.
     for row in &mut b.stable_lists {

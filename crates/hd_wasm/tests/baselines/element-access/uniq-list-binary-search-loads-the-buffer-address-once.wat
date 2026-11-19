@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $run (param $xs i32) (param $t1 i32) (result i32) (local $t0 i32) (local $x i32) (local $t2 i32)
+  (func $run (param $xs i32) (param $t1 i32) (result i32) (local $x i32) (local $t0 i32) (local $t2 i32)
     ;; 12 |     xs.binary_search(&x).is_ok()
     global.get $locals
     global.get $locals_base

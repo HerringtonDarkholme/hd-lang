@@ -35,7 +35,7 @@
     local.get $t1
     local.get $t0
   )
-  (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $with_default (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 13 |     collect(s)
     global.get $locals
     global.get $locals_base
@@ -75,11 +75,9 @@
     local.tee $t1
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $t1
-    local.set $t2
     local.get $s.0
     local.get $s.1
-    local.get $t2
+    local.get $t1
     call $collect
     local.set $s.0
     local.get $t1
@@ -165,7 +163,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $returned_default (param $source i32) (param $fresh i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t3 i32)
+  (func $returned_default (param $source i32) (param $fresh i32) (result i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 32 |     into := reference_default(source, fresh)
     global.get $locals
     global.get $locals_base
@@ -205,11 +203,9 @@
     local.tee $t1
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $t1
-    local.set $t2
     local.get $source
     local.get $fresh
-    local.get $t2
+    local.get $t1
     call $reference_default
     local.tee $source
     ;; 33 |     into.push("held")

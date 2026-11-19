@@ -89,14 +89,13 @@
     local.get $b
     local.get $t1
     i32.store $heap offset=8
-    local.get $b
     ;; 21 |     b.item_mut(0).qty = +7
-    local.tee $name.0
-    local.get $name.0
+    local.get $b
+    local.get $b
     i32.load $heap offset=8
     call $rt:list_unique
     i32.store $heap offset=8
-    local.get $name.0
+    local.get $b
     i32.load $heap offset=8
     local.set $name.0
     i32.const 0

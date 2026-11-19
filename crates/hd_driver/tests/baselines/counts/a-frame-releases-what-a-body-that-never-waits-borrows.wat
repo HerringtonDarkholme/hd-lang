@@ -577,11 +577,14 @@
       local.get $t2
       local.get $provider0.vtable
       i32.store $heap offset=8
+    ;; 20 |     n := box::[Note](Note { text: "n" })
+      i32.const 4
+      i32.const 0
+      call $rt:new/class-1'2
+      local.set $provider0.vtable
+    ;; 21 |     let (a, _) = join!(change(n), other())
       block
-        i32.const 4
-        i32.const 0
-        call $rt:new/class-1'2
-        local.tee $provider0.vtable
+        local.get $provider0.vtable
         local.get $provider0
         i32.store $heap
         br 0

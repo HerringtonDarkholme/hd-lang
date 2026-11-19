@@ -70,8 +70,8 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    local.get $xs
     ;; 10 |     n := xs.len()
+    local.get $xs
     i32.load $heap
     call $rt:coll_copy
     local.tee $t1

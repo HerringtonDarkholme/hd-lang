@@ -14,9 +14,13 @@
 //! `Await` calls no known body is a cell, as that await counts its
 //! arguments. A build with no runtime has no slots; the emitter reads it.
 
-use super::OwnCx;
-use crate::ir::{Body, BodyKind, CaptureMode, Proj, Root, Storage, Tag, Topology, ref_word};
+use super::{OwnCx, splice};
+use crate::ir::{
+    Body, BodyKind, CaptureMode, NONE, Nest, Proj, Root, Storage, Tag, Topology, box_word,
+    local_flags, ref_word, u32_of,
+};
 use hd_base::{LocalId, SubId};
+use hd_types::Ty;
 
 /// The local `Ref` `i` of `b` takes a reference to the storage of, or to
 /// a field path of.
@@ -392,6 +396,152 @@ fn run_with(
     b.storage = rows;
 }
 
+/// Each local's declaration, by instruction: its first whole store
+/// outside a closure that captures it, where it is initialized
+/// (`overwrites.rs`), or `NONE` (a parameter's value arrives with the
+/// call). `subs` is each instruction's sub-body. O(N + captures).
+#[must_use]
+pub fn declarations(b: &Body, subs: &[u32]) -> Vec<u32> {
+    let mut through_capture = hd_base::HashSet::default();
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Closure) {
+        let rec = b.record(b.data[i][1]);
+        let (start, len) = (rec[0] as usize, rec[1] as usize);
+        for l in &b.cap_local[start..start + len] {
+            through_capture.insert((b.data[i][0], l.raw()));
+        }
+    }
+    let mut out = vec![NONE; b.local_ty.len()];
+    for (i, &sub) in subs.iter().enumerate() {
+        if let Some((l, true)) = b.stored_local(i)
+            && out[l.idx()] == NONE
+            && b.local_flags[l.idx()] & local_flags::PARAM == 0
+            && !through_capture.contains(&(sub, l.raw()))
+        {
+            out[l.idx()] = u32_of(i);
+        }
+    }
+    out
+}
+
+/// One `Box` per cell of a sub-body (owner decision 1 of #2172, "a shared
+/// local's box is made at scope entry on every path, carrying its kind",
+/// where a local's scope starts at its declaration), as Swift's SIL
+/// generation puts `alloc_box` where the `var` is declared, after
+/// an early return before it (`swiftc -emit-silgen`): in the innermost
+/// block holding its local's declaration and every use, right before the
+/// first statement of that block holding one, and a parameter's at its
+/// sub-body's root. A capture's cell arrives in the environment and gets
+/// none. `box_word::ZERO` is set when a return, break, continue or await
+/// may run between the box and the declaration (a match binding's other
+/// arms), so a path may release the box unfilled. One [`Nest`] and a
+/// prefix count of those statements over its preorder: O(N + rows),
+/// O(1) a row; two walks of the uses, a raise only climbs.
+pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
+    if b.storage.is_empty() {
+        return;
+    }
+    let decl = declarations(b, &topo.sub);
+    let mut param_sub = vec![0; b.local_ty.len()];
+    for s in 1..b.sub_params.len() {
+        for &l in b.sub_param_locals(s) {
+            param_sub[l as usize] = s;
+        }
+    }
+    let nest = Nest::new(b, topo);
+    let mut leaves = vec![0u32];
+    for &x in nest.preorder() {
+        let leaves_block = matches!(
+            b.tags[x as usize],
+            Tag::Return
+                | Tag::Break
+                | Tag::Continue
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
+        );
+        leaves.push(leaves[leaves.len() - 1] + u32::from(leaves_block));
+    }
+    // Each declared cell's block: its declaration's, raised to hold every
+    // use in its sub-body (a match arm's body reads a binding its pattern
+    // block stores). Scoping keeps each raise to the few blocks of one
+    // statement, and a block only rises: O(uses), each an interval test.
+    let mut at = vec![NONE; b.local_ty.len()];
+    for &(_, l, _) in &b.storage {
+        if let Some(&d) = decl.get(l.idx()).filter(|&&d| d != NONE) {
+            at[l.idx()] = topo.blk[d as usize];
+        }
+    }
+    let uses = |f: &mut dyn FnMut(usize, usize)| {
+        for i in 0..b.len() {
+            match b.tags[i] {
+                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Drop | Tag::LoanEnd => {
+                    if let Some(l) = b.view(b.data[i][0]).local() {
+                        f(i, l as usize);
+                    }
+                }
+                Tag::Closure => {
+                    let r = b.record(b.data[i][1]);
+                    for c in r[0]..r[0] + r[1] {
+                        f(i, b.cap_local[c as usize].idx());
+                    }
+                }
+                _ => {}
+            }
+        }
+    };
+    let ours =
+        |at: &[u32], i: usize, l: usize| at[l] != NONE && topo.sub[i] == topo.sub[decl[l] as usize];
+    uses(&mut |i, l| {
+        while ours(&at, i, l)
+            && !topo.is_root[at[l] as usize]
+            && nest.child_above(at[l], u32_of(i)).is_none()
+        {
+            at[l] = topo.blk[topo.owner[at[l] as usize] as usize];
+        }
+    });
+    // The first statement of that block holding the declaration or a use,
+    // by preorder number and position: the box stands right before it.
+    let mut first = vec![(NONE, 0); b.local_ty.len()];
+    uses(&mut |i, l| {
+        if ours(&at, i, l)
+            && let Some(k) = nest.child_above(at[l], u32_of(i))
+        {
+            first[l] = first[l].min((nest.entry(k), topo.pos[k as usize]));
+        }
+    });
+    for &(s, l, kind) in &b.storage {
+        let (s, li, word) = (s.idx(), l.idx(), kind as u32);
+        let (blk, pos, word) = if b.local_flags[li] & local_flags::PARAM != 0 {
+            if param_sub[li] != s {
+                continue;
+            }
+            (b.sub_root[s], 0, word)
+        } else {
+            let d = decl[li];
+            if d == NONE || topo.sub[d as usize] as usize != s {
+                continue;
+            }
+            let (blk, (from, pos)) = (at[li], first[li]);
+            let (from, to) = (from as usize, nest.entry(d) as usize);
+            let zero = if leaves[to] > leaves[from] {
+                box_word::ZERO
+            } else {
+                0
+            };
+            (blk, pos, word | zero)
+        };
+        edits.insert(
+            blk,
+            pos,
+            Tag::Box,
+            [l.raw(), word],
+            Ty::VOID,
+            b.syn[blk as usize],
+        );
+    }
+}
+
 /// `b`'s final rows (`docs/future-work/INSTANCE_TIR.md` at 421bcec83 step 7a), from
 /// collection's choices for the instances that emit its sub-bodies:
 /// `args`, each sub-body's `Ref`s passed by value (§23.40), and `counted`,
@@ -427,6 +577,16 @@ pub fn settle(b: &Body, args: &[(u16, u32)], counted: &[bool], cx: &dyn OwnCx) -
     let mut out = b.clone();
     for &(_, i) in args {
         out.data[i as usize][1] |= ref_word::PROMOTED;
+    }
+    // Each `Box` takes its row's final kind, none for a dropped row: one
+    // walk, as the clone's (rows are sorted by sub-body and local).
+    let subs = out.inst_subs();
+    for i in (0..out.len()).filter(|&i| out.tags[i] == Tag::Box) {
+        let key = (subs[i], out.data[i][0]);
+        let kind = rows
+            .binary_search_by_key(&key, |r| (r.0.raw(), r.1.raw()))
+            .map_or(box_word::KIND, |k| rows[k].2 as u32);
+        out.data[i][1] = kind | (out.data[i][1] & box_word::ZERO);
     }
     out.storage = rows;
     Some(out)
@@ -583,16 +743,38 @@ mod tests {
         for r in &mut b.storage {
             r.2 = Storage::Slot;
         }
+        let b = boxed(b);
+        assert_eq!(box_words(&b), [0, 0]);
         let cx = Counting(std::cell::Cell::new(0));
         let out = settle(&b, &[], &[true, false], &cx).expect("a changed body");
         let kinds: Vec<Storage> = out.storage.iter().map(|r| r.2).collect();
         assert_eq!(kinds, [Storage::Static, Storage::Slot]);
+        assert_eq!(box_words(&out), [Storage::Static as u32, 0]);
+    }
+
+    /// `b` with the `Box` statements of its cells.
+    fn boxed(mut b: Body) -> Body {
+        let topo = Topology::new(&b);
+        let mut edits = splice::Tables::default();
+        boxes(&b, &topo, &mut edits);
+        splice::apply(&mut b, &topo, &mut edits).expect("boxes");
+        b
+    }
+
+    /// Each `Box`'s word, by its local.
+    fn box_words(b: &Body) -> Vec<u32> {
+        let mut out: Vec<_> = (0..b.len())
+            .filter(|&i| b.tags[i] == Tag::Box)
+            .map(|i| b.data[i])
+            .collect();
+        hd_base::SliceSort::sort_stable(&mut out[..]);
+        out.into_iter().map(|[_, w]| w).collect()
     }
 
     #[test]
     fn settle_drops_promoted_rows_in_linear_work() {
         for n in [100, 1_000] {
-            let b = referenced_calls(n);
+            let b = boxed(referenced_calls(n));
             let cx = Counting(std::cell::Cell::new(0));
             // Every other call passes its argument by value.
             let args: Vec<(u16, u32)> = (0..b.len())
@@ -604,6 +786,9 @@ mod tests {
             let out = settle(&b, &args, &[], &cx).expect("a changed body");
             let kept: Vec<u32> = out.storage.iter().map(|r| r.1.raw()).collect();
             assert_eq!(kept, (0..n).filter(|l| l & 1 == 1).collect::<Vec<_>>());
+            // A dropped row's `Box` names no cell.
+            let words = (0..n).map(|l| if l & 1 == 1 { 1 } else { box_word::KIND });
+            assert_eq!(box_words(&out), words.collect::<Vec<_>>());
             let marked = (0..b.len())
                 .filter(|&i| b.tags[i] == Tag::Ref && out.data[i][1] & ref_word::PROMOTED != 0);
             assert_eq!(marked.count(), n as usize / 2);

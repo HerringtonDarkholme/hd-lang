@@ -114,7 +114,8 @@ impl Parser:
 >   local $1 $ref: i32 [read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : &mut Parser
 >   %1 = Call app/main/impl Parser.whitespace[] (%0) : ()
->   %18 = Block %17 : Result[*i32, string]
+>   %14 = Box #1 #1 : ()
+>   %19 = Block %18 : Result[*i32, string]
         if self.at < self.chars.len():
 >   %2 = Read copy [*$0 .at] : usize
 >   %3 = Read borrow [*$0 .chars] : List[char]
@@ -131,11 +132,10 @@ impl Parser:
 >   %10 = Call app/main/impl Parser.expression[] (%9) : Result[*i32, string]
 >   %11 = Return %10 : never
         .Ok(box(+1))
->   %14 = Store [$1] 1:i32 : ()
->   %15 = Ref take mut [$1] : *mut i32
->   %16 = Coerce %15 [Weaken -] : *i32
->   %17 = NewVariant #0 [%16] : Result[*i32, string]
->   %15 finds [$1] full
+>   %15 = Store [$1] 1:i32 : ()
+>   %16 = Ref take mut [$1] : *mut i32
+>   %17 = Coerce %16 [Weaken -] : *i32
+>   %18 = NewVariant #0 [%17] : Result[*i32, string]
 >   storage sub 0: $1 cell
 >   summary kept [] writes recursive
 
@@ -145,10 +145,10 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >     uses $0: entry -> %1 consume last
 >   local $1 parser: Parser [read assigned captured captured-assigned] place
 >   local $2 root: *i32 [:= read assigned] value
->     uses $2: %24 -> %36 consume last
+>     uses $2: %25 -> %37 consume last
 >   local $3 self: Chars [read] value
 >     uses $3: %6 -> %7 consume last
->   %0 = Retain %39 Entry local $0 #0 : ()
+>   %0 = Retain %40 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:usize] : Chars
@@ -162,42 +162,39 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %10 = Block - : List[char]
 >   %11 = Scope %10 [] : List[char]
 >   %12 = NewStruct [%11 0:usize] : Parser
->   %13 = Store [$1] %12 : ()
->   %39 = Block %37 : Result[*i32, string]
+>   %13 = Box #1 #1 : ()
+>   %14 = Store [$1] %12 : ()
+>   %40 = Block %38 : Result[*i32, string]
     root := parser.expression()?
->   %14 = Ref mut local [$1] : &mut Parser
->   %15 = Call app/main/impl Parser.expression[] (%14) : Result[*i32, string]
->   %16 = LoanEnd [%14] : ()
->   %17 = Read move [%15 as #0 .0] : *i32
->   %18 = Block %17 : *i32
->   %19 = Read move [%15 as #1 .0] : string
->   %20 = NewVariant #1 [%19] : Result[*i32, string]
->   %21 = Return %20 : never
->   %22 = Block - : never
->   %23 = SwitchTag %15 [#0 %18 %22] : *i32
->   %24 = Store [$2] %23 : ()
->   %14 finds [$1] full
+>   %15 = Ref mut local [$1] : &mut Parser
+>   %16 = Call app/main/impl Parser.expression[] (%15) : Result[*i32, string]
+>   %17 = LoanEnd [%15] : ()
+>   %18 = Read move [%16 as #0 .0] : *i32
+>   %19 = Block %18 : *i32
+>   %20 = Read move [%16 as #1 .0] : string
+>   %21 = NewVariant #1 [%20] : Result[*i32, string]
+>   %22 = Return %21 : never
+>   %23 = Block - : never
+>   %24 = SwitchTag %16 [#0 %19 %23] : *i32
+>   %25 = Store [$2] %24 : ()
     parser.whitespace()
->   %25 = Ref mut local [$1] : &mut Parser
->   %26 = Call app/main/impl Parser.whitespace[] (%25) : ()
->   %27 = LoanEnd [%25] : ()
->   %25 finds [$1] full
+>   %26 = Ref mut local [$1] : &mut Parser
+>   %27 = Call app/main/impl Parser.whitespace[] (%26) : ()
+>   %28 = LoanEnd [%26] : ()
     if parser.at != parser.chars.len():
->   %28 = Read copy [$1 .at] : usize
->   %29 = Read borrow [$1 .chars] : List[char]
->   %30 = Intrinsic ListLen [%29] : usize
->   %31 = Prim Ne [%28 %30] : bool
->   %35 = If %31 [%34 -] : ()
->   %28 finds [$1] full
->   %29 finds [$1] full
+>   %29 = Read copy [$1 .at] : usize
+>   %30 = Read borrow [$1 .chars] : List[char]
+>   %31 = Intrinsic ListLen [%30] : usize
+>   %32 = Prim Ne [%29 %31] : bool
+>   %36 = If %32 [%35 -] : ()
         return .Err("trailing input")
->   %32 = NewVariant #1 ["trailing input"] : Result[*i32, string]
->   %33 = Return %32 : never
->   %34 = Block - : never
+>   %33 = NewVariant #1 ["trailing input"] : Result[*i32, string]
+>   %34 = Return %33 : never
+>   %35 = Block - : never
     .Ok(root)
->   %36 = Read move [$2] : *i32
->   %37 = NewVariant #0 [%36] : Result[*i32, string]
->   %38 = Drop [$1] : ()
+>   %37 = Read move [$2] : *i32
+>   %38 = NewVariant #0 [%37] : Result[*i32, string]
+>   %39 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

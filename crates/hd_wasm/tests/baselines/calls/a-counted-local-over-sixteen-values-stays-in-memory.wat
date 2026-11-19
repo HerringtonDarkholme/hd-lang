@@ -279,7 +279,7 @@
     local.get $s.0
     local.get $s.1
   )
-  (func $mk_outer (param $t1 i32) (param $t2 i32) (local $t0 i32) (local $x i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t6 i32) (local $t5 i32)
+  (func $mk_outer (param $t1 i32) (param $t2 i32) (local $x i32) (local $t0 i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t6 i32) (local $t5 i32)
     ;; 38 | fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2, tag: "t${x}" }
     global.get $locals
     global.get $locals_base
@@ -498,7 +498,7 @@
     i32.add
     global.set $stack
   )
-  (func $mk (param $t1 i32) (param $t22 i32) (local $t0 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t21 i32) (local $t20 i32)
+  (func $mk (param $t1 i32) (param $t22 i32) (local $x i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t21 i32) (local $t20 i32)
     ;; 36 | fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "n${x}" }
     global.get $locals
     global.get $locals_base

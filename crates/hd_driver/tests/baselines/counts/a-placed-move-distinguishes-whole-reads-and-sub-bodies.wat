@@ -19,7 +19,7 @@
     local.get $value.0
     local.get $value.1
   )
-  (func $projected (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32) (local $value i32)
+  (func $projected (param $t1 i32) (param $t2 i32) (result i32 i32) (local $value i32) (local $t0 i32)
     ;; 27 |     _ := same(&value, &value)
     global.get $locals
     global.get $locals_base
@@ -155,7 +155,7 @@
       end
     end
   )
-  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t3 i32) (local $t0 i32) (local $value i32)
+  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t3 i32) (local $value i32) (local $t0 i32)
     ;; 21 |     _ := same(&value, &value)
     global.get $locals
     global.get $locals_base

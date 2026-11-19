@@ -57,11 +57,11 @@
       end
     end
     local.get $r
-    ;; 30 |     held = box(Ring { next: .Some(r) })
     i32.const 4
     i32.const -2147483647
     call $rt:new/class-1
     local.tee $t0
+    ;; 30 |     held = box(Ring { next: .Some(r) })
     local.get $r
     i32.store $heap
     local.tee $r

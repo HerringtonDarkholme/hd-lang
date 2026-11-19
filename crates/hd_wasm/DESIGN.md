@@ -1206,8 +1206,8 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   Local `&T` and `&mut T` and counted `*T` and `*mut T` use
   `TyData::Ref`. Their thin layout is one address (`layout::Kind::Ref`,
   `emit/refs.rs`), as in §23.5:
-  - a local some reference refers to lives in a cell
-    (`closure::cell_locals`), one per execution of its declaration, and
+  - a local some reference refers to lives in a cell, made by the
+    `Box` where its scope starts (`own::storage::boxes`), and
     the reference is the cell's payload address plus the field path's
     offset, so `&mut x` in a loop over a local declared outside it
     allocates nothing;
@@ -1281,29 +1281,21 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   **New objects.** A copy of a local no cell holds
   (`ref.expr.allocate`) is a new object whose one count the reference
   holds; it takes no other count, and its `Drop` frees it.
-- **Cells made before use** (issue #678). A use of a cell reads its local
-  directly when the cell certainly exists there (`Em::cell_made`): the
-  prologue made or received it (a parameter moved into its cell, a
-  closure's shared capture), or known-null found the local
-  holding its cell there (`Body::full_cells`, rule 5 of
-  docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
-  `Ref` of its own storage or a shared capture puts in a cell a bit that
-  is set where it may hold no cell: before its first store, after a
-  `Drop` of it, a `Ref` that takes its count and a `move` out of a slot
-  or static cell (a move out of a heap cell leaves the cell, as Swift's
-  box after a `load [take]`);
-  states join by union at the ends of branches and arms and at a loop's
-  head. A `Read`, `Store`, `Ref` or `IsUnique` of a place rooted
-  at the local, a `Closure` that captures it, and a `Loop` (whose stable
-  places and hoisted checks are read before it) get a row where the bit
-  is clear on every path. Every store makes the cell (its declaration,
-  or `Em::cell_of` for any other), and only a `Drop`, a taking `Ref` or
-  a move out of a slot or static cell zeroes the local, so the local holds the cell's address there.
-  Any other use tests the local and makes a cell of zeros when it is 0: a
-  use some path reaches before a store, and one inside a cleanup suite
-  (which also runs at jumps the walk does not follow there). A suspending
-  body reads the rows too: its frame saves the local where a later use
-  reads it, and a resume continues on the path the walk followed (§23.21).
+- **Cells made where their scope starts** (issues #678, #2172). Each
+  cell is made by a `Box` statement (`own::storage::boxes`) in the
+  innermost block holding its local's declaration and every use, right
+  before the first statement there that holds one, as Swift's SILGen
+  emits `alloc_box` at the `var` after an early return; a parameter's
+  stands at its sub-body's root and lowers in the prologue (a suspending
+  body's in its cold constructor); a shared capture's arrives in the
+  environment. The `Box` names the kind (heap, frame slot or static,
+  rewritten by `storage::settle`), so every use reads the local with no
+  test (`Em::cell_of`), and the declaration only fills the payload. A
+  `Box` in a loop ends the last round's box, or the value in a slot, when
+  its declaration overwrites it. When a return, break, continue or await
+  may run between the `Box` and the declaration (a match binding's other
+  arms, `box_word::ZERO`), a payload a release reads starts clear, so
+  that exit releases nothing (ledger `cell/made-at-entry-unused`).
 - **A reference at its local's last access** (issue #701). `&x`, the
   address of cell local `x`'s cell with no field path, takes the local's
   count of the cell where move's rule 4 marks it (`Ref take`,

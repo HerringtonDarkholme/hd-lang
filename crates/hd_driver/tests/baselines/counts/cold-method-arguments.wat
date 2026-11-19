@@ -634,24 +634,22 @@
     local.tee $reader
     i32.const 0
     i32.store $heap
-    local.get $reader
     ;; 26 |     _ := block_on(known(&reader, ["known"]))
-    local.set $t1
     i32.const 1
     call $rt:list_buf
-    local.tee $t2
+    local.tee $t1
     i32.const 1
     i32.store $heap offset=4
-    local.get $t2
+    local.get $t1
     i32.const 111 ;; &"known"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t1
     i32.const 5
     i32.store $heap offset=20
     call $rt:forbid_check
     i32.const 0
+    local.get $reader
     local.get $t1
-    local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $known'1
@@ -705,10 +703,12 @@
     local.get $reader
     i32.load $heap
     local.set $t4
+    ;; 25 |     reader := Reader { padding: 0 }
     i32.const 4
     i32.const 0
     call $rt:new/class-1
     local.tee $reader
+    ;; 27 |     _ := block_on(dynamic(box(reader), ["dynamic"]))
     local.get $t4
     i32.store $heap
     i32.const 1

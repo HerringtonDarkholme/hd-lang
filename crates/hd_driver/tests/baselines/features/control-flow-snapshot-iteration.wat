@@ -135,6 +135,7 @@
     ;; 16 |     let mut cursor = items.iter()
     call $rt:coll_copy
     local.set $t1
+    ;; 15 |     let mut items = values
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -142,6 +143,7 @@
     i32.const 8
     i32.add
     local.tee $cursor
+    ;; 16 |     let mut cursor = items.iter()
     local.get $t1
     i32.store $heap
     local.get $cursor

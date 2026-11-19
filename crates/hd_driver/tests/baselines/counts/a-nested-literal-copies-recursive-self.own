@@ -22,8 +22,6 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 >   %29 = Store [$3] %28 : ()
 >   %30 = Release %29 Operation #3 : ()
 >   %36 = Block %34 : i32
->   %28 finds [$3] full
->   %29 finds [$3] full
         if n == 0:
 >   %1 = Read copy [$2] : i32
 >   %2 = Prim Eq [%1 0:i32] : bool
@@ -60,7 +58,6 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 >   %33 = Read copy [$1] : i32
 >   %34 = CallValue %31 [%33] : i32
 >   %35 = Drop [%31] : ()
->   %31 finds [$3] full
 >   exit sub 0 drops [$3]
 >   exit sub 1 drops [$3]
 >   summary kept [] writes

@@ -36,11 +36,11 @@
     i32.const 1
     i32.add
     global.set $forbid
-    ;; 35 |     name = [Mark { label: "mark" }]
     i32.const 8
     i32.const 1
     call $rt:new/class-1
     local.tee $t0
+    ;; 35 |     name = [Mark { label: "mark" }]
     i32.const 27 ;; &"mark"
     i32.store $heap
     local.get $t0

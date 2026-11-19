@@ -28,115 +28,115 @@ pub fn main!() -> void $ Console + Clock:
 > app/main/main
 >   local $0 $ref: Counter [read assigned captured captured-assigned] place
 >   local $1 counter: *mut Counter [:= read assigned] value
->     uses $1: %9 -> %10 consume, %35 lend last
+>     uses $1: %10 -> %11 consume, %36 lend last
 >   local $2 $ref: *mut Counter [read assigned captured] value
->     uses $2: %11 -> %12 lend last
+>     uses $2: %12 -> %13 lend last
 >   local $3 result: string [read] value
->     uses $3: %66 -> %71 lend last
+>     uses $3: %67 -> %72 lend last
 >   local $4 offset: usize [read] value
->     uses $4: %67 -> %73 lend last
+>     uses $4: %68 -> %74 lend last
 >   local $5 value: i64 [read] value
->     uses $5: %68 -> %70 lend last
+>     uses $5: %69 -> %71 lend last
 >   local $6 width: usize [read] value
->     uses $6: %69 -> %75 lend last
+>     uses $6: %70 -> %76 lend last
 >   local $7 size: usize [read] value
->     uses $7: %59 -> %60 lend last
+>     uses $7: %60 -> %61 lend last
 >   local $8 value: i64 [read] value
->     uses $8: %40 -> %41 consume last
+>     uses $8: %41 -> %42 consume last
 >   local $9 value: i64 [read] value
->     uses $9: %42 -> %43 lend, %46 lend last
+>     uses $9: %43 -> %44 lend, %47 lend last
 >   local $10 count: i64 [read] value
->     uses $10: %19 -> %20 lend last
->   %0 = Retain %83 Cold row #0 : ()
->   %1 = Retain %83 Materialize row #0 : ()
->   %2 = Release %83 FrameDrop row #2 : ()
->   %3 = Release %83 FrameDrop child #2 : ()
+>     uses $10: %20 -> %21 lend last
+>   %0 = Retain %84 Cold row #0 : ()
+>   %1 = Retain %84 Materialize row #0 : ()
+>   %2 = Release %84 FrameDrop row #2 : ()
+>   %3 = Release %84 FrameDrop child #2 : ()
 >   %4 = NewStruct [0:i32] : Counter
->   %5 = Store [$0] %4 : ()
->   %6 = Ref mut [$0] : *mut Counter
->   %7 = Retain %6 Value #0 : ()
->   %8 = Drop [$0] : ()
->   %9 = Store [$1] %6 : ()
->   %83 = Block - : ()
->   %6 finds [$0] full
+>   %5 = Box #0 #1 : ()
+>   %6 = Store [$0] %4 : ()
+>   %7 = Ref mut [$0] : *mut Counter
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Store [$1] %7 : ()
+>   %84 = Block - : ()
     $.with(Meter=counter):
->   %10 = Read copy [$1] : *mut Counter
->   %11 = Store [$2] %10 : ()
->   %12 = Read move [$2] : *mut Counter
->   %13 = Coerce %12 [RefToTraitValue -] : Meter
->   %14 = LoanEnd [%12] : ()
->   %15 = Block %13 : Meter
->   %16 = RefDyn %15 : *mut dyn Meter
->   %17 = Coerce %16 [RefAsProvider -] : Meter
->   %18 = LoanEnd [%16] : ()
->   %33 = With [Meter %17] %32 : ()
->   %34 = Drop [%17] : ()
+>   %11 = Read copy [$1] : *mut Counter
+>   %12 = Store [$2] %11 : ()
+>   %13 = Read move [$2] : *mut Counter
+>   %14 = Coerce %13 [RefToTraitValue -] : Meter
+>   %15 = LoanEnd [%13] : ()
+>   %16 = Block %14 : Meter
+>   %17 = RefDyn %16 : *mut dyn Meter
+>   %18 = Coerce %17 [RefAsProvider -] : Meter
+>   %19 = LoanEnd [%17] : ()
+>   %34 = With [Meter %18] %33 : ()
+>   %35 = Drop [%18] : ()
         sleep!(ms(1))
->   %19 = Store [$10] 1:i64 : ()
->   %20 = Read copy [$10] : i64
->   %21 = Call std/time/impl Duration.milliseconds[] (%20) : Duration
->   %22 = Break L4 %21 : never
->   %23 = Block - : Duration
->   %24 = Scope %23 [] : Duration
->   %25 = Await std/time/sleep[] (%24) : ()
->   %26 = Release %25 Operation child #2 : ()
->   %32 = Block - : ()
+>   %20 = Store [$10] 1:i64 : ()
+>   %21 = Read copy [$10] : i64
+>   %22 = Call std/time/impl Duration.milliseconds[] (%21) : Duration
+>   %23 = Break L4 %22 : never
+>   %24 = Block - : Duration
+>   %25 = Scope %24 [] : Duration
+>   %26 = Await std/time/sleep[] (%25) : ()
+>   %27 = Release %26 Operation child #2 : ()
+>   %33 = Block - : ()
         $.use(Meter).record()
->   %27 = ProviderGet #29 : Meter
->   %28 = Coerce %27 [ProviderAsRef -] : &mut dyn Meter
->   %29 = Read borrow [*%28] : Meter
->   %30 = Drop [%28] : ()
->   %31 = Call app/main/Meter.record for Meter [] via TraitValue (%29) : ()
+>   %28 = ProviderGet #29 : Meter
+>   %29 = Coerce %28 [ProviderAsRef -] : &mut dyn Meter
+>   %30 = Read borrow [*%29] : Meter
+>   %31 = Drop [%29] : ()
+>   %32 = Call app/main/Meter.record for Meter [] via TraitValue (%30) : ()
     println("${counter.n}")
->   %35 = Ref local [*$1 .n] : &i32
->   %36 = Read copy [*%35] : i32
->   %37 = LoanEnd [%35] : ()
->   %38 = Prim Conv [%36] : i64
->   %39 = Drop [$1] : ()
->   %40 = Store [$8] %38 : ()
->   %41 = Read copy [$8] : i64
->   %42 = Store [$9] %41 : ()
->   %43 = Read copy [$9] : i64
->   %44 = Call std/rt.bytes/signed_magnitude[] (%43) : u64
->   %45 = Call std/rt.bytes/unsigned_width[] (%44) : usize
->   %46 = Read copy [$9] : i64
->   %47 = Prim Lt [%46 0:i64] : bool
->   %48 = Block 1:usize : usize
->   %49 = Block 0:usize : usize
->   %50 = If %47 [%48 %49] : usize
->   %51 = Prim Add [%45 %50] : usize
->   %52 = Break L2 %51 : never
->   %53 = Block - : usize
->   %54 = Scope %53 [] : usize
->   %55 = Break L3 %54 : never
->   %56 = Block - : usize
->   %57 = Scope %56 [] : usize
->   %58 = Prim Add [0:usize %57] : usize
->   %59 = Store [$7] %58 : ()
->   %60 = Read copy [$7] : usize
->   %61 = Call std/rt.memory/new_string[] (%60) : string
->   %62 = Break L1 %61 : never
->   %63 = Block - : string
->   %64 = Scope %63 [] : string
->   %65 = Read borrow [%64] : string
->   %66 = Store [$3] %65 : ()
->   %67 = Store [$4] 0:usize : ()
->   %68 = Store [$5] %38 : ()
->   %69 = Store [$6] %57 : ()
->   %70 = Read copy [$5] : i64
->   %71 = Read borrow [$3] : string
->   %72 = Call std/rt.memory/string_bytes[] (%71) : Ptr[u8]
->   %73 = Read copy [$4] : usize
->   %74 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%72, %73) : Ptr[u8]
->   %75 = Read copy [$6] : usize
->   %76 = Call std/rt.bytes/write_signed_sized[] (%70, %74, %75) : ()
->   %77 = Break L0 - : never
->   %78 = Block - : ()
->   %79 = Scope %78 [] : ()
->   %80 = Call std/console/println[string] (%64) : ()
->   %81 = Retain %80 Operation operand 0 #0 : ()
->   %82 = Drop [%64] : ()
+>   %36 = Ref local [*$1 .n] : &i32
+>   %37 = Read copy [*%36] : i32
+>   %38 = LoanEnd [%36] : ()
+>   %39 = Prim Conv [%37] : i64
+>   %40 = Drop [$1] : ()
+>   %41 = Store [$8] %39 : ()
+>   %42 = Read copy [$8] : i64
+>   %43 = Store [$9] %42 : ()
+>   %44 = Read copy [$9] : i64
+>   %45 = Call std/rt.bytes/signed_magnitude[] (%44) : u64
+>   %46 = Call std/rt.bytes/unsigned_width[] (%45) : usize
+>   %47 = Read copy [$9] : i64
+>   %48 = Prim Lt [%47 0:i64] : bool
+>   %49 = Block 1:usize : usize
+>   %50 = Block 0:usize : usize
+>   %51 = If %48 [%49 %50] : usize
+>   %52 = Prim Add [%46 %51] : usize
+>   %53 = Break L2 %52 : never
+>   %54 = Block - : usize
+>   %55 = Scope %54 [] : usize
+>   %56 = Break L3 %55 : never
+>   %57 = Block - : usize
+>   %58 = Scope %57 [] : usize
+>   %59 = Prim Add [0:usize %58] : usize
+>   %60 = Store [$7] %59 : ()
+>   %61 = Read copy [$7] : usize
+>   %62 = Call std/rt.memory/new_string[] (%61) : string
+>   %63 = Break L1 %62 : never
+>   %64 = Block - : string
+>   %65 = Scope %64 [] : string
+>   %66 = Read borrow [%65] : string
+>   %67 = Store [$3] %66 : ()
+>   %68 = Store [$4] 0:usize : ()
+>   %69 = Store [$5] %39 : ()
+>   %70 = Store [$6] %58 : ()
+>   %71 = Read copy [$5] : i64
+>   %72 = Read borrow [$3] : string
+>   %73 = Call std/rt.memory/string_bytes[] (%72) : Ptr[u8]
+>   %74 = Read copy [$4] : usize
+>   %75 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%73, %74) : Ptr[u8]
+>   %76 = Read copy [$6] : usize
+>   %77 = Call std/rt.bytes/write_signed_sized[] (%71, %75, %76) : ()
+>   %78 = Break L0 - : never
+>   %79 = Block - : ()
+>   %80 = Scope %79 [] : ()
+>   %81 = Call std/console/println[string] (%65) : ()
+>   %82 = Retain %81 Operation operand 0 #0 : ()
+>   %83 = Drop [%65] : ()
 >   exit sub 0 drops [$1]
 >   storage sub 0: $0 cell
 >   summary none
->   cancel %25 releases [%17]
+>   cancel %26 releases [%18]

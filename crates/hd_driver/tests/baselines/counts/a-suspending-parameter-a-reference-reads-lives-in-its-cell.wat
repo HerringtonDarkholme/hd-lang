@@ -438,10 +438,12 @@
         local.set $t5
         br 1
       end
+    ;; 12 |     let mut u = UniqList::[i32].new()
       i32.const 4
       i32.const 0
       call $rt:new/class-1
       local.tee $provider0
+    ;; 14 |     a := sized!(u)
       local.get $provider0.vtable
       i32.store $heap
     ;; 15 |     println("$a")

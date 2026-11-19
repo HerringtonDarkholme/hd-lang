@@ -157,11 +157,13 @@ tags! {
     // ownership (`docs/compiler/tir-v2.md`, "Ownership statements"): the
     // ownership passes write these after decoding, never the checker; a
     // is a place word. `FlagSet` and `FlagClear` set and clear the drop
-    // flag local in b of the move path in a (`own::drop_flags`).
+    // flag local in b of the move path in a (`own::drop_flags`). `Box`
+    // makes local a's cell where its scope starts, b a [`box_word`].
     Drop: Place, None;
     IsUnique: Place, Meta;
     FlagSet: Place, Meta;
     FlagClear: Place, Meta;
+    Box: Meta, Meta;
     // providers
     With: Record, Block;
     ContextNew: Record, None;
@@ -511,6 +513,14 @@ pub enum Storage {
 }
 
 impl Storage {
+    /// The kind a [`box_word`] names, `None` for no cell.
+    #[must_use]
+    pub fn from_word(w: u32) -> Option<Self> {
+        [Self::Slot, Self::Cell, Self::Static]
+            .get((w & box_word::KIND) as usize)
+            .copied()
+    }
+
     /// Its name in the text form.
     #[must_use]
     pub fn name(self) -> &'static str {
@@ -792,6 +802,17 @@ pub enum Step {
     Variant(u32, u32),
 }
 
+/// The data word b of a `Box` (`own::storage::boxes`): the cell's kind,
+/// a [`Storage`] as `u32` or `NONE` for a local the emitter keeps in Wasm
+/// locals after all ([`crate::own::settle`]), and [`box_word::ZERO`].
+pub mod box_word {
+    /// The kind's bits.
+    pub const KIND: u32 = 0xff;
+    /// A path may leave the box's block before the declaration fills the
+    /// cell, so its payload starts zero, which every release skips.
+    pub const ZERO: u32 = 0x100;
+}
+
 /// The data word b of a `Ref` (`docs/compiler/tir-v2.md`, "Reads, stores
 /// and references").
 pub mod ref_word {
@@ -1057,15 +1078,6 @@ pub struct Body {
     /// one row per point. A pass output: empty in the checker's TIR
     /// (invariant 22); the wire's owned section.
     pub cancel: Vec<(u32, u32)>,
-    /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
-    /// row, an instruction and an addressed local (one that a `Ref` of its
-    /// own storage or a shared capture puts in a cell) that certainly holds
-    /// its cell where the instruction runs, so the backend reads its cell
-    /// with no null test. The instruction is a `Read`, `Store`, `Ref`,
-    /// `IsUnique` of a place rooted at the local, a `Closure` that
-    /// captures it, or a `Loop`. Sorted, each row once. A pass output: empty
-    /// in the checker's TIR (invariant 22); the wire's owned section.
-    pub full_cells: Vec<(u32, u32)>,
     /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
     /// "Hoisting"): per row, a `Loop` and a place word of a list whose
     /// header and buffer nothing in the loop replaces, so `hd_opt::prove`
@@ -1151,7 +1163,6 @@ impl Body {
             exit_drops: vec![],
             storage: vec![],
             cancel: vec![],
-            full_cells: vec![],
             stable_lists: vec![],
             forwarded_reads: vec![],
             anchors: vec![],
@@ -2671,7 +2682,8 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             | Tag::MakeUnique
             | Tag::IsUnique
             | Tag::FlagSet
-            | Tag::FlagClear => {
+            | Tag::FlagClear
+            | Tag::Box => {
                 format!("an ownership statement `{}` before the passes", tag.name())
             }
             Tag::Ref if w & ref_word::TAKES != 0 => {
@@ -2698,7 +2710,6 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.cancel.is_empty()
-        || !b.full_cells.is_empty()
         || !b.stable_lists.is_empty()
         || !b.anchors.is_empty()
     {
@@ -2706,11 +2717,10 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} storage, {} cancel block, {} full cell, {} stable list and {} anchor rows before the ownership passes",
+                "{} exit drop, {} storage, {} cancel block, {} stable list and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
                 b.storage.len(),
                 b.cancel.len(),
-                b.full_cells.len(),
                 b.stable_lists.len(),
                 b.anchors.len()
             ),
@@ -3291,9 +3301,6 @@ pub fn print(b: &Body) -> String {
     for (inst, block) in &b.cancel {
         let _ = writeln!(o, "cancel {inst} {block}");
     }
-    for (inst, local) in &b.full_cells {
-        let _ = writeln!(o, "fullcell {inst} {local}");
-    }
     for [inst, word, before, after, buffer] in &b.stable_lists {
         let _ = writeln!(o, "stablelist {inst} {word} {before} {after} {buffer}");
     }
@@ -3502,13 +3509,6 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     return Err(e("cancel needs 2 fields".into()));
                 }
                 b.cancel.push((v[0], v[1]));
-            }
-            "fullcell" => {
-                let v = nums(1)?;
-                if v.len() != 2 {
-                    return Err(e("fullcell needs 2 fields".into()));
-                }
-                b.full_cells.push((v[0], v[1]));
             }
             "stablelist" => {
                 let v = nums(1)?;
@@ -4627,9 +4627,9 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 59);
-        assert_eq!(Tag::Release as usize, 57);
-        assert_eq!(Tag::MakeUnique as usize, 58);
+        assert_eq!(Tag::ALL.len(), 60);
+        assert_eq!(Tag::Release as usize, 58);
+        assert_eq!(Tag::MakeUnique as usize, 59);
         assert_eq!(
             Tag::MakeUnique.operands(),
             (super::Op::Inst, super::Op::Record)

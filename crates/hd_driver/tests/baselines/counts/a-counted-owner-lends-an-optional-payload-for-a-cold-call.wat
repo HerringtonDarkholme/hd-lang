@@ -24,31 +24,31 @@
     end
     i32.const -1
   )
-  (func $call (result i32) (local $owner i32)
+  (func $call (result i32) (local $t0 i32)
     ;; 14 |     let owner: *i32 = box(+7)
     i32.const 4
     i32.const 0
     call $rt:new/class-1
-    local.tee $owner
+    local.tee $t0
     i32.const 7
     i32.store $heap
     ;; 16 |     callback(.Some(owner))
     i32.const 0
-    local.get $owner
+    local.get $t0
     i32.const 0
     ;; 15 |     let callback: fn((&i32)?) -> i32 = read
     i32.const 2
     ;; 16 |     callback(.Some(owner))
     call_indirect $table0 (param i32 i32 i32) (result i32)
     ;; 14 |     let owner: *i32 = box(+7)
-    local.get $owner
+    local.get $t0
     if
-      local.get $owner
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $owner
+        local.get $t0
         call $rt:release_ref
       end
     end

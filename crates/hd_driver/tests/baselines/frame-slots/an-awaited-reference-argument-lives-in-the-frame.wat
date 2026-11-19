@@ -129,14 +129,15 @@
         local.get $frame
         i32.const 32
         i32.add
-        local.tee $provider0.vtable
+        i32.store $heap offset=12
+        local.get $t2
+        i32.load $heap offset=12
         local.get $provider0
         i32.store $heap
-        local.get $provider0.vtable
+        local.get $t2
+        i32.load $heap offset=12
         local.get $n
         i32.store $heap offset=4
-        local.get $provider0.vtable
-        i32.store $heap offset=12
     ;; 17 |     size!(&text)
         local.get $t2
         i32.load $heap offset=12

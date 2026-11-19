@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $absent (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $value i32) (local $t3 i32)
+  (func $absent (param $t1 i32) (param $t2 i32) (result i32) (local $value i32) (local $t0 i32) (local $t3 i32)
     ;; 6 |     value == .None
     global.get $locals
     global.get $locals_base
@@ -66,7 +66,7 @@
     i32.add
     global.set $locals
   )
-  (func $present (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $value i32) (local $t3 i32)
+  (func $present (param $t1 i32) (param $t2 i32) (result i32) (local $value i32) (local $t0 i32) (local $t3 i32)
     ;; 9 |     value != .None
     global.get $locals
     global.get $locals_base

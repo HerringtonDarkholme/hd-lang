@@ -133,7 +133,7 @@
         br 0
       end
     end
-    ;; 34 |     let mut s = shelf()
+    ;; 31 |     let mut h = histogram()
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -141,10 +141,11 @@
     i32.const 24
     i32.add
     local.tee $t2
+    ;; 34 |     let mut s = shelf()
     i32.const 128
     i32.store $heap
-    local.get $t2
     ;; 35 |     s.put(9)
+    local.get $t2
     i64.const 9
     call $"impl Shelf.put"
     ;; 36 |     println("${h.buckets[1]} ${s.items[0]} ${START[0]}")

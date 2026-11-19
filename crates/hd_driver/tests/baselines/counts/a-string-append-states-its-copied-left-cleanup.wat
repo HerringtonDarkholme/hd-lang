@@ -82,29 +82,13 @@
     local.get $current
     local.get $text.1
     i32.store $heap offset=4
-    local.get $current
     ;; 13 |     append(suffix)
+    local.get $current
     i32.load $heap
     local.tee $text.0
     if
       local.get $text.0
       call $retain
-    end
-    local.get $current
-    i32.eqz
-    if
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $current
-      i32.const 0
-      i32.store $heap
-      local.get $current
-      i32.const 0
-      i32.store $heap offset=4
     end
     local.get $text.0
     if
@@ -272,7 +256,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 5 |     let current = text
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -280,6 +263,7 @@
     i32.const 8
     i32.add
     local.tee $current
+    ;; 5 |     let current = text
     local.get $text.0
     i32.store $heap
     local.get $current
@@ -291,22 +275,6 @@
     if
       local.get $text.0
       call $retain
-    end
-    local.get $current
-    i32.eqz
-    if
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $current
-      i32.const 0
-      i32.store $heap
-      local.get $current
-      i32.const 0
-      i32.store $heap offset=4
     end
     local.get $text.0
     if

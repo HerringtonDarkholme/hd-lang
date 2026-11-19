@@ -64,7 +64,7 @@
     ;; 19 |     &r.name
     local.get $r
   )
-  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $r i32)
+  (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $r i32) (local $t0 i32)
     ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
     global.get $locals
     global.get $locals_base

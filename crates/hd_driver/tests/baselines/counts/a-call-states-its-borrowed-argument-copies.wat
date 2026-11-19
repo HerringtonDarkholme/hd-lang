@@ -90,7 +90,7 @@
     i32.load $heap
     i32.load $heap offset=4
   )
-  (func $pair (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $pair (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 27 |     store_pair(first, second)
     global.get $locals
     global.get $locals_base
@@ -130,13 +130,11 @@
     local.tee $t1
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $t1
-    local.set $t2
     local.get $first.0
     local.get $first.1
     local.get $second.0
     local.get $second.1
-    local.get $t2
+    local.get $t1
     i32.const 5
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     local.set $first.0
@@ -229,7 +227,7 @@
     i32.add
     global.set $locals
   )
-  (func $text (param $value.0 i32) (param $value.1 i32) (result i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $text (param $value.0 i32) (param $value.1 i32) (result i32) (local $t1 i32) (local $t0 i32)
     ;; 18 |     store(value)
     global.get $locals
     global.get $locals_base
@@ -269,11 +267,9 @@
     local.tee $t1
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $t1
-    local.set $t2
     local.get $value.0
     local.get $value.1
-    local.get $t2
+    local.get $t1
     i32.const 7
     call_indirect $table0 (param i32 i32 i32) (result i32)
     local.set $value.0

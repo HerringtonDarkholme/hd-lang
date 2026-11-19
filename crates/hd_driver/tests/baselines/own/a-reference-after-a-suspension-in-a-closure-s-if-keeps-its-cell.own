@@ -29,40 +29,40 @@ fn start() -> fn!(bool) -> void:
 > app/main/start
 >   local $0 d: Counter [read assigned captured captured-assigned] place
 >   local $1 go: bool [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %14 lend last
 >   local $2 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "d"] : Counter
->   %1 = Store [$0] %0 : ()
->   %23 = Block %22 : fn!(bool) -> ()
+>   %1 = Box #0 #0 : ()
+>   %2 = Store [$0] %0 : ()
+>   %25 = Block %24 : fn!(bool) -> ()
     tick(&mut d)
->   %2 = Ref mut local frame [$0] : &mut Counter
->   %3 = Call app/main/tick[] (%2) : ()
->   %4 = LoanEnd [%2] : ()
->   %5 = Drop [$0] : ()
->   %2 finds [$0] full
+>   %3 = Ref mut local frame [$0] : &mut Counter
+>   %4 = Call app/main/tick[] (%3) : ()
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Drop [$0] : ()
     fn!(go: bool) -> void:
->   %6 = Retain %21 Cold row #0 : ()
->   %7 = Retain %21 Materialize row #0 : ()
->   %8 = Release %21 FrameDrop row #2 : ()
->   %9 = Release %21 FrameDrop child #2 : ()
->   %21 = Block - : ()
->   %22 = Closure #1 : fn!(bool) -> ()
+>   %7 = Retain %23 Cold row #0 : ()
+>   %8 = Retain %23 Materialize row #0 : ()
+>   %9 = Release %23 FrameDrop row #2 : ()
+>   %10 = Release %23 FrameDrop child #2 : ()
+>   %12 = Box #2 #1 : ()
+>   %23 = Block - : ()
+>   %24 = Closure #1 : fn!(bool) -> ()
         let mut c = Counter { hits: +0, name: "a" }
->   %10 = NewStruct [0:i32 "a"] : Counter
->   %11 = Store [$2] %10 : ()
+>   %11 = NewStruct [0:i32 "a"] : Counter
+>   %13 = Store [$2] %11 : ()
         if go:
->   %12 = Read copy [$1] : bool
->   %16 = If %12 [%15 -] : ()
+>   %14 = Read copy [$1] : bool
+>   %18 = If %14 [%17 -] : ()
             pause!()
->   %13 = Await app/main/pause[] () : ()
->   %14 = Release %13 Operation child #2 : ()
->   %15 = Block - : ()
+>   %15 = Await app/main/pause[] () : ()
+>   %16 = Release %15 Operation child #2 : ()
+>   %17 = Block - : ()
         tick(&mut c)
->   %17 = Ref mut local [$2] : &mut Counter
->   %18 = Call app/main/tick[] (%17) : ()
->   %19 = LoanEnd [%17] : ()
->   %20 = Drop [$2] : ()
->   %17 finds [$2] full
+>   %19 = Ref mut local [$2] : &mut Counter
+>   %20 = Call app/main/tick[] (%19) : ()
+>   %21 = LoanEnd [%19] : ()
+>   %22 = Drop [$2] : ()
 >   exit sub 1 drops [$2]
 >   storage sub 0: $0 slot, $2 cell
 >   storage sub 1: $0 cell, $2 cell

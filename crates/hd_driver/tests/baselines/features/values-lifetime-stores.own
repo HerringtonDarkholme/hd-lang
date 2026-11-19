@@ -46,65 +46,63 @@ fn total(a: User, b: User) -> usize:
 >   local $2 seen: List[&User] [read assigned captured captured-assigned] place
 >   local $3 by: Map[string, &User] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %29 -> %30 lend last
+>     uses $4: %33 -> %34 lend last
 >   local $5 self: string [read] value
->     uses $5: %22 -> %23 lend last
->   %0 = Retain %43 Entry local $0 #0 : ()
->   %1 = Retain %43 Entry local $1 #0 : ()
+>     uses $5: %26 -> %27 lend last
+>   %2 = Retain %47 Entry local $0 #0 : ()
+>   %3 = Retain %47 Entry local $1 #0 : ()
     let mut seen: List[&User] = []
->   %2 = NewList - [] : List[&User]
->   %3 = Store [$2] %2 : ()
->   %43 = Block %42 : usize
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %4 = NewList - [] : List[&User]
+>   %5 = Box #2 #0 : ()
+>   %6 = Store [$2] %4 : ()
+>   %18 = Box #3 #0 : ()
+>   %47 = Block %46 : usize
     remember(&mut seen, &a)
->   %4 = Ref mut local frame [$2] : &mut List[&User]
->   %5 = Ref local frame [$0] : &User
->   %6 = Call app/main/remember[] (%4, %5) : ()
->   %7 = LoanEnd [%5] : ()
->   %8 = LoanEnd [%4] : ()
->   %4 finds [$2] full
+>   %7 = Ref mut local frame [$2] : &mut List[&User]
+>   %8 = Ref local frame [$0] : &User
+>   %9 = Call app/main/remember[] (%7, %8) : ()
+>   %10 = LoanEnd [%8] : ()
+>   %11 = LoanEnd [%7] : ()
     remember(&mut seen, &b)
->   %9 = Ref mut local frame [$2] : &mut List[&User]
->   %10 = Ref local frame [$1] : &User
->   %11 = Call app/main/remember[] (%9, %10) : ()
->   %12 = LoanEnd [%10] : ()
->   %13 = LoanEnd [%9] : ()
->   %9 finds [$2] full
+>   %12 = Ref mut local frame [$2] : &mut List[&User]
+>   %13 = Ref local frame [$1] : &User
+>   %14 = Call app/main/remember[] (%12, %13) : ()
+>   %15 = LoanEnd [%13] : ()
+>   %16 = LoanEnd [%12] : ()
     let mut by: Map[string, &User] = {}
->   %14 = NewMap [] : Map[string, &User]
->   %15 = Store [$3] %14 : ()
+>   %17 = NewMap [] : Map[string, &User]
+>   %19 = Store [$3] %17 : ()
     index(&mut by, &a)
->   %16 = Ref mut local frame [$3] : &mut Map[string, &User]
->   %17 = Ref local frame [$0] : &User
->   %18 = Call app/main/index[] (%16, %17) : ()
->   %19 = LoanEnd [%17] : ()
->   %20 = LoanEnd [%16] : ()
->   %16 finds [$3] full
+>   %20 = Ref mut local frame [$3] : &mut Map[string, &User]
+>   %21 = Ref local frame [$0] : &User
+>   %22 = Call app/main/index[] (%20, %21) : ()
+>   %23 = LoanEnd [%21] : ()
+>   %24 = LoanEnd [%20] : ()
     seen[0].name.len() + seen[1].name.len() + by.len()
->   %21 = Read borrow [$2 [0:usize] * .name] : string
->   %22 = Store [$5] %21 : ()
->   %23 = Read borrow [$5] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L1 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Read borrow [$2 [1:usize] * .name] : string
->   %29 = Store [$4] %28 : ()
->   %30 = Read borrow [$4] : string
->   %31 = Call std/rt.bytes/bytes_len[] (%30) : usize
->   %32 = Break L0 %31 : never
->   %33 = Block - : usize
->   %34 = Scope %33 [] : usize
->   %35 = Drop [$2] : ()
->   %36 = Drop [$1] : ()
->   %37 = Prim Add [%27 %34] : usize
->   %38 = Read move [$3] : Map[string, &User]
->   %39 = Intrinsic MapLen [%38] : usize
->   %40 = Drop [%38] : ()
->   %41 = Drop [$0] : ()
->   %42 = Prim Add [%37 %39] : usize
->   %21 finds [$2] full
->   %28 finds [$2] full
->   %38 finds [$3] full
+>   %25 = Read borrow [$2 [0:usize] * .name] : string
+>   %26 = Store [$5] %25 : ()
+>   %27 = Read borrow [$5] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L1 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Read borrow [$2 [1:usize] * .name] : string
+>   %33 = Store [$4] %32 : ()
+>   %34 = Read borrow [$4] : string
+>   %35 = Call std/rt.bytes/bytes_len[] (%34) : usize
+>   %36 = Break L0 %35 : never
+>   %37 = Block - : usize
+>   %38 = Scope %37 [] : usize
+>   %39 = Drop [$2] : ()
+>   %40 = Drop [$1] : ()
+>   %41 = Prim Add [%31 %38] : usize
+>   %42 = Read move [$3] : Map[string, &User]
+>   %43 = Intrinsic MapLen [%42] : usize
+>   %44 = Drop [%42] : ()
+>   %45 = Drop [$0] : ()
+>   %46 = Prim Add [%41 %43] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot, $2 slot, $3 slot
 >   summary kept [$0 $1] writes

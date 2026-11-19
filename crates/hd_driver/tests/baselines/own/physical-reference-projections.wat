@@ -170,9 +170,8 @@
     local.get $t1
     i32.store $heap offset=4
     local.get $value.0
-    local.tee $value.1
+    local.get $value.0
     ;; 49 |         borrowed.len() + copy.len()
-    local.get $value.1
     call $"impl string.len"
     local.set $value.1
     call $"impl string.len"

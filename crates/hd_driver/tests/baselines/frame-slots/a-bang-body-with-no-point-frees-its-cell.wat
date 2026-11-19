@@ -12,7 +12,7 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $helper'1 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
+  (func $helper'1 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 15 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
@@ -37,16 +37,15 @@
     local.get $sink
     i32.const 0
     i32.store $heap offset=4
-    local.get $sink
     ;; 16 |     sink.set("helper")
-    local.tee $t1
+    local.get $sink
     i32.load $heap
-    local.get $t1
+    local.get $sink
     i32.load $heap offset=4
-    local.get $t1
+    local.get $sink
     i32.const 65 ;; &"helper"
     i32.store $heap
-    local.get $t1
+    local.get $sink
     i32.const 6
     i32.store $heap offset=4
     call $rt:release

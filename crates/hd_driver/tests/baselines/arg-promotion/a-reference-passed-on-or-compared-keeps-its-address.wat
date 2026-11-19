@@ -59,11 +59,11 @@
     local.get $p
     i32.const 2
     i32.store $heap offset=4
-    local.get $p
     ;; 22 |     let n = +3
     i32.const 3
     local.set $n
     ;; 23 |     if same_place(&p, &p):
+    local.get $p
     local.get $p
     call $same_place
     if (result i32)

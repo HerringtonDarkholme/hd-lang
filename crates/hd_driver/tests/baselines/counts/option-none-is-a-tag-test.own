@@ -6,46 +6,48 @@
 fn absent(value: string?) -> bool:
 > app/main/absent
 >   local $0 value: string? [param read captured] place
->   %0 = Release %15 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $0 #2 : ()
     value == .None
->   %1 = Ref local frame [$0] : &(string?)
->   %2 = NewVariant #0 [] : string?
->   %3 = Drop [%2] : ()
->   %4 = Read borrow [*%1] : string?
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = ToArm #1 : never
->   %8 = Block - : never
->   %9 = SwitchTag %4 [#0 %6 %8] : never
->   %10 = Block - : never
->   %11 = Block 1:bool : bool
->   %12 = Block 0:bool : bool
->   %13 = Match %1 [%10 %11 %12] : bool
->   %14 = LoanEnd [%1] : ()
->   %15 = Block %13 : bool
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &(string?)
+>   %3 = NewVariant #0 [] : string?
+>   %4 = Drop [%3] : ()
+>   %5 = Read borrow [*%2] : string?
+>   %6 = ToArm #0 : never
+>   %7 = Block - : never
+>   %8 = ToArm #1 : never
+>   %9 = Block - : never
+>   %10 = SwitchTag %5 [#0 %7 %9] : never
+>   %11 = Block - : never
+>   %12 = Block 1:bool : bool
+>   %13 = Block 0:bool : bool
+>   %14 = Match %2 [%11 %12 %13] : bool
+>   %15 = LoanEnd [%2] : ()
+>   %16 = Block %14 : bool
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
 fn present(value: string?) -> bool:
 > app/main/present
 >   local $0 value: string? [param read captured] place
->   %0 = Release %15 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $0 #2 : ()
     value != .None
->   %1 = Ref local frame [$0] : &(string?)
->   %2 = NewVariant #0 [] : string?
->   %3 = Drop [%2] : ()
->   %4 = Read borrow [*%1] : string?
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = ToArm #1 : never
->   %8 = Block - : never
->   %9 = SwitchTag %4 [#0 %6 %8] : never
->   %10 = Block - : never
->   %11 = Block 0:bool : bool
->   %12 = Block 1:bool : bool
->   %13 = Match %1 [%10 %11 %12] : bool
->   %14 = LoanEnd [%1] : ()
->   %15 = Block %13 : bool
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &(string?)
+>   %3 = NewVariant #0 [] : string?
+>   %4 = Drop [%3] : ()
+>   %5 = Read borrow [*%2] : string?
+>   %6 = ToArm #0 : never
+>   %7 = Block - : never
+>   %8 = ToArm #1 : never
+>   %9 = Block - : never
+>   %10 = SwitchTag %5 [#0 %7 %9] : never
+>   %11 = Block - : never
+>   %12 = Block 0:bool : bool
+>   %13 = Block 1:bool : bool
+>   %14 = Match %2 [%11 %12 %13] : bool
+>   %15 = LoanEnd [%2] : ()
+>   %16 = Block %14 : bool
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 

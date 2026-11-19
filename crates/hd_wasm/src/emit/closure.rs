@@ -11,9 +11,9 @@
 
 use crate::op::Op as I;
 use hd_base::SliceSort as _;
-use hd_base::{Hash128, HashMap, StageResult};
+use hd_base::{Hash128, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags};
+use hd_tir::ir::{Body, CaptureMode, NONE, Storage, Tag, box_word, local_flags};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -22,42 +22,6 @@ use super::value::{Dst, Src};
 use crate::layout::{LeafOps as _, Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
-
-/// Each local of `stored` (a cell or a slot, `Body::storage`) mapped
-/// to the instruction of its first store outside any closure that
-/// captures it: that store declares it and makes its cell during RC
-/// lowering. A parameter moves into its cell on entry, so it has none
-/// (`u32::MAX`).
-pub(super) fn cell_locals(b: &Body, stored: &[usize]) -> HashMap<usize, u32> {
-    let mut cells: HashMap<usize, u32> = stored.iter().map(|&l| (l, u32::MAX)).collect();
-    if cells.is_empty() {
-        return cells;
-    }
-    let subs = b.inst_subs();
-    let mut through_capture = hd_base::HashSet::default();
-    for i in 0..b.len() {
-        if b.tags[i] == Tag::Closure {
-            let rec = b.record(b.data[i][1]);
-            let (start, len) = (rec[0] as usize, rec[1] as usize);
-            for l in &b.cap_local[start..start + len] {
-                through_capture.insert((b.data[i][0], l.raw()));
-            }
-        }
-    }
-    for (i, &sub) in subs.iter().enumerate() {
-        let Some((l, _)) = super::shape::local_store(b, i) else {
-            continue;
-        };
-        if b.local_flags.get(l).copied().unwrap_or(0) & local_flags::PARAM == 0
-            && !through_capture.contains(&(sub, u32::try_from(l).expect("locals")))
-            && let Some(first) = cells.get_mut(&l)
-            && *first == u32::MAX
-        {
-            *first = u32::try_from(i).expect("instructions");
-        }
-    }
-    cells
-}
 
 /// The locals some closure of `b` shares through a cell. A cell is an
 /// object a closure reaches as a `*mut` does its pointee, so a reference
@@ -179,7 +143,57 @@ impl Em<'_, '_, '_> {
     /// the cell's count of them already covers: a local holding its
     /// address.
     pub(super) fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
-        self.raw_cell(l, src, Some(true))
+        let kind = if self.slots.contains_key(&l) {
+            Storage::Slot
+        } else if self.static_cells.contains(&l) {
+            Storage::Static
+        } else {
+            Storage::Cell
+        };
+        let at = self.make_cell(l, kind)?;
+        self.fill_cell(l, at, src, Some(true))?;
+        Ok(at)
+    }
+
+    /// `Box`: local `l`'s cell, made where its scope starts
+    /// (`own::storage::boxes`) in the kind the statement names; a
+    /// parameter's in the prologue, which moves the parameter into it.
+    /// The last round's box, or the value in a slot, ends here when its
+    /// declaration overwrites it (`overwrites.rs`), as the declaration
+    /// store did when it made the cell. With `box_word::ZERO`, a path may
+    /// leave before the declaration fills it: a payload a release reads
+    /// starts clear, flags and all, which the release skips.
+    pub(super) fn box_statement(&mut self, i: u32) -> StageResult<()> {
+        let [l, w] = self.b.data[i as usize];
+        let l = l as usize;
+        let Some(kind) = Storage::from_word(w) else {
+            return Ok(());
+        };
+        if self.b.local_flags[l] & local_flags::PARAM != 0 {
+            return Ok(());
+        }
+        // ruled out: TIR numbers its locals in u32 (`Box`'s data word).
+        let c = self.local(u32::try_from(l).expect("locals"))?[0];
+        let was = self.f.reason.replace(hd_tir::own::Reason::Overwritten);
+        if self.store_releases(self.cells[&l]) {
+            if kind == Storage::Slot {
+                self.release_slot(l, c)?;
+            } else {
+                self.f.get(c);
+                self.release_cell();
+            }
+        }
+        self.f.reason = was;
+        let at = self.make_cell(l, kind)?;
+        // A payload nothing releases needs no clearing.
+        if w & box_word::ZERO != 0 && self.needs_drop(self.b.local_ty[l]) {
+            ledger!("cell/made-at-entry-unused");
+            let zero = self.zero_src(l)?;
+            self.fill_cell(l, at, &zero, Some(false))?;
+        }
+        self.f.get(at);
+        self.f.set(c);
+        Ok(())
     }
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
@@ -190,51 +204,10 @@ impl Em<'_, '_, '_> {
         Ok(Src::Locals(ls))
     }
 
-    /// The local holding local `l`'s cell, made now when no store has made
-    /// it yet. Where the cell certainly exists ([`Em::cell_made`]) the
-    /// local is read as it is, with no test.
+    /// The local holding local `l`'s cell, which its `Box` made.
     pub(super) fn cell_of(&mut self, l: usize) -> StageResult<u32> {
-        let c = self.local(u32::try_from(l).expect("locals"))?[0];
-        if self.cell_made(l) {
-            ledger!(if self.entry_cells.contains(&l) => "cell_of/made-entry" else "cell_of/made");
-            return Ok(c);
-        }
-        ledger!(if self.susp.is_some() => "cell_of/lazy-test-suspending" else "cell_of/lazy-test");
-        self.f.get(c);
-        self.f.op(I::I32Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        let z = self.zero_src(l)?;
-        let at = self.raw_cell(l, &z, Some(false))?;
-        self.f.get(at);
-        self.f.set(c);
-        self.f.op(I::End);
-        Ok(c)
-    }
-
-    /// Whether local `l`'s cell certainly exists at the instruction being
-    /// emitted, so its local holds a nonzero address:
-    ///
-    /// - the prologue made or received it ([`Em::entry_cells`]): a
-    ///   parameter moved into its cell that nothing stores into again, or
-    ///   a shared capture, whose holder made the cell before passing it; or
-    /// - known-null found the local holding its cell there on every path
-    ///   (`Body::full_cells`, rule 5 of `docs/compiler/tir-v2.md`,
-    ///   "Known-null"): a store into it ran since its last `Drop` or
-    ///   taking `Ref`, and every store makes the cell (its declaration, or
-    ///   [`Em::cell_of`] for any other). In a suspending body the frame
-    ///   saves the local where a later use reads it (`susp.rs`) and a
-    ///   resume continues on the path the walk followed, so the row holds
-    ///   there too.
-    ///
-    /// Anything else keeps the test.
-    pub(super) fn cell_made(&self, l: usize) -> bool {
-        if self.entry_cells.contains(&l) {
-            return true;
-        }
-        let (Some(&j), Ok(l)) = (self.emitting.last(), u32::try_from(l)) else {
-            return false;
-        };
-        self.b.full_cells.binary_search(&(j, l)).is_ok()
+        // ruled out: TIR numbers its locals in u32.
+        Ok(self.local(u32::try_from(l).expect("locals"))?[0])
     }
 
     /// Gives each local of `slots` (its `Storage::Slot` rows) a slot in the function's
@@ -322,16 +295,15 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// A new cell for local `l` holding `src`, already in the cell's
-    /// layout; for a slot local, its slot. Its flag slots start `init`,
-    /// or are left to the `FlagSet` that follows a store.
-    fn raw_cell(&mut self, l: usize, src: &Src, init: Option<bool>) -> StageResult<u32> {
-        if let Some(&off) = self.slots.get(&l)
+    /// A new cell of kind `kind` for local `l`, in a fresh local: a heap
+    /// cell, its frame slot, or its static data. Its payload is unwritten.
+    fn make_cell(&mut self, l: usize, kind: Storage) -> StageResult<u32> {
+        let at = self.f.local(Val::I32);
+        if kind == Storage::Slot
+            && let Some(&off) = self.slots.get(&l)
             && let Some(base) = self.frame_base()
         {
             ledger!(if self.susp_slots != 0 => "cell-made/susp-frame-slot" else "cell-made/stack-slot");
-            let (m, _) = self.cell_mem(l)?;
-            let at = self.f.local(Val::I32);
             // A zero count word and a zero descriptor word: a `*T` that
             // reaches the slot reads its borrow state there (§23.4).
             self.f.get(base);
@@ -345,19 +317,11 @@ impl Em<'_, '_, '_> {
             self.f.u32(off);
             self.f.op(I::I32Add);
             self.f.set(at);
-            let part = Part {
-                first: 0,
-                count: m.leaves.len(),
-                offset: 0,
-            };
-            self.store_part(at, &m, part, src)?;
-            self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
-        if self.static_cells.contains(&l) {
+        if kind == Storage::Static {
             ledger!("cell-made/static");
-            let at = self.static_cell(l, src)?;
-            self.init_cell_drop(at, self.b.local_ty[l], init);
+            self.static_cell(l, at)?;
             return Ok(at);
         }
         ledger!("cell-made/heap");
@@ -366,21 +330,31 @@ impl Em<'_, '_, '_> {
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
         let drops = self.cell_drop_calls(ty);
-        let at = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
+        let obj = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.checked.is_some()
             && self.m.loan_holders[self.inst.idx()].shared.contains(&l)
         {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
+        self.f.get(obj);
+        self.f.set(at);
+        Ok(at)
+    }
+
+    /// Stores `src`, in local `l`'s cell layout, into the cell at `at`; its
+    /// flag slots start `init`, or are left to the `FlagSet` that follows
+    /// a store.
+    fn fill_cell(&mut self, l: usize, at: u32, src: &Src, init: Option<bool>) -> StageResult<()> {
+        let (m, _) = self.cell_mem(l)?;
         let part = Part {
             first: 0,
             count: m.leaves.len(),
             offset: 0,
         };
         self.store_part(at, &m, part, src)?;
-        self.init_cell_drop(at, ty, init);
-        Ok(at)
+        self.init_cell_drop(at, self.b.local_ty[l], init);
+        Ok(())
     }
 
     /// Local `l`'s cell in static data (`Storage::Static`): a static
@@ -388,7 +362,7 @@ impl Em<'_, '_, '_> {
     /// as the program, so no count changes it and every reference to it is
     /// one address no count reaches (`annot.handle.constants`). A checked
     /// run's teardown releases the value, as the once-cell's.
-    fn static_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+    fn static_cell(&mut self, l: usize, at: u32) -> StageResult<()> {
         let (m, _) = self.cell_mem(l)?;
         let header = crate::module::HEADER;
         let base = self.m.static_slot(header + m.size, 8);
@@ -401,16 +375,9 @@ impl Em<'_, '_, '_> {
             t,
             Some((crate::module::Address::Static(addr), m.leaves.clone())),
         )?;
-        let at = self.f.local(Val::I32);
         self.f.static_addr(addr);
         self.f.set(at);
-        let part = Part {
-            first: 0,
-            count: m.leaves.len(),
-            offset: 0,
-        };
-        self.store_part(at, &m, part, src)?;
-        Ok(at)
+        Ok(())
     }
 
     /// Fresh locals holding local `l`'s value, read from its cell with no
@@ -458,10 +425,9 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// A `Store` into the whole of a cell's local. Its declaration makes a
-    /// new cell, the last one's (from an earlier loop iteration) released;
-    /// any other store writes the cell, counting the new value before it
-    /// releases the old. `NONE` stores zeros: a recursive local function's
+    /// A `Store` into the whole of a cell's local. Its declaration fills
+    /// the cell its `Box` made; any other store writes the cell, counting
+    /// the new value before it releases the old. `NONE` stores zeros: a recursive local function's
     /// name, declared before its closure exists.
     pub(super) fn cell_set(&mut self, i: u32, l: usize, v: u32) -> StageResult<()> {
         // The value in the cell's layout, with the count the cell takes.
@@ -474,30 +440,14 @@ impl Em<'_, '_, '_> {
         } else {
             self.consumed(v)?
         };
+        // The declaration fills the cell its `Box` made.
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
-            // The last value or cell (an earlier round's) is overwritten.
-            let was = self.f.reason.replace(hd_tir::own::Reason::Overwritten);
-            // A slot is the same memory each time, so the last value in
-            // it ends before the new one is stored.
-            let slot = self.slots.contains_key(&l);
-            let releases = self.store_releases(i);
-            if slot && releases {
-                self.release_slot(l, c)?;
-            }
             // A store the TIR flags track sets the slots after it.
             let flagged = self
                 .tir_flags()
                 .contains_key(&super::drop_flags::Root::Local(l));
-            let at = self.raw_cell(l, &src, (v == NONE || !flagged).then_some(v != NONE))?;
-            if releases && !slot {
-                self.f.get(c);
-                self.release_cell();
-            }
-            self.f.reason = was;
-            self.f.get(at);
-            self.f.set(c);
-            return Ok(());
+            return self.fill_cell(l, c, &src, (v == NONE || !flagged).then_some(v != NONE));
         }
         self.cell_put(l, &src)
     }

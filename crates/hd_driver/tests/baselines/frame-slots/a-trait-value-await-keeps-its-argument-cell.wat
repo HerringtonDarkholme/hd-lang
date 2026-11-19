@@ -145,14 +145,15 @@
         local.get $frame
         i32.const 32
         i32.add
-        local.tee $provider0.vtable
+        i32.store $heap offset=12
+        local.get $t2
+        i32.load $heap offset=12
         local.get $provider0
         i32.store $heap
-        local.get $provider0.vtable
+        local.get $t2
+        i32.load $heap offset=12
         local.get $n
         i32.store $heap offset=4
-        local.get $provider0.vtable
-        i32.store $heap offset=12
     ;; 24 |     known!(&text)
         local.get $t2
         i32.load $heap offset=12
@@ -2462,15 +2463,18 @@
         i32.const 8
         i32.const 1
         call $rt:new/class-1'2
-        local.tee $n
-        local.get $sizer.1
-        i32.store $heap
-        local.get $n
-        local.get $sizer.0
-        i32.store $heap offset=4
+        local.set $n
         local.get $t2
         local.get $n
         i32.store $heap offset=24
+        local.get $t2
+        i32.load $heap offset=24
+        local.get $sizer.1
+        i32.store $heap
+        local.get $t2
+        i32.load $heap offset=24
+        local.get $sizer.0
+        i32.store $heap offset=4
     ;; 28 |     sizer.size!(&text)
         local.get $t2
         i32.load $heap

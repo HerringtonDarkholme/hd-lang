@@ -62,10 +62,10 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 0
     i32.const 0
     call $rt:new/class-1'1
+    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 268 ;; &vtable[]
     local.set $boxed.1
     local.tee $boxed.0
@@ -75,10 +75,11 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 45 |     let mutable: *mut dyn Top = box(S {})
+    ;; 42 |     println(read(&S {}))
     i32.const 0
     i32.const 0
     call $rt:new/class-1'1
+    ;; 45 |     let mutable: *mut dyn Top = box(S {})
     local.tee $mutable.0
     i32.const 268 ;; &vtable[]
     ;; 46 |     println(read(mutable))
@@ -306,10 +307,10 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 0
     i32.const 0
     call $rt:new
+    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 608 ;; &vtable[]
     local.set $boxed.1
     local.tee $boxed.0
@@ -319,10 +320,11 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 45 |     let mutable: *mut dyn Top = box(S {})
+    ;; 42 |     println(read(&S {}))
     i32.const 0
     i32.const 0
     call $rt:new
+    ;; 45 |     let mutable: *mut dyn Top = box(S {})
     local.tee $mutable.0
     i32.const 608 ;; &vtable[]
     ;; 46 |     println(read(mutable))
@@ -541,22 +543,23 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 42 |     println(read(&S {}))
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
+    ;; 42 |     println(read(&S {}))
     i32.const 268 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 43 |     let boxed: *dyn Top = box(S {})
+    ;; (no span)
     i32.const 0
     i32.const 0
     call $rt:new/class-1
+    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 268 ;; &vtable[]
     local.set $boxed.1
     local.tee $boxed.0
@@ -566,10 +569,11 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 45 |     let mutable: *mut dyn Top = box(S {})
+    ;; (no span)
     i32.const 0
     i32.const 0
     call $rt:new/class-1
+    ;; 45 |     let mutable: *mut dyn Top = box(S {})
     local.tee $mutable.0
     i32.const 268 ;; &vtable[]
     ;; 46 |     println(read(mutable))
@@ -701,22 +705,23 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 42 |     println(read(&S {}))
     local.get $t0
     i64.const 0
     i64.store $heap
     local.get $t0
     i32.const 8
     i32.add
+    ;; 42 |     println(read(&S {}))
     i32.const 608 ;; &vtable[]
     call $read
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 43 |     let boxed: *dyn Top = box(S {})
+    ;; (no span)
     i32.const 0
     i32.const 0
     call $rt:new
+    ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 608 ;; &vtable[]
     local.set $boxed.1
     local.tee $boxed.0
@@ -726,10 +731,11 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
-    ;; 45 |     let mutable: *mut dyn Top = box(S {})
+    ;; (no span)
     i32.const 0
     i32.const 0
     call $rt:new
+    ;; 45 |     let mutable: *mut dyn Top = box(S {})
     local.tee $mutable.0
     i32.const 608 ;; &vtable[]
     ;; 46 |     println(read(mutable))

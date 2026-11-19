@@ -87,8 +87,8 @@
     local.tee $c
     local.get $t1
     i32.store $heap
-    local.get $c
     ;; 25 |     bump(&mut c)
+    local.get $c
     call $"bump[Cells]"
     ;; 26 |     println(c.items[0])
     local.get $c

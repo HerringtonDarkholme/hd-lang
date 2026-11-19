@@ -26,11 +26,11 @@
         i32.const 1
         i32.add
         local.set $t0
-    ;; 10 |         let total = i
         i32.const 4
         i32.const 0
         call $rt:new/class-1
         local.tee $total
+    ;; 10 |         let total = i
         local.get $i
         i32.store $heap
     ;; 11 |         step := fn() -> i32:
@@ -180,7 +180,6 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 21 |         let total = i
         local.get $t0
         i64.const 0
         i64.store $heap
@@ -188,10 +187,11 @@
         i32.const 8
         i32.add
         local.tee $total
+    ;; 21 |         let total = i
         local.get $i
         i32.store $heap
-        local.get $total
     ;; 25 |         out += step()
+        local.get $total
         local.get $total
         i32.load $heap
         i32.const 1

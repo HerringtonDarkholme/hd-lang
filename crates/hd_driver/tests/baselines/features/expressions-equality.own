@@ -28,16 +28,18 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 > app/main/list_ne
 >   local $0 a: List[string] [param read captured] place
 >   local $1 b: List[string] [param read captured] place
->   %0 = Release %8 Exit local $0 #2 : ()
->   %1 = Release %8 Exit local $1 #2 : ()
+>   %2 = Release %10 Exit local $0 #2 : ()
+>   %3 = Release %10 Exit local $1 #2 : ()
     a != b
->   %2 = Ref local frame [$0] : &List[string]
->   %3 = Ref local frame [$1] : &List[string]
->   %4 = Call std/core/Eq.eq for List[string] [] via Impl (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %7 = Prim Not [%4] : bool
->   %8 = Block %7 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %4 = Ref local frame [$0] : &List[string]
+>   %5 = Ref local frame [$1] : &List[string]
+>   %6 = Call std/core/Eq.eq for List[string] [] via Impl (%4, %5) : bool
+>   %7 = LoanEnd [%5] : ()
+>   %8 = LoanEnd [%4] : ()
+>   %9 = Prim Not [%6] : bool
+>   %10 = Block %9 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -45,38 +47,41 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 > app/main/rec_eq
 >   local $0 a: Rec [param read captured] place
 >   local $1 b: Rec [param read captured] place
->   %0 = Release %7 Exit local $0 #2 : ()
->   %1 = Release %7 Exit local $1 #2 : ()
+>   %2 = Release %9 Exit local $0 #2 : ()
+>   %3 = Release %9 Exit local $1 #2 : ()
     a == b
->   %2 = Ref local frame [$0] : &Rec
->   %3 = Ref local frame [$1] : &Rec
->   %4 = Call std/core/Eq.eq for Rec [] via Impl (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %7 = Block %4 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %4 = Ref local frame [$0] : &Rec
+>   %5 = Ref local frame [$1] : &Rec
+>   %6 = Call std/core/Eq.eq for Rec [] via Impl (%4, %5) : bool
+>   %7 = LoanEnd [%5] : ()
+>   %8 = LoanEnd [%4] : ()
+>   %9 = Block %6 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
 fn opt_none(o: string?) -> bool:
 > app/main/opt_none
 >   local $0 o: string? [param read captured] place
->   %0 = Release %15 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $0 #2 : ()
     o == .None
->   %1 = Ref local frame [$0] : &(string?)
->   %2 = NewVariant #0 [] : string?
->   %3 = Drop [%2] : ()
->   %4 = Read borrow [*%1] : string?
->   %5 = ToArm #0 : never
->   %6 = Block - : never
->   %7 = ToArm #1 : never
->   %8 = Block - : never
->   %9 = SwitchTag %4 [#0 %6 %8] : never
->   %10 = Block - : never
->   %11 = Block 1:bool : bool
->   %12 = Block 0:bool : bool
->   %13 = Match %1 [%10 %11 %12] : bool
->   %14 = LoanEnd [%1] : ()
->   %15 = Block %13 : bool
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &(string?)
+>   %3 = NewVariant #0 [] : string?
+>   %4 = Drop [%3] : ()
+>   %5 = Read borrow [*%2] : string?
+>   %6 = ToArm #0 : never
+>   %7 = Block - : never
+>   %8 = ToArm #1 : never
+>   %9 = Block - : never
+>   %10 = SwitchTag %5 [#0 %7 %9] : never
+>   %11 = Block - : never
+>   %12 = Block 1:bool : bool
+>   %13 = Block 0:bool : bool
+>   %14 = Match %2 [%11 %12 %13] : bool
+>   %15 = LoanEnd [%2] : ()
+>   %16 = Block %14 : bool
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -84,21 +89,22 @@ fn opt_some(o: string?, s: string) -> bool:
 > app/main/opt_some
 >   local $0 o: string? [param read captured] place
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %4 consume last
 >   local $2 $ref: string? [read assigned captured captured-assigned] place
->   %0 = Release %10 Exit local $0 #2 : ()
->   %1 = Release %10 Exit local $1 #2 : ()
+>   %1 = Release %12 Exit local $0 #2 : ()
+>   %2 = Release %12 Exit local $1 #2 : ()
     o == .Some(s)
->   %2 = Ref local frame [$0] : &(string?)
->   %3 = Read borrow [$1] : string
->   %4 = NewVariant #1 [%3] : string?
->   %5 = Store [$2] %4 : ()
->   %6 = Ref local frame [$2] : &(string?)
->   %7 = Call std/core/Eq.eq for string? [] via Impl (%2, %6) : bool
->   %8 = LoanEnd [%6] : ()
->   %9 = LoanEnd [%2] : ()
->   %10 = Block %7 : bool
->   %6 finds [$2] full
+>   %0 = Box #0 #0 : ()
+>   %3 = Ref local frame [$0] : &(string?)
+>   %4 = Read borrow [$1] : string
+>   %5 = NewVariant #1 [%4] : string?
+>   %6 = Box #2 #0 : ()
+>   %7 = Store [$2] %5 : ()
+>   %8 = Ref local frame [$2] : &(string?)
+>   %9 = Call std/core/Eq.eq for string? [] via Impl (%3, %8) : bool
+>   %10 = LoanEnd [%8] : ()
+>   %11 = LoanEnd [%3] : ()
+>   %12 = Block %9 : bool
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -106,13 +112,15 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 > app/main/map_eq
 >   local $0 a: Map[string, string] [param read captured] place
 >   local $1 b: Map[string, string] [param read captured] place
->   %0 = Release %7 Exit local $0 #2 : ()
->   %1 = Release %7 Exit local $1 #2 : ()
+>   %2 = Release %9 Exit local $0 #2 : ()
+>   %3 = Release %9 Exit local $1 #2 : ()
     a == b
->   %2 = Ref local frame promoted [$0] : &Map[string, string]
->   %3 = Ref local frame promoted [$1] : &Map[string, string]
->   %4 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %7 = Block %4 : bool
+>   %0 = Box #0 #255 : ()
+>   %1 = Box #1 #255 : ()
+>   %4 = Ref local frame promoted [$0] : &Map[string, string]
+>   %5 = Ref local frame promoted [$1] : &Map[string, string]
+>   %6 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%4, %5) : bool
+>   %7 = LoanEnd [%5] : ()
+>   %8 = LoanEnd [%4] : ()
+>   %9 = Block %6 : bool
 >   summary kept [] borrows [$0 $1]

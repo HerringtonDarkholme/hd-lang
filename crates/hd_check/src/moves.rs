@@ -526,6 +526,7 @@ impl Forward for Walk<'_> {
             | Tag::IsUnique
             | Tag::FlagSet
             | Tag::FlagClear
+            | Tag::Box
             | Tag::With
             | Tag::ContextNew
             | Tag::ContextFor

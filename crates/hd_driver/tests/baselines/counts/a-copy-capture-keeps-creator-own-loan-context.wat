@@ -17,158 +17,158 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32)
   )
-  (func $probe (result i32 i32 i32 i32) (local $p i32) (local $r i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
+  (func $probe (result i32 i32 i32 i32) (local $t0 i32) (local $r i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     i32.const 16
     i32.const 1
     call $rt:new/class-2
-    local.tee $p
+    local.tee $t0
     i32.const 65 ;; &"a"
     i32.store $heap
-    local.get $p
+    local.get $t0
     i32.const 1
     i32.store $heap offset=4
-    local.get $p
+    local.get $t0
     i32.const 66 ;; &"o"
     i32.store $heap offset=8
-    local.get $p
+    local.get $t0
     i32.const 1
     i32.store $heap offset=12
-    local.get $p
+    local.get $t0
     ;; 14 |     r := &p.other
     i32.const 4
     i32.sub
-    local.get $p
+    local.get $t0
     i32.const 8
     i32.add
     local.set $r
-    local.tee $t0
+    local.tee $t1
     i32.const 1
-    local.set $t1
+    local.set $t2
     i32.load $heap
-    local.tee $t2
+    local.tee $t3
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t0
+      local.get $t1
       call $rt:loan_share
     else
-      local.get $t0
-      local.get $t2
+      local.get $t1
+      local.get $t3
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.eq
     if
-      local.get $t3
+      local.get $t4
       i32.const 65536
       i32.add
-      local.set $t3
+      local.set $t4
     end
     ;; 15 |     run_plain(fn() -> void: p.value = "b")
-    local.get $p
+    local.get $t0
     i32.const 4
     i32.sub
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t3
+    local.get $t4
     i32.ne
     if
       call $rt:panic
       unreachable
     end
-    local.get $p
+    local.get $t0
     i32.load $heap
-    local.get $p
+    local.get $t0
     i32.load $heap offset=4
-    local.get $p
+    local.get $t0
     i32.const 67 ;; &"b"
     i32.store $heap
-    local.get $p
+    local.get $t0
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
     ;; 16 |     (*r, p.value)
     local.get $r
     i32.load $heap
-    local.tee $t3
+    local.tee $t4
     local.get $r
     i32.load $heap offset=4
     local.tee $r
     call $rt:retain
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.load $heap
-      local.tee $t1
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t0
+        local.get $t1
         call $rt:loan_unshare
       else
-        local.get $t0
         local.get $t1
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
       end
       i32.const 0
-      local.set $t0
+      local.set $t1
     end
-    local.get $p
+    local.get $t0
     i32.load $heap
-    local.get $p
+    local.get $t0
     i32.load $heap offset=4
-    local.set $t1
-    local.tee $t2
+    local.set $t2
+    local.tee $t3
     if
-      local.get $t2
+      local.get $t3
       call $retain
     end
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
-    local.get $p
+    local.get $t0
     if
-      local.get $p
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t0
         call $rt:release_ref
       end
     end
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.load $heap
-      local.tee $p
+      local.tee $t0
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t0
+        local.get $t1
         call $rt:loan_unshare
       else
+        local.get $t1
         local.get $t0
-        local.get $p
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
-    local.get $t3
+    local.get $t4
     local.get $r
+    local.get $t3
     local.get $t2
-    local.get $t1
   )
 )

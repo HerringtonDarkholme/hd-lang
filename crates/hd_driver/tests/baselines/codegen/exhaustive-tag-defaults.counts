@@ -307,6 +307,7 @@ fn paused!(n: usize) -> usize $ Clock:
 pub fn main!() -> void $ Console + Clock:
     for n in 0..4:
 > app/main/main
+>   release counted reference (overwritten)
 >   release string (last use)
 > app/main/main
 >   release counted reference (last use)
@@ -329,7 +330,6 @@ pub fn main!() -> void $ Console + Clock:
 >   release string (overwritten)
 >   release string (overwritten)
 >   release app.main.Shape (last use)
->   release counted reference (overwritten)
 >   release counted reference (last use)
 >   release string (overwritten)
 >   release string (last use)

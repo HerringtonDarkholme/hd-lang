@@ -89,15 +89,15 @@ fn fresh(name: string) -> fn() -> i32:
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
     capture(box(Point { name: name, x: 0 }))
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
->   %3 = Store [$1] %2 : ()
->   %4 = Ref take mut [$1] : *mut Point
->   %5 = Call app/main/capture[] (%4) : fn() -> i32
->   %6 = Block %5 : fn() -> i32
->   %4 finds [$1] full
+>   %3 = Box #1 #1 : ()
+>   %4 = Store [$1] %2 : ()
+>   %5 = Ref take mut [$1] : *mut Point
+>   %6 = Call app/main/capture[] (%5) : fn() -> i32
+>   %7 = Block %6 : fn() -> i32
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes

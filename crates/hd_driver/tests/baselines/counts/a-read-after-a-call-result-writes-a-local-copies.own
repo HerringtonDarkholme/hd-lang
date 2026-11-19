@@ -32,49 +32,47 @@ fn change_then_read(name: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 b: Bag [read assigned captured captured-assigned] place
 >   local $2 kept: string [:= read assigned] value
->     uses $2: %20 -> %21 lend last
+>     uses $2: %21 -> %22 lend last
 >   local $4 self: &mut Bag [read] value
->     uses $4: %7 -> %11 lend last
+>     uses $4: %8 -> %12 lend last
 >   local $5 i: usize [read] value
->     uses $5: %8 -> %9 lend last
->   %0 = Retain %31 Entry local $0 #0 : ()
+>     uses $5: %9 -> %10 lend last
+>   %0 = Retain %32 Entry local $0 #0 : ()
     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [1:i32] : Item
 >   %3 = NewList - [%2] : List[Item]
 >   %4 = NewStruct [%1 %3] : Bag
->   %5 = Store [$1] %4 : ()
->   %31 = Block %30 : usize
+>   %5 = Box #1 #0 : ()
+>   %6 = Store [$1] %4 : ()
+>   %32 = Block %31 : usize
     b.item_mut(0).qty = +7
->   %6 = Ref mut local frame [$1] : &mut Bag
->   %7 = Store [$4] %6 : ()
->   %8 = Store [$5] 0:usize : ()
->   %9 = Read copy [$5] : usize
->   %10 = IsUnique [*$4 .items] : ()
->   %11 = Ref mut local [*$4 .items [%9]] : &mut Item
->   %12 = Break L1 %11 : never
->   %13 = Block - : &mut Item
->   %14 = Scope %13 [] : &mut Item
->   %15 = Coerce 7:i32 [Weaken -] : i32
->   %16 = Store [*%14 .qty] %15 : ()
->   %17 = LoanEnd [%14] : ()
->   %18 = LoanEnd [$4] : ()
->   %6 finds [$1] full
+>   %7 = Ref mut local frame [$1] : &mut Bag
+>   %8 = Store [$4] %7 : ()
+>   %9 = Store [$5] 0:usize : ()
+>   %10 = Read copy [$5] : usize
+>   %11 = IsUnique [*$4 .items] : ()
+>   %12 = Ref mut local [*$4 .items [%10]] : &mut Item
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : &mut Item
+>   %15 = Scope %14 [] : &mut Item
+>   %16 = Coerce 7:i32 [Weaken -] : i32
+>   %17 = Store [*%15 .qty] %16 : ()
+>   %18 = LoanEnd [%15] : ()
+>   %19 = LoanEnd [$4] : ()
     kept := b.label
->   %19 = Read borrow [$1 .label] : string
->   %20 = Store [$2] %19 : ()
->   %19 finds [$1] full
+>   %20 = Read borrow [$1 .label] : string
+>   %21 = Store [$2] %20 : ()
     kept.len() + b.items.len()
->   %21 = Read borrow [$2] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L0 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Read move [$1 .items] : List[Item]
->   %27 = Drop [$1] : ()
->   %28 = Intrinsic ListLen [%26] : usize
->   %29 = Drop [%26] : ()
->   %30 = Prim Add [%25 %28] : usize
->   %26 finds [$1] full
+>   %22 = Read borrow [$2] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Read move [$1 .items] : List[Item]
+>   %28 = Drop [$1] : ()
+>   %29 = Intrinsic ListLen [%27] : usize
+>   %30 = Drop [%27] : ()
+>   %31 = Prim Add [%26 %29] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot

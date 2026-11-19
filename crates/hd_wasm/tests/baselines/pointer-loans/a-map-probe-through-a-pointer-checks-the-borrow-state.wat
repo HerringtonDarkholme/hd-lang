@@ -15,7 +15,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (local $t0 i32) (local $stock i32) (local $t1 i32) (local $t2 i32)
+  (func $main (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     i32.const 4
     call $rt:map_seed
@@ -26,16 +26,16 @@
     local.get $t0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $stock
+    local.set $t1
     local.get $t0
-    local.get $stock
+    local.get $t1
     i32.const 65 ;; &"apple"
     i32.const 5
     call $rt:map_find
-    local.set $t1
+    local.set $t2
     local.get $t0
-    local.get $stock
     local.get $t1
+    local.get $t2
     i32.const 65 ;; &"apple"
     i32.const 5
     i32.const 3
@@ -44,10 +44,10 @@
     i32.const 4
     i32.const 1
     call $rt:new/class-1
-    local.tee $stock
+    local.tee $t1
     local.get $t0
     i32.store $heap
-    local.get $stock
+    local.get $t1
     ;; 12 |     alias := stock
     local.tee $t0
     if
@@ -61,7 +61,7 @@
       end
     end
     ;; 13 |     insert(alias, &mut stock["apple"])
-    local.get $stock
+    local.get $t1
     i32.const 4
     i32.sub
     i32.load $heap
@@ -71,20 +71,20 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $stock
+    local.get $t1
     i32.load $heap
     i32.const 0
     i32.const 65 ;; &"apple"
     i32.const 5
     call $rt:map_lookup
-    local.tee $t1
+    local.tee $t2
     i32.const 0
     i32.lt_s
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $stock
+    local.get $t1
     i32.const 4
     i32.sub
     i32.load $heap
@@ -94,15 +94,15 @@
       call $rt:panic'3
       unreachable
     end
-    local.get $stock
-    local.get $stock
+    local.get $t1
+    local.get $t1
     i32.load $heap
     call $rt:map_unique
     i32.store $heap
-    local.get $stock
+    local.get $t1
     i32.const 4
     i32.sub
-    local.tee $t2
+    local.tee $t3
     i32.load $heap
     i32.const 4128768
     i32.and
@@ -110,8 +110,8 @@
       call $rt:panic'3
       unreachable
     end
-    local.get $t2
-    local.get $t2
+    local.get $t3
+    local.get $t3
     i32.load $heap
     i32.const 2097152
     i32.add
@@ -120,7 +120,7 @@
     ;; 12 |     alias := stock
     local.get $t0
     ;; 13 |     insert(alias, &mut stock["apple"])
-    local.get $stock
+    local.get $t1
     i32.load $heap
     local.tee $t0
     local.get $t0
@@ -130,29 +130,29 @@
     i32.add
     i32.const 32
     i32.add
-    local.get $t1
+    local.get $t2
     i32.const 12
     i32.mul
     i32.add
     i32.const 8
     i32.add
     call $insert
-    local.get $t2
-    local.get $t2
+    local.get $t3
+    local.get $t3
     i32.load $heap
     i32.const 2097152
     i32.sub
     i32.store $heap
     drop
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
-    local.get $stock
+    local.get $t1
     if
-      local.get $stock
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $stock
+        local.get $t1
         call $rt:release_ref
       end
     end

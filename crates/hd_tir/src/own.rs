@@ -99,7 +99,7 @@ mod storage;
 mod temporaries;
 pub use storage::RecursiveBindings;
 pub use storage::captures as closure_captures;
-pub use storage::settle;
+pub use storage::{declarations, settle};
 pub mod values;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -1186,6 +1186,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     overwrites::anchor(b);
     scratch.topo.build(b);
     scratch.splice.clear();
+    storage::boxes(b, &scratch.topo, &mut scratch.splice);
     drop_flags::run(b, cx, &scratch.topo, &mut scratch.splice);
     splice::apply(b, &scratch.topo, &mut scratch.splice)?;
     scratch.topo.build(b);
@@ -2208,9 +2209,6 @@ pub(crate) mod tests {
         }
         for (at, v) in b.cancel_releases() {
             let _ = writeln!(out, "cancel %{at} releases %{v}");
-        }
-        for (at, l) in &b.full_cells {
-            let _ = writeln!(out, "full %{at} ${l}");
         }
         for [at, word, ..] in &b.stable_lists {
             if let Some(p) = b.decode_place(*word) {
@@ -3401,12 +3399,12 @@ pub(crate) mod tests {
         assert!(counted.contains("Ref take [$0]"), "{counted}");
     }
 
-    /// Known-null's rule 5: a celled local is full once a store ran on
-    /// every path. A store on one branch leaves it unknown, so neither
-    /// that store nor the next one gets a row; the reference after both
-    /// does.
+    /// A celled local stored first on one branch and again after it: its
+    /// `Box` stands in the block holding every use, right before the `If`
+    /// that holds the first store (`storage::boxes`), and needs no zero
+    /// fill, since nothing leaves between them.
     #[test]
-    fn a_cell_is_full_after_a_store_on_every_path() {
+    fn a_cell_is_boxed_before_the_statement_holding_its_first_store() {
         let n = NodeIdx::from_raw(1);
         let text = passes(
             |b| {
@@ -3427,13 +3425,20 @@ pub(crate) mod tests {
             },
             Ty::VOID,
         );
-        let rows: Vec<&str> = text.lines().filter(|l| l.starts_with("full ")).collect();
-        let at = text
+        let id = |tag: &str| {
+            let line = text
+                .lines()
+                .find(|l| l.ends_with(tag) || l.contains(&format!(" {tag} ")));
+            line.and_then(|l| l.split(' ').next())
+                .expect("the statement")
+        };
+        let (boxed, branch) = (id("Box"), id("If"));
+        let root = text
             .lines()
-            .find(|l| l.contains(" Ref "))
-            .and_then(|l| l.split(' ').next())
-            .expect("the reference");
-        assert_eq!(rows, [format!("full {at} $0")], "{text}");
+            .rfind(|l| l.contains(" Block ["))
+            .expect("the root");
+        assert!(root.contains(&format!("{boxed} {branch}")), "{text}");
+        assert!(!text.contains("full "), "{text}");
     }
 
     /// A loop whose iteration block changes a list (`ListPush` over a

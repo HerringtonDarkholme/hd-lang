@@ -20,7 +20,7 @@
     end
     local.get $x.0
   )
-  (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $d i32)
+  (func $make_dyn (param $t1 i32) (param $t2 i32) (result i32) (local $d i32) (local $t0 i32)
     ;; 20 |     call_dyn(&d)
     global.get $locals
     global.get $locals_base

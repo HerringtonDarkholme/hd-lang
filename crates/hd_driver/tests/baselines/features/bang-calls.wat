@@ -1030,7 +1030,7 @@
     i32.store $heap offset=36
     local.get $t0
   )
-  (func $both'1 (param $frame i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t5 i32)
+  (func $both'1 (param $frame i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $y i32)
     ;; 15 |     let (x, y) = join!(label(a), label(b))
     global.get $locals
     global.get $locals_base
@@ -1570,16 +1570,16 @@
       end
       local.get $t2
       i32.load $heap offset=20
-      local.tee $t5
+      local.tee $y
       if
-        local.get $t5
+        local.get $y
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $y
           call $rt:release_ref'2
         end
       end
@@ -1588,64 +1588,47 @@
       i32.store $heap offset=20
       local.get $t2
       i32.load $heap offset=16
-      local.tee $t5
+      local.tee $y
       if
-        local.get $t5
+        local.get $y
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t5
+          local.get $y
           call $rt:release_ref'2
         end
       end
       local.get $t2
       local.get $b.0
       i32.store $heap offset=16
+      i32.const 8
+      i32.const 1
+      call $rt:new/class-1
+      local.set $b.0
+      i32.const 8
+      i32.const 1
+      call $rt:new/class-1
+      local.set $y
       block
-        local.get $b.1
-        local.set $b.0
-        local.get $a.0
-        local.set $b.1
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $a.0
+        local.get $b.0
         local.get $t3
         i32.store $heap
-        local.get $a.0
-        local.get $b.0
-        i32.store $heap offset=4
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $b.0
-        local.get $a.1
-        i32.store $heap
         local.get $b.0
         local.get $b.1
+        i32.store $heap offset=4
+        local.get $y
+        local.get $a.1
+        i32.store $heap
+        local.get $y
+        local.get $a.0
         i32.store $heap offset=4
         br 0
         unreachable
       end
     ;; 16 |     x.len() + y.len()
-      local.get $a.0
-      call $"impl string.len"
-      local.get $a.0
-      if
-        local.get $a.0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $a.0
-          call $rt:release_ref'2
-        end
-      end
       local.get $b.0
       call $"impl string.len"
       local.get $b.0
@@ -1658,6 +1641,21 @@
         i32.or
         if
           local.get $b.0
+          call $rt:release_ref'2
+        end
+      end
+      local.get $y
+      call $"impl string.len"
+      local.get $y
+      if
+        local.get $y
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        global.get $tracing
+        i32.or
+        if
+          local.get $y
           call $rt:release_ref'2
         end
       end

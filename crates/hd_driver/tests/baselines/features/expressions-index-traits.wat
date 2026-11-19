@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $t0 i32) (local $n i32)
+  (func $read_len (param $t1 i32) (param $i i32) (result i32) (local $n i32) (local $t0 i32)
     ;; 21 |     n[i].len()
     global.get $locals
     global.get $locals_base
@@ -135,7 +135,7 @@
     local.get $value.1
     i32.store $heap offset=20
   )
-  (func $generic_first (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $generic_first (param $xs i32) (result i32) (local $items i32) (local $t0 i32)
     ;; 30 |     first(xs).len()
     global.get $locals
     global.get $locals_base
@@ -172,10 +172,10 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $items
     local.get $xs
     i32.store $heap
-    local.get $t1
+    local.get $items
     i32.load $heap
     local.set $xs
     i32.const 0

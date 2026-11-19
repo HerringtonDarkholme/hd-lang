@@ -155,33 +155,17 @@
     local.get $current
     local.get $text.1
     i32.store $heap offset=4
-    local.get $current
     ;; 12 |     append("!")
     i32.const 76 ;; &"!"
     i32.const 1
     local.set $text.0
     local.set $text.1
+    local.get $current
     i32.load $heap
     local.tee $t1
     if
       local.get $t1
       call $retain
-    end
-    local.get $current
-    i32.eqz
-    if
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $current
-      i32.const 0
-      i32.store $heap
-      local.get $current
-      i32.const 0
-      i32.store $heap offset=4
     end
     local.get $t1
     if

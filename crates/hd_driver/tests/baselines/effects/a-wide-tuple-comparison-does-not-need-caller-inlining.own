@@ -43,21 +43,23 @@ fn ordered(left: Words, right: Words) -> bool:
 > app/main/ordered
 >   local $0 left: (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [param read captured] place
 >   local $1 right: (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [param read captured] place
->   %0 = Release %14 Exit local $0 #2 : ()
->   %1 = Release %14 Exit local $1 #2 : ()
+>   %2 = Release %16 Exit local $0 #2 : ()
+>   %3 = Release %16 Exit local $1 #2 : ()
     left < right
->   %2 = Ref local frame [$0] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
->   %3 = Ref local frame [$1] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
->   %4 = Call std/cmp/PartialOrd.partial_cmp for (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [] via Impl (%2, %3) : Ordering?
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %7 = Read copy [%4 as #1 .0] : Ordering
->   %8 = Block 1:bool : bool
->   %9 = Block 0:bool : bool
->   %10 = SwitchTag %7 [#0 %8 %9] : bool
->   %11 = Block %10 : bool
->   %12 = Block 0:bool : bool
->   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Block %13 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %4 = Ref local frame [$0] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
+>   %5 = Ref local frame [$1] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
+>   %6 = Call std/cmp/PartialOrd.partial_cmp for (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [] via Impl (%4, %5) : Ordering?
+>   %7 = LoanEnd [%5] : ()
+>   %8 = LoanEnd [%4] : ()
+>   %9 = Read copy [%6 as #1 .0] : Ordering
+>   %10 = Block 1:bool : bool
+>   %11 = Block 0:bool : bool
+>   %12 = SwitchTag %9 [#0 %10 %11] : bool
+>   %13 = Block %12 : bool
+>   %14 = Block 0:bool : bool
+>   %15 = SwitchTag %6 [#1 %13 %14] : bool
+>   %16 = Block %15 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

@@ -17,8 +17,6 @@ fn sum_to(limit: i32) -> i32:
 >   %16 = Store [$2] %15 : ()
 >   %17 = Release %16 Operation #3 : ()
 >   %23 = Block %21 : i32
->   %15 finds [$2] full
->   %16 finds [$2] full
         if n == 0: 0
 >   %1 = Read copy [$1] : i32
 >   %2 = Prim Eq [%1 0:i32] : bool
@@ -39,7 +37,6 @@ fn sum_to(limit: i32) -> i32:
 >   %20 = Read copy [$0] : i32
 >   %21 = CallValue %18 [%20] : i32
 >   %22 = Drop [%18] : ()
->   %18 finds [$2] full
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$2]
 >   summary kept [] writes

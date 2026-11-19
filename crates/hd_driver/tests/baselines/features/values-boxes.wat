@@ -7,7 +7,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $copy i32)
+  (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     let mut p = Point { name: s }
     local.get $s.0
     ;; 16 |     copy := box(p)
@@ -15,20 +15,20 @@
       local.get $s.0
       call $retain
     end
+    ;; 15 |     let mut p = Point { name: s }
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $copy
-    ;; 15 |     let mut p = Point { name: s }
+    local.tee $t0
     local.get $s.0
     ;; 16 |     copy := box(p)
     i32.store $heap
-    local.get $copy
+    local.get $t0
     ;; 15 |     let mut p = Point { name: s }
     local.get $s.1
     ;; 16 |     copy := box(p)
     i32.store $heap offset=4
-    local.get $copy
+    local.get $t0
     ;; 17 |     p.name = t
     local.get $t.0
     ;; 15 |     let mut p = Point { name: s }
@@ -46,14 +46,14 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
-    local.get $copy
+    local.get $t0
     if
-      local.get $copy
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $copy
+        local.get $t0
         call $rt:release_ref'2
       end
     end
@@ -67,12 +67,11 @@
     i32.add
   )
   (func $move_box (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32)
-    ;; 22 |     box(p)
+    ;; 21 |     p := Point { name: s }
     i32.const 8
     i32.const 1
     call $rt:new/class-1
     local.tee $t0
-    ;; 21 |     p := Point { name: s }
     local.get $s.0
     ;; 22 |     box(p)
     i32.store $heap
@@ -83,18 +82,18 @@
     i32.store $heap offset=4
     local.get $t0
   )
-  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $b i32)
+  (func $shared (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32)
     ;; 25 |     b := box(Point { name: s })
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $b
+    local.tee $t0
     local.get $s.0
     i32.store $heap
-    local.get $b
+    local.get $t0
     local.get $s.1
     i32.store $heap offset=4
-    local.get $b
+    local.get $t0
     ;; 26 |     h := Holder { point: b }
     local.tee $s.0
     if
@@ -109,25 +108,25 @@
     end
     local.get $s.0
     ;; 27 |     b.name = t
-    local.get $b
+    local.get $t0
     i32.load $heap
-    local.get $b
+    local.get $t0
     i32.load $heap offset=4
-    local.get $b
+    local.get $t0
     local.get $t.0
     i32.store $heap
-    local.get $b
+    local.get $t0
     local.get $t.1
     i32.store $heap offset=4
     call $rt:release
-    local.get $b
+    local.get $t0
     if
-      local.get $b
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $b
+        local.get $t0
         call $rt:release_ref'2
       end
     end

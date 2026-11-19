@@ -3,7 +3,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"same[i32]" (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $"same[i32]" (param $b i32) (param $t1 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 8 |     a == b
     global.get $locals
     global.get $locals_base

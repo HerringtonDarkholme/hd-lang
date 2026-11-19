@@ -334,8 +334,8 @@
     local.tee $q
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $q
     ;; 46 |     q.add(a)
+    local.get $q
     local.get $a.0
     local.get $a.1
     call $"impl[T < Ord] Queue[T].add[string]"
@@ -441,7 +441,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl[T < Ord] Queue[T].settle[(i64, usize)]" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $t0 i32) (local $value i32) (local $t4 i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32)
+  (func $"impl[T < Ord] Queue[T].settle[(i64, usize)]" (param $self i32) (param $start i32) (param $t1 i64) (param $size i32) (local $value i32) (local $t0 i32) (local $t4 i32) (local $left i32) (local $larger i32) (local $t2 i32) (local $t3 i32)
     ;; 19 |         size := self.items.len()
     global.get $locals
     global.get $locals_base
@@ -799,8 +799,8 @@
     local.tee $q
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $q
     ;; 37 |     q.add(a)
+    local.get $q
     local.get $a
     call $"impl[T < Ord] Queue[T].add[i64]"
     ;; 38 |     q.add(b)
@@ -964,8 +964,8 @@
     local.tee $q
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    local.get $q
     ;; 54 |     q.add((a, 0))
+    local.get $q
     local.get $a
     i32.const 0
     call $"impl[T < Ord] Queue[T].add[(i64, usize)]"

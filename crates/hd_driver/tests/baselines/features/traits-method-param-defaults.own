@@ -50,16 +50,17 @@ impl Joiner:
 fn joined(j: Joiner) -> usize:
 > app/main/joined
 >   local $0 j: Joiner [param read captured] place
->   %0 = Retain %8 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $0 #0 : ()
     j.join()
->   %1 = Ref local frame [$0] : &Joiner
->   %2 = DefaultCall [app/main/impl Joiner.join.sep []] [%1] : string
->   %3 = Call app/main/impl Joiner.join[] (%1, %2) : usize
->   %4 = Retain %3 Operation operand 1 #0 : ()
->   %5 = Drop [%2] : ()
->   %6 = LoanEnd [%1] : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %3 : usize
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &Joiner
+>   %3 = DefaultCall [app/main/impl Joiner.join.sep []] [%2] : string
+>   %4 = Call app/main/impl Joiner.join[] (%2, %3) : usize
+>   %5 = Retain %4 Operation operand 1 #0 : ()
+>   %6 = Drop [%3] : ()
+>   %7 = LoanEnd [%2] : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %4 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

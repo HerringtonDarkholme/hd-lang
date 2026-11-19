@@ -91,6 +91,18 @@ impl Nest {
         &self.order[self.entry[i as usize] as usize..=self.exit[i as usize] as usize]
     }
 
+    /// Instruction `i`'s preorder number, `NONE` under no root.
+    #[must_use]
+    pub fn entry(&self, i: u32) -> u32 {
+        self.entry[i as usize]
+    }
+
+    /// The instructions in preorder.
+    #[must_use]
+    pub fn preorder(&self) -> &[u32] {
+        &self.order
+    }
+
     /// The child of block `blk` whose subtree holds `j`, when `j` is
     /// strictly below `blk`: an interval test, then a binary search of
     /// the children, which are in preorder. O(log children).

@@ -112,9 +112,27 @@
       local.get $t3
       i32.eqz
       if
+        i32.const 8
+        i32.const -2147483647
+        call $rt:new/class-1
+        local.tee $provider0
+        local.get $t2
+        i32.load $heap offset=36
+        i32.store $heap
+        local.get $provider0
+        local.get $t2
+        i32.load $heap offset=40
+        i32.store $heap offset=4
+        local.get $t2
+        local.get $provider0
+        i32.store $heap offset=32
+      end
+      local.get $t3
+      i32.eqz
+      if
         local.get $t2
         i32.const 0
-        i32.store $heap offset=32
+        i32.store $heap offset=44
       end
       block
         block
@@ -143,38 +161,34 @@
             end
             i32.const 7
             local.set $provider1.vtable
-            i32.const 8
-            i32.const -2147483647
-            call $rt:new/class-1
-            local.tee $provider0
+            local.get $t2
+            i32.load $heap offset=32
             local.get $provider1.vtable
             i32.store $heap
-            local.get $provider0
+            local.get $t2
+            i32.load $heap offset=32
             i32.const 0
             i32.store $heap offset=4
             local.get $t2
-            local.get $provider0
-            i32.store $heap offset=40
-            local.get $t2
             i32.const 1
-            i32.store $heap offset=32
+            i32.store $heap offset=44
     ;; 29 |     a := total(text(1), nap!(first))
             i32.const 1
             call $text
             local.set $provider0
             local.get $t2
             local.get $provider0
-            i32.store $heap offset=48
+            i32.store $heap offset=56
             local.set $provider0
             local.get $t2
             local.get $provider0
-            i32.store $heap offset=44
+            i32.store $heap offset=52
             local.get $t2
             i64.load $heap
             local.set $first
             local.get $t2
             local.get $first
-            i64.store $heap offset=56
+            i64.store $heap offset=64
     ;; 28 |     defer(fn() -> void: println("cleanup"))
           end
     ;; 29 |     a := total(text(1), nap!(first))
@@ -202,7 +216,7 @@
               end
               local.get $provider0
               local.get $t2
-              i64.load $heap offset=56
+              i64.load $heap offset=64
               local.get $t2
               i32.load $heap offset=24
               local.get $t2
@@ -354,7 +368,7 @@
               end
             end
             local.get $t2
-            i32.load $heap offset=44
+            i32.load $heap offset=52
             local.tee $provider1.vtable
             if
               local.get $provider1.vtable
@@ -362,18 +376,18 @@
             end
             local.get $t2
             i32.const 0
-            i32.store $heap offset=44
+            i32.store $heap offset=52
             local.get $t2
             i32.const 0
-            i32.store $heap offset=48
+            i32.store $heap offset=56
             i32.const 1
             local.set $provider1.vtable
             br 2
           end
           local.get $t2
-          i32.load $heap offset=44
+          i32.load $heap offset=52
           local.get $t2
-          i32.load $heap offset=48
+          i32.load $heap offset=56
           local.get $provider1
           local.get $provider0.vtable
           call $total
@@ -383,7 +397,7 @@
             call $rt:release_ref'1
           end
           local.get $t2
-          i32.load $heap offset=44
+          i32.load $heap offset=52
           local.tee $provider0
           if
             local.get $provider0
@@ -391,31 +405,31 @@
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=44
+          i32.store $heap offset=52
           local.get $t2
           i32.const 0
-          i32.store $heap offset=48
+          i32.store $heap offset=56
     ;; 30 |     a + total(text(2), nap!(second))
           local.set $provider0
           local.get $t2
           local.get $provider0
-          i32.store $heap offset=64
+          i32.store $heap offset=72
           i32.const 2
           call $text
           local.set $provider0
           local.get $t2
           local.get $provider0
-          i32.store $heap offset=72
+          i32.store $heap offset=80
           local.set $provider0
           local.get $t2
           local.get $provider0
-          i32.store $heap offset=68
+          i32.store $heap offset=76
           local.get $t2
           i64.load $heap offset=8
           local.set $first
           local.get $t2
           local.get $first
-          i64.store $heap offset=80
+          i64.store $heap offset=88
     ;; 28 |     defer(fn() -> void: println("cleanup"))
         end
     ;; 30 |     a + total(text(2), nap!(second))
@@ -443,7 +457,7 @@
             end
             local.get $provider0
             local.get $t2
-            i64.load $heap offset=80
+            i64.load $heap offset=88
             local.get $t2
             i32.load $heap offset=24
             local.get $t2
@@ -593,7 +607,7 @@
             end
           end
           local.get $t2
-          i32.load $heap offset=68
+          i32.load $heap offset=76
           local.tee $provider1.vtable
           if
             local.get $provider1.vtable
@@ -601,18 +615,18 @@
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=68
+          i32.store $heap offset=76
           local.get $t2
           i32.const 0
-          i32.store $heap offset=72
+          i32.store $heap offset=80
           i32.const 1
           local.set $provider1.vtable
           br 1
         end
         local.get $t2
-        i32.load $heap offset=68
+        i32.load $heap offset=76
         local.get $t2
-        i32.load $heap offset=72
+        i32.load $heap offset=80
         local.get $provider1
         local.get $provider0.vtable
         call $total
@@ -623,7 +637,7 @@
           call $rt:release_ref'1
         end
         local.get $t2
-        i32.load $heap offset=68
+        i32.load $heap offset=76
         local.tee $provider0
         if
           local.get $provider0
@@ -631,50 +645,31 @@
         end
         local.get $t2
         i32.const 0
-        i32.store $heap offset=68
+        i32.store $heap offset=76
         local.get $t2
         i32.const 0
-        i32.store $heap offset=72
+        i32.store $heap offset=80
         local.get $t2
-        i32.load $heap offset=64
+        i32.load $heap offset=72
         local.get $provider1.vtable
         i32.add
         local.set $provider0
     ;; 28 |     defer(fn() -> void: println("cleanup"))
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=36
+        i32.store $heap offset=48
         i32.const 0
         local.set $provider1.vtable
       end
       local.get $t2
-      i32.load $heap offset=32
+      i32.load $heap offset=44
       if
         global.get $forbid
         i32.const 1
         i32.add
         global.set $forbid
         local.get $t2
-        i32.load $heap offset=40
-        i32.eqz
-        if
-          i32.const 8
-          i32.const -2147483647
-          call $rt:new/class-1
-          local.tee $provider0
-          local.get $t2
-          i32.load $heap offset=88
-          i32.store $heap
-          local.get $provider0
-          local.get $t2
-          i32.load $heap offset=92
-          i32.store $heap offset=4
-          local.get $t2
-          local.get $provider0
-          i32.store $heap offset=40
-        end
-        local.get $t2
-        i32.load $heap offset=40
+        i32.load $heap offset=32
         i32.const 1
         i32.const 0
         call $rt:ctx_new
@@ -719,7 +714,7 @@
         br 1
       end
       local.get $t2
-      i32.load $heap offset=40
+      i32.load $heap offset=32
       local.tee $provider0.vtable
       if
         local.get $provider0.vtable
@@ -735,13 +730,13 @@
       end
       local.get $t2
       i32.const 0
-      i32.store $heap offset=40
+      i32.store $heap offset=32
       local.get $t2
-      i32.load $heap offset=36
+      i32.load $heap offset=48
       local.set $provider0.vtable
     end
     local.get $t2
-    i32.load $heap offset=40
+    i32.load $heap offset=32
     local.tee $provider0
     if
       local.get $provider0

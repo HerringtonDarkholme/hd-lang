@@ -118,15 +118,18 @@
         i32.const 8
         i32.const 1
         call $rt:new/class-1
-        local.tee $provider0.vtable
-        local.get $provider0
-        i32.store $heap
-        local.get $provider0.vtable
-        local.get $n
-        i32.store $heap offset=4
+        local.set $provider0.vtable
         local.get $t2
         local.get $provider0.vtable
         i32.store $heap offset=12
+        local.get $t2
+        i32.load $heap offset=12
+        local.get $provider0
+        i32.store $heap
+        local.get $t2
+        i32.load $heap offset=12
+        local.get $n
+        i32.store $heap offset=4
     ;; 15 |     f := size(&text)
         local.get $t2
         i32.load $heap offset=12

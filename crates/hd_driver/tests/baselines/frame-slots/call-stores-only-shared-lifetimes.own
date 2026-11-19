@@ -36,25 +36,25 @@ fn non_storing(xs: List[string]) -> usize:
 > app/main/non_storing
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
     let mut out: List[&string] = []
->   %1 = NewList - [] : List[&string]
->   %2 = Store [$1] %1 : ()
->   %13 = Block %12 : usize
+>   %0 = Box #0 #255 : ()
+>   %2 = NewList - [] : List[&string]
+>   %3 = Box #1 #0 : ()
+>   %4 = Store [$1] %2 : ()
+>   %15 = Block %14 : usize
     size := push_len(&mut out, &xs)
->   %3 = Ref mut local frame [$1] : &mut List[&string]
->   %4 = Ref local frame promoted [$0] : &List[string]
->   %5 = Call app/main/push_len[] (%3, %4) : usize
->   %6 = LoanEnd [%4] : ()
->   %7 = LoanEnd [%3] : ()
->   %8 = Drop [$0] : ()
->   %3 finds [$1] full
+>   %5 = Ref mut local frame [$1] : &mut List[&string]
+>   %6 = Ref local frame promoted [$0] : &List[string]
+>   %7 = Call app/main/push_len[] (%5, %6) : usize
+>   %8 = LoanEnd [%6] : ()
+>   %9 = LoanEnd [%5] : ()
+>   %10 = Drop [$0] : ()
     size + out.len()
->   %9 = Read move [$1] : List[&string]
->   %10 = Intrinsic ListLen [%9] : usize
->   %11 = Drop [%9] : ()
->   %12 = Prim Add [%5 %10] : usize
->   %9 finds [$1] full
+>   %11 = Read move [$1] : List[&string]
+>   %12 = Intrinsic ListLen [%11] : usize
+>   %13 = Drop [%11] : ()
+>   %14 = Prim Add [%7 %12] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes
@@ -78,26 +78,25 @@ fn storing(xs: List[string]) -> usize:
 > app/main/storing
 >   local $0 xs: List[string] [param read] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %0 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     let mut out: List[&string] = []
 >   %1 = NewList - [] : List[&string]
->   %2 = Store [$1] %1 : ()
->   %14 = Block %11 : usize
+>   %2 = Box #1 #0 : ()
+>   %3 = Store [$1] %1 : ()
+>   %15 = Block %12 : usize
     remember(&mut out, &xs[0])
->   %3 = Ref mut local frame [$1] : &mut List[&string]
->   %4 = IsUnique [$0] : ()
->   %5 = Ref local [$0 [0:usize]] : &string
->   %6 = Call app/main/remember[] (%3, %5) : ()
->   %7 = LoanEnd [%5] : ()
->   %8 = LoanEnd [%3] : ()
->   %3 finds [$1] full
+>   %4 = Ref mut local frame [$1] : &mut List[&string]
+>   %5 = IsUnique [$0] : ()
+>   %6 = Ref local [$0 [0:usize]] : &string
+>   %7 = Call app/main/remember[] (%4, %6) : ()
+>   %8 = LoanEnd [%6] : ()
+>   %9 = LoanEnd [%4] : ()
     out[0].len()
->   %9 = Read copy [$1 [0:usize]] : &string
->   %10 = Drop [$1] : ()
->   %11 = Call std/text/impl string.len[] (%9) : usize
->   %12 = Drop [%9] : ()
->   %13 = Drop [$0] : ()
->   %9 finds [$1] full
+>   %10 = Read copy [$1 [0:usize]] : &string
+>   %11 = Drop [$1] : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = Drop [%10] : ()
+>   %14 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes

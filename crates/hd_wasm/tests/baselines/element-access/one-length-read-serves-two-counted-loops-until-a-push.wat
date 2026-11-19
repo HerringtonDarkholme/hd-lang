@@ -72,8 +72,8 @@
     local.tee $xs
     local.get $t1
     i32.store $heap
-    local.get $xs
     ;; 21 |     println(total(&mut xs))
+    local.get $xs
     call $total
     local.set $t2
     local.get $xs

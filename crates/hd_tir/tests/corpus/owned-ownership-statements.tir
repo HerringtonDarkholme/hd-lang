@@ -6,11 +6,12 @@ sub 5 0 1 - 0
 labels
 caps
 modes
-extra 5 0 1 2 3 4
+extra 6 5 0 1 2 3 4
 exitdrop 0 1
 %0 = Read 2147483648 3 : 4 @-
 %1 = Read 2147483649 1 : 4 @-
 %2 = IsUnique 2147483649 0 : 4 @-
 %3 = Read 2147483648 2 : 4 @-
 %4 = Drop 2147483649 - : 4 @-
-%5 = Block 0 - : 4 @-
+%5 = Box 0 1 : 4 @-
+%6 = Block 0 - : 4 @-

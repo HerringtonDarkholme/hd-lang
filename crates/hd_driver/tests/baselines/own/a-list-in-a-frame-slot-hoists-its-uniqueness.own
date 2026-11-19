@@ -25,70 +25,66 @@ fn fill(n: usize) -> u64:
     let mut xs: List[u32] = []
 > app/main/fill
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %3 consume, %38 lend last
+>     uses $0: entry -> %4 consume, %39 lend last
 >   local $1 xs: List[u32] [read assigned captured captured-assigned] place
 >   local $2 state: u32 [read assigned mutated] place
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %8 -> %13 lend
+>     uses $4: %9 -> %14 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   %0 = NewList - [] : List[u32]
->   %1 = Store [$1] %0 : ()
->   %44 = Block %43 : u64
+>   %1 = Box #1 #0 : ()
+>   %2 = Store [$1] %0 : ()
+>   %45 = Block %44 : u64
     let state = u32(0xC0FFEE)
->   %2 = Store [$2] 12648430:u32 : ()
+>   %3 = Store [$2] 12648430:u32 : ()
     for _ in 0..n:
->   %3 = Read copy [$0] : usize
->   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
->   %5 = Read copy [%4 .start] : usize
->   %6 = Store [$3] %5 : ()
->   %7 = Read copy [%4 .end] : usize
->   %8 = Store [$4] %7 : ()
->   %9 = Read copy [%4 .inclusive] : bool
->   %10 = Store [$5] %9 : ()
->   %11 = IsUnique hoisted [$1] : ()
->   %12 = Read copy [$3] : usize
->   %13 = Read copy [$4] : usize
->   %14 = Prim Lt [%12 %13] : bool
->   %15 = Read copy [$3] : usize
+>   %4 = Read copy [$0] : usize
+>   %5 = NewStruct [0:usize %4 0:bool] : Range[usize]
+>   %6 = Read copy [%5 .start] : usize
+>   %7 = Store [$3] %6 : ()
+>   %8 = Read copy [%5 .end] : usize
+>   %9 = Store [$4] %8 : ()
+>   %10 = Read copy [%5 .inclusive] : bool
+>   %11 = Store [$5] %10 : ()
+>   %12 = IsUnique hoisted [$1] : ()
+>   %13 = Read copy [$3] : usize
+>   %14 = Read copy [$4] : usize
+>   %15 = Prim Lt [%13 %14] : bool
 >   %16 = Read copy [$3] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$3] %17 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %14 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %31 finds [$1] full
+>   %17 = Read copy [$3] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$3] %18 : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %15 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
         state = state * 1664525 + 1013904223
->   %19 = Read copy [$2] : u32
->   %20 = Prim Mul [%19 1664525:u32] : u32
->   %21 = Prim Add [%20 1013904223:u32] : u32
->   %22 = Store [$2] %21 : ()
+>   %20 = Read copy [$2] : u32
+>   %21 = Prim Mul [%20 1664525:u32] : u32
+>   %22 = Prim Add [%21 1013904223:u32] : u32
+>   %23 = Store [$2] %22 : ()
         xs.push(state)
->   %23 = Read copy [$2] : u32
->   %24 = Read borrow [$1] : List[u32]
->   %25 = Intrinsic ListPush [%24 %23] : ()
->   %24 finds [$1] full
+>   %24 = Read copy [$2] : u32
+>   %25 = Read borrow [$1] : List[u32]
+>   %26 = Intrinsic ListPush [%25 %24] : ()
     touch(&mut xs)
->   %32 = Ref mut local frame [$1] : &mut List[u32]
->   %33 = Call app/main/touch[] (%32) : ()
->   %34 = LoanEnd [%32] : ()
->   %32 finds [$1] full
+>   %33 = Ref mut local frame [$1] : &mut List[u32]
+>   %34 = Call app/main/touch[] (%33) : ()
+>   %35 = LoanEnd [%33] : ()
     u64(xs.len()) + u64(xs[n / 2])
->   %35 = Read borrow [$1] : List[u32]
->   %36 = Intrinsic ListLen [%35] : usize
->   %37 = Prim Conv [%36] : u64
->   %38 = Read copy [$0] : usize
->   %39 = Prim Div [%38 2:usize] : usize
->   %40 = Read copy [$1 [%39]] : u32
->   %41 = Drop [$1] : ()
->   %42 = Prim Conv [%40] : u64
->   %43 = Prim Add [%37 %42] : u64
->   %35 finds [$1] full
->   %40 finds [$1] full
+>   %36 = Read borrow [$1] : List[u32]
+>   %37 = Intrinsic ListLen [%36] : usize
+>   %38 = Prim Conv [%37] : u64
+>   %39 = Read copy [$0] : usize
+>   %40 = Prim Div [%39 2:usize] : usize
+>   %41 = Read copy [$1 [%40]] : u32
+>   %42 = Drop [$1] : ()
+>   %43 = Prim Conv [%41] : u64
+>   %44 = Prim Add [%38 %43] : u64
 >   storage sub 0: $1 slot
 >   summary kept [] writes
 
@@ -96,59 +92,55 @@ fn touch_each(n: usize) -> usize:
     let mut xs: List[u32] = []
 > app/main/touch_each
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %3 consume last
 >   local $1 xs: List[u32] [read assigned captured captured-assigned] place
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
->     uses $3: %7 -> %11 lend
+>     uses $3: %8 -> %12 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 i: usize [read assigned] value
->     uses $5: %14 -> %18 lend last
+>     uses $5: %15 -> %19 lend last
 >   %0 = NewList - [] : List[u32]
->   %1 = Store [$1] %0 : ()
->   %35 = Block %33 : usize
+>   %1 = Box #1 #0 : ()
+>   %2 = Store [$1] %0 : ()
+>   %36 = Block %34 : usize
     for i in 0..n:
->   %2 = Read copy [$0] : usize
->   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
->   %4 = Read copy [%3 .start] : usize
->   %5 = Store [$2] %4 : ()
->   %6 = Read copy [%3 .end] : usize
->   %7 = Store [$3] %6 : ()
->   %8 = Read copy [%3 .inclusive] : bool
->   %9 = Store [$4] %8 : ()
->   %10 = Read copy [$2] : usize
->   %11 = Read copy [$3] : usize
->   %12 = Prim Lt [%10 %11] : bool
->   %13 = Read copy [$2] : usize
->   %14 = Store [$5] %13 : ()
->   %15 = Read copy [$2] : usize
->   %16 = Prim Add [%15 1:usize] : usize
->   %17 = Store [$2] %16 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %12 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
->   %31 finds [$1] full
+>   %3 = Read copy [$0] : usize
+>   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
+>   %5 = Read copy [%4 .start] : usize
+>   %6 = Store [$2] %5 : ()
+>   %7 = Read copy [%4 .end] : usize
+>   %8 = Store [$3] %7 : ()
+>   %9 = Read copy [%4 .inclusive] : bool
+>   %10 = Store [$4] %9 : ()
+>   %11 = Read copy [$2] : usize
+>   %12 = Read copy [$3] : usize
+>   %13 = Prim Lt [%11 %12] : bool
+>   %14 = Read copy [$2] : usize
+>   %15 = Store [$5] %14 : ()
+>   %16 = Read copy [$2] : usize
+>   %17 = Prim Add [%16 1:usize] : usize
+>   %18 = Store [$2] %17 : ()
+>   %27 = Block - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %13 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
         xs.push(u32(i))
->   %18 = Read copy [$5] : usize
->   %19 = Prim Conv [%18] : u32
->   %20 = IsUnique [$1] : ()
->   %21 = Read borrow [$1] : List[u32]
->   %22 = Intrinsic ListPush [%21 %19] : ()
->   %20 finds [$1] full
->   %21 finds [$1] full
+>   %19 = Read copy [$5] : usize
+>   %20 = Prim Conv [%19] : u32
+>   %21 = IsUnique [$1] : ()
+>   %22 = Read borrow [$1] : List[u32]
+>   %23 = Intrinsic ListPush [%22 %20] : ()
         touch(&mut xs)
->   %23 = Ref mut local frame [$1] : &mut List[u32]
->   %24 = Call app/main/touch[] (%23) : ()
->   %25 = LoanEnd [%23] : ()
->   %23 finds [$1] full
+>   %24 = Ref mut local frame [$1] : &mut List[u32]
+>   %25 = Call app/main/touch[] (%24) : ()
+>   %26 = LoanEnd [%24] : ()
     xs.len()
->   %32 = Read move [$1] : List[u32]
->   %33 = Intrinsic ListLen [%32] : usize
->   %34 = Drop [%32] : ()
->   %32 finds [$1] full
+>   %33 = Read move [$1] : List[u32]
+>   %34 = Intrinsic ListLen [%33] : usize
+>   %35 = Drop [%33] : ()
 >   storage sub 0: $1 slot
 >   summary kept [] writes

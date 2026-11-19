@@ -153,63 +153,61 @@ fn addressed(n: usize) -> usize:
     let xs: List[usize] = [1, 2, 3]
 > app/main/addressed
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %3 lend, %7 consume last
+>     uses $0: entry -> %4 lend, %8 consume last
 >   local $1 xs: List[usize] [read assigned captured] place
 >   local $2 s: usize [read assigned mutated] place
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %12 -> %16 lend
+>     uses $4: %13 -> %17 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 i: usize [read assigned] value
->     uses $6: %19 -> %24 lend last
+>     uses $6: %20 -> %25 lend last
 >   %0 = NewList - [1:usize 2:usize 3:usize] : List[usize]
->   %1 = Store [$1] %0 : ()
->   %36 = Block %35 : usize
+>   %1 = Box #1 #0 : ()
+>   %2 = Store [$1] %0 : ()
+>   %37 = Block %36 : usize
     let s: usize = size(&xs, n)
->   %2 = Ref local frame [$1] : &List[usize]
->   %3 = Read copy [$0] : usize
->   %4 = Call app/main/size[] (%2, %3) : usize
->   %5 = LoanEnd [%2] : ()
->   %6 = Store [$2] %4 : ()
->   %2 finds [$1] full
+>   %3 = Ref local frame [$1] : &List[usize]
+>   %4 = Read copy [$0] : usize
+>   %5 = Call app/main/size[] (%3, %4) : usize
+>   %6 = LoanEnd [%3] : ()
+>   %7 = Store [$2] %5 : ()
     for i in 0..n:
->   %7 = Read copy [$0] : usize
->   %8 = NewStruct [0:usize %7 0:bool] : Range[usize]
->   %9 = Read copy [%8 .start] : usize
->   %10 = Store [$3] %9 : ()
->   %11 = Read copy [%8 .end] : usize
->   %12 = Store [$4] %11 : ()
->   %13 = Read copy [%8 .inclusive] : bool
->   %14 = Store [$5] %13 : ()
->   %15 = Read copy [$3] : usize
->   %16 = Read copy [$4] : usize
->   %17 = Prim Lt [%15 %16] : bool
->   %18 = Read copy [$3] : usize
->   %19 = Store [$6] %18 : ()
->   %20 = Read copy [$3] : usize
->   %21 = Prim Add [%20 1:usize] : usize
->   %22 = Store [$3] %21 : ()
->   %28 = Block - : ()
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %17 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
->   %34 = Drop [$1] : ()
->   %33 finds [$1] full
+>   %8 = Read copy [$0] : usize
+>   %9 = NewStruct [0:usize %8 0:bool] : Range[usize]
+>   %10 = Read copy [%9 .start] : usize
+>   %11 = Store [$3] %10 : ()
+>   %12 = Read copy [%9 .end] : usize
+>   %13 = Store [$4] %12 : ()
+>   %14 = Read copy [%9 .inclusive] : bool
+>   %15 = Store [$5] %14 : ()
+>   %16 = Read copy [$3] : usize
+>   %17 = Read copy [$4] : usize
+>   %18 = Prim Lt [%16 %17] : bool
+>   %19 = Read copy [$3] : usize
+>   %20 = Store [$6] %19 : ()
+>   %21 = Read copy [$3] : usize
+>   %22 = Prim Add [%21 1:usize] : usize
+>   %23 = Store [$3] %22 : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %18 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
+>   %35 = Drop [$1] : ()
         s = s + xs[i]
->   %23 = Read copy [$2] : usize
->   %24 = Read copy [$6] : usize
->   %25 = Read copy [$1 [%24]] : usize
->   %26 = Prim Add [%23 %25] : usize
->   %27 = Store [$2] %26 : ()
->   %25 finds [$1] full
+>   %24 = Read copy [$2] : usize
+>   %25 = Read copy [$6] : usize
+>   %26 = Read copy [$1 [%25]] : usize
+>   %27 = Prim Add [%24 %26] : usize
+>   %28 = Store [$2] %27 : ()
     s
->   %35 = Read copy [$2] : usize
+>   %36 = Read copy [$2] : usize
 >   storage sub 0: $1 slot
 >   summary kept []
->   loop %33 keeps [$1] (%5..%34)
+>   loop %34 keeps [$1] (%6..%35)
 
 fn by_value(xs: List[i64]) -> i64:
 > app/main/by_value
@@ -410,55 +408,53 @@ pub fn main() -> void $ Console:
 >   local $1 ns: List[string] [read assigned captured captured-assigned] place
 >   local $2 h: Holder [:= read assigned captured] place
 >   %0 = NewList - [1:i64 2:i64 3:i64] : List[i64]
->   %1 = Store [$0] %0 : ()
->   %36 = Block - : ()
+>   %1 = Box #0 #0 : ()
+>   %2 = Store [$0] %0 : ()
+>   %20 = Box #1 #0 : ()
+>   %32 = Box #2 #0 : ()
+>   %39 = Block - : ()
     println(twice(&mut xs))
->   %2 = Ref mut local frame [$0] : &mut List[i64]
->   %3 = Call app/main/twice[] (%2) : i64
->   %4 = LoanEnd [%2] : ()
->   %5 = Call std/console/println[i64] (%3) : ()
->   %2 finds [$0] full
+>   %3 = Ref mut local frame [$0] : &mut List[i64]
+>   %4 = Call app/main/twice[] (%3) : i64
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Call std/console/println[i64] (%4) : ()
     bump(&mut xs)
->   %6 = Ref mut local frame [$0] : &mut List[i64]
->   %7 = Call app/main/bump[] (%6) : ()
->   %8 = LoanEnd [%6] : ()
->   %9 = Drop [$0] : ()
->   %6 finds [$0] full
+>   %7 = Ref mut local frame [$0] : &mut List[i64]
+>   %8 = Call app/main/bump[] (%7) : ()
+>   %9 = LoanEnd [%7] : ()
+>   %10 = Drop [$0] : ()
     println(addressed(2))
->   %10 = Call app/main/addressed[] (2:usize) : usize
->   %11 = Call std/console/println[usize] (%10) : ()
+>   %11 = Call app/main/addressed[] (2:usize) : usize
+>   %12 = Call std/console/println[usize] (%11) : ()
     println(by_value([7, 8]))
->   %12 = NewList - [7:i64 8:i64] : List[i64]
->   %13 = Call app/main/by_value[] (%12) : i64
->   %14 = Retain %13 Operation operand 0 #0 : ()
->   %15 = Drop [%12] : ()
->   %16 = Call std/console/println[i64] (%13) : ()
+>   %13 = NewList - [7:i64 8:i64] : List[i64]
+>   %14 = Call app/main/by_value[] (%13) : i64
+>   %15 = Retain %14 Operation operand 0 #0 : ()
+>   %16 = Drop [%13] : ()
+>   %17 = Call std/console/println[i64] (%14) : ()
     let mut ns = ["a", "b"]
->   %17 = Coerce "a" [Identity -] : string
->   %18 = NewList - [%17 "b"] : List[string]
->   %19 = Store [$1] %18 : ()
+>   %18 = Coerce "a" [Identity -] : string
+>   %19 = NewList - [%18 "b"] : List[string]
+>   %21 = Store [$1] %19 : ()
     names(&mut ns)
->   %20 = Ref mut local frame [$1] : &mut List[string]
->   %21 = Call app/main/names[] (%20) : ()
->   %22 = LoanEnd [%20] : ()
->   %20 finds [$1] full
+>   %22 = Ref mut local frame [$1] : &mut List[string]
+>   %23 = Call app/main/names[] (%22) : ()
+>   %24 = LoanEnd [%22] : ()
     println(ns[0])
->   %23 = Read copy [$1 [0:usize]] : string
->   %24 = Drop [$1] : ()
->   %25 = Call std/console/println[string] (%23) : ()
->   %26 = Retain %25 Operation operand 0 #0 : ()
->   %27 = Drop [%23] : ()
->   %23 finds [$1] full
+>   %25 = Read copy [$1 [0:usize]] : string
+>   %26 = Drop [$1] : ()
+>   %27 = Call std/console/println[string] (%25) : ()
+>   %28 = Retain %27 Operation operand 0 #0 : ()
+>   %29 = Drop [%25] : ()
     h := Holder { xs: [4, 5] }
->   %28 = NewList - [4:i32 5:i32] : List[i32]
->   %29 = NewStruct [%28] : Holder
->   %30 = Store [$2] %29 : ()
+>   %30 = NewList - [4:i32 5:i32] : List[i32]
+>   %31 = NewStruct [%30] : Holder
+>   %33 = Store [$2] %31 : ()
     println(field(&h))
->   %31 = Ref local frame [$2] : &Holder
->   %32 = Call app/main/field[] (%31) : i32
->   %33 = LoanEnd [%31] : ()
->   %34 = Drop [$2] : ()
->   %35 = Call std/console/println[i32] (%32) : ()
->   %31 finds [$2] full
+>   %34 = Ref local frame [$2] : &Holder
+>   %35 = Call app/main/field[] (%34) : i32
+>   %36 = LoanEnd [%34] : ()
+>   %37 = Drop [$2] : ()
+>   %38 = Call std/console/println[i32] (%35) : ()
 >   storage sub 0: $0 slot, $1 slot, $2 slot
 >   summary kept [] writes

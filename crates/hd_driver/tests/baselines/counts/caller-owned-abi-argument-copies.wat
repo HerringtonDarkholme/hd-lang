@@ -11,7 +11,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "impl[S] Source[S] for Seeds.member[(string, i32), i32]" (func $"impl[S] Source[S] for Seeds.member[(string, i32), i32]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl[S] Describer[S] for Layout.member[(string, i32), string]" (param $self i32) (param $h i32) (local $t5 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
+  (func $"impl[S] Describer[S] for Layout.member[(string, i32), string]" (param $self i32) (param $h i32) (local $s i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
     i64.const 7
@@ -54,7 +54,7 @@
       local.get $t2
       call $rt:release_ref
     end
-    local.get $t5
+    local.get $s
     local.get $h
     local.get $t3
     local.get $t0
@@ -66,9 +66,10 @@
     call $rt:release
     ;; ...
   )
-  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32)
+  (func $"impl[S] Describer[S] for Layout.member[(string, i32), i32]" (param $self i32) (param $h i32) (local $s i32)
     ;; ...
     ;; 50 |         match s.member(h, .Some(F::seed(7))):
+    local.get $s
     local.get $h
     i32.const 1
     i32.const 7

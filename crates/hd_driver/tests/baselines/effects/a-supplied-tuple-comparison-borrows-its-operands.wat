@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ordered (param $right i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $left i32)
+  (func $ordered (param $right i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $left i32) (local $t0 i32)
     ;; 6 |     left > right
     global.get $locals
     global.get $locals_base
@@ -81,7 +81,7 @@
     i32.add
     global.set $locals
   )
-  (func $nested (param $right i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $t6 i32) (param $t7 i64) (param $t8 i32) (param $t9 i32) (result i32) (local $t0 i32) (local $left i32)
+  (func $nested (param $right i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i32) (param $t6 i32) (param $t7 i64) (param $t8 i32) (param $t9 i32) (result i32) (local $left i32) (local $t0 i32)
     ;; 9 |     left <= right
     global.get $locals
     global.get $locals_base

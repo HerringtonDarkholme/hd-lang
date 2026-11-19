@@ -15,7 +15,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replaced (param $ps i32) (result i32) (local $t0 i32) (local $k i32) (local $d i32) (local $p i32) (local $q i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $junk.0 i32) (local $junk.1 i32)
+  (func $replaced (param $ps i32) (result i32) (local $k i32) (local $t0 i32) (local $d i32) (local $p i32) (local $q i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $junk.0 i32) (local $junk.1 i32)
     ;; 14 |     p := make(k)
     global.get $locals
     global.get $locals_base
@@ -88,6 +88,7 @@
     call $make
     local.set $ps
     local.set $d
+    ;; 14 |     p := make(k)
     local.get $t0
     i64.const 0
     i64.store $heap offset=32
@@ -95,6 +96,7 @@
     i32.const 40
     i32.add
     local.tee $q
+    ;; 15 |     q := make(k + 1)
     local.get $d
     i32.store $heap
     local.get $q

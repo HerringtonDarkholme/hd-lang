@@ -26,7 +26,7 @@
     i32.const 4
     i32.add
   )
-  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $p i32)
+  (func $use_pup (param $t1 i32) (param $t2 i32) (result i32) (local $p i32) (local $t0 i32)
     ;; 35 |     widen(&p) + loud(p)
     global.get $locals
     global.get $locals_base

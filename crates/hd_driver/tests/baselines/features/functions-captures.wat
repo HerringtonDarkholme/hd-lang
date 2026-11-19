@@ -121,7 +121,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 22 |     let n: usize = 0
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -129,10 +128,11 @@
     i32.const 8
     i32.add
     local.tee $n
+    ;; 22 |     let n: usize = 0
     i32.const 0
     i32.store $heap
-    local.get $n
     ;; 26 |     again()
+    local.get $n
     local.get $n
     i32.load $heap
     local.get $s.1
@@ -184,7 +184,6 @@
     i32.sub
     local.tee $t0
     global.set $locals
-    ;; 15 |     let mut xs: List[string] = []
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -192,6 +191,7 @@
     i32.const 8
     i32.add
     local.tee $xs
+    ;; 15 |     let mut xs: List[string] = []
     i32.const 80 ;; &empty-buffer
     i32.store $heap
     ;; 16 |     add := fn() -> void: xs.push(s)

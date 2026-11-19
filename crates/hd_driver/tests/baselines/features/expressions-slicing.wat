@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $list_full (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
+  (func $list_full (param $t1 i32) (result i32) (local $xs i32) (local $t0 i32)
     ;; 17 |     xs.slice(0, xs.len())
     global.get $locals
     global.get $locals_base
@@ -60,7 +60,7 @@
     i32.add
     global.set $locals
   )
-  (func $list_slice_len (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
+  (func $list_slice_len (param $t1 i32) (result i32) (local $xs i32) (local $t0 i32)
     ;; 20 |     xs.slice(0, 2).len()
     global.get $locals
     global.get $locals_base
@@ -145,7 +145,7 @@
     end
     local.get $s.0
   )
-  (func $list_slice (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32)
+  (func $list_slice (param $t1 i32) (result i32) (local $xs i32) (local $t0 i32)
     ;; 14 |     xs.slice(1, xs.len())
     global.get $locals
     global.get $locals_base

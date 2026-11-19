@@ -12,11 +12,12 @@ fn eat(xs: UniqList[string]) -> usize:
     xs.len()
 > app/main/eat
 >   local $0 xs: UniqList[string] [param read captured] place
->   %0 = Ref local frame [$0] : &UniqList[string]
->   %1 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%0) : usize
->   %2 = LoanEnd [%0] : ()
->   %3 = Drop [$0] : ()
->   %4 = Block %1 : usize
+>   %0 = Box #0 #0 : ()
+>   %1 = Ref local frame [$0] : &UniqList[string]
+>   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%1) : usize
+>   %3 = LoanEnd [%1] : ()
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -24,16 +25,17 @@ fn split(p: Pair) -> usize:
     eat(p.a) + p.b.len()
 > app/main/split
 >   local $0 p: Pair [param read captured] place
->   %0 = FlagSet [$0] #1 : ()
->   %1 = FlagSet [$0 .a] #2 : ()
->   %2 = FlagClear [$0 .a] #2 : ()
->   %3 = Read move [$0 .a] : UniqList[string]
->   %4 = Call app/main/eat[] (%3) : usize
->   %5 = Ref local frame [$0 .b] : &UniqList[string]
->   %6 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%5) : usize
->   %7 = LoanEnd [%5] : ()
->   %8 = Drop [$0] : ()
->   %9 = Prim Add [%4 %6] : usize
->   %10 = Block %9 : usize
+>   %0 = Box #0 #0 : ()
+>   %1 = FlagSet [$0] #1 : ()
+>   %2 = FlagSet [$0 .a] #2 : ()
+>   %3 = FlagClear [$0 .a] #2 : ()
+>   %4 = Read move [$0 .a] : UniqList[string]
+>   %5 = Call app/main/eat[] (%4) : usize
+>   %6 = Ref local frame [$0 .b] : &UniqList[string]
+>   %7 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%6) : usize
+>   %8 = LoanEnd [%6] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Prim Add [%5 %7] : usize
+>   %11 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot

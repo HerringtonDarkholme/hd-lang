@@ -169,7 +169,7 @@
     local.get $text.0
     local.get $text.1
   )
-  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t7 i32) (local $t6 i32) (local $t0 i32) (local $limit i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
+  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t7 i32) (local $t6 i32) (local $limit i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
     ;; 15 |     "$first $second $limit"
     global.get $locals
     global.get $locals_base

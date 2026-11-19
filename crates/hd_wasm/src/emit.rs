@@ -218,7 +218,7 @@ fn body_func<'a>(
         .iter()
         .map(|&(l, _)| {
             crate::work::use_facts(1);
-            (l.idx(), facts.cell_stores[&l.idx()])
+            (l.idx(), facts.cell_stores[l.idx()])
         })
         .collect();
     let mut em = Em::new(input, m, b, item, targets, cells, (sub, boundary, facts));
@@ -432,12 +432,6 @@ fn body_func<'a>(
         em.load_captures(ci, u32::from(suspending), own.key)?;
         if suspending {
             em.f.op(Instruction::End);
-        } else {
-            em.entry_cells.extend(
-                closure::captures(b, ci, &em.recursive_bindings)
-                    .into_iter()
-                    .filter_map(|(l, shared)| shared.then_some(l)),
-            );
         }
     }
     // Once-cells also need the common exit when their result is uncounted:
@@ -568,16 +562,17 @@ fn body_func<'a>(
         }
     }
     // A parameter a closure shares, or a reference refers to, moves into
-    // its cell or its frame slot, which takes over its count.
-    for (l, ls) in &held {
-        if em.parameter_positions.contains_key(l) && em.is_cell(*l) {
-            ledger!("param/moved-into-cell-at-entry");
-            em.param_cell(*l, ls)?;
-            // Only a store can follow what empties a parameter's cell, and
-            // that store finds no cell (`Em::cell_of`).
-            if !em.whole_local_stored(*l) {
-                em.entry_cells.insert(*l);
-            }
+    // the cell or frame slot its `Box` at the root names, which takes over
+    // its count: here, so a suspending body's cold constructor finds it.
+    let root = b.sub_root[usize::from(sub)] as usize;
+    for &x in b.record(b.data[root][0]) {
+        let [l, w] = b.data[x as usize];
+        if b.tags[x as usize] == Tag::Box
+            && b.local_flags[l as usize] & hd_tir::ir::local_flags::PARAM != 0
+            && Storage::from_word(w).is_some()
+        {
+            let ls = em.locals[&(l as usize)].clone();
+            em.param_cell(l as usize, &ls)?;
         }
     }
     if suspending {
@@ -1443,10 +1438,6 @@ struct Em<'i, 'a, 'm> {
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
-    /// The cell locals whose cell the prologue made or received, and that
-    /// nothing stores into again: a parameter moved into its cell, a
-    /// closure's shared capture (`closure.rs`, [`Em::cell_made`]).
-    entry_cells: hd_base::HashSet<usize>,
     /// The Wasm locals a parameter arrived in, for each one that moved
     /// into its cell: a suspending body's cold constructor makes the cell
     /// from them (`susp::finish`).
@@ -1646,7 +1637,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             susp: None,
             shield: 0,
             cells: shared,
-            entry_cells: hd_base::HashSet::default(),
             param_vals: HashMap::default(),
             slots: HashMap::default(),
             static_cells: hd_base::HashSet::default(),
@@ -2542,6 +2532,7 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::FlagSet | Tag::FlagClear => self.flag_statement(i)?,
+            Tag::Box => self.box_statement(i)?,
             Tag::IsUnique if self.short_skips.contains(&i) => {}
             Tag::IsUnique => self.own_unique(i)?,
             // Places (`emit/refs.rs`).

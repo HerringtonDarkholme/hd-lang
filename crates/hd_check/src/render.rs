@@ -512,17 +512,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let _ = writeln!(o, "  cancel %{at} releases [{}]", values.join(" "));
         }
     }
-    // Known-null's cells made before use (`Body::full_cells`), per
-    // instruction.
-    let mut rows = b.full_cells.iter().peekable();
-    while let Some(&(at, l)) = rows.next() {
-        let mut locals = vec![format!("${l}")];
-        while let Some(&&(_, l)) = rows.peek().filter(|r| r.0 == at) {
-            locals.push(format!("${l}"));
-            rows.next();
-        }
-        let _ = writeln!(o, "  %{at} finds [{}] full", locals.join(" "));
-    }
     // The hoisting pass's stable list places, per loop, each with its
     // region: the changes before and after the loop that bound it
     // (`Body::stable_lists`).

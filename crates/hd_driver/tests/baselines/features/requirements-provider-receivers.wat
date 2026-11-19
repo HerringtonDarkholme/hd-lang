@@ -15,57 +15,57 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 10 funcref))
-  (func $run (param $n i64) (result i64) (local $counters i32) (local $t0 i32)
+  (func $run (param $n i64) (result i64) (local $t0 i32) (local $t1 i32)
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
     i32.const 16
     i32.const 0
     call $rt:new/class-2
-    local.tee $counters
+    local.tee $t0
     i32.const 0
     i32.store $heap offset=8
-    local.get $counters
+    local.get $t0
     i64.const 0
     i64.store $heap
-    local.get $counters
+    local.get $t0
     ;; 31 |     $.with(Meter=counters):
-    local.tee $t0
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $t1
         call $rt:retain_known
       end
     end
     ;; 32 |         count(n)
     local.get $n
     ;; 31 |     $.with(Meter=counters):
-    local.get $t0
+    local.get $t1
     i32.const 328 ;; &vtable[rt:dyn_slot]
     ;; 32 |         count(n)
     call $count
     ;; 31 |     $.with(Meter=counters):
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref'1
     end
     ;; 33 |     counters.total
-    local.get $counters
+    local.get $t0
     i64.load $heap
     ;; 30 |     counters := box(Counters { calls: 0, total: 0 })
-    local.get $counters
+    local.get $t0
     if
-      local.get $counters
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $counters
+        local.get $t0
         call $rt:release_ref'2
       end
     end

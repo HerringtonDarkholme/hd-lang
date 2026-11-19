@@ -40,32 +40,32 @@ fn run!() -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 c: Counter [read assigned captured captured-assigned] place
->   %0 = Release %8 FrameDrop child #2 : ()
+>   %0 = Release %9 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i32 "a"] : Counter
->   %2 = Store [$0] %1 : ()
->   %8 = Block - : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Store [$0] %1 : ()
+>   %9 = Block - : ()
     bump!(&mut c)
->   %3 = Ref mut local [$0] : &mut Counter
->   %4 = Await app/main/bump[] (%3) : ()
->   %5 = Release %4 Operation child #2 : ()
->   %6 = LoanEnd [%3] : ()
->   %7 = Drop [$0] : ()
->   %3 finds [$0] full
+>   %4 = Ref mut local [$0] : &mut Counter
+>   %5 = Await app/main/bump[] (%4) : ()
+>   %6 = Release %5 Operation child #2 : ()
+>   %7 = LoanEnd [%4] : ()
+>   %8 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
->   cancel %4 releases [%3]
+>   cancel %5 releases [%4]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/fresh
 >   local $0 c: Counter [read assigned captured captured-assigned] place
 >   %0 = NewStruct [0:i32 "a"] : Counter
->   %1 = Store [$0] %0 : ()
->   %6 = Block - : ()
+>   %1 = Box #0 #0 : ()
+>   %2 = Store [$0] %0 : ()
+>   %7 = Block - : ()
     tick(&mut c)
->   %2 = Ref mut local frame [$0] : &mut Counter
->   %3 = Call app/main/tick[] (%2) : ()
->   %4 = LoanEnd [%2] : ()
->   %5 = Drop [$0] : ()
->   %2 finds [$0] full
+>   %3 = Ref mut local frame [$0] : &mut Counter
+>   %4 = Call app/main/tick[] (%3) : ()
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Drop [$0] : ()
 >   storage sub 0: $0 slot

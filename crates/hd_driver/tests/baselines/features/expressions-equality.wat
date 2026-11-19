@@ -8,7 +8,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $opt_some (param $t1 i32) (param $t2 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $o i32)
+  (func $opt_some (param $t1 i32) (param $t2 i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $o i32) (local $t0 i32)
     ;; 24 |     o == .Some(s)
     global.get $locals
     global.get $locals_base
@@ -77,7 +77,7 @@
     local.get $b
     call $"impl[K < Eq & Hash, V < Eq] Eq for Map[K, V].eq[string, string]"
   )
-  (func $list_ne (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $list_ne (param $b i32) (param $t1 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 15 |     a != b
     global.get $locals
     global.get $locals_base
@@ -143,7 +143,7 @@
     local.get $b.1
     call $rt:str_eq
   )
-  (func $rec_eq (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $rec_eq (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 18 |     a == b
     global.get $locals
     global.get $locals_base
@@ -212,7 +212,7 @@
     i32.add
     global.set $locals
   )
-  (func $opt_none (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $o i32) (local $t3 i32)
+  (func $opt_none (param $t1 i32) (param $t2 i32) (result i32) (local $o i32) (local $t0 i32) (local $t3 i32)
     ;; 21 |     o == .None
     global.get $locals
     global.get $locals_base

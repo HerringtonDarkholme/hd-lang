@@ -174,8 +174,8 @@
     local.tee $items
     local.get $t1
     i32.store $heap
-    local.get $items
     ;; 45 |     shared := items
+    local.get $items
     i32.load $heap
     call $rt:coll_copy
     local.set $shared
@@ -237,6 +237,7 @@
     i64.const 1
     call $rt:map_put
     local.set $t2
+    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -244,6 +245,7 @@
     i32.const 24
     i32.add
     local.tee $o
+    ;; 48 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
     local.get $t1
     i32.store $heap
     local.get $o
@@ -258,10 +260,9 @@
     local.get $o
     i32.const 1
     i32.store $heap offset=16
-    local.get $o
     ;; 49 |     field(&mut o)
-    local.tee $t1
-    local.get $t1
+    local.get $o
+    local.get $o
     i32.load $heap offset=8
     i32.const 1
     i32.add

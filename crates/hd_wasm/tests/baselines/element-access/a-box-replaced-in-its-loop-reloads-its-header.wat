@@ -51,10 +51,12 @@
         i32.const 8
         call $room
         local.set $self
+    ;; 13 |     for i in 0..n:
         i32.const 32
         i32.const 1
         call $rt:new/class-3
         local.tee $key
+    ;; 15 |         h.store = box(UniqList::[i64].new())
         local.get $self
         i32.store $heap
         local.get $key

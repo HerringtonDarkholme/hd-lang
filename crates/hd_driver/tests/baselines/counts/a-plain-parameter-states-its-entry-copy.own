@@ -185,189 +185,183 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   local $0 original: string [:= read assigned captured] place
 >   local $1 call: fn(string) -> string [:= read assigned] value
->     uses $1: %18 -> %19 lend last
+>     uses $1: %19 -> %20 lend last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
 >   local $3 shared: *mut Named [:= read assigned] value
->     uses $3: %34 -> %35 lend, %42 consume, %55 lend last
+>     uses $3: %36 -> %37 lend, %44 consume, %57 lend last
 >   local $4 items: UniqList[i32] [read assigned captured captured-assigned] place
 >   local $5 $ref: UniqList[i32] [read assigned captured captured-assigned] place
 >   local $7 self: &mut UniqList[i32] [read] value
->     uses $7: %81 -> %83 consume, %90 lend, %98 lend, %104 lend, %119 lend last
+>     uses $7: %84 -> %86 consume, %93 lend, %101 lend, %107 lend, %122 lend last
 >   local $8 value: i32 [read] value
->     uses $8: %82 -> %115 consume last
+>     uses $8: %85 -> %118 consume last
 >   local $9 size: usize [:= read assigned] value
->     uses $9: %89 -> %96 lend, %99 lend, %105 consume, %117 lend last
+>     uses $9: %92 -> %99 lend, %102 lend, %108 consume, %120 lend last
 >   local $11 index: usize [read] value
->     uses $11: %106 -> %109 lend last
+>     uses $11: %109 -> %112 lend last
 >   local $14 capacity: usize [read] value
->     uses $14: %60 -> %61 consume last
+>     uses $14: %62 -> %63 consume last
 >   local $15 capacity: usize [read] value
->     uses $15: %62 -> %63 lend, %66 consume last
+>     uses $15: %64 -> %65 lend, %68 consume last
 >   %0 = Call app/main/word[] (7:i32) : string
->   %1 = Store [$0] %0 : ()
->   %140 = Block - : ()
+>   %1 = Box #0 #255 : ()
+>   %2 = Store [$0] %0 : ()
+>   %33 = Box #2 #1 : ()
+>   %80 = Box #4 #0 : ()
+>   %130 = Box #5 #0 : ()
+>   %144 = Block - : ()
     println(same(original))
->   %2 = Read borrow [$0] : string
->   %3 = Call app/main/same[string] (%2) : string
->   %4 = Retain %3 Value #0 : ()
->   %5 = Call std/console/println[string] (%3) : ()
->   %6 = Retain %5 Operation operand 0 #0 : ()
->   %7 = Drop [%3] : ()
->   %2 finds [$0] full
+>   %3 = Read borrow [$0] : string
+>   %4 = Call app/main/same[string] (%3) : string
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Call std/console/println[string] (%4) : ()
+>   %7 = Retain %6 Operation operand 0 #0 : ()
+>   %8 = Drop [%4] : ()
     println(same(+7))
->   %8 = Call app/main/same[i32] (7:i32) : i32
->   %9 = Call std/console/println[i32] (%8) : ()
+>   %9 = Call app/main/same[i32] (7:i32) : i32
+>   %10 = Call std/console/println[i32] (%9) : ()
     println(keep(original)())
->   %10 = Read copy [$0] : string
->   %11 = Call app/main/keep[string] (%10) : fn() -> string
->   %12 = CallValue %11 [] : string
->   %13 = Drop [%11] : ()
->   %14 = Call std/console/println[string] (%12) : ()
->   %15 = Retain %14 Operation operand 0 #0 : ()
->   %16 = Drop [%12] : ()
->   %10 finds [$0] full
+>   %11 = Read copy [$0] : string
+>   %12 = Call app/main/keep[string] (%11) : fn() -> string
+>   %13 = CallValue %12 [] : string
+>   %14 = Drop [%12] : ()
+>   %15 = Call std/console/println[string] (%13) : ()
+>   %16 = Retain %15 Operation operand 0 #0 : ()
+>   %17 = Drop [%13] : ()
     call := make()
->   %17 = Call app/main/make[] () : fn(string) -> string
->   %18 = Store [$1] %17 : ()
+>   %18 = Call app/main/make[] () : fn(string) -> string
+>   %19 = Store [$1] %18 : ()
     println(call(original))
->   %19 = Read move [$1] : fn(string) -> string
->   %20 = Read borrow [$0] : string
->   %21 = CallValue %19 [%20] : string
->   %22 = Drop [%19] : ()
->   %23 = Call std/console/println[string] (%21) : ()
->   %24 = Retain %23 Operation operand 0 #0 : ()
->   %25 = Drop [%21] : ()
->   %20 finds [$0] full
+>   %20 = Read move [$1] : fn(string) -> string
+>   %21 = Read borrow [$0] : string
+>   %22 = CallValue %20 [%21] : string
+>   %23 = Drop [%20] : ()
+>   %24 = Call std/console/println[string] (%22) : ()
+>   %25 = Retain %24 Operation operand 0 #0 : ()
+>   %26 = Drop [%22] : ()
     println(read(&original))
->   %26 = Ref local frame promoted [$0] : &string
->   %27 = Call app/main/read[] (%26) : usize
->   %28 = LoanEnd [%26] : ()
->   %29 = Call std/console/println[usize] (%27) : ()
->   %26 finds [$0] full
+>   %27 = Ref local frame promoted [$0] : &string
+>   %28 = Call app/main/read[] (%27) : usize
+>   %29 = LoanEnd [%27] : ()
+>   %30 = Call std/console/println[usize] (%28) : ()
     shared := box(Named { text: original })
->   %30 = Read copy [$0] : string
->   %31 = NewStruct [%30] : Named
->   %32 = Store [$2] %31 : ()
->   %33 = Ref take mut [$2] : *mut Named
->   %34 = Store [$3] %33 : ()
->   %30 finds [$0] full
->   %33 finds [$2] full
+>   %31 = Read copy [$0] : string
+>   %32 = NewStruct [%31] : Named
+>   %34 = Store [$2] %32 : ()
+>   %35 = Ref take mut [$2] : *mut Named
+>   %36 = Store [$3] %35 : ()
     println(same(shared).text)
->   %35 = Read borrow [$3] : *mut Named
->   %36 = Call app/main/same[*mut Named] (%35) : *mut Named
->   %37 = LoanEnd [%36] : ()
->   %38 = Read copy [*%35 .text] : string
->   %39 = Call std/console/println[string] (%38) : ()
->   %40 = Retain %39 Operation operand 0 #0 : ()
->   %41 = Drop [%38] : ()
+>   %37 = Read borrow [$3] : *mut Named
+>   %38 = Call app/main/same[*mut Named] (%37) : *mut Named
+>   %39 = LoanEnd [%38] : ()
+>   %40 = Read copy [*%37 .text] : string
+>   %41 = Call std/console/println[string] (%40) : ()
+>   %42 = Retain %41 Operation operand 0 #0 : ()
+>   %43 = Drop [%40] : ()
     println(keep(shared)().text)
->   %42 = Read copy [$3] : *mut Named
->   %43 = Call app/main/keep[*mut Named] (%42) : fn() -> *mut Named
->   %44 = CallValue %43 [] : *mut Named
->   %45 = Drop [%43] : ()
->   %46 = Read copy [*%44 .text] : string
->   %47 = Drop [%44] : ()
->   %48 = Call std/console/println[string] (%46) : ()
->   %49 = Retain %48 Operation operand 0 #0 : ()
->   %50 = Drop [%46] : ()
+>   %44 = Read copy [$3] : *mut Named
+>   %45 = Call app/main/keep[*mut Named] (%44) : fn() -> *mut Named
+>   %46 = CallValue %45 [] : *mut Named
+>   %47 = Drop [%45] : ()
+>   %48 = Read copy [*%46 .text] : string
+>   %49 = Drop [%46] : ()
+>   %50 = Call std/console/println[string] (%48) : ()
+>   %51 = Retain %50 Operation operand 0 #0 : ()
+>   %52 = Drop [%48] : ()
     println(keep(+7)())
->   %51 = Call app/main/keep[i32] (7:i32) : fn() -> i32
->   %52 = CallValue %51 [] : i32
->   %53 = Drop [%51] : ()
->   %54 = Call std/console/println[i32] (%52) : ()
+>   %53 = Call app/main/keep[i32] (7:i32) : fn() -> i32
+>   %54 = CallValue %53 [] : i32
+>   %55 = Drop [%53] : ()
+>   %56 = Call std/console/println[i32] (%54) : ()
     println(shared.text)
->   %55 = Read copy [*$3 .text] : string
->   %56 = Call std/console/println[string] (%55) : ()
->   %57 = Retain %56 Operation operand 0 #0 : ()
->   %58 = Drop [%55] : ()
->   %59 = Drop [$3] : ()
+>   %57 = Read copy [*$3 .text] : string
+>   %58 = Call std/console/println[string] (%57) : ()
+>   %59 = Retain %58 Operation operand 0 #0 : ()
+>   %60 = Drop [%57] : ()
+>   %61 = Drop [$3] : ()
     let mut items = UniqList::[i32].new()
->   %60 = Store [$14] 0:usize : ()
->   %61 = Read copy [$14] : usize
->   %62 = Store [$15] %61 : ()
->   %63 = Read copy [$15] : usize
->   %64 = Call std/rt.memory/size_of[i32] () : usize
->   %65 = Call std/rt.memory/room[] (%63, %64) : usize
->   %66 = Read copy [$15] : usize
->   %67 = NewStruct [%65 %66] : Buffer[i32]
->   %68 = Break L5 %67 : never
->   %69 = Block - : Buffer[i32]
->   %70 = Scope %69 [] : Buffer[i32]
->   %71 = NewStruct [%70 0:usize] : UniqList[i32]
->   %72 = Break L6 %71 : never
->   %73 = Block - : UniqList[i32]
->   %74 = Scope %73 [] : UniqList[i32]
->   %75 = Break L7 %74 : never
->   %76 = Block - : UniqList[i32]
->   %77 = Scope %76 [] : UniqList[i32]
->   %78 = Store [$4] %77 : ()
->   %79 = FlagSet [$4] #16 : ()
+>   %62 = Store [$14] 0:usize : ()
+>   %63 = Read copy [$14] : usize
+>   %64 = Store [$15] %63 : ()
+>   %65 = Read copy [$15] : usize
+>   %66 = Call std/rt.memory/size_of[i32] () : usize
+>   %67 = Call std/rt.memory/room[] (%65, %66) : usize
+>   %68 = Read copy [$15] : usize
+>   %69 = NewStruct [%67 %68] : Buffer[i32]
+>   %70 = Break L5 %69 : never
+>   %71 = Block - : Buffer[i32]
+>   %72 = Scope %71 [] : Buffer[i32]
+>   %73 = NewStruct [%72 0:usize] : UniqList[i32]
+>   %74 = Break L6 %73 : never
+>   %75 = Block - : UniqList[i32]
+>   %76 = Scope %75 [] : UniqList[i32]
+>   %77 = Break L7 %76 : never
+>   %78 = Block - : UniqList[i32]
+>   %79 = Scope %78 [] : UniqList[i32]
+>   %81 = Store [$4] %79 : ()
+>   %82 = FlagSet [$4] #16 : ()
     items.push(7)
->   %80 = Ref mut local frame [$4] : &mut UniqList[i32]
->   %81 = Store [$7] %80 : ()
->   %82 = Store [$8] 7:i32 : ()
->   %83 = Read borrow [$7] : &mut UniqList[i32]
->   %84 = Coerce %83 [Weaken -] : &UniqList[i32]
->   %85 = Read copy [*%84 .len] : usize
->   %86 = Break L3 %85 : never
->   %87 = Block - : usize
->   %88 = Scope %87 [] : usize
->   %89 = Store [$9] %88 : ()
->   %90 = Ref local [*$7 .buffer] : &Buffer[i32]
->   %91 = Read copy [*%90 .capacity] : usize
->   %92 = Break L2 %91 : never
->   %93 = Block - : usize
->   %94 = Scope %93 [] : usize
->   %95 = LoanEnd [%90] : ()
->   %96 = Read copy [$9] : usize
->   %97 = Prim Le [%94 %96] : bool
->   %98 = Read borrow [$7] : &mut UniqList[i32]
+>   %83 = Ref mut local frame [$4] : &mut UniqList[i32]
+>   %84 = Store [$7] %83 : ()
+>   %85 = Store [$8] 7:i32 : ()
+>   %86 = Read borrow [$7] : &mut UniqList[i32]
+>   %87 = Coerce %86 [Weaken -] : &UniqList[i32]
+>   %88 = Read copy [*%87 .len] : usize
+>   %89 = Break L3 %88 : never
+>   %90 = Block - : usize
+>   %91 = Scope %90 [] : usize
+>   %92 = Store [$9] %91 : ()
+>   %93 = Ref local [*$7 .buffer] : &Buffer[i32]
+>   %94 = Read copy [*%93 .capacity] : usize
+>   %95 = Break L2 %94 : never
+>   %96 = Block - : usize
+>   %97 = Scope %96 [] : usize
+>   %98 = LoanEnd [%93] : ()
 >   %99 = Read copy [$9] : usize
->   %100 = Prim Add [%99 1:usize] : usize
->   %101 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%98, %100) : ()
->   %102 = Block - : ()
->   %103 = If %97 [%102 -] : ()
->   %104 = Ref local [*$7 .buffer] : &Buffer[i32]
->   %105 = Read copy [$9] : usize
->   %106 = Store [$11] %105 : ()
->   %107 = Read copy [*%104 .address] : usize
->   %108 = NewStruct [%107] : Ptr[i32]
->   %109 = Read copy [$11] : usize
->   %110 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%108, %109) : Ptr[i32]
->   %111 = Break L1 %110 : never
->   %112 = Block - : Ptr[i32]
->   %113 = Scope %112 [] : Ptr[i32]
->   %114 = LoanEnd [%104] : ()
->   %115 = Read copy [$8] : i32
->   %116 = Store [ptr %113] %115 : ()
->   %117 = Read copy [$9] : usize
->   %118 = Prim Add [%117 1:usize] : usize
->   %119 = Store [*$7 .len] %118 : ()
->   %120 = Break L4 - : never
->   %121 = Block - : ()
->   %122 = Scope %121 [] : ()
->   %123 = LoanEnd [$7] : ()
->   %80 finds [$4] full
+>   %100 = Prim Le [%97 %99] : bool
+>   %101 = Read borrow [$7] : &mut UniqList[i32]
+>   %102 = Read copy [$9] : usize
+>   %103 = Prim Add [%102 1:usize] : usize
+>   %104 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%101, %103) : ()
+>   %105 = Block - : ()
+>   %106 = If %100 [%105 -] : ()
+>   %107 = Ref local [*$7 .buffer] : &Buffer[i32]
+>   %108 = Read copy [$9] : usize
+>   %109 = Store [$11] %108 : ()
+>   %110 = Read copy [*%107 .address] : usize
+>   %111 = NewStruct [%110] : Ptr[i32]
+>   %112 = Read copy [$11] : usize
+>   %113 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%111, %112) : Ptr[i32]
+>   %114 = Break L1 %113 : never
+>   %115 = Block - : Ptr[i32]
+>   %116 = Scope %115 [] : Ptr[i32]
+>   %117 = LoanEnd [%107] : ()
+>   %118 = Read copy [$8] : i32
+>   %119 = Store [ptr %116] %118 : ()
+>   %120 = Read copy [$9] : usize
+>   %121 = Prim Add [%120 1:usize] : usize
+>   %122 = Store [*$7 .len] %121 : ()
+>   %123 = Break L4 - : never
+>   %124 = Block - : ()
+>   %125 = Scope %124 [] : ()
+>   %126 = LoanEnd [$7] : ()
     println(unique(items).len())
->   %124 = FlagClear [$4] #16 : ()
->   %125 = Read move [$4] : UniqList[i32]
->   %126 = Call app/main/unique[] (%125) : UniqList[i32]
->   %127 = Store [$5] %126 : ()
->   %128 = Ref local frame [$5] : &UniqList[i32]
->   %129 = Read copy [*%128 .len] : usize
->   %130 = Break L0 %129 : never
->   %131 = Block - : usize
->   %132 = Scope %131 [] : usize
->   %133 = LoanEnd [%128] : ()
->   %134 = Drop [$5] : ()
->   %135 = Call std/console/println[usize] (%132) : ()
->   %125 finds [$4] full
->   %128 finds [$5] full
+>   %127 = FlagClear [$4] #16 : ()
+>   %128 = Read move [$4] : UniqList[i32]
+>   %129 = Call app/main/unique[] (%128) : UniqList[i32]
+>   %131 = Store [$5] %129 : ()
+>   %132 = Ref local frame [$5] : &UniqList[i32]
+>   %133 = Read copy [*%132 .len] : usize
+>   %134 = Break L0 %133 : never
+>   %135 = Block - : usize
+>   %136 = Scope %135 [] : usize
+>   %137 = LoanEnd [%132] : ()
+>   %138 = Drop [$5] : ()
+>   %139 = Call std/console/println[usize] (%136) : ()
     println(original)
->   %136 = Read move [$0] : string
->   %137 = Call std/console/println[string] (%136) : ()
->   %138 = Retain %137 Operation operand 0 #0 : ()
->   %139 = Drop [%136] : ()
->   %136 finds [$0] full
+>   %140 = Read move [$0] : string
+>   %141 = Call std/console/println[string] (%140) : ()
+>   %142 = Retain %141 Operation operand 0 #0 : ()
+>   %143 = Drop [%140] : ()
 >   storage sub 0: $2 cell, $4 slot, $5 slot
 >   summary kept [] writes

@@ -30,11 +30,11 @@
     i32.const 2097152
     i32.add
     i32.store $heap
-    ;; 31 |     other.lead = box(User { name: "d", age: +0 })
     i32.const 12
     i32.const 1
     call $rt:new/class-2
     local.tee $t1
+    ;; 31 |     other.lead = box(User { name: "d", age: +0 })
     i32.const 16 ;; &"d"
     i32.store $heap
     local.get $t1
@@ -69,11 +69,12 @@
         call $rt:release_ref
       end
     end
-    ;; 32 |     *held = box(User { name: "c", age: +0 })
+    ;; 30 |     held := &mut t.lead
     i32.const 12
     i32.const 1
     call $rt:new/class-2
     local.tee $t1
+    ;; 32 |     *held = box(User { name: "c", age: +0 })
     i32.const 17 ;; &"c"
     i32.store $heap
     local.get $t1

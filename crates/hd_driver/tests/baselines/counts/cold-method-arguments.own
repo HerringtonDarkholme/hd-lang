@@ -109,34 +109,33 @@ pub fn main() -> void $ Clock:
 >   local $0 reader: Reader [:= read assigned captured] place
 >   local $1 $ref: Reader [read assigned captured captured-assigned] place
 >   local $2 $ref: *Reader [read assigned captured] value
->     uses $2: %12 -> %13 lend last
+>     uses $2: %14 -> %15 lend last
 >   %0 = NewStruct [0:usize] : Reader
->   %1 = Store [$0] %0 : ()
->   %22 = Block - : ()
+>   %1 = Box #0 #0 : ()
+>   %2 = Store [$0] %0 : ()
+>   %10 = Box #1 #1 : ()
+>   %24 = Block - : ()
     _ := block_on(known(&reader, ["known"]))
->   %2 = Ref local frame [$0] : &Reader
->   %3 = NewList - ["known"] : List[string]
->   %4 = Call app/main/known[] (%2, %3) : Suspend[usize]
->   %5 = LoanEnd [%2] : ()
->   %6 = Call std/task/block_on[usize] (%4) : BlockOn[usize]
->   %7 = Drop [%4] : ()
->   %2 finds [$0] full
+>   %3 = Ref local frame [$0] : &Reader
+>   %4 = NewList - ["known"] : List[string]
+>   %5 = Call app/main/known[] (%3, %4) : Suspend[usize]
+>   %6 = LoanEnd [%3] : ()
+>   %7 = Call std/task/block_on[usize] (%5) : BlockOn[usize]
+>   %8 = Drop [%5] : ()
     _ := block_on(dynamic(box(reader), ["dynamic"]))
->   %8 = Read move [$0] : Reader
->   %9 = Store [$1] %8 : ()
->   %10 = Ref take mut [$1] : *mut Reader
->   %11 = Coerce %10 [Weaken -] : *Reader
->   %12 = Store [$2] %11 : ()
->   %13 = Read move [$2] : *Reader
->   %14 = Coerce %13 [RefToTraitValue -] : Measure
->   %15 = LoanEnd [%13] : ()
->   %16 = Block %14 : Measure
->   %17 = RefDyn %16 : *dyn Measure
->   %18 = NewList - ["dynamic"] : List[string]
->   %19 = Call app/main/dynamic[] (%17, %18) : Suspend[usize]
->   %20 = Call std/task/block_on[usize] (%19) : BlockOn[usize]
->   %21 = Drop [%19] : ()
->   %8 finds [$0] full
->   %10 finds [$1] full
+>   %9 = Read move [$0] : Reader
+>   %11 = Store [$1] %9 : ()
+>   %12 = Ref take mut [$1] : *mut Reader
+>   %13 = Coerce %12 [Weaken -] : *Reader
+>   %14 = Store [$2] %13 : ()
+>   %15 = Read move [$2] : *Reader
+>   %16 = Coerce %15 [RefToTraitValue -] : Measure
+>   %17 = LoanEnd [%15] : ()
+>   %18 = Block %16 : Measure
+>   %19 = RefDyn %18 : *dyn Measure
+>   %20 = NewList - ["dynamic"] : List[string]
+>   %21 = Call app/main/dynamic[] (%19, %20) : Suspend[usize]
+>   %22 = Call std/task/block_on[usize] (%21) : BlockOn[usize]
+>   %23 = Drop [%21] : ()
 >   storage sub 0: $0 slot, $1 cell
 >   summary kept [] writes

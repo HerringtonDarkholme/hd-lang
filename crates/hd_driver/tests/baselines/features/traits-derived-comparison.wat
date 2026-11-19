@@ -9,7 +9,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $before (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $before (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 18 |     a < b
     global.get $locals
     global.get $locals_base
@@ -84,7 +84,7 @@
     i32.add
     global.set $locals
   )
-  (func $same (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $same (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 15 |     a == b
     global.get $locals
     global.get $locals_base

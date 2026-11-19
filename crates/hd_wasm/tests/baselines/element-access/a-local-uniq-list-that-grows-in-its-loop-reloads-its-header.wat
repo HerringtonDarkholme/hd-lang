@@ -4,7 +4,7 @@
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $grow (param $n i32) (result i64) (local $self i32) (local $xs i32) (local $sum i64) (local $t0 i32)
+  (func $grow (param $n i32) (result i64) (local $size i32) (local $xs i32) (local $sum i64) (local $t0 i32)
     ;; ...
     ;; 13 |     for i in 0..n:
     block
@@ -20,7 +20,7 @@
         i32.add
         local.set $t0
     ;; 14 |         sum += xs[i]
-        local.tee $self
+        local.tee $size
         local.get $xs
         i32.load $heap offset=8
         i32.ge_u
@@ -36,7 +36,7 @@
         local.get $sum
         local.get $xs
         i32.load $heap
-        local.get $self
+        local.get $size
         i32.const 8
         i32.mul
         i32.add
@@ -46,28 +46,28 @@
     ;; 15 |         xs.push(sum)
         local.get $xs
         i32.load $heap offset=8
-        local.set $self
+        local.set $size
         local.get $xs
         i32.load $heap offset=4
-        local.get $self
+        local.get $size
         i32.le_u
         if
           local.get $xs
-          local.get $self
+          local.get $size
           i32.const 1
           i32.add
           call $"impl[T < ?Copy] UniqList[T].reserve_for[i64]"
         end
         local.get $xs
         i32.load $heap
-        local.get $self
+        local.get $size
         i32.const 8
         i32.mul
         i32.add
         local.get $sum
         i64.store $heap
         local.get $xs
-        local.get $self
+        local.get $size
         i32.const 1
         i32.add
         i32.store $heap offset=8

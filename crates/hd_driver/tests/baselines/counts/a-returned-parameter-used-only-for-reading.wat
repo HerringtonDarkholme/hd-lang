@@ -50,29 +50,29 @@
     drop
     local.get $value
   )
-  (func $temporary_reference (result i32) (local $result i32)
+  (func $temporary_reference (result i32) (local $t0 i32)
     ;; 50 |     point := box(Point { n: 19 })
     i32.const 4
     i32.const 0
     call $rt:new/class-1
-    local.tee $result
+    local.tee $t0
     i32.const 19
     i32.store $heap
-    local.get $result
+    local.get $t0
     ;; 51 |     result := weaken(point)
     call $weaken
-    local.tee $result
+    local.tee $t0
     ;; 52 |     result.n
     i32.load $heap
     ;; 50 |     point := box(Point { n: 19 })
-    local.get $result
+    local.get $t0
     if
-      local.get $result
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $result
+        local.get $t0
         call $rt:release_ref'1
       end
     end

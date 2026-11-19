@@ -14,7 +14,7 @@
     ;; 10 |     &u.name
     local.get $u
   )
-  (func $read (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $u i32)
+  (func $read (param $t1 i32) (param $t2 i32) (result i32) (local $u i32) (local $t0 i32)
     ;; 16 |     name_of(&u).len()
     global.get $locals
     global.get $locals_base
@@ -64,7 +64,7 @@
     i32.add
     global.set $locals
   )
-  (func $read_list (param $t1 i32) (result i32) (local $t0 i32) (local $us i32)
+  (func $read_list (param $t1 i32) (result i32) (local $us i32) (local $t0 i32)
     ;; 19 |     first_name(&us).len()
     global.get $locals
     global.get $locals_base

@@ -7,7 +7,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $opt_ge (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $opt_ge (param $b i32) (param $t1 i32) (param $t2 i32) (param $t3 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 15 |     a >= b
     global.get $locals
     global.get $locals_base
@@ -95,7 +95,7 @@
       i32.const 0
     end
   )
-  (func $tuple_gt (param $b i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $t0 i32) (local $a i32)
+  (func $tuple_gt (param $b i32) (param $t1 i32) (param $t2 i64) (param $t3 i32) (param $t4 i32) (param $t5 i64) (result i32) (local $a i32) (local $t0 i32)
     ;; 12 |     a > b
     global.get $locals
     global.get $locals_base
@@ -171,7 +171,7 @@
     i32.add
     global.set $locals
   )
-  (func $list_le (param $b i32) (param $t1 i32) (result i32) (local $t0 i32) (local $a i32)
+  (func $list_le (param $b i32) (param $t1 i32) (result i32) (local $a i32) (local $t0 i32)
     ;; 9 |     a <= b
     global.get $locals
     global.get $locals_base

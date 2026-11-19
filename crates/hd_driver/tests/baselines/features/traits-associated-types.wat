@@ -24,7 +24,7 @@
     end
     local.get $source.0
   )
-  (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $t0 i32) (local $c i32)
+  (func $read_const (param $t1 i32) (param $t2 i32) (result i32) (local $c i32) (local $t0 i32)
     ;; 31 |     read(&c)
     global.get $locals
     global.get $locals_base

@@ -111,6 +111,7 @@
     local.get $t2
     i64.const 6
     i64.store $heap offset=24
+    ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -118,10 +119,11 @@
     i32.const 24
     i32.add
     local.tee $t1
+    ;; 29 |     let mut local: List[i64] = [5, 6]
     local.get $t2
     i32.store $heap
-    local.get $t1
     ;; 30 |     saved := local
+    local.get $t1
     i32.load $heap
     call $rt:coll_copy
     local.set $t2

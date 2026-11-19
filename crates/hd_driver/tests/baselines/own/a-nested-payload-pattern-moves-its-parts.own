@@ -17,16 +17,17 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: UniqMapIntoIter[string, Parcel] [read assigned captured captured-assigned] place
 >   local $3 $iter: &mut UniqMapIntoIter[string, Parcel] [assigned] value
->     uses $3: %10 -> %11 lend
+>     uses $3: %11 -> %12 lend
 >   local $4 key: string [read assigned] value
->     uses $4: %35 -> %14 lend last
+>     uses $4: %36 -> %15 lend last
 >   local $5 parcel: Parcel [read assigned] value
->     uses $5: %37 -> %19 consume last
+>     uses $5: %38 -> %20 consume last
 >   local $6 self: string [read] value
->     uses $6: %20 -> %21 lend last
+>     uses $6: %21 -> %22 lend last
 >   %0 = FlagSet [$0] #9 : ()
 >   %1 = Store [$1] 0:usize : ()
->   %53 = Block %52 : usize
+>   %8 = Box #2 #0 : ()
+>   %54 = Block %53 : usize
     for (key, parcel) in parcels:
 >   %2 = Read move [$0] : UniqMap[string, Parcel]
 >   %3 = FlagClear [$0] #9 : ()
@@ -34,49 +35,47 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : UniqMapIntoIter[string, Parcel]
 >   %7 = Scope %6 [] : UniqMapIntoIter[string, Parcel]
->   %8 = Store [$2] %7 : ()
->   %9 = Ref mut local frame [$2] : &mut UniqMapIntoIter[string, Parcel]
->   %10 = Store [$3] %9 : ()
->   %11 = Read borrow [$3] : &mut UniqMapIntoIter[string, Parcel]
->   %12 = Call std/iter/Iterator.next for UniqMapIntoIter[string, Parcel] [(string, Parcel)] via Impl (%11) : (string, Parcel)?
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = Read move [%12 as #1 .0] : (string, Parcel)
->   %33 = Read move [%32 .0] : string
->   %34 = Read move [%32 .1] : Parcel
->   %35 = Store [$4] %33 : ()
->   %36 = Release %35 Operation #3 : ()
->   %37 = Store [$5] %34 : ()
->   %38 = Release %37 Operation #3 : ()
->   %44 = Block - : never
->   %45 = Match %12 [%44 %29 %31] : ()
->   %46 = Drop [$5] : ()
->   %47 = Drop [$4] : ()
->   %48 = Block - : ()
->   %49 = Loop %48 - : ()
->   %50 = LoanEnd [$3] : ()
->   %51 = Drop [$2] : ()
->   %9 finds [$2] full
->   %49 finds [$2] full
+>   %9 = Store [$2] %7 : ()
+>   %10 = Ref mut local frame [$2] : &mut UniqMapIntoIter[string, Parcel]
+>   %11 = Store [$3] %10 : ()
+>   %12 = Read borrow [$3] : &mut UniqMapIntoIter[string, Parcel]
+>   %13 = Call std/iter/Iterator.next for UniqMapIntoIter[string, Parcel] [(string, Parcel)] via Impl (%12) : (string, Parcel)?
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = Read move [%13 as #1 .0] : (string, Parcel)
+>   %34 = Read move [%33 .0] : string
+>   %35 = Read move [%33 .1] : Parcel
+>   %36 = Store [$4] %34 : ()
+>   %37 = Release %36 Operation #3 : ()
+>   %38 = Store [$5] %35 : ()
+>   %39 = Release %38 Operation #3 : ()
+>   %45 = Block - : never
+>   %46 = Match %13 [%45 %30 %32] : ()
+>   %47 = Drop [$5] : ()
+>   %48 = Drop [$4] : ()
+>   %49 = Block - : ()
+>   %50 = Loop %49 - : ()
+>   %51 = LoanEnd [$3] : ()
+>   %52 = Drop [$2] : ()
         n += key.len() + parcel.label.len()
->   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L2 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Read borrow [$5 .label] : string
->   %20 = Store [$6] %19 : ()
->   %21 = Read borrow [$6] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L1 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Prim Add [%18 %25] : usize
->   %27 = Prim Add [%13 %26] : usize
->   %28 = Store [$1] %27 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Read borrow [$4] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L2 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Read borrow [$5 .label] : string
+>   %21 = Store [$6] %20 : ()
+>   %22 = Read borrow [$6] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L1 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Prim Add [%19 %26] : usize
+>   %28 = Prim Add [%14 %27] : usize
+>   %29 = Store [$1] %28 : ()
     n
->   %52 = Read copy [$1] : usize
+>   %53 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot

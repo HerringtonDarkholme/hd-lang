@@ -38,40 +38,42 @@ fn keep(value: string) -> string:
 @cold
 > std/rt_tests.stage_case/copied
 >   local $0 value: string [param read captured] place
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %12 Entry local $0 #0 : ()
 fn copied(value: string) -> (string, string):
     _ := same(&value, &value)
->   %1 = Ref local frame [$0] : &string
->   %2 = Coerce %1 [Weaken -] : &string
->   %3 = Ref local frame [$0] : &string
->   %4 = Call std/rt_tests.stage_case/same[string] (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %11 = Block %10 : (string, string)
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &string
+>   %3 = Coerce %2 [Weaken -] : &string
+>   %4 = Ref local frame [$0] : &string
+>   %5 = Call std/rt_tests.stage_case/same[string] (%3, %4) : bool
+>   %6 = LoanEnd [%4] : ()
+>   %7 = LoanEnd [%3] : ()
+>   %12 = Block %11 : (string, string)
     first := keep(value)
->   %7 = Read copy [$0] : string
->   %8 = Call std/rt_tests.stage_case/keep[] (%7) : string
+>   %8 = Read copy [$0] : string
+>   %9 = Call std/rt_tests.stage_case/keep[] (%8) : string
     (first, value)
->   %9 = Read move [$0] : string
->   %10 = NewTuple - [%8 %9] : (string, string)
+>   %10 = Read move [$0] : string
+>   %11 = NewTuple - [%9 %10] : (string, string)
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
 @cold
 > std/rt_tests.stage_case/projected
 >   local $0 value: Item [param read captured] place
->   %0 = Retain %8 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $0 #0 : ()
 fn projected(value: Item) -> string:
     _ := same(&value, &value)
->   %1 = Ref local frame [$0] : &Item
->   %2 = Coerce %1 [Weaken -] : &Item
->   %3 = Ref local frame [$0] : &Item
->   %4 = Call std/rt_tests.stage_case/same[Item] (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
->   %8 = Block %7 : string
+>   %0 = Box #0 #0 : ()
+>   %2 = Ref local frame [$0] : &Item
+>   %3 = Coerce %2 [Weaken -] : &Item
+>   %4 = Ref local frame [$0] : &Item
+>   %5 = Call std/rt_tests.stage_case/same[Item] (%3, %4) : bool
+>   %6 = LoanEnd [%4] : ()
+>   %7 = LoanEnd [%3] : ()
+>   %9 = Block %8 : string
     value.text
->   %7 = Read move [$0 .text] : string
+>   %8 = Read move [$0 .text] : string
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -79,20 +81,21 @@ fn nested() -> (fn(string) -> string):
     fn(value: string) -> string:
 > std/rt_tests.stage_case/nested
 >   local $0 value: string [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %9 = Block %7 : string
->   %10 = Closure #1 : fn(string) -> string
->   %11 = Block %10 : fn(string) -> string
+>   %0 = Box #0 #1 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
+>   %10 = Block %8 : string
+>   %11 = Closure #1 : fn(string) -> string
+>   %12 = Block %11 : fn(string) -> string
         _ := same(&value, &value)
->   %1 = Ref local [$0] : &string
->   %2 = Coerce %1 [Weaken -] : &string
->   %3 = Ref local [$0] : &string
->   %4 = Call std/rt_tests.stage_case/same[string] (%2, %3) : bool
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanEnd [%2] : ()
+>   %2 = Ref local [$0] : &string
+>   %3 = Coerce %2 [Weaken -] : &string
+>   %4 = Ref local [$0] : &string
+>   %5 = Call std/rt_tests.stage_case/same[string] (%3, %4) : bool
+>   %6 = LoanEnd [%4] : ()
+>   %7 = LoanEnd [%3] : ()
         value
->   %7 = Read move [$0] : string
->   %8 = Drop [$0] : ()
+>   %8 = Read move [$0] : string
+>   %9 = Drop [$0] : ()
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
