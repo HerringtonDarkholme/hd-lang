@@ -1,0 +1,73 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Static aggregate copies preserve padding, floating literals, UTF-8 string
+# relocations, enum tags, newtypes and generic fields. Runtime operands and
+# producer effects keep their ordinary evaluation (#2182).
+type Pad = (u8, i64, f32, f64, bool, i32?, string)
+type Wide = (Pad, Pad, Pad)
+type Wrapped(Wide)
+
+struct Generic[T]:
+    first: T
+    second: T
+    third: T
+
+enum Choice:
+    Empty
+    Full(a: Pad, b: Pad, c: Pad)
+
+fn pad() -> Pad:
+    (255, -17, 1.25, -2.5, true, .Some(31), "héλ")
+
+fn literal() -> Wide:
+    (
+        (255, -17, 1.25, -2.5, true, .Some(31), "héλ"),
+        (0, 29, -0.5, 6.25, false, .None, ""),
+        (7, 42, 2.0, 3.5, true, .Some(-9), "last"),
+    )
+
+fn variant() -> Choice:
+    .Full(
+        (255, -17, 1.25, -2.5, true, .Some(31), "héλ"),
+        (0, 29, -0.5, 6.25, false, .None, ""),
+        (7, 42, 2.0, 3.5, true, .Some(-9), "last"),
+    )
+
+fn wrapped() -> Wrapped:
+    Wrapped(
+        (
+            (255, -17, 1.25, -2.5, true, .Some(31), "héλ"),
+            (0, 29, -0.5, 6.25, false, .None, ""),
+            (7, 42, 2.0, 3.5, true, .Some(-9), "last"),
+        ),
+    )
+
+fn generic() -> Generic[Pad]:
+    Generic { first: pad(), second: pad(), third: pad() }
+
+fn effectful() -> Wide $ Console:
+    println("producer")
+    literal()
+
+fn runtime(n: i32) -> Wide:
+    ((255, -17, 1.25, -2.5, true, .Some(n), "héλ"), pad(), pad())
+
+fn show(v: Wide) -> void $ Console:
+    println(
+        "${v._0._0} ${v._0._1} ${v._0._2} ${v._0._3} ${v._0._4} ${v._0._5.unwrap_or(0)} [${v._0._6}]",
+    )
+    println(
+        "${v._1._0} ${v._1._1} ${v._1._2} ${v._1._3} ${v._1._4} ${v._1._5.unwrap_or(0)} [${v._1._6}]",
+    )
+    println("${v._2._5.unwrap_or(0)} ${v._2._6}")
+
+pub fn main() -> void $ Console:
+    show(literal())
+    match variant():
+        .Empty => println("empty")
+        .Full(a, b, c) => show((a, b, c))
+    show(Wide(wrapped()))
+    g := generic()
+    show((g.first, g.second, g.third))
+    show(effectful())
+    show(runtime(73))

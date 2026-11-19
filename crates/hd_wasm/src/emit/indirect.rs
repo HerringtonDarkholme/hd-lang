@@ -80,6 +80,8 @@
 //! per body, shared by its instances and closures ([`Em::slot_uses`]),
 //! so a body with n closures costs O(its size), not n times that.
 
+mod constant;
+
 use std::rc::Rc;
 
 use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
@@ -779,6 +781,13 @@ impl Em<'_, '_, '_> {
         let b = self.b;
         let mut work = vec![(root, off)];
         while let Some((r, off)) = work.pop() {
+            if matches!(b.tags[r as usize], Tag::NewStruct | Tag::NewTuple)
+                && by_address(self.pool(), self.env(), self.ty(r))?
+                && constant::allocation(self, r)?.is_some()
+            {
+                self.placed.insert(r, (base, off));
+                continue;
+            }
             let tag = b.tags[r as usize];
             let members = match tag {
                 // An inlined call's one-exit wrapper preserves its value.
@@ -895,6 +904,9 @@ impl Em<'_, '_, '_> {
     /// member `members[k]` not itself written there stores its leaves.
     pub(super) fn write_in_place(&mut self, i: u32, members: &[u32]) -> hd_base::StageResult<()> {
         let (base, off) = self.placed[&i];
+        if self.write_constant(i, base, off)? {
+            return Ok(());
+        }
         let t = self.ty(i);
         let borrowed = self.b.is_borrowed_coercion(i);
         let mut parts = None;
@@ -928,6 +940,24 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// A literal Memory value is one static allocation and bulk copy.
+    /// The helper only encodes the existing constructor; it never evaluates
+    /// a callee or expands a child that has its own memory boundary.
+    fn write_constant(&mut self, r: u32, base: u32, off: u32) -> hd_base::StageResult<bool> {
+        if by_address(self.pool(), self.env(), self.ty(r))?
+            && let Some(at) = constant::allocation(self, r)?
+        {
+            let mem = crate::layout::mem(self.pool(), self.env(), self.ty(r))?;
+            address(&mut self.f, base, off);
+            self.f.static_addr(at);
+            self.f.u32(mem.size);
+            self.f.push(crate::bulk::copy(crate::module::HEAP, STACK));
+            self.written.insert(r);
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     /// Stores value `r` as this worker's result, laid out as `mem`, into
     /// the block at `base`, unless it was written in place.
     /// A counted result leaves with its count, as the leaf ABI's does:
@@ -942,6 +972,9 @@ impl Em<'_, '_, '_> {
         ret: Option<bool>,
     ) -> hd_base::StageResult<()> {
         if self.written.contains(&r) {
+            return Ok(());
+        }
+        if self.write_constant(r, base, 0)? {
             return Ok(());
         }
         if let Some(&(at, from)) = self.mem_vals.get(&r) {

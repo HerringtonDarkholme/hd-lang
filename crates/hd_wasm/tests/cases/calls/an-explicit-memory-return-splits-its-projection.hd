@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: dev
+# expected: both return forms copy the projection as one Memory value;
+# explicit return currently expands its scalar leaves (#2189).
+type D0 = (i32, i32)
+type D1 = (D0, D0)
+type D2 = (D1, D1)
+type D3 = (D2, D2)
+type D4 = (D3, D3)
+type D5 = (D4, D4)
+
+fn implicit(x: D5) -> D4:
+    x._0
+
+fn explicit(x: D5) -> D4:
+    return x._0
