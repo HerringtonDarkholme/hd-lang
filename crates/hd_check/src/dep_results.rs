@@ -1732,6 +1732,81 @@ mod line_up_tests {
     use super::*;
     use hd_types::{InternPool, ParamRef};
 
+    fn tuple(pool: &InternPool, elems: &[Ty]) -> Ty {
+        pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(elems),
+            rest: None,
+        })
+    }
+
+    #[test]
+    fn doubling_pairs_are_checked_once() {
+        let pool = InternPool::new();
+        let lifetimed = |_: DefId| false;
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        for depth in [13, 26] {
+            let mut pair = [Ty::I32, Ty::BOOL];
+            for _ in 0..depth {
+                pair = pair.map(|t| tuple(&pool, &[t, t]));
+            }
+            for call in [false, true] {
+                let mut work = 0;
+                let keys = line_up_with(&ls, pair[0], pair[1], call, || work += 1);
+                assert_eq!(keys, Some(Vec::new()));
+                assert_eq!(work, depth + 1);
+            }
+            let mismatch = tuple(&pool, &[pair[1], pair[1], Ty::I32]);
+            assert!(line_up(&ls, pair[0], mismatch).is_none());
+        }
+    }
+
+    #[test]
+    fn repeated_pairs_rebase_declared_slots_but_keep_parameter_keys() {
+        let pool = InternPool::new();
+        let p = ParamRef {
+            owner: DefId::from_raw(1),
+            index: 0,
+        };
+        let param = pool.intern_ty(&TyData::Param(p));
+        let r = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        let d = tuple(&pool, &[r, param]);
+        let t = tuple(&pool, &[r, r]);
+        let lifetimed = |_: DefId| false;
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        assert_eq!(
+            line_up(&ls, tuple(&pool, &[d, d]), tuple(&pool, &[t, t])),
+            Some(vec![
+                Key::Decl(0),
+                Key::Param(p, 0),
+                Key::Decl(1),
+                Key::Param(p, 0)
+            ])
+        );
+        let wide = tuple(&pool, &vec![r; 1_000]);
+        assert_eq!(
+            line_up(&ls, wide, wide),
+            Some((0..1_000).map(Key::Decl).collect())
+        );
+    }
+
+    #[test]
+    fn a_cached_pair_still_obeys_the_type_depth_limit() {
+        let pool = InternPool::new();
+        let shallow = tuple(&pool, &[Ty::I32]);
+        let mut deep = shallow;
+        for _ in 0..hd_base::limits::TYPE_DEPTH {
+            deep = tuple(&pool, &[deep]);
+        }
+        let root = tuple(&pool, &[shallow, deep]);
+        let lifetimed = |_: DefId| false;
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        assert!(line_up(&ls, root, root).is_none());
+    }
+
     /// [`line_up`] keys a type on its own stack: a declared type 1,000
     /// levels deep, a local reference beside the next level at each, with
     /// a type parameter at the bottom, lines up with its instance on a
