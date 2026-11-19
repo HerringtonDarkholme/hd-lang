@@ -519,6 +519,12 @@ impl Em<'_, '_, '_> {
             .collect();
         let passed = self.worker_reads();
         candidates.extend(passed.into_iter().filter(|&r| self.mem_field(r).is_some()));
+        if self.sret.is_some() {
+            candidates.extend(self.rows.iter().filter_map(|&i| {
+                let r = self.b.data[i][0];
+                (self.b.tags[i] == Tag::Return && self.mem_field(r).is_some()).then_some(r)
+            }));
+        }
         if candidates.is_empty() {
             return HashSet::default();
         }
@@ -974,6 +980,23 @@ impl Em<'_, '_, '_> {
         }
         if let Some(&(at, from)) = self.mem_vals.get(&r) {
             self.copy_in(base, 0, at, from, mem.size);
+            // Address reads have no scalar temporaries for `take` to test.
+            // Match worker arguments: only an owned copy takes counts.
+            let ty = self.ty_of(r);
+            if self.counting
+                && ret == Some(false)
+                && self.b.data[r as usize][1] == ReadMode::Copy as u32
+                && self.tracked(ty)
+                && let Some(plan) = release_plan(
+                    self.input.pool,
+                    self.input.env,
+                    &mut self.m.release_plans,
+                    ty,
+                )?
+            {
+                address(&mut self.f, base, 0);
+                self.f.helper(crate::rt::Helper::RetainAt(plan));
+            }
             return Ok(());
         }
         let counted = self.counting && self.tracked(self.ty_of(r));

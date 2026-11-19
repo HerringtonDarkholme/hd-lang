@@ -1,0 +1,43 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# Explicit projection returns keep dynamic strings alive through copies,
+# moves and borrowed composite values (#2189).
+type Part = (string, string, string, string, string, string, string, string, string)
+type Pair = (Part, Part)
+
+fn make(s: string) -> Pair:
+    p := (s, s, s, s, s, s, s, s, s)
+    (p, p)
+
+fn moved(p: Pair) -> Part:
+    return p._0
+
+fn copied(p: &Pair) -> Part:
+    return p._0
+
+type LoanPart['a] = (
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+)
+
+type Loans['a] = (LoanPart['a], LoanPart['a])
+
+fn borrowed['a](p: (Loans['a], Loans['a])) -> Loans['a]:
+    return p._0
+
+pub fn main() -> void $ Console:
+    for n in 0..4:
+        p := make("item$n")
+        a := copied(&p)
+        b := moved(p)
+        loans := (&a._0, &a._1, &a._2, &a._3, &a._4, &a._5, &a._6, &a._7, &a._8)
+        pair := (loans, loans)
+        refs := borrowed((pair, pair))
+        println("${a._0} ${a._8} ${b._0} ${b._8} ${refs._0._0} ${refs._0._8}")
