@@ -24,15 +24,7 @@ pub(crate) enum Named {
     Missing,
 }
 
-/// What a written name must be: a type, or a trait (a requirement key,
-/// a `dyn` type). It decides the code of a name that reaches nothing,
-/// and a trait role rejects a name that reaches a type.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NameRole {
-    Type,
-    Referent,
-    Trait,
-}
+pub(crate) use hd_resolve::NameRole;
 
 impl Ck<'_, '_> {
     /// Checks the kinds of explicit arguments to a data, enum, trait or
@@ -227,41 +219,6 @@ impl Ck<'_, '_> {
             .map_or("type", Generic::kind_name)
     }
 
-    /// Whether the slot of `def` at `position` among its written
-    /// parameters takes a row (`req.row.slot.list`, `req.row.slot.data`).
-    fn row_slot(&self, def: DefId, position: usize) -> bool {
-        self.cx.lookup.item(def).is_some_and(|item| {
-            item.generics
-                .iter()
-                .filter(|g| !g.lifetime && !g.outer)
-                .nth(position)
-                .is_some_and(|g| g.row)
-        })
-    }
-
-    /// `a`, a type written without `$`, fills the row slot of `owner` at
-    /// `position` (`req.row.slot.bare`). A bare name, a key or a row alias,
-    /// gets the fix-it that writes `$` before it.
-    fn bare_in_row_slot(&mut self, a: NodeRef<'_>, owner: &str, position: usize) {
-        let msg = format!(
-            "argument {} of `{owner}` is a row parameter: write its row after `$`",
-            position + 1
-        );
-        self.err(Code::GenericKindMismatch, a, &msg);
-        if a.kind() == SyntaxKind::NamedType {
-            let span = self.cx.src.span(a);
-            let at = Span {
-                hi: span.lo,
-                ..span
-            };
-            self.diags.add_fix(
-                "write the row after `$`",
-                hd_diag::FixSafety::Exact,
-                &[(at, "$ ")],
-            );
-        }
-    }
-
     /// A const argument of declared type `want`: its evaluated value or a
     /// bare const parameter (`types.generic.const.argument`).
     fn const_arg(&mut self, a: NodeRef<'_>, want: Option<Prim>) -> Ty {
@@ -377,23 +334,6 @@ impl Ck<'_, '_> {
             .rev()
             .find(|(s, _)| self.cx.names.text(*s) == name)
             .map(|(_, t)| *t)
-    }
-
-    /// Whether `t` may be the inputs argument of `Fn` or `SuspendFn`: a
-    /// tuple type, or a type parameter bounded by `Tuple`
-    /// (`fn.type.ctor.inputs-tuple`).
-    fn inputs_tuple(&self, t: Ty) -> bool {
-        match self.pool().get(t) {
-            TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) => true,
-            TyData::Param(_) => {
-                let tuple = self.cx.names.known.tuple;
-                let env = &self.env;
-                env.clauses_of(t)
-                    .iter()
-                    .any(|&i| env.clause_trait()[i as usize] == tuple)
-            }
-            _ => false,
-        }
     }
 
     pub(crate) fn kind_of_item(&self, d: DefId) -> Option<HeadKind> {
@@ -613,11 +553,21 @@ impl Ck<'_, '_> {
                         let name = self.cx.src.text(t).to_owned();
                         bound.push((name, self.ty_node(ty)?));
                     }
-                } else if a.kind().is_type() && ctor.is_some_and(|d| self.row_slot(d, position)) {
+                } else if a.kind().is_type()
+                    && ctor
+                        .and_then(|d| self.cx.lookup.item(d))
+                        .is_some_and(|i| hd_resolve::row_slot(&i.generics, position) == Some(true))
+                {
                     // A row slot takes its row after `$` (`req.row.slot.bare`):
                     // a bare name there is that one kind error, before it
                     // can be lowered, and misread, as a type.
-                    self.bare_in_row_slot(a, &segs.join("."), position);
+                    hd_resolve::bare_in_row_slot(
+                        self.diags,
+                        &self.cx.src,
+                        a,
+                        &segs.join("."),
+                        position,
+                    );
                     args.push(Ty::POISON);
                     arg_nodes.push(a);
                     position += 1;
@@ -763,7 +713,12 @@ impl Ck<'_, '_> {
                 .to_owned();
             if role != NameRole::Trait && (name == "Fn" || name == "SuspendFn") {
                 let inputs = args.first().copied().unwrap_or(Ty::POISON);
-                if !self.inputs_tuple(inputs) {
+                if !hd_resolve::inputs_tuple(pool, inputs, |t| {
+                    self.env
+                        .clauses_of(t)
+                        .iter()
+                        .any(|&i| self.env.clause_trait()[i as usize] == self.cx.names.known.tuple)
+                }) {
                     let msg = format!(
                         "the inputs of `{name}` are a tuple type or a type parameter bounded by `Tuple`, as in `{name}[(A, B), O, $()]`"
                     );
@@ -1396,267 +1351,166 @@ impl Ck<'_, '_> {
         Ok(None)
     }
 
-    pub(crate) fn ty_node_as(&mut self, n: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
+    pub(crate) fn ty_node_as(&mut self, root: NodeRef<'_>, role: NameRole) -> StageResult<Ty> {
         let pool = self.pool();
-        let first = |me: &mut Self, n: NodeRef<'_>| -> StageResult<Ty> {
-            match n.children().find(|c| c.kind().is_type()) {
-                Some(c) => me.ty_node(c),
-                None => Ok(Ty::VOID),
-            }
-        };
-        Ok(match n.kind() {
-            SyntaxKind::NamedType => {
-                let t = self.named_ty_as(n, role)?;
-                // A row alias is row-kinded (`req.row.alias.type-or-key`).
-                if matches!(pool.get(t), TyData::Row(_)) {
-                    let name = self.segments(n).join(".");
-                    let msg = format!(
-                        "`{name}` is a row alias, not a type or one key: write it in a row after `$`, as in `$ {name}`"
-                    );
-                    self.err(hd_diag::Code::GenericKindMismatch, n, &msg);
+        let src = self.cx.src;
+        let known = self.cx.names.known;
+        if root.kind() == SyntaxKind::RefType
+            && self.written_lifetimes.is_none()
+            && root
+                .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
+                .is_some()
+            && (self.static_annotation)
+                .binary_search_by_key(&root.index().raw(), |x| x.raw())
+                .is_err()
+        {
+            self.err(
+                Code::ReferencesNotYetChecked,
+                root,
+                "a lifetime inside a function body is not checked yet",
+            );
+        }
+        hd_resolve::ty_form(pool, known, src, root, role, |n, role, input| {
+            match input {
+                Err((code, message)) => {
+                    self.err(code, n, &message);
                     return Ok(Ty::POISON);
                 }
-                t
-            }
-            SyntaxKind::ContextType => {
-                let row = n.children().find(|c| c.kind().is_type()).filter(|c| {
-                    c.kind() == SyntaxKind::RequirementRow
-                        && c.direct_token(&self.cx.src.parse.tokens, TokenKind::Dollar)
-                            .is_some()
-                });
-                let Some(row) = row else {
-                    // The brackets are a row slot (`req.context.dollar`).
-                    self.err(
-                        hd_diag::Code::GenericKindMismatch,
-                        n,
-                        "`$.Context[...]` takes a row written after `$`",
-                    );
-                    return Ok(Ty::POISON);
-                };
-                let r = self.row_of(row)?;
-                if !pool.row_data(r).params.is_empty() {
-                    self.err(
-                        hd_diag::Code::RowParameterInContext,
-                        row,
-                        "`$.Context[...]` takes only a concrete row, not a row parameter",
-                    );
-                    return Ok(Ty::POISON);
-                }
-                pool.intern_ty(&TyData::Context(r))
-            }
-            SyntaxKind::OptionalType => {
-                let t = first(self, n)?;
-                pool.applied(self.cx.names.known.option, t)
-            }
-            SyntaxKind::UnionType => {
-                let members: StageResult<Vec<Ty>> = n
-                    .children()
-                    .filter(|c| c.kind().is_type())
-                    .map(|c| self.ty_node(c))
-                    .collect();
-                pool.intern_ty(&TyData::Union(pool.list(&members?)))
-            }
-            SyntaxKind::ParenType => match n.children().find(|c| c.kind().is_type()) {
-                Some(child) => self.ty_node_as(child, role)?,
-                None => Ty::VOID,
-            },
-            SyntaxKind::RestType => {
-                let t = first(self, n)?;
-                // Tuple types and function inputs use the same rest
-                // element (`types.tuple.rest.list`, `fn.type.vararg-rest`).
-                let list = self.cx.names.known.list;
-                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) && t != Ty::POISON
-                {
-                    self.err(
-                        Code::TypeMismatch,
-                        n,
-                        "a rest element's type must be a `List`",
-                    );
-                }
-                t
-            }
-            SyntaxKind::TupleType => {
-                let mut elems = Vec::new();
-                let mut rest = None;
-                for c in n.children().filter(|c| c.kind().is_type()) {
-                    let t = self.ty_node(c)?;
-                    if c.kind() == SyntaxKind::RestType {
-                        rest = Some(t);
-                    } else {
-                        elems.push(t);
-                    }
-                }
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&elems),
-                    rest,
-                })
-            }
-            // A local function's parameter annotation names its anonymous
-            // type parameter; any other `impl` is an opaque result.
-            SyntaxKind::ImplType => match self.impl_params.iter().find(|(i, _)| *i == n.index()) {
-                Some(&(_, t)) => t,
-                None => self.declared_opaque_annotation(n)?,
-            },
-            SyntaxKind::DynType => {
-                if role != NameRole::Referent {
-                    self.err(
-                        Code::TraitUsedAsType,
-                        n,
-                        "a trait value needs a reference type, `&dyn` or `&mut dyn`",
-                    );
-                    return Ok(Ty::POISON);
-                }
-                let c = Src::child(n, SyntaxKind::NamedType)
-                    .expect("parser::ty_bound_trait emits NamedType");
-                let t = self.named_ty_as(c, NameRole::Trait)?;
-                if let TyData::TraitValue { def, .. } = pool.get(t)
-                    && let Some(name) = self.cx.names.known.fn_trait_name(def)
-                {
-                    let msg = format!(
-                        "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
-                    );
-                    self.err(Code::InvalidDynType, n, &msg);
-                    return Ok(Ty::POISON);
-                }
-                let view = hd_resolve::assoc::LookupView {
-                    lookup: self.cx.lookup,
-                    names: &self.cx.names,
-                };
-                let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
-                self.require_complete(t, n);
-                t
-            }
-            SyntaxKind::FunctionType => {
-                let arrow = n
-                    .direct_token(&self.cx.src.parse.tokens, TokenKind::Arrow)
-                    .map(hd_base::TokenIdx::raw);
-                let suspends = n
-                    .direct_token(&self.cx.src.parse.tokens, TokenKind::Bang)
-                    .is_some();
-                let mut params = Vec::new();
-                let mut result = Ty::VOID;
-                let mut row = RowId::EMPTY;
-                let mut inputs = Inputs::Fixed;
-                for c in n.children() {
-                    if c.kind() == SyntaxKind::RequirementRow {
-                        row = self.row_of(c)?;
-                    } else if c.kind().is_type() {
-                        let after = arrow.is_some_and(|a| self.cx.src.first(c).raw() > a);
-                        let t = self.ty_node(c)?;
-                        if after {
-                            result = t;
-                        } else {
-                            inputs = if c.kind() == SyntaxKind::RestType {
-                                Inputs::Rest
-                            } else {
-                                Inputs::Fixed
-                            };
-                            params.push(t);
-                        }
-                    }
-                }
-                // `fn.type.lifetime.elide`: a body writes no lifetime.
-                let deps = pool.fn_deps_written(&params, result, &[]);
-                pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&params),
-                    result,
-                    row,
-                    suspends,
-                    inputs,
-                    deps,
-                })
-            }
-            SyntaxKind::InferType => {
-                let v = self.infer.fresh(pool, VarKind::General);
-                self.row_argument_vars(DefId::NONE, &[v], n);
-                v
-            }
-            // A row in a row slot, as an explicit argument for a row
-            // parameter (`req.row.slot.list`).
-            SyntaxKind::RequirementRow => {
-                let r = self.row_of(n)?;
-                pool.intern_ty(&TyData::Row(r))
-            }
-            SyntaxKind::ProjectionType => {
-                let base = first(self, n)?;
-                self.add_projection_clauses(base);
-                let t = n.name_part(&self.cx.src.parse.tokens);
-                let name = self.cx.src.text(t).to_owned();
-                let Some((trait_, args)) = self.assoc_owner(base, &name) else {
-                    // No bound declares the name: an associated-type
-                    // error at the projection (`trait.assoc.no-type`). A
-                    // type with no bound, a concrete one included,
-                    // selects none either.
-                    // A bound that names no trait was reported, and
-                    // left a clause on no trait.
-                    let env = &self.env;
-                    let clauses = || env.clauses_of(base).iter().map(|&i| i as usize);
-                    if base == Ty::POISON || clauses().any(|i| env.clause_trait()[i] == DefId::NONE)
+                Ok(Some(mut data)) => {
+                    if let TyData::Fn {
+                        params,
+                        result,
+                        deps,
+                        ..
+                    } = &mut data
                     {
+                        *deps = pool.fn_deps_written(pool.list_items(*params), *result, &[]);
+                    }
+                    if let TyData::Ref { mutable: true, .. } = data
+                        && self.static_ref_type(n)
+                    {
+                        self.err(Code::StaticReferenceMut, n,
+                            "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes");
+                    }
+                    let mut t = pool.intern_ty(&data);
+                    if n.kind() == SyntaxKind::DynType {
+                        t = self.with_key_bindings(t);
+                        self.require_complete(t, n);
+                    }
+                    return Ok(t);
+                }
+                Ok(None) => (),
+            }
+            // Function rows are not separately declared type annotations.
+            if n.kind() == SyntaxKind::RequirementRow
+                && (n.index() == root.index() || root.kind() == SyntaxKind::FunctionType)
+            {
+                let r = self.row_of(n)?;
+                return Ok(pool.intern_ty(&TyData::Row(r)));
+            }
+            if n.index() != root.index() {
+                return if root.kind() == SyntaxKind::DynType {
+                    self.named_ty_as(n, NameRole::Trait)
+                } else if root.kind() == SyntaxKind::ParenType || role != NameRole::Type {
+                    self.ty_node_as(n, role)
+                } else {
+                    self.ty_node(n)
+                };
+            }
+            let first = |me: &mut Self, n: NodeRef<'_>| -> StageResult<Ty> {
+                n.children()
+                    .find(|c| c.kind().is_type())
+                    .map_or(Ok(Ty::VOID), |c| me.ty_node(c))
+            };
+            Ok(match n.kind() {
+                SyntaxKind::NamedType => {
+                    let t = self.named_ty_as(n, role)?;
+                    // A row alias is row-kinded (`req.row.alias.type-or-key`).
+                    if matches!(pool.get(t), TyData::Row(_)) {
+                        let name = self.segments(n).join(".");
+                        let msg = format!(
+                            "`{name}` is a row alias, not a type or one key: write it in a row after `$`, as in `$ {name}`"
+                        );
+                        self.err(hd_diag::Code::GenericKindMismatch, n, &msg);
                         return Ok(Ty::POISON);
                     }
-                    let bounded = clauses().next().is_some();
-                    let msg = if bounded {
-                        format!("`{name}` names no associated type that any bound declares")
-                    } else {
-                        format!("`{name}` projects from a type with no bound that declares it")
+                    t
+                }
+                SyntaxKind::ContextType => {
+                    let row = n.children().find(|c| c.kind().is_type()).filter(|c| {
+                        c.kind() == SyntaxKind::RequirementRow
+                            && c.direct_token(&self.cx.src.parse.tokens, TokenKind::Dollar)
+                                .is_some()
+                    });
+                    let Some(row) = row else {
+                        // The brackets are a row slot (`req.context.dollar`).
+                        self.err(
+                            hd_diag::Code::GenericKindMismatch,
+                            n,
+                            "`$.Context[...]` takes a row written after `$`",
+                        );
+                        return Ok(Ty::POISON);
                     };
-                    self.err(Code::UnknownAssociatedType, n, &msg);
-                    return Ok(Ty::POISON);
-                };
-                let assoc = self.cx.names.member(trait_, PathKind::Member, &name);
-                self.normalize(pool.intern_ty(&TyData::Assoc {
-                    assoc,
-                    trait_,
-                    self_ty: base,
-                    args,
-                }))?
-            }
-            SyntaxKind::RefType => {
-                // ref.lifetime.not-yet.body: a lifetime written in a body,
-                // but in a closure parameter's annotation that places it
-                // (`Ck::closure_param_annotation`).
-                if self.written_lifetimes.is_none()
-                    && n.direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Lifetime)
-                        .is_some()
-                    && (self.static_annotation)
-                        .binary_search_by_key(&n.index().raw(), |x| x.raw())
-                        .is_err()
-                {
-                    self.err(
-                        Code::ReferencesNotYetChecked,
-                        n,
-                        "a lifetime inside a function body is not checked yet",
-                    );
+                    let r = self.row_of(row)?;
+                    if !pool.row_data(r).params.is_empty() {
+                        self.err(
+                            hd_diag::Code::RowParameterInContext,
+                            row,
+                            "`$.Context[...]` takes only a concrete row, not a row parameter",
+                        );
+                        return Ok(Ty::POISON);
+                    }
+                    pool.intern_ty(&TyData::Context(r))
                 }
-                // `ref.type.forms`: `&mut T` is the reference's permission.
-                let mutable = n
-                    .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
-                    .is_some();
-                let inner = match n.children().find(|c| c.kind().is_type()) {
-                    Some(child) => self.ty_node_as(child, NameRole::Referent)?,
-                    None => Ty::VOID,
-                };
-                // `ref.type.counted-forms`: `*T` is counted, `&T` local.
-                let counted = n
-                    .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::Star)
-                    .is_some();
-                if mutable && self.static_ref_type(n) {
-                    self.err(
-                        Code::StaticReferenceMut,
-                        n,
-                        "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes",
-                    );
+                SyntaxKind::ImplType => {
+                    match self.impl_params.iter().find(|(i, _)| *i == n.index()) {
+                        Some(&(_, t)) => t,
+                        None => self.declared_opaque_annotation(n)?,
+                    }
                 }
-                pool.intern_ty(&TyData::Ref {
-                    inner,
-                    mutable,
-                    counted,
-                })
-            }
-            // `parser::types` emits only the type production kinds above
-            // (`SyntaxKind::is_type`); malformed types stop before bodies.
-            _ => Ty::POISON,
+                SyntaxKind::InferType => {
+                    let v = self.infer.fresh(pool, VarKind::General);
+                    self.row_argument_vars(DefId::NONE, &[v], n);
+                    v
+                }
+                SyntaxKind::ProjectionType => {
+                    let base = first(self, n)?;
+                    self.add_projection_clauses(base);
+                    let t = n.name_part(&self.cx.src.parse.tokens);
+                    let name = self.cx.src.text(t).to_owned();
+                    let Some((trait_, args)) = self.assoc_owner(base, &name) else {
+                        // No bound declares the name: an associated-type
+                        // error at the projection (`trait.assoc.no-type`). A
+                        // type with no bound, a concrete one included,
+                        // selects none either.
+                        // A bound that names no trait was reported, and
+                        // left a clause on no trait.
+                        let env = &self.env;
+                        let clauses = || env.clauses_of(base).iter().map(|&i| i as usize);
+                        if base == Ty::POISON
+                            || clauses().any(|i| env.clause_trait()[i] == DefId::NONE)
+                        {
+                            return Ok(Ty::POISON);
+                        }
+                        let bounded = clauses().next().is_some();
+                        let msg = if bounded {
+                            format!("`{name}` names no associated type that any bound declares")
+                        } else {
+                            format!("`{name}` projects from a type with no bound that declares it")
+                        };
+                        self.err(Code::UnknownAssociatedType, n, &msg);
+                        return Ok(Ty::POISON);
+                    };
+                    let assoc = self.cx.names.member(trait_, PathKind::Member, &name);
+                    self.normalize(pool.intern_ty(&TyData::Assoc {
+                        assoc,
+                        trait_,
+                        self_ty: base,
+                        args,
+                    }))?
+                }
+                _ => Ty::POISON,
+            })
         })
     }
 }

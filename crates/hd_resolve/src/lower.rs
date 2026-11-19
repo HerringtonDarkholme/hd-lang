@@ -40,6 +40,227 @@ use crate::known::TEST_PRELUDE;
 pub use crate::known::{PRELUDE, prelude_rows, runtime_module};
 use crate::{Binding, BindingKind, ModuleScope, Origin};
 
+/// The written generic slot's row kind, or none past the declaration.
+#[must_use]
+pub fn row_slot(generics: &[Generic], position: usize) -> Option<bool> {
+    generics
+        .iter()
+        .filter(|g| !g.lifetime && !g.outer)
+        .nth(position)
+        .map(|g| g.row)
+}
+
+/// A bare type in a row slot: preserve the name's exact dollar fix-it.
+pub fn bare_in_row_slot(
+    diags: &mut DiagBuf,
+    src: &Src<'_>,
+    n: NodeRef<'_>,
+    owner: &str,
+    position: usize,
+) {
+    let span = src.span(n);
+    diags.error(
+        Code::GenericKindMismatch,
+        span,
+        &format!(
+            "argument {} of `{owner}` is a row parameter: write its row after `$`",
+            position + 1,
+        ),
+    );
+    if n.kind() == SyntaxKind::NamedType {
+        let at = Span {
+            hi: span.lo,
+            ..span
+        };
+        diags.add_fix(
+            "write the row after `$`",
+            hd_diag::FixSafety::Exact,
+            &[(at, "$ ")],
+        );
+    }
+}
+
+/// Function-constructor inputs are a tuple or a tuple-bounded parameter.
+/// Header parsing rules out inference variables; body annotations infer them.
+pub fn inputs_tuple(pool: Types<'_>, t: Ty, bounded: impl FnOnce(Ty) -> bool) -> bool {
+    match pool.get(t) {
+        TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) => true,
+        TyData::Param(_) => bounded(t),
+        _ => false,
+    }
+}
+
+/// What a written name must denote at its position.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NameRole {
+    Type,
+    Referent,
+    Trait,
+}
+
+/// The existing type-form lowering, with context-specific name, inference,
+/// constraint and lifetime operations supplied by one closure. A child uses
+/// `Ok(None)`; a completed form supplies its uninterned data; an error keeps
+/// the caller's diagnostic sink and fix-it ordering.
+pub fn ty_form<'t, E>(
+    pool: Types<'_>,
+    known: &KnownItems,
+    src: Src<'_>,
+    n: NodeRef<'t>,
+    role: NameRole,
+    mut lower: impl FnMut(
+        NodeRef<'t>,
+        NameRole,
+        Result<Option<TyData>, (Code, String)>,
+    ) -> Result<Ty, E>,
+) -> Result<Ty, E> {
+    fn first<'t, E>(
+        n: NodeRef<'t>,
+        role: NameRole,
+        lower: &mut impl FnMut(
+            NodeRef<'t>,
+            NameRole,
+            Result<Option<TyData>, (Code, String)>,
+        ) -> Result<Ty, E>,
+    ) -> Result<Ty, E> {
+        n.children()
+            .find(|c| c.kind().is_type())
+            .map_or(Ok(Ty::VOID), |c| lower(c, role, Ok(None)))
+    }
+    let Some(form) = n.kind().type_form() else {
+        return lower(n, role, Ok(None));
+    };
+    let data = match form {
+        TypeForm::Named | TypeForm::Impl | TypeForm::Projection | TypeForm::Context => {
+            return lower(n, role, Ok(None));
+        }
+        TypeForm::Optional => {
+            let t = first(n, NameRole::Type, &mut lower)?;
+            return Ok(pool.applied(known.option, t));
+        }
+        TypeForm::Union => {
+            let members: Result<Vec<_>, E> = n
+                .children()
+                .filter(|c| c.kind().is_type())
+                .map(|c| lower(c, NameRole::Type, Ok(None)))
+                .collect();
+            TyData::Union(pool.list(&members?))
+        }
+        TypeForm::Paren => return first(n, role, &mut lower),
+        TypeForm::Rest => {
+            let t = first(n, NameRole::Type, &mut lower)?;
+            if !matches!(pool.get(t), TyData::Adt { def, .. } if def == known.list)
+                && t != Ty::POISON
+            {
+                lower(
+                    n,
+                    role,
+                    Err((
+                        Code::TypeMismatch,
+                        "a rest element's type must be a `List`".into(),
+                    )),
+                )?;
+            }
+            return Ok(t);
+        }
+        TypeForm::Tuple => {
+            let mut elems = Vec::new();
+            let mut rest = None;
+            for c in n.children().filter(|c| c.kind().is_type()) {
+                let t = lower(c, NameRole::Type, Ok(None))?;
+                if c.kind() == SyntaxKind::RestType {
+                    rest = Some(t);
+                } else {
+                    elems.push(t);
+                }
+            }
+            TyData::Tuple {
+                elems: pool.list(&elems),
+                rest,
+            }
+        }
+        TypeForm::Dyn => {
+            if role != NameRole::Referent {
+                return lower(
+                    n,
+                    role,
+                    Err((
+                        Code::TraitUsedAsType,
+                        "a trait value needs a reference type, `&dyn` or `&mut dyn`".into(),
+                    )),
+                );
+            }
+            let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
+                return Ok(Ty::POISON);
+            };
+            let t = lower(c, NameRole::Trait, Ok(None))?;
+            if let TyData::TraitValue { def, .. } = pool.get(t)
+                && let Some(name) = known.fn_trait_name(def)
+            {
+                return lower(
+                    n,
+                    role,
+                    Err((
+                        Code::InvalidDynType,
+                        format!(
+                            "`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"
+                        ),
+                    )),
+                );
+            }
+            pool.get(t)
+        }
+        TypeForm::Function => {
+            let arrow = n
+                .direct_token(&src.parse.tokens, TokenKind::Arrow)
+                .map(TokenIdx::raw);
+            let suspends = n.direct_token(&src.parse.tokens, TokenKind::Bang).is_some();
+            let mut params = Vec::new();
+            let mut result = Ty::VOID;
+            let mut row = RowId::EMPTY;
+            let mut inputs = Inputs::Fixed;
+            for c in n.children().filter(|c| c.kind().is_type()) {
+                let t = lower(c, NameRole::Type, Ok(None))?;
+                if c.kind() == SyntaxKind::RequirementRow {
+                    if let TyData::Row(r) = pool.get(t) {
+                        row = r;
+                    }
+                } else if arrow.is_some_and(|a| src.first(c).raw() > a) {
+                    result = t;
+                } else {
+                    inputs = if c.kind() == SyntaxKind::RestType {
+                        Inputs::Rest
+                    } else {
+                        Inputs::Fixed
+                    };
+                    params.push(t);
+                }
+            }
+            TyData::Fn {
+                params: pool.list(&params),
+                result,
+                row,
+                suspends,
+                inputs,
+                deps: hd_types::FnDeps::NONE,
+            }
+        }
+        TypeForm::Ref => {
+            let mutable = n
+                .direct_token(&src.parse.tokens, TokenKind::KwMut)
+                .is_some();
+            let counted = n.direct_token(&src.parse.tokens, TokenKind::Star).is_some();
+            let inner = first(n, NameRole::Referent, &mut lower)?;
+            TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            }
+        }
+    };
+    lower(n, role, Ok(Some(data)))
+}
+
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
 pub fn is_prelude_name(name: &str) -> bool {
@@ -2694,7 +2915,13 @@ impl Lower<'_, '_, '_> {
                     // a bare name there is that one kind error, before it can
                     // be lowered, and misread, as a type.
                     k if k.is_type() && self.row_slot(def, position) => {
-                        self.bare_in_row_slot(def, position, a);
+                        bare_in_row_slot(
+                            self.diags,
+                            &self.src,
+                            a,
+                            self.names.display_name(def),
+                            position,
+                        );
                         args.push(Ty::POISON);
                         position += 1;
                     }
@@ -2772,37 +2999,10 @@ impl Lower<'_, '_, '_> {
     fn param_is_row(&self, def: DefId, position: usize) -> Option<bool> {
         match self.r.row_params.get(&def) {
             Some(rows) => rows.get(position).copied(),
-            None => self.r.item(def).and_then(|i| {
-                i.generics
-                    .iter()
-                    .filter(|g| !g.lifetime && !g.outer)
-                    .nth(position)
-                    .map(|g| g.row)
-            }),
-        }
-    }
-
-    /// `argument`, a type written without `$`, fills the row slot of `def`
-    /// at `position` (`req.row.slot.bare`). A bare name, a key or a row
-    /// alias, gets the fix-it that writes `$` before it.
-    fn bare_in_row_slot(&mut self, def: DefId, position: usize, argument: NodeRef<'_>) {
-        let span = self.src.span(argument);
-        let msg = format!(
-            "argument {} of `{}` is a row parameter: write its row after `$`",
-            position + 1,
-            self.names.display_name(def)
-        );
-        self.diags.error(Code::GenericKindMismatch, span, &msg);
-        if argument.kind() == SyntaxKind::NamedType {
-            let at = Span {
-                hi: span.lo,
-                ..span
-            };
-            self.diags.add_fix(
-                "write the row after `$`",
-                hd_diag::FixSafety::Exact,
-                &[(at, "$ ")],
-            );
+            None => self
+                .r
+                .item(def)
+                .and_then(|i| row_slot(&i.generics, position)),
         }
     }
 
@@ -4008,16 +4208,14 @@ impl Lower<'_, '_, '_> {
     /// tuple type, or a type parameter bounded by `Tuple`
     /// (`fn.type.ctor.inputs-tuple`).
     fn inputs_tuple(&self, t: Ty, gn: &Gen) -> bool {
-        match self.names.pool.get(t) {
-            TyData::Tuple { .. } | TyData::Poison => true,
-            TyData::Param(_) => gn.tys.of_ty(t).is_some_and(|p| {
+        inputs_tuple(self.names.pool.types(), t, |t| {
+            gn.tys.of_ty(t).is_some_and(|p| {
                 p.pending
                     || p.bounds
                         .iter()
                         .any(|(def, _)| *def == self.names.known.tuple)
-            }),
-            _ => false,
-        }
+            })
+        })
     }
 
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
@@ -4048,307 +4246,231 @@ impl Lower<'_, '_, '_> {
 
     fn ty_form(&mut self, n: NodeRef<'_>, form: TypeForm, gn: &Gen, referent: bool) -> Ty {
         let pool = self.names.pool;
-        let first_ty = |me: &mut Self, n: NodeRef<'_>| -> Ty {
-            let c = n.children().find(|c| c.kind().is_type());
-            me.ty(c, gn)
+        let src = self.src;
+        let known = self.names.known;
+        let role = if referent {
+            NameRole::Referent
+        } else {
+            NameRole::Type
         };
-        match form {
-            TypeForm::Named => self.named(n, gn, referent),
-            TypeForm::Impl => {
-                let Some((owner, site, borrows)) = self.opaque_result else {
-                    self.diags.error(
-                        Code::TypeMismatch,
-                        self.src.span(n),
-                        "`impl Trait` needs a named function's return annotation",
-                    );
-                    return Ty::POISON;
-                };
-                // An opaque type in the bound's arguments borrows nothing.
-                self.opaque_result = Some((owner, site + 1, false));
-                let bound = Src::child(n, SyntaxKind::NamedType)
-                    .and_then(|n| self.trait_value(n, gn, None))
-                    .unwrap_or(Ty::POISON);
-                if let Some((o, s, _)) = self.opaque_result {
-                    self.opaque_result = Some((o, s, borrows));
-                }
-                let args: Vec<Ty> = gn
-                    .decls
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        if let Some((_, r)) = gn.rows.first(*name) {
-                            return Some(pool.intern_ty(&TyData::Row(pool.row(
-                                &hd_types::RowData {
-                                    keys: vec![],
-                                    params: vec![*r],
-                                },
-                            ))));
-                        }
-                        gn.tys.first(*name).map(|t| t.ty)
-                    })
-                    .collect();
-                // A trait method's opaque identity includes its implementation
-                // target, even when the written bound never mentions `Self`.
-                let args = if gn.self_trait.is_some() {
-                    gn.self_ty.into_iter().chain(args).collect()
-                } else {
-                    args
-                };
-                pool.intern_ty(&TyData::Opaque {
-                    owner,
-                    site,
-                    borrows,
-                    args: pool.list(&args),
-                    bound,
-                })
+        let mut function = if form == TypeForm::Function {
+            let outer = self.slots.replace(Vec::new());
+            let held = self.held.take();
+            let field = std::mem::replace(&mut self.in_field, false);
+            Some((outer, held, field))
+        } else {
+            None
+        };
+        if form == TypeForm::Ref {
+            let mutable = n
+                .direct_token(&src.parse.tokens, TokenKind::KwMut)
+                .is_some();
+            let counted = n.direct_token(&src.parse.tokens, TokenKind::Star).is_some();
+            let lifetime = self.lifetime(n, gn);
+            if lifetime == crate::iface::STATIC_LIFETIME && mutable && self.r.frozen.is_none() {
+                self.diags.error(Code::StaticReferenceMut, src.span(n),
+                    "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes");
             }
-            TypeForm::Optional => {
-                let t = first_ty(self, n);
-                pool.applied(self.names.known.option, t)
+            if !counted && let Some(slots) = &mut self.slots {
+                slots.push(lifetime);
             }
-            TypeForm::Union => {
-                let members: Vec<Ty> = n
-                    .children()
-                    .filter(|c| c.kind().is_type())
-                    .map(|c| self.ty(Some(c), gn))
-                    .collect();
-                pool.intern_ty(&TyData::Union(pool.list(&members)))
-            }
-            TypeForm::Paren => self.ty_at(n.children().find(|c| c.kind().is_type()), gn, referent),
-            TypeForm::Rest => first_ty(self, n),
-            TypeForm::Tuple => {
-                let mut elems = Vec::new();
-                let mut rest = None;
-                for c in n.children().filter(|c| c.kind().is_type()) {
-                    if c.kind() == SyntaxKind::RestType {
-                        let t = first_ty(self, c);
-                        // `types.tuple.rest.list`: a rest element is a `List`.
-                        let list = self.names.known.list;
-                        if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
-                            && t != Ty::POISON
+        }
+        let root = n.index();
+        let result: Result<Ty, std::convert::Infallible> =
+            ty_form(pool.types(), known, src, n, role, |n, role, input| {
+                match input {
+                    Err((code, message)) => {
+                        self.diags.error(code, src.span(n), &message);
+                        return Ok(Ty::POISON);
+                    }
+                    Ok(Some(mut data)) => {
+                        if let TyData::Fn {
+                            params,
+                            result,
+                            deps,
+                            ..
+                        } = &mut data
+                            && let Some((outer, outer_held, in_field)) = function.take()
                         {
-                            self.diags.error(
-                                Code::TypeMismatch,
-                                self.src.span(c),
-                                "a rest element's type must be a `List`",
+                            let written =
+                                std::mem::replace(&mut self.slots, outer).unwrap_or_default();
+                            self.held = outer_held;
+                            self.in_field = in_field;
+                            // The record of its own slots: each input's written
+                            // lifetime, then each result slot's, an elided one taking
+                            // the inputs' one written lifetime (`fn.type.lifetime.elide`),
+                            // or 0 when they have none or more than one.
+                            let n_in: usize = pool
+                                .list_items(*params)
+                                .iter()
+                                .map(|&t| pool.types().ref_slots(t))
+                                .sum();
+                            let n_out = pool.types().ref_slots(*result);
+                            let mut own = written.clone();
+                            own.resize(n_in + n_out, 0);
+                            let (ins, outs) = own.split_at_mut(n_in);
+                            let one = match ins.split_first() {
+                                Some((&l, rest)) if l != 0 && rest.iter().all(|&m| m == l) => l,
+                                _ => 0,
+                            };
+                            for l in outs.iter_mut().filter(|l| **l == 0) {
+                                *l = one;
+                            }
+                            self.fn_written.extend(own);
+                            *deps = pool.types().fn_deps_written(
+                                pool.list_items(*params),
+                                *result,
+                                &written,
                             );
                         }
-                        rest = Some(t);
-                    } else {
-                        elems.push(self.ty(Some(c), gn));
+                        let mut t = pool.intern_ty(&data);
+                        if n.kind() == SyntaxKind::DynType {
+                            t = crate::assoc::with_super_bindings(pool.types(), self.r, t);
+                            self.require_complete(t, src.span(n));
+                        }
+                        return Ok(t);
                     }
+                    Ok(None) => (),
                 }
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&elems),
-                    rest,
-                })
-            }
-            TypeForm::Dyn => {
-                if !referent {
-                    self.diags.error(
-                        Code::TraitUsedAsType,
-                        self.src.span(n),
-                        "a trait value needs a reference type, `&dyn` or `&mut dyn`",
-                    );
-                    return Ty::POISON;
+                if n.kind() == SyntaxKind::RequirementRow {
+                    return Ok(pool.intern_ty(&TyData::Row(self.row(Some(n), gn))));
                 }
-                let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
-                    return Ty::POISON;
-                };
-                let Some(t) = self.trait_value(c, gn, None) else {
-                    return Ty::POISON;
-                };
-                if let TyData::TraitValue { def, .. } = pool.get(t)
-                    && let Some(name) = self.names.known.fn_trait_name(def)
-                {
-                    self.diags.error(
-                        Code::InvalidDynType,
-                        self.src.span(n),
-                        &format!("`{name}` is a static-dispatch function trait and has no `dyn` form; use a `fn(...) -> ...` type for dynamic calls"),
-                    );
-                    return Ty::POISON;
+                if n.index() != root {
+                    return Ok(if role == NameRole::Trait {
+                        self.trait_value(n, gn, None).unwrap_or(Ty::POISON)
+                    } else {
+                        self.ty_at(Some(n), gn, role == NameRole::Referent)
+                    });
                 }
-                let t = crate::assoc::with_super_bindings(self.names.pool.types(), self.r, t);
-                self.require_complete(t, self.src.span(n));
-                t
-            }
-            TypeForm::Function => {
-                let arrow = n
-                    .direct_token(&self.src.parse.tokens, TokenKind::Arrow)
-                    .map(hd_base::TokenIdx::raw);
-                let suspends = n
-                    .direct_token(&self.src.parse.tokens, TokenKind::Bang)
-                    .is_some();
-                let mut params = Vec::new();
-                let mut result = Ty::VOID;
-                let mut row = RowId::EMPTY;
-                let mut inputs = Inputs::Fixed;
-                // `fn.type.lifetime`: the type's own reference slots, whose
-                // written lifetimes name the enclosing declaration's.
-                let outer = self.slots.replace(Vec::new());
-                let outer_held = self.held.take();
-                let in_field = std::mem::replace(&mut self.in_field, false);
-                for c in n.children() {
-                    if c.kind() == SyntaxKind::RequirementRow {
-                        row = self.row(Some(c), gn);
-                    } else if c.kind().is_type() {
-                        let after = arrow.is_some_and(|a| self.src.first(c).raw() > a);
-                        let t = self.ty(Some(c), gn);
-                        if after {
-                            result = t;
-                        } else {
-                            inputs = if c.kind() == SyntaxKind::RestType {
-                                // `types.tuple.rest.list`: a rest element
-                                // is a `List`.
-                                let list = self.names.known.list;
-                                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list)
-                                    && t != Ty::POISON
-                                {
-                                    self.diags.error(
-                                        Code::TypeMismatch,
-                                        self.src.span(c),
-                                        "a rest element's type must be a `List`",
-                                    );
+                Ok(match n.kind() {
+                    SyntaxKind::NamedType => self.named(n, gn, role == NameRole::Referent),
+                    SyntaxKind::ImplType => {
+                        let Some((owner, site, borrows)) = self.opaque_result else {
+                            self.diags.error(
+                                Code::TypeMismatch,
+                                self.src.span(n),
+                                "`impl Trait` needs a named function's return annotation",
+                            );
+                            return Ok(Ty::POISON);
+                        };
+                        // An opaque type in the bound's arguments borrows nothing.
+                        self.opaque_result = Some((owner, site + 1, false));
+                        let bound = Src::child(n, SyntaxKind::NamedType)
+                            .and_then(|n| self.trait_value(n, gn, None))
+                            .unwrap_or(Ty::POISON);
+                        if let Some((o, s, _)) = self.opaque_result {
+                            self.opaque_result = Some((o, s, borrows));
+                        }
+                        let args: Vec<Ty> = gn
+                            .decls
+                            .iter()
+                            .filter_map(|(name, _)| {
+                                if let Some((_, r)) = gn.rows.first(*name) {
+                                    return Some(pool.intern_ty(&TyData::Row(pool.row(
+                                        &hd_types::RowData {
+                                            keys: vec![],
+                                            params: vec![*r],
+                                        },
+                                    ))));
                                 }
-                                Inputs::Rest
+                                gn.tys.first(*name).map(|t| t.ty)
+                            })
+                            .collect();
+                        // A trait method's opaque identity includes its implementation
+                        // target, even when the written bound never mentions `Self`.
+                        let args = if gn.self_trait.is_some() {
+                            gn.self_ty.into_iter().chain(args).collect()
+                        } else {
+                            args
+                        };
+                        pool.intern_ty(&TyData::Opaque {
+                            owner,
+                            site,
+                            borrows,
+                            args: pool.list(&args),
+                            bound,
+                        })
+                    }
+                    SyntaxKind::ProjectionType => {
+                        let base_node = n.children().find(|c| c.kind().is_type());
+                        let base = self.ty(base_node, gn);
+                        let Some(t) = n.name(&self.src.parse.tokens) else {
+                            return Ok(Ty::POISON);
+                        };
+                        let name = self.sym_token(t);
+                        // `Self::X` inside a trait leaves the trait's arguments
+                        // implicit (each use instantiates them); `T::X` names the
+                        // bound's arguments, defaults filled, so `T::Out` under
+                        // `T < Add` is `<T as Add[T]>::Out`.
+                        let mut cands: Vec<BoundRef> = Vec::new();
+                        if Some(base) == gn.self_ty
+                            && let Some(tr) = gn.self_trait
+                        {
+                            cands.push((tr, TyList::EMPTY));
+                        }
+                        let param = gn.tys.of_ty(base);
+                        if let Some(p) = param {
+                            cands.extend(p.bounds.iter().copied());
+                        }
+                        // The projection names the trait that declares the
+                        // associated type, which a bound may reach through its
+                        // supertraits (`crates/hd_check/DESIGN.md` (trait solver) §4.1).
+                        let mut decls: Vec<(DefId, TyList, DefId)> = Vec::new();
+                        for &(tr, a) in &cands {
+                            for d in self.assoc_decls(tr, a, Some(base), name) {
+                                if !decls.iter().any(|x| x.2 == d.2) {
+                                    decls.push(d);
+                                }
+                            }
+                        }
+                        if decls.len() > 1 {
+                            let msg = format!(
+                                "`{}` names an associated type that two bounds declare",
+                                self.names.text(name)
+                            );
+                            self.diags
+                                .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
+                        }
+                        if decls.is_empty() && cands.is_empty() && param.is_some_and(|p| p.poisoned)
+                        {
+                            return Ok(Ty::POISON);
+                        }
+                        if decls.is_empty() {
+                            // No bound declares the name: an associated-type
+                            // error at the projection, not a fabricated member
+                            // with knock-on errors below
+                            // (`trait.assoc.no-type`). A type with no bound,
+                            // a concrete one included, selects none either.
+                            let msg = if cands.is_empty() {
+                                format!(
+                                    "`{}` projects from a type with no bound that declares it",
+                                    self.names.text(name)
+                                )
                             } else {
-                                Inputs::Fixed
+                                format!(
+                                    "`{}` names no associated type that any bound declares",
+                                    self.names.text(name)
+                                )
                             };
-                            params.push(t);
+                            self.diags
+                                .error(Code::UnknownAssociatedType, self.src.span(n), &msg);
+                            return Ok(Ty::POISON);
                         }
+                        let (trait_, args, assoc) = decls[0];
+                        pool.intern_ty(&TyData::Assoc {
+                            assoc,
+                            trait_,
+                            self_ty: base,
+                            args,
+                        })
                     }
-                }
-                let written = std::mem::replace(&mut self.slots, outer).unwrap_or_default();
-                self.held = outer_held;
-                self.in_field = in_field;
-                // The record of its own slots: each input's written
-                // lifetime, then each result slot's, an elided one taking
-                // the inputs' one written lifetime (`fn.type.lifetime.elide`),
-                // or 0 when they have none or more than one.
-                let n_in: usize = params.iter().map(|&t| pool.types().ref_slots(t)).sum();
-                let n_out = pool.types().ref_slots(result);
-                let mut own = written.clone();
-                own.resize(n_in + n_out, 0);
-                let (ins, outs) = own.split_at_mut(n_in);
-                let one = match ins.split_first() {
-                    Some((&l, rest)) if l != 0 && rest.iter().all(|&m| m == l) => l,
-                    _ => 0,
-                };
-                for l in outs.iter_mut().filter(|l| **l == 0) {
-                    *l = one;
-                }
-                self.fn_written.extend(own);
-                let deps = pool.types().fn_deps_written(&params, result, &written);
-                pool.intern_ty(&TyData::Fn {
-                    params: pool.list(&params),
-                    result,
-                    row,
-                    suspends,
-                    inputs,
-                    deps,
+                    SyntaxKind::ContextType => self.context_ty(n, gn),
+                    _ => Ty::POISON,
                 })
-            }
-            TypeForm::Projection => {
-                let base_node = n.children().find(|c| c.kind().is_type());
-                let base = self.ty(base_node, gn);
-                let Some(t) = n.name(&self.src.parse.tokens) else {
-                    return Ty::POISON;
-                };
-                let name = self.sym_token(t);
-                // `Self::X` inside a trait leaves the trait's arguments
-                // implicit (each use instantiates them); `T::X` names the
-                // bound's arguments, defaults filled, so `T::Out` under
-                // `T < Add` is `<T as Add[T]>::Out`.
-                let mut cands: Vec<BoundRef> = Vec::new();
-                if Some(base) == gn.self_ty
-                    && let Some(tr) = gn.self_trait
-                {
-                    cands.push((tr, TyList::EMPTY));
-                }
-                let param = gn.tys.of_ty(base);
-                if let Some(p) = param {
-                    cands.extend(p.bounds.iter().copied());
-                }
-                // The projection names the trait that declares the
-                // associated type, which a bound may reach through its
-                // supertraits (`crates/hd_check/DESIGN.md` (trait solver) §4.1).
-                let mut decls: Vec<(DefId, TyList, DefId)> = Vec::new();
-                for &(tr, a) in &cands {
-                    for d in self.assoc_decls(tr, a, Some(base), name) {
-                        if !decls.iter().any(|x| x.2 == d.2) {
-                            decls.push(d);
-                        }
-                    }
-                }
-                if decls.len() > 1 {
-                    let msg = format!(
-                        "`{}` names an associated type that two bounds declare",
-                        self.names.text(name)
-                    );
-                    self.diags
-                        .error(Code::AmbiguousAssociatedType, self.src.span(n), &msg);
-                }
-                if decls.is_empty() && cands.is_empty() && param.is_some_and(|p| p.poisoned) {
-                    return Ty::POISON;
-                }
-                if decls.is_empty() {
-                    // No bound declares the name: an associated-type
-                    // error at the projection, not a fabricated member
-                    // with knock-on errors below
-                    // (`trait.assoc.no-type`). A type with no bound,
-                    // a concrete one included, selects none either.
-                    let msg = if cands.is_empty() {
-                        format!(
-                            "`{}` projects from a type with no bound that declares it",
-                            self.names.text(name)
-                        )
-                    } else {
-                        format!(
-                            "`{}` names no associated type that any bound declares",
-                            self.names.text(name)
-                        )
-                    };
-                    self.diags
-                        .error(Code::UnknownAssociatedType, self.src.span(n), &msg);
-                    return Ty::POISON;
-                }
-                let (trait_, args, assoc) = decls[0];
-                pool.intern_ty(&TyData::Assoc {
-                    assoc,
-                    trait_,
-                    self_ty: base,
-                    args,
-                })
-            }
-            TypeForm::Context => self.context_ty(n, gn),
-            TypeForm::Ref => {
-                // `ref.type.forms`: the reference's own `mut` says whether it
-                // writes.
-                let mutable = n
-                    .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
-                    .is_some();
-                // `ref.type.counted-forms`: `*T` is counted, `&T` local.
-                let counted = n
-                    .direct_token(&self.src.parse.tokens, TokenKind::Star)
-                    .is_some();
-                let lifetime = self.lifetime(n, gn);
-                if lifetime == crate::iface::STATIC_LIFETIME && mutable && self.r.frozen.is_none() {
-                    // ref.static.no-mut
-                    self.diags.error(
-                        Code::StaticReferenceMut,
-                        self.src.span(n),
-                        "a static reference is read-only: `&'static mut T` is not a type, since a source that can change would need a count; write `&'static T`, or `*mut T` for a shared value that changes",
-                    );
-                }
-                if !counted && let Some(slots) = &mut self.slots {
-                    slots.push(lifetime);
-                }
-                let inner = self.ty_at(n.children().find(|c| c.kind().is_type()), gn, true);
-                pool.intern_ty(&TyData::Ref {
-                    inner,
-                    mutable,
-                    counted,
-                })
-            }
+            });
+        match result {
+            Ok(t) => t,
+            Err(never) => match never {},
         }
     }
 
