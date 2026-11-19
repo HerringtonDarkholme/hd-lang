@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# A counted store into a field's list through `&mut` (`[*$0 .xs [%i]]`)
+# below that list's length drops its bounds check, as its reads do.
+struct Bag:
+    xs: List[i64]
+
+fn bump(b: &mut Bag) -> i64:
+    let s = 0i64
+    # subject
+    for i in 0..b.xs.len():
+        b.xs[i] = b.xs[i] + 1
+        s = s + b.xs[i]
+    s

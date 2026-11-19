@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# A counted store into a list other than the one the counter is below
+# (`ys[i] = ..` while `i < xs.len()`) keeps its bounds check: `ys` may
+# be shorter. The read `xs[i]` drops its check.
+fn copy(xs: List[i64], n: usize) -> i64:
+    let mut ys: List[i64] = []
+    for k in 0..n:
+        ys.push(i64(k))
+    let s = 0i64
+    # subject
+    for i in 0..xs.len():
+        ys[i] = xs[i]
+        s = s + ys[i]
+    s

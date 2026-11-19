@@ -570,16 +570,11 @@ impl Lists<'_> {
         self.loop_body(l)
             .into_iter()
             .filter(|&x| {
-                let (list, index) = match b.element_read(x as usize) {
-                    Some((list, index)) => (self.list_root(list), index),
-                    None => match rooted_elem(b, x as usize) {
-                        Some((list, index)) if b.tags[x as usize] == Tag::Read => {
-                            (Some(list), index)
-                        }
-                        _ => return false,
-                    },
+                // A read or a store: the same place at the same index.
+                let Some((list, index)) = self.elem_access(x as usize) else {
+                    return false;
                 };
-                if list.as_ref() != Some(&root) || self.ty_of(index) != usize_ty() {
+                if list != root {
                     return false;
                 }
                 let index = self.source(index);

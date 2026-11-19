@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# A counted loop's element store `xs[i] = ..` below `xs.len()` drops its
+# bounds check as the reads `xs[i]` do: `i` rises from 0 below a length
+# nothing in the loop changes, and the rising proof clears every access
+# to that place at that index, read or store (Go's `prove` clears the
+# store's `IsInBounds` too).
+fn bump(xs: &mut List[i64]) -> i64:
+    let s = 0i64
+    # subject
+    for i in 0..xs.len():
+        xs[i] = xs[i] + 1
+        s = s + xs[i]
+    s

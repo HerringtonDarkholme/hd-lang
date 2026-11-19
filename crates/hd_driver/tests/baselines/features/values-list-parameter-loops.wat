@@ -8,7 +8,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $run (param $steps i64) (result f64) (local $t1 i32) (local $bodies i32) (local $t0 i32) (local $t2 i64) (local $t3 f64)
-    ;; 19 |     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
+    ;; 20 |     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -68,7 +68,7 @@
     local.tee $bodies
     local.get $t1
     i32.store $heap
-    ;; 20 |     for _ in 0..steps:
+    ;; 21 |     for _ in 0..steps:
     block
       loop
         local.get $t2
@@ -80,15 +80,15 @@
         i64.const 1
         i64.add
         local.set $t2
-    ;; 21 |         advance(&mut bodies, 0.01)
+    ;; 22 |         advance(&mut bodies, 0.01)
         local.get $bodies
         f64.const 0x1.47ae147ae147bp-7
         call $advance
-    ;; 20 |     for _ in 0..steps:
+    ;; 21 |     for _ in 0..steps:
         br 0
       end
     end
-    ;; 22 |     bodies[0].x
+    ;; 23 |     bodies[0].x
     local.get $bodies
     i32.load $heap
     local.set $t1
@@ -103,7 +103,7 @@
     local.get $t1
     f64.load $heap offset=16
     local.set $t3
-    ;; 19 |     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
+    ;; 20 |     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]
     local.get $bodies
     if
       local.get $bodies
@@ -126,13 +126,13 @@
     i32.add
     global.set $locals
   )
-  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $i i32) (local $t4 f64) (local $t5 i32)
-    ;; 12 |     n := bodies.len()
+  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 f64) (local $t4 i32)
+    ;; 13 |     n := bodies.len()
     local.get $bodies
     i32.load $heap
     i32.load $heap offset=4
     local.tee $n
-    ;; 13 |     for i in 0..n:
+    ;; 14 |     for i in 0..n:
     local.set $t0
     i32.const 0
     local.get $t0
@@ -146,23 +146,21 @@
     end
     local.get $bodies
     i32.load $heap
-    local.tee $t1
-    i32.load $heap offset=4
-    local.set $t2
+    local.set $t1
     block
       loop
-        local.get $t3
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t3
+        local.get $t2
         local.set $i
-        local.get $t3
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t3
-    ;; 14 |         bodies[i].v = bodies[i].v + dt
+        local.set $t2
+    ;; 15 |         bodies[i].v = bodies[i].v + dt
         local.get $t1
         local.get $i
         i32.const 16
@@ -171,26 +169,19 @@
         f64.load $heap offset=24
         local.get $dt
         f64.add
-        local.set $t4
-        local.get $i
-        local.get $t2
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
+        local.set $t3
         local.get $t1
         local.get $i
         i32.const 16
         i32.mul
         i32.add
-        local.get $t4
+        local.get $t3
         f64.store $heap offset=24
-    ;; 13 |     for i in 0..n:
+    ;; 14 |     for i in 0..n:
         br 0
       end
     end
-    ;; 15 |     for i in 0..n:
+    ;; 16 |     for i in 0..n:
     i32.const 0
     local.get $n
     i32.lt_u
@@ -203,54 +194,45 @@
     end
     local.get $bodies
     i32.load $heap
-    local.tee $bodies
-    i32.load $heap offset=4
-    local.set $t3
+    local.set $bodies
     block
       loop
-        local.get $t5
+        local.get $t4
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t5
-        local.set $t0
-        local.get $t5
+        local.get $t4
+        local.set $t2
+        local.get $t4
         i32.const 1
         i32.add
-        local.set $t5
-    ;; 16 |         bodies[i].x = bodies[i].x + dt * bodies[i].v
+        local.set $t4
+    ;; 17 |         bodies[i].x = bodies[i].x + dt * bodies[i].v
         local.get $bodies
-        local.get $t0
+        local.get $t2
         i32.const 16
         i32.mul
         i32.add
         f64.load $heap offset=16
         local.get $dt
         local.get $bodies
-        local.get $t0
+        local.get $t2
         i32.const 16
         i32.mul
         i32.add
         f64.load $heap offset=24
         f64.mul
         f64.add
-        local.set $t4
-        local.get $t0
-        local.get $t3
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
+        local.set $t3
         local.get $bodies
-        local.get $t0
+        local.get $t2
         i32.const 16
         i32.mul
         i32.add
-        local.get $t4
+        local.get $t3
         f64.store $heap offset=16
-    ;; 15 |     for i in 0..n:
+    ;; 16 |     for i in 0..n:
         br 0
       end
     end
