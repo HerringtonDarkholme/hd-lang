@@ -28,7 +28,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 24
+    i32.const 16
     i32.lt_u
     if
       i32.const 1
@@ -50,7 +50,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 24
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $locals
@@ -82,12 +82,6 @@
     if
       local.get $t2
       local.tee $t3
-      i64.const 0
-      i64.store $heap offset=16 align=1
-      local.get $t3
-      i64.const 0
-      i64.store $heap offset=8 align=1
-      local.get $t3
       i64.const 0
       i64.store $heap offset=8 align=1
       local.get $t3
@@ -134,21 +128,6 @@
         local.get $pending
         i32.store $heap offset=4
         local.get $s.0
-        i32.eqz
-        if
-          i32.const 8
-          i32.const 1
-          call $rt:new/class-1
-          local.tee $s.0
-          local.get $t2
-          i32.load $heap offset=8
-          i32.store $heap
-          local.get $s.0
-          local.get $t2
-          i32.load $heap offset=12
-          i32.store $heap offset=4
-        end
-        local.get $s.0
         if
           local.get $s.0
           i32.const 8
@@ -191,7 +170,7 @@
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
         local.get $s.1
     ;; 44 |     pending!()
-        i32.store $heap offset=16
+        i32.store $heap offset=8
         i32.const 0
         local.set $pending
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
@@ -220,7 +199,7 @@
             local.set $pending
           else
             local.get $t2
-            i32.load $heap offset=16
+            i32.load $heap offset=8
             local.set $t4
           end
           local.get $t4
@@ -291,7 +270,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 24
+            i32.const 16
             i32.add
             global.set $locals
             return
@@ -364,7 +343,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 24
+          i32.const 16
           i32.add
           global.set $locals
           return
@@ -381,7 +360,7 @@
           end
         end
         local.get $t2
-        i32.load $heap offset=16
+        i32.load $heap offset=8
         local.tee $s.0
         if
           local.get $s.0
@@ -397,7 +376,7 @@
         end
         local.get $t2
         i32.const 0
-        i32.store $heap offset=16
+        i32.store $heap offset=8
         i32.const 0
         local.set $s.0
         i32.const 1
@@ -406,7 +385,7 @@
       end
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
       local.get $t2
-      i32.load $heap offset=16
+      i32.load $heap offset=8
       local.tee $s.1
       if
         local.get $s.1
@@ -422,7 +401,7 @@
       end
       local.get $t2
       i32.const 0
-      i32.store $heap offset=16
+      i32.store $heap offset=8
     end
     local.get $t2
     i32.load $heap
@@ -465,7 +444,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 24
+    i32.const 16
     i32.add
     global.set $locals
   )
@@ -788,7 +767,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 24
+    i32.const 16
     i32.lt_u
     if
       i32.const 1
@@ -810,7 +789,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 24
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $locals
@@ -842,12 +821,6 @@
     if
       local.get $t2
       local.tee $t3
-      i64.const 0
-      i64.store $heap offset=16 align=1
-      local.get $t3
-      i64.const 0
-      i64.store $heap offset=8 align=1
-      local.get $t3
       i64.const 0
       i64.store $heap offset=8 align=1
       local.get $t3
@@ -986,7 +959,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 24
+            i32.const 16
             i32.add
             global.set $locals
             return
@@ -1059,7 +1032,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 24
+          i32.const 16
           i32.add
           global.set $locals
           return
@@ -1127,21 +1100,6 @@
       local.get $key.0
       i32.store $heap offset=4
       local.get $pending
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $pending
-        local.get $t2
-        i32.load $heap offset=12
-        i32.store $heap
-        local.get $pending
-        local.get $t2
-        i32.load $heap offset=16
-        i32.store $heap offset=4
-      end
-      local.get $pending
       call $"impl string.len"
       local.set $t4
     ;; 29 |     let mut pending = fetch(key)
@@ -1200,7 +1158,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 24
+    i32.const 16
     i32.add
     global.set $locals
   )
@@ -1568,7 +1526,7 @@
     call $rt:release
     local.get $v.1
   )
-  (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
+  (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; 42 |     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
     local.get $t0
     i32.eqz
@@ -1591,36 +1549,24 @@
       local.set $t4
       local.get $t2
       i64.load $heap offset=8 align=1
-      local.set $t5
-      local.get $t2
-      i64.load $heap offset=8 align=1
-      local.set $t6
-      local.get $t2
-      i64.load $heap offset=16 align=1
-      i64.store $heap offset=16 align=1
-      local.get $t3
-      local.get $t6
-      i64.store $heap offset=8 align=1
-      local.get $t3
-      local.get $t5
       i64.store $heap offset=8 align=1
       local.get $t3
       local.get $t4
       i64.store $heap align=1
       i32.const 1
-      local.set $t7
+      local.set $t5
     end
-    local.get $t8
-    local.get $t7
+    local.get $t6
+    local.get $t5
     i32.and
     if
       i32.const 0
-      local.set $t7
+      local.set $t5
     end
     local.get $t0
-    local.get $t7
+    local.get $t5
   )
-  (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t7 i32) (param $t8 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64) (local $t5 i64) (local $t6 i64)
+  (func $rt:frame_ensure'2 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; 29 |     let mut pending = fetch(key)
     local.get $t0
     i32.eqz
@@ -1643,33 +1589,21 @@
       local.set $t4
       local.get $t2
       i64.load $heap offset=8 align=1
-      local.set $t5
-      local.get $t2
-      i64.load $heap offset=8 align=1
-      local.set $t6
-      local.get $t2
-      i64.load $heap offset=16 align=1
-      i64.store $heap offset=16 align=1
-      local.get $t3
-      local.get $t6
-      i64.store $heap offset=8 align=1
-      local.get $t3
-      local.get $t5
       i64.store $heap offset=8 align=1
       local.get $t3
       local.get $t4
       i64.store $heap align=1
       i32.const 1
-      local.set $t7
+      local.set $t5
     end
-    local.get $t8
-    local.get $t7
+    local.get $t6
+    local.get $t5
     i32.and
     if
       i32.const 0
-      local.set $t7
+      local.set $t5
     end
     local.get $t0
-    local.get $t7
+    local.get $t5
   )
 )

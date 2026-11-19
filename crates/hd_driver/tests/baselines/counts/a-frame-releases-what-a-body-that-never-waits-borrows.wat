@@ -33,7 +33,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 48
+    i32.const 40
     i32.lt_u
     if
       i32.const 1
@@ -55,7 +55,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 48
+    i32.const 40
     i32.sub
     local.tee $t0
     global.set $locals
@@ -87,7 +87,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 48
+      i32.const 40
       memory.fill $heap
       local.get $t2
       local.get $provider0
@@ -115,21 +115,6 @@
         local.get $t3
         i32.const 1
         i32.store $heap offset=4
-        local.get $t3
-        i32.eqz
-        if
-          i32.const 8
-          i32.const 1
-          call $rt:new/class-1'1
-          local.tee $t3
-          local.get $t2
-          i32.load $heap offset=8
-          i32.store $heap
-          local.get $t3
-          local.get $t2
-          i32.load $heap offset=12
-          i32.store $heap offset=4
-        end
         local.get $t3
         local.tee $provider0
         if
@@ -163,12 +148,12 @@
         local.set $provider0.vtable
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=16
+        i32.store $heap offset=8
         call $other'1
         local.set $provider0.vtable
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=20
+        i32.store $heap offset=12
     ;; 20 |     n := box::[Note](Note { text: "n" })
       end
     ;; 21 |     let (a, _) = join!(change(n), other())
@@ -189,28 +174,28 @@
           if
             local.get $t2
             i32.const 0
-            i32.store $heap offset=24
+            i32.store $heap offset=16
             i32.const 3
             call $rt:waker_new
             local.set $provider0.vtable
             local.get $t2
             local.get $provider0.vtable
-            i32.store $heap offset=36
+            i32.store $heap offset=28
           end
           local.get $t2
-          i32.load $heap offset=36
+          i32.load $heap offset=28
           call $rt:waker_parent
           global.get $waker
           local.set $result.0
           global.get $wake_bit
           local.set $provider0
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           i32.const 1
           i32.and
           i32.eqz
           local.get $t2
-          i32.load $heap offset=36
+          i32.load $heap offset=28
           i32.load $heap offset=8
           i32.const 1
           i32.and
@@ -219,15 +204,15 @@
           i32.and
           if
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             i32.load $heap offset=8
             i32.const -2
             i32.and
             i32.store $heap offset=8
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             global.set $waker
             i32.const 1
             global.set $wake_bit
@@ -236,7 +221,7 @@
             i32.add
             global.set $all_polls
             local.get $t2
-            i32.load $heap offset=16
+            i32.load $heap offset=8
             local.tee $t4
             local.get $t4
             i32.load $heap
@@ -244,20 +229,20 @@
             local.set $provider0.vtable
             local.get $t2
             local.get $provider0.vtable
-            i32.store $heap offset=28
+            i32.store $heap offset=20
             local.get $result.0
             global.set $waker
             local.get $provider0
             global.set $wake_bit
             if
               local.get $t2
-              i32.load $heap offset=24
+              i32.load $heap offset=16
               i32.const 1
               i32.or
               local.set $provider0.vtable
               local.get $t2
               local.get $provider0.vtable
-              i32.store $heap offset=24
+              i32.store $heap offset=16
             else
               local.get $t3
               local.get $t4
@@ -269,12 +254,12 @@
             end
           end
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           i32.const 2
           i32.and
           i32.eqz
           local.get $t2
-          i32.load $heap offset=36
+          i32.load $heap offset=28
           i32.load $heap offset=8
           i32.const 2
           i32.and
@@ -283,15 +268,15 @@
           i32.and
           if
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             i32.load $heap offset=8
             i32.const -3
             i32.and
             i32.store $heap offset=8
             local.get $t2
-            i32.load $heap offset=36
+            i32.load $heap offset=28
             global.set $waker
             i32.const 2
             global.set $wake_bit
@@ -300,7 +285,7 @@
             i32.add
             global.set $all_polls
             local.get $t2
-            i32.load $heap offset=20
+            i32.load $heap offset=12
             local.tee $t4
             local.get $t4
             i32.load $heap
@@ -308,20 +293,20 @@
             local.set $provider0.vtable
             local.get $t2
             local.get $provider0.vtable
-            i32.store $heap offset=32
+            i32.store $heap offset=24
             local.get $result.0
             global.set $waker
             local.get $provider0
             global.set $wake_bit
             if
               local.get $t2
-              i32.load $heap offset=24
+              i32.load $heap offset=16
               i32.const 2
               i32.or
               local.set $provider0.vtable
               local.get $t2
               local.get $provider0.vtable
-              i32.store $heap offset=24
+              i32.store $heap offset=16
             else
               local.get $t3
               local.get $t4
@@ -333,7 +318,7 @@
             end
           end
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=16
           i32.const 3
           i32.ne
           if
@@ -369,7 +354,7 @@
             local.set $t2
             local.get $frame
             local.get $t2
-            i32.load $heap offset=40
+            i32.load $heap offset=32
             i32.store $heap offset=16
             local.get $frame
             i32.const 1
@@ -387,13 +372,13 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 48
+            i32.const 40
             i32.add
             global.set $locals
             return
           end
           local.get $t2
-          i32.load $heap offset=36
+          i32.load $heap offset=28
           local.tee $provider0.vtable
           if
             local.get $provider0.vtable
@@ -403,12 +388,12 @@
           local.set $provider0.vtable
           local.get $t2
           i32.const 0
-          i32.store $heap offset=36
+          i32.store $heap offset=28
           local.get $t2
           i32.const 0
-          i32.store $heap offset=24
+          i32.store $heap offset=16
           local.get $t2
-          i32.load $heap offset=28
+          i32.load $heap offset=20
           local.set $provider0
           br 1
         end
@@ -417,13 +402,13 @@
         call $rt:cancel_enter
         local.set $result.0
         local.get $t2
-        i32.load $heap offset=24
+        i32.load $heap offset=16
         i32.const 1
         i32.and
         i32.eqz
         if
           local.get $t2
-          i32.load $heap offset=16
+          i32.load $heap offset=8
           local.tee $t5
           if
             local.get $t5
@@ -441,13 +426,13 @@
           end
         end
         local.get $t2
-        i32.load $heap offset=24
+        i32.load $heap offset=16
         i32.const 2
         i32.and
         i32.eqz
         if
           local.get $t2
-          i32.load $heap offset=20
+          i32.load $heap offset=12
           local.tee $t5
           if
             local.get $t5
@@ -496,7 +481,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 48
+          i32.const 40
           i32.add
           global.set $locals
           return
@@ -505,9 +490,9 @@
         local.set $provider0.vtable
         local.get $t2
         i32.const 0
-        i32.store $heap offset=24
+        i32.store $heap offset=16
         local.get $t2
-        i32.load $heap offset=36
+        i32.load $heap offset=28
         local.tee $t5
         if
           local.get $t5
@@ -515,9 +500,9 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=36
+        i32.store $heap offset=28
         local.get $t2
-        i32.load $heap offset=16
+        i32.load $heap offset=8
         local.tee $t5
         if
           local.get $t5
@@ -533,9 +518,9 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=16
+        i32.store $heap offset=8
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=12
         local.tee $t5
         if
           local.get $t5
@@ -551,13 +536,13 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=20
+        i32.store $heap offset=12
         i32.const 1
         local.set $t5
         br 1
       end
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=12
       local.tee $result.0
       if
         local.get $result.0
@@ -573,9 +558,9 @@
       end
       local.get $t2
       local.get $provider0.vtable
-      i32.store $heap offset=20
+      i32.store $heap offset=12
       local.get $t2
-      i32.load $heap offset=16
+      i32.load $heap offset=8
       local.tee $result.0
       if
         local.get $result.0
@@ -591,7 +576,7 @@
       end
       local.get $t2
       local.get $provider0.vtable
-      i32.store $heap offset=16
+      i32.store $heap offset=8
       block
         i32.const 4
         i32.const 0
@@ -603,17 +588,6 @@
         unreachable
       end
     ;; 22 |     println("$a")
-      local.get $provider0.vtable
-      i32.eqz
-      if
-        i32.const 4
-        i32.const 0
-        call $rt:new/class-1'2
-        local.tee $provider0.vtable
-        local.get $t2
-        i32.load $heap offset=44
-        i32.store $heap
-      end
       local.get $provider0.vtable
       i32.load $heap
       i64.extend_i32_u
@@ -658,7 +632,7 @@
     ;; 20 |     n := box::[Note](Note { text: "n" })
     end
     local.get $t2
-    i32.load $heap offset=36
+    i32.load $heap offset=28
     local.tee $provider0
     if
       local.get $provider0
@@ -697,7 +671,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 48
+    i32.const 40
     i32.add
     global.set $locals
   )
@@ -1133,7 +1107,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 48
+      i32.const 40
       memory.copy $heap $heap
       i32.const 1
       local.set $t2

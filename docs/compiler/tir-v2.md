@@ -1098,7 +1098,7 @@ splice; the steps after it add statements
 | §23.31 invariant buffer ownership; #710 loop projections (`unique_once`, `list_caches`) | hoisting, and its stable-list side table | the empty-loop entry test stays |
 | §23.36 span loans (`live::span_loans`, #676) | borrow, rules 1 to 4 | the three boundary fixtures (`local-replaced-inside-the-span`, `local-moved-inside-the-span`, `local-lent-by-mut-reference`) keep their counts by rules 2 and 3 |
 | #677 known-null releases | known-null rules 1 to 3 | — |
-| #678 cells made before use (`Em::cell_made`) | known-null rule 5 | a suspending body's cells keep their tests, since a resume enters blocks in the middle, except a parameter's that nothing stores into again |
+| #678 cells made before use (`Em::cell_made`) | known-null rule 5 | a use before every path stored, after a move, or inside a cleanup suite keeps its test |
 | #679 matching an owned temporary moves its payload (`match_payloads`) | move rule 3 | — |
 | #701 `&x` at the last access takes the cell's count (`Em::take_cell`) | move rule 4 | — |
 | #710 hoisted uniqueness and buffer loads | hoisting | — |

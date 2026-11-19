@@ -1298,10 +1298,10 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   or `Em::cell_of` for any other), and only a `Drop`, a move or a taking
   `Ref` zeroes the local, so the local holds the cell's address there.
   Any other use tests the local and makes a cell of zeros when it is 0: a
-  use some path reaches before a store, one inside a cleanup suite (which
-  also runs at jumps the walk does not follow there), and every use in a
-  suspending body, whose resume reloads the locals from the frame and
-  enters blocks in the middle (§23.21).
+  use some path reaches before a store, and one inside a cleanup suite
+  (which also runs at jumps the walk does not follow there). A suspending
+  body reads the rows too: its frame saves the local where a later use
+  reads it, and a resume continues on the path the walk followed (§23.21).
 - **A reference at its local's last access** (issue #701). `&x`, the
   address of cell local `x`'s cell with no field path, takes the local's
   count of the cell where move's rule 4 marks it (`Ref take`,

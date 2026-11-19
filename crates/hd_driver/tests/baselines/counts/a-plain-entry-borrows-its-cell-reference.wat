@@ -108,7 +108,7 @@
     i32.add
     global.set $locals
   )
-  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32)
+  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 14 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
@@ -124,21 +124,6 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $frame
-    if
-      local.get $frame
-      i32.load $heap offset=24
-      local.set $t1
-      local.get $frame
-      i32.load $heap offset=28
-      local.set $t2
-      local.get $frame
-      i32.load $heap offset=32
-      local.set $t3
-      local.get $frame
-      i32.load $heap offset=36
-      local.set $t4
-    end
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -150,36 +135,10 @@
     i32.store $heap offset=4
     local.get $sink
     ;; 15 |     sink() = "helper"
-    i32.eqz
-    if
-      i32.const 8
-      i32.const 1
-      call $rt:new/class-1
-      local.tee $sink
-      local.get $t1
-      i32.store $heap
-      local.get $sink
-      local.get $t2
-      i32.store $heap offset=4
-    end
-    local.get $sink
     i32.const 117 ;; &"helper"
     i32.const 6
     call $"impl Update[string] for Sink.update"
     ;; 16 |     sink.text
-    local.get $sink
-    i32.eqz
-    if
-      i32.const 8
-      i32.const 1
-      call $rt:new/class-1
-      local.tee $sink
-      local.get $t3
-      i32.store $heap
-      local.get $sink
-      local.get $t4
-      i32.store $heap offset=4
-    end
     local.get $sink
     i32.load $heap
     local.get $sink

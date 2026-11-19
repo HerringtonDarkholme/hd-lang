@@ -19,7 +19,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 15 funcref))
-  (func $counter#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $count i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $counter#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $count i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 15 |     fn!() -> usize:
     local.get $frame
     if
@@ -53,9 +53,6 @@
       local.get $frame
       i32.load $heap offset=40
       local.set $t2
-      local.get $frame
-      i32.load $heap offset=44
-      local.set $t3
     else
       local.get $count
       if
@@ -107,16 +104,6 @@
     local.get $env
     i32.store $heap
     ;; 17 |         count
-    local.get $count
-    i32.eqz
-    if
-      i32.const 4
-      i32.const 0
-      call $rt:new/class-1'1
-      local.tee $count
-      local.get $t3
-      i32.store $heap
-    end
     local.get $count
     i32.load $heap
     ;; 15 |     fn!() -> usize:

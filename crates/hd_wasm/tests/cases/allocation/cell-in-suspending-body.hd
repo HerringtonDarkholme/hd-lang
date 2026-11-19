@@ -1,11 +1,10 @@
 # @dump: wat
 # @build: v8 release
-# A suspending body keeps the zero test of a cell at each use, with its
-# fallback `rt:new`: a resume reloads the locals from the frame and enters
-# blocks in the middle, so the declaration's place in the TIR proves
-# nothing (DESIGN.md §23.20, "Cells made before use"). Compare
-# allocation/new-reference, where the declaration dominates and the test
-# is gone.
+# A suspending body reads its cell with no zero test after the
+# suspension: the declaration stored on every path, the frame keeps the
+# cell's local across the point, and a resume continues on that path
+# (DESIGN.md, "Cells made before use"). Compare
+# allocation/new-reference, the same in a plain body.
 use std.time.{Clock, ms, sleep}
 
 struct Tally:

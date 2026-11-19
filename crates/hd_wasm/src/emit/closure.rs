@@ -221,17 +221,15 @@ impl Em<'_, '_, '_> {
     ///   (`Body::full_cells`, rule 5 of `docs/compiler/tir-v2.md`,
     ///   "Known-null"): a store into it ran since its last `Drop`, move or
     ///   taking `Ref`, and every store makes the cell (its declaration, or
-    ///   [`Em::cell_of`] for any other).
+    ///   [`Em::cell_of`] for any other). In a suspending body the frame
+    ///   saves the local where a later use reads it (`susp.rs`) and a
+    ///   resume continues on the path the walk followed, so the row holds
+    ///   there too.
     ///
-    /// A use in a suspending body, whose resume reloads its locals from the
-    /// frame and enters blocks in the middle (`susp.rs`), takes only the
-    /// first. Anything else keeps the test.
+    /// Anything else keeps the test.
     pub(super) fn cell_made(&self, l: usize) -> bool {
         if self.entry_cells.contains(&l) {
             return true;
-        }
-        if self.susp.is_some() {
-            return false;
         }
         let (Some(&j), Ok(l)) = (self.emitting.last(), u32::try_from(l)) else {
             return false;

@@ -219,7 +219,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 40
+    i32.const 32
     i32.lt_u
     if
       i32.const 1
@@ -241,7 +241,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 40
+    i32.const 32
     i32.sub
     local.tee $t0
     global.set $locals
@@ -273,7 +273,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 40
+      i32.const 32
       memory.fill $heap
       local.get $t2
       local.get $env
@@ -426,7 +426,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 40
+            i32.const 32
             i32.add
             global.set $locals
             return
@@ -496,7 +496,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 40
+          i32.const 32
           i32.add
           global.set $locals
           return
@@ -527,21 +527,6 @@
       local.get $env
       local.get $word.1
       i32.store $heap offset=4
-      local.get $env
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $env
-        local.get $t2
-        i32.load $heap offset=28
-        i32.store $heap
-        local.get $env
-        local.get $t2
-        i32.load $heap offset=32
-        i32.store $heap offset=4
-      end
       local.get $env
       call $"impl string.len"
       local.get $env
@@ -636,7 +621,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 40
+    i32.const 32
     i32.add
     global.set $locals
   )
@@ -818,7 +803,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 40
+    i32.const 32
     i32.lt_u
     if
       i32.const 1
@@ -840,7 +825,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 40
+    i32.const 32
     i32.sub
     local.tee $t0
     global.set $locals
@@ -872,7 +857,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 40
+      i32.const 32
       memory.fill $heap
       local.get $t2
       local.get $env
@@ -1025,7 +1010,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 40
+            i32.const 32
             i32.add
             global.set $locals
             return
@@ -1095,7 +1080,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 40
+          i32.const 32
           i32.add
           global.set $locals
           return
@@ -1126,21 +1111,6 @@
       local.get $env
       local.get $word.1
       i32.store $heap offset=4
-      local.get $env
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $env
-        local.get $t2
-        i32.load $heap offset=28
-        i32.store $heap
-        local.get $env
-        local.get $t2
-        i32.load $heap offset=32
-        i32.store $heap offset=4
-      end
       local.get $env
       call $"impl string.len"
       local.get $env
@@ -1235,7 +1205,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 40
+    i32.const 32
     i32.add
     global.set $locals
   )
@@ -2097,7 +2067,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 40
+    i32.const 32
     i32.lt_u
     if
       i32.const 1
@@ -2119,7 +2089,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 40
+    i32.const 32
     i32.sub
     local.tee $t0
     global.set $locals
@@ -2151,7 +2121,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 40
+      i32.const 32
       memory.fill $heap
       local.get $t2
       local.get $env
@@ -2304,7 +2274,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 40
+            i32.const 32
             i32.add
             global.set $locals
             return
@@ -2374,7 +2344,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 40
+          i32.const 32
           i32.add
           global.set $locals
           return
@@ -2405,21 +2375,6 @@
       local.get $env
       local.get $word.1
       i32.store $heap offset=4
-      local.get $env
-      i32.eqz
-      if
-        i32.const 8
-        i32.const 1
-        call $rt:new/class-1
-        local.tee $env
-        local.get $t2
-        i32.load $heap offset=28
-        i32.store $heap
-        local.get $env
-        local.get $t2
-        i32.load $heap offset=32
-        i32.store $heap offset=4
-      end
       local.get $env
       call $"impl string.len"
       local.get $env
@@ -2514,7 +2469,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 40
+    i32.const 32
     i32.add
     global.set $locals
   )
@@ -3376,7 +3331,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 40
+      i32.const 32
       memory.copy $heap $heap
       i32.const 1
       local.set $t2
@@ -3410,7 +3365,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 40
+      i32.const 32
       memory.copy $heap $heap
       i32.const 1
       local.set $t2
@@ -3475,7 +3430,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 40
+      i32.const 32
       memory.copy $heap $heap
       i32.const 1
       local.set $t2
