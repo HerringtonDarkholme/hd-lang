@@ -24,7 +24,7 @@
     i32.store $heap offset=4
     call $rt:release
   )
-  (func $adapter (param $us i32) (result i32) (local $u i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $adapter (param $us i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $u.name.1 i32)
     ;; 33 |     for u in us:
     local.get $us
     i32.load $heap offset=4
@@ -41,11 +41,11 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $u.name.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $u.name.1
         i32.load $heap offset=20
-        local.set $t2
+        local.set $u.name.1
         drop
         local.get $t1
         i32.const 1
@@ -56,16 +56,16 @@
           unreachable
         end
     ;; 34 |         n += g(u)
-        local.get $u
-        local.get $t2
+        local.get $n
+        local.get $u.name.1
         i32.add
-        local.set $u
+        local.set $n
     ;; 33 |     for u in us:
         br 0
       end
     end
     ;; 35 |     n
-    local.get $u
+    local.get $n
   )
   (func $"impl User.name_len" (param $self.name.0 i32) (param $self.name.1 i32) (result i32)
     ;; 13 |         self.name.len()

@@ -12,7 +12,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $exercise (param $count i32) (param $number f64) (result i32) (local $worker i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $exercise (param $count i32) (param $number f64) (result i32) (local $worker i32) (local $t0 i32) (local $t1 i32) (local $first'1 i32) (local $t2 i32) (local $first'2 i32)
     ;; 74 |     worker := Worker { amount: 1 }
     global.get $locals
     global.get $locals_base
@@ -64,14 +64,14 @@
     ;; 78 |         + forced_pages(count)
     local.get $count
     memory.grow $heap
-    local.tee $t2
+    local.tee $first'1
     i32.const -1
     i32.ne
-    local.set $t3
+    local.set $t2
     block
       block
         block
-          local.get $t3
+          local.get $t2
           i32.eqz
           br_if 1
           br 0
@@ -88,7 +88,7 @@
     ;; 76 |         reserve_pages(count)
     local.get $t1
     ;; 78 |         + forced_pages(count)
-    local.get $t2
+    local.get $first'1
     ;; 76 |         reserve_pages(count)
     i32.add
     local.set $t1
@@ -99,14 +99,14 @@
       br_if 0
       local.get $count
       memory.grow $heap
-      local.tee $t4
+      local.tee $first'2
       i32.const -1
       i32.ne
-      local.set $t2
+      local.set $first'1
       block
         block
           block
-            local.get $t2
+            local.get $first'1
             i32.eqz
             br_if 1
             br 0
@@ -124,7 +124,7 @@
     ;; 76 |         reserve_pages(count)
     local.get $t1
     ;; 79 |         + conditional_pages(count)
-    local.get $t4
+    local.get $first'2
     ;; 76 |         reserve_pages(count)
     i32.add
     ;; 83 |         + cold_entry(count)
@@ -147,7 +147,7 @@
     ;; 86 |         + host_entry(number).len()
     local.get $number
     call $host_entry
-    local.set $t4
+    local.set $first'2
     local.tee $worker
     if
       local.get $worker
@@ -155,13 +155,13 @@
     end
     ;; 82 |         memory
     local.get $count
-    local.get $t4
+    local.get $first'2
     i32.add
     local.set $count
     ;; 87 |         + forced_host(number).len()
     local.get $number
     call $rt:prim/format_f64
-    local.set $t4
+    local.set $first'2
     local.tee $worker
     if
       local.get $worker
@@ -169,7 +169,7 @@
     end
     ;; 82 |         memory
     local.get $count
-    local.get $t4
+    local.get $first'2
     i32.add
     ;; 74 |     worker := Worker { amount: 1 }
     local.get $t0

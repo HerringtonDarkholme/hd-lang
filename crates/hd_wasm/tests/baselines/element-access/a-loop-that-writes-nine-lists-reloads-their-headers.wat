@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $clear (param $a i32) (param $b i32) (param $c i32) (param $d i32) (param $e i32) (param $f i32) (param $g i32) (param $h i32) (param $k i32) (param $n i32) (local $t0 i32) (local $i i32) (local $t1 i32)
+  (func $clear (param $a i32) (param $b i32) (param $c i32) (param $d i32) (param $e i32) (param $f i32) (param $g i32) (param $h i32) (param $k i32) (param $n i32) (local $t0 i32) (local $i i32) (local $key i32)
     ;; 21 |     for i in 0..n:
     block
       loop
@@ -18,7 +18,7 @@
         i32.add
         local.set $t0
     ;; 22 |         a[i] = 0
-        local.tee $t1
+        local.tee $key
         local.get $a
         i32.load $heap offset=8
         i32.ge_u
@@ -33,7 +33,7 @@
         end
         local.get $a
         i32.load $heap
-        local.get $t1
+        local.get $key
         i32.add
         i32.const 0
         i32.store8 $heap

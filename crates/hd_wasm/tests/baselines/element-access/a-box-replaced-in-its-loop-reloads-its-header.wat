@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $replaced (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $replaced (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $self i32) (local $key i32)
     ;; 13 |     for i in 0..n:
     block
       loop
@@ -22,9 +22,9 @@
     ;; 14 |         s = s + h.store[i]
         local.get $h
         i32.load $heap
-        local.set $t1
-        local.tee $t2
-        local.get $t1
+        local.set $self
+        local.tee $key
+        local.get $self
         i32.load $heap offset=8
         i32.ge_u
         if
@@ -37,9 +37,9 @@
           unreachable
         end
         local.get $s
-        local.get $t1
+        local.get $self
         i32.load $heap
-        local.get $t2
+        local.get $key
         i32.const 8
         i32.mul
         i32.add
@@ -50,47 +50,47 @@
         i32.const 0
         i32.const 8
         call $room
-        local.set $t1
+        local.set $self
         i32.const 32
         i32.const 1
         call $rt:new/class-3
-        local.tee $t2
-        local.get $t1
+        local.tee $key
+        local.get $self
         i32.store $heap
-        local.get $t2
+        local.get $key
         i32.const 0
         i32.store $heap offset=4
-        local.get $t2
+        local.get $key
         i32.const 0
         i32.store $heap offset=8
-        local.get $t2
+        local.get $key
         i32.const 1
         i32.store $heap offset=12
-        local.get $t2
+        local.get $key
         i32.const 1
         i32.store $heap offset=16
-        local.get $t2
+        local.get $key
         i32.const 1
         i32.store $heap offset=20
-        local.get $t2
+        local.get $key
         i32.const 1
         i32.store $heap offset=24
-        local.get $t2
+        local.get $key
         i32.const 1
         i32.store $heap offset=28
         local.get $h
         i32.load $heap
         local.get $h
-        local.get $t2
+        local.get $key
         i32.store $heap
-        local.tee $t1
+        local.tee $self
         if
-          local.get $t1
+          local.get $self
           i32.const 8
           i32.sub
           i32.load $heap
           if
-            local.get $t1
+            local.get $self
             call $rt:release_ref
           end
         end

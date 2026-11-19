@@ -8,7 +8,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 31 funcref))
-  (func $borrowed (param $values i32) (result i32) (local $reader i32) (local $t0 i32)
+  (func $borrowed (param $values'2 i32) (result i32) (local $values'1 i32) (local $t0 i32)
     ;; (no span)
     global.get $locals
     global.get $locals_base
@@ -46,29 +46,29 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $reader
-    local.get $values
+    local.tee $values'1
+    local.get $values'2
     i32.store $heap
-    local.get $reader
+    local.get $values'1
     ;; (no span)
     i32.const 8
     call_indirect $table0 (param i32) (result i32)
     call $"impl string.len"
-    local.set $values
-    local.get $reader
+    local.set $values'2
+    local.get $values'1
     if
-      local.get $reader
+      local.get $values'1
       i32.load $heap
-      local.tee $reader
+      local.tee $values'1
       if
-        local.get $reader
+        local.get $values'1
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $reader
+          local.get $values'1
           call $rt:release_ref
         else
           call $skipped_test
@@ -77,7 +77,7 @@
         call $skipped_test
       end
     end
-    local.get $values
+    local.get $values'2
     local.get $t0
     i32.const 16
     i32.add

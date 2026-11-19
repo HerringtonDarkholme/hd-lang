@@ -17,19 +17,19 @@
     local.get $t0
     local.get $self
   )
-  (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $t0 i32)
+  (func $"impl Describe for Service by Logger.describe" (param $self i32) (result i32 i32) (local $self.name.0 i32)
     ;; 21 | impl Describe for Service by Logger
     local.get $self
     i32.load $heap
     local.get $self
     i32.load $heap offset=4
     local.set $self
-    local.tee $t0
+    local.tee $self.name.0
     if
-      local.get $t0
+      local.get $self.name.0
       call $retain
     end
-    local.get $t0
+    local.get $self.name.0
     local.get $self
   )
   (func $delegated (param $s.Logger.name.0 i32) (param $s.Logger.name.1 i32) (param $s.port i32) (result i32)

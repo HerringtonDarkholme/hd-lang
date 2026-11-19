@@ -8,52 +8,52 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack" (memory $stack 16 16))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 36 |     println("${copy(+1)}")
     i32.const 1
     call $copy
     i64.extend_i32_s
     local.tee $t0
-    local.tee $t1
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $t2
-    local.get $t1
+    local.set $t1
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t3
+      local.set $t2
     end
+    local.get $t1
+    i64.extend_i32_u
     local.get $t2
     i64.extend_i32_u
-    local.get $t3
-    i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $value
     i32.wrap_i64
-    local.tee $t3
     local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
     local.get $t0
-    local.get $t4
     local.get $t3
-    call $write_signed_sized
-    local.get $t4
     local.get $t2
+    call $write_signed_sized
+    local.get $t3
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"

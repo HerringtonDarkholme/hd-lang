@@ -5,7 +5,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Joiner.join.sep" (param $t0 i32) (result i32 i32)
+  (func $"impl Joiner.join.sep" (param $self i32) (result i32 i32)
     ;; 11 |     fn join(&self, sep: string = ", ") -> usize:
     i32.const 65 ;; &", "
     i32.const 2

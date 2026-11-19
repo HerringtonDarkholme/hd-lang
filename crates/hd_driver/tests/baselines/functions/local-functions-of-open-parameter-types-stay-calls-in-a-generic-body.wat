@@ -34,7 +34,7 @@
     ;; 45 |         read(self)
     local.get $self
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i64) (local $t6 i64) (local $t7 i32) (local $t8 i32) (local $t9 i64) (local $t10 i64) (local $t11 i32) (local $t12 i32) (local $t13 i64) (local $t14 i64) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t22 i32) (local $t23 i32) (local $t24 i32) (local $t25 i32) (local $t26 i32) (local $t28 i32) (local $t27 i32) (local $t0 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i64) (local $text.0'1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $value'2 i64) (local $t8 i32) (local $text.0'2 i32) (local $t9 i64) (local $value'3 i64) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32) (local $t0 i32)
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
     local.get $frame
     if
@@ -64,267 +64,267 @@
     i64.extend_i32_u
     local.tee $t1
     call $unsigned_width
-    local.set $t2
+    local.set $text.0'1
     i32.const 7
     call $"held[usize]"
     i64.extend_i32_u
-    local.tee $t3
+    local.tee $t2
     call $unsigned_width
-    local.set $t4
+    local.set $t3
     i32.const 7
     call $"borrowed[usize]"
     i64.extend_i32_s
-    local.tee $t5
-    local.tee $t6
+    local.tee $t4
+    local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
-    local.set $t7
-    local.get $t6
+    local.set $t5
+    local.get $value'1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t8
+      local.set $t6
     end
-    local.get $t7
-    local.get $t8
+    local.get $t5
+    local.get $t6
     i32.add
-    local.set $t8
+    local.set $t6
     i32.const 7
     call $"tupled[usize]"
     i64.extend_i32_u
-    local.tee $t6
+    local.tee $value'1
     call $unsigned_width
-    local.set $t7
+    local.set $t5
     i32.const 7
     i32.const 3
     i32.const 0
     call $"counted[i32]"
     i64.extend_i32_s
-    local.tee $t9
-    local.tee $t10
+    local.tee $t7
+    local.tee $value'2
     call $signed_magnitude
     call $unsigned_width
-    local.set $t11
-    local.get $t10
+    local.set $t8
+    local.get $value'2
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t12
+      local.set $text.0'2
     end
-    local.get $t11
-    local.get $t12
+    local.get $t8
+    local.get $text.0'2
     i32.add
-    local.set $t12
+    local.set $text.0'2
     i32.const 7
     call $"literal[usize]"
     i64.extend_i32_u
-    local.tee $t10
+    local.tee $value'2
     call $unsigned_width
-    local.set $t11
+    local.set $t8
     i32.const 7
     call $"Named.twice[P]"
     i64.extend_i32_s
-    local.tee $t13
-    local.tee $t14
+    local.tee $t9
+    local.tee $value'3
     call $signed_magnitude
     call $unsigned_width
-    local.set $t15
-    local.get $t14
+    local.set $t10
+    local.get $value'3
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t16
+      local.set $t11
     end
-    local.get $t15
-    local.get $t16
+    local.get $t10
+    local.get $t11
     i32.add
-    local.set $t16
-    local.get $t2
+    local.set $t11
+    local.get $text.0'1
+    i32.const 1
+    i32.add
+    local.tee $t10
+    local.get $t3
+    i32.add
+    local.tee $t12
+    i32.const 1
+    i32.add
+    local.tee $t13
+    local.get $t6
+    i32.add
+    local.tee $t14
     i32.const 1
     i32.add
     local.tee $t15
-    local.get $t4
+    local.get $t5
+    i32.add
+    local.tee $t16
+    i32.const 1
     i32.add
     local.tee $t17
-    i32.const 1
+    local.get $text.0'2
     i32.add
     local.tee $t18
-    local.get $t8
+    i32.const 1
     i32.add
     local.tee $t19
-    i32.const 1
+    local.get $t8
     i32.add
     local.tee $t20
-    local.get $t7
+    i32.const 1
     i32.add
     local.tee $t21
-    i32.const 1
-    i32.add
-    local.tee $t22
-    local.get $t12
-    i32.add
-    local.tee $t23
-    i32.const 1
-    i32.add
-    local.tee $t24
     local.get $t11
     i32.add
-    local.tee $t25
-    i32.const 1
-    i32.add
-    local.tee $t26
-    local.get $t16
-    i32.add
-    local.tee $t27
+    local.tee $t22
     i32.const 16
-    local.set $t28
+    local.set $t23
     if
-      local.get $t27
+      local.get $t22
       call $rt:str
-      local.set $t28
+      local.set $t23
     end
     local.get $t1
-    local.get $t28
-    local.get $t2
+    local.get $t23
+    local.get $text.0'1
     call $write_unsigned_sized
-    local.get $t28
-    local.get $t2
+    local.get $t23
+    local.get $text.0'1
     i32.add
     i32.const 32
     i32.store8 $heap
+    local.get $t2
+    local.get $t23
+    local.get $t10
+    i32.add
     local.get $t3
-    local.get $t28
+    call $write_unsigned_sized
+    local.get $t23
+    local.get $t12
+    i32.add
+    i32.const 32
+    i32.store8 $heap
+    local.get $t4
+    local.get $t23
+    local.get $t13
+    i32.add
+    local.get $t6
+    call $write_signed_sized
+    local.get $t23
+    local.get $t14
+    i32.add
+    i32.const 32
+    i32.store8 $heap
+    local.get $value'1
+    local.get $t23
     local.get $t15
     i32.add
-    local.get $t4
+    local.get $t5
     call $write_unsigned_sized
-    local.get $t28
+    local.get $t23
+    local.get $t16
+    i32.add
+    i32.const 32
+    i32.store8 $heap
+    local.get $t7
+    local.get $t23
     local.get $t17
     i32.add
-    i32.const 32
-    i32.store8 $heap
-    local.get $t5
-    local.get $t28
+    local.get $text.0'2
+    call $write_signed_sized
+    local.get $t23
     local.get $t18
     i32.add
-    local.get $t8
-    call $write_signed_sized
-    local.get $t28
-    local.get $t19
-    i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t6
-    local.get $t28
-    local.get $t20
+    local.get $value'2
+    local.get $t23
+    local.get $t19
     i32.add
-    local.get $t7
+    local.get $t8
     call $write_unsigned_sized
-    local.get $t28
-    local.get $t21
+    local.get $t23
+    local.get $t20
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t9
-    local.get $t28
-    local.get $t22
-    i32.add
-    local.get $t12
-    call $write_signed_sized
-    local.get $t28
     local.get $t23
-    i32.add
-    i32.const 32
-    i32.store8 $heap
-    local.get $t10
-    local.get $t28
-    local.get $t24
+    local.get $t21
     i32.add
     local.get $t11
-    call $write_unsigned_sized
-    local.get $t28
-    local.get $t25
-    i32.add
-    i32.const 32
-    i32.store8 $heap
-    local.get $t13
-    local.get $t28
-    local.get $t26
-    i32.add
-    local.get $t16
     call $write_signed_sized
-    local.get $t28
-    local.get $t27
+    local.get $t23
+    local.get $t22
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t28
+    local.get $t23
     if
-      local.get $t28
+      local.get $t23
       call $rt:release_ref
     end
     ;; 56 |     println("${held("a")} ${literal("b")}")
     i32.const 114 ;; &"a"
     i32.const 1
     call $"held[string]"
-    local.set $t8
-    local.set $t12
+    local.set $t6
+    local.set $text.0'2
     i32.const 115 ;; &"b"
     i32.const 1
     call $"literal[string]"
-    local.set $t16
-    local.set $t2
-    local.get $t8
+    local.set $t11
+    local.set $text.0'1
+    local.get $t6
     i32.const 1
     i32.add
-    local.tee $t4
-    local.get $t16
-    i32.add
-    local.tee $t7
-    i32.const 16
-    local.set $t11
-    if
-      local.get $t7
-      call $rt:str
-      local.set $t11
-    end
+    local.tee $t3
     local.get $t11
-    local.get $t12
-    local.get $t8
-    call $rt:memory_copy/0/0
-    local.get $t12
+    i32.add
+    local.tee $t5
+    i32.const 16
+    local.set $t8
     if
-      local.get $t12
+      local.get $t5
+      call $rt:str
+      local.set $t8
+    end
+    local.get $t8
+    local.get $text.0'2
+    local.get $t6
+    call $rt:memory_copy/0/0
+    local.get $text.0'2
+    if
+      local.get $text.0'2
       call $rt:release_ref
     end
-    local.get $t11
     local.get $t8
+    local.get $t6
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t11
-    local.get $t4
+    local.get $t8
+    local.get $t3
     i32.add
-    local.get $t2
-    local.get $t16
+    local.get $text.0'1
+    local.get $t11
     call $rt:memory_copy/0/0
-    local.get $t2
+    local.get $text.0'1
     if
-      local.get $t2
+      local.get $text.0'1
       call $rt:release_ref
     end
-    local.get $t11
-    local.get $t7
+    local.get $t8
+    local.get $t5
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
-    local.get $t11
+    local.get $t8
     if
-      local.get $t11
+      local.get $t8
       call $rt:release_ref
     end
     local.get $frame

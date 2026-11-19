@@ -19,7 +19,7 @@
     i32.const 4
     call $app/log/record
   )
-  (func $$test0 (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32)
+  (func $$test0 (local $t0 i32) (local $text.0'1 i32) (local $text.0'2 i32) (local $t1 i32) (local $t2 i64) (local $t4 i32) (local $t3 i32)
     ;; 18 |         assert_equal(recorded(), ["a", "b", "c", "main"], reason="identity order among ready cycles")
     call $app/log/recorded
     i32.const 4
@@ -28,37 +28,37 @@
     i32.const 4
     i32.store $heap offset=4
     local.get $t0
-    local.tee $t1
+    local.tee $text.0'1
     i32.const 163 ;; &"a"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $text.0'1
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $text.0'1
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $text.0'1
     i32.const 280 ;; &"b"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $text.0'1
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $text.0'1
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $text.0'1
     i32.const 170 ;; &"c"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $text.0'1
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $text.0'1
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $text.0'1
     i32.const 123 ;; &"main"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $text.0'1
     i32.const 4
     i32.store $heap offset=20
     local.get $t0
@@ -68,77 +68,77 @@
     ;; 19 |         assert_equal("${b()}${c()}", "bca", reason="every module is in use")
     call $app/b/b
     local.set $t0
-    local.set $t1
+    local.set $text.0'1
     call $app/c/c
-    local.set $t2
-    local.set $t3
+    local.set $t1
+    local.set $text.0'2
     local.get $t0
     i64.extend_i32_u
-    local.get $t2
+    local.get $t1
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $t2
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $t2
     i32.wrap_i64
-    local.tee $t5
+    local.tee $t3
     i32.const 16
-    local.set $t6
+    local.set $t4
     if
-      local.get $t5
+      local.get $t3
       call $rt:str
-      local.set $t6
+      local.set $t4
     end
-    local.get $t6
+    local.get $t4
     i64.extend_i32_u
     i64.const 0
     i64.add
-    local.tee $t4
+    local.tee $t2
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $t2
     i32.wrap_i64
-    local.get $t1
+    local.get $text.0'1
     local.get $t0
     call $rt:memory_copy/0/0
-    local.get $t1
+    local.get $text.0'1
     if
-      local.get $t1
+      local.get $text.0'1
       call $rt:release_ref
     end
-    local.get $t6
+    local.get $t4
     i64.extend_i32_u
     local.get $t0
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $t2
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
-    i32.wrap_i64
-    local.get $t3
     local.get $t2
+    i32.wrap_i64
+    local.get $text.0'2
+    local.get $t1
     call $rt:memory_copy/0/0
-    local.get $t3
+    local.get $text.0'2
     if
-      local.get $t3
+      local.get $text.0'2
       call $rt:release_ref
     end
-    local.get $t6
-    local.get $t5
+    local.get $t4
+    local.get $t3
     i32.const 318 ;; &"bca"
     i32.const 3
     i32.const 321 ;; &"every module is in use"

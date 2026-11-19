@@ -33,12 +33,12 @@
     ;; 17 |     &p.name
     local.get $p
   )
-  (func $"repeat[fn() -> ()]" (param $n i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32)
+  (func $"repeat[fn() -> ()]" (param $t1 i32) (param $t3 i32) (param $t2 i32) (local $t0 i32)
     ;; 20 |     for _ in 0..n:
     block
       loop
         local.get $t0
-        local.get $n
+        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
@@ -54,24 +54,24 @@
         i32.add
         local.set $t0
     ;; 21 |         f()
-        local.get $f.1
+        local.get $t2
         i32.const 0
-        local.get $f.0
+        local.get $t3
         call_indirect $table0 (param i32 i32)
     ;; 20 |     for _ in 0..n:
         br 0
       end
     end
-    local.get $f.1
+    local.get $t2
     if
-      local.get $f.1
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $f.1
+        local.get $t2
         call $rt:release_ref
       end
     end

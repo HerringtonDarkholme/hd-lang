@@ -56,12 +56,12 @@
     end
     i32.const 0
   )
-  (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $or_default (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $fallback.0 i32) (local $fallback.1 i32)
     ;; 18 |     o.unwrap_or("none")
     i32.const 105 ;; &"none"
     i32.const 4
-    local.set $t0
-    local.set $t1
+    local.set $fallback.1
+    local.set $fallback.0
     block
       block
         local.get $o.0
@@ -79,7 +79,7 @@
       local.get $o.1
       return
     end
-    local.get $t1
-    local.get $t0
+    local.get $fallback.0
+    local.get $fallback.1
   )
 )

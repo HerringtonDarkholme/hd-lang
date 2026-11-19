@@ -21,7 +21,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $wait'1 (param $frame i32) (param $kept.name.0 i32) (param $kept.name.1 i32) (param $bag i32) (param $ready i32) (param $early i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
+  (func $wait'1 (param $frame i32) (param $kept.name.0 i32) (param $kept.name.1 i32) (param $bag i32) (param $ready i32) (param $early i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t3 i32) (local $t4 i32) (local $t2 i32) (local $value.name.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 25 |     if ready:
     global.get $locals
     global.get $locals_base
@@ -142,7 +142,7 @@
             local.tee $bag
             local.set $kept.name.0
             local.set $provider0.vtable
-            local.set $t4
+            local.set $value.name.0
             call $"impl[T < ?Copy] UniqList[T].len[std.rt_tests.stage_case.Item]"
             local.set $provider0
             local.get $kept.name.1
@@ -169,7 +169,7 @@
             local.get $provider0
             call $"impl[T < ?Copy] Buffer[T].at[std.rt_tests.stage_case.Item]"
             local.tee $early
-            local.get $t4
+            local.get $value.name.0
             i32.store $heap
             local.get $early
             local.get $provider0.vtable
@@ -308,7 +308,7 @@
         i32.const 0
         local.set $t3
         call $rt:cancel_enter
-        local.set $t5
+        local.set $t4
         local.get $frame
         i32.load $heap offset=16
         local.tee $kept.name.0
@@ -327,7 +327,7 @@
           end
         end
         local.get $frame
-        local.get $t5
+        local.get $t4
         call $rt:cancel_leave
         local.get $t3
         if
@@ -373,7 +373,7 @@
           end
         end
         i32.const 1
-        local.set $t5
+        local.set $t4
         br 1
       end
     ;; 30 |     if early:
@@ -521,7 +521,7 @@
       i32.or
       i32.store $heap offset=12
     end
-    local.get $t5
+    local.get $t4
     if (result i32)
       local.get $frame
       local.get $frame

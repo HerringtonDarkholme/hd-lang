@@ -24,49 +24,49 @@
     local.get $env
     i32.load $heap
   )
-  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $word (param $i i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 11 |     "held$i"
     local.get $i
     i64.extend_i32_s
     local.tee $t0
-    local.tee $t1
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $i
-    local.get $t1
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t2
+      local.set $t1
     end
     local.get $i
-    local.get $t2
+    local.get $t1
     i32.add
     local.set $i
     i32.const 4
-    local.tee $t2
+    local.tee $t1
     local.get $i
     i32.add
-    local.tee $t3
+    local.tee $t2
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t3
+      local.get $t2
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
-    local.get $t4
+    local.get $t3
     i32.const 1684825448
     i32.store $heap align=1
     local.get $t0
-    local.get $t4
-    local.get $t2
+    local.get $t3
+    local.get $t1
     i32.add
     local.get $i
     call $write_signed_sized
-    local.get $t4
     local.get $t3
+    local.get $t2
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $shared i32) (local $items i32) (local $t0 i32) (local $t1 i32)
     ;; 22 |     original := word(7)
@@ -410,14 +410,14 @@
     local.get $env
     i32.load $heap offset=4
   )
-  (func $"keep[*Named]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[*Named]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
     i32.const 13
     i32.const 4
     i32.const -2147483646
     call $rt:new/class-1'2
     local.tee $t0
-    local.get $value
+    local.get $t1
     i32.store $heap
     local.get $t0
   )
@@ -427,14 +427,14 @@
     i32.load $heap
     call $rt:coll_copy
   )
-  (func $"keep[List[string]]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[List[string]]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
     i32.const 14
     i32.const 4
     i32.const 2
     call $rt:new/class-1'2
     local.tee $t0
-    local.get $value
+    local.get $t1
     i32.store $heap
     local.get $t0
   )
@@ -469,28 +469,28 @@
     end
     local.get $env
   )
-  (func $"keep[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
     i32.const 16
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
-    local.get $value.0
+    local.get $t1
     i32.store $heap
     local.get $t0
-    local.get $value.1
+    local.get $t2
     i32.store $heap offset=4
     local.get $t0
   )
-  (func $"keep[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"keep[i32]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
     i32.const 17
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2
     local.tee $t0
-    local.get $value
+    local.get $t1
     i32.store $heap
     local.get $t0
   )

@@ -11,12 +11,12 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl[T] Size for (i32, List[T] ...).size[string]" (param $self i32) (result i32)
+  (func $"impl[T] Size for (i32, List[T] ...).size[string]" (param $t0 i32) (result i32)
     ;; 19 |         1 + self._1.len()
-    local.get $self
+    local.get $t0
     i32.load $heap
     i32.load $heap offset=4
-    local.tee $self
+    local.tee $t0
     i32.const -2
     i32.gt_u
     if
@@ -24,7 +24,7 @@
       unreachable
     end
     i32.const 1
-    local.get $self
+    local.get $t0
     i32.add
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $wrapped i32) (local $rest i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i64) (local $t4 i64) (local $t6 i32) (local $t5 i32)
@@ -220,7 +220,7 @@
     i32.add
     global.set $locals
   )
-  (func $"impl[A, B] Size for Wrap[A | B].size[i32, string]" (param $self i32) (result i32)
+  (func $"impl[A, B] Size for Wrap[A | B].size[i32, string]" (param $t0 i32) (result i32)
     ;; 15 |         2
     i32.const 2
   )

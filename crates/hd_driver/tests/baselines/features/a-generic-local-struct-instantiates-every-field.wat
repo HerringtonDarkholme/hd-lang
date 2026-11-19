@@ -7,7 +7,7 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 14 |     number := make(+7)
     i32.const 0
     i32.const 7
@@ -17,52 +17,52 @@
     ;; 15 |     println("${number.item}")
     i64.extend_i32_s
     local.tee $t0
-    local.tee $t1
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $t2
-    local.get $t1
+    local.set $t1
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t3
+      local.set $t2
     end
+    local.get $t1
+    i64.extend_i32_u
     local.get $t2
     i64.extend_i32_u
-    local.get $t3
-    i64.extend_i32_u
     i64.add
-    local.tee $t1
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t1
+    local.get $value
     i32.wrap_i64
-    local.tee $t3
     local.tee $t2
+    local.tee $t1
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t2
+      local.get $t1
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
     local.get $t0
-    local.get $t4
     local.get $t3
-    call $write_signed_sized
-    local.get $t4
     local.get $t2
+    call $write_signed_sized
+    local.get $t3
+    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
   )
-  (func $main#1 (param $env i32) (param $make i32) (param $ctx i32) (result i32)
+  (func $main#1 (param $env i32) (param $value i32) (param $ctx i32) (result i32)
     ;; 12 |         result := Box { item: value }
-    local.get $make
+    local.get $value
   )
 )

@@ -193,83 +193,83 @@
     local.get $p.1
     i32.const 1
   )
-  (func $as_value (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
+  (func $as_value (param $errors i32) (result i32) (local $t0 i32) (local $t1 i32) (local $e.1 i32) (local $t2 i32) (local $e.0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 21 |     wrap_with(errors, SyncError.Fs)
     i32.const 24 ;; &empty-buffer
     local.set $t0
     local.get $errors
     i32.load $heap offset=4
     local.tee $t1
-    local.tee $t2
+    local.tee $e.1
     if
       local.get $t0
-      local.get $t2
+      local.get $e.1
       call $rt:list_reserve
       local.set $t0
     end
     block
       loop
-        local.get $t3
+        local.get $t2
         local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $errors
-        local.get $t3
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t2
+        local.tee $e.1
         i32.load $heap offset=16
-        local.get $t2
+        local.get $e.1
         i32.load $heap offset=20
-        local.set $t2
-        local.set $t4
-        local.get $t3
+        local.set $e.1
+        local.set $e.0
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t3
+        local.set $t2
         block
           br 0
           unreachable
         end
-        local.get $t4
+        local.get $e.0
         if
-          local.get $t4
+          local.get $e.0
           call $retain
         end
         i32.const 0
-        local.set $t5
+        local.set $t3
         local.get $t0
-        local.tee $t6
+        local.tee $t4
         i32.load $heap offset=4
-        local.tee $t7
-        local.get $t6
+        local.tee $t5
+        local.get $t4
         i32.load $heap
         i32.eq
         if
-          local.get $t6
+          local.get $t4
           i32.const 1
           call_indirect $table0 (param i32) (result i32)
-          local.tee $t6
+          local.tee $t4
           local.set $t0
         end
-        local.get $t6
-        local.get $t7
+        local.get $t4
+        local.get $t5
         i32.const 12
         i32.mul
         i32.add
-        local.tee $t8
-        local.get $t5
+        local.tee $t6
+        local.get $t3
         i32.store $heap offset=16
-        local.get $t8
-        local.get $t4
-        i32.store $heap offset=20
-        local.get $t8
-        local.get $t2
-        i32.store $heap offset=24
         local.get $t6
-        local.get $t7
+        local.get $e.0
+        i32.store $heap offset=20
+        local.get $t6
+        local.get $e.1
+        i32.store $heap offset=24
+        local.get $t4
+        local.get $t5
         i32.const 1
         i32.add
         i32.store $heap offset=4

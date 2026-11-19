@@ -29,40 +29,40 @@
     local.get $xs
     i32.load $heap offset=4
   )
-  (func $collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $collect (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $values i32) (local $t0 i32)
     ;; 26 |     count(a, b)
     i32.const 2
     call $rt:list_buf
-    local.tee $t0
+    local.tee $values
     i32.const 2
     i32.store $heap offset=4
-    local.get $t0
-    local.tee $t1
+    local.get $values
+    local.tee $t0
     local.get $a.0
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t0
     local.get $a.1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $t0
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $t0
     local.get $b.0
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t0
     local.get $b.1
     i32.store $heap offset=20
-    local.get $t0
+    local.get $values
     i32.load $heap offset=4
     local.set $a.0
-    local.get $t0
+    local.get $values
     if
-      local.get $t0
+      local.get $values
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t0
+        local.get $values
         call $rt:release_ref
       end
     end

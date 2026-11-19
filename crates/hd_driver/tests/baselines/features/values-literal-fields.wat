@@ -44,7 +44,7 @@
     ;; 20 |     Shelf { items: START }
     i32.const 128
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $h i32) (local $t0 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i64) (local $t7 i32) (local $t8 i64) (local $t9 i32) (local $t10 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $h i32) (local $t0 i32) (local $t2 i32) (local $i i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $value'2 i64) (local $t5 i32) (local $value'3 i64) (local $t6 i32) (local $t7 i32)
     ;; 31 |     let mut h = histogram()
     global.get $locals
     global.get $locals_base
@@ -179,21 +179,21 @@
       end
     end
     local.get $t3
-    local.tee $t4
+    local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
     local.set $t1
-    local.get $t4
+    local.get $value'1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t5
+      local.set $t4
     end
     local.get $t1
-    local.get $t5
+    local.get $t4
     i32.add
-    local.set $t5
+    local.set $t4
     local.get $t2
     i32.load $heap
     local.set $t1
@@ -207,7 +207,7 @@
     end
     local.get $t1
     i64.load $heap offset=16
-    local.set $t4
+    local.set $value'1
     local.get $t2
     if
       local.get $t2
@@ -224,20 +224,20 @@
         end
       end
     end
-    local.get $t4
-    local.tee $t6
+    local.get $value'1
+    local.tee $value'2
     call $signed_magnitude
     call $unsigned_width
     local.set $t2
-    local.get $t6
+    local.get $value'2
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t7
+      local.set $t5
     end
     local.get $t2
-    local.get $t7
+    local.get $t5
     i32.add
     local.set $t2
     i32.const 0
@@ -250,77 +250,77 @@
     end
     i32.const 128
     i64.load $heap offset=16
-    local.tee $t6
-    local.tee $t8
+    local.tee $value'2
+    local.tee $value'3
     call $signed_magnitude
     call $unsigned_width
-    local.set $t7
-    local.get $t8
+    local.set $t5
+    local.get $value'3
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t9
+      local.set $t6
     end
-    local.get $t7
-    local.get $t9
-    i32.add
-    local.set $t7
     local.get $t5
+    local.get $t6
+    i32.add
+    local.set $t5
+    local.get $t4
     i32.const 1
     i32.add
-    local.tee $t9
+    local.tee $t6
     local.get $t2
     i32.add
     local.tee $t1
     i32.const 1
     i32.add
     local.tee $h
-    local.get $t7
+    local.get $t5
     i32.add
     local.tee $i
     i32.const 16
-    local.set $t10
+    local.set $t7
     if
       local.get $i
       call $rt:str
-      local.set $t10
+      local.set $t7
     end
     local.get $t3
-    local.get $t10
-    local.get $t5
+    local.get $t7
+    local.get $t4
     call $write_signed_sized
-    local.get $t10
-    local.get $t5
+    local.get $t7
+    local.get $t4
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t4
-    local.get $t10
-    local.get $t9
+    local.get $value'1
+    local.get $t7
+    local.get $t6
     i32.add
     local.get $t2
     call $write_signed_sized
-    local.get $t10
+    local.get $t7
     local.get $t1
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t6
-    local.get $t10
+    local.get $value'2
+    local.get $t7
     local.get $h
     i32.add
-    local.get $t7
+    local.get $t5
     call $write_signed_sized
-    local.get $t10
+    local.get $t7
     local.get $i
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 31 |     let mut h = histogram()
-    local.get $t10
+    local.get $t7
     if
-      local.get $t10
+      local.get $t7
       call $rt:release_ref'2
     end
     local.get $t0

@@ -3,7 +3,7 @@
   (import "fixture" "impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (func $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
+  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $cursor i32) (local $t2 i32)
     ;; 18 |     for _ in 0..rounds:
     local.get $items
     i32.load $heap offset=8
@@ -24,18 +24,18 @@
         local.set $t1
     ;; 19 |         first := checked_after_loop(items, index, turns)
         i32.const 0
-        local.set $t2
+        local.set $cursor
         block
           loop
-            local.get $t2
+            local.get $cursor
             local.get $turns
             i32.lt_u
             i32.eqz
             br_if 1
-            local.get $t2
+            local.get $cursor
             i32.const 1
             i32.add
-            local.set $t2
+            local.set $cursor
             br 0
           end
         end
@@ -51,7 +51,7 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $t2
+        local.get $cursor
         local.get $items
         local.get $key
         i32.const 4
@@ -59,7 +59,7 @@
         i32.add
         i32.load $heap
         i32.add
-        local.set $t2
+        local.set $cursor
     ;; 20 |         total += first + items[index]
         local.get $items
         local.get $key
@@ -67,10 +67,10 @@
         i32.mul
         i32.add
         i32.load $heap
-        local.set $t3
+        local.set $t2
         local.get $total
+        local.get $cursor
         local.get $t2
-        local.get $t3
         i32.add
         i32.add
         local.set $total

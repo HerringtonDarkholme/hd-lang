@@ -18,7 +18,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 13 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 23 |     store := $.use(Store)
     local.get $provider0
     ;; 24 |     println("${store.tally({"a": +1})}")
@@ -62,32 +62,32 @@
     end
     i64.extend_i32_s
     local.tee $t3
-    local.tee $t4
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $t0
-    local.get $t4
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t5
+      local.set $t4
     end
     local.get $t0
     i64.extend_i32_u
-    local.get $t5
+    local.get $t4
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $value
     i32.wrap_i64
-    local.tee $t5
+    local.tee $t4
     local.tee $t0
     i32.const 16
     local.set $t1
@@ -98,7 +98,7 @@
     end
     local.get $t3
     local.get $t1
-    local.get $t5
+    local.get $t4
     call $write_signed_sized
     local.get $t1
     local.get $t0
@@ -108,26 +108,26 @@
     ;; 25 |     _ := store.grow(Tree.Node([Tree.Leaf(+1)]))
     i32.const 1
     call $rt:list_buf
-    local.tee $t5
+    local.tee $t4
     i32.const 1
     i32.store $heap offset=4
-    local.get $t5
+    local.get $t4
     i32.const 0
     i32.store $heap offset=16
-    local.get $t5
+    local.get $t4
     i32.const 1
     i32.store $heap offset=20
     i32.const 1
     local.set $t0
     local.get $provider0
     local.get $t0
-    local.get $t5
+    local.get $t4
     local.get $provider0.vtable
     i32.load $heap offset=4
     call_indirect $table0 (param i32 i32 i32) (result i32 i32)
     call $rt:release
     local.get $t0
-    local.get $t5
+    local.get $t4
     call $rt:release
     ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
     local.get $provider0
@@ -140,46 +140,46 @@
     call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32)
     i64.extend_i32_s
     local.tee $t3
-    local.tee $t4
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $t5
-    local.get $t4
+    local.set $t4
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t6
+      local.set $t5
     end
+    local.get $t4
+    i64.extend_i32_u
     local.get $t5
     i64.extend_i32_u
-    local.get $t6
-    i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $value
     i32.wrap_i64
+    local.tee $t4
     local.tee $t5
-    local.tee $t6
     i32.const 16
     local.set $t0
     if
-      local.get $t6
+      local.get $t5
       call $rt:str
       local.set $t0
     end
     local.get $t3
     local.get $t0
-    local.get $t5
+    local.get $t4
     call $write_signed_sized
     local.get $t0
-    local.get $t6
+    local.get $t5
     local.get $provider1
     local.get $provider1.vtable
     call $"println[string]"
@@ -190,9 +190,9 @@
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $provider0
     local.tee $provider0.vtable
-    local.tee $t5
+    local.tee $t4
     if
-      local.get $t5
+      local.get $t4
       call $retain
     end
     local.get $provider0.vtable
@@ -200,56 +200,56 @@
       local.get $provider0.vtable
       call $rt:release_ref'2
     end
-    local.get $t5
+    local.get $t4
     local.get $provider0
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
-    local.get $t5
+    local.get $t4
     if
-      local.get $t5
+      local.get $t4
       call $rt:release_ref'2
     end
     i64.extend_i32_s
     local.tee $t3
-    local.tee $t4
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $provider0
-    local.get $t4
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t7
+      local.set $t6
     end
     local.get $provider0
     i64.extend_i32_u
-    local.get $t7
+    local.get $t6
     i64.extend_i32_u
     i64.add
-    local.tee $t4
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t4
+    local.get $value
     i32.wrap_i64
     local.tee $provider0
     local.tee $provider0.vtable
     i32.const 16
-    local.set $t5
+    local.set $t4
     if
       local.get $provider0.vtable
       call $rt:str
-      local.set $t5
+      local.set $t4
     end
     local.get $t3
-    local.get $t5
+    local.get $t4
     local.get $provider0
     call $write_signed_sized
-    local.get $t5
+    local.get $t4
     local.get $provider0.vtable
     local.get $provider1
     local.get $provider1.vtable

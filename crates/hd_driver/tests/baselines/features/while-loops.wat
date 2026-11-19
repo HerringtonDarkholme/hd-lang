@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $t0 i32)
+  (func $count_while (param $xs i32) (result i32) (local $i i32) (local $n i32) (local $self.1 i32)
     ;; 9 |     while i < xs.len():
     block
       loop
@@ -19,14 +19,14 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t0
+        local.tee $self.1
         i32.load $heap offset=16
-        local.get $t0
+        local.get $self.1
         i32.load $heap offset=20
-        local.set $t0
+        local.set $self.1
         drop
         local.get $n
-        local.get $t0
+        local.get $self.1
         i32.add
         local.set $n
     ;; 11 |         i += 1

@@ -246,7 +246,7 @@
     i32.add
     global.set $locals
   )
-  (func $by_ref (param $r i32) (result i32) (local $t0 i32)
+  (func $by_ref (param $r i32) (result i32) (local $self.1 i32)
     ;; 29 |     using held = r
     local.get $r
     ;; 30 |     held.name.len()
@@ -255,7 +255,7 @@
     local.get $r
     ;; 30 |     held.name.len()
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
     ;; 29 |     using held = r
     global.get $forbid
@@ -269,7 +269,7 @@
     i32.add
     global.set $forbid
     ;; 30 |     held.name.len()
-    local.get $t0
+    local.get $self.1
   )
   (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $r i32) (local $t0 i32)
     ;; 24 |     for x in xs:

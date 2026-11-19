@@ -28,7 +28,7 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 15 funcref))
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $t4 i32) (local $t6 i64) (local $t0 i32) (local $t1 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t3 i32) (local $t5 i32) (local $t2 i32) (local $t4 i32) (local $value i64) (local $t0 i32) (local $t1 i32)
     ;; 12 |     let mut u = UniqList::[i32].new()
     global.get $locals
     global.get $locals_base
@@ -527,7 +527,7 @@
       local.get $provider0
       i32.load $heap
       i64.extend_i32_u
-      local.set $t6
+      local.set $value
       local.get $provider0
       if
         local.get $provider0
@@ -541,7 +541,7 @@
           call $rt:release_ref'1
         end
       end
-      local.get $t6
+      local.get $value
       call $unsigned_width
       local.tee $provider0.vtable
       local.tee $provider0
@@ -557,7 +557,7 @@
       local.set $provider0
       local.tee $provider1
       local.set $provider1.vtable
-      local.get $t6
+      local.get $value
       local.get $provider1.vtable
       local.get $provider0.vtable
       call $write_unsigned_sized
