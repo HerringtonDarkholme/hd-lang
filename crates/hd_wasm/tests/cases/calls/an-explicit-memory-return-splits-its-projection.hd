@@ -1,0 +1,44 @@
+# @dump: wat counts own
+# @build: dev | checked | release | release checked
+# Both return forms copy the projection as one Memory value (#2189).
+type D0 = (i32, i32)
+type D1 = (D0, D0)
+type D2 = (D1, D1)
+type D3 = (D2, D2)
+type D4 = (D3, D3)
+type D5 = (D4, D4)
+
+fn implicit(x: D5) -> D4:
+    x._0
+
+fn explicit(x: D5) -> D4:
+    return x._0
+
+# Counted moves and a copy through a loan keep their count paths.
+type S0 = (string, string, string, string, string, string, string, string, string)
+type S1 = (S0, S0)
+
+fn moved(x: S1) -> S0:
+    return x._0
+
+fn copied(x: &S1) -> S0:
+    return x._0
+
+# A composite of loans is a Memory value but owns no string counts.
+type B0['a] = (
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+    &'a string,
+)
+type B1['a] = (B0['a], B0['a])
+
+type B2['a] = (B1['a], B1['a])
+
+fn borrowed['a](x: B2['a]) -> B1['a]:
+    return x._0

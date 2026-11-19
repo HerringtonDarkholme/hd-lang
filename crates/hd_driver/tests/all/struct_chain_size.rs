@@ -400,3 +400,25 @@ fn a_doubling_value_kept_whole_grows_linearly_in_depth() {
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }
+
+/// An explicit Memory projection return has the implicit return's bounded
+/// instruction cost, independent of the number of scalar occurrences.
+#[test]
+fn explicit_memory_returns_keep_the_projection_address() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            for depth in [4, 8] {
+                let implicit = doubling_program(depth);
+                let explicit = implicit.replace(": x._0\n", ": return x._0\n");
+                let baseline = instructions(&build_wasm(&implicit));
+                let actual = instructions(&build_wasm(&explicit));
+                eprintln!("Memory returns depth {depth}: implicit {baseline}, explicit {actual}");
+                assert!(
+                    actual <= baseline + depth * 8,
+                    "depth {depth}: {baseline} -> {actual}"
+                );
+            }
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}
