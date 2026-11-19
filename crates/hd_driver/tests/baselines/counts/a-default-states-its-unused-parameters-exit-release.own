@@ -70,9 +70,9 @@ fn join(
 >     uses $22: %14 -> %15 lend last
 >   local $23 value: string [read] value
 >     uses $23: %6 -> %7 lend last
->   %1 = Release %134 Exit local $0 #2 : ()
->   %2 = Release %134 Exit local $1 #2 : ()
->   %3 = Release %134 Exit local $2 #2 : ()
+>   %0 = Release %134 Exit local $0 #2 : ()
+>   %1 = Release %134 Exit local $1 #2 : ()
+>   %2 = Release %134 Exit local $2 #2 : ()
     log: *mut List[string],
     first: string,
     second: string = note(log, "second"),
@@ -101,7 +101,7 @@ fn join(
 >   %3 = Block 64:usize : usize
 ) -> string:
     "$first $second $limit"
->   %0 = Box #3 #0 : ()
+>   %3 = Box #3 #0 : ()
 >   %4 = Read borrow [$1] : string
 >   %5 = Read borrow [%4] : string
 >   %6 = Store [$23] %5 : ()

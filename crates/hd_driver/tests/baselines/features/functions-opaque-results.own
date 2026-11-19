@@ -36,9 +36,9 @@ fn count_long(xs: List[string]) -> usize:
 >     uses $6: %4 -> %5 lend last
 >   local $7 self: List[string] [read] value
 >     uses $7: %6 -> %7 consume last
->   %1 = Retain %49 Entry local $0 #0 : ()
+>   %0 = Retain %49 Entry local $0 #0 : ()
     let n: usize = 0
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Store [$1] 0:usize : ()
 >   %17 = Box #2 #0 : ()
 >   %49 = Block %48 : usize

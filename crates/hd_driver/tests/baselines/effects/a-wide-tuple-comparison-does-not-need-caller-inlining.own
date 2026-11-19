@@ -43,11 +43,11 @@ fn ordered(left: Words, right: Words) -> bool:
 > app/main/ordered
 >   local $0 left: (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [param read captured] place
 >   local $1 right: (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [param read captured] place
->   %2 = Release %16 Exit local $0 #2 : ()
->   %3 = Release %16 Exit local $1 #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
     left < right
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
 >   %5 = Ref local frame [$1] : &(string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string)
 >   %6 = Call std/cmp/PartialOrd.partial_cmp for (string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string, string) [] via Impl (%4, %5) : Ordering?

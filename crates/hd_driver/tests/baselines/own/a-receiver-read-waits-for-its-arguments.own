@@ -85,9 +85,9 @@ fn by_reference(m: Members, i: usize) -> usize:
 >   local $0 m: Members [param read captured] place
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 lend last
->   %1 = Retain %8 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     m.peek(m.infos[i].position)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = Read copy [$0 .infos [%2] .position] : usize
 >   %4 = Ref local frame [$0] : &Members

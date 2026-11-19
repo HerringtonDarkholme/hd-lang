@@ -342,6 +342,8 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     t.exits.sort_stable_by_key(|(s, l)| (s.raw(), l.raw()));
     t.exits.dedup();
     b.exit_drops.clone_from(&t.exits);
+    // Known-null must see allocation, independently of payload initialization.
+    super::storage::boxes(b, topo, edits);
     splice::apply(b, topo, edits)
 }
 

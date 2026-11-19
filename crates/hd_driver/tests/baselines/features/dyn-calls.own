@@ -44,9 +44,9 @@ fn make_dyn(d: Dog) -> usize:
 >   local $0 d: Dog [param read captured] place
 >   local $1 $ref: &Dog [read assigned captured] value
 >     uses $1: %3 -> %4 lend last
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     call_dyn(&d)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Dog
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read copy [$1] : &Dog

@@ -49,11 +49,11 @@ fn total(a: User, b: User) -> usize:
 >     uses $4: %33 -> %34 lend last
 >   local $5 self: string [read] value
 >     uses $5: %26 -> %27 lend last
->   %2 = Retain %47 Entry local $0 #0 : ()
->   %3 = Retain %47 Entry local $1 #0 : ()
+>   %0 = Retain %47 Entry local $0 #0 : ()
+>   %1 = Retain %47 Entry local $1 #0 : ()
     let mut seen: List[&User] = []
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = NewList - [] : List[&User]
 >   %5 = Box #2 #0 : ()
 >   %6 = Store [$2] %4 : ()

@@ -25,17 +25,17 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   local $0 value: T [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %16 -> %17 lend last
->   %1 = Retain %27 Cold local $0 #0 : ()
->   %2 = Retain %27 Entry local $0 #0 : ()
->   %6 = Retain %27 Cold referent $0 #8 : ()
->   %7 = Release %27 FrameDrop referent $0 #2 : ()
->   %8 = Release %27 Exit referent $0 #8 : ()
+>   %0 = Retain %27 Cold local $0 #0 : ()
+>   %1 = Retain %27 Entry local $0 #0 : ()
+>   %5 = Retain %27 Cold referent $0 #8 : ()
+>   %6 = Release %27 FrameDrop referent $0 #2 : ()
+>   %7 = Release %27 Exit referent $0 #8 : ()
     _ := same(&value, &value)
->   %0 = Box #0 #1 : ()
->   %3 = Retain %27 Cold row #0 : ()
->   %4 = Retain %27 Materialize row #0 : ()
->   %5 = Release %27 FrameDrop row #2 : ()
->   %9 = Release %27 FrameDrop child #2 : ()
+>   %2 = Retain %27 Cold row #0 : ()
+>   %3 = Retain %27 Materialize row #0 : ()
+>   %4 = Release %27 FrameDrop row #2 : ()
+>   %8 = Release %27 FrameDrop child #2 : ()
+>   %9 = Box #0 #1 : ()
 >   %10 = Ref local [$0] : &T
 >   %11 = Coerce %10 [Weaken -] : &T
 >   %12 = Ref local [$0] : &T
@@ -62,11 +62,11 @@ fn take![T < 'static](value: T) -> T $ Clock:
 @cold
 > std/rt_tests.stage_case/stack
 >   local $0 value: T [param read captured] place
->   %2 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
->   %0 = Box #0 #0 : ()
->   %1 = FlagSet [$0] #1 : ()
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Box #0 #0 : ()
 >   %3 = Ref local frame [$0] : &T
 >   %4 = Coerce %3 [Weaken -] : &T
 >   %5 = Ref local frame [$0] : &T

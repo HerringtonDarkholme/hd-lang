@@ -9,14 +9,14 @@ fn after!(text: string) -> usize $ Clock:
 >   local $0 text: string [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %7 -> %8 lend last
->   %1 = Retain %19 Cold local $0 #0 : ()
->   %2 = Retain %19 Entry local $0 #0 : ()
+>   %0 = Retain %19 Cold local $0 #0 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
     sleep!(ms(1))
->   %0 = Box #0 #1 : ()
->   %3 = Retain %19 Cold row #0 : ()
->   %4 = Retain %19 Materialize row #0 : ()
->   %5 = Release %19 FrameDrop row #2 : ()
->   %6 = Release %19 FrameDrop child #2 : ()
+>   %2 = Retain %19 Cold row #0 : ()
+>   %3 = Retain %19 Materialize row #0 : ()
+>   %4 = Release %19 FrameDrop row #2 : ()
+>   %5 = Release %19 FrameDrop child #2 : ()
+>   %6 = Box #0 #1 : ()
 >   %7 = Store [$1] 1:i64 : ()
 >   %8 = Read copy [$1] : i64
 >   %9 = Call std/time/impl Duration.milliseconds[] (%8) : Duration

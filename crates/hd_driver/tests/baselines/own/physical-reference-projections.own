@@ -3,9 +3,9 @@ app/main/impl Probes.captured_copy
   local $0 value: string [param read captured] place
   local $1 borrowed: &string [:= read assigned] value
     uses $1: %4 -> %5 lend last
-  %0 = Retain %9 Entry captures #0 : ()
+  %0 = Retain %13 Entry local $0 #0 : ()
   %1 = Box #0 #1 : ()
-  %2 = Retain %13 Entry local $0 #0 : ()
+  %2 = Retain %9 Entry captures #0 : ()
   %3 = Ref local [$0] : &string
   %4 = Store [$1] %3 : ()
   %5 = Read move [$1] : &string

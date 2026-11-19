@@ -7,8 +7,8 @@
 # (`ZERO`) when a return, break or continue may run between the box and
 # the declaration. `early` returns before `s` and `t`, which are boxed
 # after the return; `maker`'s `s` outlives its call in a heap cell.
-# `rounds` boxes `s` before the `continue`, whose drop of `s` reads the
-# box, so it starts zero. A match arm's binding `v`, which its pattern
+# `rounds` boxes `s` after the `continue`: its drop accepts an absent
+# cell and does not hoist the allocation. A match arm's binding `v`, whose pattern
 # block stores and its body block borrows, is boxed before the match, and
 # the other arm's return makes it start zero. The parameter `p` is boxed
 # at the root.
@@ -26,8 +26,7 @@ fn early(n: i32) -> string:
     if n > 1:
         return "early"
     let mut s = "a"
-    add := fn() -> void:
-        s = "${s}+"
+    add := fn() -> void: s = "${s}+"
     add()
     let mut t = "b"
     bang(&mut t)
@@ -48,8 +47,7 @@ fn rounds(n: i32) -> string:
         if i == 1:
             continue
         let mut s = "r"
-        add := fn() -> void:
-            s = "${s}+"
+        add := fn() -> void: s = "${s}+"
         add()
         out = "${out}${s}"
     out

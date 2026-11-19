@@ -28,9 +28,9 @@ impl Supplier for Constant:
 fn first[T < Supplier](source: T) -> T::Item:
 > app/main/first
 >   local $0 source: T [param read captured] place
->   %1 = Retain %8 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     source.get()
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &T
 >   %3 = Call app/main/Supplier.get for T [] via Bound (%2) : T::Item
 >   %4 = Retain %3 Operation dynamic receiver #1 : ()
@@ -90,9 +90,9 @@ fn read_const(c: Constant) -> usize:
 >   local $0 c: Constant [param read captured] place
 >   local $1 $ref: &Constant [read assigned captured] value
 >     uses $1: %3 -> %4 lend last
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     read(&c)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Constant
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read copy [$1] : &Constant

@@ -7,11 +7,11 @@ fn ordered(left: (string, i64), right: (string, i64)) -> bool:
 > app/main/ordered
 >   local $0 left: (string, i64) [param read captured] place
 >   local $1 right: (string, i64) [param read captured] place
->   %2 = Release %16 Exit local $0 #2 : ()
->   %3 = Release %16 Exit local $1 #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
     left > right
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &(string, i64)
 >   %5 = Ref local frame [$1] : &(string, i64)
 >   %6 = Call std/cmp/PartialOrd.partial_cmp for (string, i64) [] via Impl (%4, %5) : Ordering?
@@ -32,11 +32,11 @@ fn nested(left: ((string, i64), string), right: ((string, i64), string)) -> bool
 > app/main/nested
 >   local $0 left: ((string, i64), string) [param read captured] place
 >   local $1 right: ((string, i64), string) [param read captured] place
->   %2 = Release %16 Exit local $0 #2 : ()
->   %3 = Release %16 Exit local $1 #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
     left <= right
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &((string, i64), string)
 >   %5 = Ref local frame [$1] : &((string, i64), string)
 >   %6 = Call std/cmp/PartialOrd.partial_cmp for ((string, i64), string) [] via Impl (%4, %5) : Ordering?

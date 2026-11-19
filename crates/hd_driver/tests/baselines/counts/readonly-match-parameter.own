@@ -5,9 +5,9 @@
 fn absent(value: string?) -> bool:
 > app/main/absent
 >   local $0 value: string? [param read captured] place
->   %1 = Release %16 Exit local $0 #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
     value == .None
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &(string?)
 >   %3 = NewVariant #0 [] : string?
 >   %4 = Drop [%3] : ()
@@ -29,9 +29,9 @@ fn absent(value: string?) -> bool:
 fn present(value: string?) -> bool:
 > app/main/present
 >   local $0 value: string? [param read captured] place
->   %1 = Release %14 Exit local $0 #2 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
     match &value:
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &(string?)
 >   %11 = Block - : never
 >   %12 = Match %2 [%11 %3 %4] : bool

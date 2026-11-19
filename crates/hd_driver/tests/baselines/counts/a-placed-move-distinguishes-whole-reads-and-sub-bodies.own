@@ -38,10 +38,10 @@ fn keep(value: string) -> string:
 @cold
 > std/rt_tests.stage_case/copied
 >   local $0 value: string [param read captured] place
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
 fn copied(value: string) -> (string, string):
     _ := same(&value, &value)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &string
 >   %3 = Coerce %2 [Weaken -] : &string
 >   %4 = Ref local frame [$0] : &string
@@ -61,10 +61,10 @@ fn copied(value: string) -> (string, string):
 @cold
 > std/rt_tests.stage_case/projected
 >   local $0 value: Item [param read captured] place
->   %1 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
 fn projected(value: Item) -> string:
     _ := same(&value, &value)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Item
 >   %3 = Coerce %2 [Weaken -] : &Item
 >   %4 = Ref local frame [$0] : &Item
@@ -81,8 +81,8 @@ fn nested() -> (fn(string) -> string):
     fn(value: string) -> string:
 > std/rt_tests.stage_case/nested
 >   local $0 value: string [param read captured] place
->   %0 = Box #0 #1 : ()
->   %1 = Retain %10 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
+>   %1 = Box #0 #1 : ()
 >   %10 = Block %8 : string
 >   %11 = Closure #1 : fn(string) -> string
 >   %12 = Block %11 : fn(string) -> string

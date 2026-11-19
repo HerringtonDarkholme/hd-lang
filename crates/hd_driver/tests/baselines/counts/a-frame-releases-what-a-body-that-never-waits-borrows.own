@@ -67,7 +67,7 @@ pub fn main!() -> void $ Console:
 >   %7 = Retain %6 Value #0 : ()
 >   %8 = Drop [$0] : ()
 >   %9 = Store [$1] %6 : ()
->   %17 = Box #2 #1 : ()
+>   %17 = Box #2 #257 : ()
 >   %59 = Block - : ()
     let (a, _) = join!(change(n), other())
 >   %10 = Read move [$1] : *mut Note

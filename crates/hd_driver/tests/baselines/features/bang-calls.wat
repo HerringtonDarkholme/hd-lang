@@ -1035,7 +1035,7 @@
     global.get $locals
     global.get $locals_base
     i32.sub
-    i32.const 56
+    i32.const 72
     i32.lt_u
     if
       i32.const 1
@@ -1057,7 +1057,7 @@
       global.set $locals
     end
     global.get $locals
-    i32.const 56
+    i32.const 72
     i32.sub
     local.tee $t0
     global.set $locals
@@ -1089,7 +1089,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 56
+      i32.const 72
       memory.fill $heap
       local.get $t2
       local.get $a.0
@@ -1363,7 +1363,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 56
+            i32.const 72
             i32.add
             global.set $locals
             return
@@ -1482,7 +1482,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 56
+          i32.const 72
           i32.add
           global.set $locals
           return
@@ -1607,11 +1607,25 @@
       i32.const 8
       i32.const 1
       call $rt:new/class-1
-      local.set $b.0
+      local.tee $b.0
+      local.get $t2
+      i32.load $heap offset=52
+      i32.store $heap
+      local.get $b.0
+      local.get $t2
+      i32.load $heap offset=56
+      i32.store $heap offset=4
       i32.const 8
       i32.const 1
       call $rt:new/class-1
-      local.set $y
+      local.tee $y
+      local.get $t2
+      i32.load $heap offset=60
+      i32.store $heap
+      local.get $y
+      local.get $t2
+      i32.load $heap offset=64
+      i32.store $heap offset=4
       block
         local.get $b.0
         local.get $t3
@@ -1718,7 +1732,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 56
+    i32.const 72
     i32.add
     global.set $locals
   )
@@ -2150,7 +2164,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 56
+      i32.const 72
       memory.copy $heap $heap
       i32.const 1
       local.set $t2

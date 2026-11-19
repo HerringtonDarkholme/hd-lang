@@ -638,6 +638,15 @@ impl Tables {
         let i = x as usize;
         let [a, w] = b.data[i];
         let tag = b.tags[i];
+        // The cell exists even on a path that skips its payload's first
+        // store. Its Drop/exit owns that allocation until it is released.
+        if tag == Tag::Box {
+            let bit = self.lbit[b.data[i][0] as usize];
+            if bit != NONE {
+                self.refill(bit, s, st);
+            }
+        }
+
         if tag == Tag::Drop {
             self.drop_item(b, cx, i, a, s, st);
         }

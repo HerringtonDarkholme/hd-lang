@@ -11,11 +11,11 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   local $0 u: UniqList[i32] [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %5 -> %6 lend last
->   %0 = Box #0 #1 : ()
->   %1 = Retain %17 Cold row #0 : ()
->   %2 = Retain %17 Materialize row #0 : ()
->   %3 = Release %17 FrameDrop row #2 : ()
->   %4 = Release %17 FrameDrop child #2 : ()
+>   %0 = Retain %17 Cold row #0 : ()
+>   %1 = Retain %17 Materialize row #0 : ()
+>   %2 = Release %17 FrameDrop row #2 : ()
+>   %3 = Release %17 FrameDrop child #2 : ()
+>   %4 = Box #0 #1 : ()
 >   %5 = Store [$1] 1:i64 : ()
 >   %6 = Read copy [$1] : i64
 >   %7 = Call std/time/impl Duration.milliseconds[] (%6) : Duration

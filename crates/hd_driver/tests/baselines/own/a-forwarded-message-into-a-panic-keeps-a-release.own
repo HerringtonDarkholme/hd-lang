@@ -71,14 +71,14 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >     uses $30: %27 -> %28 lend last
 >   local $31 value: string [read] value
 >     uses $31: %17 -> %18 lend last
->   %4 = Release %220 Exit local $2 #2 : ()
->   %5 = Retain %220 Entry local $0 #0 : ()
->   %6 = Retain %220 Entry local $1 #0 : ()
+>   %2 = Release %220 Exit local $2 #2 : ()
+>   %3 = Retain %220 Entry local $0 #0 : ()
+>   %4 = Retain %220 Entry local $1 #0 : ()
     if actual != expected:
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
->   %2 = FlagSet [$0] #32 : ()
->   %3 = FlagSet [$1] #33 : ()
+>   %0 = FlagSet [$0] #32 : ()
+>   %1 = FlagSet [$1] #33 : ()
+>   %5 = Box #0 #0 : ()
+>   %6 = Box #1 #0 : ()
 >   %7 = Ref local frame [$0] : &T
 >   %8 = Ref local frame [$1] : &T
 >   %9 = Call std/core/Eq.eq for T [] via Bound (%7, %8) : bool

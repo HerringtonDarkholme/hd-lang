@@ -81,8 +81,8 @@ fn keep[T < 'static](value: T) -> *mut T:
     box(value)
 >   %0 = FlagSet [$0] #2 : ()
 >   %2 = Read move [$0] : T
->   %3 = Box #1 #1 : ()
->   %4 = FlagClear [$0] #2 : ()
+>   %3 = FlagClear [$0] #2 : ()
+>   %4 = Box #1 #1 : ()
 >   %5 = Store [$1] %2 : ()
 >   %6 = Ref take mut [$1] : *mut T
 >   %7 = Block %6 : *mut T

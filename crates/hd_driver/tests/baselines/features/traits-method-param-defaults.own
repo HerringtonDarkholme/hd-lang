@@ -50,9 +50,9 @@ impl Joiner:
 fn joined(j: Joiner) -> usize:
 > app/main/joined
 >   local $0 j: Joiner [param read captured] place
->   %1 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
     j.join()
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Joiner
 >   %3 = DefaultCall [app/main/impl Joiner.join.sep []] [%2] : string
 >   %4 = Call app/main/impl Joiner.join[] (%2, %3) : usize

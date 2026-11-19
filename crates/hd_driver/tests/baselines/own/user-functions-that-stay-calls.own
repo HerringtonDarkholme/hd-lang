@@ -9,7 +9,7 @@ app/main/calls
     uses $3: %2 -> %3 lend last
   local $4 x: i64 [read] value
     uses $4: %21 -> %22 lend last
-  %0 = Box #0 #0 : ()
+  %1 = Box #0 #0 : ()
   %2 = Store [$3] 1:i64 : ()
   %3 = Read copy [$3] : i64
   %4 = Call app/main/long[] (%3) : i64

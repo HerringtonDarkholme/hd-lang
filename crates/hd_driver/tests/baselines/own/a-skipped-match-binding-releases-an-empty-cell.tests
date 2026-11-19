@@ -4,11 +4,6 @@
 it "a nonmatching payload releases no stale counts" main.hd:15
 -- results
 a nonmatching payload releases no stale counts: {"status":0,"trapped":false,"stdout":"","stderr":""}
-== @build: checked tests
--- plan
-it "a nonmatching payload releases no stale counts" main.hd:15
--- results
-a nonmatching payload releases no stale counts: {"status":0,"trapped":false,"stdout":"","stderr":""}
 == @build: release tests
 -- plan
 it "a nonmatching payload releases no stale counts" main.hd:15

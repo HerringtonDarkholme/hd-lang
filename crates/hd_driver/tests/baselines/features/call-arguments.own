@@ -167,10 +167,10 @@ fn calls(s: string, n: *Node) -> usize:
 >   local $1 n: *Node [param read] value
 >     uses $1: entry -> %22 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
->   %1 = Release %26 Exit local $1 #2 : ()
->   %2 = Retain %26 Entry local $0 #0 : ()
+>   %0 = Release %26 Exit local $1 #2 : ()
+>   %1 = Retain %26 Entry local $0 #0 : ()
     let mut t = s
->   %0 = Box #0 #255 : ()
+>   %2 = Box #0 #255 : ()
 >   %3 = Read copy [$0] : string
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %3 : ()

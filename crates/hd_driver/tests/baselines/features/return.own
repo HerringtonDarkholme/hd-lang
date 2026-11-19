@@ -141,9 +141,9 @@ fn use_rets(r: Rec) -> usize:
 >     uses $5: %15 -> %16 consume last
 >   local $7 s: string [read] value
 >     uses $7: %3 -> %4 consume last
->   %1 = Release %37 Exit local $0 #2 : ()
+>   %0 = Release %37 Exit local $0 #2 : ()
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Read borrow [$0 .name] : string
 >   %3 = Store [$7] %2 : ()
 >   %4 = Read borrow [$7] : string

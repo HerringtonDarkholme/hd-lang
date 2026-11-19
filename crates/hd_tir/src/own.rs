@@ -1186,7 +1186,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     overwrites::anchor(b);
     scratch.topo.build(b);
     scratch.splice.clear();
-    storage::boxes(b, &scratch.topo, &mut scratch.splice);
     drop_flags::run(b, cx, &scratch.topo, &mut scratch.splice);
     splice::apply(b, &scratch.topo, &mut scratch.splice)?;
     scratch.topo.build(b);

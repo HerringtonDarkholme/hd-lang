@@ -175,9 +175,9 @@ fn use_first(xs: List[string]) -> usize:
 >     uses $1: %3 -> %4 lend, %10 lend last
 >   local $2 self: string [read] value
 >     uses $2: %11 -> %12 lend last
->   %1 = Release %25 Exit local $0 #2 : ()
+>   %0 = Release %25 Exit local $0 #2 : ()
     first_len(&xs) + checksum(&xs)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &List[string]
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read borrow [*$1] : List[string]

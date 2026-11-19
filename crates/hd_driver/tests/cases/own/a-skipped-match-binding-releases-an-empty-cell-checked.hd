@@ -1,0 +1,19 @@
+# @dump: tests
+# @build: checked tests
+# A match payload is boxed before the match so its arm can borrow it.
+# Another arm reaches the scope's release without filling that box (#2195).
+# The skipped binding must start empty even when that arm does not return.
+use std.json.{parse, Json}
+
+fn read(text: string) -> Json:
+    match parse(text):
+        .Ok(value) => value
+        .Err(_) => panic("invalid JSON")
+
+tests:
+    it("a nonmatching payload releases no stale counts"):
+        value := read("{\"a\":[1]}")
+        assert(value.get("b").is_none())
+        assert(value.at(0).is_none())
+        # subject
+        assert(read("[1]").get("a").is_none())

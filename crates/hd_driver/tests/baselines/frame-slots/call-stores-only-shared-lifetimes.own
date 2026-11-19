@@ -36,9 +36,9 @@ fn non_storing(xs: List[string]) -> usize:
 > app/main/non_storing
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %1 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     let mut out: List[&string] = []
->   %0 = Box #0 #255 : ()
+>   %1 = Box #0 #255 : ()
 >   %2 = NewList - [] : List[&string]
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()

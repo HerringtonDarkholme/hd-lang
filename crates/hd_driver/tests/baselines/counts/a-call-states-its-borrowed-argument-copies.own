@@ -62,9 +62,9 @@ fn text(value: string) -> usize:
 >   %0 = Retain %12 Entry local $0 #0 : ()
     store(value)
 >   %1 = Read move [$0] : string
->   %2 = Box #3 #0 : ()
->   %3 = NewList - [] : List[string]
->   %4 = Store [$3] %3 : ()
+>   %2 = NewList - [] : List[string]
+>   %3 = Box #3 #0 : ()
+>   %4 = Store [$3] %2 : ()
 >   %5 = Ref mut local frame [$3] : &mut List[string]
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : &mut List[string]
@@ -85,9 +85,9 @@ fn collection(values: List[string]) -> usize:
 >   %0 = Retain %12 Entry local $0 #0 : ()
     store(values)
 >   %1 = Read move [$0] : List[string]
->   %2 = Box #3 #0 : ()
->   %3 = NewList - [] : List[List[string]]
->   %4 = Store [$3] %3 : ()
+>   %2 = NewList - [] : List[List[string]]
+>   %3 = Box #3 #0 : ()
+>   %4 = Store [$3] %2 : ()
 >   %5 = Ref mut local frame [$3] : &mut List[List[string]]
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : &mut List[List[string]]
@@ -127,9 +127,9 @@ fn pair(first: string, second: string) -> usize:
     store_pair(first, second)
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : string
->   %4 = Box #5 #0 : ()
->   %5 = NewList - [] : List[string]
->   %6 = Store [$5] %5 : ()
+>   %4 = NewList - [] : List[string]
+>   %5 = Box #5 #0 : ()
+>   %6 = Store [$5] %4 : ()
 >   %7 = Ref mut local frame [$5] : &mut List[string]
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : &mut List[string]
@@ -149,9 +149,9 @@ fn scalar(value: i32) -> usize:
 >     uses $0: entry -> %0 lend last
 >   local $3 $ref: List[i32] [read assigned captured captured-assigned] place
 >   %0 = Read copy [$0] : i32
->   %1 = Box #3 #0 : ()
->   %2 = NewList - [] : List[i32]
->   %3 = Store [$3] %2 : ()
+>   %1 = NewList - [] : List[i32]
+>   %2 = Box #3 #0 : ()
+>   %3 = Store [$3] %1 : ()
 >   %4 = Ref mut local frame [$3] : &mut List[i32]
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : &mut List[i32]

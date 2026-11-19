@@ -4,12 +4,12 @@ app/main/holds
     uses $0: entry -> %3 consume last
   local $1 key: K [param read captured] place
   local $2 found: K [read assigned captured] place
-  %0 = Box #1 #0 : ()
-  %1 = FlagSet [$0] #3 : ()
+  %0 = FlagSet [$0] #3 : ()
+  %2 = Box #1 #0 : ()
   %3 = Read borrow [$0] : &Table[K, V]
   %4 = Coerce %3 [Weaken -] : &Table[K, V]
   %5 = Call app/main/slot_of[K, V] (%4) : &Slot[K, V]
-  %6 = Box #2 #0 : ()
+  %6 = Box #2 #256 : ()
   %7 = Block 0:bool : bool
   %8 = Ref local frame [$2] : &K
   %9 = Ref local frame [$1] : &K

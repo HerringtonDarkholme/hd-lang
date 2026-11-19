@@ -432,10 +432,10 @@ pub fn declarations(b: &Body, subs: &[u32]) -> Vec<u32> {
 /// first statement of that block holding one, and a parameter's at its
 /// sub-body's root. A capture's cell arrives in the environment and gets
 /// none. `box_word::ZERO` is set when a return, break, continue or await
-/// may run between the box and the declaration, or the box is raised out
-/// of the declaring block (a match binding's other arms can fall through),
-/// so a path may release the box unfilled. One [`Nest`] and a
-/// prefix count of those statements over its preorder: O(N + rows),
+/// may run between the box and the declaration, or a conditional block
+/// between them can be skipped (including a cleanup suite). Unconditional
+/// scope/provider/reference wrappers do not require clearing. One [`Nest`]
+/// and preorder prefixes give O(N + rows) work,
 /// O(1) a row; two walks of the uses, a raise only climbs.
 pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
     if b.storage.is_empty() {
@@ -450,7 +450,28 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
     }
     let nest = Nest::new(b, topo);
     let mut leaves = vec![0u32];
+    let mut conditional = vec![0u32; b.len()];
+    let mut cleanup = vec![NONE; b.len()];
     for &x in nest.preorder() {
+        let i = x as usize;
+        if !topo.is_root[i] {
+            let parent = if b.tags[i] == Tag::Block {
+                topo.owner[i]
+            } else {
+                topo.blk[i]
+            };
+            let p = parent as usize;
+            // Only these edges enter their block on every normal path. A
+            // scope's deferred suites are conditional, unlike its body.
+            let always = match b.tags[p] {
+                Tag::Scope | Tag::RefDyn => b.data[p][0] == x,
+                Tag::With => b.data[p][1] == x,
+                _ => false,
+            };
+            conditional[i] = conditional[p] + u32::from(b.tags[i] == Tag::Block && !always);
+            let suite = b.tags[i] == Tag::Block && b.tags[p] == Tag::Scope && b.data[p][0] != x;
+            cleanup[i] = if suite { x } else { cleanup[p] };
+        }
         let leaves_block = matches!(
             b.tags[x as usize],
             Tag::Return
@@ -473,10 +494,12 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
             at[l.idx()] = topo.blk[d as usize];
         }
     }
+    // A Drop accepts an absent cell. It must not hoist allocation outside
+    // the branch or loop iteration that starts the binding's lifetime.
     let uses = |f: &mut dyn FnMut(usize, usize)| {
         for i in 0..b.len() {
             match b.tags[i] {
-                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Drop | Tag::LoanEnd => {
+                Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::LoanEnd => {
                     if let Some(l) = b.view(b.data[i][0]).local() {
                         f(i, l as usize);
                     }
@@ -491,8 +514,14 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
             }
         }
     };
-    let ours =
-        |at: &[u32], i: usize, l: usize| at[l] != NONE && topo.sub[i] == topo.sub[decl[l] as usize];
+    // A registered cleanup runs only after the binding was initialized.
+    // Its references extend the value's lifetime, not the allocation scope:
+    // hoisting to its (possibly outer) suite owner would merge loop rounds.
+    let ours = |at: &[u32], i: usize, l: usize| {
+        at[l] != NONE
+            && topo.sub[i] == topo.sub[decl[l] as usize]
+            && cleanup[i] == cleanup[decl[l] as usize]
+    };
     uses(&mut |i, l| {
         while ours(&at, i, l)
             && !topo.is_root[at[l] as usize]
@@ -525,9 +554,8 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
             }
             let (blk, (from, pos)) = (at[li], first[li]);
             let (from, to) = (from as usize, nest.entry(d) as usize);
-            // Raising a binding out of its declaring block also permits a
-            // sibling branch to reach the scope's release without filling it.
-            let zero = if blk != topo.blk[d as usize] || leaves[to] > leaves[from] {
+            let skipped = conditional[d as usize] > conditional[blk as usize];
+            let zero = if skipped || leaves[to] > leaves[from] {
                 box_word::ZERO
             } else {
                 0

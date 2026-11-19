@@ -33,9 +33,9 @@ fn with_default(s: string) -> usize:
 >   %0 = Retain %12 Entry local $0 #0 : ()
     collect(s)
 >   %1 = Read move [$0] : string
->   %2 = Box #3 #0 : ()
->   %3 = NewList - [] : List[string]
->   %4 = Store [$3] %3 : ()
+>   %2 = NewList - [] : List[string]
+>   %3 = Box #3 #0 : ()
+>   %4 = Store [$3] %2 : ()
 >   %5 = Ref mut local frame [$3] : &mut List[string]
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : &mut List[string]
@@ -134,9 +134,9 @@ fn returned_default(source: &mut List[string], fresh: bool) -> usize:
 >   local $6 $ref: List[string] [read assigned captured captured-assigned] place
 >   %0 = Read borrow [$0] : &mut List[string]
 >   %1 = Read copy [$1] : bool
->   %2 = Box #6 #0 : ()
->   %3 = NewList - [] : List[string]
->   %4 = Store [$6] %3 : ()
+>   %2 = NewList - [] : List[string]
+>   %3 = Box #6 #0 : ()
+>   %4 = Store [$6] %2 : ()
 >   %5 = Ref mut local frame [$6] : &mut List[string]
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : &mut List[string]

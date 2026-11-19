@@ -8,22 +8,22 @@ app/main/scoped
   local $3 a: usize [:= read assigned] value
     uses $3: %31 -> %32 lend last
   local $4 action: fn() -> () [read] value
-    uses $4: %8 -> %9 consume last
+    uses $4: %7 -> %8 consume last
   %0 = Retain %46 Cold row #0 : ()
   %1 = Retain %46 Materialize row #0 : ()
   %2 = Release %46 FrameDrop row #2 : ()
   %3 = Release %46 FrameDrop child #2 : ()
-  %4 = Box #2 #257 : ()
-  %5 = Call std/console/println[string] ("cleanup") : ()
-  %6 = Block - : ()
-  %7 = Closure #1 : fn() -> ()
-  %8 = Store [$4] %7 : ()
-  %9 = Read move [$4] : fn() -> ()
-  %10 = NewStruct [%9] : DeferGuard[fn() -> (), $ Console]
-  %11 = Break L0 %10 : never
-  %12 = Block - : DeferGuard[fn() -> (), $ Console]
-  %13 = Scope %12 [] : DeferGuard[fn() -> (), $ Console]
-  %14 = Store [$2] %13 : ()
+  %4 = Call std/console/println[string] ("cleanup") : ()
+  %5 = Block - : ()
+  %6 = Closure #1 : fn() -> ()
+  %7 = Store [$4] %6 : ()
+  %8 = Read move [$4] : fn() -> ()
+  %9 = NewStruct [%8] : DeferGuard[fn() -> (), $ Console]
+  %10 = Break L0 %9 : never
+  %11 = Block - : DeferGuard[fn() -> (), $ Console]
+  %12 = Scope %11 [] : DeferGuard[fn() -> (), $ Console]
+  %13 = Box #2 #1 : ()
+  %14 = Store [$2] %12 : ()
   %15 = Ref mut local [$2] : &mut DeferGuard[fn() -> (), $ Console]
   %16 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $ Console] [$ Console] via Impl (%15) : ()
   %17 = Retain %16 Operation row #0 : ()

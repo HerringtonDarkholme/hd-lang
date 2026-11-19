@@ -500,7 +500,7 @@ pub fn main() -> void $ Console:
 >   local $74 value: string [read] value
 >     uses $74: %24 -> %25 lend last
 >   %0 = Call app/main/generic[] ("c") : (string, i32, string)
->   %1 = Box #1 #0 : ()
+>   %1 = Box #1 #256 : ()
 >   %2 = Block - : ()
 >   %3 = Read move [%0 .0] : string
 >   %4 = Read copy [%0 .1] : i32
@@ -510,7 +510,7 @@ pub fn main() -> void $ Console:
 >   %8 = Store [$2] %5 : ()
 >   %10 = Block - : never
 >   %11 = Match %0 [%10 %2] : ()
->   %13 = Box #4 #0 : ()
+>   %13 = Box #4 #256 : ()
 >   %484 = Block - : ()
     let (t, k) = outer("o")
 >   %12 = Call app/main/outer[string] ("o") : (string, i32)

@@ -16,11 +16,11 @@ fn same(a: Key, b: Key) -> bool:
 > app/main/same
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %2 = Release %9 Exit local $0 #2 : ()
->   %3 = Release %9 Exit local $1 #2 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
+>   %1 = Release %9 Exit local $1 #2 : ()
     a == b
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &Key
 >   %5 = Ref local frame [$1] : &Key
 >   %6 = Call std/core/Eq.eq for Key [] via Impl (%4, %5) : bool
@@ -34,11 +34,11 @@ fn before(a: Key, b: Key) -> bool:
 > app/main/before
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %2 = Release %16 Exit local $0 #2 : ()
->   %3 = Release %16 Exit local $1 #2 : ()
+>   %0 = Release %16 Exit local $0 #2 : ()
+>   %1 = Release %16 Exit local $1 #2 : ()
     a < b
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &Key
 >   %5 = Ref local frame [$1] : &Key
 >   %6 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%4, %5) : Ordering?

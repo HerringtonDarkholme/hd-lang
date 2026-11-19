@@ -65,8 +65,8 @@ fn both!(a: string, b: string) -> usize:
 >   %10 = Release %8 Operation waker #2 : ()
 >   %11 = Drop [%7] : ()
 >   %12 = Drop [%5] : ()
->   %13 = Box #2 #1 : ()
->   %14 = Box #3 #1 : ()
+>   %13 = Box #2 #257 : ()
+>   %14 = Box #3 #257 : ()
 >   %15 = Block - : ()
 >   %16 = Read move [%8 .0] : string
 >   %17 = Read move [%8 .1] : string

@@ -56,9 +56,9 @@ fn length(text: string) -> usize:
 >     uses $1: %9 -> %10 lend, %12 lend last
 >   local $2 src: &string [read] value
 >     uses $2: %3 -> %4 consume last
->   %1 = Release %15 Exit local $0 #2 : ()
+>   %0 = Release %15 Exit local $0 #2 : ()
     p := parser(&text)
->   %0 = Box #0 #0 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &string
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read move [$2] : &string
@@ -87,11 +87,11 @@ fn token(text: string, other: string) -> usize:
 >     uses $3: %8 -> %12 consume last
 >   local $4 w: &string [read assigned] value
 >     uses $4: %15 -> %10 consume last
->   %2 = Release %30 Exit local $0 #2 : ()
->   %3 = Release %30 Exit local $1 #2 : ()
+>   %0 = Release %30 Exit local $0 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     word(Token.Word(&text), &other).len()
->   %0 = Box #0 #0 : ()
->   %1 = Box #1 #0 : ()
+>   %2 = Box #0 #0 : ()
+>   %3 = Box #1 #0 : ()
 >   %4 = Ref local frame [$0] : &string
 >   %5 = NewVariant #0 [%4] : Token[string]
 >   %6 = Ref local frame [$1] : &string

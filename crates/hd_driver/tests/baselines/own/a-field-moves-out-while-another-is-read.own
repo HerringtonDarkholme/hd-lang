@@ -25,9 +25,9 @@ fn split(p: Pair) -> usize:
     eat(p.a) + p.b.len()
 > app/main/split
 >   local $0 p: Pair [param read captured] place
->   %0 = Box #0 #0 : ()
->   %1 = FlagSet [$0] #1 : ()
->   %2 = FlagSet [$0 .a] #2 : ()
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .a] #2 : ()
+>   %2 = Box #0 #0 : ()
 >   %3 = FlagClear [$0 .a] #2 : ()
 >   %4 = Read move [$0 .a] : UniqList[string]
 >   %5 = Call app/main/eat[] (%4) : usize

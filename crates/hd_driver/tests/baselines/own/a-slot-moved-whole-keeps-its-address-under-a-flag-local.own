@@ -280,8 +280,8 @@ fn parameter(mut held: Held, early: bool) -> usize:
 >   local $0 held: Held [param read assigned captured captured-assigned] place
 >   local $1 early: bool [param read] value
 >     uses $1: entry -> %5 lend last
->   %0 = Box #0 #0 : ()
->   %1 = FlagSet [$0] #2 : ()
+>   %0 = FlagSet [$0] #2 : ()
+>   %1 = Box #0 #0 : ()
 >   %2 = Ref mut local frame [$0] : &mut Held
 >   %3 = Call std/rt_tests.stage_case/bump[] (%2) : ()
 >   %4 = LoanEnd [%2] : ()
