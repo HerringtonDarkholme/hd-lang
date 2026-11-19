@@ -69,6 +69,10 @@ fn build_bytes(source: &str) -> usize {
 }
 
 fn build_wasm(source: &str) -> Vec<u8> {
+    build_wasm_profile(source, false)
+}
+
+fn build_wasm_profile(source: &str, release: bool) -> Vec<u8> {
     let mut sources = MemorySources::default();
     sources.insert("main.hd", source);
     let store = crate::warm_store();
@@ -81,6 +85,16 @@ fn build_wasm(source: &str) -> Vec<u8> {
     };
     let packages = Packages {
         target: EngineTarget::V8,
+        level: if release {
+            hd_driver::OptLevel::Optimized
+        } else {
+            hd_driver::OptLevel::Dev
+        },
+        build_profile: if release {
+            hd_base::BuildProfile::Release
+        } else {
+            hd_base::BuildProfile::Checked
+        },
         ..Packages::default()
     };
     let output = build_packages(
@@ -364,24 +378,24 @@ fn a_doubling_value_kept_whole_grows_linearly_in_depth() {
     let worker = std::thread::Builder::new()
         .stack_size(hd_sched::pool::WORKER_STACK)
         .spawn(|| {
-            let measure = |depth: usize| {
-                let (wasm, parts) =
-                    hd_layout::work::count_layout_parts(|| build_wasm(&doubling_program(depth)));
-                let n = instructions(&wasm);
-                eprintln!("doubling keep, depth {depth}: {n} instructions, {parts} layouts");
-                (n, usize::try_from(parts).expect("parts"))
-            };
-            // Depth 1 warms std up and is the fixed part: past it, each
-            // level adds the same work, so the 19 levels past it at depth
-            // 20 cost at most twice 19/12 of the 12 levels at depth 13.
-            let (base, small, large) = (measure(1), measure(13), measure(20));
-            for (k, what) in [(0, "instructions"), (1, "layouts")] {
-                let pick = |m: (usize, usize)| if k == 0 { m.0 } else { m.1 };
-                let (s, l) = (pick(small) - pick(base), pick(large) - pick(base));
-                assert!(
-                    s > 0 && l * 12 <= s * 19 * 2,
-                    "{what}: {base:?} {small:?} {large:?}"
-                );
+            for release in [false, true] {
+                // Warm std before counting any size, so cache population
+                // cannot become a negative program-layout delta.
+                build_wasm_profile(&doubling_program(1), release);
+                let measure = |depth: usize| {
+                    let (wasm, parts) = hd_layout::work::count_layout_parts(||
+                        build_wasm_profile(&doubling_program(depth), release));
+                    let n = instructions(&wasm);
+                    let bytes = wasm.len();
+                    eprintln!("doubling keep, release {release}, depth {depth}: {n} instructions, {parts} layouts, {bytes} bytes");
+                    [n, usize::try_from(parts).expect("parts"), bytes]
+                };
+                let (base, small, large) = (measure(1), measure(13), measure(20));
+                for (k, what) in ["instructions", "layouts", "bytes"].into_iter().enumerate() {
+                    let (s, l) = (small[k].saturating_sub(base[k]), large[k].saturating_sub(base[k]));
+                    assert!(s > 0 && l * 12 <= s * 19 * 2,
+                        "release {release}, {what}: {base:?} {small:?} {large:?}");
+                }
             }
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));

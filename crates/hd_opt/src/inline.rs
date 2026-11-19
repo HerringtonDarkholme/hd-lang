@@ -17,7 +17,7 @@ use std::task::{Context, Poll, Waker};
 use hd_base::{DefId, Hash128, HashMap, HashSet, SliceSort, StableHasher};
 use hd_mono::ProgramEnv;
 use hd_tir::inline::Site;
-use hd_tir::ir::{Body, Callee, Proj, Ref, Tag, local_flags, place, ref_word};
+use hd_tir::ir::{Body, Callee, NONE, Proj, Ref, Tag, local_flags, place, ref_word};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 /// The default callee size budget, in std and outside it alike.
@@ -112,6 +112,11 @@ pub trait InlineEnv: ProgramEnv {
     /// Whether a value of type `t`, which names no parameter, is a
     /// reference in the backend's layout.
     fn reference(&self, t: Ty) -> bool;
+    /// Whether a closed value uses the target's whole-memory representation.
+    fn memory_value(&self, t: Ty) -> bool;
+    /// A Memory result containing another Memory value must keep its ABI
+    /// boundary: copying its projection chain can expand shared layouts.
+    fn nested_memory_value(&self, t: Ty) -> bool;
     /// The item and type arguments a trait call chosen as an impl runs;
     /// `None` for any other call.
     fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)>;
@@ -729,6 +734,9 @@ impl dyn InlineEnv + '_ {
                 && !in_loop
                 && writer_refs.is_none()
                 && !consumer
+                && !(self.const_fold()
+                    && !self.constructs_memory(&copy)
+                    && literal_construction(&copy))
             {
                 continue;
             }
@@ -967,13 +975,29 @@ impl dyn InlineEnv + '_ {
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&(def, targs))) {
                 return None;
             }
-            // A copy that only makes a known value is that value, at any
-            // size: a call of it folds, and so do the decisions it makes.
+            let literal = nested.as_ref().map_or(&copy, |n| &n.0);
+            let literal_value = self.const_fold() && literal_construction(literal);
+            // Keep a proved Memory constant behind its call boundary, even
+            // when the original body fit before its small producers folded.
+            if literal_value
+                && self.constructs_memory(literal)
+                && self.inline_hint(def) != InlineHint::Always
+            {
+                return None;
+            }
+            // A known scalar or fieldless variant folds without retaining
+            // its construction body, so the decisions it makes fold too.
             if self.const_fold()
                 && let Some(c) =
                     hd_mono::defaults::collapse(nested.as_ref().map_or(&copy, |n| &n.0))
             {
                 return Some((c, nested.as_ref().map_or(hash, |n| n.1)));
+            }
+            // A small constant aggregate may keep its construction wrappers:
+            // the target represents every part directly. Memory construction
+            // keeps its call boundary instead of multiplying scalar work.
+            if literal_value && !self.constructs_memory(literal) {
+                return Some((literal.clone(), nested.as_ref().map_or(hash, |n| n.1)));
             }
             match nested {
                 Some((nested, h)) if fits && self.inline_hint(def) != InlineHint::Default => {
@@ -1277,6 +1301,14 @@ impl dyn InlineEnv + '_ {
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
     fn fits(&self, def: DefId, targs: TyList, copy: &Body) -> bool {
+        if self.inline_hint(def) != InlineHint::Always
+            && self.result(def).is_some_and(|t| {
+                let t = self.pool().erase_fn_deps(t);
+                self.nested_memory_value(hd_mono::subst(self.pool(), self, def, targs, t))
+            })
+        {
+            return false;
+        }
         match self.inline_hint(def) {
             InlineHint::Default => {
                 let release = self.memo().is_some();
@@ -1307,6 +1339,13 @@ impl dyn InlineEnv + '_ {
             InlineHint::Always => hd_tir::inline::copyable(copy),
             InlineHint::Never => false,
         }
+    }
+
+    fn constructs_memory(&self, body: &Body) -> bool {
+        body.tags.iter().enumerate().any(|(i, tag)| {
+            matches!(tag, Tag::NewStruct | Tag::NewTuple | Tag::NewVariant)
+                && self.memory_value(body.ty[i])
+        })
     }
 
     /// A known literal makes a small higher-order consumer profitable even
@@ -1757,6 +1796,42 @@ impl dyn InlineEnv + '_ {
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
             && (!rebound || kinds_agree(copy))
     }
+}
+
+/// A closed construction made only from constants and inline wrappers.
+/// Preserve the original body and cleanup scopes; this proves eligibility,
+/// not permission to discard constructors or their ownership effects.
+/// Cost: O(rows + operands), once per memoized candidate.
+fn literal_construction(body: &Body) -> bool {
+    if body.sub_root.len() != 1 || !body.local_ty.is_empty() {
+        return false;
+    }
+    let mut known = vec![false; body.len()];
+    let value = |r: u32, known: &[bool]| {
+        r != NONE && r & Ref::CONST_BIT != 0 || known.get(r as usize) == Some(&true)
+    };
+    for (i, tag) in body.tags.iter().enumerate() {
+        let [a, b] = body.data[i];
+        let yes = match tag {
+            Tag::NewStruct | Tag::NewVariant => body.record(b).iter().all(|&r| value(r, &known)),
+            Tag::NewTuple => {
+                (a == NONE || value(a, &known)) && body.record(b).iter().all(|&r| value(r, &known))
+            }
+            Tag::Break => value(b, &known),
+            Tag::Block => {
+                body.record(a).iter().all(|&r| value(r, &known)) && (b == NONE || value(b, &known))
+            }
+            Tag::Scope => {
+                body.wrapper_value(i).is_some_and(|r| value(r, &known)) && value(a, &known)
+            }
+            _ => false,
+        };
+        if !yes {
+            return false;
+        }
+        known[i] = yes;
+    }
+    true
 }
 
 /// Reject an oversized candidate before querying its call costs. Failed
@@ -2295,6 +2370,30 @@ mod tests {
     use hd_types::{InternPool, Ty, TyData};
 
     use super::{bottom_up, keep_parameter_kind};
+
+    #[test]
+    fn literal_eligibility_keeps_tuple_rest_and_effects_distinct() {
+        use hd_tir::ir::{NONE, Ref};
+        let mut b = Body::new(DefId::from_raw(1), BodyKind::Fn);
+        let literal = Ref::CONST_BIT;
+        let fields = b.push_record(&[literal, literal]);
+        b.tags = vec![Tag::NewTuple, Tag::Block];
+        b.data = vec![[NONE, fields], [fields, 0]];
+        b.data[1][0] = b.push_record(&[0]);
+        b.sub_root = vec![1];
+        assert!(super::literal_construction(&b));
+        // A real tuple-rest operand must itself have a known value.
+        b.data[0][0] = 7;
+        assert!(!super::literal_construction(&b));
+        b.data[0][0] = literal;
+        assert!(super::literal_construction(&b));
+        // Locals and effectful rows cannot bypass the ordinary inline budget.
+        b.local_ty.push(Ty::I32);
+        assert!(!super::literal_construction(&b));
+        b.local_ty.clear();
+        b.tags[0] = Tag::Call;
+        assert!(!super::literal_construction(&b));
+    }
 
     #[test]
     fn entry_work_handles_empty_nonblock_and_host_roots() {

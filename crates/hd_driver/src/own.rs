@@ -1341,6 +1341,7 @@ pub(super) struct TypeFacts {
     refs: RefFacts,
     /// Whether it holds a counted leaf, and its reference ownership.
     layout: Option<(bool, Option<bool>)>,
+    nested_memory: Option<bool>,
     mode: Option<hd_tir::own::ParameterMode>,
     function_input: Option<hd_tir::own::FunctionInput>,
     collection: Option<bool>,
@@ -1479,6 +1480,7 @@ fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTabl
             TypeFacts {
                 refs,
                 layout: None,
+                nested_memory: None,
                 mode: None,
                 function_input: None,
                 collection: None,
@@ -1528,6 +1530,7 @@ fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
             ..RefFacts::NONE
         },
         layout: None,
+        nested_memory: None,
         mode: None,
         function_input: None,
         collection: None,
@@ -2245,6 +2248,49 @@ impl InlineEnv for Env<'_> {
 
     fn memo(&self) -> Option<&hd_opt::inline::Memo> {
         self.run.summaries.as_ref().map(|all| &all.inline)
+    }
+
+    fn memory_value(&self, t: Ty) -> bool {
+        let pool = &self.run.pool;
+        // Inlining also prepares generic/opaque bodies before collection.
+        // Their representation is decided only by a closed instance.
+        if pool.has_param(t)
+            || pool.has_assoc(t)
+            || pool.has_opaque(t)
+            || pool.types().has_infer(t)
+            || pool.has_poison(t)
+        {
+            return false;
+        }
+        hd_layout::cached_for_run(self.run.layout_key, || {
+            matches!(hd_layout::by_address(&self.run.pool, self, t), Ok(true))
+        })
+    }
+
+    fn nested_memory_value(&self, t: Ty) -> bool {
+        if !self.memory_value(t) {
+            return false;
+        }
+        if let Some(value) = lock(&self.run.own_types)
+            .get(t)
+            .and_then(|f| f.nested_memory)
+        {
+            return value;
+        }
+        let pool = &self.run.pool;
+        let value = hd_layout::cached_for_run(self.run.layout_key, || {
+            hd_layout::value_parts(pool, self, t)
+                .into_iter()
+                .any(|part| matches!(hd_layout::by_address(pool, self, part), Ok(true)))
+        });
+        // Cache the direct-field census in the existing per-type facts:
+        // O(fields) once per type, O(1) at repeated inline sites.
+        let mut facts = lock(&self.run.own_types);
+        ref_facts(pool, self.run.known.ptr, t, &mut facts);
+        if let Some(entry) = facts.get_mut(t) {
+            entry.nested_memory = Some(value);
+        }
+        value
     }
 
     fn const_fold(&self) -> bool {
