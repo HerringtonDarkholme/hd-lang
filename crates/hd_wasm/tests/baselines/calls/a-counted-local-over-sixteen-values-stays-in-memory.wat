@@ -14,7 +14,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
   (func $early (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $self.0 i32) (local $t2 i64)
-    ;; 47 |     if x > 3:
+    ;; 48 |     if x > 3:
     global.get $stack
     i32.const 80
     i32.sub
@@ -25,11 +25,11 @@
       i32.const 3
       i32.gt_s
       br_if 0
-    ;; 49 |     let t = mk(x)
+    ;; 50 |     let t = mk(x)
       local.get $x
       local.get $t0
       call $mk
-    ;; 50 |     t.f1 + i32(t.name.len())
+    ;; 51 |     t.f1 + i32(t.name.len())
       local.get $t0
       i32.load $stack offset=12
       local.set $t1
@@ -61,7 +61,7 @@
       end
       local.get $t2
       i32.wrap_i64
-    ;; 47 |     if x > 3:
+    ;; 48 |     if x > 3:
       local.set $t1
     end
     local.get $t1
@@ -71,7 +71,7 @@
     global.set $stack
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $value'1 i64) (local $t1 i32) (local $t2 i32) (local $value'2 i64) (local $t3 i32) (local $value'3 i64) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t8 i32) (local $t7 i32)
-    ;; 60 |     println("${moved(2)} ${early(1)} ${looped(3)}")
+    ;; 61 |     println("${moved(2)} ${early(1)} ${looped(3)}")
     i32.const 2
     call $moved
     i64.extend_i32_s
@@ -275,12 +275,12 @@
     call $"println[string]"
   )
   (func $keep (param $s.0 i32) (param $s.1 i32) (result i32 i32)
-    ;; 39 | fn keep(s: string) -> string: s
+    ;; 40 | fn keep(s: string) -> string: s
     local.get $s.0
     local.get $s.1
   )
   (func $mk_outer (param $t1 i32) (param $t2 i32) (local $t0 i32) (local $x i32) (local $t3 i64) (local $value i64) (local $t4 i32) (local $t6 i32) (local $t5 i32)
-    ;; 37 | fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2, tag: "t${x}" }
+    ;; 38 | fn mk_outer(x: i32) -> Outer: Outer { inner: mk(x), v: x * 2, tag: "t${x}" }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -427,13 +427,13 @@
     global.set $locals
   )
   (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t4 i64) (local $t3 i32)
-    ;; 53 |     let acc = 0
+    ;; 54 |     let acc = 0
     global.get $stack
     i32.const 80
     i32.sub
     local.tee $t0
     global.set $stack
-    ;; 54 |     for k in 0..n:
+    ;; 55 |     for k in 0..n:
     block
       loop
         local.get $t1
@@ -453,10 +453,10 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 55 |         let t = mk(k)
+    ;; 56 |         let t = mk(k)
         local.get $t0
         call $mk
-    ;; 56 |         acc += t.f2
+    ;; 57 |         acc += t.f2
         local.get $t0
         i32.load $stack offset=16
         local.set $t2
@@ -486,20 +486,20 @@
         local.get $t4
         i32.wrap_i64
         local.set $acc
-    ;; 54 |     for k in 0..n:
+    ;; 55 |     for k in 0..n:
         br 0
       end
     end
-    ;; 57 |     acc
+    ;; 58 |     acc
     local.get $acc
-    ;; 53 |     let acc = 0
+    ;; 54 |     let acc = 0
     local.get $t0
     i32.const 80
     i32.add
     global.set $stack
   )
   (func $mk (param $t1 i32) (param $t22 i32) (local $t0 i32) (local $x i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i64) (local $value i64) (local $t19 i32) (local $t21 i32) (local $t20 i32)
-    ;; 35 | fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "n${x}" }
+    ;; 36 | fn mk(x: i32) -> Big: Big { f0: x + 0, f1: x + 1, f2: x + 2, f3: x + 3, f4: x + 4, f5: x + 5, f6: x + 6, f7: x + 7, f8: x + 8, f9: x + 9, f10: x + 10, f11: x + 11, f12: x + 12, f13: x + 13, f14: x + 14, f15: x + 15, f16: x + 16, name: "n${x}" }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -886,7 +886,7 @@
     global.set $locals
   )
   (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t2 i64)
-    ;; 42 |     let t = mk_outer(x)
+    ;; 43 |     let t = mk_outer(x)
     global.get $stack
     i32.const 88
     i32.sub
@@ -895,7 +895,7 @@
     local.get $x
     local.get $t0
     call $mk_outer
-    ;; 43 |     let s = keep(t.tag)
+    ;; 44 |     let s = keep(t.tag)
     local.get $t0
     i32.load $stack offset=76
     local.get $t0
@@ -903,7 +903,7 @@
     call $keep
     local.set $x
     local.tee $s.0
-    ;; 44 |     t.v + i32(s.len())
+    ;; 45 |     t.v + i32(s.len())
     local.get $t0
     i32.load $stack offset=84
     local.set $t1
@@ -931,7 +931,7 @@
     end
     local.get $t2
     i32.wrap_i64
-    ;; 42 |     let t = mk_outer(x)
+    ;; 43 |     let t = mk_outer(x)
     local.get $t0
     i32.const 88
     i32.add

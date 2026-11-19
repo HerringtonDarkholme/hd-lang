@@ -4,13 +4,13 @@
 # memory.copy, then `Outer`'s copy glue (`rt:retain_at`) takes the
 # copy's counts from `b`'s address: `Big`'s glue for `inner`, the string
 # retained and the list through its copy glue, stored back; `take(b)`
-# passes `b`'s address and clears its live flag. `moved`'s `let b = a`
+# passes `b`'s address and clears its TIR flag. `moved`'s `let b = a`
 # shares `a`'s bits (no copy is needed), and its exit releases them.
-# `moved_on` moves `a` whole to `take`, clearing its live flag, so its
+# `moved_on` moves `a` whole to `take`, clearing its TIR flag, so its
 # exit releases nothing; the early `return` before it releases `a`.
 # `copy_kept` moves the source on and keeps the copy: the callee gets the
 # copy in its block, the same way. `field_kept`'s `b` copies `o.inner`'s
-# leaves; `take(o)` passes `o`'s own address on and sets its dead flag
+# leaves; `take(o)` passes `o`'s own address on and clears its TIR flag
 # (#2170), so its exit releases nothing.
 struct Big:
     f0: i32

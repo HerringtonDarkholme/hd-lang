@@ -525,6 +525,16 @@ impl OwnCx for Env<'_> {
         }
     }
 
+    fn by_address(&self, ty: Ty) -> Tri {
+        if self.is_open(ty) {
+            Tri::Maybe
+        } else if hd_layout::by_address(&self.run.pool, self, ty).is_ok_and(|b| b) {
+            Tri::Yes
+        } else {
+            Tri::No
+        }
+    }
+
     fn own_drop(&self, ty: Ty) -> Tri {
         // Each newtype layer down to `strip`'s base, then the base: one
         // `strip_newtype` step each, as `hd_layout::newtype_layers`.

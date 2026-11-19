@@ -147,43 +147,18 @@
       return
     end
   )
-  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
+  (func $moved (param $t0 i32) (param $t1 i32)
     ;; 22 |     return x._0
-    i32.const 1
-    local.set $t0
-    local.get $t1
-    i32.eqz
-    if
+    block
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
       i32.add
       call $rt:release_at
-      i32.const 1
-      local.set $t1
-    end
-    local.get $t3
-    local.get $t2
-    i32.const 72
-    memory.copy $stack $stack
-    local.get $t1
-    i32.eqz
-    if
+      local.get $t1
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
-      i32.add
-      call $rt:release_at
+      memory.copy $stack $stack
+      return
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
@@ -350,43 +325,18 @@
       return
     end
   )
-  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
+  (func $moved (param $t0 i32) (param $t1 i32)
     ;; 22 |     return x._0
-    i32.const 1
-    local.set $t0
-    local.get $t1
-    i32.eqz
-    if
+    block
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
       i32.add
       call $rt:release_at
-      i32.const 1
-      local.set $t1
-    end
-    local.get $t3
-    local.get $t2
-    i32.const 72
-    memory.copy $stack $stack
-    local.get $t1
-    i32.eqz
-    if
+      local.get $t1
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
-      i32.add
-      call $rt:release_at
+      memory.copy $stack $stack
+      return
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
@@ -553,43 +503,18 @@
       return
     end
   )
-  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
+  (func $moved (param $t0 i32) (param $t1 i32)
     ;; 22 |     return x._0
-    i32.const 1
-    local.set $t0
-    local.get $t1
-    i32.eqz
-    if
+    block
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
       i32.add
       call $rt:release_at
-      i32.const 1
-      local.set $t1
-    end
-    local.get $t3
-    local.get $t2
-    i32.const 72
-    memory.copy $stack $stack
-    local.get $t1
-    i32.eqz
-    if
+      local.get $t1
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
-      i32.add
-      call $rt:release_at
+      memory.copy $stack $stack
+      return
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
@@ -756,43 +681,18 @@
       return
     end
   )
-  (func $moved (param $t2 i32) (param $t3 i32) (local $t0 i32) (local $t1 i32)
+  (func $moved (param $t0 i32) (param $t1 i32)
     ;; 22 |     return x._0
-    i32.const 1
-    local.set $t0
-    local.get $t1
-    i32.eqz
-    if
+    block
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
       i32.add
       call $rt:release_at
-      i32.const 1
-      local.set $t1
-    end
-    local.get $t3
-    local.get $t2
-    i32.const 72
-    memory.copy $stack $stack
-    local.get $t1
-    i32.eqz
-    if
+      local.get $t1
       local.get $t0
-      i32.eqz
-      if
-        local.get $t2
-        call $rt:release_at
-      end
-      local.get $t2
       i32.const 72
-      i32.add
-      call $rt:release_at
+      memory.copy $stack $stack
+      return
     end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)

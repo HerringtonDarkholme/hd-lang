@@ -453,28 +453,26 @@
     i32.add
     global.set $stack
   )
-  (func $hold (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i32)
+  (func $hold (param $t0 i32) (result i32) (local $t1 i32)
     ;; 60 | fn hold(l: Loud) -> i32: l.id
     local.get $t0
     i32.load $stack offset=68
-    local.set $t1
     i32.const 80
     call $rt:heap_frame
-    local.tee $t2
+    local.tee $t1
     local.get $t0
     i32.const 72
     memory.copy $heap $stack
-    local.get $t2
+    local.get $t1
     call $rt:hooks_at
     local.get $t0
-    local.get $t2
+    local.get $t1
     i32.const 72
     memory.copy $stack $heap
     global.get $locals
     i32.const 80
     i32.add
     global.set $locals
-    local.get $t1
   )
   (func $"impl Drop for Loud.drop" (param $self i32)
     ;; 44 |         self.id = 0
@@ -484,48 +482,22 @@
   )
   (func $loud_on (param $t1 i32) (param $go i32) (result i32) (local $t0 i32)
     ;; 63 |     if go:
-    block
-      local.get $go
-      if
+    i32.const 1
+    local.set $t0
+    local.get $go
+    if
     ;; 64 |         return hold(l)
-        i32.const 1
-        local.set $t0
-        local.get $t1
-        call $hold
-        local.set $go
-        br 1
-    ;; 63 |     if go:
-      end
-    ;; 65 |     l.big.f1
       local.get $t1
-      i32.load $stack offset=4
-      local.set $go
+      call $hold
+      return
     ;; 63 |     if go:
-      local.get $t0
-      i32.eqz
-      if
-        i32.const 80
-        call $rt:heap_frame
-        local.tee $t0
-        local.get $t1
-        i32.const 72
-        memory.copy $heap $stack
-        local.get $t0
-        call $rt:hooks_at
-        local.get $t1
-        local.get $t0
-        i32.const 72
-        memory.copy $stack $heap
-        global.get $locals
-        i32.const 80
-        i32.add
-        global.set $locals
-        i32.const 1
-        local.set $t0
-      end
     end
+    ;; 65 |     l.big.f1
+    local.get $t1
+    i32.load $stack offset=4
+    local.set $go
+    ;; 63 |     if go:
     local.get $t0
-    i32.eqz
     if
       i32.const 80
       call $rt:heap_frame
@@ -565,39 +537,22 @@
   )
   (func $moved_on (param $t1 i32) (param $go i32) (result i32) (local $t0 i32)
     ;; 55 |     if go:
-    block
-      local.get $go
-      if
+    i32.const 1
+    local.set $t0
+    local.get $go
+    if
     ;; 56 |         return take(n)
-        i32.const 1
-        local.set $t0
-        local.get $t1
-        call $take
-        local.set $go
-        br 1
-    ;; 55 |     if go:
-      end
-    ;; 57 |     n.big.f2
       local.get $t1
-      i32.load $stack offset=16
-      local.set $go
+      call $take
+      return
     ;; 55 |     if go:
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t1
-        i32.load $stack
-        local.tee $t0
-        if
-          local.get $t0
-          call $rt:release_ref
-        end
-        i32.const 1
-        local.set $t0
-      end
     end
+    ;; 57 |     n.big.f2
+    local.get $t1
+    i32.load $stack offset=16
+    local.set $go
+    ;; 55 |     if go:
     local.get $t0
-    i32.eqz
     if
       local.get $t1
       i32.load $stack

@@ -139,8 +139,8 @@ fn counted_struct_chain_module_grows_linearly() {
 }
 
 /// `take` owns a struct of `f` strings by address and moves each field
-/// on to `keep`, which owns it, so its drop skips each under the
-/// field's flag. With `local`, the struct is a local of `take` kept in a
+/// but the last on to `keep`, which owns it, so its drop releases the
+/// last and skips each other under the field's TIR flag. With `local`, the struct is a local of `take` kept in a
 /// frame slot instead of its parameter.
 fn moved_fields_program(f: usize, local: bool) -> String {
     let mut text = String::from("struct W:\n");
@@ -157,7 +157,7 @@ fn moved_fields_program(f: usize, local: bool) -> String {
     } else {
         "fn take(w: W) -> i32:\n    let n = 0\n"
     });
-    for k in 0..f {
+    for k in 0..f - 1 {
         let _ = writeln!(text, "    n += i32(keep(w.s{k}).len())");
     }
     let call = if local { "take()" } else { "take(mk())" };
@@ -168,17 +168,16 @@ fn moved_fields_program(f: usize, local: bool) -> String {
     text
 }
 
-/// Moving F fields out of one parameter kept by address costs O(F): each
-/// move probes its flag by (local, path), and the drop groups the moved
-/// paths by field once per level. Before, each move scanned the moved
-/// list and each release step filtered it, O(F^2).
+/// Moving F fields out of one parameter kept by address costs O(F): the
+/// drop finds each step's flag among the root's sorted TIR flag paths
+/// with one binary search. Before, each move scanned the moved list and
+/// each release step filtered it, O(F^2).
 #[test]
 fn moved_fields_cost_linear_work() {
     moved_fields_linear(false);
 }
 
-/// The same for a local kept in a frame slot, whose store also clears
-/// each moved field's flag once.
+/// The same for a local kept in a frame slot.
 #[test]
 fn moved_local_fields_cost_linear_work() {
     moved_fields_linear(true);

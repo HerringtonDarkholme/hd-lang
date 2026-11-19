@@ -34,13 +34,18 @@ type S1 = (S0, S0)
 fn moved(x: S1) -> S0:
 > app/main/moved
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 
 fn copied(x: &S1) -> S0:
@@ -71,13 +76,18 @@ type B2['a] = (B1['a], B1['a])
 fn borrowed['a](x: B2['a]) -> B1['a]:
 > app/main/borrowed
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 == @build: checked
 # @dump: wat counts own
@@ -114,13 +124,18 @@ type S1 = (S0, S0)
 fn moved(x: S1) -> S0:
 > app/main/moved
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 
 fn copied(x: &S1) -> S0:
@@ -151,13 +166,18 @@ type B2['a] = (B1['a], B1['a])
 fn borrowed['a](x: B2['a]) -> B1['a]:
 > app/main/borrowed
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 == @build: release
 # @dump: wat counts own
@@ -196,13 +216,18 @@ type S1 = (S0, S0)
 fn moved(x: S1) -> S0:
 > app/main/moved
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -235,13 +260,18 @@ type B2['a] = (B1['a], B1['a])
 fn borrowed['a](x: B2['a]) -> B1['a]:
 > app/main/borrowed
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 == @build: release checked
@@ -281,13 +311,18 @@ type S1 = (S0, S0)
 fn moved(x: S1) -> S0:
 > app/main/moved
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -320,12 +355,17 @@ type B2['a] = (B1['a], B1['a])
 fn borrowed['a](x: B2['a]) -> B1['a]:
 > app/main/borrowed
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume last
+>   %2 = Retain %9 Entry local $0 #0 : ()
     return x._0
->   %1 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %2 = Drop [$0] : ()
->   %3 = Return %1 : never
->   %4 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %0 = FlagSet [$0] #1 : ()
+>   %1 = FlagSet [$0 .0] #2 : ()
+>   %3 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %4 = FlagClear [$0 .0] #2 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #1 : ()
+>   %7 = FlagClear [$0 .0] #2 : ()
+>   %8 = Return %3 : never
+>   %9 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

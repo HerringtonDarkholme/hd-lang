@@ -81,7 +81,9 @@ fn parameter_with(b: &Body, mut visit: impl FnMut()) -> Option<u8> {
         visit();
         if b.tags[i].operands().0 == crate::ir::Op::Place {
             let p = b.view(b.data[i][0]);
-            if p.root == Root::Local(source) && !(b.tags[i] == Tag::Read && forward) {
+            // A drop flag statement names the place without using it.
+            let flag = matches!(b.tags[i], Tag::FlagSet | Tag::FlagClear);
+            if p.root == Root::Local(source) && !(b.tags[i] == Tag::Read && forward) && !flag {
                 return None;
             }
         }

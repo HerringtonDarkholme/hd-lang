@@ -2,7 +2,7 @@
 # @build: std
 # A local over 16 values with a `Drop` hook stays in a frame slot
 # (#2031): `mk`'s result is written in place, and its drop, under the
-# local's live flag (constant here, so the optimizer drops its test),
+# local's TIR flag (constant here, so the optimizer drops its test),
 # copies it into a heap frame, runs `Big`'s hook witness there
 # (`rt:hooks_at`), copies it back and releases its fields from the
 # slot.

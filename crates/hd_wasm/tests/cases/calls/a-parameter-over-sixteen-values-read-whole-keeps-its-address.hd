@@ -4,8 +4,8 @@
 # `keep[Big]` copies its parameter into the result block with one
 # memory.copy, and `main` passes `make`'s result block on to it, loading
 # nothing. `moved_on` moves its counted parameter whole to `take` on one
-# branch: the move sets the parameter's dead flag, and the exit releases
-# it only when the flag is clear. `loud_on` does the same for a value
+# branch: the move clears the parameter's TIR flag, and the exit releases
+# it only while the flag is set. `loud_on` does the same for a value
 # with a `Drop` hook, whose exit runs the hook only when it did not move.
 use std.annotation.inline
 use std.rt.Drop

@@ -1,12 +1,13 @@
 # @dump: wat
 # A local over 16 values holding a string stays in a slot of the frame
 # block when it is stored once and read only by fields (#2031, step 4b).
-# `moved`'s store (`mk`'s result written in place) sets the local's live
-# flag and clears its move flag; `keep(t.tag)` sets the flag; the exit
-# releases `t.inner` through `Big`'s release witness and `t.tag` inline
-# only while the flag is clear, all under the live flag. `early` returns
-# before the store with the flag clear, so its exit releases nothing.
-# `looped` stores once per round: each store sets the live flag again.
+# `moved`'s store (`mk`'s result written in place) sets the local's TIR
+# flags, its whole path's and `.tag`'s; `keep(t.tag)` clears `.tag`'s; the
+# exit releases `t.inner` through `Big`'s release witness and `t.tag`
+# inline only while its flag is set, all under the whole path's flag.
+# `early` returns before the store with the flag clear, so its exit
+# releases nothing. `looped` stores once per round: each store sets the
+# flags again.
 struct Big:
     f0: i32
     f1: i32

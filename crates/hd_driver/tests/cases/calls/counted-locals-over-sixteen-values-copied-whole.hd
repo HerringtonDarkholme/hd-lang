@@ -3,7 +3,7 @@
 # A counted local over 16 values read whole stays in its frame slot
 # (#2031): a whole copy into another slot is one memory.copy, and the
 # type's copy glue (`rt:retain_at`) takes the copy's counts from the
-# address; a whole move clears the source's live flag, so its exit
+# address; a whole move clears the source's TIR flag, so its exit
 # releases nothing. Each neighbour: a copy and a move into another local;
 # a move and a copy to a callee that owns its parameter; a copy moved on
 # to such a callee, the source still read; the same in a loop on half

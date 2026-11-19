@@ -70,6 +70,23 @@ fn path_order(a: &[Proj], b: &[Proj]) -> std::cmp::Ordering {
     a.iter().map(step).cmp(b.iter().map(step))
 }
 
+/// The flag of `path` among one root's sorted flagged `paths`, and the
+/// flagged paths under it: one binary search, then its subtree's range.
+pub(super) fn path_flags<'p>(
+    paths: &'p [(Vec<Proj>, u32)],
+    path: &[Proj],
+) -> (Option<u32>, &'p [(Vec<Proj>, u32)]) {
+    let start = paths.partition_point(|(p, _)| path_order(p, path).is_lt());
+    let len = paths[start..]
+        .iter()
+        .take_while(|(p, _)| p.starts_with(path))
+        .count();
+    match &paths[start..start + len] {
+        [(p, flag), under @ ..] if p.len() == path.len() => (Some(*flag), under),
+        under => (None, under),
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Root {
     Local(usize),
@@ -125,6 +142,13 @@ impl Em<'_, '_, '_> {
     /// value holds a hook and the body owns it. A lent parameter's, a
     /// cell's and an address parameter's are never read.
     fn tir_flagged(&self, root: Root, ty: Ty) -> bool {
+        // A local kept in memory reads its flags at its release
+        // ([`Em::mem_release`]).
+        if let Root::Local(l) = root
+            && self.mem_locals.contains_key(&l)
+        {
+            return !self.borrowed.contains(&l) && self.released(ty);
+        }
         matches!(self.kind(ty), Kind::Value)
             && crate::layout::holds_drop(self.pool(), self.env(), ty)
             && match root {

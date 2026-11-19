@@ -58,10 +58,11 @@
 //! runs its type's release witness from the address
 //! ([`crate::layout::ReleasePlan`], Swift's value-witness `destroy`),
 //! skipping a field a move took out under that field's flag (rustc's drop
-//! elaboration, [`Em::mem_moves`], [`Em::mem_release`]). A result of such
+//! elaboration; the flags are TIR's, `hd_tir::own::drop_flags`, read by
+//! [`Em::mem_release`]). A result of such
 //! a type is written into its caller's block, and a frame local of one
-//! kept in memory is released from its slot while its live flag is set
-//! (step 4b); a whole move of it clears the flag, and a whole copy to a
+//! kept in memory is released from its slot while its whole path's flag
+//! is set (step 4b); a whole move of it clears the flag, and a whole copy to a
 //! callee that owns it is one `memory.copy` into the call's block, whose
 //! counts the type's copy glue takes from the address
 //! (`crate::rt::Helper::RetainAt`, Swift's `initializeWithCopy`).
@@ -88,6 +89,7 @@ use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
 use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 
+use super::drop_flags::path_flags;
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
 use crate::layout::{LeafOps as _, Mem, ReleasePlan, ReleaseStep, by_address};
@@ -220,7 +222,7 @@ fn compute_params(
             // Its whole drop releases from the address.
             (Tag::Drop, Some(_)) => p.proj.is_empty(),
             // A move out of a counted one is skipped by its drop: a whole
-            // move sets its dead flag, and a field move is elaborated
+            // move clears its TIR flag, and a field move is elaborated
             // only through fields passed by address, so every proper
             // prefix of the path must be one.
             (Tag::Read, Some(&ty)) if b.data[i][1] == ReadMode::Move as u32 => {
@@ -618,21 +620,10 @@ impl Em<'_, '_, '_> {
         };
         let declared = self.b.local_ty[l];
         let (_, part) = self.fold_path(declared, &fields)?;
-        // A move out of a counted parameter: its drop skips the field. A
-        // whole move out of a counted frame local leaves its slot dead.
+        // A move's flag is TIR's (`FlagClear` after it, [`Em::mem_release`]).
         let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
         if moved {
             self.borrow_moved_slots(i, l, part.first..part.first + part.count);
-        }
-        if moved && fields.is_empty() {
-            self.mem_moved_whole(l);
-        }
-        if moved && !self.mem_move_flags.is_empty() {
-            crate::work::moved_paths(1);
-            if let Some(&flag) = self.mem_move_flags.get(&(l, fields.into_boxed_slice())) {
-                self.f.i32(1);
-                self.f.set(flag);
-            }
         }
         if self.forward.contains(&i) {
             self.mem_vals.insert(i, (at, off + part.offset));
@@ -1197,9 +1188,9 @@ impl Em<'_, '_, '_> {
     /// of a counted type [`by_address`] keeps (#2031 step 4b) is kept as
     /// a counted parameter is: read only by fields, a move only through
     /// fields passed by address, dropped whole; its one store writes its
-    /// value in place or moves it in from memory, sets its live flag and
-    /// clears its move flags, and its `Drop` or exit release runs its
-    /// type's release witness while the flag is set ([`Em::mem_release`]).
+    /// value in place or moves it in from memory, and its TIR `FlagSet`
+    /// sets its flags; its `Drop` or exit release runs its type's release
+    /// witness while its whole path's flag is set ([`Em::mem_release`]).
     /// Each gets
     /// an 8-byte aligned slot in the frame block ([`stack_frame`]); its
     /// stored value, when that store is its one use, is planned in place
@@ -1220,7 +1211,7 @@ impl Em<'_, '_, '_> {
         // move not through fields passed by address (`far`, below) rules
         // it out; a whole drop rules out only a local that counts nothing.
         // A whole read keeps it only when it passes by address to a worker
-        // (`whole`, below): a move clears the live flag, and a copy to a
+        // (`whole`, below): a move clears its TIR flag, and a copy to a
         // callee that owns it is copied into the call's block, where the
         // copy glue takes its counts from the address.
         let mut moves: Vec<(usize, u32)> = Vec::new();
@@ -1357,11 +1348,7 @@ impl Em<'_, '_, '_> {
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
-            ledger!(if self.released(b.local_ty[l]) => "memlocal/live-flag" else "memlocal/uncounted");
-            if self.released(b.local_ty[l]) {
-                let live = self.f.local(Val::I32);
-                self.mem_live.insert(l, live);
-            }
+            ledger!(if self.released(b.local_ty[l]) => "memlocal/counted" else "memlocal/uncounted");
             if Ref(v).as_inst().is_some() && uses.get(&v) == Some(&1) {
                 self.frame_copies.push(v);
                 self.plan_in_place(v, base, off, &uses)?;
@@ -1398,7 +1385,6 @@ impl Em<'_, '_, '_> {
         let Some((base, off, mem)) = self.mem_locals.get(&l.idx()).cloned() else {
             return Ok(false);
         };
-        self.mem_arrive(l.idx());
         // ruled out: a diverging value reaches no `Store` (tried `let a:
         // Big = panic(..)` and a match whose other arm panics; TIR ends the
         // path before the store), so `v` has its values or its address.
@@ -1418,10 +1404,6 @@ impl Em<'_, '_, '_> {
 /// A `Read` of a local kept in memory ([`Em::mem_field`]): its address
 /// local, offset and layout, the field path and the local.
 pub(super) type MemField = (u32, u32, Rc<Mem>, Vec<u32>, usize);
-
-/// A field path a `Read move` takes out of a counted address parameter,
-/// with the flag local set when it does ([`Em::mem_moves`]).
-pub(super) type MovedPath = (Box<[u32]>, u32);
 
 impl Em<'_, '_, '_> {
     /// Whether a value of `t` kept by address is released from it at its
@@ -1534,23 +1516,24 @@ impl Em<'_, '_, '_> {
 
     /// Runs the `Drop` hooks of the value of `size` bytes at `off` past
     /// the shadow-stack address in local `at`, by `plan`, skipping each
-    /// hook a moved field rules out (`moved`, the local's move flags):
-    /// the hooks of a moved field and of every value enclosing one. A
+    /// hook a moved field rules out (`paths`, the local's TIR flags under
+    /// its whole path, 1 while present): the hooks of a moved field and
+    /// of every value enclosing one. A
     /// hook's `&mut self` is a heap address, so the value is copied into
     /// a heap frame with a zero header (one `memory.copy`), the hooks run
     /// there, and it is copied back for the release, which reads the
-    /// hooks' writes. Code: O(the steps on the moved paths), the rest one
-    /// witness call each.
+    /// hooks' writes. Code: O(the steps on the flagged paths), the rest
+    /// one witness call each.
     fn mem_hooks(
         &mut self,
         at: u32,
         off: u32,
         size: u32,
         plan: std::sync::Arc<HookPlan>,
-        moved: &[MovedPath],
-    ) {
+        paths: &[(Vec<Proj>, u32)],
+    ) -> hd_base::StageResult<()> {
         enum Task {
-            Level(u32, std::sync::Arc<HookPlan>, usize, Vec<usize>),
+            Level(u32, std::sync::Arc<HookPlan>, Vec<Proj>),
             Step(u32, HookStep),
             Guard(u32),
             End,
@@ -1564,72 +1547,61 @@ impl Em<'_, '_, '_> {
         address(&mut self.f, at, off);
         self.f.op(I::I32Const(size.cast_signed()));
         self.f.push(crate::bulk::copy(STACK, crate::module::HEAP));
-        if moved.is_empty() {
+        let mut todo = Vec::new();
+        if path_flags(paths, &[]).1.is_empty() {
             self.f.get(h);
             self.f.helper(crate::rt::Helper::HooksAt(plan));
         } else {
-            let mut todo = vec![Task::Level(0, plan, 0, (0..moved.len()).collect())];
-            while let Some(task) = todo.pop() {
-                match task {
-                    Task::End => self.f.op(I::End),
-                    Task::Guard(flag) => {
-                        self.f.get(flag);
-                        self.f.op(I::I32Eqz);
-                        self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                    }
-                    Task::Step(off, step) => crate::rt::hook_step(&mut self.f, h, off, &step),
-                    Task::Level(off, plan, depth, here) => {
-                        crate::work::moved_paths(plan.fields.len() + here.len());
-                        // The own hooks run only when no field below this
-                        // level moved: one test of all its paths' flags.
-                        if !plan.own.is_empty() {
-                            for (n, &k) in here.iter().enumerate() {
-                                self.f.get(moved[k].1);
-                                if n > 0 {
-                                    self.f.op(I::I32Or);
-                                }
+            todo.push(Task::Level(0, plan, Vec::new()));
+        }
+        while let Some(task) = todo.pop() {
+            match task {
+                Task::End => self.f.op(I::End),
+                Task::Guard(flag) => {
+                    self.f.get(flag);
+                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                }
+                Task::Step(off, step) => crate::rt::hook_step(&mut self.f, h, off, &step),
+                Task::Level(off, plan, path) => {
+                    // The own hooks run only when no path under this
+                    // level moved: one test of all their flags.
+                    let (_, under) = path_flags(paths, &path);
+                    crate::work::moved_paths(plan.fields.len() + under.len());
+                    if !plan.own.is_empty() {
+                        for (n, &(_, flag)) in under.iter().enumerate() {
+                            let flag = self.local(flag)?[0];
+                            self.f.get(flag);
+                            if n > 0 {
+                                self.f.op(I::I32And);
                             }
-                            self.f.op(I::I32Eqz);
+                        }
+                        if !under.is_empty() {
                             self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                            let own: Vec<DropCall> =
-                                plan.own.iter().cloned().map(|c| c.shifted(off)).collect();
-                            crate::rt::call_drops(&mut self.f, h, &own);
+                        }
+                        let own: Vec<DropCall> =
+                            plan.own.iter().cloned().map(|c| c.shifted(off)).collect();
+                        crate::rt::call_drops(&mut self.f, h, &own);
+                        if !under.is_empty() {
                             self.f.op(I::End);
                         }
-                        let mut by_field: HashMap<u32, (Vec<u32>, Vec<usize>)> = HashMap::default();
-                        for k in here {
-                            let (path, flag) = &moved[k];
-                            let (guards, deeper) = by_field.entry(path[depth]).or_default();
-                            if path.len() == depth + 1 {
-                                guards.push(*flag);
-                            } else {
-                                deeper.push(k);
-                            }
-                        }
-                        let mut seq = Vec::new();
-                        for step in &plan.fields {
-                            let (guards, deeper) = by_field
-                                .get(&step.field())
-                                .map_or((&[][..], &[][..]), |(g, d)| (&g[..], &d[..]));
-                            seq.extend(guards.iter().map(|&g| Task::Guard(g)));
-                            // A deeper move is through fields kept by
-                            // address (`moves_through_addresses`): one into
-                            // a nested plan.
-                            match step {
-                                HookStep::Nested { offset, plan, .. } if !deeper.is_empty() => {
-                                    seq.push(Task::Level(
-                                        off + offset,
-                                        plan.clone(),
-                                        depth + 1,
-                                        deeper.to_vec(),
-                                    ));
-                                }
-                                _ => seq.push(Task::Step(off, step.clone())),
-                            }
-                            seq.extend(guards.iter().map(|_| Task::End));
-                        }
-                        todo.extend(seq.into_iter().rev());
                     }
+                    let mut seq = Vec::new();
+                    for step in &plan.fields {
+                        let full = [&path[..], &[Proj::Field(step.field())]].concat();
+                        let (flag, under) = path_flags(paths, &full);
+                        let guard = flag.map(|f| self.local(f).map(|ls| ls[0])).transpose()?;
+                        seq.extend(guard.map(Task::Guard));
+                        // A deeper move is through fields kept by address
+                        // (`moves_through_addresses`): one into a nested plan.
+                        match step {
+                            HookStep::Nested { offset, plan, .. } if !under.is_empty() => {
+                                seq.push(Task::Level(off + offset, plan.clone(), full));
+                            }
+                            _ => seq.push(Task::Step(off, step.clone())),
+                        }
+                        seq.extend(guard.map(|_| Task::End));
+                    }
+                    todo.extend(seq.into_iter().rev());
                 }
             }
         }
@@ -1641,66 +1613,20 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Const(frame.cast_signed()));
         self.f.op(I::I32Add);
         self.f.global_set(crate::module::Global::Locals);
+        Ok(())
     }
 
-    /// Notes each field path a `Read move` takes out of a counted address
-    /// parameter, with a flag local its drop tests (rustc's drop
-    /// elaboration with drop flags; a Wasm local starts at 0, "not
-    /// moved"). One visit of this sub-body's instructions, only when it
-    /// has such a parameter.
-    pub(super) fn mem_moves(&mut self) {
-        let b = self.b;
-        let counted: HashSet<usize> = self
-            .mem_locals
-            .keys()
-            .copied()
-            .filter(|l| {
-                (self.parameter_positions.contains_key(l) || self.mem_live.contains_key(l))
-                    && self.released(b.local_ty[*l])
-            })
-            .collect();
-        if counted.is_empty() {
-            return;
-        }
-        let mut order: HashMap<usize, Vec<MovedPath>> = HashMap::default();
-        for &i in self.rows.clone().iter() {
-            if b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Move as u32 {
-                continue;
-            }
-            let Some((_, _, _, fields, l)) = self.mem_field(u32_of(i)) else {
-                continue;
-            };
-            // A whole move clears the local's live flag ([`Em::mem_read`]).
-            if fields.is_empty()
-                || !counted.contains(&l)
-                || !self.moved_field_flagged(b.local_ty[l], self.ty(u32_of(i)))
-            {
-                continue;
-            }
-            crate::work::moved_paths(1);
-            let fields = fields.into_boxed_slice();
-            if let hd_base::hash::hash_map::Entry::Vacant(e) =
-                self.mem_move_flags.entry((l, fields.clone()))
-            {
-                ledger!("memflag/moved-path-flag-local");
-                let flag = self.f.local(Val::I32);
-                e.insert(flag);
-                order.entry(l).or_default().push((fields, flag));
-            }
-        }
-        self.mem_moved = order.into_iter().map(|(l, ms)| (l, ms.into())).collect();
-    }
-
-    /// Releases counted address parameter `l` from its address, once: its
-    /// type's release plan ([`release_plan`]), with each field a move took
-    /// out skipped under its flag. A later release (the exit's, after a
-    /// `Drop`) finds the dead flag set. Whether `l` is such a parameter.
-    /// O(the fields on the moved paths), the rest one witness call each.
+    /// Releases local `l` kept in memory from its address: its type's
+    /// release plan ([`release_plan`]) and hooks, under the TIR flag of
+    /// its whole path (`hd_tir::own::drop_flags`, which flags a local kept
+    /// by address: set by its store or at its sub-body's entry, cleared
+    /// by a whole move and by each `Drop`), with each field a move took
+    /// out skipped under its path's flag. Whether `l` is a counted address
+    /// parameter or a counted frame local. O(the steps on the flagged
+    /// paths), the rest one witness call each.
     pub(super) fn mem_release(&mut self, l: usize) -> hd_base::StageResult<bool> {
-        // A level's moved paths: indices into `moved`, all `depth` fields
-        // deep into the level's type.
         enum Task {
-            Level(u32, std::sync::Arc<ReleasePlan>, usize, Vec<usize>),
+            Level(u32, std::sync::Arc<ReleasePlan>, Vec<Proj>),
             Step(u32, ReleaseStep),
             Guard(u32),
             End,
@@ -1708,11 +1634,10 @@ impl Em<'_, '_, '_> {
         let Some((at, off, mem)) = self.mem_locals.get(&l).cloned() else {
             return Ok(false);
         };
-        let live = self.mem_live.get(&l).copied();
-        if live.is_none() && !self.parameter_positions.contains_key(&l) {
+        let ty = self.b.local_ty[l];
+        if !self.parameter_positions.contains_key(&l) && !self.released(ty) {
             return Ok(false);
         }
-        let ty = self.b.local_ty[l];
         let (pool, env) = (self.input.pool, self.input.env);
         let plan = release_plan(pool, env, &mut self.m.release_plans, ty)?;
         let hooks = if crate::layout::holds_drop(pool, env, ty) {
@@ -1723,128 +1648,58 @@ impl Em<'_, '_, '_> {
         if plan.is_none() && hooks.is_none() {
             return Ok(true);
         }
-        // A parameter arrives live and is dead once dropped; a frame
-        // local is live from its store ([`Em::mem_arrive`]) to its drop.
-        let flag = if let Some(live) = live {
+        let tir = self.tir_flags();
+        let paths = tir
+            .get(&super::drop_flags::Root::Local(l))
+            .map_or(&[][..], Vec::as_slice);
+        let live = path_flags(paths, &[])
+            .0
+            .map(|f| self.local(f).map(|ls| ls[0]));
+        if let Some(live) = live.transpose()? {
             self.f.get(live);
-            live
-        } else {
-            let dead = if let Some(&d) = self.mem_dead.get(&l) {
-                d
-            } else {
-                ledger!("memflag/dead-flag-local");
-                let d = self.f.local(Val::I32);
-                self.mem_dead.insert(l, d);
-                d
-            };
-            self.f.get(dead);
-            self.f.op(I::I32Eqz);
-            dead
-        };
-        self.f.op(I::If(wasm_encoder::BlockType::Empty));
-        let moved = self.mem_moved.get(&l).cloned().unwrap_or_else(|| [].into());
-        if let Some(hooks) = hooks {
-            self.mem_hooks(at, off, mem.size, hooks, &moved);
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
         }
-        let mut todo = match plan {
-            Some(plan) => vec![Task::Level(off, plan, 0, (0..moved.len()).collect())],
-            None => Vec::new(),
-        };
+        if let Some(hooks) = hooks {
+            self.mem_hooks(at, off, mem.size, hooks, paths)?;
+        }
+        let mut todo: Vec<Task> = plan
+            .map(|p| Task::Level(off, p, Vec::new()))
+            .into_iter()
+            .collect();
         while let Some(task) = todo.pop() {
             match task {
                 Task::End => self.f.op(I::End),
                 Task::Guard(flag) => {
                     self.f.get(flag);
-                    self.f.op(I::I32Eqz);
                     self.f.op(I::If(wasm_encoder::BlockType::Empty));
                 }
                 Task::Step(off, step) => crate::rt::release_step(&mut self.f, at, off, &step),
-                Task::Level(off, plan, depth, here) => {
-                    crate::work::moved_paths(plan.steps.len() + here.len());
-                    // One pass groups this level's paths by their field
-                    // here, in `moved`'s order: the guards (a path ending
-                    // at this field) and the paths deeper in it.
-                    let mut by_field: HashMap<u32, (Vec<u32>, Vec<usize>)> = HashMap::default();
-                    for k in here {
-                        // Each path here is longer than `depth`:
-                        // `Em::mem_moves` notes only nonempty field paths,
-                        // and a path goes a level deeper only when longer.
-                        let (path, flag) = &moved[k];
-                        let f = path[depth];
-                        let (guards, deeper) = by_field.entry(f).or_default();
-                        if path.len() == depth + 1 {
-                            guards.push(*flag);
-                        } else {
-                            deeper.push(k);
-                        }
-                    }
+                Task::Level(off, plan, path) => {
+                    crate::work::moved_paths(plan.steps.len());
                     let mut seq = Vec::new();
                     for step in &plan.steps {
-                        let (guards, deeper) = by_field
-                            .get(&step.field())
-                            .map_or((&[][..], &[][..]), |(g, d)| (&g[..], &d[..]));
-                        seq.extend(guards.iter().map(|&g| Task::Guard(g)));
+                        let full = [&path[..], &[Proj::Field(step.field())]].concat();
+                        let (flag, under) = path_flags(paths, &full);
+                        let guard = flag.map(|f| self.local(f).map(|ls| ls[0])).transpose()?;
+                        seq.extend(guard.map(Task::Guard));
                         // `indirect::params` keeps a move only through
                         // fields passed by address: a deeper path is one
                         // into a nested plan.
                         match step {
-                            ReleaseStep::Nested { offset, plan, .. } if !deeper.is_empty() => {
-                                seq.push(Task::Level(
-                                    off + offset,
-                                    plan.clone(),
-                                    depth + 1,
-                                    deeper.to_vec(),
-                                ));
+                            ReleaseStep::Nested { offset, plan, .. } if !under.is_empty() => {
+                                seq.push(Task::Level(off + offset, plan.clone(), full));
                             }
                             _ => seq.push(Task::Step(off, step.clone())),
                         }
-                        seq.extend(guards.iter().map(|_| Task::End));
+                        seq.extend(guard.map(|_| Task::End));
                     }
                     todo.extend(seq.into_iter().rev());
                 }
             }
         }
-        self.f.i32(i32::from(live.is_none()));
-        self.f.set(flag);
-        self.f.op(I::End);
-        Ok(true)
-    }
-
-    /// A whole move out of local `l` kept in memory: a counted frame
-    /// local's live flag clears, and a counted parameter's dead flag sets,
-    /// so no later drop or exit releases what moved out (rustc's drop
-    /// flag on the whole place). O(1).
-    fn mem_moved_whole(&mut self, l: usize) {
-        let flag = if let Some(&live) = self.mem_live.get(&l) {
-            self.f.i32(0);
-            live
-        } else if self.parameter_positions.contains_key(&l) && self.released(self.b.local_ty[l]) {
-            self.f.i32(1);
-            *self
-                .mem_dead
-                .entry(l)
-                .or_insert_with(|| self.f.local(Val::I32))
-        } else {
-            return;
-        };
-        self.f.set(flag);
-    }
-
-    /// The store of counted frame local `l` ([`Em::frame_locals`]): its
-    /// value is in its slot, so it is live and no field is moved out. A
-    /// store in a loop runs again after the last round's drop.
-    /// O(its moved paths).
-    fn mem_arrive(&mut self, l: usize) {
-        let Some(&live) = self.mem_live.get(&l) else {
-            return;
-        };
-        self.f.i32(1);
-        self.f.set(live);
-        let moved = self.mem_moved.get(&l).cloned().unwrap_or_else(|| [].into());
-        crate::work::moved_paths(moved.len());
-        for &(_, flag) in moved.iter() {
-            self.f.i32(0);
-            self.f.set(flag);
+        if path_flags(paths, &[]).0.is_some() {
+            self.f.op(I::End);
         }
+        Ok(true)
     }
 }

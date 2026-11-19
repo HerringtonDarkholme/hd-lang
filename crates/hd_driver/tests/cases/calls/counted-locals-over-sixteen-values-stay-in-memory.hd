@@ -3,8 +3,9 @@
 # A local over 16 values that holds counted fields stays in a slot of
 # the frame block when it is stored once, written in place or moved in,
 # and read only by fields (#2031, step 4b): a field copy takes its own
-# count, a field move sets its flag, and its drop or exit releases the
-# slot through its type's release witness while its live flag is set.
+# count, a field move clears its path's TIR flag, and its drop or exit
+# releases the slot through its type's release witness while its whole
+# path's flag is set.
 # Each neighbour: a worker's result written in place and a literal; a
 # field moved and a nested field moved on by address; an early `return`
 # before the store (never live) and after it; a loop whose store runs

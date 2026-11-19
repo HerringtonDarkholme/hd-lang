@@ -225,6 +225,14 @@ pub trait OwnCx {
         let _ = ty;
         Tri::Maybe
     }
+    /// Whether a value of `ty` lives by address in an instance (#2031,
+    /// `hd_layout::by_address`). Its slot is not zeroed, so a local of it
+    /// that counts or holds a hook keeps a drop flag on its whole path
+    /// (`drop_flags.rs`). Open types may be unknown. The default answers no.
+    fn by_address(&self, ty: Ty) -> Tri {
+        let _ = ty;
+        Tri::No
+    }
     /// Whether `ty` has a `Drop` implementation of its own, on it or on a
     /// newtype layer of it, not only on a part: moving a part out of a
     /// value of `ty` skips that hook (`module.rt.drop.glue`). A type

@@ -3,8 +3,8 @@
 # A parameter over 16 values read whole keeps its address (#2170): the
 # read passes the address on to a worker, or is copied with one
 # memory.copy into a result block, or loads its leaves where a leaf
-# value is needed. A whole move of a counted one sets its dead flag, so
-# its exit releases nothing. Each neighbour: a generic `keep` returning
+# value is needed. A whole move of a counted one clears its TIR flag,
+# so its exit releases nothing. Each neighbour: a generic `keep` returning
 # its parameter; an early `return` of it; a tuple of it twice; a list
 # literal of it; a closure that captures it (stays leaves) and one that
 # reads it whole; a loop passing it each round; a counted one copied

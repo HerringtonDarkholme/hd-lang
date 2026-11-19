@@ -103,15 +103,16 @@ fn collection(values: List[string]) -> usize:
 fn generic[T](value: T) -> usize:
 > app/main/generic
 >   local $0 value: T [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
+>     uses $0: entry -> %2 lend last
+>   %1 = Release %7 Exit local $0 #2 : ()
     store(value)
->   %1 = Read borrow [$0] : T
->   %2 = DefaultCall [app/main/store.into [T]] [%1] : &mut List[T]
->   %3 = Call app/main/store[T] (%1, %2) : usize
->   %4 = Retain %3 Operation operand 0 #0 : ()
->   %5 = Drop [%2] : ()
->   %6 = Block %3 : usize
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Read borrow [$0] : T
+>   %3 = DefaultCall [app/main/store.into [T]] [%2] : &mut List[T]
+>   %4 = Call app/main/store[T] (%2, %3) : usize
+>   %5 = Retain %4 Operation operand 0 #0 : ()
+>   %6 = Drop [%3] : ()
+>   %7 = Block %4 : usize
 >   summary kept [] borrows [$0] writes
 
 fn pair(first: string, second: string) -> usize:

@@ -262,11 +262,21 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     for (_, v) in b.cancel_releases() {
         *dropped.entry(Key::Value(v)).or_default() += 1;
     }
+    // A local kept by address that counts or holds a hook: its slot is
+    // not zeroed, so its whole path keeps a flag (maybe-init, as rustc's
+    // drop flag for a place not always initialized), and every moved
+    // path under it one too.
+    let memory = |l: u32| {
+        let ty = b.local_ty[l as usize];
+        !cells[l as usize]
+            && cx.by_address(ty) != Tri::No
+            && (cx.counted(ty) || cx.holds_drop(ty) != Tri::No)
+    };
     let mut hooked = HashMap::<Key, bool>::default();
     let paths = {
         let b = &*b;
         let tracked = |k: Key| match k {
-            Key::Local(l) => cx.holds_drop(b.local_ty[l as usize]) != Tri::No,
+            Key::Local(l) => cx.holds_drop(b.local_ty[l as usize]) != Tri::No || memory(l),
             Key::Value(v) => cx.holds_drop(b.ty[v as usize]) != Tri::No,
         };
         let memo = std::cell::RefCell::new(&mut hooked);
@@ -277,10 +287,15 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             &dropped,
         )
     };
+    let mut paths = paths;
+    for (&key, &at) in &paths.by_key {
+        if matches!(key, Key::Local(l) if memory(l)) {
+            paths.moved[at as usize] = true;
+        }
+    }
     // A cancel block releases a value that an operand may also consume,
     // so that value is moved whole there, as the known-null pass clears
     // its bit (`known.rs`).
-    let mut paths = paths;
     let mut consumed = Vec::new();
     // A closure that moves a capture moves all of its local.
     for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Closure && topo.blk[i] != NONE) {

@@ -3,7 +3,6 @@
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32)))
   (import "fixture" "rt:heap_frame" (func $rt:heap_frame (param i32) (result i32)))
   (import "fixture" "impl Drop for Outer.drop" (func $"impl Drop for Outer.drop" (param i32)))
-  (import "fixture" "impl Drop for Big.drop" (func $"impl Drop for Big.drop" (param i32)))
   (import "fixture" "impl Drop for Part.drop" (func $"impl Drop for Part.drop" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
@@ -11,9 +10,9 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
   (func $moved (param $t1 i32) (result i32) (local $t0 i32) (local $p.id.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
-    ;; 67 |     keep(o.big.part) + o.v
+    ;; 68 |     keep(o.big.part) + o.v
     i32.const 1
-    local.set $t0
+    local.tee $t0
     local.get $t1
     i32.load $stack offset=8
     local.get $t1
@@ -26,74 +25,46 @@
     local.get $t1
     i32.load $stack offset=88
     local.set $p.id.1
-    local.get $t3
-    i32.eqz
+    i32.const 104
+    call $rt:heap_frame
+    local.tee $t3
+    local.get $t1
+    i32.const 92
+    memory.copy $heap $stack
+    i32.const 0
+    i32.and
     if
-      i32.const 104
-      call $rt:heap_frame
-      local.tee $t3
-      local.get $t1
-      i32.const 92
-      memory.copy $heap $stack
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        call $"impl Drop for Outer.drop"
-      end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        call $"impl Drop for Big.drop"
-      end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        i32.const 8
-        i32.add
-        call $"impl Drop for Part.drop"
-      end
       local.get $t3
-      i32.const 80
-      i32.add
-      call $"impl Drop for Part.drop"
-      local.get $t1
-      local.get $t3
-      i32.const 92
-      memory.copy $stack $heap
-      global.get $locals
-      i32.const 104
-      i32.add
-      global.set $locals
+      call $"impl Drop for Outer.drop"
+    end
+    local.get $t3
+    i32.const 80
+    i32.add
+    call $"impl Drop for Part.drop"
+    local.get $t1
+    local.get $t3
+    i32.const 92
+    memory.copy $stack $heap
+    global.get $locals
+    i32.const 104
+    i32.add
+    global.set $locals
+    local.get $t0
+    if
       local.get $t1
       i32.load $stack
-      local.tee $t3
+      local.tee $t0
       if
-        local.get $t3
+        local.get $t0
         call $rt:release_ref
       end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t1
-        i32.load $stack offset=8
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref
-        end
-      end
+    end
+    local.get $t1
+    i32.load $stack offset=80
+    local.tee $t1
+    if
       local.get $t1
-      i32.load $stack offset=80
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-      i32.const 1
-      local.set $t3
+      call $rt:release_ref
     end
     local.get $t2
     i64.extend_i32_s
@@ -113,74 +84,5 @@
     end
     local.get $t4
     i32.wrap_i64
-    local.set $p.id.1
-    local.get $t3
-    i32.eqz
-    if
-      i32.const 104
-      call $rt:heap_frame
-      local.tee $t3
-      local.get $t1
-      i32.const 92
-      memory.copy $heap $stack
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        call $"impl Drop for Outer.drop"
-      end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        call $"impl Drop for Big.drop"
-      end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t3
-        i32.const 8
-        i32.add
-        call $"impl Drop for Part.drop"
-      end
-      local.get $t3
-      i32.const 80
-      i32.add
-      call $"impl Drop for Part.drop"
-      local.get $t1
-      local.get $t3
-      i32.const 92
-      memory.copy $stack $heap
-      global.get $locals
-      i32.const 104
-      i32.add
-      global.set $locals
-      local.get $t1
-      i32.load $stack
-      local.tee $t3
-      if
-        local.get $t3
-        call $rt:release_ref
-      end
-      local.get $t0
-      i32.eqz
-      if
-        local.get $t1
-        i32.load $stack offset=8
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref
-        end
-      end
-      local.get $t1
-      i32.load $stack offset=80
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
-    end
-    local.get $p.id.1
   )
 )

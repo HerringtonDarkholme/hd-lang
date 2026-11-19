@@ -635,7 +635,6 @@ fn body_func<'a>(
     if !suspending {
         em.keep = em.kept_results();
     }
-    em.mem_moves();
     // After every plan that names a read copied into memory.
     em.forward = em.forwarded();
     em.block_into(root, None)?;
@@ -1387,18 +1386,6 @@ struct Em<'i, 'a, 'm> {
     /// ([`Em::frame_locals`]). The Wasm local of its address, its offset
     /// there and its layout, shared so a read takes it in O(1).
     mem_locals: HashMap<usize, (u32, u32, std::rc::Rc<crate::layout::Mem>)>,
-    /// Per counted address parameter, each field path a `Read move` takes
-    /// out of it with the flag local set when it does, in first-read
-    /// order (the drop's guards follow it); and the flag set when its
-    /// drop has run (`indirect.rs`, #2031 step 4).
-    mem_moved: HashMap<usize, std::rc::Rc<[indirect::MovedPath]>>,
-    /// The flag of each (parameter, field path) in `mem_moved`: one probe
-    /// per `Read move`.
-    mem_move_flags: HashMap<(usize, Box<[u32]>), u32>,
-    mem_dead: HashMap<usize, u32>,
-    /// Each counted frame local's live flag: set by its store, cleared
-    /// by its drop ([`Em::frame_locals`]).
-    mem_live: HashMap<usize, u32>,
     /// The frame block on the shadow stack holding the locals kept in
     /// memory: its address local and size. Reserved at entry and given
     /// back at every exit ([`indirect::stack_frame`]).
@@ -1643,10 +1630,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned_refs: hd_base::HashSet::default(),
             lazy: HashMap::default(),
             mem_locals: HashMap::default(),
-            mem_moved: HashMap::default(),
-            mem_move_flags: HashMap::default(),
-            mem_dead: HashMap::default(),
-            mem_live: HashMap::default(),
             stack_frame: None,
             frame_copies: Vec::new(),
             forward: hd_base::HashSet::default(),

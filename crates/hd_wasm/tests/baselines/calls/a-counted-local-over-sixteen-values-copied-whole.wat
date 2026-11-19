@@ -567,7 +567,7 @@
     i32.add
     global.set $stack
   )
-  (func $moved_on (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $moved_on (param $x i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 56 |     let a = mk(x)
     global.get $stack
     i32.const 88
@@ -1005,7 +1005,7 @@
     end
     local.get $t1
   )
-  (func $field_kept (param $t0 i32) (result i32) (local $self.0 i32) (local $t1 i32) (local $b.f3 i32) (local $t2 i32) (local $t3 i64)
+  (func $field_kept (param $t0 i32) (result i32) (local $self.0 i32) (local $t1 i32) (local $b.f3 i32) (local $t2 i64)
     ;; 68 |     let b = o.inner
     local.get $t0
     i32.load $stack offset=8
@@ -1069,8 +1069,6 @@
     drop
     drop
     ;; 69 |     let n = take(o)
-    i32.const 1
-    local.set $t2
     local.get $t0
     call $take
     ;; 70 |     n + b.f3 + i32(b.name.len())
@@ -1078,10 +1076,10 @@
     local.get $b.f3
     i64.extend_i32_s
     i64.add
-    local.tee $t3
+    local.tee $t2
     i64.const 2147483647
     i64.gt_s
-    local.get $t3
+    local.get $t2
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -1089,9 +1087,9 @@
       call $rt:panic
       unreachable
     end
-    local.get $t3
+    local.get $t2
     i32.wrap_i64
-    local.set $b.f3
+    local.set $t0
     ;; 68 |     let b = o.inner
     local.get $self.0
     ;; 70 |     n + b.f3 + i32(b.name.len())
@@ -1099,15 +1097,15 @@
       local.get $self.0
       call $rt:release_ref'2
     end
-    local.get $b.f3
+    local.get $t0
     i64.extend_i32_s
     local.get $t1
     i64.extend_i32_s
     i64.add
-    local.tee $t3
+    local.tee $t2
     i64.const 2147483647
     i64.gt_s
-    local.get $t3
+    local.get $t2
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -1115,37 +1113,8 @@
       call $rt:panic
       unreachable
     end
-    local.get $t3
-    i32.wrap_i64
-    ;; 68 |     let b = o.inner
-    local.set $t1
     local.get $t2
-    i32.eqz
-    if
-      local.get $t0
-      call $rt:release_at
-      local.get $t0
-      i32.load $stack offset=76
-      local.tee $self.0
-      if
-        local.get $self.0
-        call $rt:release_ref'2
-      end
-      local.get $t0
-      i32.load $stack offset=84
-      local.tee $t0
-      if
-        local.get $t0
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t0
-          call $rt:release_ref'1
-        end
-      end
-    end
-    local.get $t1
+    i32.wrap_i64
   )
   (func $moved (param $x i32) (result i32) (local $t0 i32) (local $self.0 i32) (local $t1 i32)
     ;; 51 |     let a = mk(x)

@@ -1,9 +1,10 @@
 # @dump: wat
 # @build: std
 # A parameter over 16 values with a `Drop` hook and a moved field
-# (#2031, ref.move.field): `o.big.part`'s move flag guards `Outer`'s
+# (#2031, ref.move.field): `o.big.part`'s TIR flag guards `Outer`'s
 # and `Big`'s own hooks and `part`'s hook and release, while `tail`'s
-# hook and `big.name`'s release run unguarded, on the heap copy.
+# hook runs unguarded and `big.name`'s release under `big`'s flag, on
+# the heap copy.
 use std.rt.Drop
 
 struct Part:

@@ -25,16 +25,17 @@ fn width(s: string) -> usize:
 fn invoke[F < Fn(string) -> usize](f: F, s: string) -> usize:
 > app/main/invoke
 >   local $0 f: F [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Release %5 Exit local $1 #2 : ()
+>     uses $1: entry -> %4 lend last
+>   %1 = Release %6 Exit local $0 #2 : ()
+>   %2 = Release %6 Exit local $1 #2 : ()
     f(s)
->   %2 = Read borrow [$0] : F
->   %3 = Read borrow [$1] : string
->   %4 = CallValue %2 [%3] : usize
->   %5 = Block %4 : usize
+>   %0 = FlagSet [$0] #2 : ()
+>   %3 = Read borrow [$0] : F
+>   %4 = Read borrow [$1] : string
+>   %5 = CallValue %3 [%4] : usize
+>   %6 = Block %5 : usize
 >   summary kept [] borrows [$0 $1] writes
 
 fn static_bound(s: string) -> usize:
@@ -79,48 +80,49 @@ fn static_bound(s: string) -> usize:
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 > app/main/each
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 lend, %10 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 f: F [param read] value
->     uses $1: entry -> %14 lend
+>     uses $1: entry -> %15 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %4 -> %7 lend
+>     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %20 -> %15 lend last
->   %0 = Release %30 Exit local $0 #2 : ()
->   %1 = Release %30 Exit local $1 #2 : ()
+>     uses $6: %21 -> %16 lend last
+>   %1 = Release %31 Exit local $0 #2 : ()
+>   %2 = Release %31 Exit local $1 #2 : ()
     for x in xs:
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$5] %3 : ()
->   %5 = Store [$4] 0:usize : ()
->   %6 = Read copy [$4] : usize
->   %7 = Read copy [$5] : usize
->   %8 = Prim Lt [%6 %7] : bool
->   %9 = Read copy [$4] : usize
->   %10 = Read borrow [$0 [%9]] : string
->   %11 = Read copy [$4] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$4] %12 : ()
->   %18 = Block - : ()
->   %19 = Read borrow [%10] : string
->   %20 = Store [$6] %19 : ()
->   %22 = Block - : never
->   %23 = Match %10 [%22 %18] : ()
->   %24 = Block - : ()
->   %25 = Break L0 - : never
->   %26 = Block - : ()
->   %27 = If %8 [%24 %26] : ()
->   %28 = Block - : ()
->   %29 = Loop %28 - : ()
->   %30 = Block - : ()
+>   %0 = FlagSet [$1] #7 : ()
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$5] %4 : ()
+>   %6 = Store [$4] 0:usize : ()
+>   %7 = Read copy [$4] : usize
+>   %8 = Read copy [$5] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$4] : usize
+>   %11 = Read borrow [$0 [%10]] : string
+>   %12 = Read copy [$4] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$4] %13 : ()
+>   %19 = Block - : ()
+>   %20 = Read borrow [%11] : string
+>   %21 = Store [$6] %20 : ()
+>   %23 = Block - : never
+>   %24 = Match %11 [%23 %19] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %9 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = Block - : ()
         f(x)
->   %14 = Read borrow [$1] : F
->   %15 = Read copy [$6] : string
->   %16 = CallValue %14 [%15] : ()
->   %17 = Drop [%15] : ()
+>   %15 = Read borrow [$1] : F
+>   %16 = Read copy [$6] : string
+>   %17 = CallValue %15 [%16] : ()
+>   %18 = Drop [%16] : ()
 >   summary kept [] borrows [$0 $1] writes
->   loop %29 keeps len [$0] (-..-)
+>   loop %30 keeps len [$0] (-..-)
 
 fn fn_mut(xs: List[string]) -> usize:
 > app/main/fn_mut
