@@ -13,7 +13,7 @@ use crate::op::Op as I;
 use hd_base::SliceSort as _;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::Target;
-use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, ref_word};
+use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags};
 use hd_types::{Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -353,25 +353,9 @@ impl Em<'_, '_, '_> {
             self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
-        // A local a top-level binding's initializer takes a local
-        // reference to (its `&e`, `ref.expr.allocate`): the binding may
-        // keep the new object for the whole program, so it is static.
-        let key = self.static_cells.or_else(|| {
-            self.init_key.filter(|_| {
-                (0..self.b.len()).any(|i| {
-                    self.b.tags[i] == Tag::Ref
-                        && self.b.data[i][1] & ref_word::LOCAL != 0
-                        && self
-                            .b
-                            .local_in_place(self.b.data[i][0])
-                            .map(hd_base::LocalId::idx)
-                            == Some(l)
-                })
-            })
-        });
-        if let Some(key) = key {
+        if self.static_cells.contains(&l) {
             ledger!("cell-made/static");
-            let at = self.static_cell(key, l, src)?;
+            let at = self.static_cell(l, src)?;
             self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
@@ -398,17 +382,17 @@ impl Em<'_, '_, '_> {
         Ok(at)
     }
 
-    /// Local `l`'s cell in a handle body, whose once-cell has key `key`:
-    /// a static object, a zero count word and then the value, which lives
-    /// as long as the program, so no count changes it and every reference
-    /// to it is one address no count reaches (`annot.handle.constants`).
-    /// A checked run's teardown releases the value, as the once-cell's.
-    fn static_cell(&mut self, key: Hash128, l: usize, src: &Src) -> StageResult<u32> {
+    /// Local `l`'s cell in static data (`Storage::Static`): a static
+    /// object, a zero count word and then the value, which lives as long
+    /// as the program, so no count changes it and every reference to it is
+    /// one address no count reaches (`annot.handle.constants`). A checked
+    /// run's teardown releases the value, as the once-cell's.
+    fn static_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
         let (m, _) = self.cell_mem(l)?;
         let header = crate::module::HEADER;
         let base = self.m.static_slot(header + m.size, 8);
         let addr = base + header;
-        let mut bytes = key.0.to_le_bytes().to_vec();
+        let mut bytes = self.key.0.to_le_bytes().to_vec();
         bytes.extend_from_slice(&u32::try_from(l).expect("locals").to_le_bytes());
         let t = self.b.local_ty[l];
         self.note_stored(

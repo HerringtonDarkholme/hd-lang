@@ -505,6 +505,9 @@ pub enum Storage {
     Slot,
     /// A counted cell object.
     Cell,
+    /// Static data with a zero count word: a cell of a body that runs once
+    /// per instance and whose value lives as long as the program.
+    Static,
 }
 
 impl Storage {
@@ -514,6 +517,7 @@ impl Storage {
         match self {
             Self::Slot => "slot",
             Self::Cell => "cell",
+            Self::Static => "static",
         }
     }
 
@@ -523,6 +527,7 @@ impl Storage {
         match s {
             "slot" => Some(Self::Slot),
             "cell" => Some(Self::Cell),
+            "static" => Some(Self::Static),
             _ => None,
         }
     }
@@ -4421,6 +4426,11 @@ mod tests {
             SubId::from_raw(0),
             LocalId::from_raw(1),
             super::Storage::Cell,
+        ));
+        body.storage.push((
+            SubId::from_raw(1),
+            LocalId::from_raw(0),
+            super::Storage::Static,
         ));
         body.cancel.push((2, 0));
         assert_eq!(parse(&print(&body)).expect("parses"), body);

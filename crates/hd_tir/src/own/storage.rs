@@ -15,7 +15,7 @@
 //! arguments. A build with no runtime has no slots; the emitter reads it.
 
 use super::OwnCx;
-use crate::ir::{Body, CaptureMode, Proj, Root, Storage, Tag, Topology, ref_word};
+use crate::ir::{Body, BodyKind, CaptureMode, Proj, Root, Storage, Tag, Topology, ref_word};
 use hd_base::{LocalId, SubId};
 
 /// The local `Ref` `i` of `b` takes a reference to the storage of, or to
@@ -294,6 +294,32 @@ fn census(
     (refs, shared)
 }
 
+/// The kind of each local's cell in sub-body 0: static data for every
+/// one of a handle body, which runs once per instance
+/// (`annot.handle.constants`), and in a top-level initializer for each
+/// local an `&e` takes (`ref.expr.allocate`), which the binding may keep
+/// for the whole program; else a heap cell. One walk of an initializer.
+fn cell_kinds(b: &Body, mut work: impl FnMut(usize)) -> Vec<Storage> {
+    let all = if b.kind == BodyKind::Handle {
+        Storage::Static
+    } else {
+        Storage::Cell
+    };
+    let mut out = vec![all; b.local_ty.len()];
+    if b.kind == BodyKind::Init {
+        for i in 0..b.len() {
+            work(1);
+            if b.tags[i] == Tag::Ref
+                && b.data[i][1] & ref_word::LOCAL != 0
+                && let Some(l) = b.local_in_place(b.data[i][0])
+            {
+                out[l.idx()] = Storage::Static;
+            }
+        }
+    }
+    out
+}
+
 /// Writes `b.storage` in O(instructions + locals + captures + storage rows),
 /// plus the existing reference-path walks.
 /// Copy marks reset only touched entries, not the whole local universe.
@@ -327,6 +353,7 @@ fn run_with(
         } else {
             slots(b, topo, &roots)
         };
+        let kinds = cell_kinds(b, &mut work);
         let mut copy = vec![false; n];
         let mut touched = Vec::new();
         for (s, ci) in closures.into_iter().enumerate() {
@@ -348,10 +375,10 @@ fn run_with(
                 if copy[l] {
                     continue;
                 }
-                let storage = if s == 0 && slot[l] {
-                    Storage::Slot
-                } else {
-                    Storage::Cell
+                let storage = match (s, slot[l]) {
+                    (0, true) => Storage::Slot,
+                    (0, false) => kinds[l],
+                    _ => Storage::Cell,
                 };
                 let (s, l) = (crate::ir::u32_of(s), crate::ir::u32_of(l));
                 rows.push((SubId::from_raw(s), LocalId::from_raw(l), storage));
@@ -376,11 +403,12 @@ fn run_with(
 /// `non_ssa_locals` picks each local's backing before codegen.
 pub fn settle(b: &Body, args: &[(u16, u32)], counted: &[bool], cx: &dyn OwnCx) -> Option<Body> {
     let mut rows = b.storage.clone();
+    let mut kinds = None;
     for r in rows
         .iter_mut()
         .filter(|r| r.0.idx() == 0 && counted.get(r.1.idx()) == Some(&true))
     {
-        r.2 = Storage::Cell;
+        r.2 = kinds.get_or_insert_with(|| cell_kinds(b, |_| {}))[r.1.idx()];
     }
     if args.is_empty() && rows == b.storage {
         return None;
@@ -525,6 +553,40 @@ mod tests {
             .map(|l| (SubId::from_raw(0), LocalId::from_raw(l), Storage::Cell))
             .collect();
         b
+    }
+
+    /// An initializer's `&e`s make static cells, found in one walk of its
+    /// instructions; every cell of a handle body is static, and no other
+    /// body's.
+    #[test]
+    fn cell_kinds_take_one_walk_of_an_initializer() {
+        for n in [100, 1_000] {
+            let mut b = referenced_calls(n);
+            let mut work = 0;
+            let kinds = |kind| vec![kind; n as usize];
+            assert_eq!(cell_kinds(&b, |w| work += w), kinds(Storage::Cell));
+            b.kind = BodyKind::Handle;
+            assert_eq!(cell_kinds(&b, |w| work += w), kinds(Storage::Static));
+            assert_eq!(work, 0);
+            b.kind = BodyKind::Init;
+            assert_eq!(cell_kinds(&b, |w| work += w), kinds(Storage::Static));
+            assert_eq!(work, b.len());
+        }
+    }
+
+    /// A counted slot that settle turns into a cell takes the kind the
+    /// storage pass gives a cell: static data in an initializer.
+    #[test]
+    fn settle_gives_a_counted_slot_its_cell_kind() {
+        let mut b = referenced_calls(2);
+        b.kind = BodyKind::Init;
+        for r in &mut b.storage {
+            r.2 = Storage::Slot;
+        }
+        let cx = Counting(std::cell::Cell::new(0));
+        let out = settle(&b, &[], &[true, false], &cx).expect("a changed body");
+        let kinds: Vec<Storage> = out.storage.iter().map(|r| r.2).collect();
+        assert_eq!(kinds, [Storage::Static, Storage::Slot]);
     }
 
     #[test]

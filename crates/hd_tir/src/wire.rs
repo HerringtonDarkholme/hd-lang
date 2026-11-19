@@ -670,7 +670,9 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
     b.storage = col(r)
         .chunks_exact(3)
         .map(|c| {
-            let k = [Storage::Slot, Storage::Cell].get(c[2] as usize).copied()?;
+            let k = [Storage::Slot, Storage::Cell, Storage::Static]
+                .get(c[2] as usize)
+                .copied()?;
             Some((SubId::from_raw(c[0]), LocalId::from_raw(c[1]), k))
         })
         .collect::<Option<_>>()?;
@@ -1033,7 +1035,7 @@ mod tests {
             hook_site: crate::ir::NONE,
         }];
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
-        body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Cell)];
+        body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Static)];
         body.cancel = vec![(1, 2)];
         body.full_cells = vec![(0, 0)];
         body.stable_lists = vec![[2, crate::ir::place::BARE_LOCAL, 0, crate::ir::NONE, 1]];

@@ -19,7 +19,7 @@ use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::count::{At as CountAt, Info as CountInfo, Part as CountPart};
 use hd_tir::ir::{
-    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
+    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Storage, Tag, local_flags,
 };
 use hd_tir::own::Reason;
 use hd_types::{InternPool, Ty, TyData, TyList};
@@ -209,8 +209,8 @@ fn body_func<'a>(
     ledger!("susp/states" += if suspending { plan.0.len() } else { 0 });
     // Where each local lives: the final rows (`promote::settled`).
     let rows = &facts.storage[usize::from(sub)];
-    let slot = |&(l, k): &(hd_base::LocalId, _)| (k == hd_tir::ir::Storage::Slot).then(|| l.idx());
-    let slots: Vec<usize> = rows.iter().filter_map(slot).collect();
+    let kind = |k| rows.iter().filter(move |r| r.1 == k).map(|r| r.0.idx());
+    let slots: Vec<usize> = kind(Storage::Slot).collect();
     // A root with a suspension point keeps its slots in its frame object
     // (#1707).
     let framed_slots = suspending && sub == 0 && !plan.0.is_empty();
@@ -223,6 +223,7 @@ fn body_func<'a>(
         .collect();
     let mut em = Em::new(input, m, b, item, targets, cells, (sub, boundary, facts));
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
+    em.static_cells = kind(Storage::Static).collect();
     em.type_promoted();
     em.plan_slots(&slots, framed_slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
@@ -383,17 +384,12 @@ fn body_func<'a>(
         results: results.clone(),
         fact,
     });
-    if b.kind == BodyKind::Init && sub == 0 {
-        em.init_key = Some(key);
-    }
+    em.key = key;
     let reentry = (sub == 0 && input.coinductive_flags.contains(&key)).then(|| Reentry::new(key));
     if let Some(guard) = &reentry {
         guard.enter(&mut em, &input.path, item);
     }
     if let Some(cell) = &once {
-        if b.kind == BodyKind::Handle {
-            em.static_cells = Some(key);
-        }
         if em.m.track_origins {
             let name = format!("{}#once", (input.path)(item));
             em.m.storage_names.insert(key, name);
@@ -1421,9 +1417,8 @@ struct Em<'i, 'a, 'm> {
     /// Page-table owners saved by each reference-holding parameter, with
     /// a shared predicate plan for conditional enum payloads.
     frame_refs: Vec<FrameRefs>,
-    /// A top-level binding's initializer: its key, for a cell that the
-    /// binding's reference keeps for the whole program (a static cell).
-    init_key: Option<Hash128>,
+    /// The instance's key, which names its static cells' data.
+    key: Hash128,
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
@@ -1460,9 +1455,8 @@ struct Em<'i, 'a, 'm> {
     /// local stack, not in a counted cell (§23.38), each with its slot's
     /// offset in the frame ([`closure::slot_locals`]).
     slots: HashMap<usize, u32>,
-    /// A handle body's once-cell key: its cells live in static data, as
-    /// the body runs once per instance ([`closure::Em::raw_cell`]).
-    static_cells: Option<Hash128>,
+    /// The cell locals in static data (`Storage::Static` rows).
+    static_cells: hd_base::HashSet<usize>,
     /// With slots: the local holding the frame's address, and the
     /// frame's size.
     frame: Option<(u32, u32)>,
@@ -1642,7 +1636,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             retained_before_result: hd_base::HashSet::default(),
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
-            init_key: None,
+            key: Hash128::default(),
             borrowed: hd_base::HashSet::default(),
             lends: 0,
             emitting: Vec::new(),
@@ -1655,7 +1649,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             entry_cells: hd_base::HashSet::default(),
             param_vals: HashMap::default(),
             slots: HashMap::default(),
-            static_cells: None,
+            static_cells: hd_base::HashSet::default(),
             frame: None,
             susp_slots: 0,
             drive_buffer: None,
