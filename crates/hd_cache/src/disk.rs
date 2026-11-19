@@ -48,6 +48,9 @@ mod cost {
         pub index_written: u64,
         /// Pack files opened for reading.
         pub packs_opened: u64,
+        /// Frames and payload bytes copied by pack merges.
+        pub merge_frames: u64,
+        pub merge_bytes: u64,
         /// Walks of the whole pack namespace: a collection makes two.
         pub walks: u64,
         /// Times a shard's writer lock was taken.
@@ -1720,15 +1723,19 @@ mod packed {
         Ok(Some((rows, len, epoch)))
     }
 
-    /// Replaces `dir/name` with `bytes` by a renamed temporary file.
-    fn replace_file(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
+    /// Replaces `dir/name` with `bytes`, returning the published inode.
+    fn replace_file(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<File> {
         let tmp = dir.join(format!("{name}.{:032x}.tmp", unique()));
         let result = (|| {
-            let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+            let mut file = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(&tmp)?;
             file.write_all(bytes)?;
             count!(index_written, bytes.len());
-            drop(file);
-            std::fs::rename(&tmp, dir.join(name))
+            std::fs::rename(&tmp, dir.join(name))?;
+            Ok(file)
         })();
         if result.is_err() {
             let _ = std::fs::remove_file(tmp);
@@ -2445,7 +2452,8 @@ mod packed {
 
         /// Folds the log into the pages: applies its changes, writes the
         /// changed pages, table and head stamped with the next epoch, then
-        /// empties the log to a header naming that epoch and head. Cost:
+        /// atomically replaces the log with their header. Existing readers
+        /// retain the whole old log inode, never a truncated prefix. Cost:
         /// the pages the log's keys fall in, about one page per change at
         /// worst, once per [`FOLD_AT`] bytes appended.
         fn fold(&mut self) -> io::Result<()> {
@@ -2468,6 +2476,12 @@ mod packed {
             #[cfg(test)]
             let on_pause = self.on_pause.clone();
             let file = &self.file;
+            let log_dir = self
+                .dir
+                .parent()
+                .ok_or_else(|| invalid("cache shard has no parent"))?;
+            let log_name = format!("{:x}.log", self.id);
+            let mut published = None;
             let header = std::cell::RefCell::new(self.header);
             let write = |header: &LogHeader| -> io::Result<()> {
                 let mut f = file;
@@ -2475,7 +2489,7 @@ mod packed {
                 f.write_all(&header.encode())
             };
             let txn = self.txn.get_or_insert(Txn::open(self.dir.clone())?);
-            let delta = txn.commit(
+            let committed = txn.commit(
                 epoch,
                 |growth| {
                     let mut h = header.borrow_mut();
@@ -2487,24 +2501,25 @@ mod packed {
                     if let Some(pause) = &on_pause {
                         pause("paged");
                     }
-                    // The header first (#2054): a reader of the log never
-                    // sees an old epoch without the records the fold
-                    // applied, so a page newer than the epoch it reads
-                    // means the fold's header is still to come. A reader or
-                    // a crash before the shortening finds the new head with
-                    // the records it already holds; applying them again
-                    // changes nothing.
+                    // Pages/head first, then one index publication: a reader
+                    // that opened the old log keeps its epoch and records.
+                    // An in-place header rewrite followed by truncation can
+                    // instead combine a new epoch with only old records.
                     let mut h = header.borrow_mut();
                     h.epoch = epoch;
                     h.head = head;
-                    write(&h)?;
+                    published = Some(replace_file(log_dir, &log_name, &h.encode())?);
                     #[cfg(test)]
                     if let Some(pause) = &on_pause {
                         pause("headed");
                     }
-                    file.set_len(LOG_HEADER as u64)
+                    Ok(())
                 },
-            )?;
+            );
+            if let Some(file) = published {
+                self.file = file;
+            }
+            let delta = committed?;
             self.header = header.into_inner();
             self.end = LOG_HEADER as u64;
             self.header.total =
@@ -3850,6 +3865,8 @@ mod packed {
                 for &(key, from, len) in &source.copy {
                     file.seek(SeekFrom::Start(from))?;
                     let got = io::copy(&mut (&mut file).take(len), &mut lease.file)?;
+                    count!(merge_frames, 1);
+                    count!(merge_bytes, got);
                     if got != len {
                         return Err(invalid("truncated cache pack during compaction"));
                     }
@@ -5366,6 +5383,30 @@ mod packed {
             }
         }
 
+        #[test]
+        fn a_small_merge_copies_each_source_frame_once_at_ten_times_the_entries() {
+            for n in [1000, 10_000] {
+                let root = cache(n, false);
+                let store = Store::new(&root);
+                for key in 100_000..100_000 + FANOUT as u128 {
+                    store.publish(&[item(key, &[2; 64])]).unwrap();
+                }
+                cost::take();
+                store.merge_small(1).unwrap();
+                let work = cost::take();
+                assert_eq!(work.merge_frames, FANOUT as u64);
+                assert_eq!(work.merge_bytes, FANOUT as u64 * 64);
+                assert_eq!(work.packs_opened, FANOUT as u64 * 2);
+                assert_eq!((work.dirs_listed, work.walks), (0, 0));
+                for key in 100_000..100_000 + FANOUT as u128 {
+                    assert_eq!(
+                        store.get(EntryKind::Check, &Hash128(key)).as_deref(),
+                        Some([2; 64].as_slice())
+                    );
+                }
+            }
+        }
+
         /// Publishing runs merge small packs as they go, so the pack count
         /// stays bounded with no directory walk.
         #[test]
@@ -5789,11 +5830,41 @@ mod packed {
             assert!(got.iter().all(|&b| b == got[0]));
         }
 
-        /// A reader that reads a shard's log while its first fold has
-        /// rewritten its header but not yet shortened it (#1977) sees the
-        /// new head with the records already folded: it finds the key.
         #[test]
-        fn a_reader_between_a_first_folds_header_and_its_shortening_finds_the_key() {
+        fn a_fold_keeps_an_open_readers_log_snapshot_whole() {
+            let root = scratch("fold-open-log");
+            let store = Store::new(&root);
+            store.publish(&[item(1, b"one"), item(2, b"two")]).unwrap();
+            let path = store.log_path(0);
+            let before = log_decode(&std::fs::read(&path).unwrap());
+            assert!(!before.ops.is_empty());
+            // The reader opens before publication but reads after it, as
+            // a read_to_end split across the writer's fold can do.
+            let mut reader = File::open(&path).unwrap();
+            store.open_shard(0).unwrap().fold().unwrap();
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).unwrap();
+            let held = log_decode(&bytes);
+            assert_eq!(held.ops, before.ops, "an open snapshot retains its records");
+            assert_eq!(held.header.unwrap().epoch, before.header.unwrap().epoch);
+            let published = log_decode(&std::fs::read(path).unwrap());
+            assert!(published.ops.is_empty());
+            assert_eq!(
+                published.header.unwrap().epoch,
+                before.header.unwrap().epoch + 1
+            );
+            assert_eq!(
+                Store::new(&root)
+                    .get(EntryKind::Check, &Hash128(1))
+                    .as_deref(),
+                Some(b"one".as_slice())
+            );
+        }
+
+        /// A reader after the first fold publishes its log (#1977) sees
+        /// the new head with the records already folded: it finds the key.
+        #[test]
+        fn a_reader_after_the_first_folds_log_publication_finds_the_key() {
             let root = scratch("fold-shortened");
             let mut writer = Store::new(&root);
             let reader_root = root.clone();
