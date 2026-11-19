@@ -5,6 +5,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hd_base::DefId;
+use hd_tir::{ir, own};
+
+#[path = "../src/own/test_cx.rs"]
+mod own_cx;
+
 use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, parse, print, verify, verify_owned};
 use hd_types::{InternPool, ParamRef, Ty, TyData};
 
@@ -219,35 +224,33 @@ fn instance_errors(body: &hd_tir::ir::Body) -> Vec<hd_tir::ir::VerifyError> {
 /// Facts with a pool, so [`verify_owned`] runs its instance check.
 struct Pooled<'a>(&'a InternPool);
 
-impl hd_tir::own::OwnCx for Pooled<'_> {
-    fn temporary_owner_name(&self) -> hd_base::Symbol {
-        hd_base::Symbol::NONE
+own_cx::own_cx!(
+    Pooled<'_>,
+    [
+        temporary_owner_name,
+        pass,
+        pass_value,
+        may_write,
+        holds_coll
+    ],
+    OwnershipFacts,
+    {
+        fn counted(&self, _: Ty) -> bool {
+            false
+        }
+
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> hd_tir::own::Pass {
+            hd_tir::own::Pass::Lent
+        }
+
+        fn pool(&self) -> Option<&InternPool> {
+            Some(self.0)
+        }
     }
-    fn counted(&self, _: Ty) -> bool {
-        false
-    }
-    fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
-        hd_tir::own::Pass::Lent
-    }
-    fn pass_value(&self, _: Ty, _: usize, _: usize) -> hd_tir::own::Pass {
-        hd_tir::own::Pass::Lent
-    }
-    fn may_write(&self, _: &Callee) -> bool {
-        true
-    }
-    fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-        false
-    }
-    fn received(&self, _: DefId, _: usize, _: usize) -> hd_tir::own::Pass {
-        hd_tir::own::Pass::Lent
-    }
-    fn holds_coll(&self, _: Ty) -> bool {
-        false
-    }
-    fn pool(&self) -> Option<&InternPool> {
-        Some(self.0)
-    }
-}
+);
 
 /// Tags no valid body holds: a reserved slot (invariant 14), tier 2's
 /// borrow flags (invariant 23), and `LoanEnd`, which only the last ownership

@@ -114,10 +114,7 @@ mod tests {
 
     const LOCAL_REF: Ty = Ty(1_000_004);
     struct Cx(Cell<bool>);
-    impl OwnCx for Cx {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Cx, [temporary_owner_name, parts], {
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }
@@ -133,9 +130,7 @@ mod tests {
         fn may_write(&self, c: &Callee) -> bool {
             self.0.get() || matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(9))
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
@@ -148,7 +143,7 @@ mod tests {
         fn suspending(&self, _: DefId) -> bool {
             false
         }
-    }
+    });
     fn call(b: &mut TirBuilder, def: u32, arg: &[crate::ir::Ref], ty: Ty) {
         b.call(
             &Callee::Item {

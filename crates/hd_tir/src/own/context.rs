@@ -48,35 +48,24 @@ mod tests {
     use hd_types::Ty;
 
     struct Providers;
-    impl crate::own::OwnCx for Providers {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
+    crate::own::test_cx::own_cx!(
+        Providers,
+        [
+            temporary_owner_name,
+            counted,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn trait_value(&self, ty: Ty) -> bool {
+                ty == Ty(43)
+            }
         }
-        fn trait_value(&self, ty: Ty) -> bool {
-            ty == Ty(43)
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
-        }
-        fn pass(&self, callee: &crate::ir::Callee, k: usize, n: usize) -> crate::own::Pass {
-            Cx.pass(callee, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> crate::own::Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, callee: &crate::ir::Callee) -> bool {
-            Cx.may_write(callee)
-        }
-        fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, variant, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> crate::own::Pass {
-            Cx.received(item, k, n)
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     #[test]
     fn direct_entries_are_consumed_and_have_conditional_release_packets() {

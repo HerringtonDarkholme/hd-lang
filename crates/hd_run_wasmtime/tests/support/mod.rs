@@ -61,20 +61,14 @@ pub enum Scalar {
     I64(i64),
 }
 
-/// Exchange-buffer encoding, independent of the implementation's codec.
+/// ABI field encoding, independent of the runtime codec; integers use `hd_base`.
 #[derive(Default)]
 pub struct Enc(pub Vec<u8>);
 
 impl Enc {
-    pub fn leb(mut self, mut value: u64) -> Self {
-        loop {
-            let byte = (value & 127) as u8;
-            value >>= 7;
-            self.0.push(byte | if value == 0 { 0 } else { 128 });
-            if value == 0 {
-                return self;
-            }
-        }
+    pub fn leb(mut self, value: u64) -> Self {
+        hd_base::leb::put(&mut self.0, value);
+        self
     }
 
     /// A real entry's optional Unix-millisecond timestamp, appended to

@@ -300,8 +300,8 @@ impl Slots {
 mod tests {
     use super::EmptyVariants;
     use crate::ir::{Body, BodyKind, Callee, ReadMode, Tag, u32_of};
-    use crate::own::{OwnCx, Pass};
-    use hd_base::{DefId, Symbol};
+    use crate::own::Pass;
+    use hd_base::DefId;
     use hd_types::Ty;
     use std::cell::Cell;
 
@@ -311,10 +311,7 @@ mod tests {
         fields: Cell<usize>,
     }
 
-    impl OwnCx for Cx {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Cx, [temporary_owner_name, received], {
         fn counted(&self, _: Ty) -> bool {
             true
         }
@@ -336,13 +333,11 @@ mod tests {
             out.clone_from(&self.empty);
             true
         }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
+
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     fn context(empty: Vec<bool>) -> Cx {
         Cx {

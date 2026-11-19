@@ -196,7 +196,7 @@ mod tests {
         BodyKind, Callee, ChoiceKind, Providers, ReadMode, TirBuilder, TirSink, Topology, count,
         local_flags, verify_owned,
     };
-    use crate::own::{Pass, counts as statements, splice, tests::Cx};
+    use crate::own::{counts as statements, splice};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
@@ -204,46 +204,34 @@ mod tests {
         cold: bool,
     }
     const FACTS: Facts = Facts { cold: false };
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            counted,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn suspending(&self, _: DefId) -> bool {
+                self.cold
+            }
+            fn trait_value(&self, ty: Ty) -> bool {
+                ty == Ty(43)
+            }
+            fn function_has_requirement_row(&self, ty: Ty) -> bool {
+                ty == Ty(43) || ty == Ty(45)
+            }
+            fn call_has_requirement_context(&self, c: &Callee) -> bool {
+                matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+                    || matches!(c, Callee::TraitMethod { method, .. } if *method == DefId::from_raw(7))
+            }
         }
-
-        fn suspending(&self, _: DefId) -> bool {
-            self.cold
-        }
-        fn trait_value(&self, ty: Ty) -> bool {
-            ty == Ty(43)
-        }
-        fn function_has_requirement_row(&self, ty: Ty) -> bool {
-            ty == Ty(43) || ty == Ty(45)
-        }
-        fn call_has_requirement_context(&self, c: &Callee) -> bool {
-            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
-                || matches!(c, Callee::TraitMethod { method, .. } if *method == DefId::from_raw(7))
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
-        }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(item, k, n)
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     fn body(ty: Ty, constant: bool) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

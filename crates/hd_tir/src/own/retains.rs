@@ -668,11 +668,7 @@ mod tests {
 
     struct Facts;
 
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, parts], {
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING || ty == Ty(43)
         }
@@ -701,9 +697,7 @@ mod tests {
         fn may_write(&self, _: &Callee) -> bool {
             false
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
@@ -716,7 +710,7 @@ mod tests {
         fn returned_loan(&self, c: &Callee) -> Option<u8> {
             matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(8)).then_some(0)
         }
-    }
+    });
 
     #[test]
     fn returned_loan_cancellation_requires_a_stable_whole_parameter() -> Result<(), String> {
@@ -862,10 +856,7 @@ mod tests {
     #[test]
     fn queued_value_retain_precedes_operation_cleanup_in_one_splice() -> Result<(), String> {
         struct Rows;
-        impl OwnCx for Rows {
-            fn temporary_owner_name(&self) -> hd_base::Symbol {
-                hd_base::Symbol::NONE
-            }
+        crate::own::test_cx::own_cx!(Rows, [temporary_owner_name], {
             fn counted(&self, ty: Ty) -> bool {
                 Facts.counted(ty)
             }
@@ -893,7 +884,7 @@ mod tests {
             fn call_has_requirement_context(&self, _: &Callee) -> bool {
                 true
             }
-        }
+        });
         let mut b = body();
         let topo = Topology::new(&b);
         let mut edits = splice::Tables::default();

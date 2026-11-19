@@ -2345,7 +2345,7 @@ references, and open values.
   `visit` while the collector traces. That call is also made for a count
   of 0 while tracing, since a gray object's count can reach 0 in a mark.
   An acyclic module (§23.28) drops both collector tests. Interior and
-  erased addresses keep their calls, and checked mode keeps every count a
+  dynamically typed addresses keep their calls, and checked mode keeps every count a
   call so that its runtime audits them. With inlining, hello (release)
   grows by 212 bytes, from 7,183 to 7,395 for `println(42)`. On wasmtime, at
   fce872a45: nbody 4,861 ms to 4,411; closures 6,159 to 4,512; json
@@ -2394,7 +2394,7 @@ backend's is below.
   such a parameter moves before the loop over a call that may write
   (`own/hoist.rs`, rule 3), and a caller that hands its own parameter on
   to a relied-on position gets a copy too (`Env::forwarded_relies`).
-- **Checked by** fixtures covering invalidating alias calls, erased
+- **Checked by** fixtures covering invalidating alias calls, generic
   getter temporaries, early returns, initial copy-on-write sharing and
   snapshots created by callbacks between writes.
 

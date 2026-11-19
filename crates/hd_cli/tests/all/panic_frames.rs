@@ -414,43 +414,36 @@ fn fold_cycle(lines: Vec<String>, cycle: &[&str]) -> Vec<String> {
     out
 }
 
+fn leb(bytes: &[u8], at: &mut usize) -> Result<usize, &'static str> {
+    hd_base::leb::get(bytes, at, 32)
+        .and_then(|v| usize::try_from(v).ok())
+        .ok_or("invalid unsigned integer in the compiled fixture")
+}
+
 /// The custom sections of a module, by name, in order.
-fn custom_sections(wasm: &[u8]) -> Vec<String> {
-    fn leb(b: &[u8], at: &mut usize) -> usize {
-        let mut v = 0;
-        let mut shift = 0;
-        loop {
-            let byte = b[*at];
-            *at += 1;
-            v |= usize::from(byte & 0x7f) << shift;
-            if byte & 0x80 == 0 {
-                return v;
-            }
-            shift += 7;
-        }
-    }
+fn custom_sections(wasm: &[u8]) -> Result<Vec<String>, &'static str> {
     let mut out = Vec::new();
     let mut at = 8;
     while at < wasm.len() {
         let id = wasm[at];
         at += 1;
-        let size = leb(wasm, &mut at);
+        let size = leb(wasm, &mut at)?;
         let end = at + size;
         if id == 0 {
             let mut name_at = at;
-            let n = leb(wasm, &mut name_at);
+            let n = leb(wasm, &mut name_at)?;
             out.push(text(&wasm[name_at..name_at + n]));
         }
         at = end;
     }
-    out
+    Ok(out)
 }
 
 /// A debug build keeps the standard `name` section beside `hd.lines`; a
 /// release build drops both name sections after copying the names its traces
 /// need into `hd.positions`.
 #[test]
-fn release_builds_keep_names_only_in_positions() {
+fn release_builds_keep_names_only_in_positions() -> Result<(), &'static str> {
     let root = package(
         "hd-frames-release",
         "pub fn main() -> void $ Console:\n    println(42)\n",
@@ -460,14 +453,15 @@ fn release_builds_keep_names_only_in_positions() {
     assert!(out.status.success(), "{}", text(&out.stderr));
     let debug = std::fs::read(root.join("build/debug/shop.wasm")).expect("debug wasm");
     assert_eq!(
-        custom_sections(&debug),
+        custom_sections(&debug)?,
         ["hd.lines", "name", "hd.positions"]
     );
     let out = hd(&root, &["build", "--release"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let release = std::fs::read(root.join("build/release/shop.wasm")).expect("release wasm");
-    assert_eq!(custom_sections(&release), ["hd.lines", "hd.positions"]);
+    assert_eq!(custom_sections(&release)?, ["hd.lines", "hd.positions"]);
     assert!(hd_run::frames::LineTable::parse(&release).is_ok());
+    Ok(())
 }
 
 /// A release build copies `inner` into `outer`, then `outer` into
@@ -521,42 +515,29 @@ fn a_program_that_derives_builds_its_positions() {
 }
 
 /// The function names of a module's `name` section.
-fn function_names(wasm: &[u8]) -> Vec<String> {
-    fn leb(b: &[u8], at: &mut usize) -> usize {
-        let mut v = 0;
-        let mut shift = 0;
-        loop {
-            let byte = b[*at];
-            *at += 1;
-            v |= usize::from(byte & 0x7f) << shift;
-            if byte & 0x80 == 0 {
-                return v;
-            }
-            shift += 7;
-        }
-    }
+fn function_names(wasm: &[u8]) -> Result<Vec<String>, &'static str> {
     let mut out = Vec::new();
     let mut at = 8;
     while at < wasm.len() {
         let id = wasm[at];
         at += 1;
-        let size = leb(wasm, &mut at);
+        let size = leb(wasm, &mut at)?;
         let end = at + size;
         let mut p = at;
         if id == 0 {
-            let n = leb(wasm, &mut p);
+            let n = leb(wasm, &mut p)?;
             if &wasm[p..p + n] == b"name" {
                 p += n;
                 while p < end {
                     let sub = wasm[p];
                     p += 1;
-                    let len = leb(wasm, &mut p);
+                    let len = leb(wasm, &mut p)?;
                     let sub_end = p + len;
                     if sub == 1 {
-                        let count = leb(wasm, &mut p);
+                        let count = leb(wasm, &mut p)?;
                         for _ in 0..count {
-                            leb(wasm, &mut p);
-                            let n = leb(wasm, &mut p);
+                            leb(wasm, &mut p)?;
+                            let n = leb(wasm, &mut p)?;
                             out.push(text(&wasm[p..p + n]));
                             p += n;
                         }
@@ -567,14 +548,14 @@ fn function_names(wasm: &[u8]) -> Vec<String> {
         }
         at = end;
     }
-    out
+    Ok(out)
 }
 
 /// Runtime helpers are named by kind (`rt:entry_poll`, `rt:panic#3`), never
 /// by a `Debug` dump: no `{`, `[` or `Hash128`, at most 64 characters, and
 /// unique within the module.
 #[test]
-fn runtime_helper_names_are_short_and_readable() {
+fn runtime_helper_names_are_short_and_readable() -> Result<(), &'static str> {
     let root = package(
         "hd-frames-helper-names",
         "pub fn main() -> void $ Console:\n    println(\"hello, world\")\n    println(7)\n",
@@ -583,7 +564,7 @@ fn runtime_helper_names_are_short_and_readable() {
     let out = hd(&root, &["build"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
     let wasm = std::fs::read(root.join("build/debug/shop.wasm")).expect("wasm");
-    let names = function_names(&wasm);
+    let names = function_names(&wasm)?;
     let rt: Vec<&String> = names.iter().filter(|n| n.starts_with("rt:")).collect();
     assert!(rt.iter().any(|n| n.as_str() == "rt:entry_poll"), "{rt:?}");
     for name in &rt {
@@ -596,6 +577,7 @@ fn runtime_helper_names_are_short_and_readable() {
     sorted.sort_stable();
     sorted.dedup();
     assert_eq!(sorted.len(), rt.len(), "a helper name repeats: {rt:?}");
+    Ok(())
 }
 
 const BUILT: &str = "\

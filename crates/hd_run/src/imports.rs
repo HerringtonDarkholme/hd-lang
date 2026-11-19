@@ -16,18 +16,17 @@ impl Bytes<'_> {
         Ok(v)
     }
 
-    /// An unsigned or signed LEB128 number; only its length matters for a
-    /// signed one, which is skipped.
+    /// An unsigned number, or the raw bits of the signed 33-bit heap type
+    /// skipped by `val_type`. Both fit the shared 64-bit unsigned reader.
     pub(crate) fn leb(&mut self) -> Result<u64, String> {
-        let mut v = 0u64;
-        for shift in (0..64).step_by(7) {
-            let byte = self.byte()?;
-            v |= u64::from(byte & 0x7f) << shift;
-            if byte & 0x80 == 0 {
-                return Ok(v);
+        let start = self.at;
+        hd_base::leb::get(self.b, &mut self.at, 64).ok_or_else(|| {
+            if self.at - start < (u64::BITS as usize).div_ceil(7) {
+                "the module ends early".to_owned()
+            } else {
+                "a number is too long".to_owned()
             }
-        }
-        Err("a number is too long".to_owned())
+        })
     }
 
     pub(crate) fn len(&mut self) -> Result<usize, String> {
@@ -176,6 +175,30 @@ pub fn needs(imports: &[(String, String)]) -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::{module_exports, module_imports, needs, unknown_import};
+
+    #[test]
+    fn shared_integer_reader_keeps_heap_types_and_decode_errors() {
+        for bytes in [
+            &[0x64, 0x6e][..],
+            &[0x64, 0x81, 0x80, 0x80, 0x80, 0x00],
+            &[0x64, 0xff, 0xff, 0xff, 0xff, 0x0f],
+        ] {
+            let mut r = super::Bytes { b: bytes, at: 0 };
+            assert!(r.val_type().is_ok());
+            assert_eq!(r.at, bytes.len());
+        }
+        let mut r = super::Bytes { b: &[0x80], at: 0 };
+        assert_eq!(r.leb(), Err("the module ends early".to_owned()));
+        let mut r = super::Bytes {
+            b: &[0xff; 10],
+            at: 0,
+        };
+        assert_eq!(r.leb(), Err("a number is too long".to_owned()));
+        let mut bytes = vec![0xff; 9];
+        bytes.push(1);
+        let mut r = super::Bytes { b: &bytes, at: 0 };
+        assert_eq!(r.leb(), Ok(u64::MAX));
+    }
 
     /// A module that imports `hd:Console.write_sync` (a function), a
     /// memory and a global, by hand.

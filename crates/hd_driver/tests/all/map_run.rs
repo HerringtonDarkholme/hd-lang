@@ -35,15 +35,8 @@ fn wasm_of(main: &str) -> Vec<u8> {
     out.wasm.expect("wasm")
 }
 
-fn leb(out: &mut Vec<u8>, mut value: u32) {
-    loop {
-        let byte = (value & 0x7f) as u8;
-        value >>= 7;
-        out.push(if value == 0 { byte } else { byte | 0x80 });
-        if value == 0 {
-            break;
-        }
-    }
+fn leb(out: &mut Vec<u8>, value: u32) {
+    hd_base::leb::put(out, u64::from(value));
 }
 
 /// Whether a function is one of the map runtime's that `hd_wasm::map`

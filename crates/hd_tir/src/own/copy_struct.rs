@@ -134,55 +134,45 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
+        BodyKind, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
     };
-    use crate::own::{Pass, counts as statements, splice, tests::Cx};
+    use crate::own::{counts as statements, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
-        fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
-            out.clear();
-            if ty.0 >= 100 {
-                out.push(if ty.0 == 100 { Ty(45) } else { Ty(ty.0 - 1) });
-                return true;
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn struct_fields(&self, ty: Ty, out: &mut Vec<Ty>) -> bool {
+                out.clear();
+                if ty.0 >= 100 {
+                    out.push(if ty.0 == 100 { Ty(45) } else { Ty(ty.0 - 1) });
+                    return true;
+                }
+                out.extend(match ty {
+                    Ty(43) => [Ty::STRING, Ty::I32].as_slice(),
+                    Ty(44) => [Ty::I32, Ty::I32].as_slice(),
+                    Ty(45) => [Ty(47), Ty::STRING].as_slice(),
+                    Ty(48) => [].as_slice(),
+                    _ => return false,
+                });
+                true
             }
-            out.extend(match ty {
-                Ty(43) => [Ty::STRING, Ty::I32].as_slice(),
-                Ty(44) => [Ty::I32, Ty::I32].as_slice(),
-                Ty(45) => [Ty(47), Ty::STRING].as_slice(),
-                Ty(48) => [].as_slice(),
-                _ => return false,
-            });
-            true
+            fn counted(&self, ty: Ty) -> bool {
+                ty == Ty(47) || Cx.counted(ty)
+            }
         }
-        fn counted(&self, ty: Ty) -> bool {
-            ty == Ty(47) || Cx.counted(ty)
-        }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(item, k, n)
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     fn body(ty: Ty, replaced: &[u32], constant: bool) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

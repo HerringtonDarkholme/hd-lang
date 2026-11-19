@@ -6,9 +6,9 @@ stopped: the map stays in Rust, #180 closed). The costs this design left
 open were measured as misses and closed on 2026-10-28: #857, #858 and #859;
 #860's size lever moved to #941. The concluded string
 experiments #861 and #862 remain in #426's history.
-Later removals: generic method calls through `dyn` and their erased bodies
-and thunks (#1421), `own/pairs.rs` (#1399), and reference views with their
-getters and setters (#1399 step 22; every `&T` and `&mut T` is one address). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
+Later changes: generic methods instantiate before emission (#1421);
+count-pair cancellation left the pipeline (#1399); local references became
+one address (#1399 step 22). As-built notes are under [Commits](#commits). The owner chose Direction 3 of
 tir-v2-directions.md (git history at 7ccbb4ea8, `docs/compiler/tir-v2-directions.md`), the record
 of the alternatives. This document is the full design of that direction:
 the IR, what the checker emits, the ownership passes, the emitter, a
@@ -107,7 +107,7 @@ count packets; see [As built](#as-built-2026-11-13).
 
 Everything else stays: structured control flow, the flat column
 encoding, the wire format and its per-body hash, suspension lowering,
-erased generic methods, layouts, the cycle collector and Wasm-level
+generic instantiation, layouts, the cycle collector and Wasm-level
 peepholes. The migration has three stages, each with every suite green:
 places (stage 1, about 10 one-hour commits), ownership passes (stage 2,
 about 14), and collections in std over typed memory after an inliner
@@ -398,7 +398,7 @@ now built. The IR reserved what the study would need, for the #667 claim:
 | borrow flags for borrows through global references | a flag local next to `Pin`, as the drop flags are (`FlagSet`, `FlagClear`) |
 | non-escaping locals and closure environments in the frame (#702) | the frame-slot root |
 | facts from signatures, never bodies | the passes already read only callee signatures |
-| one compile per declaration, lifetimes erased | the passes run per generic body; places resolve per instance |
+| lifetime metadata erased before code generation | the passes and place resolution run per instance |
 
 The reserved parts cost a root kind number, two tag rows that the
 verifier rejects, and an empty column.
@@ -1092,7 +1092,7 @@ splice; the steps after it add statements
 | §23.25 parameters by their type (`layout::Pass`) | `OwnCx::pass` read by insertion and borrow | owned and lent parameters agree with every caller, as today |
 | §23.25 moves at last use, construction consumes (`Moves::sole`, `last_access`, `tails`, `Em::take*`) | move rules 1 and 2 | — |
 | §23.25 round two: immutable reads and loop elements borrow (`live::loans`) | borrow, rule 3's local case; a loop element of the private snapshot borrows because no user code writes the snapshot local | — |
-| §23.25 balanced pairs (`opt.rs`) | pair cancellation for TIR values; `opt.rs` keeps none | — |
+| Count ownership | explicit TIR count packets; no backend pair cancellation | — |
 | §23.31 parameter and projection loans (`live::parameter_loans`, `prepare_parameter_loans`) | borrow, rule 3's parameter case | — |
 | §23.31 read the selected field | the place itself: `Read [*$0 [%i] .x]` loads one field | — |
 | §23.31 invariant buffer ownership; #710 loop projections (`unique_once`, `list_caches`) | hoisting, and its stable-list side table | the empty-loop entry test stays |
@@ -1145,9 +1145,8 @@ use, during its existing walk of the instance:
 
 `Read` then loads or copies the leaves at the base, `Store` counts the
 new value, stores it and releases the old one, and `Ref` produces the
-base address. In an erased body, a place whose offset or result depends
-on a method type parameter is an open instruction, outlined into a thunk
-as an open `Field` is today.
+base address. Collection instantiates generic types before emission; the
+emitter resolves concrete fields in the same way for every instance.
 
 ## Stage 1 in full
 
@@ -1225,8 +1224,6 @@ must not change except where the plan below says it improves.
   `RefRead` in `parameter_loans`.
 - **`closure::cell_locals`**, `ref_roots` and `address_globals`
   (`lib.rs`) find their roots in `Ref` places.
-- **`hd_mono`** (`erased.rs` `schema_values`, `open_insts`) learns the
-  three tags.
 - **The driver** stops calling `strip_closure_forms` in `decode`.
 
 ### What gets deleted
@@ -1255,14 +1252,10 @@ audit on the commits that touch the emitter).
    #716.)
 2. **New tags in the IR and collection.** `Read`, `Store`, `Ref` in the
    catalog with their operand schema, `value_operands`, the wire, and
-   `hd_mono`'s erased-body schema. Unit tests built with `TirBuilder`.
+   `hd_mono`'s instance type mapping. Unit tests built with `TirBuilder`.
    As built: `ReadMode` names the four modes; verifier invariant 2
-   (`hd_tir`'s 21) and invariant 4 for a `Store` into a bare local; in
-   an erased body a `Ref`, and a `Read` or `Store` of a bare local, stay
-   in the body as `RefPlace`, `LocalGet` and `LocalSet` do, an open
-   `Read` or `Store` rooted at a value is outlined, and one rooted at a
-   local or global is refused (`NotImplemented`) until the emitter can
-   pass its root to a thunk.
+   (`hd_tir`'s 21) and invariant 4 for a `Store` into a bare local.
+   Collection now instantiates all place types before emission.
 3. **The emitter's place resolver.** `emit/refs.rs`: `Read`, `Store`
    and `Ref` for every root and projection, beside the old tags;
    `live.rs` and `count.rs` treat them as described. Unit tests in
@@ -1282,8 +1275,7 @@ audit on the commits that touch the emitter).
    shared tests (`local_store`, `place_local`, `ref_local`, `ref_locals`,
    `read_through`), which `count.rs`, `list.rs`, `closure.rs`, `emit.rs`
    and `lib.rs` use for both tag sets; `parameter_loans` also takes the
-   parameters that hold references. In an erased body a `Read` or `Store` of a whole
-   referent (`[*r]`) stays, as `RefRead` and `RefWrite` do. Module
+   parameters that hold references. Module
    comparisons in `tests.rs` would need a whole program's tables, so a
    `live.rs` unit test plans one body with each tag set instead, and a
    local experiment that rewrote the old tags into `Ref`, `Read` and
@@ -1384,8 +1376,7 @@ audit on the commits that touch the emitter).
    (`note_read`), as the base's read was. The emitter stores a struct
    field of a local in its Wasm locals or its cell, of a top-level
    binding in its static slot or Wasm globals, each counting only that field (and copying a
-   collection a place holds, as `CopyData`'s slot did); a cell an
-   erased body converts is refused. `live.rs` gains `local_part_store`
+   collection a place holds, as `CopyData`'s slot did). `live.rs` gained `local_part_store`
    (a `LocalSet`, or a `Store` into a local or a field of it), which
    span loans, `loans`, field spans, `written` parameters, list aliases
    and the buffer-sharing proof read where they read `LocalSet`, and
@@ -1429,12 +1420,8 @@ audit on the commits that touch the emitter).
    `hd_mono`'s default specialization and `hd_opt`'s `value_flow`,
    which count a field store as a write with no known value. `live.rs`
    `field_spans` and `list.rs` `range_indices` read stores through the
-   same helpers. In an erased body, an open store into a field of a
-   local is outlined (`hd_mono::outlined_store_local`): the thunk takes
-   the local's value as a capture, stores the field at concrete types
-   and returns the new value, which the body stores into the whole local
-   (or its cell); an open store into a top-level binding is outlined as
-   `GlobalSet` was. Every conformance module
+   same helpers. Collection instantiates field and top-level stores
+   before emission. Every conformance module
    is byte-identical to commit 8's; TIR baselines print `Store [$l]`.
 10. **Delete and document.** Remove the tags and intrinsics with no
     producer, `strip_closure_forms`, `place_root`, `PlaceRec`, the old
@@ -1557,9 +1544,8 @@ by the driver.
 (retain, release, store-leaf, exit release) and loses its decisions;
 `Read` modes and `Drop` expand to glue; `IsUnique` is `rt:list_unique`
 or the map's; `Pin` is today's `ListPin` without its extra count; the
-loop caches read hoisting's stable-list table; `prepare_loans` keeps one
-instance filter: a `borrow` of an open value in an erased body, whose
-thunk may build a fresh box, is emitted as a `copy`.
+loop caches read hoisting's stable-list table. Collection supplies
+instantiated types to the ownership passes and emitter.
 
 **What #704 gains.** A reference made in the body is a `Ref` of a known
 place: with no projection on a celled local, it is the payload start of
@@ -1586,8 +1572,7 @@ is worth deciding only if they are hot.
    `Body::local_read` and `Body::global_read` name what such a read
    reads, and every reader that matched the old tags matches them
    instead: the checker's place walkers (`coll.rs`, `access.rs`, the
-   fallback column), `hd_mono`'s default specialization and erased
-   bodies (an open `Read [@g]` is outlined as `GlobalGet` was),
+   fallback column), `hd_mono`'s default specialization,
    `hd_opt`'s `value_flow`, and the emitter (`Em::local_read`,
    `Em::global_read`, `live.rs`, `count.rs`, `list.rs`). Where a reader
    treated every `Read` as a read through a reference (unused reads,
@@ -1691,8 +1676,8 @@ is worth deciding only if they are hot.
    checker TIR, every mode `use`. Its two cases
    (`crates/hd_driver/tests/cases/own/`) dump `own` beside `counts`. What
    lowers the statements comes with the path that emits from them in
-   commit 5: the emitter, where they are `unsupported` until then, and
-   hd_mono's erased-body outlining. No emitted module changes.
+   commit 5: the emitter and collection's instantiated bodies. No emitted
+   module changes.
 5. `hd_tir::own` skeleton, `OwnCx` in the driver, and the switch; the
    new path emits from insertion's output (copies and drops).
    As built: `hd_tir::own` runs, per body, place folding then
@@ -1756,8 +1741,8 @@ is worth deciding only if they are hot.
    takes one and the value is released after it, a lent argument a
    callee instance owns takes one, a parameter its caller lends takes
    one on entry, and a cancelled suspension point releases what the
-   body holds there. In an erased body a `Drop` and a value copy stay
-   in the body (hd_mono): an open value's view is one counted address.
+   body holds there. Collection instantiates every body's types before
+   ownership and emission.
    On the new path, all 4,836 driver conformance cases pass, checked
    and not, dev and optimized pipelines, and so do the std runtime's hd
    tests but one count bound: in checked builds `count_tests.hd`'s
@@ -1791,12 +1776,11 @@ is worth deciding only if they are hot.
    The backend lowers both for a local or value root followed by struct
    fields and elements, bounds-checked (`Em::place_header`); that is
    every place insertion names while the checker reads a collection
-   before changing it through a reference. In an owned body and its
-   erased thunks (`Em::unique_explicit`) the element store, `MapSet`,
+   before changing it through a reference. In an owned body
+   (`Em::unique_explicit`) the element store, `MapSet`,
    `MapRemove`, `MapIndexMut` and `ListPin` check no uniqueness, and
    `ListPush` only grows a full buffer (`rt:list_grow`). `IsUnique` and
-   `Pin` are value operands (`Body::value_operands`), so an erased body
-   outlines one over an open collection. An `IsUnique` of a map picks
+   `Pin` were value operands (`Body::value_operands`). An `IsUnique` of a map picks
    `rt:map_unique` by the map's two type arguments; commit 5's lowering,
    which never ran, gave a map `rt:list_unique`. Old path: every
    conformance module byte-identical, dev and optimized pipelines. New
@@ -1860,8 +1844,7 @@ is worth deciding only if they are hot.
    - **The backend** lowers a `move` of every place a move names: a local
      or a whole value, or a part of either laid out in its locals
      (`Em::part_slots`), zeroing what it took only for a counted
-     instance. A part at no such place at an instance (a boxed enum's
-     payload, an open value's part in a thunk) is read as a copy, and the
+     instance. A part at no such place at an instance (a boxed enum's payload) is read as a copy, and the
      whole drop the pass kept for such a base releases it. A `Drop` of a
      part releases and zeroes that part (`Em::own_drop_part`). A taking
      `Ref` is the cell's address with the local's count; where the
@@ -1894,11 +1877,9 @@ is worth deciding only if they are hot.
    in `.Square(n, k)` only `k` moves, and the copy of `n` and its drop
    are pair cancellation's (commit 9). The drops of moved locals after
    branches and loops stay until known-null (commit 10). Every read that
-   could borrow still copies (commit 8). A generic base keeps its whole
-   drop after a part moves out of it; splitting it would need `parts` to
-   know which type parameters an erased instance leaves open, a fact no
-   stage 2 commit plans. That drop releases only what the move left, so
-   what it costs is the release glue's tests, not a count.
+   could borrow still copies (commit 8). The initial pass kept a whole
+   drop after a part moved from a generic base. Ownership now reads each
+   instance's concrete field types before deriving partial drops.
 8. Borrow.
    As built: `own/derive.rs`, between insertion and move. It decides each
    `copy` read of a counted type from four facts of its value: its source is
@@ -2212,13 +2193,8 @@ is worth deciding only if they are hot.
    307, 233; fannkuch 95, 114, 92; nbody 118, 351, 235; spectral-norm
    181, 182, 186.
    **Left for later commits.**
-   - **Generic places**: a place whose type names a type parameter does
-     not hoist. An erased instance holds such a value as one counted
-     view, and a local-rooted `IsUnique` would stay in the erased body,
-     where the element layout is unknown; hoisting one needs hd_mono to
-     outline it into a thunk as it outlines a value-rooted one. Commit 13
-     counts what generic std loops lose and adds the outlining if parity
-     needs it.
+   - **Generic places**: collection now instantiates their types before
+     ownership; there is no separate outlining path.
    - **Whole-element copies**: on the new path `bodies[i].x` reads the
      whole element (`Read copy [%h [%i]]`, then its field), where the old
      path loads one field (§23.31, "Read the selected field"); that, not
@@ -2251,9 +2227,8 @@ is worth deciding only if they are hot.
       read, a primitive, a construction, a coercion, a length; when `P`
       has an element step, which checks its index, only reads that check
       nothing, so no check moves before another), and the local's type
-      names no type parameter of the body's own item and no opaque type
-      (an erased body outlines such a read by its values; its impl's and
-      trait's parameters are concrete there). The chains fold from
+      names no type parameter of the body's own item and no opaque type.
+      The chains fold from
       their root in one pass in instruction order, and the folded reads go
       in one rebuild (`own::splice`). So `bodies[i].x` is
       `Read [*$0 [%5] .x]`, `bodies[i].x = v` is `Store [*$0 [%5] .x] v`
@@ -2330,11 +2305,8 @@ is worth deciding only if they are hot.
       borrow, so they cost no count. `ListIndexMut` and `ListPin` go in
       12b; the intrinsics take values until stage 3 moves lists and maps
       to std.
-    - **Generic locals**: a local whose type names a type parameter is not
-      rooted, since an erased instance outlines an open read by its values
-      (`hd_mono` would have to outline a place rooted at a local); commit
-      13 counts what that costs the generic std loops, as it does for
-      hoisting's generic places.
+    - **Generic locals**: collection now instantiates local functions and
+      their local types before ownership and emission.
     - **A call between a base read and its use** (`xs[f(i)].x`) keeps the
       base read, and so a read rooted at its value: the element is read
       whole. Rooting a value-rooted chain needs the walk for value roots;
@@ -2750,7 +2722,6 @@ is worth deciding only if they are hot.
     | Left | Why | Removed by |
     | --- | --- | --- |
     | A trait-value instance of a type parameter at a dynamic call (`notify[C](c: C)` at `C = &Channel`, `via`, `escalate`, `label`, `first_key`, `greet`, `disk_of`): the parameter, owned by the passes, takes a count on entry that its forward to the call releases | `Em::instance_loans` covers direct calls; a call through a vtable passes an open argument boxed, which a loan would have to keep uncounted inside the box | Not planned by any stage 2 or 3 commit; an issue after 13c |
-    | Erased bodies and their thunks (`#erased`): an open value's `ValueCopy` or kept drop, +1 retain and release per body (`echo[T](x: T) -> T: x`) | An open value is one counted view; the old path moved it into the copy, which the passes' rule 7 copy, consuming nothing, cannot | Stage 3, where a list's value is its buffer and the header copy goes |
     | Payload copies of an unowned parameter or a borrowed scrutinee that a use consumes (`Option.map`'s `self`, `eval`'s `match e` through `&Expr`, `Expr.structure handle`) | A lent parameter's parts copy where an owned one's would move; a scrutinee read through a reference keeps its drop before each arm's jump, so its bindings cannot borrow from it | Not planned; the same issue (a binding that borrows across the arm needs the scrutinee's drop after the match) |
 
     **13c as built: the switch (#798).** The new path is the default.
@@ -4292,11 +4263,8 @@ storing into `*bodies` 5.75 million times. Any other place is walked again
 binding's static slot or Wasm global, an element slot, a referent at a
 thin reference's address. A push stores the buffer growth leaves into the
 place its `borrow` operand names, and a map put the table; `list_truncate`
-stores through its reference. Growth now zeroes the old buffer's length (a table's
-written count) and releases it where it freed it: an outlined change in an
-erased body runs in a thunk that holds a count of its operand, and returns
-the buffer it leaves for the erased body to store
-(`emit/erased.rs`, `outlined_change`). `rt:map_clone` is
+stores through its reference. Growth zeroes the old buffer's length (a table's written count) and
+releases it where it freed it. `rt:map_clone` is
 `rt:map_unique` with a forced copy that starts with no owner word, so the
 set-aside stopgap goes. The static empty buffer's count word is 0, a
 static object's: with buffer values its count of 2 reached 1 under the
@@ -4329,9 +4297,9 @@ snapshot cases, and four valid ones flip their replacement assertions.
 3f adds 399 Rust code lines and deletes 386, against the stop line of 400
 (`emit/refs.rs` +106/−12, `own/insert.rs` +42/−19, `map.rs` +42/−86,
 `emit/list.rs` +36/−74, `rt.rs` +35/−128, `ir/root.rs` +30/−5,
-`emit/erased.rs` +28/−2, `ir/owned.rs` +22/−6, `emit.rs` +20/−6,
+retired adapter code +28/−2, `ir/owned.rs` +22/−6, `emit.rs` +20/−6,
 `emit/count.rs` +19/−6, the rest +19/−42), the write-back's walk and its
-erased and view paths being most of the overrun over the share of 165. The
+retired adapter and view paths being most of the overrun over the share of 165. The
 known failure `lang/types/collection-values/a-list-a-callee-stores-at-top-level-is-a-copy`
 passes and its row goes; the new case
 `a-push-through-a-map-value-with-a-computed-key-keeps-every-element` grows
@@ -4349,7 +4317,7 @@ alternated release builds with an empty cache and the dev-profile
 compiler: json 0.266 s to 0.265 s,
 nbody 0.210 s to 0.211 s. The web compiler's gzip grows 1,590 B
 (1,920,776 to 1,922,366, both built here), where the plan expected it to
-shrink 0.4 KB: the walk-based store back, the erased thunks' result and the
+shrink 0.4 KB: the walk-based store back, the retired adapter's result and the
 view path in `list_truncate` add more than the header kernels give back.
 
 3g removes the header copies for both kinds: `own/copies.rs`, the verifier's
@@ -4374,8 +4342,8 @@ a reference (`RefLayout::colls`, `ref_copy`). A suspending callee's cold
 constructor counts its arguments and captures before the frame keeps them.
 `own_arg` needed nothing: what a vtable slot or a map's key glue lends was
 copied when it was made (a dynamic call's arguments at the caller, a trait
-value's data at its coercion), and an erased value never holds a
-collection, since a type argument that holds one keeps its instance exact.
+value's data at its coercion). Collection instantiates every type
+argument before emission.
 
 A parameter that an `IsUnique` or a `Pin` names stays owned
 (`derive::solve`, `Tables::changed`), since the change gives up the
@@ -4399,7 +4367,7 @@ left (`b.parts.push(text)`, `counts[word] = ...`).
 the stop line of 175, which it passes: count glue 53 (`emit/count.rs` +49,
 `views.rs` +4; planned 30); copies of operands and heap copies 140
 (`emit/value.rs` +55/−49, `emit.rs` +26/−28, `rt.rs` +16, `emit/refs.rs`
-+15, `emit/closure.rs` +9, `emit/erased.rs` +7, `emit/scope.rs` +6, the rest
++15, `emit/closure.rs` +9, retired adapter code +7, `emit/scope.rs` +6, the rest
 +6; planned 25), most of it the source the copy returns threaded through
 each store; task frames 15 (`emit/susp.rs` +15/−11; planned 10); owned
 changed parameters 14 (`own/derive.rs`; planned 10); the verifier 6 (planned
@@ -4565,19 +4533,11 @@ than the noise; when 3h's or 3j's std code is slower than the kernel it
 replaces, which then stays; or when the web gzip comes within 50 KB of
 the 2 MB cap, which these numbers do not reach.
 
-**The biggest remaining risk** is 3g's claim that every count a copy of
-a collection takes can run the copy glue. Today's count glue retains in
-place: `count_locals` retains the leaves in a value's locals, and the
-`Retain` and `RetainFields` glue take values and return nothing. A
-pinned collection's copy must be a clone, so every such site must store
-the glue's result where the copy lives. If some site cannot, such as a
-count taken inside erased generic glue or a task frame where the value
-is in no writable local or slot, `header_copy` must keep answering for
-the types that reach it, and part of `copies.rs` stays: the component
-deletes 400 to 900 lines fewer, and stage 3's net falls from about
-−1,820 to about −920 to −1,420. The next risks are map_count's size and
-time with the map table in hd (3j), and the element glue of the
-generic slow paths (3h).
+**The initial copy-glue risk is closed.** A collection copy stores the
+copy glue's result in the destination's local or slot. `header_copy` and
+`copies.rs` were removed in 3g; instantiation supplies concrete types to
+count glue and task-frame lowering. Moving the map table into hd (3j)
+was stopped with the rest of 3i–3k; it is not a remaining compiler task.
 
 ### Stage 3's net
 

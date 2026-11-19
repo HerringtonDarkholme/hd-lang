@@ -35,11 +35,7 @@ mod tests {
         suspends: bool,
         declared: bool,
     }
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, parts, received], {
         fn parameter_count(&self, _: DefId) -> Option<usize> {
             self.declared.then_some(0)
         }
@@ -64,16 +60,11 @@ mod tests {
         fn may_write(&self, _: &Callee) -> bool {
             false
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
+
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     fn body(kind: BodyKind) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), kind);

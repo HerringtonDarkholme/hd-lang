@@ -2904,15 +2904,12 @@ mod instance_tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{InternPool, ParamRef, Ty, TyData};
 
-    use crate::own::{OwnCx, Pass};
+    use crate::own::Pass;
 
     /// The passes' facts with a pool, so the instance check runs.
     struct Pooled<'a>(&'a InternPool);
 
-    impl OwnCx for Pooled<'_> {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Pooled<'_>, [temporary_owner_name, may_write, parts], {
         fn counted(&self, _: Ty) -> bool {
             false
         }
@@ -2922,12 +2919,7 @@ mod instance_tests {
         fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
-        fn may_write(&self, _: &Callee) -> bool {
-            true
-        }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
@@ -2940,7 +2932,7 @@ mod instance_tests {
         fn shown(&self, t: Ty) -> String {
             format!("t{}", t.0)
         }
-    }
+    });
 
     const F: DefId = DefId::from_raw(1);
 
