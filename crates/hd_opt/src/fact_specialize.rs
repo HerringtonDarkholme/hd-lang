@@ -1,4 +1,4 @@
-//! Closed declaration-fact lookups. A generated `Structure.facts` body is
+//! Closed declaration-fact list queries. A generated `Structure.facts` body is
 //! fixed for one monomorphized declaration, even when the ordinary std
 //! helper that asks it is deliberately cold.
 
@@ -11,10 +11,6 @@ use crate::structure_specialize::StructureEnv;
 /// Facts about one declaration-fact query which the driver can answer from
 /// generator metadata and checked bodies.
 pub trait FactEnv: StructureEnv {
-    /// The queried fact type when `def[args]` is either `Facts.find` itself
-    /// or a pure one-argument wrapper around it.
-    fn fact_lookup_key(&self, def: DefId, args: TyList) -> Option<FactLookup>;
-
     /// Whether `def` is the ordinary `List.is_empty` helper.
     fn list_is_empty(&self, def: DefId) -> bool;
 
@@ -41,19 +37,11 @@ pub trait FactEnv: StructureEnv {
 }
 
 /// One declaration's fixed fact types. The values still evaluate normally;
-/// this is only enough to prove that a different type is absent.
+/// this is only enough to answer list queries without evaluating them.
 #[derive(Clone, Debug)]
 pub struct KnownFacts {
     pub types: Vec<Ty>,
     pub digest: Hash128,
-}
-
-/// The requested type and the path from a recognized wrapper's first
-/// parameter to the `Facts` receiver it passes to `Facts.find`.
-#[derive(Clone, Debug)]
-pub struct FactLookup {
-    pub key: Ty,
-    pub projection: Vec<Proj>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -64,7 +52,7 @@ enum StoredValue {
     Ambiguous,
 }
 
-/// Replaces queries proven absent from fixed, literal facts by `None`. The
+/// Folds emptiness queries on fixed, literal declaration facts. The
 /// returned hash names both the transform and every checked body it relied on.
 pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Hash128 {
     if env.memo().is_none() {
@@ -73,7 +61,7 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
     let stores = stored_values(body);
     let mut dependencies = Vec::new();
     for call in (0..body.len()).rev() {
-        let Some(Callee::Item { def, targs }) = hd_tir::inline::plain_call(body, call) else {
+        let Some(Callee::Item { def, .. }) = hd_tir::inline::plain_call(body, call) else {
             continue;
         };
         if env.list_is_empty(def) {
@@ -95,27 +83,8 @@ pub fn specialize_calls(env: &dyn FactEnv, body: &mut Body, hash: Hash128) -> Ha
                 body.tags[call] = Tag::Prim;
                 body.data[call] = [hd_tir::ir::PrimOp::Not as u32, not_input];
                 dependencies.push(facts.digest);
-                continue;
             }
         }
-        let Some(lookup) = env.fact_lookup_key(def, targs) else {
-            continue;
-        };
-        let record = body.record(body.data[call][1]);
-        let args = &record[..record.len().saturating_sub(3)];
-        let Some(&facts) = args.first() else {
-            continue;
-        };
-        let Some(facts) = source_facts(env, body, &stores, facts, &lookup.projection, 0) else {
-            continue;
-        };
-        if facts.types.contains(&lookup.key) {
-            continue;
-        }
-        let empty = body.push_record(&[]);
-        body.tags[call] = Tag::NewVariant;
-        body.data[call] = [0, empty];
-        dependencies.push(facts.digest);
     }
     if dependencies.is_empty() {
         return hash;

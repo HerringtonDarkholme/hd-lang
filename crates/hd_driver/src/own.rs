@@ -2592,14 +2592,6 @@ impl StructureEnv for Env<'_> {
 }
 
 impl FactEnv for Env<'_> {
-    fn fact_lookup_key(
-        &self,
-        _def: DefId,
-        _args: TyList,
-    ) -> Option<hd_opt::fact_specialize::FactLookup> {
-        None
-    }
-
     fn list_is_empty(&self, def: DefId) -> bool {
         def == self.run.known.list_is_empty
     }
