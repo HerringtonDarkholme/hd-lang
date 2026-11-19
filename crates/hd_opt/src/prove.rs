@@ -441,13 +441,13 @@ fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
 }
 
 /// The list value whose element `Store` `i` writes (`[%xs [%i] ..]`).
-fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
+fn elem_store_list(b: &Body, i: usize) -> Option<(u32, u32)> {
     if b.tags[i] != Tag::Store {
         return None;
     }
     let p = b.decode_place(b.data[i][0])?;
     match (p.root, p.proj.first()) {
-        (PlaceRoot::Value(r), Some(Proj::Elem(_))) => Some(r.0),
+        (PlaceRoot::Value(r), Some(Proj::Elem(index))) => Some((r.0, index.0)),
         _ => None,
     }
 }
@@ -458,11 +458,8 @@ fn access_index(b: &Body, x: usize) -> Option<u32> {
     if let Some((_, index)) = b.element_read(x) {
         return Some(index);
     }
-    if elem_store_list(b, x).is_some() {
-        return match b.decode_place(b.data[x][0])?.proj.first() {
-            Some(&Proj::Elem(index)) => Some(index.0),
-            _ => None,
-        };
+    if let Some((_, index)) = elem_store_list(b, x) {
+        return Some(index);
     }
     rooted_elem(b, x).map(|(_, index)| index)
 }
@@ -680,8 +677,8 @@ impl Lists<'_> {
         let b = self.b;
         let (root, index) = if let Some((list, index)) = b.element_read(x) {
             (self.list_root(list)?, index)
-        } else if let Some(list) = elem_store_list(b, x) {
-            (self.list_root(list)?, access_index(b, x)?)
+        } else if let Some((list, index)) = elem_store_list(b, x) {
+            (self.list_root(list)?, index)
         } else {
             let (root, index) = rooted_elem(b, x)?;
             // A map's entry is an element step too.
@@ -1244,4 +1241,642 @@ fn csr(nodes: usize, edges: &[(u32, u32)]) -> (Vec<u32>, Vec<u32>) {
         fill[x as usize] += 1;
     }
     (at, succ)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hd_base::{DefId, NodeIdx, Symbol};
+    use hd_tir::ir::{BodyKind, Providers, ReadMode, TirBuilder, TirSink as _, place};
+
+    const LIST: Ty = Ty(9000);
+    const REF_LIST: Ty = Ty(9001);
+    const RECORD: Ty = Ty(9002);
+    const MAP: Ty = Ty(9003);
+    const AT: NodeIdx = NodeIdx::NONE;
+    struct Facts;
+    impl Cx for Facts {
+        fn list(&self, ty: Ty) -> bool {
+            ty == LIST
+        }
+        fn tracked(&self, ty: Ty) -> bool {
+            ty == LIST || ty == REF_LIST
+        }
+        fn elems_tracked(&self, _: Ty) -> bool {
+            false
+        }
+        fn length_name(&self) -> Symbol {
+            Symbol::NONE
+        }
+        fn tuple(&self, _: Ty) -> bool {
+            false
+        }
+        fn ref_target(&self, ty: Ty) -> Option<(Ty, bool)> {
+            (ty == REF_LIST).then_some((LIST, false))
+        }
+        fn intrinsic(&self, callee: &Callee) -> Option<String> {
+            match callee {
+                Callee::Item { def, .. } => match def.raw() {
+                    2 => Some("panic".into()),
+                    3 => Some("int_wrapping_sub".into()),
+                    _ => None,
+                },
+                Callee::TraitMethod { .. } => None,
+            }
+        }
+    }
+    fn inspect<R>(
+        body: &Body,
+        cell: &dyn Fn(usize) -> bool,
+        run: impl FnOnce(&Lists<'_>) -> R,
+    ) -> R {
+        let topo = Topology::new(body);
+        let nest = Nest::new(body, &topo);
+        let sets = Sets::new(body);
+        run(&Lists {
+            b: body,
+            topo: &topo,
+            nest: &nest,
+            cx: &Facts,
+            cell,
+            sets: &sets,
+        })
+    }
+    fn build() -> TirBuilder {
+        TirBuilder::new(DefId::from_raw(1), BodyKind::Fn)
+    }
+    fn local(b: &mut TirBuilder, ty: Ty) -> hd_base::LocalId {
+        b.local(ty, Symbol::NONE, local_flags::PARAM, AT)
+    }
+    fn finish(b: TirBuilder, root: Ref) -> Body {
+        b.finish_tolerating(root, &[], &[22])
+            .expect("structural TIR")
+    }
+    fn read(b: &mut TirBuilder, root: PlaceRoot, proj: Vec<Proj>, ty: Ty) -> Ref {
+        let word = b.place(&Place { root, proj });
+        b.emit(Tag::Read, word, ReadMode::Use as u32, ty, AT)
+    }
+    fn element(b: &mut TirBuilder, list: Ref, index: Ref) -> Ref {
+        read(b, PlaceRoot::Value(list), vec![Proj::Elem(index)], Ty::I32)
+    }
+    fn call(b: &mut TirBuilder, def: u32, args: &[Ref], ty: Ty) -> Ref {
+        b.call(
+            &Callee::Item {
+                def: DefId::from_raw(def),
+                targs: hd_types::TyList::EMPTY,
+            },
+            args,
+            Providers::None,
+            ty,
+            AT,
+        )
+    }
+
+    #[test]
+    fn element_places_and_unknown_field_types_do_not_share_index_facts() {
+        let mut b = build();
+        let root = b.open_block();
+        let xs = local(&mut b, LIST);
+        let record = local(&mut b, RECORD);
+        let index = b.const_value(usize_ty(), 2);
+        let header = b.get(xs, LIST, AT);
+        let copied = b.coerce(Coercion::Identity, NONE, header, LIST, AT);
+        let loaded = element(&mut b, copied, index);
+        let word = b.place(&Place {
+            root: PlaceRoot::Value(header),
+            proj: vec![Proj::Elem(index)],
+        });
+        let value = b.const_value(Ty::I32, 7);
+        let stored = b.emit(Tag::Store, word, value.0, Ty::VOID, AT);
+        let unknown = read(
+            &mut b,
+            PlaceRoot::Local(record),
+            vec![Proj::Field(0), Proj::Elem(index)],
+            Ty::I32,
+        );
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let body = finish(b, root);
+        assert_eq!(
+            list_root(&body, &Facts, copied.0),
+            list_root(&body, &Facts, header.0)
+        );
+        assert_eq!(access_index(&body, loaded.0 as usize), Some(index.0));
+        assert_eq!(access_index(&body, stored.0 as usize), Some(index.0));
+        assert_eq!(
+            elem_store_list(&body, stored.0 as usize),
+            Some((header.0, index.0))
+        );
+        inspect(&body, &|_| false, |facts| {
+            assert_eq!(
+                facts.elem_access(stored.0 as usize).map(|(_, index)| index),
+                Some(index.0)
+            );
+            assert!(
+                facts.elem_access(unknown.0 as usize).is_none(),
+                "no field type means no list proof"
+            );
+            assert_eq!(facts.ty_of(NONE), Ty::VOID);
+            assert!(
+                !facts.scalar_loop_test(loaded.0, &mut 0),
+                "exhausted traversal supplies no fact"
+            );
+        });
+    }
+
+    #[test]
+    fn scalar_aliases_keep_identity_coercions_and_known_constructor_fields_only() {
+        let mut b = build();
+        let root = b.open_block();
+        let one = b.const_value(usize_ty(), 1);
+        let scalar = b.coerce(Coercion::Identity, NONE, one, usize_ty(), AT);
+        let fields = b.refs_record(&[scalar]);
+        let made = b.emit(Tag::NewStruct, NONE, fields, RECORD, AT);
+        let known = read(
+            &mut b,
+            PlaceRoot::Value(made),
+            vec![Proj::Field(0)],
+            usize_ty(),
+        );
+        let missing = read(
+            &mut b,
+            PlaceRoot::Value(made),
+            vec![Proj::Field(3)],
+            usize_ty(),
+        );
+        let opaque = call(&mut b, 4, &[], RECORD);
+        let unknown = read(
+            &mut b,
+            PlaceRoot::Value(opaque),
+            vec![Proj::Field(0)],
+            usize_ty(),
+        );
+        // A partially built TIR place must not invent a constructor for a constant.
+        let not_a_record = read(
+            &mut b,
+            PlaceRoot::Value(one),
+            vec![Proj::Field(0)],
+            usize_ty(),
+        );
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let body = finish(b, root);
+        inspect(&body, &|_| false, |facts| {
+            assert_eq!(facts.source(scalar.0), one.0);
+            assert_eq!(facts.source(known.0), one.0);
+            assert_eq!(facts.source(missing.0), missing.0);
+            assert_eq!(facts.source(unknown.0), unknown.0);
+            assert_eq!(facts.source(not_a_record.0), not_a_record.0);
+        });
+    }
+
+    #[test]
+    fn positive_comparisons_handle_both_outcomes_and_refuse_unknown_predicates() {
+        let mut b = build();
+        let root = b.open_block();
+        let number = local(&mut b, usize_ty());
+        let x = b.get(number, usize_ty(), AT);
+        let zero = b.const_value(usize_ty(), 0);
+        let one = b.const_value(usize_ty(), 1);
+        let mut cases = Vec::new();
+        for (op, args, outcome, want) in [
+            (PrimOp::Lt, [zero, x], true, Some(x.0)),
+            (PrimOp::Gt, [x, zero], true, Some(x.0)),
+            (PrimOp::Le, [one, x], true, Some(x.0)),
+            (PrimOp::Ge, [x, one], true, Some(x.0)),
+            (PrimOp::Ne, [x, zero], true, Some(x.0)),
+            (PrimOp::Ne, [zero, x], true, Some(x.0)),
+            (PrimOp::Eq, [x, one], true, Some(x.0)),
+            (PrimOp::Eq, [one, x], true, Some(x.0)),
+            (PrimOp::Le, [x, zero], false, Some(x.0)),
+            (PrimOp::Lt, [x, zero], true, Some(zero.0)),
+            (PrimOp::Eq, [x, zero], true, None),
+            (PrimOp::Add, [x, one], false, None),
+        ] {
+            cases.push((b.prim(op as u32, &args, Ty::BOOL, AT), outcome, want));
+        }
+        let comparison = b.prim(PrimOp::Le as u32, &[x, zero], Ty::BOOL, AT);
+        let negated = b.prim(PrimOp::Not as u32, &[comparison], Ty::BOOL, AT);
+        cases.push((negated, true, Some(x.0)));
+        let signed = b.const_value(Ty::I32, 1);
+        cases.push((
+            b.prim(PrimOp::Gt as u32, &[signed, signed], Ty::BOOL, AT),
+            true,
+            None,
+        ));
+        cases.push((call(&mut b, 4, &[], Ty::BOOL), true, None));
+        cases.push((b.prim(PrimOp::Neg as u32, &[x], usize_ty(), AT), true, None));
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let body = finish(b, root);
+        inspect(&body, &|_| false, |facts| {
+            for (condition, outcome, want) in cases {
+                assert_eq!(facts.positive_operand(condition.0, outcome), want);
+            }
+            assert_eq!(facts.positive_operand(one.0, true), None);
+        });
+    }
+
+    #[test]
+    fn wrapping_subtraction_and_conditional_exit_forms_keep_their_meaning() {
+        let mut b = build();
+        let root = b.open_block();
+        let number = local(&mut b, usize_ty());
+        let x = b.get(number, usize_ty(), AT);
+        let one = b.const_value(usize_ty(), 1);
+        let wrapped = call(&mut b, 3, &[x, one], usize_ty());
+        let condition = b.const_value(Ty::BOOL, 1);
+        let panic_arm = b.open_block();
+        call(&mut b, 2, &[], Ty::NEVER);
+        let panic_arm = b.close_block(panic_arm, None, Ty::NEVER, AT);
+        let arms = b.refs_record(&[panic_arm]);
+        let test = b.emit(Tag::If, condition.0, arms, Ty::VOID, AT);
+        let ordinary_arm = b.open_block();
+        call(&mut b, 4, &[], Ty::VOID);
+        let ordinary_arm = b.close_block(ordinary_arm, None, Ty::VOID, AT);
+        let ordinary_arms = b.refs_record(&[ordinary_arm]);
+        let ordinary = b.emit(Tag::If, condition.0, ordinary_arms, Ty::VOID, AT);
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let body = finish(b, root);
+        inspect(&body, &|_| false, |facts| {
+            assert_eq!(facts.minus_one_of(wrapped.0), Some(x.0));
+            assert_eq!(facts.arm_exit(panic_arm.0, test.0), Some(true));
+            assert_eq!(facts.arm_exit(ordinary_arm.0, ordinary.0), None);
+        });
+    }
+
+    struct LoopCase {
+        body: Body,
+        loop_id: u32,
+        test: u32,
+        condition: u32,
+        step: u32,
+        access: u32,
+        current: u32,
+        before: u32,
+        incoming: hd_base::LocalId,
+    }
+    fn test_branch(b: &mut TirBuilder, label: u32, condition: Ref) -> Ref {
+        let yes = b.open_block();
+        let yes = b.close_block(yes, None, Ty::VOID, AT);
+        let no = b.open_block();
+        b.emit(Tag::Break, label, NONE, Ty::NEVER, AT);
+        let no = b.close_block(no, None, Ty::NEVER, AT);
+        let arms = b.refs_record(&[yes, no]);
+        b.emit(Tag::If, condition.0, arms, Ty::VOID, AT)
+    }
+    fn rising_loop(conditional_bound: bool) -> LoopCase {
+        let mut b = build();
+        let root = b.open_block();
+        let xs = local(&mut b, LIST);
+        let index = local(&mut b, usize_ty());
+        let bound = local(&mut b, usize_ty());
+        let zero = b.const_value(usize_ty(), 0);
+        let one = b.const_value(usize_ty(), 1);
+        b.set(index, zero, AT);
+        let header = b.get(xs, LIST, AT);
+        let args = b.refs_record(&[header]);
+        let length = b.emit(
+            Tag::Intrinsic,
+            IntrinsicOp::ListLen as u32,
+            args,
+            usize_ty(),
+            AT,
+        );
+        if conditional_bound {
+            let flag = local(&mut b, Ty::BOOL);
+            let flag = b.get(flag, Ty::BOOL, AT);
+            let arm = b.open_block();
+            b.set(bound, length, AT);
+            let arm = b.close_block(arm, None, Ty::VOID, AT);
+            let arms = b.refs_record(&[arm]);
+            b.emit(Tag::If, flag.0, arms, Ty::VOID, AT);
+        } else {
+            b.set(bound, length, AT);
+        }
+        b.emit(
+            Tag::IsUnique,
+            xs.raw() | place::BARE_LOCAL,
+            hd_tir::ir::unique_word::FRESH,
+            Ty::VOID,
+            AT,
+        );
+        b.emit(
+            Tag::IsUnique,
+            xs.raw() | place::BARE_LOCAL,
+            hd_tir::ir::unique_word::HOISTED,
+            Ty::VOID,
+            AT,
+        );
+        let lp = b.open_loop();
+        let block = b.open_block();
+        let current = b.get(index, usize_ty(), AT);
+        let end = b.get(bound, usize_ty(), AT);
+        let condition = b.prim(PrimOp::Lt as u32, &[current, end], Ty::BOOL, AT);
+        let test = test_branch(&mut b, lp.0.raw(), condition);
+        let at = b.get(index, usize_ty(), AT);
+        let header = b.get(xs, LIST, AT);
+        let access = element(&mut b, header, at);
+        let before = b.get(index, usize_ty(), AT);
+        let step = b.prim(PrimOp::Add as u32, &[before, one], usize_ty(), AT);
+        b.set(index, step, AT);
+        let block = b.close_block(block, None, Ty::VOID, AT);
+        let loop_id = b.close_loop(lp, block, Ty::VOID, AT);
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let mut body = finish(b, root);
+        // Ownership splicing puts hoisted checks after the listed child block,
+        // immediately before the Loop. Match that producer's member order.
+        let mut members = body.record(body.data[root.0 as usize][0]).to_vec();
+        let checks: Vec<_> = members
+            .iter()
+            .copied()
+            .filter(|&i| body.tags[i as usize] == Tag::IsUnique)
+            .collect();
+        members.retain(|&i| body.tags[i as usize] != Tag::IsUnique);
+        let position = members
+            .iter()
+            .position(|&i| i == loop_id.0)
+            .expect("loop member");
+        members.splice(position..position, checks);
+        body.data[root.0 as usize][0] = body.push_record(&members);
+        body.stable_lists
+            .push([loop_id.0, xs.raw() | place::BARE_LOCAL, NONE, NONE, 1]);
+        LoopCase {
+            body,
+            loop_id: loop_id.0,
+            test: test.0,
+            condition: condition.0,
+            step: step.0,
+            access: access.0,
+            current: current.0,
+            before: before.0,
+            incoming: index,
+        }
+    }
+
+    #[test]
+    fn rising_proofs_require_binary_steps_and_a_dominating_bound() {
+        let good = rising_loop(false);
+        inspect(&good.body, &|_| false, |facts| {
+            assert_eq!(facts.loop_guard(good.loop_id), Some((good.test, false)));
+            assert_eq!(facts.rising(good.loop_id, good.test), [good.access]);
+            assert!(facts.kept(good.loop_id)[0].unique.is_some());
+        });
+        for instruction in [good.condition, good.step] {
+            let mut body = good.body.clone();
+            body.data[instruction as usize][1] = body.push_record(&[good.before]);
+            inspect(&body, &|_| false, |facts| {
+                assert!(facts.rising(good.loop_id, good.test).is_empty());
+            });
+        }
+        let conditional = rising_loop(true);
+        inspect(&conditional.body, &|_| false, |facts| {
+            assert!(
+                facts
+                    .rising(conditional.loop_id, conditional.test)
+                    .is_empty()
+            );
+        });
+        let mut extra = good.body.clone();
+        let topology = Topology::new(&extra);
+        let block = extra.data[good.loop_id as usize][0];
+        let position = hd_tir::ir::u32_of(extra.record(extra.data[block as usize][0]).len());
+        let mapping = hd_tir::own::insert_batch(
+            &mut extra,
+            &topology,
+            &[hd_tir::own::BatchInsert {
+                block,
+                pos: position,
+                tag: Tag::Store,
+                data: [good.incoming.raw() | place::BARE_LOCAL, Ref::konst(0).0],
+                ty: Ty::VOID,
+                syn: AT,
+            }],
+        )
+        .expect("third induction store");
+        inspect(&extra, &|_| false, |facts| {
+            assert!(
+                facts
+                    .rising(mapping[good.loop_id as usize], mapping[good.test as usize])
+                    .is_empty()
+            );
+        });
+        let mut body = good.body;
+        let (((), inner), outer) =
+            count_scans(|| count_scans(|| run(&mut body, &Facts, false).expect("header splice")));
+        assert!(inner > 0);
+        assert_eq!(outer, inner, "nested measurements retain actual proof work");
+        assert!(
+            body.tags
+                .iter()
+                .enumerate()
+                .any(|(i, tag)| *tag == Tag::Read && body.elem_unchecked(i, 0))
+        );
+    }
+
+    fn falling_loop(change_incoming: bool, detached_index: bool) -> LoopCase {
+        let mut b = build();
+        let root = b.open_block();
+        let xs = local(&mut b, LIST);
+        let ys = local(&mut b, LIST);
+        let map = local(&mut b, MAP);
+        let incoming = local(&mut b, usize_ty());
+        let index = local(&mut b, usize_ty());
+        let zero = b.const_value(usize_ty(), 0);
+        let one = b.const_value(usize_ty(), 1);
+        let first = if detached_index {
+            let scope = b.open_scope();
+            let child = b.open_block();
+            let first = b.get(incoming, usize_ty(), AT);
+            let child = b.close_block(child, Some(first), usize_ty(), AT);
+            b.close_scope(scope, child, usize_ty(), AT);
+            first
+        } else {
+            b.get(incoming, usize_ty(), AT)
+        };
+        read(
+            &mut b,
+            PlaceRoot::Local(map),
+            vec![Proj::Elem(first)],
+            Ty::I32,
+        );
+        let header = b.get(xs, LIST, AT);
+        element(&mut b, header, first);
+        element(&mut b, header, first);
+        if change_incoming {
+            b.set(incoming, zero, AT);
+        }
+        let start = b.get(incoming, usize_ty(), AT);
+        b.set(index, start, AT);
+        let lp = b.open_loop();
+        let block = b.open_block();
+        let current = b.get(index, usize_ty(), AT);
+        let condition = b.prim(PrimOp::Gt as u32, &[current, zero], Ty::BOOL, AT);
+        let test = test_branch(&mut b, lp.0.raw(), condition);
+        let at = b.get(index, usize_ty(), AT);
+        let header = b.get(xs, LIST, AT);
+        let access = element(&mut b, header, at);
+        let other = b.get(ys, LIST, AT);
+        element(&mut b, other, at);
+        let greater = b.prim(PrimOp::Add as u32, &[at, one], usize_ty(), AT);
+        element(&mut b, header, greater);
+        let incomplete = b.prim(PrimOp::Sub as u32, &[at], usize_ty(), AT);
+        element(&mut b, header, incomplete);
+        let before = b.get(index, usize_ty(), AT);
+        let step = b.prim(PrimOp::Sub as u32, &[before, one], usize_ty(), AT);
+        let previous = element(&mut b, header, step);
+        b.set(index, step, AT);
+        let block = b.close_block(block, None, Ty::VOID, AT);
+        let loop_id = b.close_loop(lp, block, Ty::VOID, AT);
+        let root = b.close_block(root, None, Ty::VOID, AT);
+        let mut body = finish(b, root);
+        body.stable_lists
+            .push([loop_id.0, xs.raw() | place::BARE_LOCAL, NONE, NONE, 0]);
+        let shape = LoopCase {
+            body,
+            loop_id: loop_id.0,
+            test: test.0,
+            condition: condition.0,
+            step: step.0,
+            access: access.0,
+            current: current.0,
+            before: before.0,
+            incoming,
+        };
+        inspect(&shape.body, &|_| false, |facts| {
+            if !change_incoming && !detached_index {
+                assert_eq!(
+                    facts.falling(shape.loop_id, shape.test),
+                    [shape.access, previous.0]
+                );
+            }
+        });
+        shape
+    }
+
+    #[test]
+    fn falling_proofs_refuse_changed_or_unavailable_predecessor_facts() {
+        let good = falling_loop(false, false);
+        for instruction in [good.condition, good.step] {
+            let mut body = good.body.clone();
+            body.data[instruction as usize][1] = body.push_record(&[good.current]);
+            inspect(&body, &|_| false, |facts| {
+                assert!(facts.falling(good.loop_id, good.test).is_empty());
+            });
+        }
+        let mut body = good.body.clone();
+        body.data[good.before as usize][0] = good.incoming.raw() | place::BARE_LOCAL;
+        inspect(&body, &|_| false, |facts| {
+            assert!(facts.falling(good.loop_id, good.test).is_empty());
+        });
+        let mut body = good.body;
+        body.local_flags[good.incoming.idx()] |= local_flags::CAPTURED;
+        inspect(&body, &|_| false, |facts| {
+            assert!(facts.falling(good.loop_id, good.test).is_empty());
+        });
+        for bad in [falling_loop(true, false), falling_loop(false, true)] {
+            inspect(&bad.body, &|_| false, |facts| {
+                assert!(facts.falling(bad.loop_id, bad.test).is_empty());
+            });
+        }
+    }
+
+    #[test]
+    fn masked_proofs_use_nonfallthrough_positive_guards_and_require_a_binary_mask() {
+        for leaves_loop in [false, true] {
+            let mut b = build();
+            let root = b.open_block();
+            let xs = local(&mut b, LIST);
+            let y = local(&mut b, usize_ty());
+            let header = b.get(xs, LIST, AT);
+            let args = b.refs_record(&[header]);
+            let length = b.emit(
+                Tag::Intrinsic,
+                IntrinsicOp::ListLen as u32,
+                args,
+                usize_ty(),
+                AT,
+            );
+            let zero = b.const_value(usize_ty(), 0);
+            let one = b.const_value(usize_ty(), 1);
+            let lp = b.open_loop();
+            let block = b.open_block();
+            let empty = b.prim(PrimOp::Le as u32, &[length, zero], Ty::BOOL, AT);
+            let exit = b.open_block();
+            if leaves_loop {
+                b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, AT);
+            } else {
+                call(&mut b, 2, &[], Ty::NEVER);
+            }
+            let exit = b.close_block(exit, None, Ty::NEVER, AT);
+            let arms = b.refs_record(&[exit]);
+            b.emit(Tag::If, empty.0, arms, Ty::VOID, AT);
+            let y = b.get(y, usize_ty(), AT);
+            let mask = b.prim(PrimOp::Sub as u32, &[length, one], usize_ty(), AT);
+            let index = b.prim(PrimOp::BitAnd as u32, &[y, mask], usize_ty(), AT);
+            let bad = b.prim(PrimOp::BitAnd as u32, &[mask], usize_ty(), AT);
+            let access = element(&mut b, header, index);
+            let block = b.close_block(block, None, Ty::VOID, AT);
+            let lp = b.close_loop(lp, block, Ty::VOID, AT);
+            let root = b.close_block(root, None, Ty::VOID, AT);
+            let mut body = finish(b, root);
+            body.stable_lists
+                .push([lp.0, xs.raw() | place::BARE_LOCAL, NONE, NONE, 0]);
+            let list = ListRoot {
+                local: xs.raw(),
+                path: Vec::new(),
+            };
+            inspect(&body, &|_| false, |facts| {
+                assert_eq!(facts.masked_len(&list, index.0), Some((length.0, index.0)));
+                assert_eq!(facts.masked_len(&list, bad.0), None);
+                assert_eq!(facts.positive_len(&list, index.0), Some(length.0));
+                assert_eq!(facts.masked(lp.0), [access.0]);
+            });
+        }
+    }
+
+    #[test]
+    fn an_arm_that_can_jump_back_to_its_if_or_own_end_is_not_a_terminating_guard() {
+        for target in 0..3 {
+            for continues in [false, true] {
+                let mut b = build();
+                let root = b.open_block();
+                let flag = local(&mut b, Ty::BOOL);
+                let flag = b.get(flag, Ty::BOOL, AT);
+                let lp = b.open_loop();
+                let block = b.open_block();
+                let arm_label = hd_tir::ir::u32_of(b.body().label_inst.len());
+                b.body_mut().label_inst.extend([NONE, NONE]);
+                let if_label = arm_label + 1;
+                let outer = b.open_block();
+                let jump = b.open_block();
+                let label = match target {
+                    0 => arm_label,
+                    1 => if_label,
+                    _ => lp.0.raw(),
+                };
+                b.emit(Tag::Break, label, NONE, Ty::NEVER, AT);
+                let jump = b.close_block(jump, None, Ty::NEVER, AT);
+                let arms = b.refs_record(&[jump]);
+                b.emit(Tag::If, flag.0, arms, Ty::VOID, AT);
+                if continues {
+                    b.emit(Tag::Continue, lp.0.raw(), NONE, Ty::NEVER, AT);
+                } else {
+                    b.emit(Tag::Return, NONE, NONE, Ty::NEVER, AT);
+                }
+                let outer = b.close_block(outer, None, Ty::NEVER, AT);
+                let arms = b.refs_record(&[outer]);
+                let test = b.emit(Tag::If, flag.0, arms, Ty::VOID, AT);
+                b.body_mut().label_inst[arm_label as usize] = outer.0;
+                b.body_mut().label_inst[if_label as usize] = test.0;
+                let block = b.close_block(block, None, Ty::VOID, AT);
+                b.close_loop(lp, block, Ty::VOID, AT);
+                let root = b.close_block(root, None, Ty::VOID, AT);
+                let body = finish(b, root);
+                inspect(&body, &|_| false, |facts| {
+                    assert_eq!(
+                        facts.arm_exit(outer.0, test.0),
+                        (target == 2).then_some(false)
+                    );
+                });
+            }
+        }
+    }
 }
