@@ -6,8 +6,8 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "take" (func $take (param i32) (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
@@ -339,24 +339,6 @@
         local.get $t2
         i32.load $heap offset=20
         i32.store $heap
-        local.get $t2
-        i32.load $heap offset=4
-        local.tee $early
-        if
-          local.get $early
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
-          if
-            local.get $early
-            call $rt:release_ref'2
-          end
-        end
-        local.get $t2
-        i32.const 0
-        i32.store $heap offset=4
         call $take
         local.set $early
         br 1

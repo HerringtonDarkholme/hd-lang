@@ -84,15 +84,14 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >     uses $5: %14 -> %21 lend, %24 lend, %30 consume, %43 lend last
 >   local $7 index: usize [read] value
 >     uses $7: %31 -> %34 lend last
->   %1 = Retain %53 Entry local $1 #0 : ()
+>   %1 = Retain %52 Entry local $1 #0 : ()
     let mut ys = xs
 >   %0 = FlagSet [$0] #10 : ()
 >   %2 = Read move [$0] : UniqList[string]
 >   %3 = FlagClear [$0] #10 : ()
 >   %4 = Store [$2] %2 : ()
 >   %5 = FlagSet [$2] #11 : ()
->   %52 = Release %51 Operation local $2 #2 : ()
->   %53 = Block %51 : UniqList[string]
+>   %52 = Block %51 : UniqList[string]
     ys.push(s)
 >   %6 = Ref mut local frame [$2] : &mut UniqList[string]
 >   %7 = Store [$3] %6 : ()

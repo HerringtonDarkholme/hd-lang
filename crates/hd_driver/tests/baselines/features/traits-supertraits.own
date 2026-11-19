@@ -126,8 +126,7 @@ fn use_pup(p: Pup) -> usize:
 >   local $0 p: Pup [param read captured] place
 >   local $1 $ref: &Pup [read assigned captured] value
 >     uses $1: %2 -> %3 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
->   %12 = Release %11 Operation local $0 #2 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     widen(&p) + loud(p)
 >   %1 = Ref local frame [$0] : &Pup
 >   %2 = Store [$1] %1 : ()
@@ -140,11 +139,11 @@ fn use_pup(p: Pup) -> usize:
 >   %9 = Drop [%7] : ()
 >   %10 = LoanEnd [$1] : ()
 >   %11 = Read move [$0] : Pup
->   %13 = Call app/main/loud[Pup] (%11) : usize
->   %14 = Retain %13 Operation operand 0 #0 : ()
->   %15 = Drop [%11] : ()
->   %16 = Prim Add [%8 %13] : usize
->   %17 = Block %16 : usize
+>   %12 = Call app/main/loud[Pup] (%11) : usize
+>   %13 = Retain %12 Operation operand 0 #0 : ()
+>   %14 = Drop [%11] : ()
+>   %15 = Prim Add [%8 %12] : usize
+>   %16 = Block %15 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

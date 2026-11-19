@@ -1,0 +1,85 @@
+# @dump: stdout
+# @build: dev | checked
+# A local's box lives apart from its value (#2172): a `var` a closure
+# captures or a `&mut` addresses, moved out and then assigned again in a
+# loop, in a plain and in a suspending body, and a local or a parameter a
+# reference reads across a suspension point (a heap cell), keep one box
+# across each move, as Swift's `alloc_box` does. The checked build finds
+# no leak and no double release at exit.
+use std.time.{Clock, Duration, sleep}
+
+fn eat(s: string) -> usize:
+    s.len()
+
+fn grow(xs: &mut List[string]) -> void:
+    xs.push("g")
+
+fn count(xs: List[string]) -> usize:
+    xs.len()
+
+fn captured(n: usize) -> usize:
+    let mut x = "start"
+    let mut total = 0
+    add := fn() -> void: x = "$x!"
+    for i in 0..n:
+        add()
+        total = total + eat(x)
+        x = "round $i"
+    total + x.len()
+
+fn addressed(n: usize) -> usize:
+    let mut xs: List[string] = ["a"]
+    let mut total = 0
+    for i in 0..n:
+        grow(&mut xs)
+        total = total + count(xs)
+        xs = ["round $i"]
+    total + xs.len()
+
+fn nap!(ms: i64) -> void $ Clock:
+    sleep!(Duration::milliseconds(ms))
+
+fn same(a: &string, b: &string) -> bool:
+    a is b
+
+fn referenced_waiting!(n: usize) -> usize $ Clock:
+    let mut total = 0
+    for i in 0..n:
+        let mut x = "round $i"
+        _ := same(&x, &x)
+        nap!(1)
+        total = total + eat(x)
+        x = "again $i"
+        total = total + x.len()
+    total
+
+fn keep!(value: string) -> string $ Clock:
+    _ := same(&value, &value)
+    nap!(1)
+    value
+
+fn captured_waiting!(n: usize) -> usize $ Clock:
+    let mut x = "start"
+    let mut total = 0
+    add := fn() -> void: x = "$x!"
+    for i in 0..n:
+        add()
+        nap!(1)
+        total = total + eat(x)
+        x = "round $i"
+    total + x.len()
+
+fn addressed_waiting!(n: usize) -> usize $ Clock:
+    let mut xs: List[string] = ["a"]
+    let mut total = 0
+    for i in 0..n:
+        grow(&mut xs)
+        nap!(1)
+        total = total + count(xs)
+        xs = ["round $i"]
+    total + xs.len()
+
+pub fn main!() -> void $ Console + Clock:
+    println("${captured(3)} ${addressed(3)}")
+    println("${captured_waiting!(3)} ${addressed_waiting!(3)}")
+    println("${referenced_waiting!(3)} ${keep!("kept")}")

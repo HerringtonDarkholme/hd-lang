@@ -38,8 +38,7 @@ fn keep(value: string) -> string:
 @cold
 > std/rt_tests.stage_case/copied
 >   local $0 value: string [param read captured] place
->   %0 = Retain %12 Entry local $0 #0 : ()
->   %10 = Release %9 Operation local $0 #2 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
 fn copied(value: string) -> (string, string):
     _ := same(&value, &value)
 >   %1 = Ref local frame [$0] : &string
@@ -48,13 +47,13 @@ fn copied(value: string) -> (string, string):
 >   %4 = Call std/rt_tests.stage_case/same[string] (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %12 = Block %11 : (string, string)
+>   %11 = Block %10 : (string, string)
     first := keep(value)
 >   %7 = Read copy [$0] : string
 >   %8 = Call std/rt_tests.stage_case/keep[] (%7) : string
     (first, value)
 >   %9 = Read move [$0] : string
->   %11 = NewTuple - [%8 %9] : (string, string)
+>   %10 = NewTuple - [%8 %9] : (string, string)
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -81,7 +80,6 @@ fn nested() -> (fn(string) -> string):
 > std/rt_tests.stage_case/nested
 >   local $0 value: string [param read captured] place
 >   %0 = Retain %9 Entry local $0 #0 : ()
->   %8 = Release %7 Operation local $0 #2 : ()
 >   %9 = Block %7 : string
 >   %10 = Closure #1 : fn(string) -> string
 >   %11 = Block %10 : fn(string) -> string
@@ -94,6 +92,7 @@ fn nested() -> (fn(string) -> string):
 >   %6 = LoanEnd [%2] : ()
         value
 >   %7 = Read move [$0] : string
+>   %8 = Drop [$0] : ()
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell

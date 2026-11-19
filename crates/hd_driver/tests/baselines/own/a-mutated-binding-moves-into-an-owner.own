@@ -91,14 +91,13 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $0 p: Record [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 root: usize [param read] value
->     uses $1: entry -> %10 consume last
+>     uses $1: entry -> %9 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Store [$2] %1 : ()
->   %9 = Release %8 Operation local $2 #2 : ()
->   %17 = Block %16 : Owner
+>   %16 = Block %15 : Owner
     s.at = 0
 >   %3 = Store [$2 .at] 0:usize : ()
 >   %3 finds [$2] full
@@ -111,25 +110,25 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   %7 = Read copy [$2 .at] : usize
 >   %7 finds [$2] full
     Owner {
->   %16 = NewStruct [%8 %7 %10 1:bool 0:usize %11 %12 0:usize %13 %15] : Owner
+>   %15 = NewStruct [%8 %7 %9 1:bool 0:usize %10 %11 0:usize %12 %14] : Owner
         inner: s,
 >   %8 = Read move [$2] : Record
 >   %8 finds [$2] full
         at: start,
         entry: root,
->   %10 = Read copy [$1] : usize
+>   %9 = Read copy [$1] : usize
         present: true,
         depth: 0,
         steps: [],
->   %11 = NewList - [] : List[i64]
+>   %10 = NewList - [] : List[i64]
         names: [],
->   %12 = NewList - [] : List[string]
+>   %11 = NewList - [] : List[string]
         open: 0,
         frames: [],
->   %13 = NewList - [] : List[usize]
+>   %12 = NewList - [] : List[usize]
         facts: Facts { items: [] },
->   %14 = NewList - [] : List[*dyn Inspectable]
->   %15 = NewStruct [%14] : Facts
+>   %13 = NewList - [] : List[*dyn Inspectable]
+>   %14 = NewStruct [%13] : Facts
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
     }
@@ -245,14 +244,13 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $0 p: Record [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 root: usize [param read] value
->     uses $1: entry -> %10 consume last
+>     uses $1: entry -> %9 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Store [$2] %1 : ()
->   %9 = Release %8 Operation local $2 #2 : ()
->   %17 = Block %16 : Owner
+>   %16 = Block %15 : Owner
     s.at = 0
 >   %3 = Store [$2 .at] 0:usize : ()
 >   %3 finds [$2] full
@@ -265,25 +263,25 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   %7 = Read copy [$2 .at] : usize
 >   %7 finds [$2] full
     Owner {
->   %16 = NewStruct [%8 %7 %10 1:bool 0:usize %11 %12 0:usize %13 %15] : Owner
+>   %15 = NewStruct [%8 %7 %9 1:bool 0:usize %10 %11 0:usize %12 %14] : Owner
         inner: s,
 >   %8 = Read move [$2] : Record
 >   %8 finds [$2] full
         at: start,
         entry: root,
->   %10 = Read copy [$1] : usize
+>   %9 = Read copy [$1] : usize
         present: true,
         depth: 0,
         steps: [],
->   %11 = NewList - [] : List[i64]
+>   %10 = NewList - [] : List[i64]
         names: [],
->   %12 = NewList - [] : List[string]
+>   %11 = NewList - [] : List[string]
         open: 0,
         frames: [],
->   %13 = NewList - [] : List[usize]
+>   %12 = NewList - [] : List[usize]
         facts: Facts { items: [] },
->   %14 = NewList - [] : List[*dyn Inspectable]
->   %15 = NewStruct [%14] : Facts
+>   %13 = NewList - [] : List[*dyn Inspectable]
+>   %14 = NewStruct [%13] : Facts
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
     }
@@ -400,19 +398,18 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $0 p: Record [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 root: usize [param read] value
->     uses $1: entry -> %51 consume last
+>     uses $1: entry -> %50 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %6 -> %10 lend
 >   local $6 index: usize [read assigned mutated] place
 >   local $7 byte: u8 [:= read assigned] value
 >     uses $7: %15 -> %16 lend, %18 lend, %22 lend, %26 lend last
->   %0 = Retain %58 Entry local $0 #0 : ()
+>   %0 = Retain %57 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Store [$2] %1 : ()
->   %50 = Release %49 Operation local $2 #2 : ()
->   %58 = Block %57 : Owner
+>   %57 = Block %56 : Owner
     s.at = 0
 >   %3 = Store [$2 .at] 0:usize : ()
 >   %3 finds [$2] full
@@ -467,25 +464,25 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   %48 = Read copy [$2 .at] : usize
 >   %48 finds [$2] full
     Owner {
->   %57 = NewStruct [%49 %48 %51 1:bool 0:usize %52 %53 0:usize %54 %56] : Owner
+>   %56 = NewStruct [%49 %48 %50 1:bool 0:usize %51 %52 0:usize %53 %55] : Owner
         inner: s,
 >   %49 = Read move [$2] : Record
 >   %49 finds [$2] full
         at: start,
         entry: root,
->   %51 = Read copy [$1] : usize
+>   %50 = Read copy [$1] : usize
         present: true,
         depth: 0,
         steps: [],
->   %52 = NewList - [] : List[i64]
+>   %51 = NewList - [] : List[i64]
         names: [],
->   %53 = NewList - [] : List[string]
+>   %52 = NewList - [] : List[string]
         open: 0,
         frames: [],
->   %54 = NewList - [] : List[usize]
+>   %53 = NewList - [] : List[usize]
         facts: Facts { items: [] },
->   %55 = NewList - [] : List[*dyn Inspectable]
->   %56 = NewStruct [%55] : Facts
+>   %54 = NewList - [] : List[*dyn Inspectable]
+>   %55 = NewStruct [%54] : Facts
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 >   summary kept [$0]

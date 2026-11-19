@@ -84,14 +84,13 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >     uses $1: entry -> %5 consume last
 >   local $2 t: Shelf [read assigned captured captured-assigned] place
 >   local $3 self: Shelf [read] value
->     uses $3: %42 -> %43 consume last
->   %0 = Retain %50 Entry local $0 #0 : ()
->   %1 = Retain %50 Entry local $1 #0 : ()
+>     uses $3: %41 -> %42 consume last
+>   %0 = Retain %49 Entry local $0 #0 : ()
+>   %1 = Retain %49 Entry local $1 #0 : ()
     let mut t = s
 >   %2 = Read copy [$0] : Shelf
 >   %3 = Store [$2] %2 : ()
->   %41 = Release %40 Operation local $2 #2 : ()
->   %50 = Block %49 : usize
+>   %49 = Block %48 : usize
     t.by_mut(b)
 >   %4 = Ref mut local frame [$2] : &mut Shelf
 >   %5 = Read move [$1] : string
@@ -132,14 +131,14 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   %38 = Drop [$0] : ()
 >   %39 = Prim Add [%22 %37] : usize
 >   %40 = Read move [$2] : Shelf
->   %42 = Store [$3] %40 : ()
->   %43 = Read move [$3 .books] : List[string]
->   %44 = Break L0 %43 : never
->   %45 = Block - : List[string]
->   %46 = Scope %45 [] : List[string]
->   %47 = Intrinsic ListLen [%46] : usize
->   %48 = Drop [%46] : ()
->   %49 = Prim Add [%39 %47] : usize
+>   %41 = Store [$3] %40 : ()
+>   %42 = Read move [$3 .books] : List[string]
+>   %43 = Break L0 %42 : never
+>   %44 = Block - : List[string]
+>   %45 = Scope %44 [] : List[string]
+>   %46 = Intrinsic ListLen [%45] : usize
+>   %47 = Drop [%45] : ()
+>   %48 = Prim Add [%39 %46] : usize
 >   %40 finds [$2] full
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot

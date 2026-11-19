@@ -34,7 +34,8 @@
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
 //!    it goes. A later whole-value read can instead move the value out of
-//!    the cell and release the emptied cell. Not in a sub-body that holds a suspension point (an
+//!    the cell, which stays for the local's `Drop` (known-null, "Boxes").
+//!    Not in a sub-body that holds a suspension point (an
 //!    `Await`, as known-null's points), whose frame saves the cell's local
 //!    at each point. A frame local's `Ref` never takes a count
 //!    (`ref_word::FRAME`); its final whole read may move the slot payload

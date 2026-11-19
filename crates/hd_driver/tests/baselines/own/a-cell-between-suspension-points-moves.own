@@ -15,7 +15,7 @@ app/main/reset
   %21 = LoanEnd [%18] : ()
   %22 = FlagClear [$2] #4 : ()
   %23 = Read move [$2] : UniqList[string]
-  %24 = Release %23 Operation local $2 #2 : ()
+  %24 = Drop [$2] : ()
   %25 = Break L0 %23 : never
   %26 = Block - : UniqList[string]
   %27 = Scope %26 [] : UniqList[string]

@@ -217,9 +217,9 @@ impl Em<'_, '_, '_> {
     /// - the prologue made or received it ([`Em::entry_cells`]): a
     ///   parameter moved into its cell that nothing stores into again, or
     ///   a shared capture, whose holder made the cell before passing it; or
-    /// - known-null found the local holding its value there on every path
+    /// - known-null found the local holding its cell there on every path
     ///   (`Body::full_cells`, rule 5 of `docs/compiler/tir-v2.md`,
-    ///   "Known-null"): a store into it ran since its last `Drop`, move or
+    ///   "Known-null"): a store into it ran since its last `Drop` or
     ///   taking `Ref`, and every store makes the cell (its declaration, or
     ///   [`Em::cell_of`] for any other). In a suspending body the frame
     ///   saves the local where a later use reads it (`susp.rs`) and a
@@ -427,18 +427,18 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// Moves local `l`'s value out of its cell into instruction `i`,
-    /// leaving no payload for the cell's release and no cell for a later
-    /// exit drop. A frame slot is emptied in place; an ordinary cell is
-    /// released. Move proves this is the local's last access; shared
-    /// captures are not candidates.
+    /// Moves local `l`'s value out of its cell into instruction `i`. A
+    /// heap cell stays, as Swift's box after a `load [take]`: its drop or
+    /// exit row ends it, and a later store fills it again. Move proves no use
+    /// reads the value before such a store; shared captures are not
+    /// candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
-        let slot = self.slots.contains_key(&l);
         let (m, walk) = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
         let held = self.f.load_locals(c, &m.leaves);
         // Only a counted payload needs its old copy cleared: an uncounted
-        // one is never released from the cell.
+        // one is never released from the cell, and the move's `FlagClear`
+        // came before it for a payload with a drop hook.
         if walk.is_some() {
             let zero = self.zero_src(l)?;
             let all = Part {
@@ -448,25 +448,11 @@ impl Em<'_, '_, '_> {
             };
             self.store_part(c, &m, all, &zero)?;
         }
-        // The move's `FlagClear` came before it: the release below may
-        // free the cell.
-        if !slot {
-            self.f.get(c);
-            let reason = self.operation_count(
-                i,
-                Tag::Release,
-                super::CountPart::Local(u32::try_from(l).expect("local")),
-            );
-            // ruled out: own::cell_move states the release for this moved
-            // local's storage row; consume the reason that packet states.
-            assert!(
-                reason.is_some(),
-                "a moved cell must state its storage cleanup"
-            );
-            let reason = reason.as_slice()[0];
-            self.because(reason, Self::release_cell);
+        // A slot or a static cell has no end of its own: the move empties
+        // its local, and a later store makes it again (`Em::cell_of`).
+        if self.slots.contains_key(&l) || self.static_cells.contains(&l) {
+            self.f.zero(c);
         }
-        self.f.zero(c);
         for x in held {
             self.f.get(x);
         }

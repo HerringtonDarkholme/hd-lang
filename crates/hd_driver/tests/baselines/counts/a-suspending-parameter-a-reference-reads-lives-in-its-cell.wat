@@ -224,6 +224,17 @@
         local.get $t2
         i32.load $heap offset=24
         i32.store $heap offset=8
+        local.get $t2
+        local.get $provider1.vtable
+        i32.store $heap offset=36
+        local.set $provider1.vtable
+        local.get $t2
+        local.get $provider1.vtable
+        i32.store $heap offset=32
+        local.set $provider1.vtable
+        local.get $t2
+        local.get $provider1.vtable
+        i32.store $heap offset=28
         local.get $provider0
         if
           local.get $provider0
@@ -237,17 +248,6 @@
             call $rt:release_ref'1
           end
         end
-        local.get $t2
-        local.get $provider1.vtable
-        i32.store $heap offset=36
-        local.set $provider1.vtable
-        local.get $t2
-        local.get $provider1.vtable
-        i32.store $heap offset=32
-        local.set $provider1.vtable
-        local.get $t2
-        local.get $provider1.vtable
-        i32.store $heap offset=28
     ;; 12 |     let mut u = UniqList::[i32].new()
       end
     ;; 14 |     a := sized!(u)

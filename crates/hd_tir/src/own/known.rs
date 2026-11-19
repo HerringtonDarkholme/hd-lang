@@ -20,6 +20,13 @@
 //!   block, and each suspension point, whose cancellation leaves through
 //!   the exit, which releases the exit set. A parameter and a capture keep
 //!   their rows: the backend reads one outside the exit set as unowned.
+//! - **Boxes.** A local in a heap cell (`Storage::Cell`) holds a box
+//!   whose life is not its value's, as Swift's `alloc_box` and
+//!   `destroy_value` around `load [take]`: a `move` of all of its value
+//!   leaves the box held, so its `Drop` and exit row stay to end it. A
+//!   `Drop` ends it, and a `Ref` that takes its count hands it to the
+//!   reference. A slot or a static cell needs no end of its own: a move
+//!   empties it as any local.
 //! - **The unwind set.** Each suspension point gets a row per owned value
 //!   that may hold a count there (`Body::unwind_drops`): its cancellation
 //!   is a way out that no TIR jump spells, so the backend releases those
@@ -27,16 +34,17 @@
 //!
 //! - **Rule 5, cells made before use.** An addressed local (a `Ref` of
 //!   its own storage, or a shared capture, puts it in a cell) gets a second
-//!   bit, set where it may hold no value: before its first store in its
-//!   sub-body, after a `Drop` of it, a `move` read of it and a `Ref` that
-//!   takes its count; a store into its own storage clears it. Each
-//!   instruction that reads the local's storage (a `Read`, `Store`, `Ref`,
-//!   `IsUnique` of a place rooted at it, a `Closure` that captures
-//!   it) and each `Loop` (where the backend reads stable places before the
-//!   loop) gets a row in `Body::full_cells` when the bit is clear on every
-//!   path that reaches it: there the backend reads the cell with no null
-//!   test (#678). A use inside a cleanup suite gets none, since a suite
-//!   also runs at jumps the walk does not follow there.
+//!   bit, set where it may hold no cell: before its first store in its
+//!   sub-body, after a `Drop` of it, a `Ref` that takes its count, and a
+//!   `move` read of a slot or static cell (a heap cell stays, "Boxes"); a
+//!   store into its own storage clears it. Each instruction that reads
+//!   the local's storage (a `Read`, `Store`, `Ref`, `IsUnique` of a place
+//!   rooted at it, a `Closure` that captures it) and each `Loop` (where
+//!   the backend reads stable places before the loop) gets a row in
+//!   `Body::full_cells` when the bit is clear on every path that reaches
+//!   it: there the backend reads the cell with no null test (#678). A use
+//!   inside a cleanup suite gets none, since a suite also runs at jumps
+//!   the walk does not follow there.
 //!
 //! The plan's rules 2 and 4 (a store into an empty place, a move with no
 //! zeroing) are not built here (`docs/compiler/tir-v2.md`, stage 2's
@@ -72,7 +80,8 @@ use std::ops::Range;
 
 use crate::ir::count::{At, Info, Part};
 use crate::ir::{
-    Body, NONE, ReadMode, Ref, Root, Tag, Topology, is_suspension, local_flags, ref_word, u32_of,
+    Body, NONE, ReadMode, Ref, Root, Storage, Tag, Topology, is_suspension, local_flags, ref_word,
+    u32_of,
 };
 use hd_base::NodeIdx;
 use hd_types::Ty;
@@ -113,6 +122,9 @@ pub(crate) struct Tables {
     slots: Slots,
     /// Per bit: a place a cleanup suite touches, which nothing empties.
     sticky: Vec<bool>,
+    /// Per local: it lives in a heap cell, a box that a move of its value
+    /// leaves in place; only a `Drop` or a taking `Ref` ends it.
+    boxed: Vec<bool>,
     /// Locals and values a cleanup suite touches.
     pin_l: Vec<bool>,
     pin_v: Vec<bool>,
@@ -451,6 +463,10 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     fill(&mut t.pin_l, locals, false);
     fill(&mut t.pin_v, n, false);
     fill(&mut t.entry, locals, false);
+    fill(&mut t.boxed, locals, false);
+    for &(_, l, kind) in &b.storage {
+        t.boxed[l.idx()] |= kind == Storage::Cell;
+    }
     fill(&mut t.dropped, n, false);
     t.locs.clear();
     t.vals.clear();
@@ -711,7 +727,7 @@ impl Tables {
                             Tag::Store if b.local_in_place(a).is_some() => {
                                 self.cell_mark(l, s, st, false);
                             }
-                            Tag::Read if w == ReadMode::Move as u32 => {
+                            Tag::Read if w == ReadMode::Move as u32 && !self.boxed[l as usize] => {
                                 self.cell_mark(l, s, st, true);
                             }
                             Tag::Ref if w & ref_word::TAKES != 0 => self.cell_mark(l, s, st, true),
@@ -765,7 +781,15 @@ impl Tables {
                 // A store through the local, into what it refers to, leaves
                 // the local as it was.
                 Tag::Store if local && b.local_in_place(a).is_some() => self.refill(bit, s, st),
-                Tag::Read if local && whole && w == ReadMode::Move as u32 => self.clear(s, st, bit),
+                // A move out of a box leaves the box, which its drop ends.
+                Tag::Read
+                    if local
+                        && whole
+                        && w == ReadMode::Move as u32
+                        && !self.boxed[self.locs[bit as usize] as usize] =>
+                {
+                    self.clear(s, st, bit);
+                }
                 Tag::Ref if local && whole && w & ref_word::TAKES != 0 => self.clear(s, st, bit),
                 _ => {}
             }

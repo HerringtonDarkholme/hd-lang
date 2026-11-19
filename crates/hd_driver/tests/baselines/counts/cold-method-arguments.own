@@ -109,11 +109,10 @@ pub fn main() -> void $ Clock:
 >   local $0 reader: Reader [:= read assigned captured] place
 >   local $1 $ref: Reader [read assigned captured captured-assigned] place
 >   local $2 $ref: *Reader [read assigned captured] value
->     uses $2: %13 -> %14 lend last
+>     uses $2: %12 -> %13 lend last
 >   %0 = NewStruct [0:usize] : Reader
 >   %1 = Store [$0] %0 : ()
->   %9 = Release %8 Operation local $0 #2 : ()
->   %23 = Block - : ()
+>   %22 = Block - : ()
     _ := block_on(known(&reader, ["known"]))
 >   %2 = Ref local frame [$0] : &Reader
 >   %3 = NewList - ["known"] : List[string]
@@ -124,20 +123,20 @@ pub fn main() -> void $ Clock:
 >   %2 finds [$0] full
     _ := block_on(dynamic(box(reader), ["dynamic"]))
 >   %8 = Read move [$0] : Reader
->   %10 = Store [$1] %8 : ()
->   %11 = Ref take mut [$1] : *mut Reader
->   %12 = Coerce %11 [Weaken -] : *Reader
->   %13 = Store [$2] %12 : ()
->   %14 = Read move [$2] : *Reader
->   %15 = Coerce %14 [RefToTraitValue -] : Measure
->   %16 = LoanEnd [%14] : ()
->   %17 = Block %15 : Measure
->   %18 = RefDyn %17 : *dyn Measure
->   %19 = NewList - ["dynamic"] : List[string]
->   %20 = Call app/main/dynamic[] (%18, %19) : Suspend[usize]
->   %21 = Call std/task/block_on[usize] (%20) : BlockOn[usize]
->   %22 = Drop [%20] : ()
+>   %9 = Store [$1] %8 : ()
+>   %10 = Ref take mut [$1] : *mut Reader
+>   %11 = Coerce %10 [Weaken -] : *Reader
+>   %12 = Store [$2] %11 : ()
+>   %13 = Read move [$2] : *Reader
+>   %14 = Coerce %13 [RefToTraitValue -] : Measure
+>   %15 = LoanEnd [%13] : ()
+>   %16 = Block %14 : Measure
+>   %17 = RefDyn %16 : *dyn Measure
+>   %18 = NewList - ["dynamic"] : List[string]
+>   %19 = Call app/main/dynamic[] (%17, %18) : Suspend[usize]
+>   %20 = Call std/task/block_on[usize] (%19) : BlockOn[usize]
+>   %21 = Drop [%19] : ()
 >   %8 finds [$0] full
->   %11 finds [$1] full
+>   %10 finds [$1] full
 >   storage sub 0: $0 slot, $1 cell
 >   summary kept [] writes

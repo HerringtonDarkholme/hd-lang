@@ -1060,7 +1060,7 @@ pub struct Body {
     /// Known-null's rule 5 (`docs/compiler/tir-v2.md`, "Known-null"): per
     /// row, an instruction and an addressed local (one that a `Ref` of its
     /// own storage or a shared capture puts in a cell) that certainly holds
-    /// its value where the instruction runs, so the backend reads its cell
+    /// its cell where the instruction runs, so the backend reads its cell
     /// with no null test. The instruction is a `Read`, `Store`, `Ref`,
     /// `IsUnique` of a place rooted at the local, a `Closure` that
     /// captures it, or a `Loop`. Sorted, each row once. A pass output: empty

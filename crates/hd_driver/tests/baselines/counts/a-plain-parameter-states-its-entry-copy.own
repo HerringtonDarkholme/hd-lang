@@ -205,8 +205,7 @@ pub fn main() -> void $ Console:
 >     uses $15: %62 -> %63 lend, %66 consume last
 >   %0 = Call app/main/word[] (7:i32) : string
 >   %1 = Store [$0] %0 : ()
->   %138 = Release %137 Operation local $0 #2 : ()
->   %142 = Block - : ()
+>   %140 = Block - : ()
     println(same(original))
 >   %2 = Read borrow [$0] : string
 >   %3 = Call app/main/same[string] (%2) : string
@@ -303,7 +302,6 @@ pub fn main() -> void $ Console:
 >   %77 = Scope %76 [] : UniqList[i32]
 >   %78 = Store [$4] %77 : ()
 >   %79 = FlagSet [$4] #16 : ()
->   %126 = Release %125 Operation local $4 #2 : ()
     items.push(7)
 >   %80 = Ref mut local frame [$4] : &mut UniqList[i32]
 >   %81 = Store [$7] %80 : ()
@@ -353,23 +351,23 @@ pub fn main() -> void $ Console:
     println(unique(items).len())
 >   %124 = FlagClear [$4] #16 : ()
 >   %125 = Read move [$4] : UniqList[i32]
->   %127 = Call app/main/unique[] (%125) : UniqList[i32]
->   %128 = Store [$5] %127 : ()
->   %129 = Ref local frame [$5] : &UniqList[i32]
->   %130 = Read copy [*%129 .len] : usize
->   %131 = Break L0 %130 : never
->   %132 = Block - : usize
->   %133 = Scope %132 [] : usize
->   %134 = LoanEnd [%129] : ()
->   %135 = Drop [$5] : ()
->   %136 = Call std/console/println[usize] (%133) : ()
+>   %126 = Call app/main/unique[] (%125) : UniqList[i32]
+>   %127 = Store [$5] %126 : ()
+>   %128 = Ref local frame [$5] : &UniqList[i32]
+>   %129 = Read copy [*%128 .len] : usize
+>   %130 = Break L0 %129 : never
+>   %131 = Block - : usize
+>   %132 = Scope %131 [] : usize
+>   %133 = LoanEnd [%128] : ()
+>   %134 = Drop [$5] : ()
+>   %135 = Call std/console/println[usize] (%132) : ()
 >   %125 finds [$4] full
->   %129 finds [$5] full
+>   %128 finds [$5] full
     println(original)
->   %137 = Read move [$0] : string
->   %139 = Call std/console/println[string] (%137) : ()
->   %140 = Retain %139 Operation operand 0 #0 : ()
->   %141 = Drop [%137] : ()
->   %137 finds [$0] full
+>   %136 = Read move [$0] : string
+>   %137 = Call std/console/println[string] (%136) : ()
+>   %138 = Retain %137 Operation operand 0 #0 : ()
+>   %139 = Drop [%136] : ()
+>   %136 finds [$0] full
 >   storage sub 0: $2 cell, $4 slot, $5 slot
 >   summary kept [] writes

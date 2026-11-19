@@ -853,7 +853,6 @@ fn empty_controls() -> void:
 >   %71 = Scope %70 [] : UniqList[usize]
 >   %72 = Store [$6] %71 : ()
 >   %73 = FlagSet [$6] #37 : ()
->   %110 = Release %109 Operation local $6 #2 : ()
     owned.push(23)
 >   %74 = Ref mut local frame [$6] : &mut UniqList[usize]
 >   %75 = Store [$19] %74 : ()
@@ -902,6 +901,7 @@ fn empty_controls() -> void:
 >   %107 = Read copy [$3] : *mut i32
 >   %108 = FlagClear [$6] #37 : ()
 >   %109 = Read move [$6] : UniqList[usize]
+>   %110 = Drop [$6] : ()
 >   %111 = NewStruct [%107 %109] : Resource
 >   %112 = Read copy [$5] : string
 >   %113 = NewStruct [] : EmptyResource
@@ -1061,7 +1061,6 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %48 = Scope %47 [] : UniqList[usize]
 >   %49 = Store [$4] %48 : ()
 >   %50 = FlagSet [$4] #11 : ()
->   %86 = Release %85 Operation local $4 #2 : ()
     owned.push(23)
 >   %51 = Ref mut local frame [$4] : &mut UniqList[usize]
 >   %52 = Store [$5] %51 : ()
@@ -1100,6 +1099,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %83 = Read move [$1] : *mut i32
 >   %84 = FlagClear [$4] #11 : ()
 >   %85 = Read move [$4] : UniqList[usize]
+>   %86 = Drop [$4] : ()
 >   %87 = NewStruct [%83 %85] : Resource
 >   %88 = CallValue %82 [%87] : Suspend[usize]
 >   %89 = Retain %88 Operation row #0 : ()

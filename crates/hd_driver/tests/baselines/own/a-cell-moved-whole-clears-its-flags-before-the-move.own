@@ -4,8 +4,8 @@ std/rt_tests.stage_case/moved_cell
     uses $0: entry -> %15 lend last
   local $1 value: Token [:= read assigned captured] place
   local $2 other: Token [:= read assigned] value
-    uses $2: %10 -> %24 consume last
-  %0 = Release %27 FrameDrop child #2 : ()
+    uses $2: %10 -> %23 consume last
+  %0 = Release %26 FrameDrop child #2 : ()
   %1 = NewStruct [1:usize] : Token
   %2 = Store [$1] %1 : ()
   %3 = FlagSet [$1] #3 : ()
@@ -23,16 +23,15 @@ std/rt_tests.stage_case/moved_cell
   %15 = Read copy [$0] : bool
   %16 = FlagClear [$1] #3 : ()
   %17 = Read move [$1] : Token
-  %18 = Release %17 Operation local $1 #2 : ()
-  %19 = Call std/rt_tests.stage_case/take[] (%17) : usize
-  %20 = Return %19 : never
-  %21 = Block - : never
-  %22 = If %15 [%21 -] : ()
-  %23 = Drop [$1] : ()
-  %24 = Read copy [$2 .id] : usize
-  %25 = Drop [$2] : ()
-  %26 = FlagClear [$2] #4 : ()
-  %27 = Block %24 : usize
+  %18 = Call std/rt_tests.stage_case/take[] (%17) : usize
+  %19 = Return %18 : never
+  %20 = Block - : never
+  %21 = If %15 [%20 -] : ()
+  %22 = Drop [$1] : ()
+  %23 = Read copy [$2 .id] : usize
+  %24 = Drop [$2] : ()
+  %25 = FlagClear [$2] #4 : ()
+  %26 = Block %23 : usize
   %4 finds [$1] full
   %12 finds [$1] full
   %17 finds [$1] full

@@ -78,25 +78,24 @@ fn keep[T](x: T) -> List[T]:
 fn use_generic(s: string, xs: List[string]) -> usize:
 > app/main/use_generic
 >   local $0 s: string [param read] value
->     uses $0: entry -> %2 consume, %66 consume last
+>     uses $0: entry -> %2 consume, %65 consume last
 >   local $1 xs: List[string] [param read captured] place
 >   local $2 $ref: string [read assigned captured captured-assigned] value
 >     uses $2: %6 -> %7 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] value
->     uses $3: %56 -> %57 lend last
+>     uses $3: %55 -> %56 lend last
 >   local $5 out: List[string] [read assigned] value
->     uses $5: %65 -> %68 lend, %70 consume last
+>     uses $5: %64 -> %67 lend, %69 consume last
 >   local $8 fallback: string [read] value
->     uses $8: %38 -> %41 consume last
+>     uses $8: %37 -> %40 consume last
 >   local $9 value: string [read assigned] value
->     uses $9: %44 -> %39 consume last
+>     uses $9: %43 -> %38 consume last
 >   local $10 xs: List[string] [read] value
->     uses $10: %24 -> %25 lend, %28 lend last
+>     uses $10: %23 -> %24 lend, %27 lend last
 >   local $11 xs: &List[string] [read] value
 >     uses $11: %14 -> %15 lend last
->   %0 = Retain %77 Entry local $0 #0 : ()
->   %1 = Retain %77 Entry local $1 #0 : ()
->   %23 = Release %22 Operation local $1 #2 : ()
+>   %0 = Retain %76 Entry local $0 #0 : ()
+>   %1 = Retain %76 Entry local $1 #0 : ()
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 >   %2 = Read borrow [$0] : string
 >   %3 = Break L6 %2 : never
@@ -119,57 +118,57 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %20 = LoanEnd [$11] : ()
 >   %21 = Prim Add [%11 %19] : usize
 >   %22 = Read move [$1] : List[string]
->   %24 = Store [$10] %22 : ()
->   %25 = Read borrow [$10] : List[string]
->   %26 = Intrinsic ListLen [%25] : usize
->   %27 = Prim Gt [%26 0:usize] : bool
->   %28 = Read copy [$10 [0:usize]] : string
->   %29 = NewVariant #1 [%28] : string?
->   %30 = Block %29 : string?
->   %31 = NewVariant #0 [] : string?
->   %32 = Block %31 : string?
->   %33 = If %27 [%30 %32] : string?
->   %34 = Break L3 %33 : never
->   %35 = Block - : string?
->   %36 = Scope %35 [] : string?
->   %37 = Drop [$10] : ()
->   %38 = Store [$8] "" : ()
->   %39 = Read move [$9] : string
->   %40 = Block %39 : string
->   %41 = Read move [$8] : string
->   %42 = Block %41 : string
->   %43 = Read move [%36 as #1 .0] : string
->   %44 = Store [$9] %43 : ()
->   %46 = Block - : never
->   %49 = SwitchTag %36 [#1 %46 %48] : never
->   %50 = Block - : never
->   %51 = Match %36 [%50 %40 %42] : string
->   %52 = Break L2 %51 : never
->   %53 = Block - : string
->   %54 = Scope %53 [] : string
->   %55 = Drop [$8] : ()
->   %56 = Store [$3] %54 : ()
->   %57 = Read borrow [$3] : string
->   %58 = Call std/rt.bytes/bytes_len[] (%57) : usize
->   %59 = Break L1 %58 : never
->   %60 = Block - : usize
->   %61 = Scope %60 [] : usize
->   %62 = Drop [$3] : ()
->   %63 = Prim Add [%21 %61] : usize
->   %64 = NewList - [] : List[string]
->   %65 = Store [$5] %64 : ()
->   %66 = Read move [$0] : string
->   %67 = IsUnique fresh [$5] : ()
->   %68 = Read borrow [$5] : List[string]
->   %69 = Intrinsic ListPush [%68 %66] : ()
->   %70 = Read move [$5] : List[string]
->   %71 = Break L0 %70 : never
->   %72 = Block - : List[string]
->   %73 = Scope %72 [] : List[string]
->   %74 = Intrinsic ListLen [%73] : usize
->   %75 = Drop [%73] : ()
->   %76 = Prim Add [%63 %74] : usize
->   %77 = Block %76 : usize
+>   %23 = Store [$10] %22 : ()
+>   %24 = Read borrow [$10] : List[string]
+>   %25 = Intrinsic ListLen [%24] : usize
+>   %26 = Prim Gt [%25 0:usize] : bool
+>   %27 = Read copy [$10 [0:usize]] : string
+>   %28 = NewVariant #1 [%27] : string?
+>   %29 = Block %28 : string?
+>   %30 = NewVariant #0 [] : string?
+>   %31 = Block %30 : string?
+>   %32 = If %26 [%29 %31] : string?
+>   %33 = Break L3 %32 : never
+>   %34 = Block - : string?
+>   %35 = Scope %34 [] : string?
+>   %36 = Drop [$10] : ()
+>   %37 = Store [$8] "" : ()
+>   %38 = Read move [$9] : string
+>   %39 = Block %38 : string
+>   %40 = Read move [$8] : string
+>   %41 = Block %40 : string
+>   %42 = Read move [%35 as #1 .0] : string
+>   %43 = Store [$9] %42 : ()
+>   %45 = Block - : never
+>   %48 = SwitchTag %35 [#1 %45 %47] : never
+>   %49 = Block - : never
+>   %50 = Match %35 [%49 %39 %41] : string
+>   %51 = Break L2 %50 : never
+>   %52 = Block - : string
+>   %53 = Scope %52 [] : string
+>   %54 = Drop [$8] : ()
+>   %55 = Store [$3] %53 : ()
+>   %56 = Read borrow [$3] : string
+>   %57 = Call std/rt.bytes/bytes_len[] (%56) : usize
+>   %58 = Break L1 %57 : never
+>   %59 = Block - : usize
+>   %60 = Scope %59 [] : usize
+>   %61 = Drop [$3] : ()
+>   %62 = Prim Add [%21 %60] : usize
+>   %63 = NewList - [] : List[string]
+>   %64 = Store [$5] %63 : ()
+>   %65 = Read move [$0] : string
+>   %66 = IsUnique fresh [$5] : ()
+>   %67 = Read borrow [$5] : List[string]
+>   %68 = Intrinsic ListPush [%67 %65] : ()
+>   %69 = Read move [$5] : List[string]
+>   %70 = Break L0 %69 : never
+>   %71 = Block - : List[string]
+>   %72 = Scope %71 [] : List[string]
+>   %73 = Intrinsic ListLen [%72] : usize
+>   %74 = Drop [%72] : ()
+>   %75 = Prim Add [%62 %73] : usize
+>   %76 = Block %75 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $1 slot
 >   summary kept [$0 $1]

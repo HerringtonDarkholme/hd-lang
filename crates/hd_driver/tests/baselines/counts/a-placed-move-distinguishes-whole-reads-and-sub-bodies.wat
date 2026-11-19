@@ -142,6 +142,7 @@
     local.get $env
     i32.const 0
     i32.store $heap offset=4
+    ;; 31 |     fn(value: string) -> string:
     local.get $env
     if
       local.get $env

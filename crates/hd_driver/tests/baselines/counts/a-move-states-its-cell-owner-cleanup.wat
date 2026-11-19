@@ -1011,6 +1011,7 @@
       local.get $t2
       i32.load $heap offset=28
       i32.store $heap offset=4
+    ;; 12 |     _ := same(&value, &value)
       local.get $t2
       i32.load $heap offset=8
       local.tee $t5
@@ -1029,7 +1030,6 @@
       local.get $t2
       i32.const 0
       i32.store $heap offset=8
-    ;; 12 |     _ := same(&value, &value)
       local.set $t5
       local.set $t4
     end
@@ -1616,6 +1616,7 @@
       i32.load $heap offset=8
       i32.load $heap
       local.set $t5
+    ;; 12 |     _ := same(&value, &value)
       local.get $t2
       i32.load $heap offset=8
       local.tee $provider0
@@ -1634,7 +1635,6 @@
       local.get $t2
       i32.const 0
       i32.store $heap offset=8
-    ;; 12 |     _ := same(&value, &value)
     end
     local.get $t2
     i32.load $heap offset=8

@@ -1285,18 +1285,20 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   directly when the cell certainly exists there (`Em::cell_made`): the
   prologue made or received it (a parameter moved into its cell, a
   closure's shared capture), or known-null found the local
-  holding its value there (`Body::full_cells`, rule 5 of
+  holding its cell there (`Body::full_cells`, rule 5 of
   docs/compiler/tir-v2.md, "Known-null"). The pass gives each local a
   `Ref` of its own storage or a shared capture puts in a cell a bit that
-  is set where it may hold no value: before its first store, after a
-  `Drop` of it, a `move` read of it and a `Ref` that takes its count;
+  is set where it may hold no cell: before its first store, after a
+  `Drop` of it, a `Ref` that takes its count and a `move` out of a slot
+  or static cell (a move out of a heap cell leaves the cell, as Swift's
+  box after a `load [take]`);
   states join by union at the ends of branches and arms and at a loop's
   head. A `Read`, `Store`, `Ref` or `IsUnique` of a place rooted
   at the local, a `Closure` that captures it, and a `Loop` (whose stable
   places and hoisted checks are read before it) get a row where the bit
   is clear on every path. Every store makes the cell (its declaration,
-  or `Em::cell_of` for any other), and only a `Drop`, a move or a taking
-  `Ref` zeroes the local, so the local holds the cell's address there.
+  or `Em::cell_of` for any other), and only a `Drop`, a taking `Ref` or
+  a move out of a slot or static cell zeroes the local, so the local holds the cell's address there.
   Any other use tests the local and makes a cell of zeros when it is 0: a
   use some path reaches before a store, and one inside a cleanup suite
   (which also runs at jumps the walk does not follow there). A suspending

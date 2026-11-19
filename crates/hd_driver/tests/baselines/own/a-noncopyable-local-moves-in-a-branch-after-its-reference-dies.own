@@ -3,6 +3,6 @@ app/main/in_branch
   local $0 xs: UniqList[string] [param read captured] place
   %7 = FlagClear [$0] #5 : ()
   %8 = Read move [$0] : UniqList[string]
-  %10 = Call app/main/eat[] (%8) : usize
+  %9 = Call app/main/eat[] (%8) : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot

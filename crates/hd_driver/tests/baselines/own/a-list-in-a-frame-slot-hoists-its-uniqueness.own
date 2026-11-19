@@ -107,8 +107,7 @@ fn touch_each(n: usize) -> usize:
 >     uses $5: %14 -> %18 lend last
 >   %0 = NewList - [] : List[u32]
 >   %1 = Store [$1] %0 : ()
->   %33 = Release %32 Operation local $1 #2 : ()
->   %36 = Block %34 : usize
+>   %35 = Block %33 : usize
     for i in 0..n:
 >   %2 = Read copy [$0] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
@@ -148,8 +147,8 @@ fn touch_each(n: usize) -> usize:
 >   %23 finds [$1] full
     xs.len()
 >   %32 = Read move [$1] : List[u32]
->   %34 = Intrinsic ListLen [%32] : usize
->   %35 = Drop [%32] : ()
+>   %33 = Intrinsic ListLen [%32] : usize
+>   %34 = Drop [%32] : ()
 >   %32 finds [$1] full
 >   storage sub 0: $1 slot
 >   summary kept [] writes

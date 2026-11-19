@@ -30,7 +30,6 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %5 = Retain %26 Cold referent $0 #8 : ()
 >   %6 = Release %26 FrameDrop referent $0 #2 : ()
 >   %7 = Release %26 Exit referent $0 #8 : ()
->   %25 = Release %24 Operation local $0 #2 : ()
     _ := same(&value, &value)
 >   %2 = Retain %26 Cold row #0 : ()
 >   %3 = Retain %26 Materialize row #0 : ()
@@ -55,14 +54,14 @@ fn take![T < 'static](value: T) -> T $ Clock:
     value
 >   %23 = FlagClear [$0] #2 : ()
 >   %24 = Read move [$0] : T
+>   %25 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 
 @cold
 > std/rt_tests.stage_case/stack
 >   local $0 value: T [param read captured] place
->   %0 = Retain %10 Entry local $0 #0 : ()
->   %9 = Release %8 Operation local $0 #2 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
 >   %1 = Ref local frame [$0] : &T
@@ -71,7 +70,7 @@ fn stack[T](value: T) -> T:
 >   %4 = Call std/rt_tests.stage_case/same[T] (%2, %3) : bool
 >   %5 = Drop [%3] : ()
 >   %6 = Drop [%2] : ()
->   %10 = Block %8 : T
+>   %9 = Block %8 : T
     value
 >   %7 = FlagClear [$0] #1 : ()
 >   %8 = Read move [$0] : T

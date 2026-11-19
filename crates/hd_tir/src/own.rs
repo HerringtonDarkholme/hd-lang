@@ -48,7 +48,6 @@ pub(crate) mod call_row;
 pub(crate) mod capture_entry;
 pub(crate) mod capture_env;
 pub(crate) mod captures;
-pub(crate) mod cell_move;
 pub(crate) mod child;
 pub(crate) mod cold;
 pub(crate) mod cold_captures;
@@ -3340,9 +3339,9 @@ pub(crate) mod tests {
     }
 
     /// A whole-value read after an earlier reference moves the payload out
-    /// of the cell at its last access. The backend clears and releases the
-    /// cell, so an uncounted owned value is transferred rather than copied
-    /// and then dropped.
+    /// of the cell at its last access, so an uncounted owned value is
+    /// transferred rather than copied and then dropped. The cell, a box
+    /// whose life is not its value's, keeps its `Drop`.
     #[test]
     fn a_last_read_moves_out_of_a_cell() {
         let n = NodeIdx::from_raw(1);
@@ -3362,7 +3361,7 @@ pub(crate) mod tests {
         );
         assert!(!text.contains("Ref take [$0]"), "{text}");
         assert!(text.contains("Read move [$0]"), "{text}");
-        assert!(!text.contains("Drop [$0]"), "{text}");
+        assert!(text.contains("Drop [$0]"), "{text}");
     }
 
     /// A frame local (`frame`): a local reference to `$0` bound to `$1`

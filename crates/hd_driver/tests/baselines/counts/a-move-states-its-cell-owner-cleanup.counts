@@ -13,6 +13,7 @@ fn take![T < 'static](value: T) -> T $ Clock:
     _ := same(&value, &value)
 > std/rt_tests.stage_case/take
 >   release counted reference (last use)
+>   release counted reference (last use)
 > std/rt_tests.stage_case/take
 >   release string (cancelled)
 > std/rt_tests.stage_case/take
@@ -22,6 +23,7 @@ fn take![T < 'static](value: T) -> T $ Clock:
 > std/rt_tests.stage_case/take
 >   retain counted reference (stored)
 > std/rt_tests.stage_case/take
+>   release counted reference (last use)
 >   release counted reference (last use)
 > std/rt_tests.stage_case/take
 >   release counted reference (cancelled)
@@ -39,8 +41,6 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
     value
->   release counted reference (last use)
->   release counted reference (last use)
 
 @cold
 fn stack[T](value: T) -> T:

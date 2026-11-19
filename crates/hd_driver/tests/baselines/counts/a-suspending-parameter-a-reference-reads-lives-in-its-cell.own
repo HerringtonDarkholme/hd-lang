@@ -83,7 +83,6 @@ pub fn main!() -> void $ Console + Clock:
 >   %21 = Scope %20 [] : UniqList[i32]
 >   %22 = Store [$0] %21 : ()
 >   %23 = FlagSet [$0] #13 : ()
->   %57 = Release %56 Operation local $0 #2 : ()
 >   %96 = Block - : ()
     u.push(1)
 >   %24 = Ref mut local [$0] : &mut UniqList[i32]
@@ -121,6 +120,7 @@ pub fn main!() -> void $ Console + Clock:
     a := sized!(u)
 >   %55 = FlagClear [$0] #13 : ()
 >   %56 = Read move [$0] : UniqList[i32]
+>   %57 = Drop [$0] : ()
 >   %58 = Await std/rt_tests.stage_case/sized[] (%56) : usize
 >   %59 = Release %58 Operation child #2 : ()
 >   %60 = Store [$1] %58 : ()
