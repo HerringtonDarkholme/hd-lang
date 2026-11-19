@@ -9,6 +9,20 @@
 //! and encodes them. There is no per-instance code cache yet: the driver
 //! calls [`build`] once per program, at link.
 
+/// Counts one emitter decision under a key (`scripts/ledger.ts`): `"key"`
+/// or a `format!` key, `if cond => key`, or `"key" += n`. Without the
+/// `ledger` feature it expands to nothing.
+macro_rules! ledger {
+    (flush) => {{ #[cfg(feature = "ledger")] crate::ledger::flush() }};
+    (if $on:expr => $a:literal else $($rest:tt)+) => {{
+        #[cfg(feature = "ledger")]
+        if $on { ledger!($a) } else { ledger!($($rest)+) }
+    }};
+    (if $on:expr => $($key:tt)+) => {{ #[cfg(feature = "ledger")] if $on { ledger!($($key)+) } }};
+    ($key:literal += $n:expr) => {{ #[cfg(feature = "ledger")] crate::ledger::add($key, $n) }};
+    ($($key:tt)+) => {{ #[cfg(feature = "ledger")] crate::ledger::add(&format!($($key)+), 1) }};
+}
+
 mod boundary;
 mod bulk;
 #[cfg(feature = "checked-report")]
@@ -20,6 +34,8 @@ mod drive;
 mod emit;
 mod frame_referents;
 mod layout;
+#[cfg(feature = "ledger")]
+mod ledger;
 mod map;
 mod module;
 mod op;

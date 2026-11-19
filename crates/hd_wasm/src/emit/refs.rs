@@ -409,11 +409,17 @@ impl Em<'_, '_, '_> {
         }
         let p = self.place(self.b.data[i as usize][0]);
         let Some((t, ls)) = self.root_locals(&p)? else {
+            ledger!("partial-move/TIR-move-emitted-as-copy(root not in locals)");
             return Ok(false);
         };
         let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
+            ledger!("partial-move/TIR-move-emitted-as-copy(part not in place)");
             return Ok(false);
         };
+        ledger!(if self.needs_drop(pt) => "partial-move/zeroed-in-place"
+            else "partial-move/plain-untracked");
+        ledger!(if self.needs_drop(pt) => "partial-move/niche-repairs" +=
+            self.niche_repairs(t, &p.proj, &self.zeroed(t, &slots)?)?.len());
         if let PlaceRoot::Local(local) = p.root {
             self.borrow_moved_slots(i, local.idx(), slots.iter().copied());
         }
@@ -508,6 +514,8 @@ impl Em<'_, '_, '_> {
         }
         // More than one part left: the whole value's glue releases them in
         // one call, the parts taken being zero.
+        ledger!(if rest.len() > 1 => "drop-after-partial-move/whole-glue-over-zeroes"
+            else "drop-after-partial-move/one-field");
         if rest.len() > 1 {
             return Ok(false);
         }
@@ -1069,6 +1077,7 @@ impl Em<'_, '_, '_> {
         }
         let (m, _) = self.cell_mem(l)?;
         let (pt, part) = self.fold_path(self.b.local_ty[l], &path)?;
+        ledger!("partial-move/out-of-cell-zeroed");
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
         let c = self.cell_of(l)?;
         self.f.push_leaves(c, &leaves);

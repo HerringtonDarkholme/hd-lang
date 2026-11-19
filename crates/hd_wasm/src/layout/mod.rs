@@ -14,7 +14,9 @@ use crate::op::Op as I;
 /// [`hd_layout::cached`] with the emitter's reference slot plans in
 /// place, for one link.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    hd_layout::cached(|| crate::emit::ref_slots::cached(link))
+    let out = hd_layout::cached(|| crate::emit::ref_slots::cached(link));
+    ledger!(flush);
+    out
 }
 
 /// How a plain function's parameter takes its argument

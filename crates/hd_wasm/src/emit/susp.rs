@@ -424,6 +424,7 @@ impl Em<'_, '_, '_> {
     /// Address-exposed slots still materialize their stable heap frame at
     /// first access. Only the non-address-exposed scalar region migrates.
     pub(super) fn own_frame(&mut self) {
+        ledger!("susp/own_frame-for-slots");
         self.ensure_frame(false);
     }
 
@@ -472,6 +473,7 @@ impl Em<'_, '_, '_> {
     /// Pending at state `k`, waiting on `child`, whose count the frame
     /// takes. Scalar accesses are already resident; write only task metadata.
     fn suspend(&mut self, k: u32, child: u32) {
+        ledger!("susp/suspend-site(materialize)");
         self.materialize();
         self.f.get(FRAME);
         self.f.get(child);
@@ -549,6 +551,7 @@ impl Em<'_, '_, '_> {
         // Checking puts a point only in a suspending body
         // (`bang-call-outside-suspension`), whose plan numbers it.
         let k = self.susp.as_ref().expect("a suspending body").states[&i];
+        ledger!("susp/point/{:?}", self.b.tags[i as usize]);
         let pc = self.pc();
         self.slot(i)?;
         // A point in a `using!` binding's dispose suite is shielded: it has
@@ -705,6 +708,7 @@ impl Em<'_, '_, '_> {
         targs: hd_types::TyList,
         args: &[u32],
     ) -> StageResult<()> {
+        ledger!("susp/await-direct-body-call");
         let pc = self.pc();
         let ch = self.f.local(Val::I32);
         self.f.i32(0);
@@ -822,6 +826,7 @@ impl Em<'_, '_, '_> {
         owned: bool,
         fresh: &dyn Fn(&mut Self) -> StageResult<()>,
     ) -> StageResult<()> {
+        ledger!(if owned => "susp/await-stored-dyn-call" else "susp/await-stored-value");
         let pc = self.pc();
         let (s, held) = (self.f.local(Val::I32), self.f.local(Val::I32));
         self.f.get(pc);
@@ -925,6 +930,7 @@ impl Em<'_, '_, '_> {
     /// was then released by the slot; a Pending frame becomes the child,
     /// and a resume polls it as before.
     fn await_driven(&mut self, i: u32, k: u32, a: u32, args: &[u32]) -> StageResult<()> {
+        ledger!("susp/await-driven-vtable-slot");
         let pc = self.pc();
         let (s, held) = (self.f.local(Val::I32), self.f.local(Val::I32));
         let res = self.vals(self.ty(i))?;
@@ -1001,6 +1007,7 @@ impl Em<'_, '_, '_> {
     /// The counted node lives in the save area, and registrations keep
     /// it and its enclosing nodes alive until completion or cancellation.
     fn await_all(&mut self, i: u32, k: u32, bw: u32) -> StageResult<()> {
+        ledger!("susp/await-all-join");
         let children = self.rec(bw);
         let pc = self.pc();
         // Checking types `join!` the tuple of its children's results.
@@ -1827,6 +1834,7 @@ pub(super) fn finish(
         Ok(std::mem::take(&mut em.f))
     };
     let cold = constructor(&mut em, false)?;
+    ledger!(if em.frame_refs.is_empty() => "susp/finish" else "susp/finish-with-lent-constructor");
     let lent = if em.frame_refs.is_empty() {
         None
     } else {

@@ -196,8 +196,10 @@ impl Em<'_, '_, '_> {
     pub(super) fn cell_of(&mut self, l: usize) -> StageResult<u32> {
         let c = self.local(u32::try_from(l).expect("locals"))?[0];
         if self.cell_made(l) {
+            ledger!(if self.entry_cells.contains(&l) => "cell_of/made-entry" else "cell_of/made");
             return Ok(c);
         }
+        ledger!(if self.susp.is_some() => "cell_of/lazy-test-suspending" else "cell_of/lazy-test");
         self.f.get(c);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -326,6 +328,7 @@ impl Em<'_, '_, '_> {
         if let Some(&off) = self.slots.get(&l)
             && let Some(base) = self.frame_base()
         {
+            ledger!(if self.susp_slots != 0 => "cell-made/susp-frame-slot" else "cell-made/stack-slot");
             let (m, _) = self.cell_mem(l)?;
             let at = self.f.local(Val::I32);
             // A zero count word and a zero descriptor word: a `*T` that
@@ -367,10 +370,12 @@ impl Em<'_, '_, '_> {
             })
         });
         if let Some(key) = key {
+            ledger!("cell-made/static");
             let at = self.static_cell(key, l, src)?;
             self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(at);
         }
+        ledger!("cell-made/heap");
         let (m, walk) = self.cell_mem(l)?;
         let ty = self.b.local_ty[l];
         let cyclic = self.cyclic_holding(&[ty]);
@@ -562,6 +567,7 @@ impl Em<'_, '_, '_> {
             unreachable!("collection selects every emitted closure's code instance");
         };
         let caps = captures(self.b, i as usize, &self.recursive_bindings);
+        ledger!(if caps.iter().any(|c| c.1) => "closure/with-shared-capture");
         // A lent parameter holds no count to move: the environment
         // counts its own copy.
         let moved: Vec<bool> = moved_captures(self.b, i as usize, &self.recursive_bindings)

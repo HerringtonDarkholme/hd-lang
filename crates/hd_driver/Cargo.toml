@@ -22,6 +22,8 @@ host-artifacts = []
 # never request them and leave this off.
 checked-builds = []
 checked-report = ["checked-builds", "hd_wasm/checked-report"]
+# The emitter's decision ledger (`scripts/ledger.ts`); never in a shipped build.
+ledger = ["hd_wasm/ledger"]
 # Lets a client attach one post-verification analysis consumer, with its
 # findings cache (`src/analysis.rs`). The web compiler keeps this feature off
 # and builds `src/analysis_off.rs`, whose hooks do nothing.

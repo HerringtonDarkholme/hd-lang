@@ -1,7 +1,7 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals; partly built (2026-11-18): steps 0, 2a and 6a, most of step 1, and step 6b's region rows and `Nest`. It replaces
+recommendations"); domain: compiler internals; partly built (2026-11-19): steps 0, 2a and 6, and most of step 1. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
@@ -652,6 +652,53 @@ removes, 9 are the three adapters and 8 are the readers kept until step
 7. Kept callers are rewritten inside their step: 380
 references for step 4 (151 to `count.rs`, 73 to `Walk` in `hd_wasm`),
 104 for step 3, 56 for step 5.
+
+**Decision ledger.** Each remaining step starts from these counts and
+is done when its "zero" rows read zero in both columns. The counters
+are the `ledger` feature of `hd_wasm` (`src/ledger.rs`, the `ledger!`
+sites in `emit/`), off in every shipped and web build;
+`node scripts/ledger.ts` builds a compiler with it and prints every
+counter for both corpora: 25 s a pass, plus an incremental cargo build. Bench: the 34 programs of
+`bench/study` and `bench/runtime/progs`, `--release`. Stage: the 318
+`hd_driver` and `hd_wasm` stage cases with a `main` that build as one
+file, dev. Taken at af80d59d7 (2026-11-19). The 4a rows are the
+handoff's; the other end states are proposed from the owner's answers
+of 2026-11-19 (1: boxes at scope entry; 2: zeroing stays; 3: the state
+machine and ownership in TIR, frames and entry points backend ABI;
+4: row providers stay markers).
+
+| Step | Counters | Bench | Stage | At the step's end |
+| --- | --- | ---: | ---: | --- |
+| 4a | `store_as/implicit-retain/Read` | 180 | 3,091 | zero |
+| 4a | `store_as/implicit-retain/{Block,If,Match,SwitchTag}` | 22 | 456 | zero |
+| 4a | `store_as/implicit-retain/Ref` | 241 | 1,987 | zero |
+| 4a | `store_as/implicit-retain/{Call,Coerce}` | 8 | 45 | zero; missing from the handoff's rows |
+| 4a | `drop-value/skipped-loan` | 15 | 26 | zero |
+| 4a | `count/release/at-none/Some(LastUse)` | 257 | 4,948 | zero |
+| 4a | `marker/Retain/Entry/Local` | 4 | 86 | zero |
+| 4b, with 3 | `marker/*/*/Captures` | 1 | 92 | zero |
+| 4b, with 7 | `marker/*/*/{Child,Waker,Results,Referent}` | 30 | 577 | zero |
+| 4b, not this push | `marker/*/*/{Row,Result}`, `marker/MakeUnique/*` | 57 | 908 | stays (answer 4) |
+| 3a | `cell_of/lazy-test`, `cell_of/lazy-test-suspending` | 3 | 95 | zero: made at scope entry (answer 1) |
+| 3a | `cell_of/made`, `cell_of/made-entry`, `param/moved-into-cell-at-entry` | 306 | 3,842 | zero: the emitter's cell code is gone |
+| 3a | `cell-made/{heap,stack-slot,static,susp-frame-slot}` | 170 | 2,381 | zero: the kinds are TIR box kinds |
+| 3a | `closure/with-shared-capture` | 1 | 16 | zero if closures become environment values |
+| 3c | `memflag/{moved-path,dead}-flag-local`, `memlocal/live-flag` | 0 | 121 | zero: folded into TIR flag locals |
+| 3c | `flag-stmt/{cell-slot,local}` | 10 | 11 | stays: the one flag mechanism |
+| 3c | `partial-move/{zeroed-in-place,out-of-cell-zeroed}`, `drop-after-partial-move/*` | 200 | 556 | stays: zeroing (answer 2) |
+| 3c | `partial-move/niche-repairs` | 26 | 96 | stays, read from `hd_layout`'s empty pattern |
+| 5 | `scope/loan-ladder` | 0 | 1 | zero |
+| 2b | `scope/defer`, `exit/through-ladder` | 1 | 26 | zero |
+| 7 | `susp/zero-moved-value-for-cancel` | 23 | 781 | zero: cancel ownership in TIR (answer 3) |
+| 7 | `count/release/at-*/Some(Cancelled)` | 6 | 184 | zero |
+| 7 | `susp/point/*`, `susp/suspend-site(materialize)`, `susp/await-*`, `susp/finish*`, `susp/own_frame-for-slots` | 34 | 818 | stays: backend ABI (answer 3) |
+
+Step 3b has no counter: its gate is its 70 fixtures. Step 8 starts when
+4a's first three rows read zero. Six decisions fire in neither corpus,
+so no step can count them down: a TIR partial move whose part has no
+place, a partial move of an untracked part, the whole-value glue after
+a partial move, a flag statement this instance ignores, a dropped value
+whose input was transferred, and a `defer` whose suite waits.
 
 **Checklist.**
 

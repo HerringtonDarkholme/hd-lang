@@ -8,6 +8,9 @@ description = "The linear-memory backend: reference-counted values in Wasm linea
 
 [features]
 checked-report = []
+# The decision ledger (`src/ledger.rs`, `scripts/ledger.ts`): counts each
+# emitter decision as it fires. Off in every shipped, web and test build.
+ledger = []
 
 [dependencies]
 hd_base = { path = "../hd_base" }

@@ -72,12 +72,14 @@ impl Em<'_, '_, '_> {
     pub(super) fn stated_count(&self, tag: Tag, at: At, part: Part) -> Option<Reason> {
         self.boundary_facts()
             .get(self.b.sub_root[self.sub_id as usize], tag, at, part)
+            .inspect(|_| ledger!("marker/{tag:?}/{at:?}/{}", crate::ledger::variant(part)))
     }
 
     /// Reads a statement in the target's adjacent operation-count bundle.
     pub(super) fn operation_count(&self, target: u32, tag: Tag, part: Part) -> Option<Reason> {
         hd_tir::ir::count::operation(self.b, &self.topo, target, tag, part)
             .map(|c| Reason::from_word(c.reason))
+            .inspect(|_| ledger!("marker/{tag:?}/Operation/{}", crate::ledger::variant(part)))
     }
 
     /// Mandatory ownership boundary fact; unlike `stated_count`, absence
@@ -407,6 +409,10 @@ impl Em<'_, '_, '_> {
     /// buffer carrying another count. On retain, `ls` holds borrowed bits
     /// to which the new count gives an owner; the reserved word stays 0.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
+        ledger!(if self.counted(t).is_some() || !self.drop_calls(t).is_empty() =>
+            "count/{}/at-{}/{:?}", if retain { "retain" } else { "release" },
+            self.emitting.last().map_or("none", |&i| self.b.tags[i as usize].name()),
+            self.f.reason);
         let start = self.f.body.len();
         // A `*dyn`'s data count, through the page table, stands by
         // design; a `&dyn` counts nothing.
@@ -667,6 +673,7 @@ impl Em<'_, '_, '_> {
             && hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
                 == Some(Info::new(At::Value, Part::Result, 0));
         if !stated && !owned && self.tracked(t) && !self.loans.contains(&i) {
+            ledger!("store_as/implicit-retain/{:?}", self.b.tags[i as usize]);
             self.retain_locals(&ls, t)?;
         }
         Ok(())
@@ -712,6 +719,7 @@ impl Em<'_, '_, '_> {
         // A value is never dropped after its move, so outside a frame
         // nothing else tests it.
         if self.susp.is_some() {
+            ledger!("susp/zero-moved-value-for-cancel");
             for l in self.vals.get(&r).cloned().unwrap_or_default() {
                 self.f.zero(l);
             }
@@ -744,6 +752,9 @@ impl Em<'_, '_, '_> {
             }
             self.f.op(crate::op::Op::Else);
         }
+        ledger!(if self.owned_refs.contains(&x) => "drop-value/owned_refs"
+            else if self.loans.contains(&x) => "drop-value/skipped-loan" else "drop-value/release");
+        ledger!(if transferred.is_some() => "drop-value/input-transferred-flag");
         if self.owned_refs.contains(&x) {
             self.release_owned_ref(&ls, t)?;
         } else if !self.loans.contains(&x) {

@@ -205,6 +205,8 @@ fn body_func<'a>(
         }
         Some((_, suspends, _)) => suspends,
     };
+    ledger!(if suspending => "body/suspending");
+    ledger!("susp/states" += if suspending { plan.0.len() } else { 0 });
     // Where each local lives: the final rows (`promote::settled`).
     let rows = &facts.storage[usize::from(sub)];
     let slot = |&(l, k): &(hd_base::LocalId, _)| (k == hd_tir::ir::Storage::Slot).then(|| l.idx());
@@ -573,6 +575,7 @@ fn body_func<'a>(
     // its cell or its frame slot, which takes over its count.
     for (l, ls) in &held {
         if em.parameter_positions.contains_key(l) && em.is_cell(*l) {
+            ledger!("param/moved-into-cell-at-entry");
             em.param_cell(*l, ls)?;
             // Only a store can follow what empties a parameter's cell, and
             // that store finds no cell (`Em::cell_of`).

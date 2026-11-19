@@ -1357,6 +1357,7 @@ impl Em<'_, '_, '_> {
             let off = size;
             size = (size + mem.size).next_multiple_of(8);
             self.mem_locals.insert(l, (base, off, Rc::new(mem)));
+            ledger!(if self.released(b.local_ty[l]) => "memlocal/live-flag" else "memlocal/uncounted");
             if self.released(b.local_ty[l]) {
                 let live = self.f.local(Val::I32);
                 self.mem_live.insert(l, live);
@@ -1681,6 +1682,7 @@ impl Em<'_, '_, '_> {
             if let hd_base::hash::hash_map::Entry::Vacant(e) =
                 self.mem_move_flags.entry((l, fields.clone()))
             {
+                ledger!("memflag/moved-path-flag-local");
                 let flag = self.f.local(Val::I32);
                 e.insert(flag);
                 order.entry(l).or_default().push((fields, flag));
@@ -1730,6 +1732,7 @@ impl Em<'_, '_, '_> {
             let dead = if let Some(&d) = self.mem_dead.get(&l) {
                 d
             } else {
+                ledger!("memflag/dead-flag-local");
                 let d = self.f.local(Val::I32);
                 self.mem_dead.insert(l, d);
                 d

@@ -186,6 +186,8 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         let set = u32::from(self.b.tags[i as usize] == Tag::FlagSet);
+        ledger!(if self.cell_slots(root).is_some() => "flag-stmt/cell-slot"
+            else if self.tir_flagged(root, ty) => "flag-stmt/local" else "flag-stmt/ignored-here");
         if let Some((c, cell)) = self.cell_slots(root) {
             // A slot's whole move zeroes its one holder's address.
             let slot = matches!(root, Root::Local(l) if self.slots.contains_key(&l));

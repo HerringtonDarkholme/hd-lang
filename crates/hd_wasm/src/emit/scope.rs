@@ -55,6 +55,8 @@ impl Em<'_, '_, '_> {
         // `dispose!` (flow.using.async.suite-suspends).
         let waits: Vec<Option<(u32, u32)>> = suites.iter().map(|&s| self.range(s)).collect();
         let waiting = waits.iter().any(Option::is_some);
+        ledger!(if waiting => "scope/defer-with-waiting-suite" else "scope/defer");
+        ledger!(if self.susp.is_some() => "scope/defer-in-suspending-body");
         let code = self.f.local(Val::I32);
         let mut flags = Vec::new();
         for &s in &suites {
@@ -162,6 +164,7 @@ impl Em<'_, '_, '_> {
         if !self.borrow_has_scope(i) {
             return;
         }
+        ledger!("scope/loan-ladder");
         let code = self.f.local(Val::I32);
         self.scopes.insert(
             i,
@@ -220,6 +223,7 @@ impl Em<'_, '_, '_> {
             .ctl
             .last_scope()
             .filter(|(p, _)| floor.is_none_or(|f| *p > f));
+        ledger!(if scope.is_some() => "exit/through-ladder");
         if let Some((p, s)) = scope {
             // A scope's ladder lives while its body is open.
             let info = self.scopes.get_mut(&s).expect("an open scope's ladder");
