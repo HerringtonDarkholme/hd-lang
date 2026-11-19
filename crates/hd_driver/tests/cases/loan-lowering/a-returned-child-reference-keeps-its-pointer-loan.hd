@@ -1,0 +1,31 @@
+# @dump: stdout
+# @build: dev | checked | release
+# expected: #2174: the aliased child write must panic with borrow-conflict.
+# The argument is a stored local reference, so its call has no newly
+# crossed pointer head. The result still borrows the counted child.
+use std.annotation.inline
+
+struct Node:
+    value: usize
+    children: List[*mut Node]
+
+@inline(.Never)
+fn descend(node: &Node) -> &Node:
+    &*node.children[0]
+
+@inline(.Never)
+fn maybe_change(alias: *mut Node, change: bool) -> void:
+    if change:
+        alias.children = []
+
+pub fn main() -> void $ Console:
+    let head: *mut Node = box(Node { value: 0, children: [] })
+    let n = 1
+    while n < 4:
+        head = box(Node { value: n, children: [head] })
+        n += 1
+    let alias = head.children[0]
+    let current = &*head
+    current = descend(current)
+    maybe_change(alias, true)
+    println(current.value)

@@ -1,0 +1,35 @@
+# @dump: stdout wat counts
+# @build: dev | checked | release
+use std.annotation.inline
+
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    @inline(.Never)
+    fn first['a](&'a self) -> &'a string:
+        &self.items[0]
+
+# A non-inlined call may write through a distinct pointer parameter. The
+# false runtime argument keeps the successful path, while the write effect
+# prevents whole-program loan elision from removing the loan under test.
+@inline(.Never)
+fn maybe_change(alias: *mut Slots, change: bool) -> void:
+    if change:
+        alias.items.push("alias")
+
+@inline(.Never)
+fn read(p: *mut Slots, alias: *mut Slots, early: bool) -> string:
+    value := p.first()
+    maybe_change(alias, false)
+    if early:
+        return *value
+    *value
+
+pub fn main() -> void $ Console:
+    p := box(Slots { items: ["held"] })
+    println(read(p, p, true))
+    p.items.push("after")
+    println(read(p, p, false))
+    p.items.push("again")
+    println(p.items.len())

@@ -1,0 +1,33 @@
+# @dump: stdout
+# @build: dev | checked | release
+# expected: #2174: print 6 and exit successfully; rebinding cuts ancestry
+# at the counted-pointer dereference, and the final alias write follows
+# the last use of current. Today's path leaks an earlier iteration's loan.
+use std.annotation.inline
+
+struct Node:
+    value: usize
+    children: List[*mut Node]
+
+@inline(.Never)
+fn maybe_change(alias: *mut Node, change: bool) -> void:
+    if change:
+        alias.children = []
+
+pub fn main() -> void $ Console:
+    let head: *mut Node = box(Node { value: 0, children: [] })
+    let n = 1
+    while n < 4:
+        head = box(Node { value: n, children: [head] })
+        n += 1
+    let alias = head
+    let current = &*head
+    let total = 0
+    while true:
+        total += current.value
+        maybe_change(alias, false)
+        if current.children.is_empty():
+            break
+        current = &*current.children[0]
+    maybe_change(alias, true)
+    println(total)
