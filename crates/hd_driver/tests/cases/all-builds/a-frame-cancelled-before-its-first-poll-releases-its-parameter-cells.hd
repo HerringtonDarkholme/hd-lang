@@ -1,0 +1,36 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A suspending body's parameter that lives in a cell (a reference reads
+# it, or a closure shares it and assigns it) moves into that cell in the
+# frame's cold constructor. A frame that `race!` cancels before its first
+# poll, and one cancelled at its first wait, release that cell and the
+# value in it once. The checked runs' exit audit fails on a leak or a
+# double free.
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+fn read!(xs: List[string]) -> usize $ Clock:
+    sleep!(ms(500))
+    xs.len()
+
+fn shared!(mut s: string) -> usize $ Clock:
+    grow := fn() -> void: s = "${s}!"
+    sleep!(ms(500))
+    grow()
+    s.len()
+
+fn now!() -> usize $ Clock:
+    7
+
+fn soon!() -> usize $ Clock:
+    sleep!(ms(1))
+    8
+
+pub fn main!() -> void $ Console + Clock:
+    xs := ["a${1}", "b"]
+    s := "c${2}"
+    println("read unpolled ${race!(now(), read(xs))}")
+    println("shared unpolled ${race!(now(), shared(s))}")
+    println("read waiting ${race!(soon(), read(xs))}")
+    println("shared waiting ${race!(soon(), shared(s))}")
+    println("done ${read!(xs) + shared!(s)}")
