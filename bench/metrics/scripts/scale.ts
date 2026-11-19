@@ -100,6 +100,7 @@ export type Work = Readonly<Record<string, number>>;
  * one doubling more.
  */
 const limitOf = (counter: string): number => (counter === "alloc_bytes" ? 2 * GROWTH : GROWTH);
+const floorOf = (counter: string): number => (counter === "alloc_bytes" ? BYTES_FLOOR : FLOOR);
 
 export interface Growth {
   readonly counter: string;
@@ -136,7 +137,7 @@ export function growths(
         ratio = d4 === 0 ? 0 : Infinity;
       }
       const limit = (limitOf(counter) * bytes) / 4;
-      const floor = counter === "alloc_bytes" ? BYTES_FLOOR : FLOOR;
+      const floor = floorOf(counter);
       return { counter, small: d1, large: d4, ratio, limit, bad: d4 >= floor && ratio > limit };
     })
     .sort((left, right) => right.ratio / right.limit - left.ratio / left.limit);
@@ -164,7 +165,7 @@ export function judgeShape(
 ): TargetResult {
   const all = growths(zero, small, large, bytes);
   const bad = all.filter((growth) => growth.bad);
-  const counted = all.filter((growth) => growth.large >= FLOOR);
+  const counted = all.filter((growth) => growth.large >= floorOf(growth.counter));
   const shown = bad[0] ?? counted[0];
   const text = (growth: Growth) =>
     `${growth.counter} ${growth.small} → ${growth.large} (${Number.isFinite(growth.ratio) ? growth.ratio.toFixed(2) : "∞"}x, limit ${growth.limit.toFixed(2)}x)`;
@@ -175,7 +176,8 @@ export function judgeShape(
   } else if (shown) {
     note = text(shown);
   }
-  const target = bytes === 4 ? `≤ ${GROWTH}x` : `≤ ${GROWTH}x per 4x bytes (${bytes.toFixed(1)}x)`;
+  const limit = shown?.limit ?? (GROWTH * bytes) / 4;
+  const target = `≤ ${Number(limit.toFixed(2))}x`;
   const base = { metric: NAME, name: label, value, target };
   if (bounded !== undefined) {
     return bad.length > 0

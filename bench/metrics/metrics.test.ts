@@ -987,18 +987,16 @@ describe("scale", () => {
     );
   });
 
-  // Known: /tmp/lt209/scale-table-target-column.md. Today the row shows
-  // alloc_bytes, under BYTES_FLOOR, at 7.40x against "≤ 5x" and passes. The
-  // fix shows a counter over its own floor, or that counter's limit.
-  it("shows a counter under its own floor over the printed target (known)", () => {
+  it("shows a counter that reached its own floor", () => {
     const row = judgeShape("generic-nest fmt", {
       zero: { alloc_bytes: 1000, allocs: 1000 },
       small: { alloc_bytes: 1000 + 10_894, allocs: 3000 },
       large: { alloc_bytes: 1000 + 80_601, allocs: 7000 },
     });
     assert.equal(row.status, "pass");
-    assert.equal(row.value, "7.40x");
+    assert.equal(row.value, "3.00x");
     assert.equal(row.target, "≤ 5x");
+    assert.match(row.note!, /^allocs 2000 → 6000/);
   });
 
   it("passes a known superlinear line and fails it once it turns linear", () => {
