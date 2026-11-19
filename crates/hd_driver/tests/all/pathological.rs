@@ -4057,9 +4057,9 @@ fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
 // it: cubic in a nest, quadratic in a run of loops. The body's block tree
 // is now numbered once in preorder, a loop's instructions are a slice of
 // it, and only a proof whose cheap tests pass asks for them. #1982: the
-// counter also counts the whole-body passes (the list facts, once per
-// body, and each list's alias walk, once per list), which each loop
-// repeated, so a run of loops was quadratic.
+// counter also counts the whole-body pass (the list facts, once per
+// body), which each loop repeated, so a run of loops was quadratic. Each
+// list's stability is now its region row of the hoisting pass (#2175).
 #[test]
 fn loop_proofs_list_each_loops_instructions_from_one_tree() {
     on_test_stack(|| {

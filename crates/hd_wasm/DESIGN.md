@@ -865,8 +865,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   bounds-checked. The first element of a local's list, or of the list
   the reference it holds refers to, takes the loop's cached header where
   the list is one of `Body::stable_lists` and its index unchecked where
-  the loop's range proof covers the read (`list_loop_safe` and
-  `range_indices` read such places as `Em::rooted_elem`). A dereference
+  the loop's range proof covers the read (`range_indices` reads such
+  places as `Em::rooted_elem`). A dereference
   of a thin reference goes on at its referent's address, and a field or
   payload step adds its offset. A `Read` then loads only the leaves the place
   names (copy or borrow as its mode says; a `move` reaches the walk only
@@ -2590,7 +2590,8 @@ the list and loop (`Body::stable_lists`) answers both: its region bounds
 are the last change before the loop and the first after it. A list with
 no row keeps the normal check. Thus a pop in that prelude invalidates
 the fact too, and so do unknown calls and possibly aliased mutations of
-a list a reference reaches.
+a list a reference reaches. The falling-index and masked-index proofs
+ask the same row (`Em::keeps_length`).
 
 For straight-line accesses, ownership and `hd_opt::prove` share
 `hd_tir::own::ElementChecks`; the pass marks each proven element step

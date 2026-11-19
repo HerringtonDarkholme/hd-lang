@@ -1183,7 +1183,6 @@ fn candidate(t: &mut Tables, l: u32, hoist: bool) -> Option<usize> {
         && k + 1 < MAX
     {
         t.cands.push(Cand {
-            hoist: false,
             external: false,
             lent_param: true,
             ..c

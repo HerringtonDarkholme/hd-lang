@@ -1,0 +1,15 @@
+# @dump: own wat
+# @build: v8 release
+# A list local a closure assigns lives in a frame cell: the hoisting pass
+# gives it no row (`Body::stable_lists`), so the counted loop over it,
+# though no call runs in the loop, keeps its check.
+pub fn main() -> void $ Console:
+    let mut xs = [1i64, 2, 3]
+    reset := fn() -> void:
+        xs = [9i64]
+    n := xs.len()
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    reset()
+    println("$s ${xs.len()}")

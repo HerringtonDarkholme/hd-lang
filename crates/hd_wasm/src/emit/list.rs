@@ -14,7 +14,7 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::StdKind;
-use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PlaceRoot, PrimOp, Proj, Ref, Step, Tag};
+use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Proj, Ref, Step, Tag};
 use hd_types::{Prim, Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -49,42 +49,17 @@ pub(super) struct ListCache {
 /// The list proofs' whole-body facts (#1982), built once per final body
 /// on the first loop whose cheap tests pass and shared, as the block tree
 /// is, by its instances and closure sub-bodies, so `n` loops pay one pass,
-/// not `n`. They read the body only: what depends on an instance's types
-/// is asked during each walk ([`Em::list_aliases`]). Cost: O(instructions
-/// + operands).
+/// not `n`. They read the body only. Cost: O(instructions).
 pub(crate) struct ListFacts {
     /// Each local's stores, with the value of a store into all of it
     /// (`NONE` for a field's).
     sets: Vec<Vec<(u32, u32)>>,
     /// Locals a `Ref` names.
     referenced: Vec<bool>,
-    /// The alias graph, by node: values `0..n`, then locals `n..`. Each
-    /// node's successors, `succ[at[x]..at[x + 1]]`, are the nodes that
-    /// alias it when it does ([`Em::list_aliases`]).
-    at: Vec<u32>,
-    succ: Vec<u32>,
-    /// The values that alias their operands only when their type is
-    /// tracked, which an instance's types decide.
-    typed: Vec<bool>,
     /// The element accesses, in each form [`Em::elem_access`] reads,
     /// whose index reads each local, in index order, by local
     /// ([`Em::falling_indices`]), built on first use.
     index_reads: std::sync::OnceLock<(Vec<u32>, Vec<u32>)>,
-}
-
-/// The values and locals that alias one list root ([`Em::list_aliases`]),
-/// and whether one of them is a reference or a call, through which
-/// something outside the body may reach the list.
-pub(crate) struct Aliases {
-    nodes: hd_base::HashSet<u32>,
-    external: bool,
-}
-
-impl Aliases {
-    /// Whether node `x` (a value, or `n` + a local) aliases the list.
-    fn has(&self, x: usize) -> bool {
-        u32::try_from(x).is_ok_and(|x| self.nodes.contains(&x))
-    }
 }
 
 impl Em<'_, '_, '_> {
@@ -189,144 +164,27 @@ impl Em<'_, '_, '_> {
     fn list_facts(&self) -> &ListFacts {
         self.list_facts.get_or_init(|| {
             let b = self.b;
-            // Whether `i` reads a projection: the body's step, whatever
-            // the instance's types make of it (a tuple's element or a
-            // field), since only `None` matters here.
-            let projected = |i: usize| match b.read_step(i) {
-                None | Some((_, Step::DerefField(_))) => super::shape::Projected::None,
-                Some(_) => super::shape::Projected::Field,
-            };
-            let n = b.len();
             let locals = b.local_ty.len();
-            crate::work::loop_scans(n);
+            crate::work::loop_scans(b.len());
             let mut sets = vec![Vec::new(); locals];
             let mut referenced = vec![false; locals];
-            // Each edge's source and target: a value or local a node
-            // aliases when that one does, as the rules below say.
-            let mut edges: Vec<(u32, u32)> = Vec::new();
-            let mut typed = Vec::with_capacity(n);
-            // ruled out: a node past u32; TIR numbers instructions and
-            // locals in u32 words, and a body's both fit one function.
-            let node = |x: usize| u32::try_from(x).expect("insts");
-            for i in 0..n {
+            for i in 0..b.len() {
                 if let Some((local, whole)) = b.stored_local(i) {
                     let value = if whole { b.data[i][1] } else { NONE };
-                    sets[local.idx()].push((node(i), value));
+                    // ruled out: an instruction past u32; TIR numbers
+                    // instructions in u32 words.
+                    sets[local.idx()].push((u32::try_from(i).expect("insts"), value));
                 }
                 if let Some(l) = super::shape::ref_local(b, i) {
                     referenced[l] = true;
                 }
-                let [a, _] = b.data[i];
-                if let Some((l, v)) = super::shape::local_part_store(b, i)
-                    && (v as usize) < n
-                {
-                    edges.push((v, node(n + l)));
-                }
-                // The one node `i` aliases when it does, if any: a value
-                // source must be an instruction of the body.
-                let value = |r: u32| ((r as usize) < n).then_some(r);
-                let mut by_type = false;
-                let source = match b.tags[i] {
-                    Tag::Read if let Some(l) = b.local_read(i) => Some(node(n + l.idx())),
-                    // A reference to the list local's own place, or to
-                    // what the reference it holds refers to.
-                    Tag::Ref => b.decode_place(a).and_then(|p| match p.root {
-                        PlaceRoot::Local(l)
-                            if match p.proj.as_slice() {
-                                [Proj::Deref, rest @ ..] => rest,
-                                rest => rest,
-                            }
-                            .iter()
-                            .all(|s| matches!(s, Proj::Field(_))) =>
-                        {
-                            Some(node(n + l.idx()))
-                        }
-                        _ => None,
-                    }),
-                    // An element is no alias of its list, read from a list
-                    // value (`[%xs [%i]]`) or from a place rooted at a local
-                    // (`[*$l [%i]]`, [`Em::rooted_elem`]).
-                    Tag::Read
-                        if super::shape::projection(b, i, projected(i)).is_none()
-                            && b.element_read(i).is_none()
-                            && rooted_elem(b, i).is_none() =>
-                    {
-                        let through = super::shape::read_through(b, i, projected(i));
-                        through.and_then(|(through, _)| match through {
-                            Through::Value(r) => value(r),
-                            Through::Local(l) => Some(node(n + l)),
-                        })
-                    }
-                    Tag::Coerce => value(a),
-                    // Any other value aliases each of its operands when
-                    // its type is tracked, which each walk asks.
-                    _ => {
-                        by_type = true;
-                        for &r in &super::shape::uses(b, i) {
-                            edges.push((r, node(i)));
-                        }
-                        None
-                    }
-                };
-                typed.push(by_type);
-                if let Some(x) = source {
-                    edges.push((x, node(i)));
-                }
             }
-            let (at, succ) = csr(n + locals, &edges);
             ListFacts {
                 sets,
                 referenced,
-                at,
-                succ,
-                typed,
                 index_reads: std::sync::OnceLock::new(),
             }
         })
-    }
-
-    /// Reaching aliases of list `root`'s local, including provider
-    /// operands. Scalar observations of the list are not aliases of it.
-    /// A value aliases the list when an operand does and its type is
-    /// tracked, a local when a store into it writes an alias, and a read
-    /// of a local or a reference to its place when the local does: a
-    /// local that holds the list too, whose places rooted at it reach
-    /// the list ([`Em::rooted_elem`]). This is the least fixed point of
-    /// those rules, so the nodes reachable from the root in
-    /// [`ListFacts`]' graph: one walk of what aliases the root, memoized
-    /// per root local, so every loop over one list asks once.
-    fn list_aliases(&self, root: ListRoot) -> std::rc::Rc<Aliases> {
-        if let Some(a) = self.list_alias_memo.borrow().get(&root.local) {
-            return std::rc::Rc::clone(a);
-        }
-        let facts = self.list_facts();
-        let n = self.b.len();
-        // ruled out: a node past u32, as in `list_facts`.
-        let start = u32::try_from(n + root.local as usize).expect("insts");
-        let mut nodes = hd_base::HashSet::default();
-        nodes.insert(start);
-        let mut stack = vec![start];
-        let mut external = false;
-        let mut work = 0;
-        while let Some(x) = stack.pop() {
-            let x = x as usize;
-            external |= x < n && matches!(self.b.tags[x], Tag::Ref | Tag::Call | Tag::CallValue);
-            let next = &facts.succ[facts.at[x] as usize..facts.at[x + 1] as usize];
-            work += 1 + next.len();
-            for &y in next {
-                let typed = facts.typed.get(y as usize) == Some(&true);
-                if !nodes.contains(&y) && (!typed || self.tracked(self.ty(y))) {
-                    nodes.insert(y);
-                    stack.push(y);
-                }
-            }
-        }
-        crate::work::loop_scans(work);
-        let a = std::rc::Rc::new(Aliases { nodes, external });
-        self.list_alias_memo
-            .borrow_mut()
-            .insert(root.local, std::rc::Rc::clone(&a));
-        a
     }
 
     /// The list and index of `Read` or `Store` `i` whose place is rooted at
@@ -524,27 +382,8 @@ impl Em<'_, '_, '_> {
         let Some(root) = self.list_root(list) else {
             return Vec::new();
         };
-        // The hoisting pass found nothing in the loop changes the list's
-        // length (`Body::stable_lists`). Length observation and loop entry
-        // can be separated by arbitrary statements. A pop there invalidates
-        // the fact just as one in the loop does, through the statement
-        // that holds the loop: an arm or an outer loop around it runs there
-        // too. The list's region around the loop answers it.
-        let Some((_, [first, after, _])) = self.stable_roots(loop_inst).find(|r| r.0 == root)
-        else {
+        if !self.keeps_length(root, loop_inst, len) {
             return Vec::new();
-        };
-        if self.is_cell(root.local as usize) {
-            return Vec::new();
-        }
-        if before {
-            let blk = self.topo.blk[len as usize];
-            let Some(holder) = self.tree().child_above(blk, loop_inst) else {
-                return Vec::new();
-            };
-            if !((first == NONE || first < len) && holder < after) {
-                return Vec::new();
-            }
         }
         let body = self.loop_body(loop_inst);
         body.iter()
@@ -644,12 +483,11 @@ impl Em<'_, '_, '_> {
     /// takes, or after it where the other arm never falls through.
     /// Unsigned, `y & m <= m`, and with the length above zero `n - 1`
     /// does not wrap. `xs` keeps its length from each of the two length
-    /// reads to the access ([`Em::list_loop_safe`] over
-    /// [`Em::between`]). Each access is asked by its innermost loop
-    /// only, and only a loop whose own statements hold a `&`. Cost: the
-    /// body's [`ListFacts`] once per body, as [`Em::range_indices`] reads
-    /// them; a walk of the enclosing blocks of each masked access, and
-    /// one alias walk per list root in the body.
+    /// reads through the loop ([`Em::keeps_length`]). Each access is
+    /// asked by its innermost loop only, and only a loop whose own
+    /// statements hold a `&`. Cost: the body's [`ListFacts`] once per
+    /// body, as [`Em::range_indices`] reads them, and a walk of the
+    /// enclosing blocks of each masked access.
     fn masked_indices(&self, loop_inst: u32) -> Vec<u32> {
         let own = self.tree().own(loop_inst);
         crate::work::loop_scans(own.len());
@@ -671,13 +509,7 @@ impl Em<'_, '_, '_> {
             let Some(t) = self.positive_len(root, and, sets) else {
                 continue;
             };
-            let aliases = self.list_aliases(root);
-            let keeps = |d: u32| {
-                self.dominates(d, x)
-                    && self
-                        .between(d, x)
-                        .is_some_and(|run| self.list_loop_safe(root, &run, &aliases))
-            };
+            let keeps = |d: u32| self.dominates(d, x) && self.keeps_length(root, loop_inst, d);
             if keeps(n) && keeps(t) {
                 proven.push(x);
             }
@@ -832,7 +664,6 @@ impl Em<'_, '_, '_> {
         // The lists an access checked that value against: its index reads
         // `u`, which no store changes between that read and `v`'s.
         let mut roots: Vec<ListRoot> = Vec::new();
-        let mut body: Option<Vec<u32>> = None;
         let (at, reads) = self.list_facts().index_reads.get_or_init(|| {
             // Each form's index, from the body alone; each candidate is
             // asked [`Em::elem_access`], whose list test reads types.
@@ -870,9 +701,7 @@ impl Em<'_, '_, '_> {
             {
                 continue;
             }
-            let (Some(to_init), Some(mut to_loop)) =
-                (self.between(index, init.0), self.between(x, loop_inst))
-            else {
+            let Some(to_init) = self.between(index, init.0) else {
                 continue;
             };
             if to_init.iter().any(|&y| {
@@ -882,16 +711,15 @@ impl Em<'_, '_, '_> {
             }) {
                 continue;
             }
-            to_loop.extend_from_slice(body.get_or_insert_with(|| self.loop_body(loop_inst)));
-            let aliases = self.list_aliases(root);
-            if self.list_loop_safe(root, &to_loop, &aliases) {
+            if self.keeps_length(root, loop_inst, x) {
                 roots.push(root);
             }
         }
-        let Some(body) = body.filter(|_| !roots.is_empty()) else {
+        if roots.is_empty() {
             return Vec::new();
-        };
-        body.into_iter()
+        }
+        self.loop_body(loop_inst)
+            .into_iter()
             .filter(|&y| {
                 let Some((root, index)) = self.elem_access(y as usize) else {
                     return false;
@@ -923,152 +751,26 @@ impl Em<'_, '_, '_> {
             .collect()
     }
 
-    /// This body's proof never consults a callee. Unescaped locals may
-    /// cross unrelated calls, a by-value parameter too: a caller lends one
-    /// only where no call may change its source, and else copies it.
-    /// References and escaped headers reject unknown calls that could
-    /// reach them through an external alias.
-    fn list_loop_safe(&self, root: ListRoot, body: &[u32], aliases: &Aliases) -> bool {
-        if self.is_cell(root.local as usize) {
+    /// Whether list `root` keeps its length from `from`, which dominates
+    /// loop `loop_inst` or runs in it, through the loop: the hoisting
+    /// pass's row for the list at the loop (`Body::stable_lists`), whose
+    /// region, when `from` runs before the loop, starts before `from` and
+    /// ends after the statement of `from`'s block that holds the loop (an
+    /// arm or an outer loop around it runs there too). O(log rows + the
+    /// loop's rows + the block depth).
+    fn keeps_length(&self, root: ListRoot, loop_inst: u32, from: u32) -> bool {
+        // A frame cell's list has no row: the hoisting pass refuses a
+        // local a closure assigns (`a-list-a-closure-assigns-gets-no-region-row`).
+        let Some((_, [first, after, _])) = self.stable_roots(loop_inst).find(|r| r.0 == root)
+        else {
             return false;
+        };
+        if self.in_loop(from, loop_inst) {
+            return true;
         }
-        let external = root.indirect || aliases.external;
-        let n = self.b.len();
-        for &x in body {
-            let i = x as usize;
-            let [a, _] = self.b.data[i];
-            // A place rooted at a local that holds the list reaches it as
-            // a read of that local would.
-            let rooted = self.rooted_elem(i);
-            let reaches = super::shape::uses(self.b, i)
-                .iter()
-                .any(|r| aliases.has(*r as usize))
-                || rooted.is_some_and(|(list, _)| aliases.has(n + list.local as usize));
-            if self.calls.contains_key(&x)
-                || matches!(
-                    self.b.tags[i],
-                    Tag::Call | Tag::CallValue | Tag::CallHost | Tag::DefaultCall
-                )
-            {
-                if reaches {
-                    return false;
-                }
-                let known_scalar = self.calls.get(&x).is_some_and(|target| {
-                    let hd_mono::Target::Call(call) = target else {
-                        return false;
-                    };
-                    match &call.kind {
-                        // The float operations are `Builtin` methods; no
-                        // intrinsic key names one (`hd_resolve::intrinsics`).
-                        // Wrapping integer arithmetic reads only its operands.
-                        hd_mono::TargetKind::Intrinsic(key) => matches!(
-                            key.as_str(),
-                            "int_wrapping_add" | "int_wrapping_sub" | "int_wrapping_mul"
-                        ),
-                        hd_mono::TargetKind::Builtin { self_ty, .. } => {
-                            matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
-                                && matches!(
-                                    (self.input.path)(call.item).rsplit(['.', '/']).next(),
-                                    Some(
-                                        "sqrt"
-                                            | "abs"
-                                            | "trunc"
-                                            | "floor"
-                                            | "ceil"
-                                            | "round_ties_even"
-                                            | "copysign"
-                                    )
-                                )
-                        }
-                        hd_mono::TargetKind::Instance => false,
-                    }
-                });
-                if external && !known_scalar {
-                    return false;
-                }
-                continue;
-            }
-            let store = super::shape::local_store(self.b, i);
-            match self.b.tags[i] {
-                Tag::Store
-                    if store.is_some_and(|(l, v)| {
-                        l == root.local as usize || aliases.has(v as usize)
-                    }) =>
-                {
-                    return false;
-                }
-                Tag::Store
-                    if external && store.is_some_and(|(l, _)| self.tracked(self.b.local_ty[l])) =>
-                {
-                    return false;
-                }
-                Tag::Read if external && self.b.global_read(i).is_some() => return false,
-                // An element store writes through its list, as the
-                // intrinsics that change one in place do.
-                Tag::Store
-                    if super::shape::elem_store_list(self.b, i).is_some() || rooted.is_some() =>
-                {
-                    if external && !reaches {
-                        return false;
-                    }
-                }
-                Tag::Store if external && store.is_none() => return false,
-                Tag::Coerce
-                | Tag::NewStruct
-                | Tag::CopyStruct
-                | Tag::NewTuple
-                | Tag::NewVariant
-                | Tag::NewList
-                | Tag::NewMap
-                    if external && self.tracked(self.ty(x)) =>
-                {
-                    return false;
-                }
-                // A `Scope` with no suites, an inlined call's, is a block.
-                Tag::Scope if !self.rec(self.b.data[i][1]).is_empty() => return false,
-                Tag::Await
-                | Tag::AwaitValue
-                | Tag::AwaitAll
-                | Tag::AwaitRace
-                | Tag::Defer
-                | Tag::Hook
-                | Tag::Closure => return false,
-                // An element read is checked as the intrinsics that read
-                // a list are.
-                Tag::Read
-                    if external
-                        && !reaches
-                        && (self.b.element_read(i).is_some() || rooted.is_some())
-                        && self.tracked(self.ty(x)) =>
-                {
-                    return false;
-                }
-                Tag::Intrinsic if external && !reaches => match IntrinsicOp::from_u32(a) {
-                    Some(IntrinsicOp::ListLen) => {}
-                    // Distinct reference parameters can denote the same
-                    // list. A mutation through either may replace its buffer.
-                    _ => return false,
-                },
-                Tag::Intrinsic if reaches => match IntrinsicOp::from_u32(a) {
-                    Some(IntrinsicOp::ListLen) => {}
-                    _ => return false,
-                },
-                // A tuple element or a payload is checked as any other
-                // value that reaches the list.
-                Tag::Read
-                    if reaches
-                        && self
-                            .projection(i)
-                            .is_some_and(|(_, p)| p != super::shape::Projected::Field) =>
-                {
-                    return false;
-                }
-                Tag::Read | Tag::Block => {}
-                _ if reaches => return false,
-                _ => {}
-            }
-        }
-        true
+        self.tree()
+            .child_above(self.topo.blk[from as usize], loop_inst)
+            .is_some_and(|holder| (first == NONE || first < from) && holder < after)
     }
 
     /// The hoisted `IsUnique`s waiting for loop `l` (`hoisted`), run once

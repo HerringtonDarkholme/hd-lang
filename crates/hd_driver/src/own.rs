@@ -289,6 +289,9 @@ thread_local! {
 /// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "int_wrapping_add",
+    "int_wrapping_sub",
+    "int_wrapping_mul",
     "ptr_offset",
     "mem_string_bytes",
     "mem_ref_address",
@@ -318,6 +321,23 @@ const PURE_INTRINSICS: &[&str] = &[
     "panic",
     "panic_message",
 ];
+
+/// A float's body-less methods that read only their arguments, whether
+/// an `@intrinsic` or the compiler's own code (`trait.impl.intrinsic`).
+const PURE_FLOAT_METHODS: &[&str] = &[
+    "sqrt",
+    "abs",
+    "trunc",
+    "floor",
+    "ceil",
+    "round_ties_even",
+    "copysign",
+];
+
+/// Whether item path `path` ends in one of [`PURE_FLOAT_METHODS`].
+fn pure_float_method(path: &str) -> bool {
+    (path.rsplit(['.', '/']).next()).is_some_and(|name| PURE_FLOAT_METHODS.contains(&name))
+}
 
 /// The intrinsics that own their value arguments, as a function's value
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
@@ -368,18 +388,18 @@ impl Env<'_> {
     /// The base declaration policy, also used while proving generated
     /// families. It does not enter another generated-family query.
     fn intrinsic_may_write(&self, callee: &Callee) -> bool {
-        // The compiler's scalar square root reaches nothing but its
-        // argument (`list.rs`'s loop proofs allow it the same way), and
-        // the byte reads of a string only read it ([`PURE_INTRINSICS`]).
+        // A float's rounding, sign and square-root methods reach nothing
+        // but their arguments ([`PURE_FLOAT_METHODS`]), and the byte reads
+        // of a string only read it ([`PURE_INTRINSICS`]).
         match callee {
-            // `@intrinsic("sqrt")`, or `f64.sqrt` and `f32.sqrt`, body-less
-            // methods of a float's inherent impl (`trait.impl.intrinsic`).
+            // `@intrinsic("sqrt")`, or `f64.sqrt`, `f32.abs` and the other
+            // body-less methods of a float's inherent impl.
             Callee::Item { def, .. } => {
                 // Whether it has a body, from the body table: decoding
                 // one would read another body.
                 let bodyless = self.run.lazy_body(self.p, *def).is_none();
                 let method = bodyless
-                    && self.run.names().path(*def).rsplit(['.', '/']).next() == Some("sqrt")
+                    && pure_float_method(&self.run.names().path(*def))
                     && self
                         .parent(*def)
                         .and_then(|(owner, _)| self.impl_head(owner))
@@ -398,7 +418,7 @@ impl Env<'_> {
                 ..
             } => {
                 // The compiler's own code for a scalar's comparison and a
-                // float's square root reads its arguments and nothing else.
+                // float's pure methods reads its arguments and nothing else.
                 let names = self.run.names();
                 let name = names.path(*method);
                 let name = name.rsplit(['.', '/']).next();
@@ -406,7 +426,7 @@ impl Env<'_> {
                     return true;
                 };
                 !(matches!(name, Some("eq" | "cmp" | "partial_cmp"))
-                    || (p.is_float() && name == Some("sqrt")))
+                    || (p.is_float() && pure_float_method(&names.path(*method))))
             }
             Callee::TraitMethod { .. } => true,
         }

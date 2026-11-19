@@ -4,7 +4,7 @@
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
 use hd_base::SliceSort as _;
-use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Word, slot_words};
+use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Tag};
 
 use super::Em;
 
@@ -290,13 +290,6 @@ pub(super) fn local_store(b: &Body, i: usize) -> Option<(usize, u32)> {
     }
 }
 
-/// A `Store` `i` into a local or a struct field of it (`[$l]`,
-/// `[$l .x .y]`): the local and the value stored. A field store replaces
-/// part of the local, as a whole store replaces all of it.
-pub(super) fn local_part_store(b: &Body, i: usize) -> Option<(usize, u32)> {
-    b.stored_local(i).map(|(l, _)| (l.idx(), b.data[i][1]))
-}
-
 /// The list value whose element `Store` `i` writes (`[%xs [%i] ..]`), as
 /// an element store intrinsic names its list.
 pub(super) fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
@@ -378,38 +371,6 @@ pub(super) fn read_through(b: &Body, i: usize, projected: Projected) -> Option<(
     }
 }
 
-/// The instruction values instruction `i` reads: its value and provider
-/// slots ([`hd_tir::ir::slots`]) but a `Drop`'s place, and more, an over-approximation
-/// which only ever makes a list's alias check refuse: every word of an
-/// `Await`'s records, of a list's spread positions and of a call's
-/// provider pairs.
-pub(super) fn uses(b: &Body, i: usize) -> Vec<u32> {
-    let [a, w] = b.data[i];
-    let mut out = match b.tags[i] {
-        Tag::Await => return in_body(b, [b.record(a), b.record(w)].concat()),
-        Tag::NewList if a != NONE => b.record(a).to_vec(),
-        Tag::Call => match *b.record(w) {
-            [.., 1, x, n] => b
-                .extra
-                .get(x as usize..(x + n) as usize)
-                .unwrap_or(&[])
-                .to_vec(),
-            _ => vec![],
-        },
-        _ => vec![],
-    };
-    out.extend(slot_words(b, i, |s| {
-        s == Word::Provider || matches!(s, Word::Value(r) if r != Role::Dropped)
-    }));
-    in_body(b, out)
-}
-
-/// The words of `v` that name an instruction of `b`.
-fn in_body(b: &Body, mut v: Vec<u32>) -> Vec<u32> {
-    v.retain(|&r| r != NONE && Ref(r).as_inst().is_some() && (r as usize) < b.len());
-    v
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -474,6 +435,6 @@ mod tests {
             read_through(&new, 3, Projected::None),
             Some((Through::Value(2), true))
         );
-        assert_eq!(local_part_store(&new, 4), None);
+        assert_eq!(local_store(&new, 4), None);
     }
 }

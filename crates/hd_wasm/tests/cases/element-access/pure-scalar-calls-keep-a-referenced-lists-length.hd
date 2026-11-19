@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: v8 release
+# Counted loops over a list behind a reference, whose bodies call a
+# float's `abs`, `floor` and `copysign` and an integer's `wrapping_add`:
+# those read only their arguments, so the list keeps its length and no
+# read is checked.
+fn total(xs: &List[f64]) -> f64:
+    let s = 0.0
+    for i in 0..xs.len():
+        s = s + xs[i].abs() + xs[i].floor() + xs[i].copysign(1.0)
+    s
+
+fn wrap(xs: &List[usize]) -> usize:
+    let s: usize = 0
+    for i in 0..xs.len():
+        s = s.wrapping_add(xs[i])
+    s
+
+pub fn main() -> void $ Console:
+    let xs = [1.5, -2.5]
+    println(total(&xs))
+    let ys: List[usize] = [1, 2]
+    println(wrap(&ys))
