@@ -1509,7 +1509,7 @@ struct Em<'i, 'a, 'm> {
     /// The final body's shared block structure.
     topo: std::sync::Arc<hd_tir::ir::Topology>,
     /// Its preorder, shared lazily with sibling closure instances.
-    tree: std::sync::Arc<std::sync::OnceLock<shape::Tree>>,
+    tree: std::sync::Arc<std::sync::OnceLock<hd_tir::ir::Nest>>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).

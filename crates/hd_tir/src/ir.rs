@@ -16,6 +16,7 @@ use hd_types::{Ty, TyList};
 
 mod copy;
 mod local_fns;
+mod nest;
 mod owned;
 mod root;
 mod slots;
@@ -25,6 +26,7 @@ pub(crate) use copy::{
     Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, renumber,
 };
 pub use local_fns::{LocalTypes, instantiate_local_functions};
+pub use nest::Nest;
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
