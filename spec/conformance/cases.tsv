@@ -6994,6 +6994,10 @@ lang/requirements/requirement-rows/row-subsumption/supertrait-row-adapters-cold-
 lang/traits/trait-declarations/projection-through-impl-bounds-at-depth-limit.hd	type	accept	lang/09-traits.md#r-trait.assoc.projection.depth
 lang/traits/trait-declarations/projection-through-impl-bounds-past-depth-limit.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.depth
 lang/traits/trait-declarations/projection-through-impl-bounds-runtime.hd	runtime	accept	lang/09-traits.md#r-trait.assoc.projection
+lang/references/static-references/static-reference-top-level-binding.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.not-local
+lang/references/static-references/static-reference-top-level-mutable-source.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
+lang/references/static-references/static-reference-read-owned-counted-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.no-count
+lang/references/static-references/static-reference-bound-with-sub-obligations.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.not-local
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

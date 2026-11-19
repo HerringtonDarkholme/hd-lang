@@ -1,0 +1,20 @@
+# test: a static reference meets a bound selected through an implementation's static sub-obligation
+# Spec 13 Static References: ref.static.not-local.
+# expect-stdout: 7
+trait Saved:
+    fn number(&self) -> i32
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+
+fn saved[T < Saved](value: T) -> i32:
+    value.number()
+
+let number = +42
+
+pub fn main() -> void $ Console:
+    println("${saved(Wrapped { value: &number })}")

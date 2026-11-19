@@ -1190,6 +1190,32 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// A binding annotation and the reference slots it writes `'static`.
+    /// Both local and module bindings use the same placement and checks.
+    pub(crate) fn binding_type(&mut self, n: NodeRef<'_>) -> StageResult<(Ty, Vec<u32>)> {
+        let slots = self.static_slots(n).unwrap_or_default();
+        let nodes = slots.iter().flatten().copied().collect();
+        let outer = std::mem::replace(&mut self.static_annotation, nodes);
+        let ty = self.ty_node(n);
+        self.static_annotation = outer;
+        let ty = ty?;
+        let mut statics = Vec::new();
+        if self.pool().ref_slots(ty) == slots.len() {
+            statics.extend(
+                (0..slots.len())
+                    .filter(|&k| slots[k].is_some())
+                    .map(hd_tir::ir::u32_of),
+            );
+        } else if slots.iter().any(Option::is_some) {
+            self.err(
+                Code::ReferencesNotYetChecked,
+                n,
+                "a lifetime inside a function body is not checked yet",
+            );
+        }
+        Ok((ty, statics))
+    }
+
     /// The type a type node names.
     /// The reference slots of type node `n`, in
     /// [`hd_types::Types::ref_slots`] order, each with its `&'static` node

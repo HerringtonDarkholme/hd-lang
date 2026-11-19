@@ -1,0 +1,20 @@
+# test: reading an owned counted reference through a static reference copies its count
+# Spec 13 Static References: ref.static.no-count, ref.static.value.
+# expect-stdout: 42 42
+struct Cell:
+    n: i32
+
+struct Holder:
+    cell: *mut Cell
+
+let table = Holder { cell: box(Cell { n: 1 }) }
+
+fn get(h: &'static Holder) -> *mut Cell:
+    h.cell
+
+pub fn main() -> void $ Console:
+    first := get(&table)
+    first.n = 42
+    for _ in 0..8:
+        _ := get(&table)
+    println("${table.cell.n} ${get(&table).n}")

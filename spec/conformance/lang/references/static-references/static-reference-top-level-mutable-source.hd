@@ -1,0 +1,7 @@
+# test: a top-level static reference binding rejects a mutable source
+# Spec 13 Static References: ref.static.source.error, ref.static.not-local.
+struct Point:
+    x: i32
+
+let mut moving = Point { x: 0 }
+let bad: &'static Point = &moving # diagnostic: static-reference-source

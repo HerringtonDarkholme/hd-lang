@@ -1,0 +1,11 @@
+# test: top-level static reference annotations check and preserve their static sources
+# Spec 13 Static References: ref.static.form, ref.static.value, ref.static.not-local.
+# expect-stdout: 5 6 7
+let five: &'static i32 = &5
+let pair: (&'static i32, &'static i32) = (&6, &7)
+
+fn get() -> &'static i32:
+    five
+
+pub fn main() -> void $ Console:
+    println("${*get()} ${*pair._0} ${*pair._1}")

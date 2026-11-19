@@ -1020,9 +1020,12 @@ impl Ck<'_, '_> {
                 inner.next().zip(inner.next())
             })
             .flatten();
-        let annot = match ty_node {
-            Some(t) => Some(self.ty_node(t)?),
-            None => None,
+        let (annot, statics) = match ty_node {
+            Some(n) => {
+                let (ty, slots) = self.binding_type(n)?;
+                (Some(ty), slots)
+            }
+            None => (None, Vec::new()),
         };
         if let (Some(t), Some(n)) = (annot, ty_node) {
             self.top_level_annotation(t, n);
@@ -1043,6 +1046,9 @@ impl Ck<'_, '_> {
             ),
             None => (r, t),
         };
+        if !statics.is_empty() {
+            self.static_values.push((r, statics.into()));
+        }
         // `let mut` is judged by `let_mut_binding` (types.value.let-mut).
         let mutable = pat
             .direct_tokens()
