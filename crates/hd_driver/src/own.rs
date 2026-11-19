@@ -449,6 +449,14 @@ impl hd_opt::prove::Cx for Env<'_> {
     fn tracked(&self, t: Ty) -> bool {
         hd_layout::walk(&self.run.pool, self, t).is_some()
     }
+    fn elems_tracked(&self, t: Ty) -> bool {
+        let pool = &self.run.pool;
+        let (_, args) = pool.adt_parts(hd_mono::layout::strip_newtype(pool, self, t));
+        (pool.list_items(args).first()).is_some_and(|&e| hd_layout::walk(pool, self, e).is_some())
+    }
+    fn length_name(&self) -> hd_base::Symbol {
+        self.run.syms.intern("$len")
+    }
     fn tuple(&self, t: Ty) -> bool {
         let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
         matches!(self.run.pool.get(t), TyData::Tuple { .. })
@@ -2004,10 +2012,8 @@ impl Env<'_> {
             let summary = (summarize && refused.is_ok())
                 .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
                 .flatten();
-            if refused.is_ok() {
-                let release = self.run.level == hd_base::OptLevel::Optimized;
-                hd_opt::prove::run(&mut body, self, release);
-            }
+            let release = self.run.level == hd_base::OptLevel::Optimized;
+            let refused = refused.and_then(|()| hd_opt::prove::run(&mut body, self, release));
             (refused, summary)
         });
         let relies = scratch.relies();

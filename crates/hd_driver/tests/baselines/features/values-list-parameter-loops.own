@@ -14,29 +14,33 @@ fn advance(bodies: &mut List[Body], dt: f64) -> void:
     n := bodies.len()
 > app/main/advance
 >   local $0 bodies: &mut List[Body] [param read] value
->     uses $0: entry -> %0 lend, %22 lend, %25 lend, %51 lend, %54 lend, %57 lend
+>     uses $0: entry -> %0 lend, %11 lend, %43 lend last
 >   local $1 dt: f64 [param read] value
->     uses $1: entry -> %23 lend, %52 lend
+>     uses $1: entry -> %26 lend, %58 lend
 >   local $2 n: usize [:= read assigned] value
->     uses $2: %2 -> %3 consume, %32 consume last
+>     uses $2: %2 -> %3 consume, %35 consume last
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %8 -> %13 lend
+>     uses $4: %8 -> %16 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 i: usize [read assigned] value
->     uses $6: %16 -> %20 lend, %21 lend last
+>     uses $6: %19 -> %23 lend, %24 lend last
 >   local $7 $cur: usize [assigned] place
 >   local $8 $end: usize [assigned] value
->     uses $8: %37 -> %42 lend
+>     uses $8: %40 -> %48 lend
 >   local $9 $incl: bool [assigned] value
 >     uses $9: none
 >   local $10 i: usize [read assigned] value
->     uses $10: %45 -> %49 lend, %50 lend, %53 lend last
+>     uses $10: %51 -> %55 lend, %56 lend, %59 lend last
+>   local $11 $len: usize [read assigned] value
+>     uses $11: none
+>   local $12 $len: usize [read assigned] value
+>     uses $12: none
 >   %0 = Read borrow [*$0] : List[Body]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$2] %1 : ()
->   %64 = Block - : ()
+>   %70 = Block - : ()
     for i in 0..n:
 >   %3 = Read copy [$2] : usize
 >   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
@@ -46,65 +50,71 @@ fn advance(bodies: &mut List[Body], dt: f64) -> void:
 >   %8 = Store [$4] %7 : ()
 >   %9 = Read copy [%4 .inclusive] : bool
 >   %10 = Store [$5] %9 : ()
->   %11 = IsUnique hoisted [*$0] : ()
->   %12 = Read copy [$3] : usize
->   %13 = Read copy [$4] : usize
->   %14 = Prim Lt [%12 %13] : bool
+>   %11 = Read borrow [*$0] : List[Body]
+>   %12 = Intrinsic ListLen [%11] : usize
+>   %13 = Store [$11] %12 : ()
+>   %14 = IsUnique hoisted [*$0] : List[Body]
 >   %15 = Read copy [$3] : usize
->   %16 = Store [$6] %15 : ()
->   %17 = Read copy [$3] : usize
->   %18 = Prim Add [%17 1:usize] : usize
->   %19 = Store [$3] %18 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %14 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %16 = Read copy [$4] : usize
+>   %17 = Prim Lt [%15 %16] : bool
+>   %18 = Read copy [$3] : usize
+>   %19 = Store [$6] %18 : ()
+>   %20 = Read copy [$3] : usize
+>   %21 = Prim Add [%20 1:usize] : usize
+>   %22 = Store [$3] %21 : ()
+>   %29 = Block - : ()
+>   %30 = Break L0 - : never
+>   %31 = Block - : ()
+>   %32 = If %17 [%29 %31] : ()
+>   %33 = Block - : ()
+>   %34 = Loop %33 - : ()
         bodies[i].v = bodies[i].v + dt
->   %20 = Read copy [$6] : usize
->   %21 = Read copy [$6] : usize
->   %22 = Read copy [*$0 [%21] .v] : f64
->   %23 = Read copy [$1] : f64
->   %24 = Prim Add [%22 %23] : f64
->   %25 = Store [*$0 [%20] .v] %24 : ()
+>   %23 = Read copy [$6] : usize
+>   %24 = Read copy [$6] : usize
+>   %25 = Read copy [%14 [%24] .v] : f64
+>   %26 = Read copy [$1] : f64
+>   %27 = Prim Add [%25 %26] : f64
+>   %28 = Store [%14 [%23] .v] %27 : ()
     for i in 0..n:
->   %32 = Read copy [$2] : usize
->   %33 = NewStruct [0:usize %32 0:bool] : Range[usize]
->   %34 = Read copy [%33 .start] : usize
->   %35 = Store [$7] %34 : ()
->   %36 = Read copy [%33 .end] : usize
->   %37 = Store [$8] %36 : ()
->   %38 = Read copy [%33 .inclusive] : bool
->   %39 = Store [$9] %38 : ()
->   %40 = IsUnique hoisted [*$0] : ()
->   %41 = Read copy [$7] : usize
->   %42 = Read copy [$8] : usize
->   %43 = Prim Lt [%41 %42] : bool
->   %44 = Read copy [$7] : usize
->   %45 = Store [$10] %44 : ()
->   %46 = Read copy [$7] : usize
->   %47 = Prim Add [%46 1:usize] : usize
->   %48 = Store [$7] %47 : ()
->   %58 = Block - : ()
->   %59 = Break L1 - : never
->   %60 = Block - : ()
->   %61 = If %43 [%58 %60] : ()
->   %62 = Block - : ()
->   %63 = Loop %62 - : ()
+>   %35 = Read copy [$2] : usize
+>   %36 = NewStruct [0:usize %35 0:bool] : Range[usize]
+>   %37 = Read copy [%36 .start] : usize
+>   %38 = Store [$7] %37 : ()
+>   %39 = Read copy [%36 .end] : usize
+>   %40 = Store [$8] %39 : ()
+>   %41 = Read copy [%36 .inclusive] : bool
+>   %42 = Store [$9] %41 : ()
+>   %43 = Read borrow [*$0] : List[Body]
+>   %44 = Intrinsic ListLen [%43] : usize
+>   %45 = Store [$12] %44 : ()
+>   %46 = IsUnique hoisted [*$0] : List[Body]
+>   %47 = Read copy [$7] : usize
+>   %48 = Read copy [$8] : usize
+>   %49 = Prim Lt [%47 %48] : bool
+>   %50 = Read copy [$7] : usize
+>   %51 = Store [$10] %50 : ()
+>   %52 = Read copy [$7] : usize
+>   %53 = Prim Add [%52 1:usize] : usize
+>   %54 = Store [$7] %53 : ()
+>   %64 = Block - : ()
+>   %65 = Break L1 - : never
+>   %66 = Block - : ()
+>   %67 = If %49 [%64 %66] : ()
+>   %68 = Block - : ()
+>   %69 = Loop %68 - : ()
         bodies[i].x = bodies[i].x + dt * bodies[i].v
->   %49 = Read copy [$10] : usize
->   %50 = Read copy [$10] : usize
->   %51 = Read copy [*$0 [%50] .x] : f64
->   %52 = Read copy [$1] : f64
->   %53 = Read copy [$10] : usize
->   %54 = Read copy [*$0 [%53] .v] : f64
->   %55 = Prim Mul [%52 %54] : f64
->   %56 = Prim Add [%51 %55] : f64
->   %57 = Store [*$0 [%49] .x] %56 : ()
+>   %55 = Read copy [$10] : usize
+>   %56 = Read copy [$10] : usize
+>   %57 = Read copy [%46 [%56] .x] : f64
+>   %58 = Read copy [$1] : f64
+>   %59 = Read copy [$10] : usize
+>   %60 = Read copy [%46 [%59] .v] : f64
+>   %61 = Prim Mul [%58 %60] : f64
+>   %62 = Prim Add [%57 %61] : f64
+>   %63 = Store [%46 [%55] .x] %62 : ()
 >   summary kept [] writes
->   loop %31 keeps [*$0] (-..-)
->   loop %63 keeps [*$0] (-..-)
+>   loop %34 keeps [*$0] (-..-)
+>   loop %69 keeps [*$0] (-..-)
 
 pub fn run(steps: i64) -> f64:
     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]

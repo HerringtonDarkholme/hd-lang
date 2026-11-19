@@ -1434,10 +1434,6 @@ struct Em<'i, 'a, 'm> {
     /// A top-level binding's initializer: its key, for a cell that the
     /// binding's reference keeps for the whole program (a static cell).
     init_key: Option<Hash128>,
-    /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
-    /// the loop's exit.
-    list_caches: Vec<(list::ListRoot, list::ListCache)>,
-    cached_buffers: Vec<(u32, u32)>,
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
@@ -1661,8 +1657,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned_locals: hd_base::HashSet::default(),
             frame_refs: Vec::new(),
             init_key: None,
-            list_caches: Vec::new(),
-            cached_buffers: Vec::new(),
             borrowed: hd_base::HashSet::default(),
             lends: 0,
             emitting: Vec::new(),
@@ -2670,7 +2664,7 @@ impl Em<'_, '_, '_> {
             Tag::If => self.control(control::Task::If(i))?,
             Tag::Loop => {
                 self.slot(i)?;
-                let caches = self.begin_list_loop(i)?;
+                self.hoisted_uniques(Some(i))?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
@@ -2682,9 +2676,6 @@ impl Em<'_, '_, '_> {
                 self.f.op(Instruction::Br(0));
                 self.close();
                 self.close();
-                for root in caches {
-                    self.list_caches.retain(|(key, _)| *key != root);
-                }
             }
             Tag::Break | Tag::Continue => {
                 // A `Label` operand is one of the body's labels.

@@ -8,8 +8,8 @@
 //! never reaches another list. A check or a change that replaces the
 //! buffer stores the new one into the place it names
 //! (`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). A loop's
-//! stable lists keep their buffer and length in locals
-//! (`Em::own_list_caches`).
+//! stable lists come as TIR values: the header a hoisted `IsUnique`
+//! leaves, and the length a local holds (`hd_opt::prove`).
 
 use crate::op::Op as I;
 use hd_base::StageResult;
@@ -20,18 +20,9 @@ use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{coll_kind, coll_leaves, mem as mem_of, strip_newtype};
+use crate::layout::{coll_leaves, mem as mem_of, strip_newtype};
 use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
-
-pub(super) use hd_opt::prove::ListRoot;
-
-/// Borrowed physical projections for one proven loop interval.
-#[derive(Clone, Copy)]
-pub(super) struct ListCache {
-    pub(super) buffer: u32,
-    pub(super) len: u32,
-}
 
 impl Em<'_, '_, '_> {
     /// A nonempty list of scalar constants as one static count-zero
@@ -97,11 +88,6 @@ impl Em<'_, '_, '_> {
         Some(bytes)
     }
 
-    /// `Some` when `t` is a `List`.
-    fn list_root_ty(&self, t: Ty) -> Option<()> {
-        (coll_kind(self.pool(), self.env(), t) == Some(StdKind::List)).then_some(())
-    }
-
     /// The hoisted `IsUnique`s waiting for loop `l` (`hoisted`), run once
     /// before it under its entry test, so an empty loop copies nothing
     /// (`docs/compiler/tir-v2.md`, "Hoisting"): the statements before the
@@ -153,79 +139,19 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             self.f.reason = hd_tir::own::reason(self.b, i as usize);
-            self.unique_at(i)?;
+            let h = self.unique_at(i)?;
+            // The header after the check, which the loop's element
+            // accesses root at (`hd_opt::prove`); the place keeps its count.
+            if self.b.ty[i as usize] != Ty::VOID {
+                self.f.get(h);
+                self.store_owned(i)?;
+            }
         }
         self.f.reason = was;
         if test.is_some() {
             self.f.op(I::End);
         }
         Ok(())
-    }
-
-    /// The new path's loop caches: the stable list places the hoisting pass
-    /// lists for loop `l` (`Body::stable_lists`), a local's list or the
-    /// list a reference local refers to, with no counted leaf in its
-    /// elements, keep their buffer and length in locals for the
-    /// loop. Their uniqueness, if the
-    /// loop changes them, was a hoisted `IsUnique`'s.
-    fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
-        let stable: Vec<ListRoot> = hd_opt::prove::stable_rows(self.b, l)
-            .filter_map(|(root, [.., buffer])| (buffer == 1).then_some(root))
-            .collect();
-        let mut roots = Vec::new();
-        for root in stable {
-            let Some(indirect) = root.indirect() else {
-                continue;
-            };
-            let mut ty = self.b.local_ty[root.local as usize];
-            if indirect {
-                match self.ref_target(ty) {
-                    Some((target, false)) => ty = target,
-                    _ => continue,
-                }
-            }
-            if self.is_cell(root.local as usize) || self.list_root_ty(ty).is_none() {
-                continue;
-            }
-            let (_, elem) = self.elem(ty)?;
-            if elem.walk.is_some() {
-                continue;
-            }
-            if !self.list_caches.iter().any(|(key, _)| *key == root) && !roots.contains(&root) {
-                roots.push(root);
-            }
-        }
-        if roots.is_empty() {
-            return Ok(roots);
-        }
-        for root in &roots {
-            let local = self.local_value(root.local)?[0];
-            self.f.get(local);
-            if root.indirect() == Some(true) {
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            }
-            let buffer = self.f.local(Val::I32);
-            self.f.set(buffer);
-            let len = self.f.local(Val::I32);
-            self.f.get(buffer);
-            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
-            self.f.set(len);
-            self.list_caches
-                .push((root.clone(), ListCache { buffer, len }));
-        }
-        Ok(roots)
-    }
-
-    /// Loop `loop_inst` is about to start: the hoisted `IsUnique`s waiting
-    /// for it run, and its stable lists keep their buffer and length in locals
-    /// ([`Em::own_list_caches`]). The cached lists, which the loop's exit
-    /// drops from the cache.
-    pub(super) fn begin_list_loop(&mut self, loop_inst: u32) -> StageResult<Vec<ListRoot>> {
-        self.hoisted_uniques(Some(loop_inst))?;
-        if self.susp.is_some() {
-            return Ok(Vec::new());
-        }
-        self.own_list_caches(loop_inst)
     }
 
     /// The element type of list type `t` and its layout for the glue.
@@ -253,53 +179,31 @@ impl Em<'_, '_, '_> {
         Ok((et, elem))
     }
 
-    /// A local holding the buffer of list or map value `r`: a loop's cached
-    /// one where it has one.
+    /// A local holding the buffer of list or map value `r`.
     pub(super) fn buffer(&mut self, r: u32) -> StageResult<u32> {
         let b = self.f.local(Val::I32);
-        let cache = hd_opt::prove::list_root(self.b, &|t| self.list_root_ty(t).is_some(), r)
-            .and_then(|root| {
-                self.list_caches
-                    .iter()
-                    .find(|(key, _)| *key == root)
-                    .map(|(_, cache)| cache)
-            })
-            .copied();
-        if let Some(cache) = cache {
-            self.f.get(cache.buffer);
-            self.cached_buffers.push((b, cache.len));
-        } else {
-            self.comp(r, 0)?;
-        }
+        self.comp(r, 0)?;
         self.f.set(b);
         Ok(b)
     }
 
-    fn buffer_len(&mut self, b: u32) {
-        if let Some(len) = self
-            .cached_buffers
-            .iter()
-            .find(|(key, _)| *key == b)
-            .map(|(_, len)| *len)
-        {
-            self.f.get(len);
-        } else {
-            self.f.get(b);
-            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
-        }
-    }
-
     /// A local holding index `r`, checked against the length of the
-    /// buffer in local `b`: an index past it is `index-out-of-bounds`, a
+    /// buffer in local `b`, or the length in local `len` where a proof
+    /// keeps it there: an index past it is `index-out-of-bounds`, a
     /// 64-bit one before it is narrowed (`expr.index.list.range`).
-    pub(super) fn index(&mut self, b: u32, r: u32) -> StageResult<u32> {
+    pub(super) fn index(&mut self, b: u32, r: u32, len: Option<u32>) -> StageResult<u32> {
         let ix = self.f.local(Val::I32);
         let wide = self.vals(self.ty_of(r))? == [Val::I64];
         let w = self.f.local(if wide { Val::I64 } else { Val::I32 });
         self.comp(r, 0)?;
         self.f.set(w);
         self.f.get(w);
-        self.buffer_len(b);
+        if let Some(len) = len {
+            self.f.get(len);
+        } else {
+            self.f.get(b);
+            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+        }
         if wide {
             self.f.op(I::I64ExtendI32U);
             self.f.op(I::I64GeU);
@@ -443,7 +347,8 @@ impl Em<'_, '_, '_> {
     pub(super) fn list_len(&mut self, i: u32, list: u32) -> StageResult<()> {
         self.elem(self.ty_of(list))?;
         let b = self.buffer(list)?;
-        self.buffer_len(b);
+        self.f.get(b);
+        self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
         self.store(i)
     }
 
@@ -464,7 +369,7 @@ impl Em<'_, '_, '_> {
             return Ok((vt, x));
         }
         let (et, e) = self.elem(t)?;
-        let ix = self.index(b, ix)?;
+        let ix = self.index(b, ix, None)?;
         Ok((et, self.slot_at(b, ix, e.size)))
     }
 

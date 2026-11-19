@@ -791,12 +791,10 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   argument's specialization folded the test away, it runs unguarded,
   which costs only a copy an empty loop did not need. One behind a
   dereference reads the reference as its referent's address
-  (`place_header`); the `COVERED` ones in the loop run no check. The
-  loop caches (`Em::own_list_caches`) are the hoisting pass's
-  stable list places (`Body::stable_lists`): a local's list or the list a
-  reference local refers to, with no counted leaf in its elements, keeps
-  its header, buffer and length in locals for the loop, with no check
-  of its own. The checker writes element
+  (`place_header`); the `COVERED` ones in the loop run no check. A
+  hoisted `IsUnique` with a value (`hd_opt::prove`) stores the header
+  its check leaves there, for the loop's element accesses. The checker
+  writes element
   references as plain `Ref`s, and element reads as
   plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); TIR has
   no pin or element-write intrinsic, and no copy: every count of a
@@ -2370,13 +2368,14 @@ backend's is below.
 - **Uniqueness before a loop.** A hoisted `IsUnique` runs once before
   its loop, under the loop's entry test, so an empty loop copies
   nothing (`Em::hoisted_uniques`; §23.16, "Uniqueness checks").
-- **Loop caches.** The hoisting pass lists each loop's stable list
-  places in `Body::stable_lists`: a local's list, or the list a
-  reference local refers to, that nothing in the loop replaces. One
-  with no counted leaf in its elements keeps its header, buffer and
-  length in locals for the loop (`Em::own_list_caches`), and its element
-  reads and writes and its length use them. The loop's exit
-  drops the cache. Bounds checks still use the cached length.
+- **Stable lists.** The backend keeps no list in locals of its own.
+  Where the hoisting pass lists a loop's stable list
+  (`Body::stable_lists`), `hd_opt::prove` roots the loop's element
+  accesses at the header as a TIR value (the hoisted `IsUnique`'s, or
+  a `Read borrow` before the loop) and writes the length into a local
+  before it. An element step whose payload names that local
+  (`place::ELEM_LEN_BASE`) is checked against it; a `ListLen` in the
+  loop is a read of it.
 - **Exclusive copies** (stage 8, #1118). In release, a body whose read
   through a `&T` or `&mut T` parameter would borrow across a call that
   may write, were nothing else able to reach the referent for the call,

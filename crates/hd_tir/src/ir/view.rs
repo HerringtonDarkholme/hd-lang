@@ -2,7 +2,7 @@
 //! `extra` range of its projection words, which the ownership passes, the
 //! verifier and the shape helpers decode without allocating.
 
-use hd_base::DefId;
+use hd_base::{DefId, LocalId};
 use hd_types::Ty;
 
 use super::{Body, NONE, Proj, Ref, Tag, place};
@@ -206,7 +206,46 @@ impl Body {
     #[must_use]
     pub fn elem_unchecked(&self, i: usize, k: usize) -> bool {
         self.elem_word(i, k)
-            .is_some_and(|at| self.extra[at] & place::ELEM_UNCHECKED != 0)
+            .is_some_and(|at| self.extra[at] & place::PROJ_INDEX == place::ELEM_UNCHECKED)
+    }
+
+    /// The local holding the length that step `k` of the place
+    /// instruction `i` names is checked against, when that step is an
+    /// element a proof marked so ([`place::ELEM_LEN_BASE`]).
+    #[must_use]
+    pub fn elem_len(&self, i: usize, k: usize) -> Option<LocalId> {
+        let payload = self.extra[self.elem_word(i, k)?] & place::PROJ_INDEX;
+        (payload >= place::ELEM_LEN_BASE).then(|| LocalId::from_raw(payload - place::ELEM_LEN_BASE))
+    }
+
+    /// Roots instruction `i`'s place at value `root` from its first
+    /// element step, which keeps its index: `[*$l [%i] .x]` becomes
+    /// `[%h [%i] .x]`. The step stays unchecked if a proof cleared it,
+    /// else it is checked against the length in local `len`
+    /// ([`place::ELEM_LEN_BASE`]). A new record: the old may be shared.
+    pub fn reroot_elem(&mut self, i: usize, root: Ref, len: LocalId) {
+        let v = self.view(self.data[i][0]);
+        // Steps before the first element are one word each.
+        let Some(at) = (v.from..v.to)
+            .map(|at| at as usize)
+            .find(|&at| self.extra[at] & place::PROJ_KIND == place::PROJ_ELEM)
+        else {
+            return;
+        };
+        let word = self.data[i][0] as usize;
+        let end = word + 1 + self.extra[word] as usize;
+        let payload = if self.extra[at] & place::PROJ_INDEX == place::ELEM_UNCHECKED {
+            place::ELEM_UNCHECKED
+        } else {
+            len.raw() + place::ELEM_LEN_BASE
+        };
+        assert!(payload <= place::PROJ_INDEX, "local out of range");
+        let copy = self.extra.len();
+        self.extra
+            .extend([super::u32_of(2 + end - at), place::ROOT_VALUE, root.0]);
+        self.extra.push(place::PROJ_ELEM | payload);
+        self.extra.extend_from_within(at + 1..end);
+        self.data[i][0] = super::u32_of(copy);
     }
 
     /// Marks step `k` of instruction `i`'s place, an element, unchecked.
@@ -220,7 +259,7 @@ impl Body {
         let n = self.extra[word] as usize;
         let copy = self.extra.len();
         self.extra.extend_from_within(word..=word + n);
-        self.extra[copy + (at - word)] |= place::ELEM_UNCHECKED;
+        self.extra[copy + (at - word)] = place::PROJ_ELEM | place::ELEM_UNCHECKED;
         self.data[i][0] = super::u32_of(copy);
     }
 }

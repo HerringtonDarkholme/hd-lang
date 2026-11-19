@@ -5,10 +5,43 @@
   (import "fixture" "println[f64]" (func $"println[f64]" (param f64 i32 i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $wrap (param $xs i32) (result i32) (local $s i32) (local $t1 i32) (local $t0 i32) (local $i i32)
+  (func $wrap'1 (param $xs i32) (result i32) (local $s i32) (local $t1 i32) (local $t0 i32) (local $i i32)
+    ;; 15 |     for i in 0..xs.len():
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 16 |         s = s.wrapping_add(xs[i])
+        local.get $s
+        local.get $xs
+        local.get $i
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap offset=16
+        i32.add
+        local.set $s
+    ;; 15 |     for i in 0..xs.len():
+        br 0
+      end
+    end
+    ;; 17 |     s
+    local.get $s
+  )
+  (func $wrap'2 (param $xs i32) (result i32) (local $s i32) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 15 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap
@@ -47,133 +80,124 @@
     ;; 17 |     s
     local.get $s
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $t2 f64)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
     ;; 20 |     let xs = [1.5, -2.5]
-    global.get $locals
-    global.get $locals_base
-    i32.sub
-    i32.const 32
-    i32.lt_u
-    if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
-    end
-    global.get $locals
-    i32.const 32
-    i32.sub
-    local.tee $t0
-    global.set $locals
     i32.const 2
     call $rt:list_buf'1
-    local.tee $t1
+    local.tee $t0
     i32.const 2
     i32.store $heap offset=4
-    local.get $t1
+    local.get $t0
     f64.const 0x1.8p+0
     f64.store $heap offset=16
-    local.get $t1
+    local.get $t0
     f64.const -0x1.4p+1
     f64.store $heap offset=24
     local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $xs
-    local.get $t1
-    i32.store $heap
-    local.get $xs
     ;; 21 |     println(total(&xs))
-    call $total
-    local.set $t2
-    local.get $xs
+    call $total'1
+    ;; 20 |     let xs = [1.5, -2.5]
+    local.get $t0
+    ;; 21 |     println(total(&xs))
     if
-      local.get $xs
+      local.get $t0
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.tee $t1
       if
-        local.get $t1
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $t1
-          call $rt:release_ref
-        end
+        local.get $t0
+        call $rt:release_ref
       end
     end
-    local.get $t2
     local.get $provider0
     local.get $provider0.vtable
     call $"println[f64]"
     ;; 22 |     let ys: List[usize] = [1, 2]
     i32.const 2
     call $rt:list_buf'2
-    local.tee $t1
+    local.tee $t0
     i32.const 2
     i32.store $heap offset=4
-    local.get $t1
+    local.get $t0
     i32.const 1
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t0
     i32.const 2
     i32.store $heap offset=20
     local.get $t0
-    i64.const 0
-    i64.store $heap offset=16
-    local.get $t0
-    i32.const 24
-    i32.add
-    local.tee $xs
-    local.get $t1
-    i32.store $heap
-    local.get $xs
     ;; 23 |     println(wrap(&ys))
-    call $wrap
-    local.set $t1
-    local.get $xs
+    call $wrap'1
+    ;; 22 |     let ys: List[usize] = [1, 2]
+    local.get $t0
+    ;; 23 |     println(wrap(&ys))
     if
-      local.get $xs
+      local.get $t0
+      i32.const 8
+      i32.sub
       i32.load $heap
-      local.tee $xs
       if
-        local.get $xs
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $xs
-          call $rt:release_ref
-        end
+        local.get $t0
+        call $rt:release_ref
       end
     end
-    local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 20 |     let xs = [1.5, -2.5]
-    local.get $t0
-    i32.const 32
-    i32.add
-    global.set $locals
   )
-  (func $total (param $xs i32) (result f64) (local $s f64) (local $t1 i32) (local $t0 i32) (local $i i32)
+  (func $total'1 (param $xs i32) (result f64) (local $s f64) (local $t1 i32) (local $t0 i32) (local $i i32)
+    ;; 9 |     for i in 0..xs.len():
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 10 |         s = s + xs[i].abs() + xs[i].floor() + xs[i].copysign(1.0)
+        local.get $s
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        f64.load $heap offset=16
+        f64.abs
+        f64.add
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        f64.load $heap offset=16
+        f64.floor
+        f64.add
+        local.get $xs
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        f64.load $heap offset=16
+        f64.const 0x1p+0
+        f64.copysign
+        f64.add
+        local.set $s
+    ;; 9 |     for i in 0..xs.len():
+        br 0
+      end
+    end
+    ;; 11 |     s
+    local.get $s
+  )
+  (func $total'2 (param $xs i32) (result f64) (local $s f64) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 9 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap

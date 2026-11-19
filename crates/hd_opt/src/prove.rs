@@ -25,10 +25,11 @@
 //! ([`Nest`]), and per loop the cheap tests, then one walk of its body
 //! only once they pass.
 
+use hd_base::LocalId;
 use hd_base::SliceSort as _;
 use hd_tir::ir::{
-    Body, Callee, Coercion, IntrinsicOp, NONE, Nest, PlaceRoot, PrimOp, Proj, Ref, Step, Tag,
-    Topology, local_flags,
+    Body, Callee, Coercion, IntrinsicOp, NONE, Nest, Place, PlaceRoot, PrimOp, Proj, Ref, Step,
+    Tag, Topology, local_flags,
 };
 use hd_tir::own::ElementChecks;
 use hd_types::{Prim, Ty};
@@ -40,6 +41,10 @@ pub trait Cx {
     fn list(&self, t: Ty) -> bool;
     /// Whether the ownership passes track a value of `t`.
     fn tracked(&self, t: Ty) -> bool;
+    /// Whether the elements of list type `t` are tracked.
+    fn elems_tracked(&self, t: Ty) -> bool;
+    /// The name of a hidden local holding a list's length.
+    fn length_name(&self) -> hd_base::Symbol;
     /// Whether `t` is a tuple.
     fn tuple(&self, t: Ty) -> bool;
     /// The type reference type `t` refers to, and whether it is fat.
@@ -59,7 +64,10 @@ pub trait Cx {
 /// dominance the proofs read does not hold. One with none runs straight
 /// through, even as a suspending function's (an entry `main!` that never
 /// awaits runs as a plain function).
-pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) {
+///
+/// # Errors
+/// The splice of the header statements failing, a malformed body.
+pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) -> Result<(), String> {
     let checks = ElementChecks::new(b);
     for i in 0..b.len() {
         if checks.repeats_bounds(i) {
@@ -67,9 +75,10 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) {
         }
     }
     let mut proven = Vec::new();
-    if b.tags.contains(&Tag::Loop) {
-        let topo = Topology::new(b);
-        let nest = Nest::new(b, &topo);
+    let mut headers = Vec::new();
+    let topo = b.tags.contains(&Tag::Loop).then(|| Topology::new(b));
+    if let Some(topo) = &topo {
+        let nest = Nest::new(b, topo);
         let sets = Sets::new(b);
         scans(2 * b.len());
         let mut awaits = vec![false; b.sub_root.len()];
@@ -93,14 +102,17 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) {
             };
             let lists = Lists {
                 b,
-                topo: &topo,
+                topo,
                 nest: &nest,
                 cx,
                 cell: &cell,
                 sets: &sets,
             };
             proven.extend(lists.proofs(hd_tir::ir::u32_of(l), release));
+            headers.extend(lists.kept(hd_tir::ir::u32_of(l)));
         }
+        headers = outermost(headers, topo, &nest);
+        uses(b, cx, topo, &mut headers);
     }
     // Two proofs may clear one access; each record is copied once.
     proven.sort_stable();
@@ -114,15 +126,167 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) {
             b.uncheck_elem(i, k);
         }
     }
+    if let Some(topo) = &topo
+        && !headers.is_empty()
+    {
+        root_at_headers(b, cx, topo, &headers)?;
+    }
+    Ok(())
+}
+
+/// A list loop `l` keeps whole (a `Body::stable_lists` row with its
+/// buffer bit): its header becomes value `%h`, which the loop's element
+/// accesses root at, and its length a local written before the loop,
+/// which they are checked against and its `ListLen`s read (#2175).
+struct Header {
+    l: u32,
+    root: ListRoot,
+    /// The row's place word and the list's type.
+    word: u32,
+    ty: Ty,
+    /// The hoisted `IsUnique` whose value is the header after its check;
+    /// with none, a new `Read borrow` of the place before the loop.
+    unique: Option<u32>,
+    /// Where the length is written: before the loop's hoisted checks,
+    /// which a copy keeps the length across, so they stay guarded.
+    at: (u32, u32),
+    /// The loop's element accesses and `ListLen`s of the list.
+    uses: Vec<u32>,
+}
+
+/// The headers whose list no enclosing loop already keeps: loops in
+/// preorder (an outer loop starts no later and ends later), with per list
+/// the stack of loops keeping it that may still enclose the next.
+/// O(headers log headers).
+fn outermost(mut headers: Vec<Header>, topo: &Topology, nest: &Nest) -> Vec<Header> {
+    headers.sort_stable_by_key(|h| (topo.first[h.l as usize], std::cmp::Reverse(h.l)));
+    let mut open: hd_base::HashMap<ListRoot, Vec<u32>> = hd_base::HashMap::default();
+    headers.retain(|h| {
+        let stack = open.entry(h.root.clone()).or_default();
+        while stack.last().is_some_and(|&o| !nest.in_loop(h.l, o)) {
+            stack.pop();
+        }
+        let kept = stack.is_empty();
+        stack.push(h.l);
+        kept
+    });
+    headers
+}
+
+/// Each header's element accesses and `ListLen`s of its list in its loop:
+/// one pass over the body, each access's list looked up by its root, then
+/// the loop holding it among that list's loops, which [`outermost`] left
+/// disjoint, by binary search over their spans (`first..loop`).
+/// O(instructions × log headers).
+fn uses(b: &Body, cx: &dyn Cx, topo: &Topology, headers: &mut [Header]) {
+    let mut spans: hd_base::HashMap<ListRoot, Vec<(u32, u32, usize)>> = hd_base::HashMap::default();
+    for (k, h) in headers.iter().enumerate() {
+        let span = (topo.first[h.l as usize], h.l, k);
+        spans.entry(h.root.clone()).or_default().push(span);
+    }
+    for row in spans.values_mut() {
+        row.sort_stable();
+    }
+    scans(b.len());
+    for i in 0..b.len() {
+        let root = match b.tags[i] {
+            Tag::Intrinsic if IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::ListLen) => {
+                b.record(b.data[i][1])
+                    .first()
+                    .and_then(|&r| list_root(b, cx, r))
+            }
+            // `[%xs [%i] ..]`, or a place rooted at a local.
+            Tag::Read | Tag::Store => match b.decode_place(b.data[i][0]) {
+                Some(Place {
+                    root: PlaceRoot::Value(v),
+                    proj,
+                }) if matches!(proj.first(), Some(Proj::Elem(_))) => list_root(b, cx, v.0),
+                _ => rooted_elem(b, i).map(|(root, _)| root),
+            },
+            _ => None,
+        };
+        let x = hd_tir::ir::u32_of(i);
+        if let Some(row) = root.and_then(|r| spans.get(&r))
+            && let Some(&(_, l, k)) = row[..row.partition_point(|s| s.0 <= x)].last()
+            && x < l
+        {
+            headers[k].uses.push(x);
+        }
+    }
+}
+
+/// Writes each header's length local and statements before its loop, in
+/// one splice, and roots its loop's accesses at `%h`: an element access
+/// becomes `[%h [%i] ..]`, checked against the length local unless a
+/// proof cleared it, and a `ListLen` a read of the local. O(instructions
+/// plus the headers' uses).
+fn root_at_headers(
+    b: &mut Body,
+    cx: &dyn Cx,
+    topo: &Topology,
+    headers: &[Header],
+) -> Result<(), String> {
+    use hd_tir::ir::{ReadMode, place};
+    let n = b.len();
+    let mut inserts = Vec::new();
+    for h in headers {
+        let len = hd_tir::ir::u32_of(b.local_ty.len());
+        b.local_ty.push(usize_ty());
+        b.local_name.push(cx.length_name());
+        b.local_syn.push(b.local_syn[h.root.local as usize]);
+        b.local_flags
+            .push(local_flags::ASSIGNED | local_flags::READ);
+        // Insertion `k` is value `n + k` (`insert_batch`).
+        let read = hd_tir::ir::u32_of(n + inserts.len());
+        let rec = hd_tir::ir::u32_of(b.extra.len());
+        b.extra.extend([1, read]);
+        let syn = b.syn[h.l as usize];
+        for (tag, data, ty) in [
+            (Tag::Read, [h.word, ReadMode::Borrow as u32], h.ty),
+            (
+                Tag::Intrinsic,
+                [IntrinsicOp::ListLen as u32, rec],
+                usize_ty(),
+            ),
+            (Tag::Store, [len | place::BARE_LOCAL, read + 1], Ty::VOID),
+        ] {
+            let (block, pos) = h.at;
+            inserts.push(hd_tir::own::BatchInsert {
+                block,
+                pos,
+                tag,
+                data,
+                ty,
+                syn,
+            });
+        }
+        let header = match h.unique {
+            Some(u) => {
+                b.ty[u as usize] = h.ty;
+                u
+            }
+            None => read,
+        };
+        for &x in &h.uses {
+            let x = x as usize;
+            if b.tags[x] == Tag::Intrinsic {
+                b.tags[x] = Tag::Read;
+                b.data[x] = [len | place::BARE_LOCAL, ReadMode::Copy as u32];
+            } else {
+                b.reroot_elem(x, Ref(header), LocalId::from_raw(len));
+            }
+        }
+    }
+    hd_tir::own::insert_batch(b, topo, &inserts).map(|_| ())
 }
 
 /// A list place as a `Body::stable_lists` row names it: a local and a
 /// path of fields and dereferences from it (`[$l]`, `[*$l]`,
 /// `[*$l .xs]`, #2187).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ListRoot {
-    pub local: u32,
-    pub path: Vec<Proj>,
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct ListRoot {
+    local: u32,
+    path: Vec<Proj>,
 }
 
 impl ListRoot {
@@ -134,21 +298,9 @@ impl ListRoot {
             .then_some(ListRoot { local, path })
     }
 
-    /// A local's own list, or the list the reference it holds refers to.
-    #[must_use]
-    pub fn of_local(local: u32, indirect: bool) -> Self {
-        let path = if indirect {
-            vec![Proj::Deref]
-        } else {
-            Vec::new()
-        };
-        ListRoot { local, path }
-    }
-
     /// Whether the list is behind the reference the local holds, for
-    /// those two forms only.
-    #[must_use]
-    pub fn indirect(&self) -> Option<bool> {
+    /// a local's own list and its reference's referent only.
+    fn indirect(&self) -> Option<bool> {
         match self.path.as_slice() {
             [] => Some(false),
             [Proj::Deref] => Some(true),
@@ -233,8 +385,7 @@ pub fn read_local(b: &Body, r: u32) -> Option<usize> {
 /// The list and index of `Read` or `Store` `i` whose place's first
 /// element step indexes a list a local roots through fields and
 /// dereferences (`[$l [%i] ..]`, `[$l * [%i] ..]`, `[$l * .xs [%i] ..]`).
-#[must_use]
-pub fn rooted_elem(b: &Body, i: usize) -> Option<(ListRoot, u32)> {
+fn rooted_elem(b: &Body, i: usize) -> Option<(ListRoot, u32)> {
     if !matches!(b.tags[i], Tag::Read | Tag::Store) {
         return None;
     }
@@ -252,14 +403,16 @@ pub fn rooted_elem(b: &Body, i: usize) -> Option<(ListRoot, u32)> {
 
 /// The list root value `r` reads: a local's list, or the list a
 /// reference it holds or reads refers to.
-#[must_use]
-pub fn list_root(b: &Body, list: &dyn Fn(Ty) -> bool, r: u32) -> Option<ListRoot> {
+fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
     let i = Ref(r).as_inst()?.0 as usize;
-    if !list(b.ty[i]) {
+    if !cx.list(b.ty[i]) {
         return None;
     }
     match b.tags[i] {
-        Tag::Read if let Some(l) = b.local_read(i) => Some(ListRoot::of_local(l.raw(), false)),
+        Tag::Read if let Some(l) = b.local_read(i) => Some(ListRoot {
+            local: l.raw(),
+            path: Vec::new(),
+        }),
         // A field, element or payload of a value, not a read through a
         // reference.
         Tag::Read
@@ -282,7 +435,7 @@ pub fn list_root(b: &Body, list: &dyn Fn(Ty) -> bool, r: u32) -> Option<ListRoot
             };
             ListRoot::at(local, p.proj)
         }
-        Tag::Coerce => list_root(b, list, b.data[i][0]),
+        Tag::Coerce => list_root(b, cx, b.data[i][0]),
         _ => None,
     }
 }
@@ -329,6 +482,65 @@ impl Lists<'_> {
         out.into_iter().map(|x| x as usize).collect()
     }
 
+    /// The lists loop `l` keeps whole (`Body::stable_lists` rows with the
+    /// buffer bit) that the backend holds whole: a local's own list or
+    /// its thin reference's referent, in no cell, whose elements hold no
+    /// counts. Each with its hoisted `IsUnique`. O(the loop's rows and
+    /// hoisted checks).
+    fn kept(&self, l: u32) -> Vec<Header> {
+        use hd_tir::ir::unique_word::{DEFERRED_CACHE, DEFERRED_INIT, HOISTED};
+        let b = self.b;
+        let mut out: Vec<Header> = Vec::new();
+        // The hoisted checks waiting for the loop stand right before it:
+        // the backend runs one any other statement follows there.
+        let (blk, pos) = (self.topo.blk[l as usize], self.topo.pos[l as usize]);
+        let before = &b.record(b.data[blk as usize][0])[..pos as usize];
+        let first = before
+            .iter()
+            .rposition(|&u| {
+                b.tags[u as usize] != Tag::IsUnique
+                    || !matches!(
+                        b.data[u as usize][1],
+                        HOISTED | DEFERRED_INIT | DEFERRED_CACHE
+                    )
+            })
+            .map_or(0, |k| k + 1);
+        let mine = &before[first..];
+        let at = (blk, hd_tir::ir::u32_of(first));
+        for (root, [_, word, _, _, buffer]) in stable_rows(b, l) {
+            let Some(indirect) = root.indirect().filter(|_| buffer == 1) else {
+                continue;
+            };
+            let local = root.local as usize;
+            let mut ty = b.local_ty[local];
+            if indirect {
+                ty = self.cx.ref_target(ty).map_or(ty, |(target, _)| target);
+            }
+            if (self.cell)(local) || !self.cx.list(ty) || self.cx.elems_tracked(ty) {
+                continue;
+            }
+            // A row keeps its buffer only under an eager hoisted check,
+            // or with no live check in the loop (`hoist::hoist_loop`).
+            let unique = mine.iter().copied().find(|&u| {
+                b.data[u as usize][1] == HOISTED
+                    && b.decode_place(b.data[u as usize][0]).is_some_and(|q| {
+                        q.root == PlaceRoot::Local(LocalId::from_raw(root.local))
+                            && q.proj == root.path
+                    })
+            });
+            out.push(Header {
+                l,
+                root,
+                word,
+                ty,
+                unique,
+                at,
+                uses: Vec::new(),
+            });
+        }
+        out
+    }
+
     fn dominates(&self, d: u32, j: u32) -> bool {
         self.nest.dominates(self.topo, d, j)
     }
@@ -369,7 +581,7 @@ impl Lists<'_> {
     }
 
     fn list_root(&self, r: u32) -> Option<ListRoot> {
-        list_root(self.b, &|t| self.cx.list(t), r)
+        list_root(self.b, self.cx, r)
     }
 
     /// Whether read `i` projects a struct or newtype field of a value.
@@ -842,7 +1054,7 @@ impl Lists<'_> {
     /// the statement of `from`'s block that holds the loop. A frame cell's
     /// list has no row. O(log rows + the loop's rows + the block depth).
     fn keeps_length(&self, root: &ListRoot, l: u32, from: u32) -> bool {
-        let Some([first, after, _]) =
+        let Some([_, _, first, after, _]) =
             stable_rows(self.b, l).find_map(|(r, w)| (r == *root).then_some(w))
         else {
             return false;
@@ -961,21 +1173,21 @@ impl Lists<'_> {
 }
 
 /// The stable list places the hoisting pass lists for loop `l`
-/// (`Body::stable_lists`, sorted by loop), each with its region's bounds
-/// and whether the loop keeps its buffer too (else only its length).
-/// O(log rows + its rows).
-pub fn stable_rows(b: &Body, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 3])> + '_ {
+/// (`Body::stable_lists`, sorted by loop), each with its row: the place
+/// word, the region's bounds and whether the loop keeps its buffer too
+/// (else only its length). O(log rows + its rows).
+fn stable_rows(b: &Body, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 5])> + '_ {
     let rows = &b.stable_lists;
     let from = rows.partition_point(|r| r[0] < l);
     rows[from..]
         .iter()
         .take_while(move |r| r[0] == l)
-        .filter_map(|&[_, word, before, after, buffer]| {
-            let p = b.decode_place(word)?;
+        .filter_map(|&row| {
+            let p = b.decode_place(row[1])?;
             let PlaceRoot::Local(local) = p.root else {
                 return None;
             };
-            Some((ListRoot::at(local.raw(), p.proj)?, [before, after, buffer]))
+            Some((ListRoot::at(local.raw(), p.proj)?, row))
         })
 }
 

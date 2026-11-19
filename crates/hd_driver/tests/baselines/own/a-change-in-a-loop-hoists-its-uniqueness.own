@@ -47,86 +47,96 @@ fn shift(items: &mut List[i32]) -> void:
     let i: usize = 1
 > app/main/shift
 >   local $0 items: &mut List[i32] [param read] value
->     uses $0: entry -> %3 lend, %13 lend, %14 lend, %24 lend
+>     uses $0: entry -> %1 lend, %6 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 j: usize [read assigned mutated] place
+>   local $3 $len: usize [read assigned] value
+>     uses $3: entry -> %7 lend
 >   %0 = Store [$1] 1:usize : ()
->   %34 = Block - : ()
+>   %37 = Block - : ()
     while i < items.len():
->   %1 = IsUnique hoisted [*$0] : ()
->   %2 = Read copy [$1] : usize
->   %3 = Read borrow [*$0] : List[i32]
->   %4 = Intrinsic ListLen [%3] : usize
->   %5 = Prim Lt [%2 %4] : bool
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %5 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
+>   %1 = Read borrow [*$0] : List[i32]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = IsUnique hoisted [*$0] : List[i32]
+>   %5 = Read copy [$1] : usize
+>   %6 = Read borrow [*$0] : List[i32]
+>   %7 = Read copy [$3] : usize
+>   %8 = Prim Lt [%5 %7] : bool
+>   %32 = Break L0 - : never
+>   %33 = Block - : ()
+>   %34 = If %8 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
         let j: usize = i
->   %6 = Read copy [$1] : usize
->   %7 = Store [$2] %6 : ()
->   %28 = Block - : ()
+>   %9 = Read copy [$1] : usize
+>   %10 = Store [$2] %9 : ()
+>   %31 = Block - : ()
         while j > 0:
->   %8 = Read copy [$2] : usize
->   %9 = Prim Gt [%8 0:usize] : bool
->   %19 = Break L1 - : never
->   %20 = Block - : ()
->   %21 = If %9 [%18 %20] : ()
->   %22 = Block - : ()
->   %23 = Loop %22 - : ()
-            items[j] = items[j - 1]
->   %10 = Read copy [$2] : usize
 >   %11 = Read copy [$2] : usize
->   %12 = Prim Sub [%11 1:usize] : usize
->   %13 = Read copy [*$0 [%12]] : i32
->   %14 = Store [*$0 [%10]] %13 : ()
->   %18 = Block - : ()
+>   %12 = Prim Gt [%11 0:usize] : bool
+>   %22 = Break L1 - : never
+>   %23 = Block - : ()
+>   %24 = If %12 [%21 %23] : ()
+>   %25 = Block - : ()
+>   %26 = Loop %25 - : ()
+            items[j] = items[j - 1]
+>   %13 = Read copy [$2] : usize
+>   %14 = Read copy [$2] : usize
+>   %15 = Prim Sub [%14 1:usize] : usize
+>   %16 = Read copy [%4 [%15]] : i32
+>   %17 = Store [%4 [%13]] %16 : ()
+>   %21 = Block - : ()
             j = j - 1
->   %15 = Read copy [$2] : usize
->   %16 = Prim Sub [%15 1:usize] : usize
->   %17 = Store [$2] %16 : ()
+>   %18 = Read copy [$2] : usize
+>   %19 = Prim Sub [%18 1:usize] : usize
+>   %20 = Store [$2] %19 : ()
         items[0] = +0
->   %24 = Store [*$0 [0:usize]] 0:i32 : ()
+>   %27 = Store [%4 [0:usize]] 0:i32 : ()
         i = i + 1
->   %25 = Read copy [$1] : usize
->   %26 = Prim Add [%25 1:usize] : usize
->   %27 = Store [$1] %26 : ()
->   loop %23 keeps [*$0] (-..-)
->   loop %33 keeps [*$0] (-..-)
+>   %28 = Read copy [$1] : usize
+>   %29 = Prim Add [%28 1:usize] : usize
+>   %30 = Store [$1] %29 : ()
+>   loop %26 keeps [*$0] (-..-)
+>   loop %36 keeps [*$0] (-..-)
 
 fn total(items: &List[i32]) -> i32:
     let sum = +0
 > app/main/total
 >   local $0 items: &List[i32] [param read] value
->     uses $0: entry -> %3 lend, %8 lend
+>     uses $0: entry -> %2 lend, %6 lend
 >   local $1 sum: i32 [read assigned mutated] place
 >   local $2 i: usize [read assigned mutated] place
+>   local $3 $len: usize [read assigned] value
+>     uses $3: entry -> %7 lend
 >   %0 = Store [$1] 0:i32 : ()
->   %21 = Block %20 : i32
+>   %24 = Block %23 : i32
     let i: usize = 0
 >   %1 = Store [$2] 0:usize : ()
     while i < items.len():
->   %2 = Read copy [$2] : usize
->   %3 = Read borrow [*$0] : List[i32]
->   %4 = Intrinsic ListLen [%3] : usize
->   %5 = Prim Lt [%2 %4] : bool
->   %15 = Break L0 - : never
->   %16 = Block - : ()
->   %17 = If %5 [%14 %16] : ()
->   %18 = Block - : ()
->   %19 = Loop %18 - : ()
+>   %2 = Read borrow [*$0] : List[i32]
+>   %3 = Intrinsic ListLen [%2] : usize
+>   %4 = Store [$3] %3 : ()
+>   %5 = Read copy [$2] : usize
+>   %6 = Read borrow [*$0] : List[i32]
+>   %7 = Read copy [$3] : usize
+>   %8 = Prim Lt [%5 %7] : bool
+>   %18 = Break L0 - : never
+>   %19 = Block - : ()
+>   %20 = If %8 [%17 %19] : ()
+>   %21 = Block - : ()
+>   %22 = Loop %21 - : ()
         sum = sum + items[i]
->   %6 = Read copy [$1] : i32
->   %7 = Read copy [$2] : usize
->   %8 = Read copy [*$0 [%7]] : i32
->   %9 = Prim Add [%6 %8] : i32
->   %10 = Store [$1] %9 : ()
->   %14 = Block - : ()
+>   %9 = Read copy [$1] : i32
+>   %10 = Read copy [$2] : usize
+>   %11 = Read copy [%2 [%10]] : i32
+>   %12 = Prim Add [%9 %11] : i32
+>   %13 = Store [$1] %12 : ()
+>   %17 = Block - : ()
         i = i + 1
->   %11 = Read copy [$2] : usize
->   %12 = Prim Add [%11 1:usize] : usize
->   %13 = Store [$2] %12 : ()
+>   %14 = Read copy [$2] : usize
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$2] %15 : ()
     sum
->   %20 = Read copy [$1] : i32
->   loop %19 keeps [*$0] (-..-)
+>   %23 = Read copy [$1] : i32
+>   loop %22 keeps [*$0] (-..-)

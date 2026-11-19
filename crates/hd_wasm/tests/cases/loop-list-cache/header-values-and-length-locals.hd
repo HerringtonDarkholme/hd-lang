@@ -1,0 +1,67 @@
+# @dump: own
+# @build: v8 release
+# A loop that keeps a list whole roots its element accesses at the
+# header value `%h` and reads its length from a `$len` local written
+# before the loop (#2175): the hoisted `IsUnique`'s value where the loop
+# writes, a `Read borrow` where it only reads. `ListLen` in the loop reads
+# the local. A later loop over the same list gets its own; an inner loop
+# uses its outer loop's. A list in a frame slot, one with counted elements, and
+# one behind a field keep their place accesses, and so do element
+# references.
+fn twice(xs: &mut List[i64]) -> i64:
+    let s: i64 = 0
+    let i: usize = 0
+    while i < xs.len():
+        xs[i] = xs[i] + 1
+        i += 1
+    for k in 0..xs.len():
+        for m in 0..k:
+            s = s + xs[m]
+    s
+
+fn size(xs: &List[usize], k: usize) -> usize:
+    if k == 0:
+        return xs.len()
+    size(xs, k - 1)
+
+fn addressed(n: usize) -> usize:
+    let xs: List[usize] = [1, 2, 3]
+    let s: usize = size(&xs, n)
+    for i in 0..n:
+        s = s + xs[i]
+    s
+
+fn by_value(xs: List[i64]) -> i64:
+    let s: i64 = 0
+    for v in xs:
+        s = s + v
+    s
+
+fn bump(xs: &mut List[i64]) -> void:
+    for x in &mut xs:
+        *x += 1
+
+fn names(xs: &mut List[string]) -> void:
+    for i in 0..xs.len():
+        xs[i] = "x"
+
+struct Holder:
+    xs: List[i32]
+
+fn field(h: &Holder) -> i32:
+    let s: i32 = 0
+    for i in 0..h.xs.len():
+        s = s + h.xs[i]
+    s
+
+pub fn main() -> void $ Console:
+    let mut xs: List[i64] = [1, 2, 3]
+    println(twice(&mut xs))
+    bump(&mut xs)
+    println(addressed(2))
+    println(by_value([7, 8]))
+    let mut ns = ["a", "b"]
+    names(&mut ns)
+    println(ns[0])
+    h := Holder { xs: [4, 5] }
+    println(field(&h))

@@ -6,18 +6,19 @@
   (func $shift (param $items i32) (param $start i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; ...
     ;; 11 |     while j > 0:
+    local.get $items
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t0
     if
-      local.get $items
       local.get $items
       i32.load $heap
       call $rt:list_unique
+      local.set $t1
+      local.get $items
+      local.get $t1
       i32.store $heap
     end
-    local.get $items
-    i32.load $heap
-    local.tee $items
-    i32.load $heap offset=4
-    local.set $t0
     block
       loop
         local.get $start
@@ -27,20 +28,20 @@
         local.get $start
         i32.const 1
         i32.sub
-        local.tee $t1
+        local.tee $items
         local.get $t0
         i32.ge_u
         if
           call $rt:panic
           unreachable
         end
-        local.get $items
         local.get $t1
+        local.get $items
         i32.const 4
         i32.mul
         i32.add
         i32.load $heap offset=16
-        local.set $t1
+        local.set $items
         local.get $start
         local.get $t0
         i32.ge_u
@@ -48,12 +49,12 @@
           call $rt:panic
           unreachable
         end
-        local.get $items
+        local.get $t1
         local.get $start
         i32.const 4
         i32.mul
         i32.add
-        local.get $t1
+        local.get $items
         i32.store $heap offset=16
     ;; 13 |         j = j - 1
         local.get $start

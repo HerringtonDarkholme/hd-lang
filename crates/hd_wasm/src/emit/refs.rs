@@ -709,7 +709,7 @@ impl Em<'_, '_, '_> {
                 (Proj::Elem(ix), _) => {
                     let (et, e) = self.elem(ty)?;
                     let b = self.at_i32(&at);
-                    let ix = self.index(b, ix.0)?;
+                    let ix = self.index(b, ix.0, None)?;
                     let a = self.f.local(Val::I32);
                     self.f.get(b);
                     // An element of no bytes lies at no address of its own;
@@ -1517,9 +1517,8 @@ impl Em<'_, '_, '_> {
     /// Walks the steps of `p` up to step `upto` from its root's value
     /// (`docs/compiler/tir-v2.md`, "Places"): a field picks its part, a
     /// variant its payload field, an element its slot in the buffer,
-    /// bounds-checked
-    /// (unchecked where the loop's range proof covers read `i`, and from the
-    /// loop's cached buffer where the list is a stable list of a local).
+    /// bounds-checked (unchecked where a proof cleared step `k` of `i`,
+    /// against the length local where a proof keeps one).
     /// A dereference of a reference goes to its referent's address. So
     /// every dereference before
     /// `upto` is followed, by `upto`, by another element or dereference, or
@@ -1532,31 +1531,9 @@ impl Em<'_, '_, '_> {
         start: Option<(At, Ty)>,
     ) -> StageResult<(At, Ty)> {
         let steps = &p.proj[..upto];
-        let local = match p.root {
-            PlaceRoot::Local(l) => Some(l.raw()),
-            _ => None,
-        };
-        // A stable list's buffer from the loop's cache: an element of the
-        // local's list, or of the list the reference it holds refers to.
-        let cached = |em: &Self, indirect: bool| {
-            let root = super::list::ListRoot::of_local(local?, indirect);
-            em.list_caches
-                .iter()
-                .find(|(key, _)| *key == root)
-                .map(|(_, cache)| *cache)
-        };
         let mut k = 0;
         let mut at;
         let mut ty;
-        // The first element step of a local's list, of the list the
-        // reference it holds refers to, or of a value's list: a loop's
-        // range proof names these, and its cache a local's.
-        let lead = match (local, steps) {
-            (_, [Proj::Elem(_), ..]) => Some(0),
-            (Some(_), [Proj::Deref, Proj::Elem(_), ..]) => Some(1),
-            _ => None,
-        };
-        let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
         if let Some((_, elem, header)) = self.walked_store.filter(|&(store, elem, _)| {
             store == i
                 && elem < steps.len()
@@ -1566,15 +1543,6 @@ impl Em<'_, '_, '_> {
             // resumes at its explicit element step, preserving bounds checks.
             ty = self.walk_ty(self.at_root_ty(p.root), &steps[..elem])?;
             at = At::Vals(vec![header]);
-            k = elem;
-        } else if let Some((cache, elem)) = lead_cache {
-            // The cached buffer.
-            let h = self.f.local(Val::I32);
-            self.f.get(cache.buffer);
-            self.f.set(h);
-            self.cached_buffers.push((h, cache.len));
-            ty = self.walk_ty(self.at_root_ty(p.root), &steps[..elem])?;
-            at = At::Vals(vec![h]);
             k = elem;
         } else {
             (at, ty) = match start {
@@ -1611,7 +1579,11 @@ impl Em<'_, '_, '_> {
                 self.f.set(x);
                 x
             } else {
-                self.index(b, ix.0)?
+                let len = match self.b.elem_len(i as usize, k) {
+                    Some(l) => Some(self.local_value(l.raw())?[0]),
+                    None => None,
+                };
+                self.index(b, ix.0, len)?
             };
             let slot = self.slot_at(b, ix, e.size);
             at = At::Mem(slot, LIST_ELEMS);

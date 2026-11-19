@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $bump (param $xs i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i64)
+  (func $bump (param $xs i32) (result i64) (local $s i64) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i64)
     ;; 11 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap
@@ -13,48 +13,47 @@
     i32.lt_u
     if
       local.get $xs
-      local.get $xs
       i32.load $heap
       call $rt:list_unique
+      local.set $t1
+      local.get $xs
+      local.get $t1
       i32.store $heap
     end
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     block
       loop
-        local.get $t1
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.set $i
-        local.get $t1
+        local.get $t2
+        local.set $xs
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t2
     ;; 12 |         xs[i] = xs[i] + 1
+        local.get $t1
         local.get $xs
-        local.get $i
         i32.const 8
         i32.mul
         i32.add
         i64.load $heap offset=16
         i64.const 1
         i64.add
-        local.set $t2
+        local.set $t3
+        local.get $t1
         local.get $xs
-        local.get $i
         i32.const 8
         i32.mul
         i32.add
-        local.get $t2
+        local.get $t3
         i64.store $heap offset=16
     ;; 13 |         s = s + xs[i]
         local.get $s
+        local.get $t1
         local.get $xs
-        local.get $i
         i32.const 8
         i32.mul
         i32.add

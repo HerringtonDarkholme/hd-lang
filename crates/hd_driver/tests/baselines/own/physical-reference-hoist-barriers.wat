@@ -139,23 +139,23 @@
     end
   )
   (func $"impl Probes.clean" (param $items i32) (param $n i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 17 |         let i: usize = 0
-    i32.const 0
     ;; 18 |         while i < n:
+    local.get $items
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $t0
+    i32.const 0
     local.get $n
     i32.lt_u
     if
       local.get $items
-      local.get $items
       i32.load $heap
       call $rt:list_unique
+      local.set $t1
+      local.get $items
+      local.get $t1
       i32.store $heap
     end
-    local.get $items
-    i32.load $heap
-    local.tee $items
-    i32.load $heap offset=4
-    local.set $t0
     block
       loop
         local.get $i
@@ -171,12 +171,12 @@
           call $rt:panic
           unreachable
         end
-        local.get $items
+        local.get $t1
         i32.load $heap offset=16
         local.get $i
         call $"impl Probes.step"
         i32.add
-        local.set $t1
+        local.set $items
         i32.const 0
         local.get $t0
         i32.ge_u
@@ -184,8 +184,8 @@
           call $rt:panic
           unreachable
         end
-        local.get $items
         local.get $t1
+        local.get $items
         i32.store $heap offset=16
     ;; 20 |             items[1] += 1
         i32.const 1
@@ -195,11 +195,11 @@
           call $rt:panic
           unreachable
         end
-        local.get $items
+        local.get $t1
         i32.load $heap offset=20
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $items
         i32.const 1
         local.get $t0
         i32.ge_u
@@ -207,8 +207,8 @@
           call $rt:panic
           unreachable
         end
-        local.get $items
         local.get $t1
+        local.get $items
         i32.store $heap offset=20
     ;; 21 |             i += 1
         local.get $i

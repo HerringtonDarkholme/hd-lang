@@ -298,9 +298,10 @@
     local.set $t0
     ;; 65 |     f := fn() -> i64:
     local.get $xs
-    ;; 71 |     i64(out.len())
+    ;; 69 |     for i in 0..n:
     i32.load $heap offset=4
     local.set $t1
+    ;; 71 |     i64(out.len())
     block
       loop
     ;; 69 |     for i in 0..n:

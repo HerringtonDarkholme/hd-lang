@@ -10,7 +10,7 @@ fn rotate(n: usize) -> usize:
     let mut items = [for i in 0..n => i]
 > app/main/rotate
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %2 consume, %45 consume, %128 lend
+>     uses $0: entry -> %2 consume, %45 consume, %134 lend
 >   local $1 $acc: List[usize] [assigned] value
 >     uses $1: %1 -> %21 lend, %33 lend, %41 consume last
 >   local $2 $cur: usize [assigned] place
@@ -20,7 +20,8 @@ fn rotate(n: usize) -> usize:
 >     uses $4: none
 >   local $5 i: usize [read assigned] value
 >     uses $5: %27 -> %31 consume last
->   local $6 items: List[usize] [read assigned] place
+>   local $6 items: List[usize] [read assigned] value
+>     uses $6: %42 -> %85 lend, %150 lend last
 >   local $7 $acc: List[usize] [assigned] value
 >     uses $7: %44 -> %64 lend, %74 lend, %82 consume last
 >   local $8 $cur: usize [assigned] place
@@ -28,17 +29,22 @@ fn rotate(n: usize) -> usize:
 >     uses $9: %50 -> %55 lend, %67 lend
 >   local $10 $incl: bool [assigned] value
 >     uses $10: none
->   local $11 count: List[usize] [read assigned] place
+>   local $11 count: List[usize] [read assigned] value
+>     uses $11: %83 -> %88 lend, %152 lend last
 >   local $12 r: usize [read assigned mutated] place
 >   local $13 first: usize [:= read assigned] value
->     uses $13: %88 -> %117 consume last
+>     uses $13: %94 -> %123 consume last
 >   local $14 $cur: usize [assigned] place
 >   local $15 $end: usize [assigned] value
->     uses $15: %94 -> %98 lend
+>     uses $15: %100 -> %104 lend
 >   local $16 $incl: bool [assigned] value
 >     uses $16: none
 >   local $17 i: usize [read assigned] value
->     uses $17: %101 -> %105 lend, %106 lend last
+>     uses $17: %107 -> %111 lend, %112 lend last
+>   local $18 $len: usize [read assigned] value
+>     uses $18: none
+>   local $19 $len: usize [read assigned] value
+>     uses $19: none
 >   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
@@ -82,7 +88,7 @@ fn rotate(n: usize) -> usize:
 >   %40 = Loop %39 - : ()
 >   %41 = Read move [$1] : List[usize]
 >   %42 = Store [$6] %41 : ()
->   %149 = Block %148 : usize
+>   %155 = Block %154 : usize
     let mut count = [for _ in 0..n => 1]
 >   %43 = NewList - [] : List[usize]
 >   %44 = Store [$7] %43 : ()
@@ -128,78 +134,84 @@ fn rotate(n: usize) -> usize:
     let r: usize = 1
 >   %84 = Store [$12] 1:usize : ()
     while true:
->   %85 = IsUnique hoisted [$6] : ()
->   %86 = IsUnique hoisted [$11] : ()
->   %139 = Break L2 - : never
->   %140 = Block - : ()
->   %141 = If 1:bool [%138 %140] : ()
->   %142 = Block - : ()
->   %143 = Loop %142 - : ()
+>   %85 = Read borrow [$6] : List[usize]
+>   %86 = Intrinsic ListLen [%85] : usize
+>   %87 = Store [$18] %86 : ()
+>   %88 = Read borrow [$11] : List[usize]
+>   %89 = Intrinsic ListLen [%88] : usize
+>   %90 = Store [$19] %89 : ()
+>   %91 = IsUnique hoisted [$6] : List[usize]
+>   %92 = IsUnique hoisted [$11] : List[usize]
+>   %145 = Break L2 - : never
+>   %146 = Block - : ()
+>   %147 = If 1:bool [%144 %146] : ()
+>   %148 = Block - : ()
+>   %149 = Loop %148 - : ()
         first := items[0]
->   %87 = Read copy [$6 [0:usize]] : usize
->   %88 = Store [$13] %87 : ()
->   %138 = Block - : ()
+>   %93 = Read copy [%91 [0:usize]] : usize
+>   %94 = Store [$13] %93 : ()
+>   %144 = Block - : ()
         for i in 0..r:
->   %89 = Read copy [$12] : usize
->   %90 = NewStruct [0:usize %89 0:bool] : Range[usize]
->   %91 = Read copy [%90 .start] : usize
->   %92 = Store [$14] %91 : ()
->   %93 = Read copy [%90 .end] : usize
->   %94 = Store [$15] %93 : ()
->   %95 = Read copy [%90 .inclusive] : bool
->   %96 = Store [$16] %95 : ()
->   %97 = Read copy [$14] : usize
->   %98 = Read copy [$15] : usize
->   %99 = Prim Lt [%97 %98] : bool
->   %100 = Read copy [$14] : usize
->   %101 = Store [$17] %100 : ()
->   %102 = Read copy [$14] : usize
->   %103 = Prim Add [%102 1:usize] : usize
->   %104 = Store [$14] %103 : ()
->   %110 = Block - : ()
->   %111 = Break L3 - : never
->   %112 = Block - : ()
->   %113 = If %99 [%110 %112] : ()
->   %114 = Block - : ()
->   %115 = Loop %114 - : ()
+>   %95 = Read copy [$12] : usize
+>   %96 = NewStruct [0:usize %95 0:bool] : Range[usize]
+>   %97 = Read copy [%96 .start] : usize
+>   %98 = Store [$14] %97 : ()
+>   %99 = Read copy [%96 .end] : usize
+>   %100 = Store [$15] %99 : ()
+>   %101 = Read copy [%96 .inclusive] : bool
+>   %102 = Store [$16] %101 : ()
+>   %103 = Read copy [$14] : usize
+>   %104 = Read copy [$15] : usize
+>   %105 = Prim Lt [%103 %104] : bool
+>   %106 = Read copy [$14] : usize
+>   %107 = Store [$17] %106 : ()
+>   %108 = Read copy [$14] : usize
+>   %109 = Prim Add [%108 1:usize] : usize
+>   %110 = Store [$14] %109 : ()
+>   %116 = Block - : ()
+>   %117 = Break L3 - : never
+>   %118 = Block - : ()
+>   %119 = If %105 [%116 %118] : ()
+>   %120 = Block - : ()
+>   %121 = Loop %120 - : ()
             items[i] = items[i + 1]
->   %105 = Read copy [$17] : usize
->   %106 = Read copy [$17] : usize
->   %107 = Prim Add [%106 1:usize] : usize
->   %108 = Read copy [$6 [%107]] : usize
->   %109 = Store [$6 [%105]] %108 : ()
+>   %111 = Read copy [$17] : usize
+>   %112 = Read copy [$17] : usize
+>   %113 = Prim Add [%112 1:usize] : usize
+>   %114 = Read copy [%91 [%113]] : usize
+>   %115 = Store [%91 [%111]] %114 : ()
         items[r] = first
->   %116 = Read copy [$12] : usize
->   %117 = Read copy [$13] : usize
->   %118 = Store [$6 [%116]] %117 : ()
+>   %122 = Read copy [$12] : usize
+>   %123 = Read copy [$13] : usize
+>   %124 = Store [%91 [%122]] %123 : ()
         count[r] -= 1
->   %119 = Read copy [$12] : usize
->   %120 = Read copy [$11 [%119]] : usize
->   %121 = Prim Sub [%120 1:usize] : usize
->   %122 = Store [$11 [%119]] %121 : ()
+>   %125 = Read copy [$12] : usize
+>   %126 = Read copy [%92 [%125]] : usize
+>   %127 = Prim Sub [%126 1:usize] : usize
+>   %128 = Store [%92 [%125]] %127 : ()
         if count[r] == 0 || r + 1 == n:
->   %123 = Read copy [$12] : usize
->   %124 = Read copy [$11 [%123]] : usize
->   %125 = Prim Eq [%124 0:usize] : bool
->   %126 = Read copy [$12] : usize
->   %127 = Prim Add [%126 1:usize] : usize
->   %128 = Read copy [$0] : usize
->   %129 = Prim Eq [%127 %128] : bool
->   %130 = Block %129 : bool
->   %131 = Or %125 %130 : bool
->   %134 = If %131 [%133 -] : ()
+>   %129 = Read copy [$12] : usize
+>   %130 = Read copy [%92 [%129]] : usize
+>   %131 = Prim Eq [%130 0:usize] : bool
+>   %132 = Read copy [$12] : usize
+>   %133 = Prim Add [%132 1:usize] : usize
+>   %134 = Read copy [$0] : usize
+>   %135 = Prim Eq [%133 %134] : bool
+>   %136 = Block %135 : bool
+>   %137 = Or %131 %136 : bool
+>   %140 = If %137 [%139 -] : ()
             break
->   %132 = Break L2 - : never
->   %133 = Block - : never
+>   %138 = Break L2 - : never
+>   %139 = Block - : never
         r += 1
->   %135 = Read copy [$12] : usize
->   %136 = Prim Add [%135 1:usize] : usize
->   %137 = Store [$12] %136 : ()
+>   %141 = Read copy [$12] : usize
+>   %142 = Prim Add [%141 1:usize] : usize
+>   %143 = Store [$12] %142 : ()
     items[0] + count[0]
->   %144 = Read copy [$6 [0:usize]] : usize
->   %145 = Drop [$6] : ()
->   %146 = Read copy [$11 [0:usize]] : usize
->   %147 = Drop [$11] : ()
->   %148 = Prim Add [%144 %146] : usize
->   loop %115 keeps [$6] (%42..%145)
->   loop %143 keeps [$6] (%42..%145) [$11] (%83..%147)
+>   %150 = Read copy [$6 [0:usize]] : usize
+>   %151 = Drop [$6] : ()
+>   %152 = Read copy [$11 [0:usize]] : usize
+>   %153 = Drop [$11] : ()
+>   %154 = Prim Add [%150 %152] : usize
+>   loop %121 keeps [$6] (%42..%151)
+>   loop %149 keeps [$6] (%42..%151) [$11] (%83..%153)

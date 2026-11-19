@@ -2165,10 +2165,14 @@ is worth deciding only if they are hot.
      the entry test, the pure prefix emitted once more; unguarded in a
      suspending body or where a default argument's specialization folded
      the test away. One behind a dereference reads the reference as the
-     referent's address, only where no view is reachable. The new path's
-     loop caches are the table's rows (`Em::own_list_caches`), with no
-     check before the loop and none of #710's analysis; the range proofs
-     of element indices stay as they are on both paths.
+     referent's address, only where no view is reachable. The table's
+     rows with the buffer bit become TIR values in `hd_opt::prove`
+     (#2175): the hoisted `IsUnique` gives the header after its check
+     (a `Read borrow` before the loop where the loop has none), the
+     loop's element places are rooted at it (`[%h [%i]]`), and the
+     length is a local written before the loop, which each element step
+     names in its payload (`place::ELEM_LEN_BASE`) and each `ListLen` in
+     the loop reads. The emitter keeps no loop cache.
    - **A fix to commit 8**: `OwnCx::may_write` never answered false for
      `f64.sqrt`, a body-less method of a float's inherent impl whose
      `@intrinsic` has no key; it now does, by the body table (never by

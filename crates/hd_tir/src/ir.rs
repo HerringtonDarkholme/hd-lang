@@ -557,14 +557,20 @@ pub mod place {
     pub const PROJ_FIELD: u32 = 0;
     /// A dereference; no payload.
     pub const PROJ_DEREF: u32 = 1 << 30;
-    /// A list element, and the next word is the index `Ref`. Its one
-    /// payload bit is [`ELEM_UNCHECKED`].
+    /// A list element, and the next word is the index `Ref`. Its payload
+    /// is 0 (checked against the buffer's length), [`ELEM_UNCHECKED`], or
+    /// a length local's ([`ELEM_LEN_BASE`]).
     pub const PROJ_ELEM: u32 = 2 << 30;
-    /// An element's payload bit: a proof removed its bounds check
+    /// An element's payload: a proof removed its bounds check
     /// (`hd_opt::prove`), so the backend writes none. Places compare
-    /// equal without it ([`super::Body::decode_place`] drops it), as Go's
-    /// `IsInBounds` is a value apart from the address it guards.
+    /// equal without any payload ([`super::Body::decode_place`] drops
+    /// it), as Go's `IsInBounds` is a value apart from the address it
+    /// guards.
     pub const ELEM_UNCHECKED: u32 = 1;
+    /// An element's payload `k` at or above this: its bounds check reads
+    /// the list's length from local `k - ELEM_LEN_BASE`, which
+    /// `hd_opt::prove` writes before the loop the list is stable across.
+    pub const ELEM_LEN_BASE: u32 = 2;
     /// An enum variant's payload, by variant declaration index (stage 2).
     pub const PROJ_VARIANT: u32 = 3 << 30;
 }
@@ -1057,8 +1063,9 @@ pub struct Body {
     pub full_cells: Vec<(u32, u32)>,
     /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
     /// "Hoisting"): per row, a `Loop` and a place word of a list whose
-    /// header and buffer nothing in the loop replaces, so the backend may
-    /// keep the buffer's address and length in locals for the loop. The
+    /// header and buffer nothing in the loop replaces, so `hd_opt::prove`
+    /// may root the loop's accesses at its header and keep its length in
+    /// a local. The
     /// place is rooted at a local, with fields and dereferences only.
     /// Then the list's region around the loop: the last instruction
     /// before the loop and the first after it that may change the list
@@ -1752,7 +1759,7 @@ impl Body {
             proj.push(match (w & PROJ_KIND, w & PROJ_INDEX) {
                 (PROJ_FIELD, k) => Proj::Field(k),
                 (PROJ_DEREF, 0) => Proj::Deref,
-                (PROJ_ELEM, 0 | place::ELEM_UNCHECKED) => {
+                (PROJ_ELEM, _) => {
                     let [index, more @ ..] = rest else {
                         return None;
                     };
@@ -3971,6 +3978,41 @@ mod tests {
         assert_eq!(body.decode_place(body.data[0][0]).as_ref(), Some(&p));
         let at = body.data[0][0] as usize;
         assert_eq!(body.extra[at + 7], place::PROJ_ELEM | place::ELEM_UNCHECKED);
+    }
+
+    #[test]
+    fn a_rerooted_element_keeps_its_steps_and_marks_its_length() {
+        use super::{Place, Ref, Tag, place};
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let p: Place = "[*$0 [%c0] .1]".parse().expect("place");
+        let word = b.place(&p);
+        let body = b.body_mut();
+        body.local_ty = vec![hd_types::Ty::VOID];
+        for tag in [Tag::Read, Tag::Store, Tag::Read] {
+            body.tags.push(tag);
+            body.data.push([word, 0]);
+        }
+        body.data[2][0] = place::BARE_LOCAL; // `[$0]`: no element
+        body.uncheck_elem(1, 1);
+        let len = LocalId::from_raw(7);
+        let extra = body.extra.len();
+        body.reroot_elem(2, Ref(1), len);
+        assert_eq!(body.extra.len(), extra, "no element, no record");
+        body.reroot_elem(0, Ref(1), len);
+        body.reroot_elem(1, Ref(1), len);
+        let want: Place = "[%1 [%c0] .1]".parse().expect("place");
+        for i in [0, 1] {
+            assert_eq!(body.decode_place(body.data[i][0]).as_ref(), Some(&want));
+        }
+        assert_eq!(body.elem_len(0, 0), Some(len));
+        assert!(!body.elem_unchecked(0, 0));
+        assert_eq!(body.elem_len(1, 0), None, "a cleared check needs no length");
+        assert!(body.elem_unchecked(1, 0));
+        assert_eq!(
+            body.decode_place(word).as_ref(),
+            Some(&p),
+            "the shared record stays"
+        );
     }
 
     #[test]

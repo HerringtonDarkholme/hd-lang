@@ -1564,7 +1564,10 @@ impl Backward for Live<'_> {
                 !matches!(&self.cx.places[i], Some(Place { root: PlaceRoot::Value(v), proj })
                 if proj.is_empty() && b.provider_ref(v.0 as usize))
             }
-            Tag::Store | Tag::IsUnique => true,
+            Tag::Store => true,
+            // A fresh or repeated buffer's check runs nowhere: the buffer
+            // a borrow names stays.
+            Tag::IsUnique => !matches!(w, super::unique_word::FRESH | super::unique_word::REPEAT),
             Tag::Read => w == ReadMode::Move as u32,
             Tag::Ref => w & super::ref_word::MUT != 0,
             _ => false,

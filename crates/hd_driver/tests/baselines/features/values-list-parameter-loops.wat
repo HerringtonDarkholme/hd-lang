@@ -126,7 +126,7 @@
     i32.add
     global.set $locals
   )
-  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 f64) (local $t4 i32)
+  (func $advance (param $bodies i32) (param $dt f64) (local $n i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 f64) (local $t5 i32) (local $t4 i32)
     ;; 13 |     n := bodies.len()
     local.get $bodies
     i32.load $heap
@@ -139,14 +139,13 @@
     i32.lt_u
     if
       local.get $bodies
-      local.get $bodies
       i32.load $heap
       call $rt:list_unique
+      local.set $t1
+      local.get $bodies
+      local.get $t1
       i32.store $heap
     end
-    local.get $bodies
-    i32.load $heap
-    local.set $t1
     block
       loop
         local.get $t2
@@ -187,37 +186,36 @@
     i32.lt_u
     if
       local.get $bodies
-      local.get $bodies
       i32.load $heap
       call $rt:list_unique
+      local.set $t4
+      local.get $bodies
+      local.get $t4
       i32.store $heap
     end
-    local.get $bodies
-    i32.load $heap
-    local.set $bodies
     block
       loop
-        local.get $t4
+        local.get $t5
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t4
-        local.set $t2
-        local.get $t4
+        local.get $t5
+        local.set $bodies
+        local.get $t5
         i32.const 1
         i32.add
-        local.set $t4
+        local.set $t5
     ;; 17 |         bodies[i].x = bodies[i].x + dt * bodies[i].v
+        local.get $t4
         local.get $bodies
-        local.get $t2
         i32.const 16
         i32.mul
         i32.add
         f64.load $heap offset=16
         local.get $dt
+        local.get $t4
         local.get $bodies
-        local.get $t2
         i32.const 16
         i32.mul
         i32.add
@@ -225,8 +223,8 @@
         f64.mul
         f64.add
         local.set $t3
+        local.get $t4
         local.get $bodies
-        local.get $t2
         i32.const 16
         i32.mul
         i32.add
