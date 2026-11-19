@@ -46,10 +46,10 @@
 //! A capture at its last use moves by [`super::values::capture_moves`].
 //!
 //! "No path reads it again" is a backward liveness walk over the
-//! structured control flow of each sub-body, with one bit per candidate
-//! local and temporary, kept at block boundaries and loop heads in one
-//! reused arena; a loop runs to a fixed point. A read decides on the
-//! state after it. A store into all of a local ends its life, a cell's
+//! control-flow graph of each sub-body, with one bit per candidate
+//! local and temporary. Straight-line transfers are composed once; a
+//! predecessor worklist solves block-boundary states to a fixed point.
+//! A read decides on the state after it. A store into all of a local ends its life, a cell's
 //! included, so a local declared in a loop body moves at its last read
 //! of each round: the next round's declaration makes it anew. A `Drop`
 //! is no read: a drop of a moved place releases nothing, since the
@@ -83,6 +83,7 @@ const TAKE: u8 = 3;
 /// The move pass's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
+    record: bool,
     /// Each local's and each value's bit among the candidates, or `NONE`.
     pub(super) lnum: Vec<u32>,
     pub(super) vnum: Vec<u32>,
@@ -775,6 +776,10 @@ fn touches(b: &Body, t: &mut Tables) {
 /// The liveness walk ([`backward`]): a read decides on what is live
 /// after it.
 impl Backward for Tables {
+    fn recording(&mut self, record: bool) {
+        self.record = record;
+        self.place_root = NONE;
+    }
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
         let i = x as usize;
         let [a, w] = b.data[i];
@@ -799,37 +804,40 @@ impl Backward for Tables {
                     let p = b.view(a);
                     let addr = matches!(p.root, Root::Local(l) if self.addr[l as usize]);
                     let last = if s.get(live, bit) { KEEP } else { MOVE };
-                    match b.tags[i] {
-                        // A part with a bit of its own decides on it.
-                        Tag::Read if w == ReadMode::Copy as u32 && self.pread[i] != NONE => {
-                            let pbit = self.pread[i];
-                            self.decide[i] = if s.get(live, pbit)
-                                || self.part_keep.get(pbit as usize) == Some(&true)
+                    if self.record {
+                        match b.tags[i] {
+                            // A part with a bit of its own decides on it.
+                            Tag::Read if w == ReadMode::Copy as u32 && self.pread[i] != NONE => {
+                                let pbit = self.pread[i];
+                                self.decide[i] = if s.get(live, pbit)
+                                    || self.part_keep.get(pbit as usize) == Some(&true)
+                                {
+                                    KEEP
+                                } else {
+                                    MOVE
+                                };
+                            }
+                            Tag::Read
+                                if w == ReadMode::Copy as u32
+                                    && p.in_place(b)
+                                    && (!addr || p.whole()) =>
                             {
-                                KEEP
-                            } else {
-                                MOVE
-                            };
+                                self.decide[i] = last;
+                            }
+                            // A local reference never takes its local's count
+                            // (`ref.count.local`): the local lives until the
+                            // reference's last use instead (frame rule 4).
+                            Tag::Ref
+                                if addr
+                                    && p.whole()
+                                    && (w & crate::ir::ref_word::LOCAL == 0
+                                        || self.returned[i])
+                                    && !matches!(p.root, Root::Local(l) if self.frame[l as usize]) =>
+                            {
+                                self.decide[i] = if last == MOVE { TAKE } else { KEEP };
+                            }
+                            _ => {}
                         }
-                        Tag::Read
-                            if w == ReadMode::Copy as u32
-                                && p.in_place(b)
-                                && (!addr || p.whole()) =>
-                        {
-                            self.decide[i] = last;
-                        }
-                        // A local reference never takes its local's count
-                        // (`ref.count.local`): the local lives until the
-                        // reference's last use instead (frame rule 4).
-                        Tag::Ref
-                            if addr
-                                && p.whole()
-                                && (w & crate::ir::ref_word::LOCAL == 0 || self.returned[i])
-                                && !matches!(p.root, Root::Local(l) if self.frame[l as usize]) =>
-                        {
-                            self.decide[i] = if last == MOVE { TAKE } else { KEEP };
-                        }
-                        _ => {}
                     }
                     s.set(live, bit, true);
                     self.part_bits(b, p.root, a, &mut |pb| s.set(live, pb, true));
@@ -994,3 +1002,4 @@ fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i
         edits.remove(d);
     }
 }
+

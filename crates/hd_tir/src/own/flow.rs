@@ -5,7 +5,9 @@
 //! one-consumer walks.
 
 use super::{Operand, Role, operands};
-use crate::ir::{Body, NONE, Ref, Tag, Topology, u32_of};
+
+mod backward;
+use crate::ir::{Body, NONE, Tag, Topology, u32_of};
 
 /// Scalar fact visits and copied/cleared flow words in counted verifier tests.
 #[inline]
@@ -208,8 +210,14 @@ impl Flow {
 /// A backward analysis over the structured control flow ([`backward`]):
 /// one bit per fact in state `live` of `s`, joins are unions ("on any
 /// path"). The analysis gives each instruction's transfer; the walk gives
-/// the paths.
+/// the paths. Transfers must only generate/kill fixed facts independently;
+/// inspecting live facts may record observations but must not change the
+/// transfer. The solver composes block transfers with zero/one probes.
 pub(crate) trait Backward {
+    /// Transfer probes set/clear facts without recording observations.
+    /// Observations run once, in lexical order, at the solved fixed point.
+    /// Reset any lexical callback stack at the start of each pass.
+    fn recording(&mut self, record: bool);
     /// Instruction `x` over `live`, what holds after it, before the walk
     /// enters its blocks: what it defines and writes.
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize);
@@ -238,164 +246,7 @@ pub(crate) fn backward_blocks<A: Backward>(
     a: &mut A,
     roots: &[u32],
 ) {
-    s.reset(b);
-    s.arena.free(0);
-    let mut walk = Walk { b, topo, s, a };
-    for &root in roots.iter().filter(|&&r| (r as usize) < b.len()) {
-        let live = walk.s.arena.alloc(None);
-        walk.block(root, live);
-        walk.s.arena.free(live);
-    }
-}
-
-struct Walk<'a, A> {
-    b: &'a Body,
-    topo: &'a Topology,
-    s: &'a mut Flow,
-    a: &'a mut A,
-}
-
-impl<A: Backward> Walk<'_, A> {
-    /// Block `blk` backward: state `live`, what holds after the block,
-    /// becomes what holds at its start.
-    fn block(&mut self, blk: u32, live: usize) {
-        charge(1);
-        let b = self.b;
-        if b.tags.get(blk as usize) != Some(&Tag::Block) {
-            return;
-        }
-        // A `Break` to a labeled block continues after it.
-        let first = self.s.arena.top();
-        let saved = self.s.open(self.topo, blk, Some(live), NONE);
-        // The tail is taken at the block's end.
-        let tail = b.data[blk as usize][1];
-        if tail != NONE && Ref(tail).as_inst().is_some() {
-            self.a.uses(b, tail, &mut self.s.arena, live);
-        }
-        for &x in b.record(b.data[blk as usize][0]).iter().rev() {
-            // A block in the list runs where the instruction that owns it
-            // runs it.
-            if b.tags[x as usize] != Tag::Block {
-                self.inst(x, live);
-            }
-        }
-        self.s.restore(self.topo, blk, saved, first);
-    }
-
-    /// Instruction `x` backward over state `live`.
-    fn inst(&mut self, x: u32, live: usize) {
-        charge(1);
-        let b = self.b;
-        self.a.stmt(b, x, &mut self.s.arena, live);
-        let [p, w] = b.data[x as usize];
-        match b.tags[x as usize] {
-            Tag::If => {
-                let r = b.record(w);
-                self.any([0, 1].map(|k| r.get(k).copied().unwrap_or(NONE)), live);
-            }
-            // The right operand may not run.
-            Tag::And | Tag::Or => self.any([w, NONE], live),
-            Tag::With => self.block(w, live),
-            Tag::RefDyn | Tag::Scope => self.block(p, live),
-            Tag::Loop => self.repeat(x, live),
-            Tag::Match => self.decide(x, live),
-            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
-                self.any(cases(b, w), live);
-            }
-            Tag::Guard => {
-                self.any(b.record(w).iter().copied(), live);
-                self.block(p, live);
-            }
-            Tag::ToArm => {
-                let s = &mut *self.s;
-                let words = u32_of(s.arena.words);
-                let arm = s.arms.last().filter(|a| p < a.1).map(|a| a.0 + p * words);
-                // A path of the decision tree enters an arm.
-                s.arena.copy_or_clear(live, arm);
-                return;
-            }
-            tag @ (Tag::Break | Tag::Continue) => {
-                let k = usize::from(tag == Tag::Continue);
-                let at = self.s.jumps.get(p as usize).map(|j| j[k].0);
-                let at = at.filter(|&at| at != NONE);
-                self.s.arena.copy_or_clear(live, at);
-            }
-            Tag::Return | Tag::Unreachable => self.s.arena.clear(live),
-            _ => {}
-        }
-        self.a.ran(b, x, &mut self.s.arena, live);
-        // A `Drop` keeps nothing live, and a block's tail is used at its
-        // end.
-        let mut ops = std::mem::take(&mut self.s.ops);
-        operands(b, x as usize, &mut ops);
-        for op in &ops {
-            if op.role != Role::Dropped && op.role != Role::Tail {
-                self.a.uses(b, op.value, &mut self.s.arena, live);
-            }
-        }
-        self.s.ops = ops;
-        self.a.reads(b, x, &mut self.s.arena, live);
-    }
-
-    /// The paths through blocks `blks`, each from `live`, joined into
-    /// `live`. A `NONE` block is a path that runs nothing.
-    fn any(&mut self, blks: impl IntoIterator<Item = u32>, live: usize) {
-        let acc = self.s.arena.alloc(None);
-        for blk in blks {
-            let at = self.s.arena.alloc(Some(live));
-            self.block(blk, at);
-            self.s.arena.union(acc, at);
-            self.s.arena.free(at);
-        }
-        self.s.arena.copy(live, acc);
-        self.s.arena.free(acc);
-    }
-
-    /// Loop `x` backward: its head, from which the body runs, to a fixed
-    /// point; the body's end and a `Continue` go back to the head, a
-    /// `Break` to after the loop.
-    fn repeat(&mut self, x: u32, live: usize) {
-        let first = self.s.arena.top();
-        let head = self.s.arena.alloc(None);
-        // The walk of the body leaves the head as it is.
-        let saved = self.s.open(self.topo, x, Some(live), u32_of(head));
-        // Each round but the last grows the head, by a bit at least.
-        for _ in 0..self.s.arena.words * 64 + 2 {
-            let end = self.s.arena.alloc(Some(head));
-            self.block(self.b.data[x as usize][0], end);
-            let grew = self.s.arena.union(head, end);
-            self.s.arena.free(end);
-            if !grew {
-                break;
-            }
-        }
-        self.s.arena.copy(live, head);
-        self.s.restore(self.topo, x, saved, first);
-    }
-
-    /// Match `x` backward: each arm from after the match, then the decision
-    /// tree, whose every path ends in a `ToArm` or `Unreachable`.
-    fn decide(&mut self, x: u32, live: usize) {
-        let r = self.b.record(self.b.data[x as usize][1]);
-        let Some((&decision, arms)) = r.split_first() else {
-            return;
-        };
-        let first = self.s.arena.top();
-        let saved = self.s.open(self.topo, x, Some(live), NONE);
-        let arms_at = self.s.arena.top();
-        for _ in arms {
-            self.s.arena.alloc(Some(live));
-        }
-        for (k, &arm) in arms.iter().enumerate() {
-            self.block(arm, arms_at + k * self.s.arena.words);
-        }
-        self.s.arms.push((u32_of(arms_at), u32_of(arms.len())));
-        let tree = self.s.arena.alloc(None);
-        self.block(decision, tree);
-        self.s.arms.pop();
-        self.s.arena.copy(live, tree);
-        self.s.restore(self.topo, x, saved, first);
-    }
+    backward::run(b, topo, s, a, roots);
 }
 
 /// The blocks a switch with record `w` may run: each case's, then the

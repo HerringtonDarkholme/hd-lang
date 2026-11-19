@@ -164,6 +164,7 @@ struct Bit {
 /// The tables of one derivation.
 #[derive(Default)]
 pub(crate) struct Tables {
+    record: bool,
     v: Vec<Value>,
     l: Vec<Local>,
     bits: Vec<Bit>,
@@ -515,6 +516,9 @@ impl Tables {
 
     /// What instruction `x` may change, against every value `live`.
     fn change_at(&mut self, x: u32, tag: Tag, s: &BitArena, live: usize) {
+        if !self.record {
+            return;
+        }
         let i = x as usize;
         let capture_drop = self.capture_drops.at(i);
         for k in self.write_start[i]..self.write_start[i + 1] {
@@ -1167,6 +1171,10 @@ fn overlap(a: &[u32], c: &[u32]) -> bool {
 }
 
 impl Backward for Tables {
+    fn recording(&mut self, record: bool) {
+        self.record = record;
+        self.held.clear();
+    }
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
         let i = x as usize;
         // A suite runs after the statement it guards, on every way out, so
@@ -1194,7 +1202,9 @@ impl Backward for Tables {
         // its read's.
         let bit = self.v[i].bit;
         if bit != NONE && self.bits[bit as usize].read == x {
-            self.bits[bit as usize].seen = true;
+            if self.record {
+                self.bits[bit as usize].seen = true;
+            }
             self.set(bit, s, live, false);
         }
     }

@@ -1312,6 +1312,7 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let domains = borrow_domains(cx, &bit, &holds, &root_uses, at.len());
     let number = vec![NONE; at.len()];
     let mut walk = Live {
+        record: true,
         cx,
         words,
         frame_uses,
@@ -1456,6 +1457,7 @@ fn borrow_domains(
 
 /// The borrow walk's state ([`borrow_spans`]).
 struct Live<'a> {
+    record: bool,
     cx: &'a Cx<'a>,
     /// Per borrow: a trait value read through a reference, which is that
     /// reference's own words. Its object is held by the reference's count,
@@ -1526,7 +1528,7 @@ impl Live<'_> {
 
     /// An error at `x` for the first live borrow whose place `hit` names.
     fn check(&mut self, x: u32, s: &BitArena, live: usize, hit: impl Fn(u32, &Place) -> bool) {
-        if self.reported[x as usize] {
+        if !self.record || self.reported[x as usize] {
             return;
         }
         for k in set_indices(s.row(live)) {
@@ -1551,6 +1553,9 @@ impl Live<'_> {
 }
 
 impl Backward for Live<'_> {
+    fn recording(&mut self, record: bool) {
+        self.record = record;
+    }
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
         let i = x as usize;
         let w = b.data[i][1];
