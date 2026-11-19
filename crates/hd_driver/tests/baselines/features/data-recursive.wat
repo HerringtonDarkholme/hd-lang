@@ -4,7 +4,7 @@
   (import "fixture" "rt:release" (func $rt:release (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $head i32) (result i32) (local $n i32) (local $t0 i32)
+  (func $total (param $head i32) (result i32) (local $n i32) (local $self.1 i32)
     ;; 17 |     while true:
     block
       loop
@@ -25,20 +25,20 @@
             i32.load $heap
             local.get $head
             i32.load $heap offset=4
-            local.set $t0
+            local.set $self.1
             drop
             local.get $n
-            local.get $t0
+            local.get $self.1
             i32.add
             local.set $n
     ;; 21 |                 cur = c.next
             local.get $head
             i32.load $heap offset=8
-            local.tee $t0
+            local.tee $self.1
             call $rt:retain
             local.get $head
             call $rt:release
-            local.get $t0
+            local.get $self.1
             local.set $head
     ;; 18 |         match cur:
             br 1

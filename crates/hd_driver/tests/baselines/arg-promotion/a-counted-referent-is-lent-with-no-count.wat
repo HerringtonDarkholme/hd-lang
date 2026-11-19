@@ -14,24 +14,24 @@
     i32.const 3
     call $"shown[string]"
   )
-  (func $label'1 (param $w i32) (result i32) (local $t0 i32)
+  (func $label'1 (param $w i32) (result i32) (local $self.1 i32)
     ;; 23 |     (w.name.len() + 1) * (w.name.len() + 2) * (w.name.len() + 3) / (w.name.len() + 4)
     local.get $w
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 1
     i32.add
     local.get $w
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 2
     i32.add
     i32.mul
@@ -39,9 +39,9 @@
     i32.load $heap
     local.get $w
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 3
     i32.add
     i32.mul

@@ -17,7 +17,7 @@
     ;; 8 |     &p.name
     local.get $p
   )
-  (func $borrow_then_change (result i32 i32) (local $ps i32) (local $d i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
+  (func $borrow_then_change (result i32 i32) (local $ps i32) (local $p i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 11 |     let mut ps = [box(P { name: "a" })]
     global.get $locals
     global.get $locals_base
@@ -59,10 +59,10 @@
     i32.store $heap offset=4
     i32.const 1
     call $rt:list_buf
-    local.tee $d
+    local.tee $p
     i32.const 1
     i32.store $heap offset=4
-    local.get $d
+    local.get $p
     local.get $ps
     i32.store $heap offset=16
     local.get $t0
@@ -72,7 +72,7 @@
     i32.const 8
     i32.add
     local.tee $ps
-    local.get $d
+    local.get $p
     i32.store $heap
     local.get $ps
     ;; 14 |     d := name_of(ps[0])
@@ -95,18 +95,18 @@
     i32.sub
     local.get $ps
     i32.load $heap
-    local.set $d
+    local.set $p
     i32.const 0
-    local.get $d
+    local.get $p
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $d
+    local.get $p
     i32.load $heap offset=16
-    local.set $d
+    local.set $p
     local.tee $t1
     i32.load $heap
     local.tee $t2
@@ -232,12 +232,12 @@
     local.get $t3
     i32.store $heap offset=16
     ;; 16 |     *d
-    local.get $d
+    local.get $p
     i32.load $heap
     local.tee $t3
-    local.get $d
+    local.get $p
     i32.load $heap offset=4
-    local.tee $d
+    local.tee $p
     call $rt:retain
     ;; 11 |     let mut ps = [box(P { name: "a" })]
     local.get $t2
@@ -321,7 +321,7 @@
       end
     end
     local.get $t3
-    local.get $d
+    local.get $p
     local.get $t0
     i32.const 16
     i32.add

@@ -31,7 +31,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $t5 i64) (local $t6 i32) (local $t7 i64) (local $t8 i32) (local $t10 i32) (local $t9 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $trail i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i64) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $t8 i32) (local $t7 i32)
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
     global.get $locals
     global.get $locals_base
@@ -175,122 +175,122 @@
       end
     end
     local.tee $t4
-    local.tee $t5
+    local.tee $value'1
     call $signed_magnitude
     call $unsigned_width
     local.set $t2
-    local.get $t5
+    local.get $value'1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t6
+      local.set $t5
     end
     local.get $t2
-    local.get $t6
+    local.get $t5
     i32.add
     local.set $t2
     local.get $t1
     i32.load $heap
-    local.set $t6
+    local.set $t5
     i32.const 0
-    local.get $t6
+    local.get $t5
     i32.load $heap offset=4
     i32.ge_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t6
+    local.get $t5
     i64.load $heap offset=16
-    local.set $t5
+    local.set $value'1
     local.get $t1
     if
       local.get $t1
       i32.load $heap
-      local.tee $t6
+      local.tee $t5
       if
-        local.get $t6
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t6
+          local.get $t5
           call $rt:release_ref'1
         end
       end
     end
-    local.get $t5
-    local.tee $t7
+    local.get $value'1
+    local.tee $value'2
     call $signed_magnitude
     call $unsigned_width
-    local.set $t6
-    local.get $t7
+    local.set $t5
+    local.get $value'2
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t8
+      local.set $t6
     end
+    local.get $t5
     local.get $t6
-    local.get $t8
     i32.add
-    local.set $t6
+    local.set $t5
     local.get $trail
     i32.const 1
     i32.add
-    local.tee $t8
+    local.tee $t6
     local.get $t2
     i32.add
     local.tee $t1
     i32.const 1
     i32.add
     local.tee $i
-    local.get $t6
+    local.get $t5
     i32.add
-    local.tee $t9
+    local.tee $t7
     i32.const 16
-    local.set $t10
+    local.set $t8
     if
-      local.get $t9
+      local.get $t7
       call $rt:str
-      local.set $t10
+      local.set $t8
     end
     local.get $t3
-    local.get $t10
+    local.get $t8
     local.get $trail
     call $write_unsigned_sized
-    local.get $t10
+    local.get $t8
     local.get $trail
     i32.add
     i32.const 32
     i32.store8 $heap
     local.get $t4
-    local.get $t10
     local.get $t8
+    local.get $t6
     i32.add
     local.get $t2
     call $write_signed_sized
-    local.get $t10
+    local.get $t8
     local.get $t1
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t5
-    local.get $t10
+    local.get $value'1
+    local.get $t8
     local.get $i
     i32.add
-    local.get $t6
+    local.get $t5
     call $write_signed_sized
-    local.get $t10
-    local.get $t9
+    local.get $t8
+    local.get $t7
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 26 |     let mut trail = Trail { steps: [], depth: 0 }
-    local.get $t10
+    local.get $t8
     if
-      local.get $t10
+      local.get $t8
       call $rt:release_ref'2
     end
     local.get $t0

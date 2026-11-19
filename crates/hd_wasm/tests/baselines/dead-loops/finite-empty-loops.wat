@@ -42,11 +42,11 @@
     ;; 29 |     i
     local.get $i
   )
-  (func $discard_strings (param $items i32) (local $t0 i32) (local $t1 i32)
+  (func $discard_strings (param $items i32) (local $index i32) (local $t0 i32)
     ;; 13 |     items.drop()
     block
       loop
-        local.get $t0
+        local.get $index
         local.get $items
         i32.load $heap offset=8
         i32.lt_u
@@ -54,20 +54,20 @@
         br_if 1
         local.get $items
         i32.load $heap
-        local.get $t0
+        local.get $index
         i32.const 8
         i32.mul
         i32.add
         i32.load $heap
-        local.tee $t1
+        local.tee $t0
         if
-          local.get $t1
+          local.get $t0
           call $rt:release_ref
         end
-        local.get $t0
+        local.get $index
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $index
         br 0
       end
     end

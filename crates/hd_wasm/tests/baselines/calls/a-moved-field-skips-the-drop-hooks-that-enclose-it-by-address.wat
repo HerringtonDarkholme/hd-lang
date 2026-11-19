@@ -10,7 +10,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
-  (func $moved (param $t1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64)
+  (func $moved (param $t1 i32) (result i32) (local $t0 i32) (local $p.id.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; 67 |     keep(o.big.part) + o.v
     i32.const 1
     local.set $t0
@@ -18,49 +18,49 @@
     i32.load $stack offset=8
     local.get $t1
     i32.load $stack offset=12
-    local.tee $t2
-    local.set $t3
-    local.get $t2
+    local.tee $p.id.1
+    local.set $t2
+    local.get $p.id.1
     i32.const 1
     call $rt:drop_value
     local.get $t1
     i32.load $stack offset=88
-    local.set $t2
-    local.get $t4
+    local.set $p.id.1
+    local.get $t3
     i32.eqz
     if
       i32.const 104
       call $rt:heap_frame
-      local.tee $t4
+      local.tee $t3
       local.get $t1
       i32.const 92
       memory.copy $heap $stack
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         call $"impl Drop for Outer.drop"
       end
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         call $"impl Drop for Big.drop"
       end
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         i32.const 8
         i32.add
         call $"impl Drop for Part.drop"
       end
-      local.get $t4
+      local.get $t3
       i32.const 80
       i32.add
       call $"impl Drop for Part.drop"
       local.get $t1
-      local.get $t4
+      local.get $t3
       i32.const 92
       memory.copy $stack $heap
       global.get $locals
@@ -69,9 +69,9 @@
       global.set $locals
       local.get $t1
       i32.load $stack
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref
       end
       local.get $t0
@@ -79,31 +79,31 @@
       if
         local.get $t1
         i32.load $stack offset=8
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref
         end
       end
       local.get $t1
       i32.load $stack offset=80
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref
       end
       i32.const 1
-      local.set $t4
+      local.set $t3
     end
-    local.get $t3
-    i64.extend_i32_s
     local.get $t2
     i64.extend_i32_s
+    local.get $p.id.1
+    i64.extend_i32_s
     i64.add
-    local.tee $t5
+    local.tee $t4
     i64.const 2147483647
     i64.gt_s
-    local.get $t5
+    local.get $t4
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -111,44 +111,44 @@
       call $rt:panic
       unreachable
     end
-    local.get $t5
-    i32.wrap_i64
-    local.set $t2
     local.get $t4
+    i32.wrap_i64
+    local.set $p.id.1
+    local.get $t3
     i32.eqz
     if
       i32.const 104
       call $rt:heap_frame
-      local.tee $t4
+      local.tee $t3
       local.get $t1
       i32.const 92
       memory.copy $heap $stack
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         call $"impl Drop for Outer.drop"
       end
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         call $"impl Drop for Big.drop"
       end
       local.get $t0
       i32.eqz
       if
-        local.get $t4
+        local.get $t3
         i32.const 8
         i32.add
         call $"impl Drop for Part.drop"
       end
-      local.get $t4
+      local.get $t3
       i32.const 80
       i32.add
       call $"impl Drop for Part.drop"
       local.get $t1
-      local.get $t4
+      local.get $t3
       i32.const 92
       memory.copy $stack $heap
       global.get $locals
@@ -157,9 +157,9 @@
       global.set $locals
       local.get $t1
       i32.load $stack
-      local.tee $t4
+      local.tee $t3
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref
       end
       local.get $t0
@@ -167,9 +167,9 @@
       if
         local.get $t1
         i32.load $stack offset=8
-        local.tee $t4
+        local.tee $t3
         if
-          local.get $t4
+          local.get $t3
           call $rt:release_ref
         end
       end
@@ -181,6 +181,6 @@
         call $rt:release_ref
       end
     end
-    local.get $t2
+    local.get $p.id.1
   )
 )

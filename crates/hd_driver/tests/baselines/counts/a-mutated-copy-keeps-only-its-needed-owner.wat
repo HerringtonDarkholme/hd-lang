@@ -178,7 +178,7 @@
     local.get $t0
     i32.add
   )
-  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $t0 i32)
+  (func $early_copy (param $a.0 i32) (param $a.1 i32) (result i32) (local $self.0 i32)
     ;; 28 |     let t = a
     local.get $a.0
     if
@@ -199,9 +199,9 @@
     call $rt:str_append
     ;; 31 |     n + t.len()
     local.set $a.0
-    local.tee $t0
+    local.tee $self.0
     if
-      local.get $t0
+      local.get $self.0
       call $rt:release_ref'2
     end
     local.get $a.1

@@ -18,57 +18,57 @@
     local.get $raw.1
     i32.const 0
   )
-  (func $tag (param $label.0 i32) (param $label.1 i32) (param $level i64) (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $tag (param $label.0 i32) (param $label.1 i32) (param $level i64) (result i32 i32) (local $value i64) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 15 |     "${label}:${level}"
     local.get $level
-    local.tee $t0
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $t1
-    local.get $t0
+    local.set $t0
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t2
+      local.set $t1
     end
+    local.get $t0
     local.get $t1
-    local.get $t2
     i32.add
-    local.set $t2
+    local.set $t1
     local.get $label.1
     i32.const 1
     i32.add
-    local.tee $t1
-    local.get $t2
+    local.tee $t0
+    local.get $t1
     i32.add
-    local.tee $t3
+    local.tee $t2
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t3
+      local.get $t2
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
-    local.get $t4
+    local.get $t3
     local.get $label.0
     local.get $label.1
     call $rt:memory_copy/0/0
-    local.get $t4
+    local.get $t3
     local.get $label.1
     i32.add
     i32.const 58
     i32.store8 $heap
     local.get $level
-    local.get $t4
-    local.get $t1
-    i32.add
-    local.get $t2
-    call $write_signed_sized
-    local.get $t4
     local.get $t3
+    local.get $t0
+    i32.add
+    local.get $t1
+    call $write_signed_sized
+    local.get $t3
+    local.get $t2
   )
-  (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
+  (func $direct (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $label.0 i32) (local $label.1 i32) (local $t2 i32) (local $t1 i32)
     ;; 24 |     tag(clean(raw), 2)
     block
       i32.const 1
@@ -80,35 +80,35 @@
       i32.const 1
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t1
-      local.tee $t2
-      local.get $t1
+      local.set $label.1
+      local.tee $label.0
+      local.get $label.1
       i32.const 0
       i32.const 66 ;; &"["
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       i32.const 1
       local.get $raw.0
       local.get $raw.1
       call $"impl StringBuilder.value_text"
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       local.get $t0
       i32.const 67 ;; &"]"
       i32.const 1
       call $"impl StringBuilder.value_text"
       br 0
-      local.get $t2
+      local.get $label.0
       if
-        local.get $t2
+        local.get $label.0
         call $rt:release_ref
       end
     end
     block
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       call $"impl StringBuilder.text_width"
       i64.const 2
       call $"impl StringBuilder.signed_width"
@@ -120,45 +120,45 @@
       local.get $raw.0
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t3
-      local.tee $t4
-      local.get $t3
+      local.set $t1
+      local.tee $t2
+      local.get $t1
       i32.const 0
+      local.get $label.0
+      local.get $label.1
+      call $"impl StringBuilder.value_text"
       local.get $t2
       local.get $t1
-      call $"impl StringBuilder.value_text"
-      local.get $t4
-      local.get $t3
       local.get $raw.1
       i32.const 65 ;; &":"
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t4
-      local.get $t3
+      local.get $t2
+      local.get $t1
       local.get $t0
       i64.const 2
       local.get $raw.0
       call $"impl StringBuilder.value_signed"
       br 0
-      local.get $t4
+      local.get $t2
       if
-        local.get $t4
+        local.get $t2
         call $rt:release_ref
       end
     end
-    local.get $t2
+    local.get $label.0
     if
-      local.get $t2
+      local.get $label.0
       call $rt:release_ref
     end
-    local.get $t4
-    local.get $t3
+    local.get $t2
+    local.get $t1
   )
   (func $method_slot (param $raw.0 i32) (param $raw.1 i32) (result i32)
     ;; 27 |     raw |> _.len()
     local.get $raw.1
   )
-  (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
+  (func $chain (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $label.0 i32) (local $label.1 i32) (local $t2 i32) (local $t1 i32)
     ;; 21 |     raw |> clean |> tag(_, 2)
     block
       i32.const 1
@@ -170,35 +170,35 @@
       i32.const 1
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t1
-      local.tee $t2
-      local.get $t1
+      local.set $label.1
+      local.tee $label.0
+      local.get $label.1
       i32.const 0
       i32.const 66 ;; &"["
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       i32.const 1
       local.get $raw.0
       local.get $raw.1
       call $"impl StringBuilder.value_text"
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       local.get $t0
       i32.const 67 ;; &"]"
       i32.const 1
       call $"impl StringBuilder.value_text"
       br 0
-      local.get $t2
+      local.get $label.0
       if
-        local.get $t2
+        local.get $label.0
         call $rt:release_ref
       end
     end
     block
-      local.get $t2
-      local.get $t1
+      local.get $label.0
+      local.get $label.1
       call $"impl StringBuilder.text_width"
       i64.const 2
       call $"impl StringBuilder.signed_width"
@@ -210,39 +210,39 @@
       local.get $raw.0
       i32.add
       call $"impl StringBuilder.value_new"
-      local.set $t3
-      local.tee $t4
-      local.get $t3
+      local.set $t1
+      local.tee $t2
+      local.get $t1
       i32.const 0
+      local.get $label.0
+      local.get $label.1
+      call $"impl StringBuilder.value_text"
       local.get $t2
       local.get $t1
-      call $"impl StringBuilder.value_text"
-      local.get $t4
-      local.get $t3
       local.get $raw.1
       i32.const 65 ;; &":"
       i32.const 1
       call $"impl StringBuilder.value_text"
-      local.get $t4
-      local.get $t3
+      local.get $t2
+      local.get $t1
       local.get $t0
       i64.const 2
       local.get $raw.0
       call $"impl StringBuilder.value_signed"
       br 0
-      local.get $t4
+      local.get $t2
       if
-        local.get $t4
+        local.get $t2
         call $rt:release_ref
       end
     end
-    local.get $t2
+    local.get $label.0
     if
-      local.get $t2
+      local.get $label.0
       call $rt:release_ref
     end
-    local.get $t4
-    local.get $t3
+    local.get $t2
+    local.get $t1
   )
   (func $clean (param $raw.0 i32) (param $raw.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 12 |     "[${raw}]"

@@ -26,7 +26,7 @@
       i32.const 0
     end
   )
-  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $s i32) (local $t0 i32) (local $t1 i32)
+  (func $local_capture (param $prefix.0 i32) (param $prefix.1 i32) (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $x.1 i32)
     ;; 11 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -45,11 +45,11 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t1
+        local.tee $x.1
         i32.load $heap offset=16
-        local.get $t1
+        local.get $x.1
         i32.load $heap offset=20
-        local.set $t1
+        local.set $x.1
         drop
         local.get $t0
     ;; 12 |         total += width(x)
@@ -62,18 +62,18 @@
           unreachable
         end
     ;; 12 |         total += width(x)
-        local.get $s
+        local.get $total
         local.get $prefix.1
-        local.get $t1
+        local.get $x.1
         i32.add
     ;; 11 |     for x in xs:
         i32.add
-        local.set $s
+        local.set $total
     ;; 8 |     fn width(s: string) -> usize:
         br 0
       end
     end
     ;; (no span)
-    local.get $s
+    local.get $total
   )
 )

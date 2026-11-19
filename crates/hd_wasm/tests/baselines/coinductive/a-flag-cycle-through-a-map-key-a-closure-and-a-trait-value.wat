@@ -12,7 +12,7 @@
   (import "fixture" "impl Fast for Tree.regular#evaluating" (global $"impl Fast for Tree.regular#evaluating" (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+  (func $"impl Fast for Tree.regular" (result i32) (local $seen i32) (local $step i32) (local $bump.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $value i32)
     ;; 39 |         let mut seen: Map[Key, i32] = {}
     global.get $"impl Fast for Tree.regular#evaluating"
     if
@@ -103,7 +103,7 @@
           i32.eqz
           br_if 1
           local.get $t1
-          local.set $t3
+          local.set $value
           br 0
           unreachable
         end
@@ -111,7 +111,7 @@
       end
     end
     local.get $bump.1
-    local.get $t3
+    local.get $value
     i32.const 0
     call $"impl Fast for Tree.regular#1"
     local.set $t2
@@ -135,15 +135,15 @@
     local.get $t1
     i32.const 412 ;; &vtable[rt:dyn_slot]
     local.set $t1
-    local.tee $t3
+    local.tee $value
     local.tee $seen
     if
       local.get $seen
       call $retain
     end
-    local.get $t3
+    local.get $value
     if
-      local.get $t3
+      local.get $value
       call $rt:release_ref'2
     end
     local.get $seen

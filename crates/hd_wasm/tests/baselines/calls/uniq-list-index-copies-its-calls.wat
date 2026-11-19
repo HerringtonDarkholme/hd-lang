@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32)
+  (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t0 i32) (local $key i32)
     ;; 11 |     for i in 0..n:
     block
       loop
@@ -17,7 +17,7 @@
         i32.add
         local.set $t0
     ;; 12 |         total = total + xs[i]
-        local.tee $t1
+        local.tee $key
         local.get $xs
         i32.load $heap offset=8
         i32.ge_u
@@ -33,7 +33,7 @@
         local.get $total
         local.get $xs
         i32.load $heap
-        local.get $t1
+        local.get $key
         i32.const 8
         i32.mul
         i32.add

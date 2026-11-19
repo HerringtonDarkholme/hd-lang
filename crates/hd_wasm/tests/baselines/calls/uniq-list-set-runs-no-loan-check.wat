@@ -6,7 +6,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $fill (param $n i32) (result i32 i32 i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $t2 i32) (local $t3 f64) (local $t4 i32)
+  (func $fill (param $n i32) (result i32 i32 i32) (local $size i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $value f64) (local $t2 i32)
     ;; 10 |     let mut xs = UniqList::[f64].with_capacity(n)
     global.get $locals
     global.get $locals_base
@@ -40,7 +40,7 @@
     local.get $n
     i32.const 8
     call $room
-    local.set $t1
+    local.set $size
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -48,7 +48,7 @@
     i32.const 8
     i32.add
     local.tee $xs
-    local.get $t1
+    local.get $size
     i32.store $heap
     local.get $xs
     local.get $n
@@ -74,40 +74,40 @@
     ;; 11 |     for i in 0..n:
     block
       loop
-        local.get $t2
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 12 |         xs.push(0.0)
         local.get $xs
         i32.load $heap offset=8
-        local.set $t1
+        local.set $size
         local.get $xs
         i32.load $heap offset=4
-        local.get $t1
+        local.get $size
         i32.le_u
         if
           local.get $xs
-          local.get $t1
+          local.get $size
           i32.const 1
           i32.add
           call $"impl[T < ?Copy] UniqList[T].reserve_for[f64]"
         end
         local.get $xs
         i32.load $heap
-        local.get $t1
+        local.get $size
         i32.const 8
         i32.mul
         i32.add
-        local.get $t3
+        local.get $value
         f64.store $heap
         local.get $xs
-        local.get $t1
+        local.get $size
         i32.const 1
         i32.add
         i32.store $heap offset=8
@@ -118,20 +118,20 @@
     ;; 13 |     for i in 0..n:
     block
       loop
-        local.get $t4
+        local.get $t2
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t4
-        local.get $t4
+        local.get $t2
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t4
+        local.set $t2
     ;; 14 |         xs[i] = 1.0
-        local.tee $t2
+        local.tee $t1
         f64.const 0x1p+0
-        local.set $t3
+        local.set $value
         local.get $xs
         i32.load $heap offset=8
         i32.ge_u
@@ -146,11 +146,11 @@
         end
         local.get $xs
         i32.load $heap
-        local.get $t2
+        local.get $t1
         i32.const 8
         i32.mul
         i32.add
-        local.get $t3
+        local.get $value
         f64.store $heap
     ;; 13 |     for i in 0..n:
         br 0

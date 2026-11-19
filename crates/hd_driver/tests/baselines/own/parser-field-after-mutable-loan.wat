@@ -44,7 +44,7 @@
     i32.const 0
     local.get $self
   )
-  (func $"impl Parser.whitespace" (param $self i32) (local $t0 i32) (local $t1 i32)
+  (func $"impl Parser.whitespace" (param $self i32) (local $point i32) (local $t0 i32)
     ;; 14 |         while self.at < self.chars.len() && self.chars[self.at].is_whitespace():
     block
       loop
@@ -60,37 +60,37 @@
         i32.load $heap offset=4
         local.get $self
         i32.load $heap
-        local.set $t0
-        local.tee $t1
-        local.get $t0
+        local.set $point
+        local.tee $t0
+        local.get $point
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic
           unreachable
         end
+        local.get $point
         local.get $t0
-        local.get $t1
         i32.const 4
         i32.mul
         i32.add
         i32.load $heap offset=16
-        local.set $t0
+        local.set $point
         block
-          local.get $t0
+          local.get $point
           i32.const 32
           i32.le_s
           if
-            local.get $t0
+            local.get $point
             i32.const 32
             i32.eq
             i32.eqz
             if (result i32)
-              local.get $t0
+              local.get $point
               i32.const 9
               i32.ge_s
               if (result i32)
-                local.get $t0
+                local.get $point
                 i32.const 13
                 i32.le_s
               else
@@ -99,19 +99,19 @@
             else
               i32.const 1
             end
-            local.set $t1
+            local.set $t0
             br 1
           end
-          local.get $t0
+          local.get $point
           i32.const 8192
           i32.lt_s
           if
-            local.get $t0
+            local.get $point
             i32.const 133
             i32.eq
             i32.eqz
             if (result i32)
-              local.get $t0
+              local.get $point
               i32.const 160
               i32.eq
             else
@@ -119,21 +119,21 @@
             end
             i32.eqz
             if (result i32)
-              local.get $t0
+              local.get $point
               i32.const 5760
               i32.eq
             else
               i32.const 1
             end
-            local.set $t1
+            local.set $t0
             br 1
           end
-          local.get $t0
+          local.get $point
           i32.const 8202
           i32.le_s
           i32.eqz
           if (result i32)
-            local.get $t0
+            local.get $point
             i32.const 8232
             i32.eq
           else
@@ -141,7 +141,7 @@
           end
           i32.eqz
           if (result i32)
-            local.get $t0
+            local.get $point
             i32.const 8233
             i32.eq
           else
@@ -149,7 +149,7 @@
           end
           i32.eqz
           if (result i32)
-            local.get $t0
+            local.get $point
             i32.const 8239
             i32.eq
           else
@@ -157,7 +157,7 @@
           end
           i32.eqz
           if (result i32)
-            local.get $t0
+            local.get $point
             i32.const 8287
             i32.eq
           else
@@ -165,15 +165,15 @@
           end
           i32.eqz
           if (result i32)
-            local.get $t0
+            local.get $point
             i32.const 12288
             i32.eq
           else
             i32.const 1
           end
-          local.set $t1
+          local.set $t0
         end
-        local.get $t1
+        local.get $t0
         i32.eqz
         br_if 1
     ;; 15 |             self.at += 1

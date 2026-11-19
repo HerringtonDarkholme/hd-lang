@@ -3,7 +3,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $sum (param $items i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i32)
+  (func $sum (param $items i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $size i32)
     ;; 10 |     for i in 0..items.len():
     local.get $items
     i32.load $heap offset=8
@@ -24,28 +24,28 @@
     ;; 11 |         items.push(0)
         local.get $items
         i32.load $heap offset=8
-        local.set $t2
+        local.set $size
         local.get $items
         i32.load $heap offset=4
-        local.get $t2
+        local.get $size
         i32.le_u
         if
           local.get $items
-          local.get $t2
+          local.get $size
           i32.const 1
           i32.add
           call $"impl[T < ?Copy] UniqList[T].reserve_for[i32]"
         end
         local.get $items
         i32.load $heap
-        local.get $t2
+        local.get $size
         i32.const 4
         i32.mul
         i32.add
         i32.const 0
         i32.store $heap
         local.get $items
-        local.get $t2
+        local.get $size
         i32.const 1
         i32.add
         i32.store $heap offset=8

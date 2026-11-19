@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $sort (param $items i32) (local $i i32) (local $t1 i32) (local $t0 i32)
+  (func $sort (param $items i32) (local $i i32) (local $key'2 i32) (local $key'1 i32)
     ;; ...
     block
       loop
@@ -17,7 +17,7 @@
             local.get $i
             i32.const 1
             i32.sub
-            local.tee $t0
+            local.tee $key'1
             local.get $items
             i32.load $heap offset=8
             i32.ge_u
@@ -32,19 +32,19 @@
             end
             local.get $items
             i32.load $heap
-            local.get $t0
+            local.get $key'1
             i32.const 4
             i32.mul
             i32.add
             i32.load $heap
-            local.get $t1
+            local.get $key'2
             i32.le_s
             br_if 1
     ;; 21 |             items[j] = items[j - 1]
             local.get $i
             i32.const 1
             i32.sub
-            local.tee $t0
+            local.tee $key'1
             local.get $items
             i32.load $heap offset=8
             i32.ge_u
@@ -59,12 +59,12 @@
             end
             local.get $items
             i32.load $heap
-            local.get $t0
+            local.get $key'1
             i32.const 4
             i32.mul
             i32.add
             i32.load $heap
-            local.set $t0
+            local.set $key'1
             local.get $i
             local.get $items
             i32.load $heap offset=8
@@ -84,7 +84,7 @@
             i32.const 4
             i32.mul
             i32.add
-            local.get $t0
+            local.get $key'1
             i32.store $heap
     ;; 22 |             j = j - 1
             local.get $i

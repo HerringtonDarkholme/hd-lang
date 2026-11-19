@@ -13,7 +13,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $s i64) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i64) (local $t6 i64) (local $t7 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $xs i32) (local $t0 i32) (local $s i64) (local $t2 i32) (local $t3 i32) (local $destination i32) (local $value'1 i64) (local $value'2 i64) (local $t4 i32)
     ;; 7 |     let mut xs = [1i64, 2, 3]
     global.get $locals
     global.get $locals_base
@@ -105,7 +105,7 @@
         local.get $xs
         i32.load $heap
         local.set $t3
-        local.tee $t4
+        local.tee $destination
         local.get $t3
         i32.load $heap offset=4
         i32.ge_u
@@ -115,7 +115,7 @@
         end
         local.get $s
         local.get $t3
-        local.get $t4
+        local.get $destination
         i32.const 8
         i32.mul
         i32.add
@@ -153,38 +153,38 @@
     end
     ;; 15 |     println("$s ${xs.len()}")
     local.get $s
-    local.tee $t5
-    local.tee $t6
+    local.tee $value'1
+    local.tee $value'2
     i64.const 0
     i64.lt_s
     if (result i64)
       i64.const 0
-      local.get $t6
+      local.get $value'2
       i64.const 1
       i64.add
       i64.sub
       i64.const 1
       i64.add
     else
-      local.get $t6
+      local.get $value'2
     end
     call $unsigned_width
     local.set $t2
-    local.get $t5
+    local.get $value'1
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t7
+      local.set $t4
     end
     local.get $t2
-    local.get $t7
+    local.get $t4
     i32.add
     local.set $t2
     local.get $xs
     i32.load $heap
     call $rt:coll_copy
-    local.set $t7
+    local.set $t4
     local.get $xs
     if
       local.get $xs
@@ -201,28 +201,28 @@
         end
       end
     end
-    local.get $t7
+    local.get $t4
     i32.load $heap offset=4
-    local.get $t7
+    local.get $t4
     if
-      local.get $t7
+      local.get $t4
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t7
+        local.get $t4
         call $rt:release_ref'1
       end
     end
     i64.extend_i32_u
-    local.tee $t5
+    local.tee $value'1
     call $unsigned_width
-    local.set $t7
+    local.set $t4
     local.get $t2
     i32.const 1
     i32.add
     local.tee $t1
-    local.get $t7
+    local.get $t4
     i32.add
     local.tee $xs
     i32.const 16
@@ -233,17 +233,17 @@
       local.set $t3
     end
     local.get $t3
-    local.set $t4
+    local.set $destination
     local.get $s
     call $signed_magnitude
-    local.get $t4
+    local.get $destination
     local.get $t2
     call $write_unsigned_sized
     local.get $s
     i64.const 0
     i64.lt_s
     if
-      local.get $t4
+      local.get $destination
       i32.const 45
       i32.store8 $heap
     end
@@ -252,11 +252,11 @@
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t5
+    local.get $value'1
     local.get $t3
     local.get $t1
     i32.add
-    local.get $t7
+    local.get $t4
     call $write_unsigned_sized
     local.get $t3
     local.get $xs

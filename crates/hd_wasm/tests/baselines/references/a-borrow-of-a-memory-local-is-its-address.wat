@@ -10,7 +10,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "stack" (memory $stack 16 16))
-  (func $show (result i32 i32) (local $t1 i32) (local $t32 i32) (local $t31 i32) (local $t30 i32) (local $t29 i32) (local $t28 i32) (local $t27 i32) (local $t26 i32) (local $t25 i32) (local $t24 i32) (local $t23 i32) (local $t22 i32) (local $t21 i32) (local $t20 i32) (local $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t33 i32) (local $t34 i64) (local $t35 i64) (local $t36 i32)
+  (func $show (result i32 i32) (local $t1 i32) (local $t32 i32) (local $t31 i32) (local $t30 i32) (local $t29 i32) (local $t28 i32) (local $t27 i32) (local $t26 i32) (local $t25 i32) (local $t24 i32) (local $t23 i32) (local $t22 i32) (local $t21 i32) (local $t20 i32) (local $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t0 i32) (local $t33 i32) (local $t34 i64) (local $value i64) (local $t35 i32)
     ;; 28 |     let v = make4()
     global.get $locals
     global.get $locals_base
@@ -255,32 +255,32 @@
     i32.load $heap
     i64.extend_i32_s
     local.tee $t34
-    local.tee $t35
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $t1
-    local.get $t35
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t36
+      local.set $t35
     end
     local.get $t1
     i64.extend_i32_u
-    local.get $t36
+    local.get $t35
     i64.extend_i32_u
     i64.add
-    local.tee $t35
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t35
+    local.get $value
     i32.wrap_i64
-    local.tee $t36
+    local.tee $t35
     local.tee $t1
     i32.const 16
     local.set $t2
@@ -291,7 +291,7 @@
     end
     local.get $t34
     local.get $t2
-    local.get $t36
+    local.get $t35
     call $write_signed_sized
     local.get $t2
     local.get $t1

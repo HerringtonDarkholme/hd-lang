@@ -139,59 +139,59 @@
     ;; 25 | @error
     local.get $t3
   )
-  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $t1 i64) (local $t2 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
+  (func $"impl Display for YamlError.to_string" (param $self i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32)
     ;; 15 |         "bad yaml at line ${self.line}"
     local.get $self
     i64.load $heap
     local.tee $t0
-    local.tee $t1
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $self
-    local.get $t1
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t2
+      local.set $t1
     end
     local.get $self
-    local.get $t2
+    local.get $t1
     i32.add
     local.set $self
     i32.const 17
-    local.tee $t2
+    local.tee $t1
     local.get $self
     i32.add
-    local.tee $t3
+    local.tee $t2
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t3
+      local.get $t2
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
-    local.get $t4
-    local.tee $t5
+    local.get $t3
+    local.tee $t4
     i64.const 2334393380926157921
     i64.store $heap offset=9 align=1
-    local.get $t5
+    local.get $t4
     i64.const 2336362572109866081
     i64.store $heap offset=1 align=1
-    local.get $t5
+    local.get $t4
     i64.const 7308895158390776096
     i64.store $heap offset=8 align=1
-    local.get $t5
+    local.get $t4
     i64.const 7813008101420065122
     i64.store $heap align=1
     local.get $t0
-    local.get $t4
-    local.get $t2
+    local.get $t3
+    local.get $t1
     i32.add
     local.get $self
     call $write_signed_sized
-    local.get $t4
     local.get $t3
+    local.get $t2
   )
   (func $parse (param $text.0 i32) (param $text.1 i32) (result i32 i64) (local $t0 i64)
     ;; 45 |     if text.len() > 3:

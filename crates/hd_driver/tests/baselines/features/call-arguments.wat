@@ -100,24 +100,24 @@
     local.get $s.0
     i32.div_u
   )
-  (func $by_ptr (param $n i32) (result i32) (local $t0 i32)
+  (func $by_ptr (param $n i32) (result i32) (local $self.1 i32)
     ;; 19 |     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
     local.get $n
     i32.load $heap
     local.get $n
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 1
     i32.add
     local.get $n
     i32.load $heap
     local.get $n
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 2
     i32.add
     i32.mul
@@ -125,9 +125,9 @@
     i32.load $heap
     local.get $n
     i32.load $heap offset=4
-    local.set $t0
+    local.set $self.1
     drop
-    local.get $t0
+    local.get $self.1
     i32.const 3
     i32.add
     i32.mul

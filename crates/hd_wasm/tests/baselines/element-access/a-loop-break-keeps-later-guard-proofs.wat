@@ -3,7 +3,7 @@
   (import "fixture" "impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (func $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t0 i32) (local $cursor i32) (local $t1 i32)
     ;; 21 |     for _ in 0..rounds:
     block
       loop
@@ -18,18 +18,18 @@
         local.set $t0
     ;; 22 |         first := checked_after_loop(items, index, turns)
         i32.const 0
-        local.set $t1
+        local.set $cursor
         block
           loop
-            local.get $t1
+            local.get $cursor
             local.get $turns
             i32.lt_u
             i32.eqz
             br_if 1
-            local.get $t1
+            local.get $cursor
             i32.const 1
             i32.add
-            local.set $t1
+            local.set $cursor
             br 0
           end
         end
@@ -46,7 +46,7 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $t1
+        local.get $cursor
         local.get $items
         i32.load $heap
         local.get $key
@@ -55,7 +55,7 @@
         i32.add
         i32.load $heap
         i32.add
-        local.set $t1
+        local.set $cursor
     ;; 23 |         total += first + items[index]
         local.get $key
         local.get $items
@@ -77,10 +77,10 @@
         i32.mul
         i32.add
         i32.load $heap
-        local.set $t2
+        local.set $t1
         local.get $total
+        local.get $cursor
         local.get $t1
-        local.get $t2
         i32.add
         i32.add
         local.set $total

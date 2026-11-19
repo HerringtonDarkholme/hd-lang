@@ -15,7 +15,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $replaced (param $ps i32) (result i32) (local $t0 i32) (local $k i32) (local $d i32) (local $p i32) (local $q i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $junk.0 i32) (local $junk.1 i32)
+  (func $replaced (param $ps i32) (result i32) (local $t0 i32) (local $k i32) (local $d i32) (local $p i32) (local $q i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $junk.0 i32) (local $junk.1 i32)
     ;; 14 |     p := make(k)
     global.get $locals
     global.get $locals_base
@@ -141,46 +141,46 @@
     i32.load $heap
     i64.extend_i32_s
     local.tee $t1
-    local.tee $t2
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $k
-    local.get $t2
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t3
+      local.set $t2
     end
     local.get $k
     i64.extend_i32_u
-    local.get $t3
+    local.get $t2
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $value
     i32.wrap_i64
-    local.set $t3
+    local.set $t2
     i32.const 1
     local.set $k
     i64.const 1
-    local.get $t3
+    local.get $t2
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $value
     i32.wrap_i64
     local.tee $junk.1
     i32.const 16
@@ -194,14 +194,14 @@
     i64.extend_i32_u
     i64.const 0
     i64.add
-    local.tee $t2
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $value
     i32.wrap_i64
     i32.const 106
     i32.store8 $heap
@@ -209,12 +209,12 @@
     local.get $junk.0
     local.get $k
     i32.add
-    local.get $t3
+    local.get $t2
     call $write_signed_sized
     ;; 20 |     d.len() + ps[0].name.len() + junk.len()
     local.get $d
     call $"impl string.len"
-    local.set $t3
+    local.set $t2
     i32.const 0
     local.get $ps
     i32.load $heap offset=4
@@ -262,7 +262,7 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t3
+    local.get $t2
     i64.extend_i32_u
     local.get $k
     i64.extend_i32_u

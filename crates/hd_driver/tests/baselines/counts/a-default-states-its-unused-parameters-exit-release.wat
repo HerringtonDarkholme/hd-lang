@@ -94,21 +94,21 @@
     local.get $provider0.vtable
     call $"println[string]"
   )
-  (func $join.second (param $t0 i32) (param $t2 i32) (param $t1 i32) (result i32 i32)
+  (func $join.second (param $log i32) (param $first.0 i32) (param $first.1 i32) (result i32 i32)
     ;; 12 |     second: string = note(log, "second"),
-    local.get $t0
+    local.get $log
     i32.const 157 ;; &"second"
     i32.const 6
     call $note
-    local.set $t0
-    local.set $t1
-    local.get $t2
+    local.set $log
+    local.set $first.1
+    local.get $first.0
     if
-      local.get $t2
+      local.get $first.0
       call $rt:release_ref'1
     end
-    local.get $t1
-    local.get $t0
+    local.get $first.1
+    local.get $log
   )
   (func $note (param $log i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 6 |     log.push(text)

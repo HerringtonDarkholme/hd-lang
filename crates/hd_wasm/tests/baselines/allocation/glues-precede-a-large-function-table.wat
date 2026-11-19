@@ -12,7 +12,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 3))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $out i32) (local $sum i32) (local $t6 i32) (local $t0 i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i32) (local $t5 i64)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $out i32) (local $sum i32) (local $t5 i32) (local $t0 i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; ...
     ;; 197 |     if sum > 0:
     local.get $sum
@@ -45,36 +45,36 @@
       i32.load $heap
       i64.extend_i32_s
       local.tee $t1
-      local.tee $t2
+      local.tee $value
       call $signed_magnitude
       call $unsigned_width
       local.set $t0
-      local.get $t2
+      local.get $value
       i64.const 0
       i64.lt_s
       if
         i32.const 1
-        local.set $t3
+        local.set $t2
       end
       local.get $t0
       i64.extend_i32_u
-      local.get $t3
+      local.get $t2
       i64.extend_i32_u
       i64.add
-      local.tee $t2
+      local.tee $value
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t2
+      local.get $value
       i32.wrap_i64
       local.set $t0
       local.get $out
       i32.load $heap
       i64.extend_i32_s
-      local.set $t2
+      local.set $value
       local.get $out
       if
         local.get $out
@@ -88,70 +88,70 @@
           call $rt:release_ref
         end
       end
-      local.get $t2
+      local.get $value
       call $signed_magnitude
       call $unsigned_width
-      local.set $t3
-      local.get $t2
+      local.set $t2
+      local.get $value
       i64.const 0
       i64.lt_s
       if
         i32.const 1
-        local.set $t4
+        local.set $t3
       end
+      local.get $t2
+      i64.extend_i32_u
       local.get $t3
       i64.extend_i32_u
-      local.get $t4
-      i64.extend_i32_u
       i64.add
-      local.tee $t5
+      local.tee $t4
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t5
+      local.get $t4
       i32.wrap_i64
-      local.set $t3
+      local.set $t2
       local.get $t0
-      local.tee $t4
+      local.tee $t3
       i32.const -2
       i32.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t4
+      local.get $t3
       i32.const 1
       i32.add
-      local.tee $t4
+      local.tee $t3
       i64.extend_i32_u
-      local.get $t3
+      local.get $t2
       i64.extend_i32_u
       i64.add
-      local.tee $t5
+      local.tee $t4
       i64.const 4294967295
       i64.gt_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t5
+      local.get $t4
       i32.wrap_i64
       local.tee $out
       i32.const 16
-      local.set $t6
+      local.set $t5
       if
         local.get $out
         call $rt:str
-        local.set $t6
+        local.set $t5
       end
       local.get $t1
-      local.get $t6
+      local.get $t5
       local.get $t0
       call $write_signed_sized
-      local.get $t6
+      local.get $t5
       i64.extend_i32_u
       local.get $t0
       i64.extend_i32_u
@@ -167,13 +167,13 @@
       i32.wrap_i64
       i32.const 32
       i32.store8 $heap
-      local.get $t2
-      local.get $t6
-      local.get $t4
-      i32.add
+      local.get $value
+      local.get $t5
       local.get $t3
+      i32.add
+      local.get $t2
       call $write_signed_sized
-      local.get $t6
+      local.get $t5
       local.get $out
       local.get $provider0
       local.get $provider0.vtable

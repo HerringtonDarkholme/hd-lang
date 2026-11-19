@@ -4,7 +4,7 @@
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $each (param $k i64) (result i64) (local $sum i64) (local $t1 i64) (local $i i64) (local $tally i32) (local $t0 i32) (local $r i32) (local $t2 i32)
+  (func $each (param $k i64) (result i64) (local $sum i64) (local $t1 i64) (local $i i64) (local $tally i32) (local $t0 i32) (local $r i32) (local $t i32)
     ;; 16 |     let sum: i64 = 0
     global.get $locals
     global.get $locals_base
@@ -69,8 +69,8 @@
     ;; 19 |         let r = &mut tally
         local.tee $r
     ;; 20 |         bump(r)
-        local.tee $t2
-        local.get $t2
+        local.tee $t
+        local.get $t
         i64.load $heap offset=8
         i64.const 1
         i64.add

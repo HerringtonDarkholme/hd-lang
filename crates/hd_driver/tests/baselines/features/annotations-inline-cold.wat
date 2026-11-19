@@ -9,7 +9,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $use_first (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $t2 i32)
+  (func $use_first (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $self.1 i32)
     ;; 28 |     first_len(&xs) + checksum(&xs)
     global.get $locals
     global.get $locals_base
@@ -57,23 +57,23 @@
       br_if 0
       local.get $xs
       i32.load $heap
-      local.set $t2
+      local.set $self.1
       i32.const 0
-      local.get $t2
+      local.get $self.1
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t2
+      local.get $self.1
       i32.load $heap offset=16
-      local.get $t2
+      local.get $self.1
       i32.load $heap offset=20
-      local.set $t2
+      local.set $self.1
       drop
     end
-    local.get $t2
+    local.get $self.1
     local.get $xs
     i32.load $heap
     call $checksum'1

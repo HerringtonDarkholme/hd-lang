@@ -1197,7 +1197,7 @@
     i32.store $heap offset=28
     local.get $t0
   )
-  (func $"generic#1[string]" (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $value.0 i32) (local $value.1 i32) (local $t0 i32)
+  (func $"generic#1[string]" (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
     local.get $frame
     if
@@ -1218,28 +1218,28 @@
     if
       local.get $env
       i32.load $heap
-      local.set $value.0
+      local.set $t1
       local.get $env
       i32.load $heap offset=4
-      local.set $value.1
+      local.set $t2
     end
     local.get $frame
     if
       local.get $frame
       i32.load $heap offset=32
-      local.set $value.0
+      local.set $t1
       local.get $frame
       i32.load $heap offset=36
-      local.set $value.1
+      local.set $t2
     else
-      local.get $value.0
+      local.get $t1
       if
-        local.get $value.0
+        local.get $t1
         call $retain
       end
     end
-    local.get $value.0
-    local.get $value.1
+    local.get $t1
+    local.get $t2
     local.get $frame
     if
       local.get $frame
@@ -1453,32 +1453,32 @@
     end
     local.get $t0
   )
-  (func $"generic[i32]" (param $value i32) (result i32 i32) (local $t0 i32)
+  (func $"generic[i32]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
     i32.const 10
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2
     local.tee $t0
-    local.get $value
+    local.get $t1
     i32.store $heap
     local.get $t0
   )
-  (func $"generic[string]" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
+  (func $"generic[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
     i32.const 11
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
     local.tee $t0
-    local.get $value.0
+    local.get $t1
     i32.store $heap
     local.get $t0
-    local.get $value.1
+    local.get $t2
     i32.store $heap offset=4
     local.get $t0
   )
-  (func $"generic#1[i32]" (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $value i32) (local $t0 i32)
+  (func $"generic#1[i32]" (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 10 |     fn!() -> T: value
     local.get $frame
     if
@@ -1499,15 +1499,15 @@
     if
       local.get $env
       i32.load $heap
-      local.set $value
+      local.set $t1
     end
     local.get $frame
     if
       local.get $frame
       i32.load $heap offset=32
-      local.set $value
+      local.set $t1
     end
-    local.get $value
+    local.get $t1
     local.get $frame
     if
       local.get $frame

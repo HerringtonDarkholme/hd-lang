@@ -77,7 +77,7 @@
     end
     local.get $t2
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t19 i32) (local $t20 i64) (local $t21 i64) (local $t22 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t19 i32) (local $t20 i64) (local $value i64) (local $t21 i32)
     ;; 43 |     println("${outer(Outer { inner: mk(+1), v: +100, w: "w" })}")
     global.get $stack
     i32.const 80
@@ -227,32 +227,32 @@
     global.set $stack
     i64.extend_i32_s
     local.tee $t20
-    local.tee $t21
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
     local.set $t0
-    local.get $t21
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t22
+      local.set $t21
     end
     local.get $t0
     i64.extend_i32_u
-    local.get $t22
+    local.get $t21
     i64.extend_i32_u
     i64.add
-    local.tee $t21
+    local.tee $value
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic
       unreachable
     end
-    local.get $t21
+    local.get $value
     i32.wrap_i64
-    local.tee $t22
+    local.tee $t21
     local.tee $t0
     i32.const 16
     local.set $t1
@@ -263,7 +263,7 @@
     end
     local.get $t20
     local.get $t1
-    local.get $t22
+    local.get $t21
     call $write_signed_sized
     local.get $t1
     local.get $t0

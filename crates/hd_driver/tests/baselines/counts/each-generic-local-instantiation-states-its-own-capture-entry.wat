@@ -483,7 +483,7 @@
     i32.add
     global.set $locals
   )
-  (func $generic#2 (param $env i32) (param $pair.0 i32) (param $pair.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t0 i32)
+  (func $generic#2 (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t0 i32)
     ;; 9 |     fn pair[T](value: T) -> (string, T):
     local.get $env
     i32.load $heap
@@ -496,15 +496,15 @@
       local.get $t0
       call $retain
     end
-    local.get $pair.0
+    local.get $value.0
     if
-      local.get $pair.0
+      local.get $value.0
       call $retain
     end
     ;; 10 |         (captured, value)
     local.get $ctx
     local.get $env
-    local.get $pair.0
-    local.get $pair.1
+    local.get $value.0
+    local.get $value.1
   )
 )

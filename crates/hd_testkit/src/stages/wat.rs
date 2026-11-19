@@ -222,8 +222,8 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             let tir = f
                 .item
                 .as_deref()
-                .and_then(|i| built.tir_text.get(i))
-                .map_or("", String::as_str);
+                .and_then(|i| built.own_text.get(i))
+                .map_or("", |own| own.text.as_str());
             let mut locals = Locals::new(f, tir);
             for t in kept.iter().flat_map(|(_, ts)| ts) {
                 if let Tok::Local(l) = t {
@@ -698,7 +698,7 @@ impl Names {
 /// One function's local names.
 struct Locals<'a> {
     f: &'a FunctionOrigins,
-    /// Each TIR local's source name, by number, from the body's TIR text.
+    /// Each emitted body's local names, after instantiation renumbers them.
     tir: BTreeMap<String, String>,
     names: Names,
     temps: usize,

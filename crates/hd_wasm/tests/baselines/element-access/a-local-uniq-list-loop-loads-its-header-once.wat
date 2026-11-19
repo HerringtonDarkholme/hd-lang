@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $multiply (param $n i32) (result f64) (local $b i32) (local $t4 i32) (local $c i32) (local $t1 i32) (local $t3 f64) (local $t5 f64) (local $t0 i32) (local $j i32) (local $idx i32) (local $t2 i32)
+  (func $multiply (param $n i32) (result f64) (local $b i32) (local $capacity i32) (local $c i32) (local $t0 i32) (local $value'1 f64) (local $value'2 f64) (local $key'1 i32) (local $j i32) (local $idx i32) (local $key'2 i32)
     ;; ...
     block
       loop
@@ -12,29 +12,29 @@
             ;; ...
     ;; 26 |             for j in 0..n:
             i32.const 0
-            local.set $t0
+            local.set $key'1
             block
               loop
-                local.get $t0
+                local.get $key'1
                 local.get $n
                 i32.lt_u
                 i32.eqz
                 br_if 1
-                local.get $t0
+                local.get $key'1
                 local.set $j
-                local.get $t0
+                local.get $key'1
                 i32.const 1
                 i32.add
-                local.set $t0
+                local.set $key'1
     ;; 27 |                 idx := i * n + j
-                local.get $t1
+                local.get $t0
                 local.get $n
                 i32.mul
                 local.get $j
                 i32.add
                 local.tee $idx
     ;; 28 |                 prev := c[idx]
-                local.tee $t2
+                local.tee $key'2
                 local.get $c
                 i32.load $heap offset=8
                 i32.ge_u
@@ -49,14 +49,14 @@
                 end
                 local.get $c
                 i32.load $heap
-                local.get $t2
+                local.get $key'2
                 i32.const 8
                 i32.mul
                 i32.add
                 f64.load $heap
-                local.set $t3
+                local.set $value'1
     ;; 29 |                 add := aik * b[k * n + j]
-                local.get $t4
+                local.get $capacity
                 local.get $n
                 i32.mul
                 local.get $j
@@ -82,15 +82,15 @@
                 i32.add
                 local.set $j
     ;; 30 |                 c[idx] = prev + add
-                local.get $t3
+                local.get $value'1
     ;; 29 |                 add := aik * b[k * n + j]
-                local.get $t5
+                local.get $value'2
                 local.get $j
                 f64.load $heap
                 f64.mul
     ;; 30 |                 c[idx] = prev + add
                 f64.add
-                local.set $t3
+                local.set $value'1
                 local.get $idx
                 local.get $c
                 i32.load $heap offset=8
@@ -110,7 +110,7 @@
                 i32.const 8
                 i32.mul
                 i32.add
-                local.get $t3
+                local.get $value'1
                 f64.store $heap
     ;; 26 |             for j in 0..n:
                 br 0

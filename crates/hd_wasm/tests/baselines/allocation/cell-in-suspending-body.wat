@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $t0 i32) (local $t1 i64)
+  (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $t0 i32) (local $count i64)
     ;; ...
     block
       ;; ...
@@ -28,9 +28,9 @@
       i64.load $heap
       i64.const 1
       i64.add
-      local.set $t1
+      local.set $count
       local.get $provider0
-      local.get $t1
+      local.get $count
       i64.store $heap
       ;; ...
     end

@@ -16,7 +16,7 @@
     call $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i64]"
     i64.load $heap
   )
-  (func $by_value (param $t1 i32) (param $n i32) (result i64) (local $t0 i32) (local $h i32) (local $s i64) (local $t2 i32) (local $t3 i32)
+  (func $by_value (param $self i32) (param $n i32) (result i64) (local $t0 i32) (local $h i32) (local $s i64) (local $t1 i32) (local $key i32)
     ;; 32 |     let s: i64 = 0
     global.get $locals
     global.get $locals_base
@@ -54,27 +54,27 @@
     i32.const 8
     i32.add
     local.tee $h
-    local.get $t1
+    local.get $self
     i32.store $heap
     ;; 33 |     for i in 0..n:
     block
       loop
-        local.get $t2
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
     ;; 34 |         s = s + h.at(i)
         local.get $h
         i32.load $heap
-        local.set $t1
-        local.tee $t3
-        local.get $t1
+        local.set $self
+        local.tee $key
+        local.get $self
         i32.load $heap offset=8
         i32.ge_u
         if
@@ -87,9 +87,9 @@
           unreachable
         end
         local.get $s
-        local.get $t1
+        local.get $self
         i32.load $heap
-        local.get $t3
+        local.get $key
         i32.const 8
         i32.mul
         i32.add
@@ -108,7 +108,7 @@
     i32.add
     global.set $locals
   )
-  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $self i32) (local $key i32)
     ;; 27 |     for i in 0..n:
     block
       loop
@@ -125,9 +125,9 @@
     ;; 28 |         s = s + h.at(i)
         local.get $h
         i32.load $heap
-        local.set $t1
-        local.tee $t2
-        local.get $t1
+        local.set $self
+        local.tee $key
+        local.get $self
         i32.load $heap offset=8
         i32.ge_u
         if
@@ -140,9 +140,9 @@
           unreachable
         end
         local.get $s
-        local.get $t1
+        local.get $self
         i32.load $heap
-        local.get $t2
+        local.get $key
         i32.const 8
         i32.mul
         i32.add
@@ -156,14 +156,14 @@
     ;; 29 |     s
     local.get $s
   )
-  (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $h i32) (local $s i64) (local $t3 i32)
+  (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t1 i32) (local $t0 i32) (local $key i32) (local $h i32) (local $s i64) (local $t2 i32)
     ;; 38 |     h := Holder { store: box(u) }
     local.get $u.buffer.address
     local.get $u.buffer.capacity
     local.get $u.len
+    local.set $key
     local.set $t0
     local.set $t1
-    local.set $t2
     i32.const 0
     local.set $u.buffer.address
     i32.const 0
@@ -174,13 +174,13 @@
     i32.const 1
     call $rt:new/class-3
     local.tee $h
-    local.get $t2
+    local.get $t1
     i32.store $heap
     local.get $h
-    local.get $t1
+    local.get $t0
     i32.store $heap offset=4
     local.get $h
-    local.get $t0
+    local.get $key
     i32.store $heap offset=8
     local.get $h
     i32.const 1
@@ -200,18 +200,18 @@
     ;; 40 |     for i in 0..n:
     block
       loop
-        local.get $t3
+        local.get $t2
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t3
-        local.get $t3
+        local.get $t2
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t3
+        local.set $t2
     ;; 41 |         s = s + h.store[i]
-        local.tee $t0
+        local.tee $key
         local.get $h
         i32.load $heap offset=8
         i32.ge_u
@@ -227,7 +227,7 @@
         local.get $s
         local.get $h
         i32.load $heap
-        local.get $t0
+        local.get $key
         i32.const 8
         i32.mul
         i32.add

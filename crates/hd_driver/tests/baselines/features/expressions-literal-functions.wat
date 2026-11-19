@@ -50,47 +50,47 @@
     i32.load $heap offset=4
     i32.add
   )
-  (func $tagged (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+  (func $tagged (param $s.0 i32) (param $s.1 i32) (result i32) (local $t.raw_parts i32) (local $t.values i32)
     ;; 35 |     tag"<$s>"
     i32.const 2
     call $rt:list_buf'1
-    local.tee $t0
+    local.tee $t.raw_parts
     i32.const 2
     i32.store $heap offset=4
-    local.get $t0
-    local.tee $t1
+    local.get $t.raw_parts
+    local.tee $t.values
     i32.const 66 ;; &"<"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t.values
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $t.values
     i32.const 8
     i32.add
-    local.tee $t1
+    local.tee $t.values
     i32.const 67 ;; &">"
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t.values
     i32.const 1
     i32.store $heap offset=20
     i32.const 1
     call $rt:list_buf'1
-    local.tee $t1
+    local.tee $t.values
     i32.const 1
     i32.store $heap offset=4
-    local.get $t1
+    local.get $t.values
     local.get $s.0
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t.values
     local.get $s.1
     i32.store $heap offset=20
-    local.get $t0
+    local.get $t.raw_parts
     i32.load $heap offset=4
-    local.get $t1
+    local.get $t.values
     i32.load $heap offset=4
     i32.add
-    local.get $t0
-    local.get $t1
+    local.get $t.raw_parts
+    local.get $t.values
     call $rt:release
   )
   (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32)
@@ -127,46 +127,46 @@
     local.get $t0
     local.get $t1
   )
-  (func $lbl (param $n i64) (result i32 i32) (local $t0 i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $lbl (param $n i64) (result i32 i32) (local $value i64) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 18 |     Label { text: "#${n}" }
     local.get $n
-    local.tee $t0
+    local.tee $value
     call $signed_magnitude
     call $unsigned_width
-    local.set $t1
-    local.get $t0
+    local.set $t0
+    local.get $value
     i64.const 0
     i64.lt_s
     if
       i32.const 1
-      local.set $t2
+      local.set $t1
     end
+    local.get $t0
     local.get $t1
-    local.get $t2
     i32.add
-    local.set $t2
+    local.set $t1
     i32.const 1
-    local.tee $t1
-    local.get $t2
+    local.tee $t0
+    local.get $t1
     i32.add
-    local.tee $t3
+    local.tee $t2
     i32.const 16
-    local.set $t4
+    local.set $t3
     if
-      local.get $t3
+      local.get $t2
       call $rt:str
-      local.set $t4
+      local.set $t3
     end
-    local.get $t4
+    local.get $t3
     i32.const 35
     i32.store8 $heap
     local.get $n
-    local.get $t4
-    local.get $t1
-    i32.add
-    local.get $t2
-    call $write_signed_sized
-    local.get $t4
     local.get $t3
+    local.get $t0
+    i32.add
+    local.get $t1
+    call $write_signed_sized
+    local.get $t3
+    local.get $t2
   )
 )

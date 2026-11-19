@@ -61,7 +61,7 @@
     i32.const 0
     i32.const 0
   )
-  (func $first_index (param $xs i32) (result i32) (local $i i32) (local $t0 i32)
+  (func $first_index (param $xs i32) (result i32) (local $i i32) (local $self.1 i32)
     ;; 16 |     while i < xs.len():
     loop
       local.get $i
@@ -83,13 +83,13 @@
         i32.const 8
         i32.mul
         i32.add
-        local.tee $t0
+        local.tee $self.1
         i32.load $heap offset=16
-        local.get $t0
+        local.get $self.1
         i32.load $heap offset=20
-        local.set $t0
+        local.set $self.1
         drop
-        local.get $t0
+        local.get $self.1
         i32.const 3
         i32.gt_u
         if

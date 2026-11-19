@@ -406,7 +406,7 @@
     local.get $right
     call $"impl[T] List[T].swap[string]"
   )
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $t1 i32) (local $message.1 i32) (local $t2 i32) (local $message.0 i32) (local $t3 i32)
     ;; 74 |     seen := length(hold_ref(p.items.get_ref(1).expect("slot")))
     local.get $p
     i32.const 4
@@ -414,43 +414,43 @@
     local.get $p
     i32.const 1
     call $"impl Slots.get_ref"
-    local.set $t0
-    local.tee $t1
+    local.set $self
+    local.tee $t0
     i32.const 1
-    local.set $t2
+    local.set $t1
     i32.load $heap
-    local.tee $t3
+    local.tee $message.1
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t1
+      local.get $t0
       call $rt:loan_share
     else
-      local.get $t1
-      local.get $t3
+      local.get $t0
+      local.get $message.1
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $t2
+    local.get $t1
     i32.const 2
     i32.eq
     if
-      local.get $t4
+      local.get $t2
       i32.const 65536
       i32.add
-      local.set $t4
+      local.set $t2
     end
     i32.const 276 ;; &"slot"
     i32.const 4
-    local.set $t3
-    local.set $t5
+    local.set $message.1
+    local.set $message.0
     block
       block
         block
-          local.get $t0
+          local.get $self
           i32.eqz
           br_if 1
           br 0
@@ -458,69 +458,69 @@
         end
         br 1
       end
-      local.get $t5
-      local.get $t3
+      local.get $message.0
+      local.get $message.1
       i32.const 2
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $t0
+    local.get $self
     call $hold_ref
     call $length
-    local.set $t0
-    local.set $t3
-    local.get $t1
+    local.set $self
+    local.set $message.1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       i32.load $heap
-      local.tee $t5
+      local.tee $message.0
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         call $rt:loan_unshare
       else
-        local.get $t1
-        local.get $t5
+        local.get $t0
+        local.get $message.0
         i32.const 65536
         i32.sub
         i32.store $heap
       end
-      local.get $t2
+      local.get $t1
       i32.const 2
       i32.eq
       if
-        local.get $t4
+        local.get $t2
         i32.const 65536
         i32.sub
-        local.set $t4
+        local.set $t2
       end
       i32.const 0
-      local.set $t1
+      local.set $t0
     end
     ;; 75 |     for round in 0..16:
     i32.const 16
-    local.set $t2
+    local.set $t1
     block
       loop
-        local.get $t6
-        local.get $t2
+        local.get $t3
+        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t6
+        local.get $t3
         i32.const -2
         i32.gt_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t6
+        local.get $t3
         i32.const 1
         i32.add
-        local.set $t6
+        local.set $t3
     ;; 76 |         alias.items.push(fresh())
         local.get $alias
         i32.const 4
@@ -528,7 +528,7 @@
         i32.load $heap
         i32.const 4128768
         i32.and
-        local.get $t4
+        local.get $t2
         i32.ne
         if
           call $rt:panic'3
@@ -544,33 +544,33 @@
     ;; 77 |     junk := churn()
     call $churn
     ;; 78 |     _ := junk.len()
-    local.tee $t4
+    local.tee $t2
     if
-      local.get $t4
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $t2
         call $rt:release_ref'2
       end
     end
     ;; 74 |     seen := length(hold_ref(p.items.get_ref(1).expect("slot")))
-    local.get $t1
+    local.get $t0
     if
-      local.get $t1
+      local.get $t0
       i32.load $heap
-      local.tee $t4
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t1
+        local.get $t0
         call $rt:loan_unshare
       else
-        local.get $t1
-        local.get $t4
+        local.get $t0
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -598,8 +598,8 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t3
-    local.get $t0
+    local.get $message.1
+    local.get $self
   )
   (func $set (param $slot i32) (param $value.0 i32) (param $value.1 i32)
     ;; 54 |     *slot = value
