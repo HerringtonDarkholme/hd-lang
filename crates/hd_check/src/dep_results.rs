@@ -761,17 +761,34 @@ fn line_up_call(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
 /// Parts are pushed in reverse ([`hd_base::stack::all`]), so keys append
 /// in order; a part that keys a slot after its own parts (a local
 /// reference's whole referent, a suspension's retained origins) pushes
-/// that step under them. One step per pair of parts.
+/// that step under them. Each distinct pair is checked once; repeated pairs
+/// replay their keys with declared slots rebased to the current position.
 fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
+    line_up_with(ls, d, t, call, || {})
+}
+
+fn line_up_with(
+    ls: &Layouts<'_>,
+    d: Ty,
+    t: Ty,
+    call: bool,
+    mut work: impl FnMut(),
+) -> Option<Vec<Key>> {
     /// A pair to line up at a depth, or what a part does after its parts.
     enum Step {
         Pair(Ty, Ty, u32),
+        Done(Ty, Ty, usize, usize, u32, u32),
         /// The whole referent of a local reference, declared and
         /// instantiated.
         Whole(Ty, Ty),
         /// A suspension's slot of retained origins.
         Retained,
     }
+    // Completed pairs record an output slice, declared-slot advance and
+    // subtree height. The mode is fixed for this walk. Replaying preserves
+    // distinct reference positions and the existing language depth limit.
+    let mut memo = HashMap::<(Ty, Ty), (usize, usize, usize, usize, u32)>::default();
+    let mut deepest = 0;
     let pool = ls.pool;
     // The next declared slot, and the keys so far.
     let (mut next, mut keys) = (0, Vec::new());
@@ -786,6 +803,14 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
     let lined = hd_base::stack::all(Step::Pair(d, t, 0), |step, stack| {
         let (d, t, depth) = match step {
             Step::Pair(d, t, depth) => (d, t, depth),
+            Step::Done(d, t, start, base, depth, previous) => {
+                memo.insert(
+                    (d, t),
+                    (start, keys.len(), base, next - base, deepest - depth),
+                );
+                deepest = deepest.max(previous);
+                return true;
+            }
             Step::Retained => {
                 decl(&mut next, &mut keys, 1);
                 return true;
@@ -826,6 +851,26 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
                 return true;
             }
         };
+        if depth > hd_base::limits::TYPE_DEPTH {
+            return false;
+        }
+        if let Some(&(start, end, base, advance, height)) = memo.get(&(d, t)) {
+            deepest = deepest.max(depth + height);
+            if deepest > hd_base::limits::TYPE_DEPTH {
+                return false;
+            }
+            for k in start..end {
+                keys.push(match keys[k] {
+                    Key::Decl(slot) => Key::Decl(next + (slot - base)),
+                    key => key,
+                });
+            }
+            next += advance;
+            return true;
+        }
+        work();
+        stack.push(Step::Done(d, t, keys.len(), next, depth, deepest));
+        deepest = depth;
         let d1 = depth + 1;
         let list = |stack: &mut Vec<Step>, a: hd_types::TyList, b: hd_types::TyList| {
             let (a, b) = (pool.list_items(a), pool.list_items(b));
@@ -833,7 +878,6 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
             a.len() == b.len()
         };
         match (pool.get(d), pool.get(t)) {
-            _ if depth > hd_base::limits::TYPE_DEPTH => false,
             (TyData::Param(p), _) => {
                 keys.extend((0..ls.of(t).slots.len()).map(|s| Key::Param(p, s)));
                 true
