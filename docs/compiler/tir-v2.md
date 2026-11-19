@@ -2291,8 +2291,10 @@ is worth deciding only if they are hot.
       read loads only the leaves the place names; a store stores them; a
       reference is the address after the last element or dereference; an
       `IsUnique` or `Pin` takes the header the place names, through a
-      dereference too. The loop cache and the range proof take the first
-      element of a local's list or of the list its reference refers to
+      dereference too. The loop cache takes the first element of a
+      local's list or of the list its reference refers to; the range
+      proof takes the first element of any list a local roots through
+      fields and dereferences, such as `b.xs` through `&Bag`
       (`hd_opt::prove::rooted_elem`), so the proven index of `bodies[i]`
       stays unchecked.
     - **The `own` view** lists a local a place reaches behind a

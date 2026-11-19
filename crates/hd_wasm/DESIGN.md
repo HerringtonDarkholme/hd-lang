@@ -864,9 +864,10 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   value the object's field, an element its slot in the buffer,
   bounds-checked. The first element of a local's list, or of the list
   the reference it holds refers to, takes the loop's cached header where
-  the list is one of `Body::stable_lists` and its index unchecked where
-  `hd_opt::prove` cleared its element check (`place::ELEM_UNCHECKED`;
-  its loop proofs read such places as `prove::rooted_elem`). A dereference
+  the list is one of `Body::stable_lists`. Any element step goes
+  unchecked where `hd_opt::prove` cleared its check
+  (`place::ELEM_UNCHECKED`); its loop proofs key a list by its place, a
+  local and a path of fields and dereferences (`prove::rooted_elem`). A dereference
   of a thin reference goes on at its referent's address, and a field or
   payload step adds its offset. A `Read` then loads only the leaves the place
   names (copy or borrow as its mode says; a `move` reaches the walk only
