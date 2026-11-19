@@ -1245,37 +1245,13 @@ impl dyn InlineEnv + '_ {
     /// existing raw-budget getters and explicit Always copies retain
     /// their established eligibility.
     fn fits_size(&self, copy: &Body, limit: usize) -> bool {
-        if copy.len() > limit && self.result_holds_local(copy) {
+        if copy.len() > limit && result_holds_local(self.pool(), copy) {
             return false;
         }
         // Price the chosen instance as well as the raw declaration:
         // rechoose exposes impl identities for the indexed cost query,
         // without another generic-argument unification.
         priced_inline(copy, limit, |callee| self.retained_call_cost(callee))
-    }
-
-    fn result_holds_local(&self, copy: &Body) -> bool {
-        let root = *copy.sub_root.first().unwrap_or(&hd_tir::ir::NONE) as usize;
-        let Some(&ty) = copy.ty.get(root) else {
-            return false;
-        };
-        if ty != Ty::NEVER {
-            return holds_local(self.pool(), ty);
-        }
-        // Explicit returns have a never root. Their operand types have
-        // already passed through instantiate's shared substitution memo.
-        let topo = hd_tir::ir::Topology::new(copy);
-        let results = copy.tags.iter().enumerate().filter_map(|(i, &tag)| {
-            if tag != Tag::Return || topo.sub[i] != 0 {
-                return None;
-            }
-            let r = copy.data[i][0];
-            copy.ty
-                .get(r as usize)
-                .copied()
-                .or_else(|| copy.consts.get((r & !Ref::CONST_BIT) as usize).map(|c| c.0))
-        });
-        holds_local_with(self.pool(), results, || {})
     }
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
@@ -1359,7 +1335,7 @@ impl dyn InlineEnv + '_ {
             || !self.fits_size(&copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
-            || copy.len() > INLINE_LIMIT && self.result_holds_local(&copy)
+            || copy.len() > INLINE_LIMIT && result_holds_local(self.pool(), &copy)
             || self.takes_reference(def, &copy)
                 && self.by_value(&copy).is_none()
                 && !self.read_only_refs(&copy)
@@ -2209,6 +2185,30 @@ fn kinds_agree(copy: &Body) -> bool {
     })
 }
 
+/// The root result and explicit returns of the instantiated root sub-body.
+fn result_holds_local(pool: &InternPool, copy: &Body) -> bool {
+    let root = *copy.sub_root.first().unwrap_or(&hd_tir::ir::NONE) as usize;
+    let Some(&ty) = copy.ty.get(root) else {
+        return false;
+    };
+    if ty != Ty::NEVER {
+        return holds_local(pool, ty);
+    }
+    // Explicit returns have a never root. Their operand types have
+    // already passed through instantiate's shared substitution memo.
+    let topo = hd_tir::ir::Topology::new(copy);
+    let results = copy.tags.iter().enumerate().filter_map(|(i, &tag)| {
+        if tag != Tag::Return || topo.sub[i] != 0 {
+            return None;
+        }
+        let r = copy.data[i][0];
+        copy.ty
+            .get(r as usize)
+            .copied()
+            .or_else(|| copy.consts.get((r & !Ref::CONST_BIT) as usize).map(|c| c.0))
+    });
+    holds_local_with(pool, results, || {})
+}
 /// Whether a value of type `t` holds a local reference (`&T`), outside
 /// function types.
 fn holds_local(pool: &InternPool, t: Ty) -> bool {
@@ -3059,6 +3059,71 @@ mod tests {
             assert_eq!(member_visits, size);
             assert_eq!(components, depth);
         }
+    }
+
+    #[test]
+    fn root_results_cover_explicit_returns_without_borrowing_nested_results() {
+        use hd_base::{NodeIdx, Symbol};
+        use hd_tir::ir::{NONE, TirBuilder};
+        let pool = InternPool::new();
+        let reference = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        assert!(!super::result_holds_local(
+            &pool,
+            &Body::new(DefId::from_raw(1), BodyKind::Fn)
+        ));
+        let mut implicit = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = implicit.open_block();
+        let value = implicit.const_value(Ty::I32, 7);
+        let root = implicit.close_block(root, Some(value), Ty::I32, NodeIdx::NONE);
+        let implicit = implicit.finish(root, &[]).expect("implicit result");
+        assert!(!super::result_holds_local(&pool, &implicit));
+        for (returned, nested, expected) in [
+            (true, false, true),
+            (false, true, false),
+            (false, false, false),
+        ] {
+            let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = builder.open_block();
+            if nested {
+                let param =
+                    builder.local(reference, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+                let sub = builder.open_sub(&[param]);
+                let child = builder.open_block();
+                let value = builder.get(param, reference, NodeIdx::NONE);
+                builder.emit(Tag::Return, value.0, NONE, Ty::NEVER, NodeIdx::NONE);
+                let child = builder.close_block(child, None, Ty::NEVER, NodeIdx::NONE);
+                let fn_ty = pool.intern_ty(&TyData::Fn {
+                    params: pool.list(&[reference]),
+                    result: reference,
+                    row: hd_types::RowId::EMPTY,
+                    suspends: false,
+                    inputs: hd_types::Inputs::Fixed,
+                    deps: hd_types::FnDeps::NONE,
+                });
+                builder.close_sub(sub, child, fn_ty, NodeIdx::NONE);
+            }
+            let value = if returned {
+                let param =
+                    builder.local(reference, Symbol::NONE, local_flags::PARAM, NodeIdx::NONE);
+                builder.get(param, reference, NodeIdx::NONE)
+            } else {
+                builder.const_value(Ty::I32, 7)
+            };
+            builder.emit(Tag::Return, value.0, NONE, Ty::NEVER, NodeIdx::NONE);
+            let root = builder.close_block(root, None, Ty::NEVER, NodeIdx::NONE);
+            let body = builder.finish(root, &[]).expect("explicit return body");
+            assert_eq!(super::result_holds_local(&pool, &body), expected);
+        }
+        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = builder.open_block();
+        builder.emit(Tag::Return, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+        let root = builder.close_block(root, None, Ty::NEVER, NodeIdx::NONE);
+        let body = builder.finish(root, &[]).expect("void return");
+        assert!(!super::result_holds_local(&pool, &body));
     }
 
     #[test]
