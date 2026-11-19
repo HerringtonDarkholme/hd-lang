@@ -6,6 +6,7 @@ use std::cell::Cell;
 thread_local! {
     static WALK_PLANS: Cell<Option<u64>> = const { Cell::new(None) };
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
+    static LAYOUT_LEAVES: Cell<Option<u64>> = const { Cell::new(None) };
     static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
@@ -41,6 +42,16 @@ pub fn count_layout_parts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 
 pub fn layout_parts(n: usize) {
     add(&LAYOUT_PARTS, n);
+}
+
+/// Counts scalar leaves physically copied when aggregate layouts are placed.
+/// An empty ownership walk should never materialize those layouts.
+pub fn count_layout_leaves<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    count(&LAYOUT_LEAVES, run)
+}
+
+pub fn layout_leaves(n: usize) {
+    add(&LAYOUT_LEAVES, n);
 }
 
 /// Runs `run` with `counter` counting on this thread, and its count.

@@ -3342,6 +3342,56 @@ fn list_of_doubled_i32(n: usize) -> String {
     s
 }
 
+// #2191: an ownership walk of scalar-only shared types is empty. Finding
+// that fact must not flatten 2^depth scalar leaves to assign walk offsets.
+#[test]
+fn scalar_doubling_ownership_keeps_layout_work_linear() {
+    on_test_stack(|| {
+        let measure = |depth: usize| {
+            let mut text = String::from("type D0 = i32\n");
+            for i in 1..=depth {
+                let _ = writeln!(text, "type D{i} = (D{p}, D{p})", p = i - 1);
+            }
+            let _ = write!(
+                text,
+                "fn make() -> D{depth}: panic(\"not reached\")\n\n\
+                 let mut large: D{depth} = make()\n\n\
+                 fn touch(value: &mut D{depth}) -> void: ()\n\n\
+                 pub fn main() -> void: touch(&mut large)\n"
+            );
+            let ((out, leaves), parts) = hd_layout::work::count_layout_parts(|| {
+                hd_layout::work::count_layout_leaves(|| {
+                    compile(
+                        &text,
+                        &Goal::Program {
+                            entry: "main".into(),
+                        },
+                    )
+                })
+            });
+            let codes: Vec<_> = out.diags.code.iter().map(|c| c.as_str()).collect();
+            assert_eq!(codes, ["type-too-large"], "{}", out.render());
+            eprintln!("scalar ownership, depth {depth}: {leaves} leaves, {parts} parts");
+            // The size-only layouts copy at most INDIRECT scalar leaves
+            // per child, two children per level. A full physical layout
+            // of even D28 would copy hundreds of millions instead.
+            assert!(leaves <= 2 * hd_layout::INDIRECT as u64 * parts);
+            parts
+        };
+        // Every root is oversized, so codegen must reject it without
+        // materializing a valid global's genuinely required scalar ABI.
+        // Grow the source by 13 and 26 further shared levels past D29.
+        measure(29);
+        let base = measure(29);
+        let small = measure(42).saturating_sub(base);
+        let large = measure(55).saturating_sub(base);
+        assert!(
+            small > 0 && large <= 2 * small,
+            "13/26 added levels: {small}/{large} layout parts"
+        );
+    });
+}
+
 // Wasm: #2111, a type is checked against the value-size limit through its
 // shape, its size, alignment and niche without its leaves, made once per
 // distinct type from its parts' shapes: the layout copied each part's

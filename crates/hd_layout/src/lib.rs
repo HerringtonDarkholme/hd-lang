@@ -1528,6 +1528,7 @@ fn place(fields: &[Mem], offsets: &[u32], prefix: u32, bias: Bias) -> (Mem, Vec<
             count: f.leaves.len(),
             offset,
         });
+        crate::work::layout_leaves(f.leaves.len());
         out.leaves.extend(f.leaves.iter().map(|l| Leaf {
             offset: l.offset + offset,
             ..*l
