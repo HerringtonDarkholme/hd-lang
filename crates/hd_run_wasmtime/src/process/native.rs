@@ -201,6 +201,7 @@ pub(crate) fn validate(call: &Call) -> Option<String> {
 /// Spawns the child, feeds its input while draining both outputs, and
 /// reaps it once both outputs close.
 async fn run_child(request: &Request) -> io::Result<Output> {
+    // cost: one process per requested child; setup is linear in its input.
     let mut command = Command::new(&request.program);
     command
         .args(&request.argv)
