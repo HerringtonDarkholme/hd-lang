@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # A masked index keeps its bounds check where nothing shows the masked
 # length above zero (#1713): with no test, a test of another list, a
 # mask of another list's length, a list the loop changes after its test,

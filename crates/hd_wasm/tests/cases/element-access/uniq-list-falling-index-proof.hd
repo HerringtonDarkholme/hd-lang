@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # The inlined `Index` and `IndexSet` guards of a `UniqList` go where the
 # loops prove the index below the length (#1689): `i` from the range test,
 # `j` and `j - 1` from `j > 0` and `j`'s start at `i`. The header is

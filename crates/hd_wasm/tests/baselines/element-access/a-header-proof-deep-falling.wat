@@ -2,8 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $j17 i32)
-    ;; ...
+  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $j17 i32)
     block
       loop
         ;; ...
@@ -61,9 +60,10 @@
                                                                             block
                                                                               loop
                                                                                 ;; ...
-    ;; 49 |                                                                                     + items[j17]
+    ;; 52 |                                                                                     + items[j17]
                                                                                 local.get $j17
-                                                                                local.get $t0
+                                                                                local.get $items
+                                                                                i32.load $heap offset=8
                                                                                 i32.ge_u
                                                                                 if
                                                                                   i32.const 65 ;; &"index-out-of-bounds"
@@ -74,16 +74,17 @@
                                                                                   call_indirect $table0 (param i32 i32 i32 i32)
                                                                                   unreachable
                                                                                 end
-    ;; 48 |                                                                                     total
+    ;; 51 |                                                                                     total
                                                                                 local.get $total
-    ;; 49 |                                                                                     + items[j17]
-                                                                                local.get $t1
+    ;; 52 |                                                                                     + items[j17]
+                                                                                local.get $items
+                                                                                i32.load $heap
                                                                                 local.get $j17
                                                                                 i32.const 4
                                                                                 i32.mul
                                                                                 i32.add
                                                                                 i32.load $heap
-    ;; 48 |                                                                                     total
+    ;; 51 |                                                                                     total
                                                                                 i32.add
                                                                                 ;; ...
                                                                               end

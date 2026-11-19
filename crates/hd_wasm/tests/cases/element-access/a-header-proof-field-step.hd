@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release std
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # A replacement from a field is not a one-step falling index.
 use std.rt.bytes.panic_with
 

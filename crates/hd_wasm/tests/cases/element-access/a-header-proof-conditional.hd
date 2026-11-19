@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # A conditional read cannot supply an uninitialized cached header value.
 # Four nested inline fields exceed the compact header-key path; keep the check.
 struct Header:

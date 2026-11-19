@@ -1,6 +1,9 @@
 # @dump: wat
 # @build: v8 release
 # @helper: std/collections/impl[T < Eq, 'a] Span[T, 'a].index_of_span
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # expected: each shared list header reached through a Span field loads before its search loop.
 # A nontrapping entry guard selects a check-free counted skip loop; its fallback keeps bounds checks.
 use std.collections.Span

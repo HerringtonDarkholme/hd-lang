@@ -47,7 +47,6 @@ pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod excl;
 pub(crate) use excl::{OriginIndex, collect_loans};
-mod guards;
 mod indirect;
 pub(crate) use indirect::Params as IndirectParams;
 mod iter;
@@ -1439,12 +1438,6 @@ struct Em<'i, 'a, 'm> {
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
-    /// The guard pass's whole-body stores, built on first use and shared
-    /// with the body's other emitters (#1982).
-    list_facts: std::sync::Arc<std::sync::OnceLock<hd_opt::prove::Sets>>,
-    /// What the unchanged headers of the body's reference parameters
-    /// prove (`guards.rs`).
-    headers: guards::HeaderFacts,
     /// The parameters borrowed from the caller, which the body never
     /// counts ([`crate::layout::Pass::Borrowed`]).
     borrowed: hd_base::HashSet<usize>,
@@ -1506,8 +1499,6 @@ struct Em<'i, 'a, 'm> {
     boundary: std::sync::Arc<hd_tir::own::boundary::Boundary>,
     /// The final body's shared block structure.
     topo: std::sync::Arc<hd_tir::ir::Topology>,
-    /// Its preorder, shared lazily with sibling closure instances.
-    tree: std::sync::Arc<std::sync::OnceLock<hd_tir::ir::Nest>>,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
@@ -1603,7 +1594,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             (input.path)(item)
         );
         let f = m.func("", vec![], vec![]);
-        let mut em = Em {
+        Em {
             frame_index: HashMap::default(),
             frame_of: HashMap::default(),
             input,
@@ -1672,8 +1663,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             init_key: None,
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
-            list_facts: std::sync::Arc::clone(&facts.list),
-            headers: guards::HeaderFacts::default(),
             borrowed: hd_base::HashSet::default(),
             lends: 0,
             emitting: Vec::new(),
@@ -1697,15 +1686,12 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             break_counts: std::sync::Arc::clone(&facts.break_counts),
             captured: std::sync::Arc::clone(&facts.captured),
             topo: std::sync::Arc::clone(&facts.topo),
-            tree: std::sync::Arc::clone(&facts.tree),
             hoisted: Vec::new(),
             deferred_uniques: HashMap::default(),
             walked: None,
             walked_store: None,
             driven: HashMap::default(),
-        };
-        em.headers = em.header_facts();
-        em
+        }
     }
 }
 
@@ -2492,33 +2478,12 @@ impl Em<'_, '_, '_> {
             self.borrow_before_store(i);
             self.inst_tag(i, a, bw)?;
             self.borrow_after_store(i);
-            self.keep_header_read(i);
         }
         self.borrow_argument_end(i);
         if !matches!(self.b.tags[i as usize], Tag::Drop | Tag::LoanEnd) {
             self.borrow_temporary_end(i);
         }
         Ok(())
-    }
-
-    /// Keeps the value of header read `i`, which later reads of the same
-    /// field take (`guards.rs`), in a local of its own: a consumer may
-    /// take `i`'s locals.
-    fn keep_header_read(&mut self, i: u32) {
-        if self.headers.leaders.contains(&i)
-            && let Some(&[l]) = self.vals.get(&i).map(Vec::as_slice)
-        {
-            // A header leader resolves to a dereferenced field load,
-            // which starts in a fresh local; forwarding reads preserve it.
-            // TIR promotion removes that Deref; `promote::settled`
-            // marks only in-place Ref operands. Neither makes a header
-            // key (guards::Proof::key_uncached) alias an incoming parameter.
-            let ty = self.f.locals[l as usize - self.f.params.len()];
-            let kept = self.f.local(ty);
-            self.f.get(l);
-            self.f.set(kept);
-            self.headers.kept.insert(i, kept);
-        }
     }
 
     /// Emits an instruction that may be an ordinary call while keeping
@@ -2537,20 +2502,6 @@ impl Em<'_, '_, '_> {
         match self.b.tags[i as usize] {
             Tag::Read | Tag::Store if let Some(p) = self.b.ptr_target(i as usize) => {
                 self.ptr_place(i, p)?;
-            }
-            // A read of an unchanged header field that an earlier read
-            // of it dominates, or that its loop's start read: that read's
-            // value (`guards.rs`).
-            Tag::Read
-                if self.susp.is_none()
-                    && let Some(&kept) = (self.headers.hoisted.get(&i)).or_else(|| {
-                        let j = self.headers.same_reads.get(&i)?;
-                        self.headers.kept.get(j)
-                    })
-                    && !self.tracked(self.ty(i)) =>
-            {
-                self.f.get(kept);
-                self.store(i)?;
             }
             // A plain local read, `Read [$l]`.
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
@@ -2716,16 +2667,10 @@ impl Em<'_, '_, '_> {
                 }
                 self.store_owned(i)?;
             }
-            // A guard proven false runs no arm; its condition's operands
-            // are pure reads, which the Wasm cleanup drops.
-            Tag::If if self.susp.is_none() && self.headers.proven_guards.contains(&i) => {
-                self.slot(i)?;
-            }
             Tag::If => self.control(control::Task::If(i))?,
             Tag::Loop => {
                 self.slot(i)?;
                 let caches = self.begin_list_loop(i)?;
-                self.hoist_header_reads(i)?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));

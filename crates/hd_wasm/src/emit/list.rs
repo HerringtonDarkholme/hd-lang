@@ -26,29 +26,6 @@ use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
 
 pub(super) use hd_opt::prove::ListRoot;
 
-/// The list proofs' type and call facts, for the guard pass
-/// (`guards.rs`), which reads the proofs' shapes.
-impl hd_opt::prove::Cx for Em<'_, '_, '_> {
-    fn list(&self, t: Ty) -> bool {
-        self.list_root_ty(t).is_some()
-    }
-    fn tracked(&self, t: Ty) -> bool {
-        Em::tracked(self, t)
-    }
-    fn tuple(&self, t: Ty) -> bool {
-        Em::tuple(self, t)
-    }
-    fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
-        Em::ref_target(self, t)
-    }
-    fn intrinsic(&self, callee: &hd_tir::ir::Callee) -> Option<String> {
-        match callee {
-            hd_tir::ir::Callee::Item { def, .. } => self.env().intrinsic(*def),
-            hd_tir::ir::Callee::TraitMethod { .. } => None,
-        }
-    }
-}
-
 /// Borrowed physical projections for one proven loop interval.
 #[derive(Clone, Copy)]
 pub(super) struct ListCache {
@@ -123,28 +100,6 @@ impl Em<'_, '_, '_> {
     /// `Some` when `t` is a `List`.
     fn list_root_ty(&self, t: Ty) -> Option<()> {
         (coll_kind(self.pool(), self.env(), t) == Some(StdKind::List)).then_some(())
-    }
-
-    /// The body's stores for the guard pass ([`hd_opt::prove::Sets`]),
-    /// built on first use.
-    pub(super) fn list_facts(&self) -> &hd_opt::prove::Sets {
-        self.list_facts.get_or_init(|| {
-            crate::work::loop_scans(self.b.len());
-            hd_opt::prove::Sets::new(self.b)
-        })
-    }
-
-    /// The list proofs' view of this body ([`hd_opt::prove::Lists`]),
-    /// with `cell` saying which locals live in storage.
-    pub(super) fn lists<'s>(&'s self, cell: &'s dyn Fn(usize) -> bool) -> hd_opt::prove::Lists<'s> {
-        hd_opt::prove::Lists {
-            b: self.b,
-            topo: &self.topo,
-            nest: self.tree(),
-            cx: self,
-            cell,
-            sets: self.list_facts(),
-        }
     }
 
     /// The hoisted `IsUnique`s waiting for loop `l` (`hoisted`), run once
@@ -302,7 +257,7 @@ impl Em<'_, '_, '_> {
     /// one where it has one.
     pub(super) fn buffer(&mut self, r: u32) -> StageResult<u32> {
         let b = self.f.local(Val::I32);
-        let cache = hd_opt::prove::list_root(self.b, self, r)
+        let cache = hd_opt::prove::list_root(self.b, &|t| self.list_root_ty(t).is_some(), r)
             .and_then(|root| {
                 self.list_caches
                     .iter()

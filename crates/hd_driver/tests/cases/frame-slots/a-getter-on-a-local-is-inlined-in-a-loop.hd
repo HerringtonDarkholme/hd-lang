@@ -1,5 +1,8 @@
 # @dump: counts wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # `age` is a reference getter: its result borrows from its one reference
 # parameter, `&self`, so the inliner copies it (#1006). Its `self` binds a
 # reference to `user`, which lives in a slot of the frame (§23.38): the

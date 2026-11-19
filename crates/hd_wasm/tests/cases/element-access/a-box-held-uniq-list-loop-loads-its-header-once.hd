@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # A `UniqList` held in a `*T` field: while the holder keeps the box, the
 # box holds a count, so nothing else writes the object, and a loop that
 # writes no holder loads the box's length and buffer address once before

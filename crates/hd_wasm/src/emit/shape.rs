@@ -3,32 +3,7 @@
 //! projection, a read through a reference). Nothing here decides a count:
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
-use hd_tir::ir::{Body, Nest, PlaceRoot, Proj, Tag};
-
-use super::Em;
-
-impl Em<'_, '_, '_> {
-    pub(super) fn block_path(&self, x: u32) -> Option<Vec<(u32, usize)>> {
-        Nest::block_path(&self.topo, self.b, x)
-    }
-
-    /// [`Nest::dominates`] (a resumed suspending body is the exception, `susp.rs`).
-    pub(super) fn dominates(&self, d: u32, j: u32) -> bool {
-        self.tree().dominates(&self.topo, d, j)
-    }
-
-    /// The body's [`Nest`], built on first use.
-    pub(super) fn tree(&self) -> &Nest {
-        self.tree.get_or_init(|| {
-            crate::work::loop_scans(self.b.len());
-            Nest::new(self.b, &self.topo)
-        })
-    }
-
-    pub(super) fn in_loop(&self, i: u32, loop_inst: u32) -> bool {
-        self.tree().in_loop(i, loop_inst)
-    }
-}
+use hd_tir::ir::{Body, PlaceRoot, Proj, Tag};
 
 pub(super) fn u32_of(i: usize) -> u32 {
     // ruled out: TIR names instructions by `u32` words, so a body's

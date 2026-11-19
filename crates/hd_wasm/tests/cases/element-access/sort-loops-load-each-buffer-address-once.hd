@@ -1,6 +1,9 @@
 # @dump: wat
 # @build: v8 release
 # @helpers: std/collections/drift_partition std/collections/drift_merge
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # The sort kernel's buffers are `&Buffer[T]` parameters: shared
 # references, whose referents nothing writes while the call runs, even
 # with the `Ptr` stores into their rooms (#1706). The partition and merge

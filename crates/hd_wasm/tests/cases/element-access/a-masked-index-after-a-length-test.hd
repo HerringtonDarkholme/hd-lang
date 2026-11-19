@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # A ring buffer's index `y & (len - 1)` is below the length once a test
 # showed the length above zero (#1713): no bounds check in any loop here.
 # The tests: a `List`'s `len > 0` arm and an early `len == 0` return; a

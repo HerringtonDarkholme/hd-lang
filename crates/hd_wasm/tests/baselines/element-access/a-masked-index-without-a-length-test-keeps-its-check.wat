@@ -5,7 +5,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $list_untested (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
-    ;; 14 |     for i in 0..n:
+    ;; 17 |     for i in 0..n:
     local.get $xs
     i32.load $heap
     local.tee $xs
@@ -24,7 +24,7 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 15 |         sum += xs[(head + i) & (xs.len() - 1)] + xs[head]
+    ;; 18 |         sum += xs[(head + i) & (xs.len() - 1)] + xs[head]
         local.get $head
         local.get $i
         i32.add
@@ -64,55 +64,52 @@
         i32.add
         i32.add
         local.set $sum
-    ;; 14 |     for i in 0..n:
+    ;; 17 |     for i in 0..n:
         br 0
       end
     end
-    ;; 16 |     sum
+    ;; 19 |     sum
     local.get $sum
   )
-  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
-    ;; 60 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
+  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+    ;; 63 |     for i in 0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.set $i
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 61 |         if xs.len() == 0:
-        local.get $t0
+        local.set $t0
+    ;; 64 |         if xs.len() == 0:
+        local.get $xs
+        i32.load $heap offset=8
         i32.eqz
         if
-    ;; 62 |             sum += 1
+    ;; 65 |             sum += 1
           local.get $sum
           i32.const 1
           i32.add
           local.set $sum
-    ;; 61 |         if xs.len() == 0:
+    ;; 64 |         if xs.len() == 0:
         end
-    ;; 63 |         sum += xs[(head + i) & (xs.len() - 1)]
+    ;; 66 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -125,6 +122,7 @@
         end
         local.get $sum
         local.get $xs
+        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -132,15 +130,15 @@
         i32.load $heap
         i32.add
         local.set $sum
-    ;; 60 |     for i in 0..n:
+    ;; 63 |     for i in 0..n:
         br 0
       end
     end
-    ;; 64 |     sum
+    ;; 67 |     sum
     local.get $sum
   )
-  (func $uniq_after_inlined_return (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
-    ;; 53 |     let sum = count_or_zero(xs)
+  (func $uniq_after_inlined_return (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+    ;; 56 |     let sum = count_or_zero(xs)
     block
       local.get $xs
       i32.load $heap offset=8
@@ -149,36 +147,32 @@
       i32.const 1
       local.set $sum
     end
-    ;; 54 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
+    ;; 57 |     for i in 0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.set $i
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 55 |         sum += xs[(head + i) & (xs.len() - 1)]
+        local.set $t0
+    ;; 58 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -191,6 +185,7 @@
         end
         local.get $sum
         local.get $xs
+        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -198,54 +193,47 @@
         i32.load $heap
         i32.add
         local.set $sum
-    ;; 54 |     for i in 0..n:
+    ;; 57 |     for i in 0..n:
         br 0
       end
     end
-    ;; 56 |     sum
+    ;; 59 |     sum
     local.get $sum
   )
-  (func $uniq_other_mask (param $xs i32) (param $ys i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $i i32) (local $t0 i32) (local $t1 i32)
-    ;; 33 |     if xs.len() > 0 && ys.len() > 0:
+  (func $uniq_other_mask (param $xs i32) (param $ys i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+    ;; 36 |     if xs.len() > 0 && ys.len() > 0:
     local.get $xs
     i32.load $heap offset=8
-    local.tee $i
-    local.set $t0
-    local.get $i
     if
       local.get $ys
       i32.load $heap offset=8
       if
-    ;; 34 |         for i in 0..n:
-        local.get $ys
-        i32.load $heap offset=8
-        local.set $ys
-        local.get $xs
-        i32.load $heap
-        local.set $xs
+    ;; 37 |         for i in 0..n:
         block
           loop
-            local.get $t1
+            local.get $t0
             local.get $n
             i32.lt_u
             i32.eqz
             br_if 1
-            local.get $t1
+            local.get $t0
             local.set $i
-            local.get $t1
+            local.get $t0
             i32.const 1
             i32.add
-            local.set $t1
-    ;; 35 |             sum += xs[(head + i) & (ys.len() - 1)]
+            local.set $t0
+    ;; 38 |             sum += xs[(head + i) & (ys.len() - 1)]
             local.get $head
             local.get $i
             i32.add
             local.get $ys
+            i32.load $heap offset=8
             i32.const 1
             i32.sub
             i32.and
             local.tee $i
-            local.get $t0
+            local.get $xs
+            i32.load $heap offset=8
             i32.ge_u
             if
               i32.const 65 ;; &"index-out-of-bounds"
@@ -258,6 +246,7 @@
             end
             local.get $sum
             local.get $xs
+            i32.load $heap
             local.get $i
             i32.const 4
             i32.mul
@@ -265,30 +254,30 @@
             i32.load $heap
             i32.add
             local.set $sum
-    ;; 34 |         for i in 0..n:
+    ;; 37 |         for i in 0..n:
             br 0
           end
         end
-    ;; 33 |     if xs.len() > 0 && ys.len() > 0:
+    ;; 36 |     if xs.len() > 0 && ys.len() > 0:
       end
     end
-    ;; 36 |     sum
+    ;; 39 |     sum
     local.get $sum
   )
   (func $list_changed (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $mask i32) (local $t0 i32) (local $i i32) (local $t1 i32)
-    ;; 40 |     if xs.len() > 0:
+    ;; 43 |     if xs.len() > 0:
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
     if
-    ;; 41 |         mask := xs.len() - 1
+    ;; 44 |         mask := xs.len() - 1
       local.get $xs
       i32.load $heap
       i32.load $heap offset=4
       i32.const 1
       i32.sub
       local.set $mask
-    ;; 42 |         for i in 0..n:
+    ;; 45 |         for i in 0..n:
       block
         loop
           local.get $t0
@@ -302,12 +291,12 @@
           i32.const 1
           i32.add
           local.set $t0
-    ;; 43 |             _ := xs.pop()
+    ;; 46 |             _ := xs.pop()
           local.get $xs
           call $"impl[T] List[T].pop[i32]"
           drop
           drop
-    ;; 44 |             sum += xs[(head + i) & mask]
+    ;; 47 |             sum += xs[(head + i) & mask]
           local.get $head
           local.get $i
           i32.add
@@ -333,46 +322,42 @@
           i32.load $heap offset=16
           i32.add
           local.set $sum
-    ;; 42 |         for i in 0..n:
+    ;; 45 |         for i in 0..n:
           br 0
         end
       end
-    ;; 40 |     if xs.len() > 0:
+    ;; 43 |     if xs.len() > 0:
     end
-    ;; 45 |     sum
+    ;; 48 |     sum
     local.get $sum
   )
-  (func $uniq_untested (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t1 i32) (local $t0 i32) (local $i i32)
-    ;; 20 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
+  (func $uniq_untested (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+    ;; 23 |     for i in 0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         local.set $i
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 21 |         sum += xs[(head + i) & (xs.len() - 1)]
+        local.set $t0
+    ;; 24 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.const 1
         i32.sub
         i32.and
         local.tee $i
-        local.get $t0
+        local.get $xs
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -385,6 +370,7 @@
         end
         local.get $sum
         local.get $xs
+        i32.load $heap
         local.get $i
         i32.const 4
         i32.mul
@@ -392,20 +378,20 @@
         i32.load $heap
         i32.add
         local.set $sum
-    ;; 20 |     for i in 0..n:
+    ;; 23 |     for i in 0..n:
         br 0
       end
     end
-    ;; 22 |     sum
+    ;; 25 |     sum
     local.get $sum
   )
   (func $list_other_test (param $xs i32) (param $ys i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
-    ;; 26 |     if ys.len() > 0:
+    ;; 29 |     if ys.len() > 0:
     local.get $ys
     i32.load $heap
     i32.load $heap offset=4
     if
-    ;; 27 |         for i in 0..n:
+    ;; 30 |         for i in 0..n:
       local.get $xs
       i32.load $heap
       local.tee $xs
@@ -424,7 +410,7 @@
           i32.const 1
           i32.add
           local.set $t0
-    ;; 28 |             sum += xs[(head + i) & (xs.len() - 1)]
+    ;; 31 |             sum += xs[(head + i) & (xs.len() - 1)]
           local.get $head
           local.get $i
           i32.add
@@ -448,25 +434,25 @@
           i32.load $heap offset=16
           i32.add
           local.set $sum
-    ;; 27 |         for i in 0..n:
+    ;; 30 |         for i in 0..n:
           br 0
         end
       end
-    ;; 26 |     if ys.len() > 0:
+    ;; 29 |     if ys.len() > 0:
     end
-    ;; 29 |     sum
+    ;; 32 |     sum
     local.get $sum
   )
   (func $count_or_zero (param $xs i32) (result i32)
-    ;; 48 |     if xs.len() == 0:
+    ;; 51 |     if xs.len() == 0:
     local.get $xs
     i32.load $heap offset=8
     i32.eqz
     if
-    ;; 49 |         return 0
+    ;; 52 |         return 0
       i32.const 0
       return
-    ;; 48 |     if xs.len() == 0:
+    ;; 51 |     if xs.len() == 0:
     end
     i32.const 1
   )

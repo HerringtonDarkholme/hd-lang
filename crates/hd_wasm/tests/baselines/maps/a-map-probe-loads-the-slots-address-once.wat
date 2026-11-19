@@ -4,7 +4,7 @@
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].index_base[u32, u32]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].index_base[u32, u32]" (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $run (param $m i32) (param $k i32) (result i32)
-    ;; 10 |     m.contains_key(k)
+    ;; 13 |     m.contains_key(k)
     local.get $m
     local.get $k
     call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].contains_key[u32, u32]"
@@ -14,16 +14,14 @@
     ;; (no span)
       local.get $t0
       i32.load $heap offset=16
-      local.tee $t1
-      local.set $t2
-      local.get $t1
       i32.eqz
       if
         i32.const 0
         i32.const 0
         return
       end
-      local.get $t2
+      local.get $t0
+      i32.load $heap offset=16
       i32.const 2
       i32.shr_u
       i32.const 1
@@ -112,9 +110,6 @@
       local.get $t1
       i32.and
       local.set $t10
-      local.get $t0
-      i32.load $heap
-      local.set $t0
       loop
         local.get $t2
         local.get $t10
@@ -143,7 +138,6 @@
             i64.ne
             i32.eqz
             br_if 1
-            local.get $t0
             local.get $t11
             i32.const 8
             i32.add
@@ -156,7 +150,10 @@
             i32.mul
             i32.add
             i32.load $heap
-            local.tee $t12
+            local.set $t12
+            local.get $t0
+            i32.load $heap
+            local.get $t12
             i32.const 16
             i32.mul
             i32.add

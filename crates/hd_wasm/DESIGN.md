@@ -2621,8 +2621,8 @@ with `v` read after the test and before the decrement, are within
 bounds, as reads and as element stores. `v` and `u` must be plain locals:
 no cell, captured assignment or reference to them.
 
-Proven element read (`Read [%xs [%i]]`) instruction IDs live only in emitter state; TIR tags,
-operands and arities do not change. Their physical reads calculate the
+A proven element step carries `place::ELEM_UNCHECKED` in its place
+record; TIR tags, operands and arities do not change. Their physical reads calculate the
 element address directly. Other index expressions,
 wide indices, offset indices and unproved paths retain their checks.
 The range proof covers element reads only; the falling proof covers
@@ -2637,44 +2637,13 @@ one changed after its check, a pop in the loop and an aliased pop. Checked runti
 those panics, an addressable induction variable, empty and
 nested loops, continue and full-width inclusive endpoints.
 
-Issue #1689 extends both shapes past the `List` intrinsic
-(`emit/guards.rs`), in optimized (release) builds only: dev and checked builds
-keep every guard as written. An inlined std `Index` or `IndexSet` body is a guard,
-`if key >= len: panic`, over a header field read through a reference
-parameter. A body that calls only the pointer intrinsics and the panic,
-stores through no dereference or element, drops nothing, and writes
-through a `Ptr` only into the room of a buffer inline in that referent
-never changes the header. Its field reads then have one value each, so a
-guard whose key the loop facts bound (a rising counter, a falling index
-or `v - 1`, or a guard of the same key that ran first) is not emitted,
-and a header read that an earlier read of the same field runs before
-takes that read's value. The kernel of #1689 keeps no guard and no header
-load in its inner loop. Calls of the wrapping arithmetic intrinsics write
-nothing either.
+Issues #1689 and #1706 once proved inlined std `Index` guards false and
+loaded unchanged header fields once before a loop (`emit/guards.rs`).
+#2175 step 6 deleted that pass: with lists indexed by element places it
+proved no guard in the 33 bench modules, and its 194 header reads now load
+where they are written (+99 bytes over those modules).
 
-Issue #1706 scopes the header facts to loops and widens their roots. A
-root is a reference parameter that no store and no `Ref` names, or a
-local in a cell (`c | OWN`, the value in the cell). A shared `&T`
-parameter's referent is unchanged whatever the body does: nothing may
-write it while the reference lives (`ref.excl.shared`,
-`ref.excl.alias.conflict`, `module.rt.ptr.as-ref`). Any other root's
-fields are unchanged in a loop whose writes, its inner loops' included,
-reach none of them: no call but the pure intrinsics, no store through a
-dereference or an element, no store into or move out of that cell, and
-`Ptr` stores only into buffer rooms (a cell is never in a room; a room
-may hold another referent, so a room write keeps only its own root's).
-One pass attributes each write to its innermost loop and merges each
-loop into the one around it, deepest first. A copy read of such a field
-that no earlier read of it runs before loads once, before the outermost
-loop whose writes don't reach it, into a local the reads in the loop
-take. A guard of the same key that ran first in the same loop, or a
-rising counter whose test reads the same field there, proves a guard as
-before. The sort kernel's `&Buffer[T]` parameters, `find_index`'s
-`&self`, and lists in locals (the race's matmul) load their headers
-before their loops.
-
-A masked index is the third shape, for `List` and for the guard pass,
-in release builds only (#1713): `xs[y & (n - 1)]`, the `&`'s operands in
+A masked index is the third shape, for `List`, in release builds only (#1713): `xs[y & (n - 1)]`, the `&`'s operands in
 either order and `n - 1` possibly `n.wrapping_sub(1)`, where `n` is the
 length of `xs` and the `&` runs only once a test showed a length of `xs`
 above zero. Unsigned, `y & m <= m`, and with the length above zero the
@@ -2684,9 +2653,9 @@ failed `a >= n`, possibly negated) or above zero (`n != 0`, `n >= 1`),
 and the `&` is in the arm that outcome takes, or after the test where
 the other arm never falls through: a ring buffer's `if xs.len() > 0`, an
 early `if xs.len() == 0: return`, a loop's `i < xs.len()`, or an earlier
-index guard. For `List`, the within-body proof shows `xs` keeps its
-length from both the mask's and the test's length reads to the access;
-for the guard pass, the header is unchanged. With no such test a length
+index guard. The within-body proof shows `xs` keeps its
+length from both the mask's and the test's length reads to the access.
+With no such test a length
 of zero wraps `n - 1` to all ones and the check stays.
 
 ### 23.38 Locals In The Frame

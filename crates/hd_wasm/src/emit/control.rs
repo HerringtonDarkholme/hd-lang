@@ -130,9 +130,7 @@ impl Em<'_, '_, '_> {
                     self.end_block(blk, dest, tail, labelled)?;
                 }
                 Task::Inst(i) => {
-                    if self.b.tags[i as usize] != Tag::If
-                        || self.susp.is_none() && self.headers.proven_guards.contains(&i)
-                    {
+                    if self.b.tags[i as usize] != Tag::If {
                         self.inst(i)?;
                         continue;
                     }
@@ -168,7 +166,6 @@ impl Em<'_, '_, '_> {
                 Task::Close => self.close(),
                 Task::EndIfInst(i, state) => {
                     self.borrow_after_store(i);
-                    self.keep_header_read(i);
                     self.borrow_argument_end(i);
                     self.end_inst(i, state, Ok(()))?;
                 }

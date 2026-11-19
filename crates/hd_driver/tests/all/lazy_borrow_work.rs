@@ -122,12 +122,8 @@ fn closures_share_the_loop_preorder_at_width_1000_and_depth_20() {
     for depth in [1, 20] {
         // The loop proofs run in `hd_opt::prove`, which counts its own
         // scans; the first build proves the std bodies later ones reuse.
-        let work = |width| {
-            let ((_, proofs), loops) = hd_wasm::work::count_loop_scans(|| {
-                hd_opt::prove::count_scans(|| source_work(&closures(width, depth, true)))
-            });
-            loops + proofs
-        };
+        let work =
+            |width| hd_opt::prove::count_scans(|| source_work(&closures(width, depth, true))).1;
         work(0);
         let (base, small, large) = (work(0), work(100), work(1000));
         eprintln!("closure loop work depth={depth}: zero={base}, n100={small}, n1000={large}");

@@ -14,9 +14,6 @@ pub(crate) type BodyFactCell = Arc<OnceLock<BodyFacts>>;
 
 pub(crate) struct BodyFacts {
     pub(super) topo: Arc<Topology>,
-    pub(super) tree: Arc<OnceLock<hd_tir::ir::Nest>>,
-    /// The guard pass's stores, built by the first loop that asks.
-    pub(super) list: Arc<OnceLock<hd_opt::prove::Sets>>,
     pub(super) recursive: Arc<hd_tir::own::RecursiveBindings>,
     pub(super) uses: Arc<UseFacts>,
     pub(super) borrow: Arc<OnceLock<super::borrow::BorrowFacts>>,
@@ -80,8 +77,6 @@ impl BodyFacts {
             .collect();
         crate::work::use_facts(b.len());
         Self {
-            tree: Arc::default(),
-            list: Arc::default(),
             borrow: Arc::default(),
             slot_uses: Arc::default(),
             captured: Arc::new(b.cap_local.iter().map(|l| l.idx()).collect()),

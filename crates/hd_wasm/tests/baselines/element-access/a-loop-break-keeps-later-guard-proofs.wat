@@ -3,44 +3,39 @@
   (import "fixture" "impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (func $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i32]" (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
-    ;; 18 |     for _ in 0..rounds:
-    local.get $items
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $items
-    i32.load $heap
-    local.set $items
+  (func $reuse (param $items i32) (param $key i32) (param $turns i32) (param $rounds i32) (result i32) (local $total i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 21 |     for _ in 0..rounds:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $rounds
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 19 |         first := checked_after_loop(items, index, turns)
+        local.set $t0
+    ;; 22 |         first := checked_after_loop(items, index, turns)
         i32.const 0
-        local.set $t2
+        local.set $t1
         block
           loop
-            local.get $t2
+            local.get $t1
             local.get $turns
             i32.lt_u
             i32.eqz
             br_if 1
-            local.get $t2
+            local.get $t1
             i32.const 1
             i32.add
-            local.set $t2
+            local.set $t1
             br 0
           end
         end
         local.get $key
-        local.get $t0
+        local.get $items
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -51,38 +46,53 @@
           call_indirect $table0 (param i32 i32 i32 i32)
           unreachable
         end
-        local.get $t2
+        local.get $t1
         local.get $items
+        i32.load $heap
         local.get $key
         i32.const 4
         i32.mul
         i32.add
         i32.load $heap
         i32.add
+        local.set $t1
+    ;; 23 |         total += first + items[index]
+        local.get $key
+        local.get $items
+        i32.load $heap offset=8
+        i32.ge_u
+        if
+          i32.const 16 ;; &"index-out-of-bounds"
+          i32.const 19
+          i32.const 35 ;; &"uniq list index out of bounds"
+          i32.const 29
+          i32.const 0
+          call_indirect $table0 (param i32 i32 i32 i32)
+          unreachable
+        end
+        local.get $items
+        i32.load $heap
+        local.get $key
+        i32.const 4
+        i32.mul
+        i32.add
+        i32.load $heap
         local.set $t2
-    ;; 20 |         total += first + items[index]
-        local.get $items
-        local.get $key
-        i32.const 4
-        i32.mul
-        i32.add
-        i32.load $heap
-        local.set $t3
         local.get $total
+        local.get $t1
         local.get $t2
-        local.get $t3
         i32.add
         i32.add
         local.set $total
-    ;; 18 |     for _ in 0..rounds:
+    ;; 21 |     for _ in 0..rounds:
         br 0
       end
     end
-    ;; 21 |     total
+    ;; 24 |     total
     local.get $total
   )
   (func $checked_after_loop (param $items i32) (param $key i32) (param $turns i32) (result i32) (local $cursor i32)
-    ;; 11 |     while cursor < turns:
+    ;; 14 |     while cursor < turns:
     block
       loop
         local.get $cursor
@@ -90,16 +100,16 @@
         i32.lt_u
         i32.eqz
         br_if 1
-    ;; 12 |         cursor += 1
+    ;; 15 |         cursor += 1
         local.get $cursor
         i32.const 1
         i32.add
         local.set $cursor
-    ;; 11 |     while cursor < turns:
+    ;; 14 |     while cursor < turns:
         br 0
       end
     end
-    ;; 13 |     i32(cursor) + items[key]
+    ;; 16 |     i32(cursor) + items[key]
     local.get $cursor
     local.get $items
     local.get $key

@@ -2,10 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (func $conditional (param $header i32) (param $n i32) (param $choose i32) (param $stop i32) (result i32) (local $i i32) (local $total i32)
-    ;; 24 |     while i < n:
-    local.get $header
-    i32.load $heap
-    local.set $header
+    ;; 27 |     while i < n:
     block
       loop
         local.get $i
@@ -13,30 +10,32 @@
         i32.lt_u
         i32.eqz
         br_if 1
-    ;; 25 |         if choose:
+    ;; 28 |         if choose:
         local.get $choose
         if
-    ;; 26 |             if stop:
+    ;; 29 |             if stop:
           local.get $stop
           br_if 2
-    ;; 28 |             total += header.length
+    ;; 31 |             total += header.length
           local.get $total
           local.get $header
+          i32.load $heap
           i32.add
           local.set $total
-    ;; 25 |         if choose:
+    ;; 28 |         if choose:
         end
-    ;; 29 |         total += header.length
+    ;; 32 |         total += header.length
         local.get $total
         local.get $header
+        i32.load $heap
         i32.add
         local.set $total
-    ;; 30 |         i = i + 1
+    ;; 33 |         i = i + 1
         local.get $i
         i32.const 1
         i32.add
         local.set $i
-    ;; 24 |     while i < n:
+    ;; 27 |     while i < n:
         br 0
       end
     end

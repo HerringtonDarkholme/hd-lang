@@ -160,17 +160,16 @@ impl ListRoot {
 /// Each local's stores, the locals a `Ref` names, and the element
 /// accesses by the local their index reads (built on first use). One pass
 /// over the body. Cost: O(instructions).
-pub struct Sets {
+struct Sets {
     /// Each local's stores, with the value of a store into all of it
     /// (`NONE` for a field's).
-    pub sets: Vec<Vec<(u32, u32)>>,
+    stores: Vec<Vec<(u32, u32)>>,
     referenced: Vec<bool>,
     index_reads: std::sync::OnceLock<(Vec<u32>, Vec<u32>)>,
 }
 
 impl Sets {
-    #[must_use]
-    pub fn new(b: &Body) -> Self {
+    fn new(b: &Body) -> Self {
         let locals = b.local_ty.len();
         let mut sets = vec![Vec::new(); locals];
         let mut referenced = vec![false; locals];
@@ -188,7 +187,7 @@ impl Sets {
             }
         }
         Sets {
-            sets,
+            stores: sets,
             referenced,
             index_reads: std::sync::OnceLock::new(),
         }
@@ -197,14 +196,14 @@ impl Sets {
 
 /// One body's shapes for the list proofs: its blocks, dominance and loop
 /// forest, stores, which locals live in storage, and the type facts.
-pub struct Lists<'a> {
-    pub b: &'a Body,
-    pub topo: &'a Topology,
-    pub nest: &'a Nest,
-    pub cx: &'a dyn Cx,
+struct Lists<'a> {
+    b: &'a Body,
+    topo: &'a Topology,
+    nest: &'a Nest,
+    cx: &'a dyn Cx,
     /// Whether a local lives in a cell or slot, where a call may reach it.
-    pub cell: &'a dyn Fn(usize) -> bool,
-    pub sets: &'a Sets,
+    cell: &'a dyn Fn(usize) -> bool,
+    sets: &'a Sets,
 }
 
 /// Each comparison's negation, on `usize` operands.
@@ -254,9 +253,9 @@ pub fn rooted_elem(b: &Body, i: usize) -> Option<(ListRoot, u32)> {
 /// The list root value `r` reads: a local's list, or the list a
 /// reference it holds or reads refers to.
 #[must_use]
-pub fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
+pub fn list_root(b: &Body, list: &dyn Fn(Ty) -> bool, r: u32) -> Option<ListRoot> {
     let i = Ref(r).as_inst()?.0 as usize;
-    if !cx.list(b.ty[i]) {
+    if !list(b.ty[i]) {
         return None;
     }
     match b.tags[i] {
@@ -283,7 +282,7 @@ pub fn list_root(b: &Body, cx: &dyn Cx, r: u32) -> Option<ListRoot> {
             };
             ListRoot::at(local, p.proj)
         }
-        Tag::Coerce => list_root(b, cx, b.data[i][0]),
+        Tag::Coerce => list_root(b, list, b.data[i][0]),
         _ => None,
     }
 }
@@ -370,7 +369,7 @@ impl Lists<'_> {
     }
 
     fn list_root(&self, r: u32) -> Option<ListRoot> {
-        list_root(self.b, self.cx, r)
+        list_root(self.b, &|t| self.cx.list(t), r)
     }
 
     /// Whether read `i` projects a struct or newtype field of a value.
@@ -407,8 +406,7 @@ impl Lists<'_> {
     /// A canonical loop test, before its body: the `If` after a scalar
     /// prefix one of whose branches only breaks out of the loop, and
     /// whether that branch is the first.
-    #[must_use]
-    pub fn loop_guard(&self, l: u32) -> Option<(u32, bool)> {
+    fn loop_guard(&self, l: u32) -> Option<(u32, bool)> {
         let (test, prefix, [first, second]) = hd_tir::own::loop_test(self.b, l)?;
         let mut budget = self.b.len();
         let scalar = hd_tir::own::loop_statements(self.b, l)
@@ -433,7 +431,7 @@ impl Lists<'_> {
                             & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
                             == 0 =>
                 {
-                    let [(set, value)] = self.sets.sets[l].as_slice() else {
+                    let [(set, value)] = self.sets.stores[l].as_slice() else {
                         break;
                     };
                     if !self.dominates(*set, r) {
@@ -519,7 +517,7 @@ impl Lists<'_> {
         {
             return Vec::new();
         }
-        let Some([init, step]) = init_and_step(&self.sets.sets[current], |x| self.in_loop(x, l))
+        let Some([init, step]) = init_and_step(&self.sets.stores[current], |x| self.in_loop(x, l))
         else {
             return Vec::new();
         };
@@ -542,7 +540,7 @@ impl Lists<'_> {
         // (`while i < xs.len()`, #2186), which the loop keeps as the list's.
         let len = match bound {
             Some(bound) => {
-                let [(bound_set, value)] = self.sets.sets[bound].as_slice() else {
+                let [(bound_set, value)] = self.sets.stores[bound].as_slice() else {
                     return Vec::new();
                 };
                 if !self.dominates(*bound_set, l) {
@@ -596,8 +594,7 @@ impl Lists<'_> {
     /// Whether instruction `x` runs only once loop test `test`, an `If`
     /// whose second arm leaves the loop, went on: in its first arm or
     /// after it.
-    #[must_use]
-    pub fn after_test(&self, test: u32, x: u32) -> bool {
+    fn after_test(&self, test: u32, x: u32) -> bool {
         let go_on = self
             .b
             .record(self.b.data[test as usize][1])
@@ -635,7 +632,7 @@ impl Lists<'_> {
         {
             return Vec::new();
         }
-        let Some([init, dec]) = init_and_step(&self.sets.sets[v], |x| self.in_loop(x, l)) else {
+        let Some([init, dec]) = init_and_step(&self.sets.stores[v], |x| self.in_loop(x, l)) else {
             return Vec::new();
         };
         // The decrement runs once per iteration at most, after the test.
@@ -862,8 +859,7 @@ impl Lists<'_> {
     /// comes out `outcome`, on `usize`: `a < n` puts `n` above `a`, so
     /// above zero, and `n != 0` and `n >= 1` do directly; a failed
     /// comparison is its negation, as is `!c`.
-    #[must_use]
-    pub fn positive_operand(&self, c: u32, outcome: bool) -> Option<u32> {
+    fn positive_operand(&self, c: u32, outcome: bool) -> Option<u32> {
         let b = self.b;
         if Ref(c).as_inst().is_none() || b.tags[c as usize] != Tag::Prim {
             return None;
@@ -904,8 +900,7 @@ impl Lists<'_> {
     /// `Some(true)` when nothing in it leaves for a label outside it, so
     /// the run ends there; `Some(false)` when it may go on past the block
     /// that holds `x`. `None` when it may fall through.
-    #[must_use]
-    pub fn arm_exit(&self, arm: u32, x: u32) -> Option<bool> {
+    fn arm_exit(&self, arm: u32, x: u32) -> Option<bool> {
         let b = self.b;
         let last = *(b.tags[arm as usize] == Tag::Block)
             .then(|| b.record(b.data[arm as usize][0]))?
@@ -941,16 +936,14 @@ impl Lists<'_> {
     }
 
     /// Whether instruction `s` calls the panic intrinsic.
-    #[must_use]
-    pub fn calls_panic(&self, s: u32) -> bool {
+    fn calls_panic(&self, s: u32) -> bool {
         self.intrinsic(s).as_deref() == Some("panic")
     }
 
     /// The `x` of instruction `v` when it is `x - 1`, or
     /// `x.wrapping_sub(1)`, which is the same subtraction in a release
     /// build.
-    #[must_use]
-    pub fn minus_one_of(&self, v: u32) -> Option<u32> {
+    fn minus_one_of(&self, v: u32) -> Option<u32> {
         let b = self.b;
         let i = Ref(v).as_inst()?.0 as usize;
         let [r, one] = match b.tags[i] {
@@ -988,7 +981,7 @@ pub fn stable_rows(b: &Body, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 3]
 
 /// A local's two stores (`Sets::sets`), the one `in_loop` rejects first:
 /// an induction variable's start and step, when it has exactly two.
-pub fn init_and_step(
+fn init_and_step(
     stores: &[(u32, u32)],
     in_loop: impl FnOnce(u32) -> bool,
 ) -> Option<[(u32, u32); 2]> {

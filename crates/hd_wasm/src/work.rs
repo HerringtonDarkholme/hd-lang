@@ -10,7 +10,6 @@ thread_local! {
     static CONTROL: Cell<Option<u64>> = const { Cell::new(None) };
     static USE_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LOAN_QUERIES: Cell<Option<u64>> = const { Cell::new(None) };
-    static LOOP_SCANS: Cell<Option<u64>> = const { Cell::new(None) };
     static STATIC_LOOKS: Cell<Option<u64>> = const { Cell::new(None) };
     static LIVENESS: Cell<Option<u64>> = const { Cell::new(None) };
     static ZERO_FACTS: Cell<Option<u64>> = const { Cell::new(None) };
@@ -58,19 +57,6 @@ pub fn count_use_facts<R>(run: impl FnOnce() -> R) -> (R, u64) {
 /// call argument query/index work on this thread.
 pub fn count_loan_queries<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&LOAN_QUERIES, run)
-}
-
-/// Counts the instructions the emitter's loop and statement questions
-/// visit on this thread: each body's block tree once, and each list of
-/// a loop's or a run of statements' instructions it hands out
-/// ([`crate::emit`]'s `Tree`).
-pub fn count_loop_scans<R>(run: impl FnOnce() -> R) -> (R, u64) {
-    count(&LOOP_SCANS, run)
-}
-
-pub(crate) fn loop_scans(n: usize) {
-    hd_base::work::add(hd_base::work::Counter::LoopScans, n as u64);
-    add(&LOOP_SCANS, n);
 }
 
 /// Counts the instructions the static-value proof reads on this thread:

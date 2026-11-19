@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # The index check after an inlined helper's finite loop runs on every
 # normal return. The caller's repeated access needs no second bounds guard.
 use std.annotation.inline

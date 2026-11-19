@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # Lists held in locals, in cells since `push` borrows them (#1706): the
 # multiply loops store only into the rooms of `c`'s buffer, so no write
 # in them reaches a header. Each list's length and buffer address load

@@ -1,5 +1,8 @@
 # @dump: wat
 # @build: v8 release std
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # The header is `&mut`: a shared `&Header` is unchanged whatever the
 # loop writes, so its reads load once before the loop (#1706).
 # Conservative header proofs never cache across an unknown raw source.

@@ -1,6 +1,9 @@
 # @dump: wat
 # @build: v8 release
 # @helper: std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index
+# expected: an unchanged field read through a reference loads once, not
+# per read or per iteration (issue: a loop reloads an unchanged struct
+# field read through a reference on every iteration)
 # `find_index` takes the map as `&self`, a shared reference: the probe
 # loop's calls change nothing the reference reaches (#1706), so the slots'
 # address loads once, before the loop, not per matching entry.

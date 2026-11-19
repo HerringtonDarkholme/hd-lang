@@ -4110,15 +4110,13 @@ fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
 // counter also counts the whole-body pass (the list facts, once per
 // body), which each loop repeated, so a run of loops was quadratic. Each
 // list's stability is now its region row of the hoisting pass (#2175).
-// The proofs run in `hd_opt::prove`, which counts its own scans.
+// The proofs run in `hd_opt::prove`, which counts its scans; the emitter
+// asks no loop question since #2175 step 6 deleted its guard pass.
 #[test]
 fn loop_proofs_list_each_loops_instructions_from_one_tree() {
     on_test_stack(|| {
         let work = |name: &str, source: String, level, printed: String| {
-            let ((out, proofs), work) = hd_wasm::work::count_loop_scans(|| {
-                hd_opt::prove::count_scans(|| build_at(&source, level))
-            });
-            let work = work + proofs;
+            let (out, work) = hd_opt::prove::count_scans(|| build_at(&source, level));
             assert!(!out.diags.has_errors(), "{name}: {}", out.render());
             let ran =
                 crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));

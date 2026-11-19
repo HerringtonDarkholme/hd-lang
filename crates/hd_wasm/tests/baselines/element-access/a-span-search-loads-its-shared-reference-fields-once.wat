@@ -33,18 +33,20 @@
       i32.load $heap
       local.set $t0
       local.get $t7
-      i32.load $heap
-      local.set $t8
       local.get $t4
+      local.set $t8
+      i32.load $heap
+      local.set $t9
       local.get $t8
+      local.get $t9
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
+      local.get $t9
       local.get $t8
-      local.get $t4
       i32.add
       i32.load8_u $heap offset=16
       local.set $t9
@@ -432,7 +434,7 @@
     local.get $t14
   )
   (func $find (param $hay i32) (param $needle.items i32) (param $needle.start i32) (param $needle.end i32) (result i32 i32)
-    ;; 9 |     hay.index_of_span(needle)
+    ;; 12 |     hay.index_of_span(needle)
     local.get $hay
     local.get $needle.items
     local.get $needle.start

@@ -2,29 +2,24 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 8 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
+  (func $sum (param $xs i32) (param $n i32) (result f64) (local $total f64) (local $t0 i32) (local $t1 i32)
+    ;; 11 |     for i in 0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.get $t1
+        local.get $t0
+        local.get $t0
         i32.const 1
         i32.add
-        local.set $t1
-    ;; 9 |         total = total + xs[i]
-        local.tee $t2
-        local.get $t0
+        local.set $t0
+    ;; 12 |         total = total + xs[i]
+        local.tee $t1
+        local.get $xs
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 65 ;; &"index-out-of-bounds"
@@ -37,18 +32,19 @@
         end
         local.get $total
         local.get $xs
-        local.get $t2
+        i32.load $heap
+        local.get $t1
         i32.const 8
         i32.mul
         i32.add
         f64.load $heap
         f64.add
         local.set $total
-    ;; 8 |     for i in 0..n:
+    ;; 11 |     for i in 0..n:
         br 0
       end
     end
-    ;; 10 |     total
+    ;; 13 |     total
     local.get $total
   )
 )

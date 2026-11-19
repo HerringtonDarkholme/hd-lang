@@ -9,7 +9,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Holder.at" (param $self i32) (param $i i32) (result i64)
-    ;; 20 |         self.store[i]
+    ;; 23 |         self.store[i]
     local.get $self
     i32.load $heap
     local.get $i
@@ -17,7 +17,7 @@
     i64.load $heap
   )
   (func $by_value (param $t1 i32) (param $n i32) (result i64) (local $t0 i32) (local $h i32) (local $s i64) (local $t2 i32) (local $t3 i32)
-    ;; 29 |     let s: i64 = 0
+    ;; 32 |     let s: i64 = 0
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -56,15 +56,7 @@
     local.tee $h
     local.get $t1
     i32.store $heap
-    ;; 30 |     for i in 0..n:
-    local.get $h
-    i32.load $heap
-    i32.load $heap offset=8
-    local.set $t1
-    local.get $h
-    i32.load $heap
-    i32.load $heap
-    local.set $h
+    ;; 33 |     for i in 0..n:
     block
       loop
         local.get $t2
@@ -77,9 +69,13 @@
         i32.const 1
         i32.add
         local.set $t2
-    ;; 31 |         s = s + h.at(i)
+    ;; 34 |         s = s + h.at(i)
+        local.get $h
+        i32.load $heap
+        local.set $t1
         local.tee $t3
         local.get $t1
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -91,7 +87,8 @@
           unreachable
         end
         local.get $s
-        local.get $h
+        local.get $t1
+        i32.load $heap
         local.get $t3
         i32.const 8
         i32.mul
@@ -99,43 +96,39 @@
         i64.load $heap
         i64.add
         local.set $s
-    ;; 30 |     for i in 0..n:
+    ;; 33 |     for i in 0..n:
         br 0
       end
     end
-    ;; 32 |     s
+    ;; 35 |     s
     local.get $s
-    ;; 29 |     let s: i64 = 0
+    ;; 32 |     let s: i64 = 0
     local.get $t0
     i32.const 16 ;; &"index-out-of-bounds"
     i32.add
     global.set $locals
   )
-  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $t2 i32)
-    ;; 24 |     for i in 0..n:
-    local.get $h
-    i32.load $heap
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $h
-    i32.load $heap
-    i32.load $heap
-    local.set $h
+  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 27 |     for i in 0..n:
     block
       loop
-        local.get $t1
+        local.get $t0
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.get $t1
+        local.get $t0
+        local.get $t0
         i32.const 1
         i32.add
+        local.set $t0
+    ;; 28 |         s = s + h.at(i)
+        local.get $h
+        i32.load $heap
         local.set $t1
-    ;; 25 |         s = s + h.at(i)
         local.tee $t2
-        local.get $t0
+        local.get $t1
+        i32.load $heap offset=8
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -147,7 +140,8 @@
           unreachable
         end
         local.get $s
-        local.get $h
+        local.get $t1
+        i32.load $heap
         local.get $t2
         i32.const 8
         i32.mul
@@ -155,15 +149,15 @@
         i64.load $heap
         i64.add
         local.set $s
-    ;; 24 |     for i in 0..n:
+    ;; 27 |     for i in 0..n:
         br 0
       end
     end
-    ;; 26 |     s
+    ;; 29 |     s
     local.get $s
   )
   (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $h i32) (local $s i64) (local $t3 i32)
-    ;; 35 |     h := Holder { store: box(u) }
+    ;; 38 |     h := Holder { store: box(u) }
     local.get $u.buffer.address
     local.get $u.buffer.capacity
     local.get $u.len
@@ -203,7 +197,7 @@
     local.get $h
     i32.const 1
     i32.store $heap offset=28
-    ;; 37 |     for i in 0..n:
+    ;; 40 |     for i in 0..n:
     block
       loop
         local.get $t3
@@ -216,7 +210,7 @@
         i32.const 1
         i32.add
         local.set $t3
-    ;; 38 |         s = s + h.store[i]
+    ;; 41 |         s = s + h.store[i]
         local.tee $t0
         local.get $h
         i32.load $heap offset=8
@@ -240,7 +234,7 @@
         i64.load $heap
         i64.add
         local.set $s
-    ;; 37 |     for i in 0..n:
+    ;; 40 |     for i in 0..n:
         br 0
       end
     end
@@ -255,14 +249,14 @@
         call $rt:release_ref
       end
     end
-    ;; 35 |     h := Holder { store: box(u) }
+    ;; 38 |     h := Holder { store: box(u) }
     local.get $u.buffer.address
     local.get $u.buffer.capacity
     local.get $u.len
     i32.const 0
     i32.const 0
     call $rt:drop_value
-    ;; 39 |     s
+    ;; 42 |     s
     local.get $s
   )
 )
