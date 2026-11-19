@@ -1003,3 +1003,84 @@ fn take(b: &mut Body, topo: &Topology, t: &Tables, edits: &mut splice::Tables, i
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ir::{BodyKind, TirBuilder, TirSink, local_flags};
+    use hd_base::{DefId, NodeIdx, SubId, Symbol};
+
+    fn loop_reads(width: usize, depth: usize) -> (Body, Vec<u32>, Vec<u32>) {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let root = b.open_block();
+        let locals: Vec<_> = (0..width)
+            .map(|_| b.local(Ty::STRING, Symbol::NONE, local_flags::PARAM, n))
+            .collect();
+        let condition = b.local(Ty::BOOL, Symbol::NONE, local_flags::PARAM, n);
+        let mut loops = Vec::new();
+        let mut reads = Vec::new();
+        for _ in 0..depth {
+            let lp = b.open_loop();
+            let block = b.open_block();
+            let test = b.get(condition, Ty::BOOL, n);
+            let exit = b.open_block();
+            b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, n);
+            let exit = b.close_block(exit, None, Ty::NEVER, n);
+            let arms = b.refs_record(&[exit]);
+            b.emit(Tag::If, test.0, arms, Ty::VOID, n);
+            for &local in &locals {
+                reads.push(b.get(local, Ty::STRING, n).0);
+            }
+            loops.push((lp, block));
+        }
+        for (lp, block) in loops.into_iter().rev() {
+            let block = b.close_block(block, None, Ty::VOID, n);
+            b.close_loop(lp, block, Ty::VOID, n);
+        }
+        let last: Vec<_> = locals
+            .iter()
+            .map(|&local| b.get(local, Ty::STRING, n).0)
+            .collect();
+        let root = b.close_block(root, None, Ty::VOID, n);
+        let mut b = b.finish(root, &[]).expect("valid loop body");
+        b.exit_drops
+            .extend(locals.into_iter().map(|local| (SubId::from_raw(0), local)));
+        // The move pass receives reads classified by ownership insertion.
+        for &read in reads.iter().chain(&last) {
+            b.data[read as usize][1] = ReadMode::Copy as u32;
+        }
+        (b, reads, last)
+    }
+
+    fn work(width: usize, depth: usize) -> usize {
+        let (mut b, reads, last) = loop_reads(width, depth);
+        let topo = Topology::new(&b);
+        let mut tables = Tables::default();
+        let (found, work) = super::super::flow::work::measure(|| {
+            last_uses(&mut b, &topo, &super::super::tests::Cx, &mut tables)
+        });
+        assert!(found);
+        for read in reads {
+            assert_eq!(tables.decide[read as usize], KEEP);
+        }
+        for read in last {
+            assert_eq!(tables.decide[read as usize], MOVE);
+        }
+        work
+    }
+
+    #[test]
+    fn last_uses_does_not_reenter_nested_loops() {
+        let (small, large) = (work(1, 7), work(1, 70));
+        eprintln!("last-use depth 7={small}, depth 70={large}");
+        assert!(large <= small * 10, "depth 7 -> 70: {small} -> {large}");
+    }
+
+    #[test]
+    fn last_uses_scales_in_width_and_depth() {
+        let (small, wide, deep) = (work(100, 2), work(1000, 2), work(1000, 20));
+        eprintln!("last-use width/depth 100/2={small}, 1000/2={wide}, 1000/20={deep}");
+        assert!(wide <= small * 10, "width: {small} -> {wide}");
+        assert!(deep <= wide * 10, "depth: {wide} -> {deep}");
+    }
+}
