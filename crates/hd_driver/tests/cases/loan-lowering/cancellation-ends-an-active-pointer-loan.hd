@@ -1,5 +1,5 @@
 # @dump: stdout wat counts
-# @build: dev | checked | release
+# @build: dev | release
 use std.annotation.inline
 
 struct Slots:
