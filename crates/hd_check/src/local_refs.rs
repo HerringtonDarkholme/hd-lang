@@ -237,9 +237,12 @@ fn walk_ty(src: &Src<'_>, n: NodeRef<'_>, at: Option<Escape>, diags: &mut DiagBu
             // lifetime of its declaration, and a bound's a lifetime in
             // scope (`ref.lifetime.trait.bound-argument`), which the
             // resolver checks.
-            let named = matches!(at, Some(Escape::Field | Escape::BoundArgument))
-                && n.direct_token(&src.parse.tokens, TokenKind::Lifetime)
-                    .is_some();
+            // A static reference is storable in every position
+            // (`ref.static.not-local`); other named lifetimes need a
+            // declaration or bound to relate their reference slots.
+            let lifetime = n.direct_token(&src.parse.tokens, TokenKind::Lifetime);
+            let named = lifetime.is_some_and(|t| src.text(t) == "'static")
+                || matches!(at, Some(Escape::Field | Escape::BoundArgument)) && lifetime.is_some();
             if let (Some(_), Some(at), false) = (amp, at, named) {
                 diags.error(Code::LocalReferenceEscapes, src.span(n), &message(at));
             }

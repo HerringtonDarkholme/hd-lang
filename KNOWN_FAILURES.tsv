@@ -1,3 +1,4 @@
 path	issue	engine	reason
 lang/references/static-references/static-reference-stored-and-called.hd	#1435		`T < 'static` rejects a `&T` argument by its type; the static source is not asked
 lang/control-flow/runtime-panics/unbounded-recursion-with-a-large-argument.hd	#2183		the frame block's separate STACK memory wraps and traps: `internal error: memory access out of bounds` instead of `stack-exhausted`
+lang/references/static-references/static-reference-bound-with-sub-obligations.hd	#1435		`Saved` selects an impl with a static sub-obligation; successful solver answers do not yet carry region obligations
