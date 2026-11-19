@@ -1439,11 +1439,9 @@ struct Em<'i, 'a, 'm> {
     /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
-    /// Exact range-index reads proven in bounds in this body's loops.
-    proven_list_indices: hd_base::HashSet<u32>,
-    /// The list proofs' whole-body facts, built on the first loop that
-    /// asks and shared with the body's other emitters (#1982).
-    list_facts: std::sync::Arc<std::sync::OnceLock<list::ListFacts>>,
+    /// The guard pass's whole-body stores, built on first use and shared
+    /// with the body's other emitters (#1982).
+    list_facts: std::sync::Arc<std::sync::OnceLock<hd_opt::prove::Sets>>,
     /// What the unchanged headers of the body's reference parameters
     /// prove (`guards.rs`).
     headers: guards::HeaderFacts,
@@ -1674,7 +1672,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             init_key: None,
             list_caches: Vec::new(),
             cached_buffers: Vec::new(),
-            proven_list_indices: hd_base::HashSet::default(),
             list_facts: std::sync::Arc::clone(&facts.list),
             headers: guards::HeaderFacts::default(),
             borrowed: hd_base::HashSet::default(),
@@ -1769,11 +1766,6 @@ impl Em<'_, '_, '_> {
     /// The value projection read `i` reads from, and what it reads.
     fn projection(&self, i: usize) -> Option<(u32, shape::Projected)> {
         shape::projection(self.b, i, self.projected(i))
-    }
-
-    /// [`shape::read_through`] of instruction `i`.
-    fn read_through(&self, i: usize) -> Option<(shape::Through, bool)> {
-        shape::read_through(self.b, i, self.projected(i))
     }
 
     fn ty_of(&self, r: u32) -> Ty {

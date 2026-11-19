@@ -992,6 +992,7 @@ dependencies = [
  "hd_host_abi",
  "hd_layout",
  "hd_mono",
+ "hd_opt",
  "hd_testkit",
  "hd_tir",
  "hd_types",

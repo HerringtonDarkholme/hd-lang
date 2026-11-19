@@ -15,8 +15,8 @@ pub(crate) type BodyFactCell = Arc<OnceLock<BodyFacts>>;
 pub(crate) struct BodyFacts {
     pub(super) topo: Arc<Topology>,
     pub(super) tree: Arc<OnceLock<hd_tir::ir::Nest>>,
-    /// The list proofs' facts, built by the first loop that asks.
-    pub(super) list: Arc<OnceLock<super::list::ListFacts>>,
+    /// The guard pass's stores, built by the first loop that asks.
+    pub(super) list: Arc<OnceLock<hd_opt::prove::Sets>>,
     pub(super) recursive: Arc<hd_tir::own::RecursiveBindings>,
     pub(super) uses: Arc<UseFacts>,
     pub(super) borrow: Arc<OnceLock<super::borrow::BorrowFacts>>,

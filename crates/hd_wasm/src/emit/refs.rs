@@ -1539,7 +1539,10 @@ impl Em<'_, '_, '_> {
         // A stable list's buffer from the loop's cache: an element of the
         // local's list, or of the list the reference it holds refers to.
         let cached = |em: &Self, indirect: bool| {
-            let root = super::list::ListRoot::new(local?, indirect);
+            let root = super::list::ListRoot {
+                local: local?,
+                indirect,
+            };
             em.list_caches
                 .iter()
                 .find(|(key, _)| *key == root)
@@ -1614,10 +1617,8 @@ impl Em<'_, '_, '_> {
             }
             let (et, e) = self.elem(ty)?;
             let b = self.at_i32(&at);
-            // An element `hd_opt::prove` cleared, or the first element of
-            // a list, which a loop's range proof may cover.
-            let proven = lead == Some(k)
-                && (self.b.elem_unchecked(i as usize, k) || self.proven_list_indices.contains(&i));
+            // An element `hd_opt::prove` cleared.
+            let proven = lead == Some(k) && self.b.elem_unchecked(i as usize, k);
             let ix = if proven {
                 let x = self.f.local(Val::I32);
                 self.comp(ix.0, 0)?;

@@ -440,6 +440,33 @@ pub(super) struct CopyFacts {
     normal: hd_types::solver::ConcreteNorm,
 }
 
+/// The list proofs' type and call facts (`hd_opt::prove`), from the
+/// backend's layout and the call record.
+impl hd_opt::prove::Cx for Env<'_> {
+    fn list(&self, t: Ty) -> bool {
+        hd_layout::coll_kind(&self.run.pool, self, t) == Some(hd_mono::layout::StdKind::List)
+    }
+    fn tracked(&self, t: Ty) -> bool {
+        hd_layout::walk(&self.run.pool, self, t).is_some()
+    }
+    fn tuple(&self, t: Ty) -> bool {
+        let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
+        matches!(self.run.pool.get(t), TyData::Tuple { .. })
+    }
+    fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
+        match hd_layout::kind(&self.run.pool, self, t) {
+            hd_layout::Kind::Ref { target, fat, .. } => Some((target, fat)),
+            _ => None,
+        }
+    }
+    fn intrinsic(&self, callee: &Callee) -> Option<String> {
+        match callee {
+            Callee::Item { def, .. } => ProgramEnv::intrinsic(self, *def),
+            Callee::TraitMethod { .. } => None,
+        }
+    }
+}
+
 impl OwnCx for Env<'_> {
     fn copies_collection(&self, ty: Ty) -> bool {
         if let Some(hit) = lock(&self.run.own_types).get(ty).and_then(|f| f.collection) {
@@ -1974,14 +2001,15 @@ impl Env<'_> {
             let summary = (summarize && refused.is_ok())
                 .then(|| hd_tir::own::summary(&body, self, &scratch, returns))
                 .flatten();
+            if refused.is_ok() {
+                let release = self.run.level == hd_base::OptLevel::Optimized;
+                hd_opt::prove::run(&mut body, self, release);
+            }
             (refused, summary)
         });
         let relies = scratch.relies();
         let uncopied = scratch.uncopied().to_vec();
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
-        if refused.is_ok() {
-            hd_opt::prove::run(&mut body);
-        }
         let path = || self.run.names().path(body.item);
         if let Err(what) = refused {
             return Err(NotImplemented::bug(

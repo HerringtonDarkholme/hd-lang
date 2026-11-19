@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# A closure's sub-body proves its own counted loop (#2175): `hd_opt::prove`
+# reads the storage rows of the loop's sub-body, and `xs` lives in no cell
+# there, so the element read has no bounds check.
+fn sums(rows: List[List[i32]]) -> List[i32]:
+    total := fn(xs: List[i32]) -> i32:
+        let sum = +0
+        n := xs.len()
+        for i in 0..n:
+            sum += xs[i]
+        sum
+    let mut out: List[i32] = []
+    for r in rows:
+        out.push(total(r))
+    out

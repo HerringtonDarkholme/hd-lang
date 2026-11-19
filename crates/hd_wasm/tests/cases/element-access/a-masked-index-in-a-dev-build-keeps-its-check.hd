@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: v8 dev
+# The masked-index proof runs in release only (owner, 2026-11-11), so a
+# dev build keeps the bounds check of `xs[(head + i) & (xs.len() - 1)]`;
+# the counted loop's own range proof runs in every mode.
+fn list_arm(xs: &List[i32], head: usize, n: usize) -> i32:
+    let sum = +0
+    if xs.len() > 0:
+        for i in 0..n:
+            sum += xs[(head + i) & (xs.len() - 1)]
+    sum
+
+fn ranged(xs: &List[i32]) -> i32:
+    let sum = +0
+    n := xs.len()
+    for i in 0..n:
+        sum += xs[i]
+    sum

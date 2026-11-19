@@ -4110,11 +4110,15 @@ fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
 // counter also counts the whole-body pass (the list facts, once per
 // body), which each loop repeated, so a run of loops was quadratic. Each
 // list's stability is now its region row of the hoisting pass (#2175).
+// The proofs run in `hd_opt::prove`, which counts its own scans.
 #[test]
 fn loop_proofs_list_each_loops_instructions_from_one_tree() {
     on_test_stack(|| {
         let work = |name: &str, source: String, level, printed: String| {
-            let (out, work) = hd_wasm::work::count_loop_scans(|| build_at(&source, level));
+            let ((out, proofs), work) = hd_wasm::work::count_loop_scans(|| {
+                hd_opt::prove::count_scans(|| build_at(&source, level))
+            });
+            let work = work + proofs;
             assert!(!out.diags.has_errors(), "{name}: {}", out.render());
             let ran =
                 crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
@@ -4146,6 +4150,8 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
         for level in [hd_driver::OptLevel::Dev, hd_driver::OptLevel::Optimized] {
             for (name, generate, n, printed) in shapes {
                 let run = |k| work(name, generate(k), level, format!("{}\n", printed(k)));
+                // The first build proves the std bodies the run then reuses.
+                run(0);
                 let zero = run(0);
                 let small = run(n) - zero;
                 let large = run(10 * n) - zero;

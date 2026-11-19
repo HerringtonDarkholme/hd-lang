@@ -865,8 +865,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   bounds-checked. The first element of a local's list, or of the list
   the reference it holds refers to, takes the loop's cached header where
   the list is one of `Body::stable_lists` and its index unchecked where
-  the loop's range proof covers the read (`range_indices` reads such
-  places as `Em::rooted_elem`). A dereference
+  `hd_opt::prove` cleared its element check (`place::ELEM_UNCHECKED`;
+  its loop proofs read such places as `prove::rooted_elem`). A dereference
   of a thin reference goes on at its referent's address, and a field or
   payload step adds its offset. A `Read` then loads only the leaves the place
   names (copy or borrow as its mode says; a `move` reaches the walk only
@@ -2579,8 +2579,9 @@ iteration is strictly below the endpoint. Dynamic and inclusive ranges
 keep their endpoint handling, including the largest integer value.
 Advancing still precedes the user body, preserving `continue`.
 
-The list emitter recognizes an exact `usize` induction variable from
-zero to an observed list length. Its local definition and increment must
+`hd_opt::prove` recognizes an exact `usize` induction variable from
+zero to an observed list length, and the emitter writes no check for an
+element it cleared. Its local definition and increment must
 match the loop test, with no cell or captured assignment; the index read
 must precede the increment and dominate the access. Scalar aliases and
 fields of fresh range values may carry the bound. The list must keep its
@@ -2591,7 +2592,8 @@ are the last change before the loop and the first after it. A list with
 no row keeps the normal check. Thus a pop in that prelude invalidates
 the fact too, and so do unknown calls and possibly aliased mutations of
 a list a reference reaches. The falling-index and masked-index proofs
-ask the same row (`Em::keeps_length`).
+ask the same row (`Lists::keeps_length` in `hd_opt::prove`, where all
+three proofs run before emission).
 
 For straight-line accesses, ownership and `hd_opt::prove` share
 `hd_tir::own::ElementChecks`; the pass marks each proven element step

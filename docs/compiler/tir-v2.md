@@ -1428,7 +1428,7 @@ audit on the commits that touch the emitter).
    longer forces an argument copy, as `LocalSet` did not),
    `hd_mono`'s default specialization and `hd_opt`'s `value_flow`,
    which count a field store as a write with no known value. `live.rs`
-   `field_spans` and `list.rs` `range_indices` read stores through the
+   `field_spans` and `hd_opt::prove`'s rising proof read stores through the
    same helpers. In an erased body, an open store into a field of a
    local is outlined (`hd_mono::outlined_store_local`): the thunk takes
    the local's value as a capture, stores the field at concrete types
@@ -2293,8 +2293,8 @@ is worth deciding only if they are hot.
       `IsUnique` or `Pin` takes the header the place names, through a
       dereference too. The loop cache and the range proof take the first
       element of a local's list or of the list its reference refers to
-      (`Em::rooted_elem`), so the proven index of `bodies[i]` stays
-      unchecked.
+      (`hd_opt::prove::rooted_elem`), so the proven index of `bodies[i]`
+      stays unchecked.
     - **The `own` view** lists a local a place reaches behind a
       dereference; `own/places-are-rooted-at-their-local.hd` shows the
       forms.

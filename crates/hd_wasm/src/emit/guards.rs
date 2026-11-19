@@ -101,17 +101,6 @@ const DEPTH: u32 = 16;
 /// compared with.
 const READS: usize = 8;
 
-/// Each comparison with its negation: one comes out false as the other
-/// does true.
-const NEGATION: [(PrimOp, PrimOp); 6] = [
-    (PrimOp::Lt, PrimOp::Ge),
-    (PrimOp::Le, PrimOp::Gt),
-    (PrimOp::Gt, PrimOp::Le),
-    (PrimOp::Ge, PrimOp::Lt),
-    (PrimOp::Eq, PrimOp::Ne),
-    (PrimOp::Ne, PrimOp::Eq),
-];
-
 /// What the unchanged headers of a body's reference parameters prove.
 #[derive(Default)]
 pub(super) struct HeaderFacts {
@@ -231,6 +220,8 @@ struct Falling {
 
 struct Proof<'e, 'x, 'a, 'm> {
     em: &'e Em<'x, 'a, 'm>,
+    /// The list proofs' shapes of the body ([`hd_opt::prove::Lists`]).
+    lists: hd_opt::prove::Lists<'e>,
     /// Each local's stores and the value of a whole one.
     sets: &'e [Vec<(u32, u32)>],
     /// Locals whose value a reference may change: cells, captured ones,
@@ -356,9 +347,11 @@ impl Em<'_, '_, '_> {
             return facts;
         }
         let n = b.local_ty.len();
+        let cell = |l: usize| self.is_cell(l);
         let mut p = Proof {
             em: self,
-            sets: self.local_sets(),
+            lists: self.lists(&cell),
+            sets: &self.list_facts().sets,
             addressed: vec![false; n],
             breaks: HashMap::default(),
             fixed: vec![false; n],
@@ -571,119 +564,6 @@ impl Em<'_, '_, '_> {
         self.f.op(leaf.load(0));
         self.f.set(kept);
         Ok(Some(kept))
-    }
-
-    /// The operand that `Prim` condition `c` shows above zero when it
-    /// comes out `outcome`, on `usize`: `a < n` puts `n` above `a`, so
-    /// above zero, and `n != 0` and `n >= 1` do directly; a failed
-    /// comparison is its negation, as is `!c`.
-    pub(super) fn positive_operand(&self, c: u32, outcome: bool) -> Option<u32> {
-        let b = self.b;
-        if Ref(c).as_inst().is_none() || b.tags[c as usize] != Tag::Prim {
-            return None;
-        }
-        let op = PrimOp::from_u32(b.data[c as usize][0])?;
-        let [x, y] = *b.record(b.data[c as usize][1]) else {
-            // `!c` comes out the other way: of the one-operand operations
-            // only `!` gives a `bool`.
-            let &[inner] = b.record(b.data[c as usize][1]).first_chunk::<1>()?;
-            return (op == PrimOp::Not).then(|| self.positive_operand(inner, !outcome))?;
-        };
-        if self.ty_of(x) != Ty::prim(hd_types::Prim::Usize) {
-            return None;
-        }
-        // On `usize` operands every `bool` operation is a comparison.
-        let op = if outcome {
-            op
-        } else {
-            NEGATION.iter().find(|(o, _)| *o == op)?.1
-        };
-        let at_least_one = |r: u32| self.const_u32(r).is_some_and(|k| k >= 1);
-        match op {
-            PrimOp::Lt => Some(y),
-            PrimOp::Gt => Some(x),
-            PrimOp::Le if at_least_one(x) => Some(y),
-            PrimOp::Ge if at_least_one(y) => Some(x),
-            PrimOp::Ne if self.const_u32(y) == Some(0) => Some(x),
-            PrimOp::Ne if self.const_u32(x) == Some(0) => Some(y),
-            PrimOp::Eq if at_least_one(y) => Some(x),
-            PrimOp::Eq if at_least_one(x) => Some(y),
-            _ => None,
-        }
-    }
-
-    /// How arm `arm` of `If` `x` ends when it never ends normally: its
-    /// last statement returns, panics, traps, or breaks or continues to a
-    /// label past `x`, and no break inside it ends at the arm or at `x`.
-    /// `Some(true)` when nothing in it leaves for a label outside it, so
-    /// the run ends there; `Some(false)` when it may go on past the block
-    /// that holds `x`. `None` when it may fall through.
-    pub(super) fn arm_exit(&self, arm: u32, x: u32) -> Option<bool> {
-        let b = self.b;
-        let last = *(b.tags[arm as usize] == Tag::Block)
-            .then(|| b.record(b.data[arm as usize][0]))?
-            .iter()
-            .rev()
-            .find(|&&s| b.tags[s as usize] != Tag::Block)?;
-        let first = self.topo.first[arm as usize];
-        let target = |i: u32| b.label_inst[b.data[i as usize][0] as usize];
-        let ends = match b.tags[last as usize] {
-            Tag::Return | Tag::Unreachable => true,
-            Tag::Break | Tag::Continue if target(last) != arm && target(last) != x => false,
-            Tag::Call if self.calls_panic(last) => true,
-            _ => return None,
-        };
-        let (mut inside, mut past) = (true, true);
-        for i in first..arm {
-            if matches!(b.tags[i as usize], Tag::Break | Tag::Continue) {
-                let t = target(i);
-                past &= t != arm && t != x;
-                inside &= (first..arm).contains(&t);
-            }
-        }
-        past.then_some(ends && inside)
-    }
-
-    /// The `x` of instruction `v` when it is `x - 1`, or
-    /// `x.wrapping_sub(1)`, which is the same subtraction in a release
-    /// build.
-    pub(super) fn minus_one_of(&self, v: u32) -> Option<u32> {
-        let b = self.b;
-        let i = Ref(v).as_inst()?.0 as usize;
-        let [r, one] = match b.tags[i] {
-            Tag::Prim if b.data[i][0] == PrimOp::Sub as u32 => {
-                // ruled out: the checker emits PrimOp::Sub with two operands;
-                // cloning and substitution preserve the primitive operand record.
-                super::required(
-                    b.record(b.data[i][1]).try_into().ok(),
-                    "subtraction has two operands",
-                )
-            }
-            Tag::Call
-                if matches!(
-                    self.calls.get(&v),
-                    Some(Target::Call(call)) if matches!(
-                        &call.kind,
-                        TargetKind::Intrinsic(key) if key == "int_wrapping_sub"
-                    )
-                ) =>
-            {
-                // A call's record ends with three words past its arguments.
-                *b.record(b.data[i][1]).first_chunk::<2>()?
-            }
-            _ => return None,
-        };
-        (self.const_u32(one) == Some(1)).then_some(r)
-    }
-
-    /// Whether instruction `s` calls the panic intrinsic.
-    fn calls_panic(&self, s: u32) -> bool {
-        self.b.tags[s as usize] == Tag::Call
-            && matches!(
-                self.calls.get(&s),
-                Some(Target::Call(call))
-                    if matches!(&call.kind, TargetKind::Intrinsic(key) if key == "panic")
-            )
     }
 }
 
@@ -1290,7 +1170,7 @@ impl Proof<'_, '_, '_, '_> {
     fn loop_facts(&mut self, l: u32) {
         let em = self.em;
         let b = em.b;
-        let Some((test, false)) = em.list_loop_guard(l) else {
+        let Some((test, false)) = self.lists.loop_guard(l) else {
             return;
         };
         let cond = b.data[test as usize][0];
@@ -1319,13 +1199,10 @@ impl Proof<'_, '_, '_, '_> {
         } else if (op == PrimOp::Gt as u32 || op == PrimOp::Ne as u32)
             && em.const_u32(rhs) == Some(0)
         {
-            let [a, c] = self.sets[cur].as_slice() else {
+            let Some([init, dec]) =
+                hd_opt::prove::init_and_step(&self.sets[cur], |x| em.in_loop(x, l))
+            else {
                 return;
-            };
-            let (init, dec) = if em.in_loop(a.0, l) {
-                (*c, *a)
-            } else {
-                (*a, *c)
             };
             if em.in_loop(init.0, l)
                 || !em.dominates(init.0, l)
@@ -1353,15 +1230,15 @@ impl Proof<'_, '_, '_, '_> {
         let Some(read) = self.minus_one(value) else {
             return false;
         };
-        super::shape::read_local(self.em.b, read) == Some(v) && self.em.after_test(test, read)
+        super::shape::read_local(self.em.b, read) == Some(v) && self.lists.after_test(test, read)
     }
 
-    /// The `x` of a value `x - 1` ([`Em::minus_one_of`]).
+    /// The `x` of a value `x - 1` ([`hd_opt::prove::Lists::minus_one_of`]).
     fn minus_one(&mut self, value: u32) -> Option<u32> {
         let Key::Val(x) = self.key(value, 0) else {
             return None;
         };
-        self.em.minus_one_of(x)
+        self.lists.minus_one_of(x)
     }
 
     /// The key and length of guard `x`: an `If` with no else arm whose
@@ -1394,7 +1271,7 @@ impl Proof<'_, '_, '_, '_> {
         let arm = b.record(b.data[x as usize][1])[0];
         b.record(b.data[arm as usize][0])
             .iter()
-            .any(|&s| b.tags[s as usize] == Tag::Unreachable || self.em.calls_panic(s))
+            .any(|&s| b.tags[s as usize] == Tag::Unreachable || self.lists.calls_panic(s))
     }
 
     /// Records `If` `x` in [`Proof::positive`] when an outcome of its
@@ -1415,18 +1292,18 @@ impl Proof<'_, '_, '_, '_> {
     }
 
     /// The operand that condition `cond` shows above zero when it comes
-    /// out `outcome` ([`Em::positive_operand`]), through the values it
+    /// out `outcome` ([`hd_opt::prove::Lists::positive_operand`]), through the values it
     /// stands for.
     fn positive_field(&mut self, cond: u32, outcome: bool) -> Option<u32> {
         let Key::Val(c) = self.key(cond, 0) else {
             return None;
         };
-        self.em.positive_operand(c, outcome)
+        self.lists.positive_operand(c, outcome)
     }
 
     /// Whether `at` runs only once a test showed header field `len` above
     /// zero: inside the arm its outcome takes, or after the test when the
-    /// other arm never falls through ([`Em::arm_exit`]).
+    /// other arm never falls through ([`hd_opt::prove::Lists::arm_exit`]).
     fn positive_at(&self, len: Key, at: u32) -> bool {
         let em = self.em;
         let b = em.b;
@@ -1443,13 +1320,15 @@ impl Proof<'_, '_, '_, '_> {
             // An arm that may go on past the test's block skips only what
             // the test dominates; one that ends the run, everything after.
             taken.is_some_and(|t| path.iter().any(|&(k, _)| k == t))
-                || other.and_then(|o| em.arm_exit(o, x)).is_some_and(|ends| {
-                    if ends {
-                        self.runs_before(x, at)
-                    } else {
-                        em.dominates(x, at)
-                    }
-                })
+                || other
+                    .and_then(|o| self.lists.arm_exit(o, x))
+                    .is_some_and(|ends| {
+                        if ends {
+                            self.runs_before(x, at)
+                        } else {
+                            em.dominates(x, at)
+                        }
+                    })
         })
     }
 
@@ -1494,18 +1373,17 @@ impl Proof<'_, '_, '_, '_> {
             // A rising counter, read after its test and before its step.
             let rising = self.rising.get(&v).is_some_and(|facts| {
                 facts.iter().any(|f| {
-                    rising_stores(&self.sets[v], |x| em.in_loop(x, f.loop_inst)).is_some_and(
-                        |[init, step]| {
+                    hd_opt::prove::init_and_step(&self.sets[v], |x| em.in_loop(x, f.loop_inst))
+                        .is_some_and(|[init, step]| {
                             f.end == len
                                 && (whole || self.same_value(root, f.test, at))
                                 && !em.in_loop(init.0, f.loop_inst)
                                 && em.topo.loop_of[step.0 as usize] == f.loop_inst
                                 && em.topo.loop_of[read as usize] == f.loop_inst
                                 && em.dominates(f.cond, read)
-                                && em.after_test(f.test, read)
+                                && self.lists.after_test(f.test, read)
                                 && em.dominates(read, step.0)
-                        },
-                    )
+                        })
                 })
             });
             if rising {
@@ -1532,7 +1410,7 @@ impl Proof<'_, '_, '_, '_> {
                 ..
             }) = self.falling.get(&v)
             && em.topo.loop_of[read as usize] == loop_inst
-            && em.after_test(test, read)
+            && self.lists.after_test(test, read)
             && em.dominates(read, dec)
         {
             return self.below(value, len, at, depth + 1);
@@ -1660,16 +1538,6 @@ fn runs_before(
         x = owner;
     }
     false
-}
-
-/// Exactly one initialization and one loop step, ordered by execution.
-/// Instruction identities need not follow the enclosing block's order.
-fn rising_stores(
-    stores: &[(u32, u32)],
-    mut in_loop: impl FnMut(u32) -> bool,
-) -> Option<[(u32, u32); 2]> {
-    let [a, c] = stores else { return None };
-    Some(if in_loop(a.0) { [*c, *a] } else { [*a, *c] })
 }
 
 /// The type of value `x` at the body's instance.
@@ -1935,7 +1803,9 @@ mod tests {
                     .map(|(i, _)| u32::try_from(i).map(|id| (id, body.data[i][1])))
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|e| e.to_string())?;
-                let schedule = rising_stores(&stores, |x| topo.loop_of[x as usize] == loop_inst);
+                let schedule = hd_opt::prove::init_and_step(&stores, |x| {
+                    topo.loop_of[x as usize] == loop_inst
+                });
                 assert_eq!(schedule.is_some(), count == 2);
                 if let Some([init, step]) = schedule {
                     assert_ne!(topo.loop_of[init.0 as usize], loop_inst);

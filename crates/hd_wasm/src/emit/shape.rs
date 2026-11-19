@@ -3,7 +3,7 @@
 //! projection, a read through a reference). Nothing here decides a count:
 //! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
 
-use hd_tir::ir::{Body, Nest, PlaceRoot, Proj, Ref, Tag};
+use hd_tir::ir::{Body, Nest, PlaceRoot, Proj, Tag};
 
 use super::Em;
 
@@ -17,13 +17,6 @@ impl Em<'_, '_, '_> {
         self.tree().dominates(&self.topo, d, j)
     }
 
-    /// The position of the statement of block `blk` that holds
-    /// instruction `j`, when `blk` is around `j`.
-    pub(super) fn position_in(&self, blk: u32, j: u32) -> Option<usize> {
-        let k = self.tree().child_above(blk, j)?;
-        Some(self.topo.pos[k as usize] as usize)
-    }
-
     /// The body's [`Nest`], built on first use.
     pub(super) fn tree(&self) -> &Nest {
         self.tree.get_or_init(|| {
@@ -35,18 +28,6 @@ impl Em<'_, '_, '_> {
     pub(super) fn in_loop(&self, i: u32, loop_inst: u32) -> bool {
         self.tree().in_loop(i, loop_inst)
     }
-
-    pub(super) fn loop_body(&self, loop_inst: u32) -> Vec<u32> {
-        let out = self.tree().loop_body(loop_inst);
-        crate::work::loop_scans(out.len());
-        out
-    }
-
-    pub(super) fn statements(&self, blk: u32, from: usize, to: usize) -> Vec<u32> {
-        let out = self.tree().statements(self.b, blk, from, to);
-        crate::work::loop_scans(out.len());
-        out
-    }
 }
 
 pub(super) fn u32_of(i: usize) -> u32 {
@@ -55,34 +36,13 @@ pub(super) fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("instructions fit u32")
 }
 
-/// The local that value `r` reads when it is a plain local read,
-/// `Read [$l]`; `None` for a constant or any other instruction.
-pub(super) fn read_local(b: &Body, r: u32) -> Option<usize> {
-    let i = Ref(r).as_inst()?.0 as usize;
-    (i < b.len())
-        .then(|| b.local_read(i))
-        .flatten()
-        .map(hd_base::LocalId::idx)
-}
+pub(super) use hd_opt::prove::read_local;
 
 /// A `Store` `i` into a whole local: the local and the value it takes.
 pub(super) fn local_store(b: &Body, i: usize) -> Option<(usize, u32)> {
     match b.stored_local(i)? {
         (l, true) => Some((l.idx(), b.data[i][1])),
         (_, false) => None,
-    }
-}
-
-/// The list value whose element `Store` `i` writes (`[%xs [%i] ..]`), as
-/// an element store intrinsic names its list.
-pub(super) fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
-    if b.tags[i] != Tag::Store {
-        return None;
-    }
-    let p = b.decode_place(b.data[i][0])?;
-    match (p.root, p.proj.first()) {
-        (PlaceRoot::Value(r), Some(Proj::Elem(_))) => Some(r.0),
-        _ => None,
     }
 }
 
@@ -124,39 +84,10 @@ pub(super) fn projection(b: &Body, i: usize, projected: Projected) -> Option<(u3
     }
 }
 
-/// What a read through a reference reads through.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Through {
-    /// The reference a local holds.
-    Local(usize),
-    /// A reference value.
-    Value(u32),
-}
-
-/// What a `Read` `i` whose place starts with a dereference reads
-/// through, and whether it reads the whole referenced value. A data
-/// object's field ([`Projected`]) is no read through a reference.
-pub(super) fn read_through(b: &Body, i: usize, projected: Projected) -> Option<(Through, bool)> {
-    match b.tags[i] {
-        Tag::Read if projection(b, i, projected).is_none() => {
-            let p = b.decode_place(b.data[i][0])?;
-            if p.proj.first() != Some(&Proj::Deref) {
-                return None;
-            }
-            let through = match p.root {
-                PlaceRoot::Local(l) => Through::Local(l.idx()),
-                PlaceRoot::Value(r) => Through::Value(r.0),
-                _ => return None,
-            };
-            Some((through, p.proj.len() == 1))
-        }
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use hd_tir::ir::Ref;
 
     /// A body of one local: a store into it, a reference to it, a read
     /// and a write through that reference, then a read of the local.
@@ -206,18 +137,14 @@ mod tests {
         b
     }
 
-    /// The place helpers name the locals of `Read`, `Store` and `Ref`: a
-    /// store into the whole local, the reference's root, and a read and
-    /// a write through the reference, which reach no local.
+    /// The place helpers name the locals of `Store` and `Ref`: a store
+    /// into the whole local, the reference's root, and a write through
+    /// the reference, which reaches no local.
     #[test]
     fn places_name_their_locals() {
         let new = reference_body();
         assert_eq!(local_store(&new, 1), Some((0, 0)));
         assert_eq!(ref_local(&new, 2), Some(0));
-        assert_eq!(
-            read_through(&new, 3, Projected::None),
-            Some((Through::Value(2), true))
-        );
         assert_eq!(local_store(&new, 4), None);
     }
 }

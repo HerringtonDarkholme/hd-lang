@@ -13,6 +13,7 @@ checked-report = []
 hd_base = { path = "../hd_base" }
 hd_types = { path = "../hd_types" }
 hd_tir = { path = "../hd_tir" }
+hd_opt = { path = "../hd_opt" }
 hd_mono = { path = "../hd_mono" }
 hd_layout = { path = "../hd_layout" }
 hd_host_abi = { path = "../hd_host_abi" }

@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: program release
+# A suspending entry `main!` with no await point runs as a plain function,
+# so `hd_opt::prove` proves its counted loop (#2175): the sub-body has no
+# point a resume could enter at. The element read has no bounds check.
+use std.time.Clock
+
+pub fn main!() -> void $ Console + Clock:
+    xs := [1, 2, 3]
+    let sum = +0
+    n := xs.len()
+    for i in 0..n:
+        sum += xs[i]
+    println("{sum}")

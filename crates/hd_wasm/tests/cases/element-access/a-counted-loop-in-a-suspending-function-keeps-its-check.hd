@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# A suspending body's loops are not proven (#2175): a resume enters its
+# blocks in the middle, so the dominance the range proof reads does not
+# hold there, and each element read keeps its bounds check.
+use std.time.{Clock, ms, sleep}
+
+fn waits!(xs: List[i32]) -> i32 $ Clock:
+    sleep!(ms(1))
+    let sum = +0
+    n := xs.len()
+    for i in 0..n:
+        sum += xs[i]
+    sum
