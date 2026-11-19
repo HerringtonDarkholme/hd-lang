@@ -112,6 +112,8 @@ pub trait InlineEnv: ProgramEnv {
     /// Whether a value of type `t`, which names no parameter, is a
     /// reference in the backend's layout.
     fn reference(&self, t: Ty) -> bool;
+    /// Whether the closed layout is Memory and contains a Memory field.
+    fn memory_value(&self, t: Ty) -> (bool, bool);
     /// The item and type arguments a trait call chosen as an impl runs;
     /// `None` for any other call.
     fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)>;
@@ -729,6 +731,7 @@ impl dyn InlineEnv + '_ {
                 && !in_loop
                 && writer_refs.is_none()
                 && !consumer
+                && (!self.const_fold() || hd_mono::defaults::collapse(&copy).is_none())
             {
                 continue;
             }
@@ -967,13 +970,14 @@ impl dyn InlineEnv + '_ {
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&(def, targs))) {
                 return None;
             }
-            // A copy that only makes a known value is that value, at any
-            // size: a call of it folds, and so do the decisions it makes.
+            // Memory constants keep their ABI boundary unless explicitly Always.
             if self.const_fold()
                 && let Some(c) =
                     hd_mono::defaults::collapse(nested.as_ref().map_or(&copy, |n| &n.0))
             {
-                return Some((c, nested.as_ref().map_or(hash, |n| n.1)));
+                return (self.inline_hint(def) == InlineHint::Always
+                    || !self.memory_value(c.ty[c.sub_root[0] as usize]).0)
+                    .then_some((c, nested.as_ref().map_or(hash, |n| n.1)));
             }
             match nested {
                 Some((nested, h)) if fits && self.inline_hint(def) != InlineHint::Default => {
@@ -1722,6 +1726,18 @@ impl dyn InlineEnv + '_ {
             got.is_some_and(|got| got == want || got == Ty::NEVER || want == Ty::NEVER)
         };
         let args = hd_tir::inline::arguments(caller, c);
+        // Only a whole forwarding wrapper preserves an existing Memory place.
+        if self.inline_hint(copy.item) != InlineHint::Always
+            && self.memory_value(caller.ty[c]).1
+            && !hd_tir::own::returned_param(copy).is_some_and(|n| {
+                args.get(usize::from(n)).is_some_and(|&a| {
+                    caller.tags.get(a as usize) == Some(&Tag::Read)
+                        && caller.local_in_place(caller.data[a as usize][0]).is_some()
+                })
+            })
+        {
+            return false;
+        }
         let params: Vec<usize> = (0..copy.local_ty.len())
             .filter(|&l| copy.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0)
             .collect();

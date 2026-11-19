@@ -33,6 +33,8 @@ pub struct Layout {
     /// `INDIRECT + 1`: never a list.
     pub scalars: u32,
     pub repr: Repr,
+    /// A by-value field or payload has a Memory representation.
+    pub contains_memory: bool,
     pub fields: Fields,
     pub variants: Variants,
     pub niche: Option<Niche>,
@@ -138,6 +140,7 @@ impl Layout {
             },
             fields,
             variants,
+            contains_memory: false,
             niche: m.niche,
             uninhabited: m.uninhabited,
         }
@@ -205,10 +208,18 @@ impl Layouts {
         let named = || too_large(&hd_mono::shown_type(pool, env, t));
         let mem_of = |f: Ty| part(f).map(|id| self.get(id).part());
         let scalars_of = |f: Ty| part(f).map(|id| self.get(id).scalars as usize);
-        let record = |tys: &[Ty], offsets: Vec<u32>| -> StageResult<Fields> {
+        let mut contains_memory = false;
+        let mut record = |tys: &[Ty], offsets: Vec<u32>| -> StageResult<Fields> {
             Ok(Fields::Record {
                 offsets: offsets.into(),
-                layouts: tys.iter().map(|&f| part(f)).collect::<StageResult<_>>()?,
+                layouts: tys
+                    .iter()
+                    .map(|&f| {
+                        part(f).inspect(|&id| {
+                            contains_memory |= matches!(self.get(id).repr, Repr::Memory);
+                        })
+                    })
+                    .collect::<StageResult<_>>()?,
             })
         };
         let sum = |tys: &[Ty]| -> StageResult<usize> {
@@ -218,7 +229,7 @@ impl Layouts {
             }
             Ok(n)
         };
-        let layout = if !inline(pool, env, t) {
+        let mut layout = if !inline(pool, env, t) {
             let m = mem_one(pool, env, t, &mem_of, false)?;
             let n = m.leaves.len();
             Layout::new(m, n, Fields::Primitive, Variants::Single)
@@ -250,6 +261,7 @@ impl Layouts {
             let offsets = parts.iter().map(|p| p.offset).collect();
             Layout::new(m, n, record(&tys, offsets)?, Variants::Single)
         };
+        layout.contains_memory = contains_memory;
         Ok(self.intern(layout))
     }
 }
