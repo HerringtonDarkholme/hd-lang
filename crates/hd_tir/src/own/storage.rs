@@ -432,8 +432,9 @@ pub fn declarations(b: &Body, subs: &[u32]) -> Vec<u32> {
 /// first statement of that block holding one, and a parameter's at its
 /// sub-body's root. A capture's cell arrives in the environment and gets
 /// none. `box_word::ZERO` is set when a return, break, continue or await
-/// may run between the box and the declaration (a match binding's other
-/// arms), so a path may release the box unfilled. One [`Nest`] and a
+/// may run between the box and the declaration, or the box is raised out
+/// of the declaring block (a match binding's other arms can fall through),
+/// so a path may release the box unfilled. One [`Nest`] and a
 /// prefix count of those statements over its preorder: O(N + rows),
 /// O(1) a row; two walks of the uses, a raise only climbs.
 pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
@@ -524,7 +525,9 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
             }
             let (blk, (from, pos)) = (at[li], first[li]);
             let (from, to) = (from as usize, nest.entry(d) as usize);
-            let zero = if leaves[to] > leaves[from] {
+            // Raising a binding out of its declaring block also permits a
+            // sibling branch to reach the scope's release without filling it.
+            let zero = if blk != topo.blk[d as usize] || leaves[to] > leaves[from] {
                 box_word::ZERO
             } else {
                 0
