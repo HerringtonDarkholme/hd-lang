@@ -145,6 +145,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   exit sub 0 drops [$0 $7]
 >   storage sub 0: $7 slot
 >   summary kept [$0] borrows [$1] writes
+>   loop %37 keeps len [$1] (-..-)
         pass
 
 fn by_ref(r: &mut Res) -> usize:

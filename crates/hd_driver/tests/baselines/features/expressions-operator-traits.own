@@ -134,6 +134,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %39 = FlagClear [$2] #9 : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
+>   loop %37 keeps len [$0] (-..-)
 
 fn sum_strings(xs: List[string]) -> string:
 > app/main/sum_strings

@@ -101,6 +101,8 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %71 = Read move [$2] : List[(string, string)]
 >   %72 = Block %71 : List[(string, string)]
 >   summary kept [] borrows [$0 $1]
+>   loop %58 keeps len [$1] (-..-)
+>   loop %70 keeps len [$0] (-..-) len [$1] (-..-)
 
 fn names(users: List[User]) -> List[string]:
 > app/main/names
@@ -150,6 +152,7 @@ fn names(users: List[User]) -> List[string]:
 >   %34 = Read move [$1] : List[string]
 >   %35 = Block %34 : List[string]
 >   summary kept [] borrows [$0]
+>   loop %33 keeps len [$0] (-..-)
 
 fn by_name(users: List[User]) -> Map[string, i64]:
 > app/main/by_name
@@ -201,6 +204,7 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %36 = Read move [$1] : Map[string, i64]
 >   %37 = Block %36 : Map[string, i64]
 >   summary kept [] borrows [$0]
+>   loop %35 keeps len [$0] (-..-)
 
 fn sizes(users: List[User]) -> List[usize]:
 > app/main/sizes
@@ -263,3 +267,4 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %43 = Read move [$1] : List[usize]
 >   %44 = Block %43 : List[usize]
 >   summary kept [] borrows [$0]
+>   loop %42 keeps len [$0] (-..-)

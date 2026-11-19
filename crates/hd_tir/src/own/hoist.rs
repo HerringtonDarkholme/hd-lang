@@ -255,6 +255,9 @@ struct Cand {
     /// A call that may write passed rule 3 only because the place is behind
     /// an exclusive parameter ([`Tables::excl`]).
     relied: bool,
+    /// The whole of a local no reference reaches, checked again with no
+    /// rule 3 for calls ([`candidate`]). It gives only a length row.
+    lent_param: bool,
 }
 
 /// The hoisting pass's dense tables, reused across bodies.
@@ -1142,7 +1145,9 @@ fn facts(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 /// or marks the one there; returns its index.
 fn candidate(t: &mut Tables, l: u32, hoist: bool) -> Option<usize> {
     let found = t.cands.iter().position(|c| {
-        c.local == l && t.csteps[c.start as usize..(c.start + c.len) as usize] == t.steps[..]
+        !c.lent_param
+            && c.local == l
+            && t.csteps[c.start as usize..(c.start + c.len) as usize] == t.steps[..]
     });
     if let Some(k) = found {
         t.cands[k].hoist |= hoist;
@@ -1154,7 +1159,7 @@ fn candidate(t: &mut Tables, l: u32, hoist: bool) -> Option<usize> {
     let start = u32_of(t.csteps.len());
     t.csteps.extend_from_slice(&t.steps);
     let external = !t.steps.is_empty() || t.param[l as usize] || !t.fresh[l as usize];
-    t.cands.push(Cand {
+    let c = Cand {
         local: l,
         start,
         len: u32_of(t.steps.len()),
@@ -1162,8 +1167,29 @@ fn candidate(t: &mut Tables, l: u32, hoist: bool) -> Option<usize> {
         external,
         ok: true,
         ..Cand::default()
-    });
-    Some(t.cands.len() - 1)
+    };
+    t.cands.push(c);
+    let k = t.cands.len() - 1;
+    // A whole local no reference, capture or kept read reaches keeps its
+    // list's length across calls that may write: a caller lends a by-value
+    // parameter, and a binding local borrows, only where no call may change
+    // the source, and else they copy it; a counted holder's buffer changes
+    // in place only through itself. Its twin, right after it, checks it as
+    // a private local.
+    let li = l as usize;
+    if external
+        && t.steps.is_empty()
+        && !(t.captured[li] || t.addressed[li] || t.escapes[li])
+        && k + 1 < MAX
+    {
+        t.cands.push(Cand {
+            hoist: false,
+            external: false,
+            lent_param: true,
+            ..c
+        });
+    }
+    Some(k)
 }
 
 /// The place an `IsUnique`, an element access or a `ListLen` makes a
@@ -1390,13 +1416,19 @@ fn hoist_loop(
         check(b, cx, t, x, l, 0..t.cands.len());
     }
     let at = (topo.blk[l as usize], topo.pos[l as usize]);
+    let mut rowed = false;
     for k in 0..t.cands.len() {
         let c = t.cands[k];
         // The list keeps its length through the loop, whatever its buffer
-        // does: what the counter proofs ask of a region ([`regions`]).
-        let length = c.ok && c.used && !c.pushes && (!c.relied || c.hoist && is_exclusive(b));
+        // does: what the counter proofs ask of a region ([`regions`]). A
+        // parameter's twin answers only where the parameter has no row.
+        let length = c.ok
+            && c.used
+            && !c.pushes
+            && (!c.relied || c.hoist && is_exclusive(b))
+            && !(c.lent_param && rowed);
         let (word, stable) = 'hoist: {
-            if !c.ok || (c.lent && !c.hoist) {
+            if !c.ok || (c.lent && !c.hoist) || c.lent_param {
                 break 'hoist (None, false);
             }
             // The emitter checks a write through a counted pointer at the
@@ -1460,7 +1492,8 @@ fn hoist_loop(
             }
             (Some(word), stable)
         };
-        if stable || length {
+        rowed = stable || length;
+        if rowed {
             let word = word.unwrap_or_else(|| place_word(b, t, &c));
             b.stable_lists
                 .push([l, word, NONE, NONE, u32::from(stable)]);
@@ -1540,6 +1573,7 @@ fn regions(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, t: &mut Tables) {
             (
                 c.local,
                 &steps[c.start as usize..(c.start + c.len) as usize],
+                c.external,
             )
         };
         order.sort_stable_by(|&x, &y| key(x).cmp(&key(y)));
@@ -1552,7 +1586,9 @@ fn regions(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, t: &mut Tables) {
         let c = t.rkeys[r as usize];
         let steps = &t.rsteps[c.start as usize..(c.start + c.len) as usize];
         let same = t.cands.last().is_some_and(|d| {
-            d.local == c.local && t.csteps[d.start as usize..(d.start + d.len) as usize] == *steps
+            d.local == c.local
+                && d.external == c.external
+                && t.csteps[d.start as usize..(d.start + d.len) as usize] == *steps
         });
         if !same {
             let start = u32_of(t.csteps.len());

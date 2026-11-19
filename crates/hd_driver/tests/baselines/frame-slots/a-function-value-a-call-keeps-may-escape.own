@@ -51,6 +51,7 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %16 = CallValue %14 [%15] : ()
 >   %17 = Drop [%15] : ()
 >   summary kept [] borrows [$0 $1] writes
+>   loop %29 keeps len [$0] (-..-)
 
 @inline(.Never)
 > app/main/keep

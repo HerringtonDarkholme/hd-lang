@@ -524,44 +524,29 @@ impl Em<'_, '_, '_> {
         let Some(root) = self.list_root(list) else {
             return Vec::new();
         };
-        let aliases = self.list_aliases(root);
-        let body = self.loop_body(loop_inst);
         // The hoisting pass found nothing in the loop changes the list's
-        // header (`Body::stable_lists`, which the loop caches trust for its
-        // length too), or this proof's own walk does.
-        let region = self.stable_roots(loop_inst).find(|r| r.0 == root);
-        if self.is_cell(root.local as usize)
-            || region.is_none() && !self.list_loop_safe(root, &body, &aliases)
-        {
+        // length (`Body::stable_lists`). Length observation and loop entry
+        // can be separated by arbitrary statements. A pop there invalidates
+        // the fact just as one in the loop does, through the statement
+        // that holds the loop: an arm or an outer loop around it runs there
+        // too. The list's region around the loop answers it.
+        let Some((_, [first, after, _])) = self.stable_roots(loop_inst).find(|r| r.0 == root)
+        else {
+            return Vec::new();
+        };
+        if self.is_cell(root.local as usize) {
             return Vec::new();
         }
-        // Length observation and loop entry can be separated by arbitrary
-        // statements. A pop there invalidates the fact just as one in the
-        // loop does, through the statement that holds the loop: an arm or
-        // an outer loop around it runs there too. The hoisting pass's
-        // region of the list around the loop answers it; a list it does
-        // not prove has those statements walked, the loop and its body,
-        // which the test above took, left out.
         if before {
-            let (blk, start) = (
-                self.topo.blk[len as usize],
-                self.topo.pos[len as usize] as usize,
-            );
+            let blk = self.topo.blk[len as usize];
             let Some(holder) = self.tree().child_above(blk, loop_inst) else {
                 return Vec::new();
             };
-            let kept = if let Some((_, [before, after, _])) = region {
-                (before == NONE || before < len) && holder < after
-            } else {
-                let mut prelude =
-                    self.statements(blk, start + 1, self.topo.pos[holder as usize] as usize);
-                prelude.retain(|x| *x != loop_inst && body.binary_search(x).is_err());
-                self.list_loop_safe(root, &prelude, &aliases)
-            };
-            if !kept {
+            if !((first == NONE || first < len) && holder < after) {
                 return Vec::new();
             }
         }
+        let body = self.loop_body(loop_inst);
         body.iter()
             .copied()
             .filter(|&x| {

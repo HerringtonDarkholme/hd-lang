@@ -4,7 +4,6 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "locals" (global $locals (mut i32)))
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
@@ -313,14 +312,6 @@
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $xs
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
         local.get $xs
         local.get $t2
         i32.const 8

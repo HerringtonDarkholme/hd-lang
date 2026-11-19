@@ -66,6 +66,7 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %38 = Read move [$1] : List[SyncError]
 >   %39 = Block %38 : List[SyncError]
 >   summary kept [] borrows [$0]
+>   loop %37 keeps len [$0] (-..-)
 
 fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[SyncError]:
 > app/main/wrap_with
@@ -126,6 +127,7 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %41 = Read move [$2] : List[SyncError]
 >   %42 = Block %41 : List[SyncError]
 >   summary kept [] borrows [$0 $1] writes
+>   loop %40 keeps len [$0] (-..-)
 
 fn as_value(errors: List[FsError]) -> List[SyncError]:
 > app/main/as_value
@@ -194,6 +196,7 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %49 = Block %48 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0]
+>   loop %44 keeps len [$0] (-..-)
 
 fn named(p: string) -> SyncError:
 > app/main/named

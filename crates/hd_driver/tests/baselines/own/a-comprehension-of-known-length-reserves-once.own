@@ -109,3 +109,4 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %36 = Loop %35 - : ()
 >   %37 = Read move [$1] : List[i32]
 >   %38 = Block %37 : List[i32]
+>   loop %36 keeps len [$0] (-..-)

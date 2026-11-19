@@ -2588,9 +2588,9 @@ length over the loop and the statements from the length observation
 through the statement that holds the loop. The hoisting pass's row for
 the list and loop (`Body::stable_lists`) answers both: its region bounds
 are the last change before the loop and the first after it. A list with
-no row has the existing within-body alias/resize proof walk the loop and
-those statements. Thus a pop in that prelude invalidates the fact too.
-Unknown calls and possibly aliased mutations keep the normal check.
+no row keeps the normal check. Thus a pop in that prelude invalidates
+the fact too, and so do unknown calls and possibly aliased mutations of
+a list a reference reaches.
 
 For straight-line accesses, ownership and `hd_opt::prove` share
 `hd_tir::own::ElementChecks`; the pass marks each proven element step

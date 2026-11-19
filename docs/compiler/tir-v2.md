@@ -1044,7 +1044,10 @@ Wasm locals for the loop, as #710's list caches do today; with the list
 header gone in stage 3, the buffer address is an ordinary read the pass
 can hoist itself. A list place whose length nothing in the loop changes,
 though an `IsUnique` in it may copy the buffer, gets a row that keeps
-only the length. Each row also bounds the list's region around the
+only the length. So does the whole of a local no reference, capture or
+kept read reaches, across calls that may write, which rule 3 refuses for
+hoisting: a caller lends a by-value parameter, and a binding local
+borrows, only where no call may change the source. Each row also bounds the list's region around the
 loop: the last instruction before the loop and the first after it that
 may change the list, found by one forward and one backward sweep over
 the body with the same per-instruction rule, so a length read past the

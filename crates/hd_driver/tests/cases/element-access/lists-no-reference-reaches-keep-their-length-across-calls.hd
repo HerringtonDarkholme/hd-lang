@@ -1,0 +1,69 @@
+# @dump: stdout
+# @build: dev | release
+# Counted loops over lists no reference reaches, across calls that may
+# write: a by-value parameter across a push, an `if`-bound copy of a field
+# list across a call that pops the field each iteration, a captured
+# parameter, a list moved out of a local a reference sorted, and a
+# parameter lent from the list a counted reference holds, which the loop
+# clears through that reference (the caller copies it). Each loop reads
+# every element of its list's length at the length read: 10, 9, 2, 4, 4.
+struct Bag:
+    items: List[i64]
+
+fn drain(b: &mut Bag) -> void:
+    let _ = b.items.pop()
+
+fn pick(b: &mut Bag, whole: bool) -> i64:
+    ys := if whole: b.items else: [9i64]
+    n := ys.len()
+    let s = 0i64
+    for i in 0..n:
+        drain(b)
+        s = s + ys[i]
+    s
+
+fn copy_twice(xs: List[i64]) -> i64:
+    n := xs.len()
+    let mut out: List[i64] = []
+    for i in 0..n:
+        out.push(xs[i])
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    i64(out.len()) + s
+
+fn captured(xs: List[i64]) -> i64:
+    f := fn() -> i64:
+        i64(xs.len())
+    n := xs.len()
+    let mut out: List[i64] = []
+    for i in 0..n:
+        out.push(xs[i] + f())
+    i64(out.len())
+
+fn sorted_count(xs: List[i64]) -> i64:
+    let mut keys = xs
+    keys.push(0)
+    keys.sort()
+    let mut out: List[i64] = []
+    for k in keys:
+        out.push(k)
+    i64(out.len())
+
+fn cleared(log: *mut List[string], xs: List[string]) -> usize:
+    n := xs.len()
+    let k = 0
+    for i in 0..n:
+        log.clear()
+        k = k + xs[i].len()
+    k
+
+pub fn main() -> void $ Console:
+    let mut b = Bag { items: [1i64, 2, 3, 4] }
+    s := pick(&mut b, true)
+    println("$s ${b.items.len()}")
+    println(copy_twice([1i64, 2, 3]))
+    println(captured([1i64, 2]))
+    println(sorted_count([3i64, 1, 2]))
+    let log: *mut List[string] = box(["ab", "c", "d"])
+    println(cleared(log, *log))

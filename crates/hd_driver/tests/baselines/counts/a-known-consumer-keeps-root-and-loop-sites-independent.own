@@ -49,6 +49,7 @@ fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
 >   %16 = CallValue %14 [%15] : ()
 >   %17 = Drop [%15] : ()
 >   summary kept [] borrows [$0 $1] writes
+>   loop %29 keeps len [$0] (-..-)
 
 fn mixed(xs: List[string]) -> usize:
 > app/main/mixed

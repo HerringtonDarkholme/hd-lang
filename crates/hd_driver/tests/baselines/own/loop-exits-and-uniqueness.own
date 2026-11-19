@@ -127,6 +127,7 @@ fn for_list(xs: &mut List[usize], source: List[usize]) -> void:
 >   %15 = Read borrow [*$0] : List[usize]
 >   %16 = Intrinsic ListPush [%15 %14] : ()
 >   summary kept [] borrows [$1] writes
+>   loop %27 keeps len [$1] (-..-)
 
 # The apparent exit arm can continue this loop and enter it later.
 # Its first condition cannot guard a pre-loop uniqueness check.

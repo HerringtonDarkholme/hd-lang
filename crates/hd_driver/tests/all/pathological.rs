@@ -4076,7 +4076,7 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
             assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
             work
         };
-        let shapes: [ValueShape; 7] = [
+        let shapes: [ValueShape; 8] = [
             // A level nests two deep: 70 levels stay below the nesting limit.
             ("for-nest", |n| loop_nest(n, "for"), 7, |n| n),
             ("while-nest", |n| loop_nest(n, "while"), 7, |n| n),
@@ -4086,6 +4086,9 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
             }),
             ("shared-length-loop-run", shared_length_loop_run, 100, |n| {
                 6 * n
+            }),
+            ("param-length-loop-run", param_length_loop_run, 100, |n| {
+                3 * n
             }),
             ("falling-loop-run", falling_loop_run, 100, |n| 6 * n),
             ("masked-loop-run", masked_loop_run, 100, |n| 5 * n),
@@ -4107,9 +4110,9 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
 }
 
 /// `n` loops below one length read of a by-value list parameter, each
-/// pushing onto another list: the hoisting pass proves no region for a
-/// parameter's list across a call that may write, so each loop's
-/// rising-counter proof walks every loop before it.
+/// pushing onto another list: the parameter's list keeps its length across
+/// the push, a call that may write, so its region is the hoisting pass's,
+/// not a walk of every loop before it.
 fn param_length_loop_run(n: usize) -> String {
     let mut s = String::from(
         "fn total(xs: List[i64]) -> i64:\n    m := xs.len()\n    let mut out: List[i64] = []\n",
@@ -4119,29 +4122,6 @@ fn param_length_loop_run(n: usize) -> String {
     }
     s.push_str("    i64(out.len())\n\npub fn main() -> void $ Console:\n    println(total([1i64, 2, 3]))\n");
     s
-}
-
-// Known: /tmp/lt216/a-by-value-list-parameters-counted-loops-walk-every-earlier-loop.md.
-// Today's quadratic walk, asserted so the fix flips it: #2175 step 2 asks
-// every list's region of the hoisting pass and deletes the walk.
-#[test]
-fn a_by_value_list_parameters_counted_loops_walk_every_earlier_loop() {
-    on_test_stack(|| {
-        let run = |k: usize| {
-            let source = param_length_loop_run(k);
-            let (out, work) = hd_wasm::work::count_loop_scans(|| {
-                build_at(&source, hd_driver::OptLevel::Optimized)
-            });
-            assert!(!out.diags.has_errors(), "{}", out.render());
-            work
-        };
-        let zero = run(0);
-        let (small, large) = (run(100) - zero, run(1000) - zero);
-        assert!(
-            large > 12 * small,
-            "loop scans at 100 and 1000 loops are {small} and {large}: linear now, so flip this test"
-        );
-    });
 }
 
 /// A program generator by size.

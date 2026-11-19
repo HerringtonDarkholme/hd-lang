@@ -204,6 +204,7 @@ fn keep_each(xs: List[string]) -> List[string]:
     out
 >   %31 = Read move [$1] : List[string]
 >   summary kept [] borrows [$0]
+>   loop %30 keeps len [$0] (-..-)
 
 fn comprehension(xs: List[string]) -> List[usize]:
 > app/main/comprehension
@@ -262,3 +263,4 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %41 = Read move [$1] : List[usize]
 >   %42 = Block %41 : List[usize]
 >   summary kept [] borrows [$0]
+>   loop %40 keeps len [$0] (-..-)

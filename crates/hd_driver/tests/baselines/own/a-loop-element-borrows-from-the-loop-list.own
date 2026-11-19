@@ -47,3 +47,4 @@ app/main/count
   %41 = If %8 [%38 %40] : ()
   %42 = Block - : ()
   %43 = Loop %42 - : ()
+  loop %43 keeps len [$0] (-..-)
