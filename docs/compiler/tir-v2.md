@@ -1642,7 +1642,7 @@ is worth deciding only if they are hot.
    treat it where they treated the intrinsic: a loop element's loan
    (`loans::source`, `loop_read`, `prepare_loans`), the range proof and
    the loop caches, which find it by its place, and the list header
-   loans and the list alias walk, which keep it out of the arms for
+   loans and the region rows (`Body::stable_lists`), which keep it out of the arms for
    reads through a reference. **Not rooted at the local**: `xs[i]` on a
    local is `Read [$l]` then `Read [%h [%i]]`, not `Read [$l [%i]]`;
    through `&List` it is `Read [*%r]` then `Read [%h [%i]]`, not

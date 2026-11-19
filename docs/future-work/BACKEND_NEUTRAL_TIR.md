@@ -1,7 +1,7 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals; nothing built. It replaces
+recommendations"); domain: compiler internals; partly built (2026-11-18): steps 0, 2a and 6a, most of step 1, and step 6b's region rows and `Nest`. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
@@ -488,8 +488,8 @@ patterns overlap, so the rows do not sum to 154.
 | Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1 |
 | Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1 |
 | A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1 |
-| Step 4's second body copy | `ir/local_fns.rs`, 809 lines (#2165) | 0 |
-| Verifier checks that re-prove a pass | `ir/owned.rs` (#2166) | 0 |
+| Step 4's second body copy | `ir/local_fns.rs`, 809 lines | 3b (#2180) |
+| Verifier checks that re-prove a pass | `ir/owned.rs`, deleted (step 0, −365) | 0, done |
 | Storage found twice | `closure.rs` `shared_locals`, `cell_locals`; `borrow.rs` `StorageRoots`; `own/storage.rs` | 3 |
 | The settle pass hosted in the backend | `promote.rs` `settled` | 3 |
 | Two move-path tables | `own/parts.rs`, `own/drop_flags.rs` | 1, 3 |
@@ -512,9 +512,9 @@ fallback, exact keys first, recorded reads, client-side instances.
 | --- | --- | --- |
 | 1, 3, 4b, 5, 6, 7a, 7b | built (#2101, #2103, #2125, #2105, #2106, 92fc1f83b, 5c188e1c4) | kept |
 | 4, generic local functions | built at +955 (96a648c7c) as in-body copies, citing Swift, which does the opposite | step 3b lifts them as Swift does and deletes `local_fns.rs` |
-| 2, layout memo (#2102) | open | step 1 |
+| 2, layout memo | built as `hd_layout`'s `Layouts`; the fallback deleted in 3c229234e | step 1, done |
 | 7, flags and counts (#1420, #2107) | part built (2a5236de0, 69fa9f72b) | steps 3 and 4 |
-| 6b, recorded reads and a code cache (#2127) | open, after #49 point 4 | unchanged; the unit is the lowered body |
+| 6b, recorded reads and a code cache | no open ticket; after #49 point 4 | unchanged; the unit is the lowered body |
 
 ## Appendix E. Details
 
