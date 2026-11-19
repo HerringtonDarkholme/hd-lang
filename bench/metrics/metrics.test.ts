@@ -999,6 +999,54 @@ describe("scale", () => {
     assert.match(row.note!, /^allocs 2000 → 6000/);
   });
 
+  it("prints the shown counter's limit, including allocated bytes and input-byte scaling", () => {
+    for (const [counter, small, large, bytes, value, target, status] of [
+      ["alloc_bytes", 200_000, 1_600_000, 4, "8.00x", "≤ 10x", "pass"],
+      ["alloc_bytes", 100_000, 1_100_000, 4, "11.00x", "≤ 10x", "fail"],
+      ["hashes", 1000, 16_000, 16, "16.00x", "≤ 20x", "pass"],
+      ["alloc_bytes", 100_000, 3_200_000, 16, "32.00x", "≤ 40x", "pass"],
+      ["hashes", 1000, 5500, 4.4, "5.50x", "≤ 5.5x", "pass"],
+    ] as const) {
+      const row = judgeShape(
+        "s check",
+        {
+          zero: {},
+          small: { [counter]: small },
+          large: { [counter]: large },
+        },
+        { bytes },
+      );
+      assert.equal(row.value, value);
+      assert.equal(row.target, target);
+      assert.equal(row.status, status);
+      assert.match(row.note!, new RegExp(`^${counter} `));
+    }
+  });
+
+  it("selects counters at their own floor and leaves smaller counters unshown", () => {
+    for (const [counter, floor] of [
+      ["alloc_bytes", BYTES_FLOOR],
+      ["hashes", FLOOR],
+    ] as const) {
+      const below = judgeShape("s fmt", {
+        zero: {},
+        small: { [counter]: 1 },
+        large: { [counter]: floor - 1 },
+      });
+      assert.equal(below.value, "-");
+      assert.equal(below.status, "pass");
+      assert.equal(below.note, "no counter reached the floor");
+      const at = judgeShape("s fmt", {
+        zero: {},
+        small: { [counter]: floor / 4 },
+        large: { [counter]: floor },
+      });
+      assert.equal(at.value, "4.00x");
+      assert.equal(at.target, counter === "alloc_bytes" ? "≤ 10x" : "≤ 5x");
+      assert.equal(at.status, "pass");
+    }
+  });
+
   it("passes a known superlinear line and fails it once it turns linear", () => {
     const quadratic = judgeShape(
       "s build",
