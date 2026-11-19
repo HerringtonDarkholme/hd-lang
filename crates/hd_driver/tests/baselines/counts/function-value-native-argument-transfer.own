@@ -724,27 +724,27 @@ fn empty_controls() -> void:
 >     uses $1: %24 -> %25 consume last
 >   local $2 $ref: i32 [read assigned captured captured-assigned] place
 >   local $3 seen: *mut i32 [:= read assigned] value
->     uses $3: %45 -> %107 consume, %131 lend last
+>     uses $3: %45 -> %107 consume, %130 lend last
 >   local $4 $ref: List[string] [read assigned captured captured-assigned] place
 >   local $5 label: string [:= read assigned] value
->     uses $5: %53 -> %112 consume, %145 consume last
+>     uses $5: %53 -> %111 consume, %144 consume last
 >   local $6 owned: UniqList[usize] [read assigned captured captured-assigned] place
 >   local $8 expected: string [read] value
->     uses $8: %143 -> %146 consume last
+>     uses $8: %142 -> %145 consume last
 >   local $9 reason: string [read] value
->     uses $9: %144 -> %147 consume last
+>     uses $9: %143 -> %146 consume last
 >   local $10 actual: i32 [read] value
->     uses $10: %132 -> %135 lend last
+>     uses $10: %131 -> %134 lend last
 >   local $11 expected: i32 [read] value
->     uses $11: %133 -> %136 lend last
+>     uses $11: %132 -> %135 lend last
 >   local $12 reason: string [read] value
->     uses $12: %134 -> %137 consume last
+>     uses $12: %133 -> %136 consume last
 >   local $13 actual: usize [read] value
->     uses $13: %121 -> %124 lend last
+>     uses $13: %120 -> %123 lend last
 >   local $14 expected: usize [read] value
->     uses $14: %122 -> %125 lend last
+>     uses $14: %121 -> %124 lend last
 >   local $15 reason: string [read] value
->     uses $15: %123 -> %126 consume last
+>     uses $15: %122 -> %125 consume last
 >   local $19 self: &mut UniqList[usize] [read] value
 >     uses $19: %75 -> %77 consume, %81 lend, %86 lend, %92 lend, %100 lend last
 >   local $20 value: usize [read] value
@@ -775,7 +775,7 @@ fn empty_controls() -> void:
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
 >   %6 = Call std/testing/assert_equal[usize] (%2, 0:usize, %5) : ()
->   %152 = Block - : ()
+>   %151 = Block - : ()
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
 >   %7 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
 >   %8 = Store [$30] %7 : ()
@@ -887,13 +887,13 @@ fn empty_controls() -> void:
 >   %104 = LoanEnd [$19] : ()
 >   %74 finds [$6] full
     assert_equal(
->   %116 = Break L3 "" : never
->   %117 = Block - : string
->   %118 = Scope %117 [] : string
->   %119 = Call std/testing/assert_equal[usize] (%115, 5:usize, %118) : ()
+>   %115 = Break L3 "" : never
+>   %116 = Block - : string
+>   %117 = Scope %116 [] : string
+>   %118 = Call std/testing/assert_equal[usize] (%114, 5:usize, %117) : ()
         read_spread(
->   %115 = Call std/rt_tests.stage_case/read_spread[(EmptyResource, Resource, (), string, EmptyResource)] (%105, %114) : usize
->   %115 keeps %105
+>   %114 = Call std/rt_tests.stage_case/read_spread[(EmptyResource, Resource, (), string, EmptyResource)] (%105, %113) : usize
+>   %114 keeps %105
             mixed_size,
 >   %105 = ItemRef #134 [..] : fn(EmptyResource, Resource, (), string, EmptyResource) -> usize
             (EmptyResource {}, Resource { seen: seen, owned: owned }, (), label, EmptyResource {}),
@@ -901,50 +901,49 @@ fn empty_controls() -> void:
 >   %107 = Read copy [$3] : *mut i32
 >   %108 = FlagClear [$6] #37 : ()
 >   %109 = Read move [$6] : UniqList[usize]
->   %110 = Drop [$6] : ()
->   %111 = NewStruct [%107 %109] : Resource
->   %112 = Read copy [$5] : string
->   %113 = NewStruct [] : EmptyResource
->   %114 = NewTuple - [%106 %111 - %112 %113] : (EmptyResource, Resource, (), string, EmptyResource)
+>   %110 = NewStruct [%107 %109] : Resource
+>   %111 = Read copy [$5] : string
+>   %112 = NewStruct [] : EmptyResource
+>   %113 = NewTuple - [%106 %110 - %111 %112] : (EmptyResource, Resource, (), string, EmptyResource)
 >   %109 finds [$6] full
         ),
         5,
     )
     assert_equal(empty_drops, 4, reason="both zero-leaf spread owners drop once")
->   %120 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
->   %121 = Store [$13] %120 : ()
->   %122 = Store [$14] 4:usize : ()
->   %123 = Store [$15] "both zero-leaf spread owners drop once" : ()
->   %124 = Read copy [$13] : usize
->   %125 = Read copy [$14] : usize
->   %126 = Read move [$15] : string
->   %127 = Call std/testing/check_equal[usize] (%124, %125, %126) : ()
->   %128 = Break L2 - : never
->   %129 = Block - : ()
->   %130 = Scope %129 [] : ()
+>   %119 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
+>   %120 = Store [$13] %119 : ()
+>   %121 = Store [$14] 4:usize : ()
+>   %122 = Store [$15] "both zero-leaf spread owners drop once" : ()
+>   %123 = Read copy [$13] : usize
+>   %124 = Read copy [$14] : usize
+>   %125 = Read move [$15] : string
+>   %126 = Call std/testing/check_equal[usize] (%123, %124, %125) : ()
+>   %127 = Break L2 - : never
+>   %128 = Block - : ()
+>   %129 = Scope %128 [] : ()
     assert_equal(*seen, +1, reason="the mixed spread transfers its unique resource once")
->   %131 = Read copy [*$3] : i32
->   %132 = Store [$10] %131 : ()
->   %133 = Store [$11] 1:i32 : ()
->   %134 = Store [$12] "the mixed spread transfers its unique resource once" : ()
->   %135 = Read copy [$10] : i32
->   %136 = Read copy [$11] : i32
->   %137 = Read move [$12] : string
->   %138 = Call std/testing/check_equal[i32] (%135, %136, %137) : ()
->   %139 = Break L1 - : never
->   %140 = Block - : ()
->   %141 = Scope %140 [] : ()
->   %142 = Drop [$3] : ()
+>   %130 = Read copy [*$3] : i32
+>   %131 = Store [$10] %130 : ()
+>   %132 = Store [$11] 1:i32 : ()
+>   %133 = Store [$12] "the mixed spread transfers its unique resource once" : ()
+>   %134 = Read copy [$10] : i32
+>   %135 = Read copy [$11] : i32
+>   %136 = Read move [$12] : string
+>   %137 = Call std/testing/check_equal[i32] (%134, %135, %136) : ()
+>   %138 = Break L1 - : never
+>   %139 = Block - : ()
+>   %140 = Scope %139 [] : ()
+>   %141 = Drop [$3] : ()
     assert_equal(label, "kept", reason="the Copy spread field keeps its caller's count")
->   %143 = Store [$8] "kept" : ()
->   %144 = Store [$9] "the Copy spread field keeps its caller's count" : ()
->   %145 = Read move [$5] : string
->   %146 = Read move [$8] : string
->   %147 = Read move [$9] : string
->   %148 = Call std/testing/check_equal[string] (%145, %146, %147) : ()
->   %149 = Break L0 - : never
->   %150 = Block - : ()
->   %151 = Scope %150 [] : ()
+>   %142 = Store [$8] "kept" : ()
+>   %143 = Store [$9] "the Copy spread field keeps its caller's count" : ()
+>   %144 = Read move [$5] : string
+>   %145 = Read move [$8] : string
+>   %146 = Read move [$9] : string
+>   %147 = Call std/testing/check_equal[string] (%144, %145, %146) : ()
+>   %148 = Break L0 - : never
+>   %149 = Block - : ()
+>   %150 = Scope %149 [] : ()
 >   exit sub 1 drops [$0]
 >   storage sub 0: $2 cell, $4 slot, $6 slot
 >   storage sub 1: $2 cell, $4 cell, $6 cell
@@ -1001,12 +1000,12 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >     uses $9: %33 -> %34 lend, %37 consume last
 >   local $10 count: i64 [read] value
 >     uses $10: %13 -> %14 lend last
->   %0 = Retain %94 Entry local $1 #0 : ()
+>   %0 = Retain %93 Entry local $1 #0 : ()
 fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
     let constructor = delayed_size
 >   %1 = ItemRef #0 [..] : fn!(Resource) -> usize
 >   %2 = Store [$2] %1 : ()
->   %94 = Block %88 : Suspend[usize]
+>   %93 = Block %87 : Suspend[usize]
     if literal:
 >   %3 = Read copy [$0] : bool
 >   %30 = If %3 [%29 -] : ()
@@ -1099,14 +1098,13 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %83 = Read move [$1] : *mut i32
 >   %84 = FlagClear [$4] #11 : ()
 >   %85 = Read move [$4] : UniqList[usize]
->   %86 = Drop [$4] : ()
->   %87 = NewStruct [%83 %85] : Resource
->   %88 = CallValue %82 [%87] : Suspend[usize]
->   %89 = Retain %88 Operation row #0 : ()
->   %90 = Release %88 Operation row #2 : ()
->   %91 = Release %88 Operation arguments #2 : ()
->   %92 = Drop [%87] : ()
->   %93 = Drop [%82] : ()
+>   %86 = NewStruct [%83 %85] : Resource
+>   %87 = CallValue %82 [%86] : Suspend[usize]
+>   %88 = Retain %87 Operation row #0 : ()
+>   %89 = Release %87 Operation row #2 : ()
+>   %90 = Release %87 Operation arguments #2 : ()
+>   %91 = Drop [%86] : ()
+>   %92 = Drop [%82] : ()
 >   %85 finds [$4] full
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$3]

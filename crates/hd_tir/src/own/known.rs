@@ -122,8 +122,9 @@ pub(crate) struct Tables {
     slots: Slots,
     /// Per bit: a place a cleanup suite touches, which nothing empties.
     sticky: Vec<bool>,
-    /// Per local: it lives in a heap cell, a box that a move of its value
-    /// leaves in place; only a `Drop` or a taking `Ref` ends it.
+    /// Per local: in the sub-body walked, it lives in a heap cell, a box
+    /// that a move of its value leaves in place; only a `Drop` or a
+    /// taking `Ref` ends it.
     boxed: Vec<bool>,
     /// Locals and values a cleanup suite touches.
     pin_l: Vec<bool>,
@@ -208,6 +209,13 @@ pub(crate) fn run(
         if root as usize >= n {
             continue;
         }
+        // A local's storage is its sub-body's own row (`Body::storage`,
+        // sorted by sub-body): a heap cell here may be a slot in another.
+        let rows = b.storage.partition_point(|r| r.0.idx() < s)
+            ..b.storage.partition_point(|r| r.0.idx() <= s);
+        for &(_, l, kind) in &b.storage[rows.clone()] {
+            walk.t.boxed[l.idx()] = kind == Storage::Cell;
+        }
         let (t, arena) = (&mut *walk.t, &mut flow.arena);
         t.exit = arena.alloc(None);
         let st = arena.alloc(None);
@@ -233,6 +241,9 @@ pub(crate) fn run(
             }
         }
         arena.free(t.exit);
+        for &(_, l, _) in &b.storage[rows] {
+            t.boxed[l.idx()] = false;
+        }
     }
     t.flow = flow;
     // Rule 1: the drops no path reaches with a count.
@@ -464,9 +475,6 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     fill(&mut t.pin_v, n, false);
     fill(&mut t.entry, locals, false);
     fill(&mut t.boxed, locals, false);
-    for &(_, l, kind) in &b.storage {
-        t.boxed[l.idx()] |= kind == Storage::Cell;
-    }
     fill(&mut t.dropped, n, false);
     t.locs.clear();
     t.vals.clear();

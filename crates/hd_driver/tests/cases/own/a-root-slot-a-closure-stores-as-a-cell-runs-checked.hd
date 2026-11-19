@@ -1,0 +1,29 @@
+# @dump: stdout
+# @build: dev | checked
+# own/a-root-slot-a-closure-stores-as-a-cell-keeps-no-drop-after-its-move
+# run: the checked build finds no leak and no double release.
+fn eat(s: string) -> usize:
+    s.len()
+
+fn rounds(n: usize) -> usize:
+    let mut xs: List[string] = ["a"]
+    for i in 0..n:
+        tag := "r$i"
+        xs = xs.map(fn(x): "$x$tag")
+    let mut total = 0
+    for x in xs:
+        total = total + eat(x)
+    total
+
+fn rounds_cell(n: usize) -> usize:
+    let mut xs: List[string] = ["a"]
+    add := fn() -> void: xs.push("b")
+    for _ in 0..n:
+        add()
+    let mut total = 0
+    for x in xs:
+        total = total + eat(x)
+    total
+
+pub fn main() -> void $ Console:
+    println(rounds(3) + rounds_cell(2))

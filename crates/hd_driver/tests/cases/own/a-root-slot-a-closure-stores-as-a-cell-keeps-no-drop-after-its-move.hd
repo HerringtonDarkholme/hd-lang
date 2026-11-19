@@ -1,0 +1,31 @@
+# @dump: own wat
+# A local that is a slot of the root and a cell of a closure's sub-body
+# (`storage sub 0: slot`, `storage sub 1: cell`): known-null reads each
+# sub-body's own storage row, so the root's whole move of it empties it
+# and the `Drop` after the move goes (the bench `points` shape). A move
+# of a heap cell keeps its drop, which ends the box (`rounds_cell`).
+fn eat(s: string) -> usize:
+    s.len()
+
+fn rounds(n: usize) -> usize:
+    let mut xs: List[string] = ["a"]
+    for i in 0..n:
+        tag := "r$i"
+        xs = xs.map(fn(x): "$x$tag")
+    let mut total = 0
+    for x in xs:
+        total = total + eat(x)
+    total
+
+fn rounds_cell(n: usize) -> usize:
+    let mut xs: List[string] = ["a"]
+    add := fn() -> void: xs.push("b")
+    for _ in 0..n:
+        add()
+    let mut total = 0
+    for x in xs:
+        total = total + eat(x)
+    total
+
+pub fn main() -> void $ Console:
+    println(rounds(3) + rounds_cell(2))
