@@ -1,0 +1,29 @@
+# test: the checker accepts a concrete proof with 64 associated bindings
+# Spec 09 Associated Types: trait.assoc.projection, trait.assoc.projection.depth.
+trait Walk:
+    type Out
+
+impl Walk for i32:
+    type Out = i32
+
+struct Wrap[T]:
+    value: T
+
+impl[T < Walk] Walk for Wrap[T]:
+    type Out = T::Out
+
+type W2[T] = Wrap[Wrap[T]]
+type W4[T] = W2[W2[T]]
+type W8[T] = W4[W4[T]]
+type W16[T] = W8[W8[T]]
+type W32[T] = W16[W16[T]]
+type D63 = W32[W16[W8[W4[W2[Wrap[i32]]]]]]
+
+fn use_chain[T < Walk]() -> i32:
+    let value: Option[T::Out] = .None
+    match value:
+        .None => +7
+        .Some(_) => +8
+
+pub fn main() -> void $ Console:
+    println("${use_chain::[D63]()}")

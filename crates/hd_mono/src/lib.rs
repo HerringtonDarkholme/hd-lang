@@ -587,10 +587,11 @@ pub(crate) fn close(pool: &InternPool, env: &dyn ProgramEnv, s: Ty) -> Ty {
     if pool.has_assoc(s) {
         // An impl's binding may name a function type with a dependency map.
         let types = pool.types();
-        // gap: #2075, a chain past `PROJECTION_DEPTH` bindings stays an
-        // unnormalized projection here: `subst` has no error path, so
-        // `trait-resolution-depth` is the checker's, at the uses it sees.
-        let n = hd_types::solver::normalize_concrete(types, env.impls(), s).unwrap_or(s);
+        // Checked instances have proven the bounds that declare every
+        // projection (`trait.assoc.projection`), including their binding
+        // depth. Invalid TIR stays poison, as for a failed opaque reveal;
+        // never pass an unnormalized projection on as a concrete type.
+        let n = hd_types::solver::normalize_concrete(types, env.impls(), s).unwrap_or(Ty::POISON);
         types.erase_fn_deps(n)
     } else {
         s
