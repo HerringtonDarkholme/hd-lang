@@ -243,6 +243,7 @@ impl Em<'_, '_, '_> {
             .map(|&(_, f)| f);
         let mut first = true;
         for flag in nearest.into_iter().chain(below) {
+            self.count_flag_read();
             let local = self.local(flag)?[0];
             self.f.get(local);
             if !std::mem::take(&mut first) {
@@ -253,6 +254,21 @@ impl Em<'_, '_, '_> {
             self.f.u32(1);
         }
         Ok(())
+    }
+
+    /// Counts one read of a TIR drop flag for the ledger, by the
+    /// statement whose lowering reads it: a `Drop`, a `Store` releasing
+    /// what it overwrites, or another (an exit or unwind release).
+    #[cfg_attr(not(feature = "ledger"), allow(clippy::unused_self))]
+    pub(super) fn count_flag_read(&self) {
+        ledger!(
+            "drop-flag-read/{}",
+            match self.emitting.last().map(|&i| self.b.tags[i as usize]) {
+                Some(Tag::Drop) => "drop",
+                Some(Tag::Store) => "overwrite",
+                _ => "exit-or-unwind",
+            }
+        );
     }
 
     pub(super) fn release_drop_place(&mut self, ls: &[u32], ty: Ty, p: &Place) -> StageResult<()> {

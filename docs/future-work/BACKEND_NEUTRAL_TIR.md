@@ -685,6 +685,7 @@ machine and ownership in TIR, frames and entry points backend ABI;
 | 3a | `closure/with-shared-capture` | 1 | 16 | zero if closures become environment values |
 | 3c | `memflag/{moved-path,dead}-flag-local`, `memlocal/live-flag` | 0 | 121 | zero: folded into TIR flag locals |
 | 3c | `flag-stmt/{cell-slot,local}` | 10 | 11 | stays: the one flag mechanism |
+| 3c | `drop-flag-read/{drop,exit-or-unwind,overwrite}` | 2 | 126 | zero only once exit, unwind and overwrite releases are TIR `Drop`s too (lane 225's design doubt) |
 | 3c | `partial-move/{zeroed-in-place,out-of-cell-zeroed}`, `drop-after-partial-move/*` | 200 | 556 | stays: zeroing (answer 2) |
 | 3c | `partial-move/niche-repairs` | 26 | 96 | stays, read from `hd_layout`'s empty pattern |
 | 5 | `scope/loan-ladder` | 0 | 1 | zero |

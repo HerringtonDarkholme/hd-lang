@@ -1558,6 +1558,7 @@ impl Em<'_, '_, '_> {
             match task {
                 Task::End => self.f.op(I::End),
                 Task::Guard(flag) => {
+                    self.count_flag_read();
                     self.f.get(flag);
                     self.f.op(I::If(wasm_encoder::BlockType::Empty));
                 }
@@ -1569,6 +1570,7 @@ impl Em<'_, '_, '_> {
                     crate::work::moved_paths(plan.fields.len() + under.len());
                     if !plan.own.is_empty() {
                         for (n, &(_, flag)) in under.iter().enumerate() {
+                            self.count_flag_read();
                             let flag = self.local(flag)?[0];
                             self.f.get(flag);
                             if n > 0 {
@@ -1656,6 +1658,7 @@ impl Em<'_, '_, '_> {
             .0
             .map(|f| self.local(f).map(|ls| ls[0]));
         if let Some(live) = live.transpose()? {
+            self.count_flag_read();
             self.f.get(live);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
         }
@@ -1670,6 +1673,7 @@ impl Em<'_, '_, '_> {
             match task {
                 Task::End => self.f.op(I::End),
                 Task::Guard(flag) => {
+                    self.count_flag_read();
                     self.f.get(flag);
                     self.f.op(I::If(wasm_encoder::BlockType::Empty));
                 }
