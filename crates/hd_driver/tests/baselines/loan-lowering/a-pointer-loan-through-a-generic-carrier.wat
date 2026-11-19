@@ -83,7 +83,7 @@
       end
     end
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $p i32) (local $t1 i32) (local $t2 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 35 |     p := box(Slots { items: ["held"] })
     i32.const 1
     call $rt:list_buf
@@ -99,10 +99,10 @@
     i32.const 4
     i32.const 1
     call $rt:new/class-1
-    local.tee $p
+    local.tee $t1
     local.get $t0
     i32.store $heap
-    local.get $p
+    local.get $t1
     ;; 36 |     println(carried(p, p))
     local.tee $t0
     if
@@ -115,25 +115,25 @@
         call $rt:retain_known
       end
     end
-    local.get $p
+    local.get $t1
     if
-      local.get $p
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t1
         call $rt:retain_known
       end
     end
-    local.get $p
+    local.get $t1
     local.get $t0
     call $carried
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 37 |     p.items.push("after")
-    local.get $p
+    local.get $t1
     i32.const 4
     i32.sub
     i32.load $heap
@@ -143,16 +143,16 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $p
+    local.get $t1
     i32.load $heap
     call $rt:list_unique
     local.set $t0
-    local.get $p
+    local.get $t1
     local.get $t0
     i32.store $heap
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $t2
     local.get $t0
     i32.load $heap
     i32.eq
@@ -161,38 +161,38 @@
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
-      local.get $p
+      local.get $t1
       local.get $t0
       i32.store $heap
     end
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t2
+    local.tee $t3
     i32.const 122 ;; &"after"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t3
     i32.const 5
     i32.store $heap offset=20
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 38 |     println(p.items.len())
-    local.get $p
+    local.get $t1
     i32.load $heap
     i32.load $heap offset=4
-    local.get $p
+    local.get $t1
     if
-      local.get $p
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t1
         call $rt:release_ref
       end
     end
@@ -436,7 +436,7 @@
       call $skipped_test
     end
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $p i32) (local $t1 i32) (local $t2 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 35 |     p := box(Slots { items: ["held"] })
     i32.const 1
     call $rt:list_buf
@@ -452,10 +452,10 @@
     i32.const 4
     i32.const 1
     call $rt:new
-    local.tee $p
+    local.tee $t1
     local.get $t0
     i32.store $heap
-    local.get $p
+    local.get $t1
     ;; 36 |     println(carried(p, p))
     local.tee $t0
     if
@@ -472,14 +472,14 @@
     else
       call $skipped_test
     end
-    local.get $p
+    local.get $t1
     if
-      local.get $p
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t1
         call $rt:retain_known
       else
         call $skipped_test
@@ -487,14 +487,14 @@
     else
       call $skipped_test
     end
-    local.get $p
+    local.get $t1
     local.get $t0
     call $carried
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 37 |     p.items.push("after")
-    local.get $p
+    local.get $t1
     i32.const 4
     i32.sub
     i32.load $heap
@@ -504,16 +504,16 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $p
+    local.get $t1
     i32.load $heap
     call $rt:list_unique
     local.set $t0
-    local.get $p
+    local.get $t1
     local.get $t0
     i32.store $heap
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $t2
     local.get $t0
     i32.load $heap
     i32.eq
@@ -522,38 +522,38 @@
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
-      local.get $p
+      local.get $t1
       local.get $t0
       i32.store $heap
     end
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t2
+    local.tee $t3
     i32.const 128 ;; &"after"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t3
     i32.const 5
     i32.store $heap offset=20
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 38 |     println(p.items.len())
-    local.get $p
+    local.get $t1
     i32.load $heap
     i32.load $heap offset=4
-    local.get $p
+    local.get $t1
     if
-      local.get $p
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t1
         call $rt:release_ref
       else
         call $skipped_test
@@ -789,7 +789,7 @@
     ;; 18 |     if change:
     end
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $p i32) (local $t1 i32) (local $t2 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 35 |     p := box(Slots { items: ["held"] })
     i32.const 1
     call $rt:list_buf
@@ -805,28 +805,28 @@
     i32.const 4
     i32.const 1
     call $rt:new/class-1
-    local.tee $p
+    local.tee $t1
     local.get $t0
     i32.store $heap
-    local.get $p
+    local.get $t1
     ;; 36 |     println(carried(p, p))
     local.set $t0
-    local.get $p
+    local.get $t1
     local.get $t0
     call $carried
     local.set $t0
-    local.tee $t1
+    local.tee $t2
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 37 |     p.items.push("after")
-    local.get $p
+    local.get $t1
     i32.const 4
     i32.sub
     i32.load $heap
@@ -836,16 +836,16 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $p
+    local.get $t1
     i32.load $heap
     call $rt:list_unique
     local.set $t0
-    local.get $p
+    local.get $t1
     local.get $t0
     i32.store $heap
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $t2
     local.get $t0
     i32.load $heap
     i32.eq
@@ -854,38 +854,38 @@
       i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
-      local.get $p
+      local.get $t1
       local.get $t0
       i32.store $heap
     end
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t2
+    local.tee $t3
     i32.const 122 ;; &"after"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t3
     i32.const 5
     i32.store $heap offset=20
     local.get $t0
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 38 |     println(p.items.len())
-    local.get $p
+    local.get $t1
     i32.load $heap
     i32.load $heap offset=4
-    local.get $p
+    local.get $t1
     if
-      local.get $p
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $p
+        local.get $t1
         call $rt:release_ref'2
       end
     end

@@ -202,17 +202,6 @@
         local.get $provider0
         i32.store $heap
         local.get $provider0.vtable
-        i32.eqz
-        if
-          i32.const 4
-          i32.const 1
-          call $rt:new/class-1
-          local.tee $provider0.vtable
-          local.get $t2
-          i32.load $heap offset=16
-          i32.store $heap
-        end
-        local.get $provider0.vtable
         if
           local.get $provider0.vtable
           i32.const 8
@@ -238,16 +227,16 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=20
+        i32.store $heap offset=16
     ;; 32 |     println(held!(p, p))
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=24
+        i32.store $heap offset=20
         local.get $t2
-        i32.load $heap offset=24
+        i32.load $heap offset=20
         local.tee $provider0
         if
           local.get $provider0
@@ -260,13 +249,13 @@
           end
         end
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=28
+        i32.store $heap offset=24
         local.get $t2
-        i32.load $heap offset=28
+        i32.load $heap offset=24
         local.tee $provider0.vtable
         if
           local.get $provider0.vtable
@@ -305,9 +294,9 @@
           end
           local.get $provider0.vtable
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=20
           local.get $t2
-          i32.load $heap offset=28
+          i32.load $heap offset=24
           local.get $t2
           i32.load $heap offset=8
           local.get $t2
@@ -318,10 +307,10 @@
           local.set $provider1.vtable
           local.get $t2
           i32.const 0
-          i32.store $heap offset=24
+          i32.store $heap offset=20
           local.get $t2
           i32.const 0
-          i32.store $heap offset=28
+          i32.store $heap offset=24
           local.get $t3
           if
             local.get $t3
@@ -473,7 +462,7 @@
       call $"println[string]"
     ;; 33 |     p.items.push("after")
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.const 4
       i32.sub
       i32.load $heap
@@ -484,12 +473,12 @@
         unreachable
       end
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       call $rt:list_unique
       local.set $provider0
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.get $provider0
       i32.store $heap
       local.get $provider0
@@ -504,7 +493,7 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $provider0
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.get $provider0
         i32.store $heap
       end
@@ -526,11 +515,11 @@
       i32.store $heap offset=4
     ;; 34 |     println(p.items.len())
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       i32.load $heap offset=4
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.tee $provider0
       if
         local.get $provider0
@@ -546,7 +535,7 @@
       end
       local.get $t2
       i32.const 0
-      i32.store $heap offset=20
+      i32.store $heap offset=16
       local.get $t2
       i32.load $heap
       local.get $t2
@@ -555,7 +544,7 @@
     ;; 31 |     p := box(Slots { items: ["held"] })
     end
     local.get $t2
-    i32.load $heap offset=20
+    i32.load $heap offset=16
     local.tee $provider0
     if
       local.get $provider0
@@ -1792,17 +1781,6 @@
         local.get $provider0
         i32.store $heap
         local.get $provider0.vtable
-        i32.eqz
-        if
-          i32.const 4
-          i32.const 1
-          call $rt:new
-          local.tee $provider0.vtable
-          local.get $t2
-          i32.load $heap offset=16
-          i32.store $heap
-        end
-        local.get $provider0.vtable
         if
           local.get $provider0.vtable
           i32.const 8
@@ -1836,16 +1814,16 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=20
+        i32.store $heap offset=16
     ;; 32 |     println(held!(p, p))
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=24
+        i32.store $heap offset=20
         local.get $t2
-        i32.load $heap offset=24
+        i32.load $heap offset=20
         local.tee $provider0
         if
           local.get $provider0
@@ -1862,13 +1840,13 @@
           call $skipped_test
         end
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=28
+        i32.store $heap offset=24
         local.get $t2
-        i32.load $heap offset=28
+        i32.load $heap offset=24
         local.tee $provider0.vtable
         if
           local.get $provider0.vtable
@@ -1911,9 +1889,9 @@
           end
           local.get $provider0.vtable
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=20
           local.get $t2
-          i32.load $heap offset=28
+          i32.load $heap offset=24
           local.get $t2
           i32.load $heap offset=8
           local.get $t2
@@ -1924,10 +1902,10 @@
           local.set $provider1.vtable
           local.get $t2
           i32.const 0
-          i32.store $heap offset=24
+          i32.store $heap offset=20
           local.get $t2
           i32.const 0
-          i32.store $heap offset=28
+          i32.store $heap offset=24
           local.get $t3
           if
             local.get $t3
@@ -2083,7 +2061,7 @@
       call $"println[string]"
     ;; 33 |     p.items.push("after")
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.const 4
       i32.sub
       i32.load $heap
@@ -2094,12 +2072,12 @@
         unreachable
       end
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       call $rt:list_unique
       local.set $provider0
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.get $provider0
       i32.store $heap
       local.get $provider0
@@ -2114,7 +2092,7 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $provider0
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.get $provider0
         i32.store $heap
       end
@@ -2136,11 +2114,11 @@
       i32.store $heap offset=4
     ;; 34 |     println(p.items.len())
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       i32.load $heap offset=4
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.tee $provider0
       if
         local.get $provider0
@@ -2160,7 +2138,7 @@
       end
       local.get $t2
       i32.const 0
-      i32.store $heap offset=20
+      i32.store $heap offset=16
       local.get $t2
       i32.load $heap
       local.get $t2
@@ -2169,7 +2147,7 @@
     ;; 31 |     p := box(Slots { items: ["held"] })
     end
     local.get $t2
-    i32.load $heap offset=20
+    i32.load $heap offset=16
     local.tee $provider0
     if
       local.get $provider0
@@ -3458,17 +3436,6 @@
         local.get $provider0
         i32.store $heap
         local.get $provider0.vtable
-        i32.eqz
-        if
-          i32.const 4
-          i32.const 1
-          call $rt:new/class-1
-          local.tee $provider0.vtable
-          local.get $t2
-          i32.load $heap offset=16
-          i32.store $heap
-        end
-        local.get $provider0.vtable
         if
           local.get $provider0.vtable
           i32.const 8
@@ -3494,16 +3461,16 @@
         end
         local.get $t2
         local.get $provider0.vtable
-        i32.store $heap offset=20
+        i32.store $heap offset=16
     ;; 32 |     println(held!(p, p))
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=24
+        i32.store $heap offset=20
         local.get $t2
-        i32.load $heap offset=24
+        i32.load $heap offset=20
         local.tee $provider0
         if
           local.get $provider0
@@ -3516,13 +3483,13 @@
           end
         end
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.set $provider0
         local.get $t2
         local.get $provider0
-        i32.store $heap offset=28
+        i32.store $heap offset=24
         local.get $t2
-        i32.load $heap offset=28
+        i32.load $heap offset=24
         local.tee $provider0.vtable
         if
           local.get $provider0.vtable
@@ -3561,9 +3528,9 @@
           end
           local.get $provider0.vtable
           local.get $t2
-          i32.load $heap offset=24
+          i32.load $heap offset=20
           local.get $t2
-          i32.load $heap offset=28
+          i32.load $heap offset=24
           local.get $t2
           i32.load $heap offset=8
           local.get $t2
@@ -3574,10 +3541,10 @@
           local.set $provider1.vtable
           local.get $t2
           i32.const 0
-          i32.store $heap offset=24
+          i32.store $heap offset=20
           local.get $t2
           i32.const 0
-          i32.store $heap offset=28
+          i32.store $heap offset=24
           local.get $t3
           if
             local.get $t3
@@ -3734,7 +3701,7 @@
       end
     ;; 33 |     p.items.push("after")
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.const 4
       i32.sub
       i32.load $heap
@@ -3745,12 +3712,12 @@
         unreachable
       end
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       call $rt:list_unique
       local.set $provider0
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.get $provider0
       i32.store $heap
       local.get $provider0
@@ -3765,7 +3732,7 @@
         call_indirect $table0 (param i32) (result i32)
         local.set $provider0
         local.get $t2
-        i32.load $heap offset=20
+        i32.load $heap offset=16
         local.get $provider0
         i32.store $heap
       end
@@ -3787,11 +3754,11 @@
       i32.store $heap offset=4
     ;; 34 |     println(p.items.len())
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       i32.load $heap
       i32.load $heap offset=4
       local.get $t2
-      i32.load $heap offset=20
+      i32.load $heap offset=16
       local.tee $provider0
       if
         local.get $provider0
@@ -3807,7 +3774,7 @@
       end
       local.get $t2
       i32.const 0
-      i32.store $heap offset=20
+      i32.store $heap offset=16
       local.get $t2
       i32.load $heap
       local.get $t2
@@ -3816,7 +3783,7 @@
     ;; 31 |     p := box(Slots { items: ["held"] })
     end
     local.get $t2
-    i32.load $heap offset=20
+    i32.load $heap offset=16
     local.tee $provider0
     if
       local.get $provider0
