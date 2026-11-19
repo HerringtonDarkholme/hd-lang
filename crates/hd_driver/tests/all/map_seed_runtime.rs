@@ -7,15 +7,8 @@ use std::io::Write as _;
 use std::ops::Range;
 use std::process::Stdio;
 
-fn leb(bytes: &mut Vec<u8>, mut value: u32) {
-    loop {
-        let next = (value & 127) as u8;
-        value >>= 7;
-        bytes.push(next | if value == 0 { 0 } else { 128 });
-        if value == 0 {
-            break;
-        }
-    }
+fn leb(bytes: &mut Vec<u8>, value: u32) {
+    hd_base::leb::put(bytes, u64::from(value));
 }
 
 /// Add exports only: instruction bytes, indices, types and memory stay intact.

@@ -1016,6 +1016,7 @@ dependencies = [
  "hd_diag",
  "hd_driver",
  "hd_project",
+ "hd_run",
  "hd_sched",
  "hd_syntax",
  "wasmprinter 0.261.0",

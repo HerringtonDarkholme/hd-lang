@@ -69,11 +69,7 @@ mod tests {
     use hd_types::{Ty, TyList};
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, parts], {
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }
@@ -86,16 +82,14 @@ mod tests {
         fn may_write(&self, _: &Callee) -> bool {
             false
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     fn body(op: IntrinsicOp, mode: ReadMode, arity: usize, repeat: bool, extra: bool) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

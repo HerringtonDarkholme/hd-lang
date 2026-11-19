@@ -35,48 +35,38 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{BodyKind, Callee, TirBuilder, TirSink, Topology, local_flags, verify_owned};
-    use crate::own::{Pass, counts, splice, tests::Cx};
+    use crate::ir::{BodyKind, TirBuilder, TirSink, Topology, local_flags, verify_owned};
+    use crate::own::{counts, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
     struct Facts(bool);
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn suspending(&self, _: DefId) -> bool {
+                self.0
+            }
+            fn function_suspends(&self, ty: Ty) -> bool {
+                ty == Ty(45)
+            }
+            fn may_frame_referent(&self, ty: Ty) -> bool {
+                matches!(ty, Ty(43 | 44))
+            }
+            fn counted(&self, ty: Ty) -> bool {
+                Cx.counted(ty) || ty == Ty(43)
+            }
         }
-
-        fn suspending(&self, _: DefId) -> bool {
-            self.0
-        }
-        fn function_suspends(&self, ty: Ty) -> bool {
-            ty == Ty(45)
-        }
-        fn may_frame_referent(&self, ty: Ty) -> bool {
-            matches!(ty, Ty(43 | 44))
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty) || ty == Ty(43)
-        }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, t: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(t, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, t: Ty, f: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(t, f, out)
-        }
-        fn received(&self, d: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(d, k, n)
-        }
-        fn holds_coll(&self, t: Ty) -> bool {
-            Cx.holds_coll(t)
-        }
-    }
+    );
 
     fn body() -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

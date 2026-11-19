@@ -2694,51 +2694,45 @@ mod lending_tests {
         copies: Tri,
         drop: Tri,
     }
-    impl OwnCx for CopyFacts {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            ty == Ty::STRING
-        }
-        fn copies(&self, _: Ty) -> Tri {
-            self.copies
-        }
-        fn holds_drop(&self, _: Ty) -> Tri {
-            self.drop
-        }
-        fn pass(&self, c: &Callee, _: usize, _: usize) -> Pass {
-            if matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(88)) {
-                Pass::Owned
-            } else {
-                Pass::Lent
+    crate::own::test_cx::own_cx!(
+        CopyFacts,
+        [temporary_owner_name, pass_value, parts, received],
+        {
+            fn counted(&self, ty: Ty) -> bool {
+                ty == Ty::STRING
+            }
+            fn copies(&self, _: Ty) -> Tri {
+                self.copies
+            }
+            fn holds_drop(&self, _: Ty) -> Tri {
+                self.drop
+            }
+            fn pass(&self, c: &Callee, _: usize, _: usize) -> Pass {
+                if matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(88)) {
+                    Pass::Owned
+                } else {
+                    Pass::Lent
+                }
+            }
+
+            fn may_write(&self, _: &Callee) -> bool {
+                false
+            }
+            fn call_reads_storage_only(&self, c: &Callee) -> bool {
+                matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+            }
+
+            fn holds_coll(&self, _: Ty) -> bool {
+                false
+            }
+            fn suspending(&self, _: DefId) -> bool {
+                false
+            }
+            fn parameter_count(&self, _: DefId) -> Option<usize> {
+                Some(1)
             }
         }
-        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
-        fn may_write(&self, _: &Callee) -> bool {
-            false
-        }
-        fn call_reads_storage_only(&self, c: &Callee) -> bool {
-            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(7))
-        }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
-        fn holds_coll(&self, _: Ty) -> bool {
-            false
-        }
-        fn suspending(&self, _: DefId) -> bool {
-            false
-        }
-        fn parameter_count(&self, _: DefId) -> Option<usize> {
-            Some(1)
-        }
-    }
+    );
 
     fn copied_body(width: usize, depth: usize, read_again: bool) -> Result<(Body, u32), String> {
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
@@ -2910,38 +2904,32 @@ mod lending_tests {
     }
 
     struct ReadOnly;
-    impl OwnCx for ReadOnly {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
+    crate::own::test_cx::own_cx!(
+        ReadOnly,
+        [temporary_owner_name, pass_value, parts, received],
+        {
+            fn counted(&self, ty: Ty) -> bool {
+                ty == Ty::STRING
+            }
+            fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
+                Pass::Lent
+            }
+
+            fn may_write(&self, c: &Callee) -> bool {
+                matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(9))
+            }
+
+            fn holds_coll(&self, _: Ty) -> bool {
+                false
+            }
+            fn holds_ref(&self, ty: Ty) -> bool {
+                ty == LOCAL_REF
+            }
+            fn suspending(&self, _: DefId) -> bool {
+                false
+            }
         }
-        fn counted(&self, ty: Ty) -> bool {
-            ty == Ty::STRING
-        }
-        fn pass(&self, _: &Callee, _: usize, _: usize) -> Pass {
-            Pass::Lent
-        }
-        fn pass_value(&self, _: Ty, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            matches!(c, Callee::Item { def, .. } if *def == DefId::from_raw(9))
-        }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Owned
-        }
-        fn holds_coll(&self, _: Ty) -> bool {
-            false
-        }
-        fn holds_ref(&self, ty: Ty) -> bool {
-            ty == LOCAL_REF
-        }
-        fn suspending(&self, _: DefId) -> bool {
-            false
-        }
-    }
+    );
 
     fn call(b: &mut TirBuilder, def: u32, args: &[Ref], ty: Ty) -> Ref {
         b.call(
@@ -3320,10 +3308,7 @@ mod aggregate_identity_tests {
         queries: Cell<usize>,
         reject: u8,
     }
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, may_write], {
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING || ty.0 >= BASE
         }
@@ -3348,9 +3333,7 @@ mod aggregate_identity_tests {
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
-        fn may_write(&self, _: &Callee) -> bool {
-            true
-        }
+
         fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
             self.queries.set(self.queries.get() + 1);
             out.clear();
@@ -3380,7 +3363,7 @@ mod aggregate_identity_tests {
             ]);
             true
         }
-    }
+    });
 
     fn generated(width: usize, depth: usize, second_string: bool) -> (Body, Vec<(u32, u32)>) {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

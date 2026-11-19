@@ -13,40 +13,8 @@ fn errors(b: &ReplBuild) -> Vec<String> {
 }
 
 /// The names of a module's exports.
-fn exports(wasm: &[u8]) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut at = 8;
-    // The export section (id 7), read by hand: a count, then each name,
-    // its kind byte and its index.
-    let leb = |bytes: &[u8], at: &mut usize| {
-        let (mut value, mut shift) = (0usize, 0);
-        loop {
-            let b = bytes[*at];
-            *at += 1;
-            value |= usize::from(b & 0x7f) << shift;
-            shift += 7;
-            if b < 0x80 {
-                return value;
-            }
-        }
-    };
-    while at < wasm.len() {
-        let id = wasm[at];
-        at += 1;
-        let size = leb(wasm, &mut at);
-        let end = at + size;
-        if id == 7 {
-            let count = leb(wasm, &mut at);
-            for _ in 0..count {
-                let len = leb(wasm, &mut at);
-                names.push(String::from_utf8_lossy(&wasm[at..at + len]).into_owned());
-                at += len + 1;
-                leb(wasm, &mut at);
-            }
-        }
-        at = end;
-    }
-    names
+fn exports(wasm: &[u8]) -> Result<Vec<String>, String> {
+    hd_run::module_exports(wasm)
 }
 
 /// A started session.
@@ -73,7 +41,7 @@ fn joined(s: &mut Session, text: &str) -> ReplBuild {
 /// binding, functions that read it, calls, and a redeclared name. Each
 /// input's module imports the earlier initialized modules.
 #[test]
-fn a_session_returns_one_program_per_input() {
+fn a_session_returns_one_program_per_input() -> Result<(), String> {
     let mut s = started(&[]);
     let rate = joined(&mut s, "rate := +3\n");
     assert_eq!(rate.input, 1);
@@ -81,14 +49,14 @@ fn a_session_returns_one_program_per_input() {
     joined(&mut s, "fn total() -> i32: price(+2)\n");
     let call = joined(&mut s, "total()\n");
     assert_eq!(call.input, 4);
-    let names = exports(call.wasm.as_deref().expect("a module"));
+    let names = exports(call.wasm.as_deref().expect("a module"))?;
     assert!(names.contains(&"hd.init.4".to_owned()), "{names:?}");
     assert!(names.contains(&"hd.poll.4".to_owned()), "{names:?}");
     for n in 1..4 {
         assert!(!names.contains(&format!("hd.init.{n}")), "{names:?}");
         assert!(!names.contains(&format!("hd.poll.{n}")), "{names:?}");
     }
-    let base_names = exports(rate.wasm.as_deref().expect("base module"));
+    let base_names = exports(rate.wasm.as_deref().expect("base module"))?;
     assert!(base_names.iter().any(|n| n == "hd.reset"), "{base_names:?}");
     let wat = wasmprinter::print_bytes(call.wasm.as_deref().unwrap()).unwrap();
     assert!(wat.contains("\"hd:session:"), "{wat}");
@@ -106,13 +74,14 @@ fn a_session_returns_one_program_per_input() {
     // A `let` binding is assigned, not declared again.
     joined(&mut s, "let count = +1\n");
     joined(&mut s, "count = count + 1\n");
+    Ok(())
 }
 
 /// An input that panicked stays in the program but adds nothing
 /// (`cli.repl.panic.binding`); one that did not run, or did not build,
 /// is dropped. Their names stay free.
 #[test]
-fn a_failed_input_does_not_join() {
+fn a_failed_input_does_not_join() -> Result<(), String> {
     let mut s = started(&[]);
     let panicked = s.repl_input("x := 1\n").expect("input");
     assert!(panicked.wasm.is_some(), "{:?}", errors(&panicked));
@@ -133,7 +102,7 @@ fn a_failed_input_does_not_join() {
     // Failed input code remains in its initialized epoch, although the
     // compiler hides its declarations from subsequent source inputs.
     let bytes = x.wasm.as_deref().expect("a module");
-    let names = exports(bytes);
+    let names = exports(bytes)?;
     assert!(!names.iter().any(|n| n == "hd.init.1"), "{names:?}");
     let wat = wasmprinter::print_bytes(bytes).unwrap();
     assert!(wat.contains("\"hd:session:0\""), "{wat}");
@@ -144,8 +113,9 @@ fn a_failed_input_does_not_join() {
     let broken = s.repl_input("y := missing\n").expect("input");
     assert!(broken.wasm.is_none());
     let y = joined(&mut s, "y := x\nz := 4\n");
-    let names = exports(y.wasm.as_deref().expect("a module"));
+    let names = exports(y.wasm.as_deref().expect("a module"))?;
     assert!(!names.iter().any(|n| n == "hd.init.4"), "{names:?}");
+    Ok(())
 }
 
 /// The session acts as code inside `src/lib.hd` (`cli.repl.package.lib`).
@@ -235,7 +205,7 @@ fn dropped_inputs_do_not_commit_their_initialized_module_abi() {
 /// The final historical build is a self-contained base. The next live
 /// input imports it as epoch zero, regardless of the source input count.
 #[test]
-fn rebuilding_sources_publishes_one_initialized_base_abi() {
+fn rebuilding_sources_publishes_one_initialized_base_abi() -> Result<(), String> {
     let mut session = started(&[]);
     let one = session
         .repl_rebuild_input_as(1, "let count = +1\n")
@@ -246,7 +216,7 @@ fn rebuilding_sources_publishes_one_initialized_base_abi() {
         .repl_rebuild_input_as(2, "count = count + 1\n")
         .unwrap();
     assert!(errors(&two).is_empty(), "{:?}", errors(&two));
-    let names = exports(two.wasm.as_deref().unwrap());
+    let names = exports(two.wasm.as_deref().unwrap())?;
     assert!(names.iter().any(|name| name == "hd.init.1"));
     assert!(names.iter().any(|name| name == "hd.init.2"));
     let base = wasmprinter::print_bytes(two.wasm.as_deref().unwrap()).unwrap();
@@ -256,4 +226,5 @@ fn rebuilding_sources_publishes_one_initialized_base_abi() {
     let tail = wasmprinter::print_bytes(three.wasm.as_deref().unwrap()).unwrap();
     assert!(tail.contains("\"hd:session:0\""), "{tail}");
     assert!(!tail.contains("\"hd:session:1\""), "{tail}");
+    Ok(())
 }

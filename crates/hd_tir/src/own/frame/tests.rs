@@ -16,10 +16,7 @@ struct Cx {
     transfers: Cell<usize>,
 }
 
-impl OwnCx for Cx {
-    fn temporary_owner_name(&self) -> Symbol {
-        Symbol::NONE
-    }
+crate::own::test_cx::own_cx!(Cx, [temporary_owner_name, parts, received], {
     fn counted(&self, ty: Ty) -> bool {
         ty == Ty::STRING || ty == COUNTED || ty == MIXED
     }
@@ -38,12 +35,7 @@ impl OwnCx for Cx {
     fn suspending(&self, _: DefId) -> bool {
         false
     }
-    fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-        false
-    }
-    fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-        Pass::Owned
-    }
+
     fn holds_coll(&self, _: Ty) -> bool {
         false
     }
@@ -55,7 +47,7 @@ impl OwnCx for Cx {
         self.classifications.set(self.classifications.get() + 1);
         ty == COUNTED
     }
-}
+});
 
 fn call(b: &mut TirBuilder, args: &[Ref], ty: Ty) -> Ref {
     b.call(

@@ -475,10 +475,7 @@ mod tests {
 
     /// Counts its reference-type queries: one per unpromoted `Ref`.
     struct Counting(std::cell::Cell<usize>);
-    impl OwnCx for Counting {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Counting, [temporary_owner_name, parts], {
         fn reference_target(&self, _: Ty) -> Option<Ty> {
             self.0.set(self.0.get() + 1);
             None
@@ -495,16 +492,14 @@ mod tests {
         fn may_write(&self, _: &crate::ir::Callee) -> bool {
             false
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> crate::own::Pass {
             crate::own::Pass::Owned
         }
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     /// `n` cell locals, each referenced once by a call's argument.
     fn referenced_calls(n: u32) -> Body {

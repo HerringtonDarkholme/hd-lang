@@ -4354,11 +4354,7 @@ mod tests {
     /// is, and every parameter is a value parameter.
     pub(crate) struct Counts;
 
-    impl crate::own::OwnCx for Counts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
+    crate::own::test_cx::own_cx!(Counts, [temporary_owner_name, may_write], {
         fn suspending(&self, _: DefId) -> bool {
             false
         }
@@ -4371,9 +4367,7 @@ mod tests {
         fn pass_value(&self, _: Ty, _: usize, _: usize) -> crate::own::Pass {
             crate::own::Pass::Owned
         }
-        fn may_write(&self, _: &Callee) -> bool {
-            true
-        }
+
         fn parts(&self, _: Ty, _: Option<u32>, out: &mut Vec<Ty>) -> bool {
             out.clear();
             false
@@ -4384,7 +4378,7 @@ mod tests {
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     /// Invariant 22: the checker's TIR has no ownership: no decided read
     /// mode, no ownership statement, no exit set, cancel block or region row.

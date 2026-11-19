@@ -47,51 +47,39 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
+        BodyKind, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
     };
-    use crate::own::{Pass, counts as statements, splice, tests::Cx};
+    use crate::own::{counts as statements, splice};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
-
-        fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
-            match ty {
-                Ty(43) => args != 2,
-                Ty(44) => args != 1,
-                Ty(45) => true, // Unresolved Tuple-bounded inputs.
-                _ => false,     // A cold constructor or a non-function value.
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            counted,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn function_spreads_arguments(&self, ty: Ty, args: usize) -> bool {
+                match ty {
+                    Ty(43) => args != 2,
+                    Ty(44) => args != 1,
+                    Ty(45) => true, // Unresolved Tuple-bounded inputs.
+                    _ => false,     // A cold constructor or a non-function value.
+                }
+            }
+            fn function_has_requirement_row(&self, ty: Ty) -> bool {
+                ty == Ty(45)
             }
         }
-        fn function_has_requirement_row(&self, ty: Ty) -> bool {
-            ty == Ty(45)
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
-        }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(item, k, n)
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     fn body(ty: Ty, constant: bool, n: usize) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

@@ -257,39 +257,27 @@ mod tests {
     }
 
     struct Frames(bool);
-    impl OwnCx for Frames {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
+    crate::own::test_cx::own_cx!(
+        Frames,
+        [
+            temporary_owner_name,
+            counted,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn suspending(&self, _: DefId) -> bool {
+                self.0
+            }
+            fn function_suspends(&self, ty: Ty) -> bool {
+                ty == Ty(43)
+            }
         }
-
-        fn suspending(&self, _: DefId) -> bool {
-            self.0
-        }
-        fn function_suspends(&self, ty: Ty) -> bool {
-            ty == Ty(43)
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
-        }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> super::super::Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, t: Ty, k: usize, n: usize) -> super::super::Pass {
-            Cx.pass_value(t, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, t: Ty, f: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(t, f, out)
-        }
-        fn received(&self, d: DefId, k: usize, n: usize) -> super::super::Pass {
-            Cx.received(d, k, n)
-        }
-        fn holds_coll(&self, t: Ty) -> bool {
-            Cx.holds_coll(t)
-        }
-    }
+    );
 
     #[test]
     fn no_child_owner_for_join_only_no_point_or_nonsuspending_bodies() {

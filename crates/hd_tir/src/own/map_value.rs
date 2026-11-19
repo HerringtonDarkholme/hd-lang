@@ -58,40 +58,33 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{
-        BodyKind, Callee, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
+        BodyKind, ReadMode, TirBuilder, TirSink, Topology, count, local_flags, verify_owned,
     };
     use crate::own::{Pass, counts as statements, splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            holds_coll
+        ],
+        {
+            fn counted(&self, ty: Ty) -> bool {
+                matches!(ty, Ty(43 | 45 | 47)) || Cx.counted(ty)
+            }
 
-        fn counted(&self, ty: Ty) -> bool {
-            matches!(ty, Ty(43 | 45 | 47)) || Cx.counted(ty)
+            fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+                Pass::Lent
+            }
         }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Lent
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     fn body(op: IntrinsicOp, ty: Ty) -> Body {
         body_with_key(op, ty, Ty::STRING, true)

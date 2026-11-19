@@ -33,33 +33,26 @@ mod tests {
     use hd_types::{Ty, TyList};
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(
+        Facts,
+        [
+            temporary_owner_name,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            holds_coll
+        ],
+        {
+            fn counted(&self, ty: Ty) -> bool {
+                matches!(ty, Ty(43 | 45 | 47)) || Cx.counted(ty)
+            }
 
-        fn counted(&self, ty: Ty) -> bool {
-            matches!(ty, Ty(43 | 45 | 47)) || Cx.counted(ty)
+            fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+                Pass::Lent
+            }
         }
-        fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(c, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, c: &Callee) -> bool {
-            Cx.may_write(c)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
-            Pass::Lent
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     fn body(tag: Tag, ty: Ty) -> Body {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);

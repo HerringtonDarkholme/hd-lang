@@ -62,6 +62,8 @@ pub mod flow;
 pub(crate) mod frame;
 pub(crate) mod join_results;
 mod local_refs;
+#[cfg(test)]
+pub(crate) mod test_cx;
 pub(crate) mod waker;
 pub use frame::store_finds_empty;
 mod effect_places;
@@ -2476,36 +2478,24 @@ pub(crate) mod tests {
     fn a_local_read_once_after_its_store_forwards_its_value() {
         /// [`Cx`] whose strings hold no reference.
         struct NoRefs;
-        impl super::OwnCx for NoRefs {
-            fn temporary_owner_name(&self) -> hd_base::Symbol {
-                hd_base::Symbol::NONE
+        crate::own::test_cx::own_cx!(
+            NoRefs,
+            [
+                temporary_owner_name,
+                counted,
+                pass,
+                pass_value,
+                may_write,
+                parts,
+                received,
+                holds_coll
+            ],
+            {
+                fn holds_ref(&self, _: Ty) -> bool {
+                    false
+                }
             }
-
-            fn counted(&self, ty: Ty) -> bool {
-                Cx.counted(ty)
-            }
-            fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-                Cx.pass(c, k, n)
-            }
-            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-                Cx.pass_value(ty, k, n)
-            }
-            fn may_write(&self, c: &Callee) -> bool {
-                Cx.may_write(c)
-            }
-            fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-                Cx.parts(ty, v, out)
-            }
-            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-                Cx.received(item, k, n)
-            }
-            fn holds_coll(&self, ty: Ty) -> bool {
-                Cx.holds_coll(ty)
-            }
-            fn holds_ref(&self, _: Ty) -> bool {
-                false
-            }
-        }
+        );
         let text = passes_in(
             &NoRefs,
             |b| {
@@ -3584,88 +3574,71 @@ pub(crate) mod tests {
     /// [`Cx`] for a body that does not suspend, which has a summary.
     struct Flat;
 
-    impl super::OwnCx for Flat {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(
+        Flat,
+        [
+            temporary_owner_name,
+            counted,
+            pass,
+            pass_value,
+            may_write,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn suspending(&self, _: DefId) -> bool {
+                false
+            }
 
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
+            fn holds_drop(&self, _: Ty) -> Tri {
+                Tri::No
+            }
         }
-        fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
-            Cx.pass(callee, k, n)
-        }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, callee: &Callee) -> bool {
-            Cx.may_write(callee)
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(item, k, n)
-        }
-        fn suspending(&self, _: DefId) -> bool {
-            false
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-        fn holds_drop(&self, _: Ty) -> Tri {
-            Tri::No
-        }
-    }
+    );
 
     /// A flat context whose four small definition IDs model the raw-memory
     /// relations used by the write-summary tests below.
     struct Memory;
 
-    impl super::OwnCx for Memory {
-        fn temporary_owner_name(&self) -> hd_base::Symbol {
-            hd_base::Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(
+        Memory,
+        [
+            temporary_owner_name,
+            counted,
+            pass_value,
+            parts,
+            received,
+            holds_coll
+        ],
+        {
+            fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
+                match callee {
+                    Callee::Item { def, .. } if def.raw() == 13 => Pass::Owned,
+                    _ => Cx.pass(callee, k, n),
+                }
+            }
 
-        fn counted(&self, ty: Ty) -> bool {
-            Cx.counted(ty)
-        }
-        fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
-            match callee {
-                Callee::Item { def, .. } if def.raw() == 13 => Pass::Owned,
-                _ => Cx.pass(callee, k, n),
+            fn may_write(&self, _: &Callee) -> bool {
+                false
+            }
+            fn call_memory(&self, callee: &Callee) -> super::CallMemory {
+                match callee {
+                    Callee::Item { def, .. } => match def.raw() {
+                        10 => super::CallMemory::Allocate,
+                        11 => super::CallMemory::Derive(0),
+                        12 => super::CallMemory::Write(0),
+                        _ => super::CallMemory::None,
+                    },
+                    Callee::TraitMethod { .. } => super::CallMemory::None,
+                }
+            }
+
+            fn suspending(&self, _: DefId) -> bool {
+                false
             }
         }
-        fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-            Cx.pass_value(ty, k, n)
-        }
-        fn may_write(&self, _: &Callee) -> bool {
-            false
-        }
-        fn call_memory(&self, callee: &Callee) -> super::CallMemory {
-            match callee {
-                Callee::Item { def, .. } => match def.raw() {
-                    10 => super::CallMemory::Allocate,
-                    11 => super::CallMemory::Derive(0),
-                    12 => super::CallMemory::Write(0),
-                    _ => super::CallMemory::None,
-                },
-                Callee::TraitMethod { .. } => super::CallMemory::None,
-            }
-        }
-        fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-            Cx.parts(ty, v, out)
-        }
-        fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-            Cx.received(item, k, n)
-        }
-        fn suspending(&self, _: DefId) -> bool {
-            false
-        }
-        fn holds_coll(&self, ty: Ty) -> bool {
-            Cx.holds_coll(ty)
-        }
-    }
+    );
 
     /// A body of two string parameters built by `f`, its returned
     /// parameter, and its summary after the passes.
@@ -3691,10 +3664,7 @@ pub(crate) mod tests {
     #[test]
     fn a_summary_keeps_a_parameter_that_holds_a_drop_value() {
         struct Dropping;
-        impl super::OwnCx for Dropping {
-            fn temporary_owner_name(&self) -> hd_base::Symbol {
-                hd_base::Symbol::NONE
-            }
+        crate::own::test_cx::own_cx!(Dropping, [temporary_owner_name], {
             fn counted(&self, ty: Ty) -> bool {
                 Flat.counted(ty)
             }
@@ -3722,7 +3692,7 @@ pub(crate) mod tests {
             fn holds_drop(&self, ty: Ty) -> Tri {
                 if ty == Ty::STRING { Tri::Yes } else { Tri::No }
             }
-        }
+        });
         let n = NodeIdx::from_raw(1);
         let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
         let blk = b.open_block();
@@ -3774,42 +3744,31 @@ pub(crate) mod tests {
     #[test]
     fn a_rejected_binding_borrow_restores_its_parameters_ownership() {
         struct Summarizing;
-        impl super::OwnCx for Summarizing {
-            fn temporary_owner_name(&self) -> hd_base::Symbol {
-                hd_base::Symbol::NONE
-            }
+        crate::own::test_cx::own_cx!(
+            Summarizing,
+            [
+                temporary_owner_name,
+                counted,
+                pass,
+                pass_value,
+                may_write,
+                parts,
+                received,
+                holds_coll
+            ],
+            {
+                fn copies(&self, ty: Ty) -> Tri {
+                    Cx.copies(ty)
+                }
 
-            fn counted(&self, ty: Ty) -> bool {
-                Cx.counted(ty)
+                fn suspending(&self, _: DefId) -> bool {
+                    false
+                }
+                fn summarizes(&self) -> bool {
+                    true
+                }
             }
-            fn pass(&self, c: &Callee, k: usize, n: usize) -> Pass {
-                Cx.pass(c, k, n)
-            }
-            fn pass_value(&self, ty: Ty, k: usize, n: usize) -> Pass {
-                Cx.pass_value(ty, k, n)
-            }
-            fn may_write(&self, c: &Callee) -> bool {
-                Cx.may_write(c)
-            }
-            fn parts(&self, ty: Ty, v: Option<u32>, out: &mut Vec<Ty>) -> bool {
-                Cx.parts(ty, v, out)
-            }
-            fn copies(&self, ty: Ty) -> Tri {
-                Cx.copies(ty)
-            }
-            fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
-                Cx.received(item, k, n)
-            }
-            fn holds_coll(&self, ty: Ty) -> bool {
-                Cx.holds_coll(ty)
-            }
-            fn suspending(&self, _: DefId) -> bool {
-                false
-            }
-            fn summarizes(&self) -> bool {
-                true
-            }
-        }
+        );
         let n = NodeIdx::from_raw(1);
         for (ty, callee, mode) in [Ty::STRING, UNIQ, OPEN]
             .into_iter()

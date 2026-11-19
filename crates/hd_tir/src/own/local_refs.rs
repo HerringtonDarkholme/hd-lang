@@ -300,10 +300,7 @@ mod tests {
     const LOCAL_REF: Ty = Ty(1_000_001);
 
     struct Facts;
-    impl OwnCx for Facts {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, may_write, parts], {
         fn summarizes(&self) -> bool {
             true
         }
@@ -337,13 +334,7 @@ mod tests {
         fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
             Pass::Lent
         }
-        fn may_write(&self, _: &Callee) -> bool {
-            true
-        }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
-    }
+    });
 
     fn generated(width: usize, aliases: usize, fields: usize, observed: bool) -> Body {
         let n = NodeIdx::NONE;

@@ -272,10 +272,7 @@ mod tests {
     }
 
     struct Facts;
-    impl super::super::OwnCx for Facts {
-        fn temporary_owner_name(&self) -> Symbol {
-            Symbol::NONE
-        }
+    crate::own::test_cx::own_cx!(Facts, [temporary_owner_name, parts], {
         fn counted(&self, ty: Ty) -> bool {
             ty == Ty::STRING
         }
@@ -291,9 +288,7 @@ mod tests {
         fn may_write(&self, _: &Callee) -> bool {
             false
         }
-        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
-            false
-        }
+
         fn received(&self, _: DefId, _: usize, _: usize) -> super::super::Pass {
             super::super::Pass::Lent
         }
@@ -303,7 +298,7 @@ mod tests {
         fn holds_coll(&self, _: Ty) -> bool {
             false
         }
-    }
+    });
 
     #[test]
     fn a_borrowed_root_tail_and_explicit_return_keep_no_owned_count() -> Result<(), String> {
