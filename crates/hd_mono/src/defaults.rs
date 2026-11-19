@@ -119,6 +119,9 @@ fn transparent(body: &Body, i: usize) -> bool {
         Some(k) if k == Coercion::Identity as u32 || k == Coercion::Weaken as u32)
 }
 
+const PURE: u8 = 1;
+const LITERAL: u8 = 2;
+
 /// The values a body's instructions are known to produce: pessimistic
 /// forward constant propagation, the non-speculative half of SCCP
 /// (Wegman and Zadeck) that rustc's MIR `ConstProp` and LLVM's
@@ -138,11 +141,9 @@ fn transparent(body: &Body, i: usize) -> bool {
 /// the `Break`s, O(n) in the body's size.
 struct Values {
     val: Vec<Option<Value>>,
-    /// Whether each instruction is pure: running it has no effect and
-    /// leaves no way out but its value (reads, fieldless variants,
-    /// transparent coercions, `!`, and blocks of those whose `Break`s
-    /// leave only themselves). Unknown values are no obstacle.
-    pure: Vec<bool>,
+    /// PURE permits erasure; LITERAL copies construction IR intact.
+    /// Constructors keep their ownership effects and cleanup scopes.
+    pure: Vec<u8>,
 }
 
 impl Values {
@@ -223,12 +224,11 @@ impl Values {
         }
         let mut out = Self {
             val: vec![None; n],
-            pure: vec![false; n],
+            pure: vec![0; n],
         };
         let mut arms = Arms::new(body);
         for i in 0..n {
             let [a, b] = body.data[i];
-            out.pure[i] = out.pure_at(body, i);
             let v = match body.tags[i] {
                 Tag::Block => {
                     let breaks = &breaks[from[i] as usize..from[i + 1] as usize];
@@ -322,39 +322,50 @@ impl Values {
                 _ => None,
             };
             out.val[i] = v;
+            out.pure[i] = out.pure_at(body, i);
         }
         out
     }
 
-    /// Whether instruction `i` is pure, from its operands' purity.
-    fn pure_at(&self, body: &Body, i: usize) -> bool {
+    /// Erasure/copy flags from operands, in the existing topological walk.
+    fn pure_at(&self, body: &Body, i: usize) -> u8 {
         let [a, b] = body.data[i];
-        let word = |w: u32| w == NONE || w & Ref::CONST_BIT != 0 || self.pure[w as usize];
+        let word = |w: u32| {
+            if w == NONE || w & Ref::CONST_BIT != 0 {
+                PURE | LITERAL
+            } else {
+                self.pure[w as usize]
+            }
+        };
+        let words = |xs: &[u32]| xs.iter().fold(PURE | LITERAL, |p, &r| p & word(r));
         match body.tags[i] {
             Tag::Block => {
-                // Child blocks are listed too; their runners decide them.
                 word(b)
-                    && body.record(a).iter().all(|&m| {
+                    & body.record(a).iter().fold(PURE | LITERAL, |p, &m| {
                         let [ma, mb] = body.data[m as usize];
-                        match body.tags[m as usize] {
-                            Tag::Block => true,
-                            Tag::Break => {
-                                body.label_inst.get(ma as usize).map(|&t| t as usize) == Some(i)
-                                    && word(mb)
+                        p & match body.tags[m as usize] {
+                            Tag::Block => PURE | LITERAL,
+                            Tag::Break
+                                if body.label_inst.get(ma as usize).map(|&t| t as usize)
+                                    == Some(i) =>
+                            {
+                                word(mb)
                             }
                             _ => self.pure[m as usize],
                         }
                     })
             }
-            Tag::Scope => body.record(b).is_empty() && word(a),
-            Tag::Read => body.local_read(i).is_some(),
-            Tag::NewVariant => no_payload(body, i),
-            Tag::Coerce => transparent(body, i) && word(a),
-            Tag::Prim => {
-                PrimOp::from_u32(a) == Some(PrimOp::Not) && body.record(b).iter().all(|&x| word(x))
+            Tag::Scope if body.record(b).is_empty() => word(a),
+            Tag::Read if body.local_read(i).is_some() => {
+                PURE | (u8::from(self.val[i].is_some()) * LITERAL)
             }
-            Tag::And | Tag::Or => word(a) && word(b),
-            _ => false,
+            Tag::NewVariant if no_payload(body, i) => PURE | LITERAL,
+            Tag::NewStruct | Tag::NewVariant => LITERAL & words(body.record(b)),
+            Tag::NewTuple => LITERAL & word(a) & words(body.record(b)),
+            Tag::Coerce if transparent(body, i) => word(a),
+            Tag::Prim if PrimOp::from_u32(a) == Some(PrimOp::Not) => words(body.record(b)),
+            Tag::And | Tag::Or => word(a) & word(b),
+            _ => 0,
         }
     }
 
@@ -441,7 +452,7 @@ impl Values {
             let a = body.data[i][0];
             match body.tags[i] {
                 Tag::Block => {}
-                Tag::Read if self.pure[i] || self.val[i].is_some() => {}
+                Tag::Read if self.pure[i] & PURE != 0 || self.val[i].is_some() => {}
                 Tag::ToArm => return Some(a),
                 Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
                     return self.arm(body, self.switched(body, i)?, depth + 1);
@@ -651,7 +662,7 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
                 out.consts.push((Ty::BOOL, u64::from(k == 0)));
                 out.data[i][0] = Ref::konst(at).0;
                 let c = cond as usize;
-                if uses.get(c) == Some(&1) && values.pure[c] {
+                if uses.get(c) == Some(&1) && values.pure[c] & PURE != 0 {
                     out.tags[c] = Tag::Block;
                     out.data[c] = [empty, NONE];
                     out.ty[c] = Ty::VOID;
@@ -723,10 +734,11 @@ pub fn collapse(body: &Body) -> Option<Body> {
         return None;
     };
     let values = Values::compute(body, &[], &|_| None);
-    let value = values
+    values
         .word(body, root)
-        .filter(|_| values.pure[root as usize])?;
-    collapsed(body, root, value)
+        .filter(|_| values.pure[root as usize] & PURE != 0)
+        .and_then(|value| collapsed(body, root, value))
+        .or_else(|| (values.pure[root as usize] & LITERAL != 0).then(|| body.clone()))
 }
 
 /// [`collapse`] for a body whose effects all stay in its own frame: it
@@ -1508,6 +1520,55 @@ mod tests {
             let errors = hd_tir::ir::verify(&out);
             assert!(errors.is_empty(), "collapsed TIR: {errors:?}");
         }
+    }
+
+    #[test]
+    fn literal_aggregates_keep_their_ir_and_are_not_scalar_facts() -> Result<(), String> {
+        let pool = hd_types::InternPool::default();
+        let ty = pool.intern_ty(&hd_types::TyData::Tuple {
+            elems: pool.list(&[Ty::I32, Ty::STRING]),
+            rest: None,
+        });
+        for effect in [false, true] {
+            for unknown in [false, true] {
+                let n = NodeIdx::NONE;
+                let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                let root = b.open_block();
+                if effect {
+                    b.call(&item(2), &[], Providers::None, Ty::VOID, n);
+                }
+                let number = if unknown {
+                    let arg = b.local(Ty::I32, Symbol::from_raw(0), local_flags::PARAM, n);
+                    b.get(arg, Ty::I32, n)
+                } else {
+                    b.const_value(Ty::I32, 7)
+                };
+                let text = b.const_str("literal");
+                let fields = b.refs_record(&[number, text]);
+                let tuple = b.emit(Tag::NewTuple, NONE, fields, ty, n);
+                let root = b.close_block(root, Some(tuple), ty, n);
+                let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+                let folded = collapse(&body);
+                assert_eq!(folded.is_some(), !effect && !unknown);
+                if let Some(out) = folded {
+                    assert_eq!(out.tags, body.tags);
+                    assert_eq!(out.strings, body.strings);
+                }
+                assert_eq!(value_given(&body, &|_| None), None);
+                if !effect && !unknown {
+                    let mut scalar = body.clone();
+                    let root = scalar.sub_root[0] as usize;
+                    scalar.ty[root] = Ty::I32;
+                    scalar.data[root][1] = number.0;
+                    let out = collapse(&scalar).ok_or("a retained literal body")?;
+                    assert!(
+                        out.tags.contains(&Tag::NewTuple),
+                        "constructors are not erasable"
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]

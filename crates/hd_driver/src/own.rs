@@ -2267,6 +2267,17 @@ impl InlineEnv for Env<'_> {
         self.run.summaries.as_ref().map(|all| &all.inline)
     }
 
+    fn memory_value(&self, t: Ty) -> (bool, bool) {
+        if self.is_open(t) {
+            return (false, false);
+        }
+        hd_layout::cached_for_run(self.run.layout_key, || {
+            hd_layout::layout(&self.run.pool, self, t)
+                .map(|l| (matches!(l.repr, hd_layout::Repr::Memory), l.contains_memory))
+                .unwrap_or_default()
+        })
+    }
+
     fn const_fold(&self) -> bool {
         self.run.const_fold
     }

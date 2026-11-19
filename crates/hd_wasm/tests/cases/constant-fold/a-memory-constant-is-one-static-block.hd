@@ -1,10 +1,7 @@
 # @dump: wat
 # @build: v8 release
-# expected: `make4`'s 32-value constant is one static data block, copied
-# into the result with one `memory.copy`, as rustc emits a constant aggregate
-# as a static allocation and copies it. Today the release inliner collapses
-# each `make` call into the literal at any size and writes one store per
-# value, so the module doubles per level (#2182).
+# A Memory constant stays behind its call boundary and is copied from
+# one static allocation, without expanding each level into scalar stores (#2182).
 type D0 = (i32, i32)
 type D1 = (D0, D0)
 type D2 = (D1, D1)
