@@ -102,8 +102,8 @@ fn advance(bodies: &mut List[Body], dt: f64) -> void:
 >   %56 = Prim Add [%51 %55] : f64
 >   %57 = Store [*$0 [%49] .x] %56 : ()
 >   summary kept [] writes
->   loop %31 keeps [*$0]
->   loop %63 keeps [*$0]
+>   loop %31 keeps [*$0] (-..-)
+>   loop %63 keeps [*$0] (-..-)
 
 pub fn run(steps: i64) -> f64:
     let mut bodies = [Body { x: 0.0, v: 1.0 }, Body { x: 1.0, v: 0.5 }]

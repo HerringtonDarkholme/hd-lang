@@ -82,5 +82,5 @@ fn flips(perm: List[usize]) -> i64:
     flips
 >   %49 = Read copy [$2] : i64
 >   exit sub 0 drops [$0]
->   loop %36 keeps [$1]
->   loop %47 keeps [$1]
+>   loop %36 keeps [$1] (%2..%48)
+>   loop %47 keeps [$1] (%2..%48)

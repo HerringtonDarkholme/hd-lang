@@ -201,5 +201,5 @@ fn rotate(n: usize) -> usize:
 >   %146 = Read copy [$11 [0:usize]] : usize
 >   %147 = Drop [$11] : ()
 >   %148 = Prim Add [%144 %146] : usize
->   loop %115 keeps [$6]
->   loop %143 keeps [$6] [$11]
+>   loop %115 keeps [$6] (%42..%145)
+>   loop %143 keeps [$6] (%42..%145) [$11] (%83..%147)

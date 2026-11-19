@@ -56,7 +56,7 @@ fn total(parts...: List[string]) -> usize:
     n
 >   %34 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %33 keeps [$0]
+>   loop %33 keeps [$0] (-..-)
 
 fn three(a: string, b: string, c: string) -> usize:
 > app/main/three

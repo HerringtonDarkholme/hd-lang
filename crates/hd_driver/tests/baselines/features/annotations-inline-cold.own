@@ -140,7 +140,7 @@ fn checksum(xs: &List[string]) -> usize:
     n
 >   %35 = Read copy [$1] : usize
 >   summary kept []
->   loop %34 keeps [$2]
+>   loop %34 keeps [$2] (%2..-)
 
 @inline
 fn first_len(xs: &List[string]) -> usize:

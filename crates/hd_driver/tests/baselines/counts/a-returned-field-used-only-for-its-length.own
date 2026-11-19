@@ -61,4 +61,4 @@ app/main/query
   %42 = Read copy [$2] : usize
   %43 = Block %42 : usize
   summary kept []
-  loop %41 keeps [*$0]
+  loop %41 keeps [*$0] (-..-)

@@ -39,4 +39,4 @@ app/main/total_len
   %31 = If %8 [%28 %30] : ()
   %32 = Block - : ()
   %33 = Loop %32 - : ()
-  loop %33 keeps [$0]
+  loop %33 keeps [$0] (-..-)

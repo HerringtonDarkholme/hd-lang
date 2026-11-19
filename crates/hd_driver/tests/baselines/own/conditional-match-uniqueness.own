@@ -34,4 +34,4 @@ app/main/fill
   %26 = Drop [$2] : ()
   %27 = Block %25 : usize
   summary kept []
-  loop %24 keeps [$2]
+  loop %24 keeps [$2] (%2..%26)

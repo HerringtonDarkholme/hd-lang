@@ -195,4 +195,4 @@ fn fn_mut(xs: List[string]) -> usize:
 >   storage sub 0: $1 slot
 >   storage sub 1: $1 cell
 >   summary kept [] borrows [$0]
->   loop %43 keeps [$0]
+>   loop %43 keeps [$0] (-..-)

@@ -73,7 +73,7 @@ fn build(parts: &List[string]) -> string:
 >   %43 = Drop [%41] : ()
 >   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
->   loop %39 keeps [$2]
+>   loop %39 keeps [$2] (%9..%40)
 
 fn fields(line: string) -> usize:
 > app/main/fields
@@ -132,4 +132,4 @@ fn fields(line: string) -> usize:
     n
 >   %39 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %37 keeps [$2]
+>   loop %37 keeps [$2] (%5..%38)

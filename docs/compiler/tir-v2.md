@@ -1042,7 +1042,14 @@ whose header nothing in the loop replaces. The pass records them in a
 side table, and the emitter keeps their buffer address and length in
 Wasm locals for the loop, as #710's list caches do today; with the list
 header gone in stage 3, the buffer address is an ordinary read the pass
-can hoist itself.
+can hoist itself. A list place whose length nothing in the loop changes,
+though an `IsUnique` in it may copy the buffer, gets a row that keeps
+only the length. Each row also bounds the list's region around the
+loop: the last instruction before the loop and the first after it that
+may change the list, found by one forward and one backward sweep over
+the body with the same per-instruction rule, so a length read past the
+first bound keeps its length through any statement around the loop that
+ends before the second (the counter proofs' question, #2175).
 
 Why it is sound: a buffer made unique before the loop stays unique,
 since nothing in the loop can make a second owner (rule 2) and nothing

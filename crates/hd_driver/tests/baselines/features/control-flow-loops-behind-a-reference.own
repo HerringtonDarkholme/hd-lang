@@ -95,7 +95,7 @@ impl Parser:
 >   %18 = Read copy [*$0 .held] : usize
 >   %19 = Store [*$0 .index [%17]] %18 : ()
 >   summary kept [] writes
->   loop %25 keeps [*$0 .index]
+>   loop %25 keeps [*$0 .index] (-..-)
 
     fn snapshot(&mut self, n: usize) -> usize:
         let mut last: List[usize] = []

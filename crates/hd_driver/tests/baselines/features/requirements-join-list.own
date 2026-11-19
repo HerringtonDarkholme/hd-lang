@@ -135,4 +135,4 @@ fn all!(keys: List[string]) -> usize:
 >   %81 = Read copy [$9] : usize
 >   exit sub 0 drops [$0]
 >   summary none
->   loop %41 keeps [$2]
+>   loop %41 keeps [$2] (%6..%42)

@@ -1,0 +1,22 @@
+# @dump: own
+# @build: release
+# A suspension point may let other work change any place, so it closes the
+# region of every list around the loop after it (`Body::stable_lists`):
+# the loop's row bounds its region at the `sleep!`, and the length read
+# before it proves nothing.
+use std.time.{Clock, ms, sleep}
+
+fn total!(c: bool) -> i64 $ Clock:
+    let mut xs = [1i64, 2, 3, 4]
+    if c:
+        xs.push(5)
+    n := xs.len()
+    sleep!(ms(1))
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    s
+
+pub fn main!() -> void $ Console + Clock:
+    a := total!(true)
+    println("$a")

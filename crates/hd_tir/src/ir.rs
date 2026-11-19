@@ -1058,9 +1058,15 @@ pub struct Body {
     /// header and buffer nothing in the loop replaces, so the backend may
     /// keep the buffer's address and length in locals for the loop. The
     /// place is rooted at a local, with fields and dereferences only.
-    /// Sorted, each row once. A pass output: empty in the checker's TIR
+    /// Then the list's region around the loop: the last instruction
+    /// before the loop and the first after it that may change the list
+    /// (`NONE`: none), so it keeps its length from any instruction past the
+    /// first through any statement holding the loop that ends before the
+    /// second. Last, 1 when the loop keeps the buffer too, 0 when it keeps
+    /// only the length (an `IsUnique` in it may copy the buffer). Sorted,
+    /// each row once. A pass output: empty in the checker's TIR
     /// (invariant 22); the wire's owned section.
-    pub stable_lists: Vec<(u32, u32)>,
+    pub stable_lists: Vec<[u32; 5]>,
     /// Unary RC forwarding identities: (wrapper/construction, source Read).
     /// Sorted ownership-pass output. Single-hop scopes/coercions need no row;
     /// read modes remain authoritative for whether the identity is borrowed.
@@ -3274,8 +3280,8 @@ pub fn print(b: &Body) -> String {
     for (inst, local) in &b.full_cells {
         let _ = writeln!(o, "fullcell {inst} {local}");
     }
-    for (inst, word) in &b.stable_lists {
-        let _ = writeln!(o, "stablelist {inst} {word}");
+    for [inst, word, before, after, buffer] in &b.stable_lists {
+        let _ = writeln!(o, "stablelist {inst} {word} {before} {after} {buffer}");
     }
     for (inst, read) in &b.forwarded_reads {
         let _ = writeln!(o, "forwardread {inst} {read}");
@@ -3492,10 +3498,10 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
             }
             "stablelist" => {
                 let v = nums(1)?;
-                if v.len() != 2 {
-                    return Err(e("stablelist needs 2 fields".into()));
-                }
-                b.stable_lists.push((v[0], v[1]));
+                let Ok(row) = v.try_into() else {
+                    return Err(e("stablelist needs 5 fields".into()));
+                };
+                b.stable_lists.push(row);
             }
             "const" => {
                 let t = word(f.get(1).copied().unwrap_or("")).map_err(e)?;

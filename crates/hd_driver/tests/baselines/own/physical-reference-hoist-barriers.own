@@ -62,7 +62,7 @@ app/main/impl Probes.clean
   %22 = Loop %21 - : ()
   %23 = Block - : ()
   summary kept [] writes
-  loop %22 keeps [*$0]
+  loop %22 keeps [*$0] (-..-)
 app/main/impl Probes.header_copy
   local $0 items: &mut List[usize] [param read] value
     uses $0: entry -> %4 lend, %6 lend, %9 lend

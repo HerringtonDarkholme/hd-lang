@@ -523,14 +523,27 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         }
         let _ = writeln!(o, "  %{at} finds [{}] full", locals.join(" "));
     }
-    // The hoisting pass's stable list places, per loop
+    // The hoisting pass's stable list places, per loop, each with its
+    // region: the changes before and after the loop that bound it
     // (`Body::stable_lists`).
     let mut rows = b.stable_lists.iter().peekable();
-    while let Some(&(at, word)) = rows.next() {
-        let mut places = vec![place(names, b, word, fields)];
-        while let Some(&&(_, word)) = rows.peek().filter(|r| r.0 == at) {
-            places.push(place(names, b, word, fields));
-            rows.next();
+    while let Some(&&[at, ..]) = rows.peek() {
+        let mut places = Vec::new();
+        while let Some(&[_, word, before, after, buffer]) = rows.next_if(|r| r[0] == at) {
+            let bound = |x: u32| {
+                if x == NONE {
+                    "-".to_string()
+                } else {
+                    format!("%{x}")
+                }
+            };
+            places.push(format!(
+                "{}{} ({}..{})",
+                if buffer == 0 { "len " } else { "" },
+                place(names, b, word, fields),
+                bound(before),
+                bound(after)
+            ));
         }
         let _ = writeln!(o, "  loop %{at} keeps {}", places.join(" "));
     }

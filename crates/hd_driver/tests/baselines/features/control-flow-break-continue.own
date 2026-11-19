@@ -86,4 +86,4 @@ fn until_long(xs: List[string]) -> usize:
     n
 >   %58 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %57 keeps [$0]
+>   loop %57 keeps [$0] (-..-)

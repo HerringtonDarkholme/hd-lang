@@ -83,5 +83,5 @@ fn sort(items: &mut List[i32]) -> void:
 >   %47 = Read copy [$6] : usize
 >   %48 = Read copy [$5] : i32
 >   %49 = Store [*$0 [%47]] %48 : ()
->   loop %46 keeps [*$0]
->   loop %55 keeps [*$0]
+>   loop %46 keeps [*$0] (-..-)
+>   loop %55 keeps [*$0] (-..-)

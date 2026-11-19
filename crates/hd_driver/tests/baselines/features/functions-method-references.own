@@ -217,4 +217,4 @@ fn adapter(us: List[User]) -> usize:
     n
 >   %42 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %41 keeps [$0]
+>   loop %41 keeps [$0] (-..-)

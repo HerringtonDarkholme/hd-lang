@@ -106,3 +106,4 @@ fn repeat_after_callback(xs: &mut List[i32], rounds: usize, tick: fn() -> i32) -
     total
 >   %67 = Read copy [$3] : i32
 >   summary kept [] borrows [$2] writes relies [$0]
+>   loop %56 keeps len [*$0] (%20..-)

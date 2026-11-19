@@ -1,0 +1,17 @@
+# @dump: stdout
+# @build: dev | release
+# A length read, then a call that pops the list through a reference to it,
+# then a counted loop: the loop reads past the end and panics
+# (`expr.index.list.range`). The reference changes its local's places, so
+# the list's region around the loop starts after it.
+fn shrink(xs: &mut List[i64]) -> void:
+    let _ = xs.pop()
+
+pub fn main() -> void $ Console:
+    let mut xs = [1i64, 2, 3, 4]
+    n := xs.len()
+    shrink(&mut xs)
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    println(s)

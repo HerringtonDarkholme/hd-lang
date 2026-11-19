@@ -1,0 +1,16 @@
+# @dump: stdout
+# @build: dev | release
+# Two counted loops below one length read: a pop between them shortens the
+# list, so the second loop reads past the end and panics
+# (`expr.index.list.range`). The hoisting pass's region of the list around
+# the second loop starts after the pop, so its counter proof fails.
+pub fn main() -> void $ Console:
+    let mut xs = [1i64, 2, 3, 4]
+    n := xs.len()
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    let _ = xs.pop()
+    for i in 0..n:
+        s = s + xs[i]
+    println(s)

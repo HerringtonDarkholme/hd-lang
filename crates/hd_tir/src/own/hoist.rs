@@ -69,7 +69,9 @@
 //!
 //! A stable list place is a place of that form, read by an element read,
 //! an element store or a `ListLen` in the loop, that passes rules 2 and 3
-//! and has no `IsUnique` left in the loop and no push.
+//! and has no `IsUnique` left in the loop and no push. One with an
+//! `IsUnique` left keeps only its length, and its row says so. Each row
+//! also bounds the list's region around its loop ([`regions`]).
 //!
 //! Why it is sound: a buffer made unique before the loop stays unique,
 //! since nothing in the loop can make a second owner of it (rule 2: no
@@ -86,6 +88,8 @@
 //! candidates and one to check them, both over the loop's instruction
 //! range, a loop's instructions being the range from its first to itself;
 //! the edits join the other passes' for the one rebuild.
+
+use std::ops::Range;
 
 use hd_base::SliceSort as _;
 use hd_types::Ty;
@@ -313,6 +317,10 @@ pub(crate) struct Tables {
     csteps: Vec<u32>,
     /// The `IsUnique`s of each candidate in the loop: (candidate, inst).
     hits: Vec<(u32, u32)>,
+    /// Per `Body::stable_lists` row in push order, its candidate, whose
+    /// steps are in `rsteps` ([`regions`]).
+    rkeys: Vec<Cand>,
+    rsteps: Vec<u32>,
     steps: Vec<u32>,
     raw: Vec<u32>,
     ops: Vec<Operand>,
@@ -591,10 +599,13 @@ pub(crate) fn run(
     for i in marked {
         t.gone[i] = true;
     }
+    t.rkeys.clear();
+    t.rsteps.clear();
     for k in 0..t.loops.len() {
         let l = t.loops[k].1;
         hoist_loop(b, topo, cx, t, edits, l);
     }
+    regions(b, cx, topo, t);
     b.stable_lists.sort_stable();
     b.stable_lists.dedup();
 }
@@ -1376,74 +1387,307 @@ fn hoist_loop(
         if t.pending.dead[i] {
             continue;
         }
-        check(b, cx, t, x, l);
+        check(b, cx, t, x, l, 0..t.cands.len());
     }
     let at = (topo.blk[l as usize], topo.pos[l as usize]);
     for k in 0..t.cands.len() {
         let c = t.cands[k];
-        if !c.ok || (c.lent && !c.hoist) {
-            continue;
-        }
-        // The emitter checks a write through a counted pointer at the
-        // original IsUnique. A loan can start after the preheader, even
-        // through another root. A local reference bound inside the body
-        // can also carry a counted pointer (for example after inlining).
-        let local = c.local as usize;
-        if c.hoist
-            && t.cand_steps(&c).first() == Some(&DEREF)
-            && (!t.param[local] || t.stores[local] != 0 || !cx.plain_reference(b.local_ty[local]))
-        {
-            continue;
-        }
-        if c.relied {
-            if !c.hoist {
-                continue;
+        // The list keeps its length through the loop, whatever its buffer
+        // does: what the counter proofs ask of a region ([`regions`]).
+        let length = c.ok && c.used && !c.pushes && (!c.relied || c.hoist && is_exclusive(b));
+        let (word, stable) = 'hoist: {
+            if !c.ok || (c.lent && !c.hoist) {
+                break 'hoist (None, false);
             }
-            t.relies |= 1 << t.excl[c.local as usize];
-            if !is_exclusive(b) {
-                continue;
+            // The emitter checks a write through a counted pointer at the
+            // original IsUnique. A loan can start after the preheader, even
+            // through another root. A local reference bound inside the body
+            // can also carry a counted pointer (for example after inlining).
+            let local = c.local as usize;
+            if c.hoist
+                && t.cand_steps(&c).first() == Some(&DEREF)
+                && (!t.param[local]
+                    || t.stores[local] != 0
+                    || !cx.plain_reference(b.local_ty[local]))
+            {
+                break 'hoist (None, false);
             }
-        }
-        let stable = c.used && !c.pushes && ((c.hoist && c.eager) || !c.unique);
-        if !c.hoist && !stable {
-            continue;
-        }
-        let word = place_word(b, t, &c);
-        if c.hoist {
-            edits.insert(
-                at.0,
-                at.1,
-                Tag::IsUnique,
-                [
-                    word,
+            if c.relied {
+                if !c.hoist {
+                    break 'hoist (None, false);
+                }
+                t.relies |= 1 << t.excl[c.local as usize];
+                if !is_exclusive(b) {
+                    break 'hoist (None, false);
+                }
+            }
+            let stable = c.used && !c.pushes && ((c.hoist && c.eager) || !c.unique);
+            if !c.hoist && !stable {
+                break 'hoist (None, false);
+            }
+            let word = place_word(b, t, &c);
+            if c.hoist {
+                edits.insert(
+                    at.0,
+                    at.1,
+                    Tag::IsUnique,
+                    [
+                        word,
+                        if c.eager {
+                            unique_word::HOISTED
+                        } else if !c.pushes {
+                            unique_word::DEFERRED_CACHE
+                        } else {
+                            unique_word::DEFERRED_INIT
+                        },
+                    ],
+                    Ty::VOID,
+                    b.syn[l as usize],
+                );
+                for h in 0..t.hits.len() {
+                    let (kk, x) = t.hits[h];
+                    if kk as usize != k {
+                        continue;
+                    }
+                    t.gone[x as usize] = true;
                     if c.eager {
-                        unique_word::HOISTED
-                    } else if !c.pushes {
-                        unique_word::DEFERRED_CACHE
+                        edits.remove(x);
                     } else {
-                        unique_word::DEFERRED_INIT
-                    },
-                ],
-                Ty::VOID,
-                b.syn[l as usize],
-            );
-            for h in 0..t.hits.len() {
-                let (kk, x) = t.hits[h];
-                if kk as usize != k {
-                    continue;
-                }
-                t.gone[x as usize] = true;
-                if c.eager {
-                    edits.remove(x);
-                } else {
-                    // All covered writes share the loop's deferred decision.
-                    b.data[x as usize] = [word, unique_word::DEFERRED];
+                        // All covered writes share the loop's deferred decision.
+                        b.data[x as usize] = [word, unique_word::DEFERRED];
+                    }
                 }
             }
+            (Some(word), stable)
+        };
+        if stable || length {
+            let word = word.unwrap_or_else(|| place_word(b, t, &c));
+            b.stable_lists
+                .push([l, word, NONE, NONE, u32::from(stable)]);
+            let start = u32_of(t.rsteps.len());
+            t.rsteps
+                .extend_from_slice(&t.csteps[c.start as usize..(c.start + c.len) as usize]);
+            t.rkeys.push(Cand {
+                start,
+                ok: true,
+                ..c
+            });
         }
-        if stable {
-            b.stable_lists.push((l, word));
+    }
+}
+
+/// A change the region sweep finds ([`regions`]): of every place (a
+/// suspension point), of every external place but those of one local, or
+/// of one stable place.
+#[derive(Clone, Copy)]
+enum Kill {
+    All,
+    External(u32),
+    Place(u32),
+}
+
+/// The latest positions of `Kill::External` events, kept for two distinct
+/// locals, so the latest that changes a place of any one local is O(1).
+#[derive(Clone, Copy)]
+struct ExternalKills([(u32, u32); 2]);
+
+impl ExternalKills {
+    const EMPTY: ExternalKills = ExternalKills([(NONE, NONE); 2]);
+
+    fn add(&mut self, at: u32, local: u32) {
+        if self.0[0].1 != local {
+            self.0[1] = self.0[0];
         }
+        self.0[0] = (at, local);
+    }
+
+    /// The latest event that changes a place of `local`.
+    fn except(&self, local: u32) -> u32 {
+        let [(p1, l1), (p2, _)] = self.0;
+        if l1 == local { p2 } else { p1 }
+    }
+}
+
+/// Fills each stable row's region (`Body::stable_lists`, its third and
+/// fourth words): the last instruction before its loop and the first one
+/// after it that may change its list (`NONE`: none), so a length read or
+/// an access `a` before the loop, and the statement `s` that holds the
+/// loop in `a`'s block, keep the list's length from `a` through `s` when
+/// the third word is below `a` and the fourth above `s`.
+///
+/// What may change a place is what `check` refuses in a loop, asked over
+/// the whole body once with every distinct stable place as a candidate:
+/// per instruction, the places of the local it names, and one external
+/// candidate at no local, which stands for every other local's external
+/// places. A local reference changes its local's places from itself to
+/// its last use. Then one forward and one backward sweep meet each row at
+/// its loop. Followed: Go's prove pass, which asks a bound's memory state
+/// at the loop rather than walking each path; this is its per-place last
+/// clobber, as LLVM's `MemorySSA` caches it. Cost: O(instructions + the
+/// distinct stable places of each instruction's local + rows log rows),
+/// one pass over the body however many loops share a length read.
+fn regions(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, t: &mut Tables) {
+    let rows = b.stable_lists.len();
+    if rows == 0 {
+        return;
+    }
+    // The distinct places, sorted by local and steps.
+    let mut order: Vec<u32> = (0..u32_of(rows)).collect();
+    {
+        let (keys, steps) = (&t.rkeys, &t.rsteps);
+        let key = |r: u32| {
+            let c = &keys[r as usize];
+            (
+                c.local,
+                &steps[c.start as usize..(c.start + c.len) as usize],
+            )
+        };
+        order.sort_stable_by(|&x, &y| key(x).cmp(&key(y)));
+    }
+    t.cands.clear();
+    t.csteps.clear();
+    t.elems.clear();
+    let mut place = vec![0u32; rows];
+    for &r in &order {
+        let c = t.rkeys[r as usize];
+        let steps = &t.rsteps[c.start as usize..(c.start + c.len) as usize];
+        let same = t.cands.last().is_some_and(|d| {
+            d.local == c.local && t.csteps[d.start as usize..(d.start + d.len) as usize] == *steps
+        });
+        if !same {
+            let start = u32_of(t.csteps.len());
+            t.csteps.extend_from_slice(steps);
+            t.cands.push(Cand {
+                local: c.local,
+                start,
+                len: c.len,
+                external: c.external,
+                ok: true,
+                ..Cand::default()
+            });
+        }
+        place[r as usize] = u32_of(t.cands.len() - 1);
+    }
+    let other = t.cands.len();
+    t.cands.push(Cand {
+        local: u32_of(b.local_ty.len()),
+        start: u32_of(t.csteps.len()),
+        external: true,
+        ok: true,
+        ..Cand::default()
+    });
+    let of_local = |t: &Tables, l: u32| {
+        let from = t.cands[..other].partition_point(|c| c.local < l);
+        from..from + t.cands[from..other].partition_point(|c| c.local == l)
+    };
+    let mut kills: Vec<(u32, Kill)> = Vec::new();
+    let mut ends: Vec<(u32, u32)> = Vec::new();
+    let (mut steps, mut raw) = (Vec::new(), Vec::new());
+    for x in 0..b.len() {
+        if t.pending.dead[x] {
+            continue;
+        }
+        let xi = u32_of(x);
+        let (tag, [a, w]) = (b.tags[x], b.data[x]);
+        if is_suspension(tag) {
+            kills.push((xi, Kill::All));
+            continue;
+        }
+        let local = match tag {
+            Tag::Read | Tag::Store | Tag::Drop | Tag::Ref | Tag::IsUnique => {
+                resolve(b, a, &mut steps, &mut raw).0
+            }
+            Tag::Intrinsic => match Ref(b.record(w).first().copied().unwrap_or(NONE)).as_inst() {
+                Some(h) if b.tags[h.0 as usize] == Tag::Read => {
+                    resolve(b, b.data[h.0 as usize][0], &mut steps, &mut raw).0
+                }
+                _ => NONE,
+            },
+            _ => NONE,
+        };
+        let mine = of_local(t, local);
+        check(b, cx, t, xi, NONE, mine.clone());
+        check(b, cx, t, xi, NONE, other..other + 1);
+        for k in mine.chain(other..=other) {
+            let c = &mut t.cands[k];
+            if !c.ok || c.pushes || c.relied {
+                kills.push((
+                    xi,
+                    if k == other {
+                        Kill::External(local)
+                    } else {
+                        Kill::Place(u32_of(k))
+                    },
+                ));
+            }
+            (c.ok, c.pushes, c.relied) = (true, false, false);
+        }
+        t.hits.clear();
+        // A local reference reaches every place of its local until its
+        // last use.
+        if tag == Tag::Ref
+            && let Some(l) = b.local_in_place(a)
+        {
+            for k in of_local(t, u32_of(l.idx())) {
+                kills.push((xi, Kill::Place(u32_of(k))));
+                ends.push((t.last_use[x].max(xi), u32_of(k)));
+            }
+        }
+    }
+    ends.sort_stable();
+    let mut last = vec![NONE; other];
+    let state = |last: &[u32], all: u32, ext: &ExternalKills, k: u32| {
+        let c = &t.cands[k as usize];
+        let ext = if c.external {
+            ext.except(c.local)
+        } else {
+            NONE
+        };
+        [last[k as usize], all, ext]
+    };
+    // Forward: the last change before each row's loop.
+    order.sort_stable_by_key(|&r| topo.first[b.stable_lists[r as usize][0] as usize]);
+    let (mut all, mut ext) = (NONE, ExternalKills::EMPTY);
+    let (mut ki, mut ei) = (0, 0);
+    for &r in &order {
+        let lo = topo.first[b.stable_lists[r as usize][0] as usize];
+        while ki < kills.len() && kills[ki].0 < lo {
+            match kills[ki].1 {
+                Kill::All => all = kills[ki].0,
+                Kill::External(l) => ext.add(kills[ki].0, l),
+                Kill::Place(k) => last[k as usize] = kills[ki].0,
+            }
+            ki += 1;
+        }
+        while ei < ends.len() && ends[ei].0 < lo {
+            let (at, k) = ends[ei];
+            last[k as usize] = last[k as usize].max(at);
+            ei += 1;
+        }
+        let seen = state(&last, all, &ext, place[r as usize]);
+        b.stable_lists[r as usize][2] = seen
+            .into_iter()
+            .filter(|&p| p != NONE)
+            .max()
+            .unwrap_or(NONE);
+    }
+    // Backward: the first change after it.
+    fill(&mut last, other, NONE);
+    order.sort_stable_by_key(|&r| std::cmp::Reverse(b.stable_lists[r as usize][0]));
+    let (mut all, mut ext) = (NONE, ExternalKills::EMPTY);
+    let mut ki = kills.len();
+    for &r in &order {
+        let l = b.stable_lists[r as usize][0];
+        while ki > 0 && kills[ki - 1].0 > l {
+            ki -= 1;
+            match kills[ki].1 {
+                Kill::All => all = kills[ki].0,
+                Kill::External(lo) => ext.add(kills[ki].0, lo),
+                Kill::Place(k) => last[k as usize] = kills[ki].0,
+            }
+        }
+        let seen = state(&last, all, &ext, place[r as usize]);
+        b.stable_lists[r as usize][3] = seen.into_iter().min().unwrap_or(NONE);
     }
 }
 
@@ -1570,18 +1814,20 @@ fn elem_locals(b: &Body, t: &mut Tables, lo: u32, l: u32) {
 
 /// Checks instruction `x` of loop `lp` against every candidate (rules 2
 /// and 3).
-fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
+fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32, ks: Range<usize>) {
     let (tag, [a, w]) = (b.tags[x as usize], b.data[x as usize]);
     if is_suspension(tag) {
-        for c in &mut t.cands {
+        for c in &mut t.cands[ks] {
             c.ok = false;
         }
         return;
     }
     if writes(b, cx, x as usize) {
-        for c in &mut t.cands {
+        for c in &mut t.cands[ks.clone()] {
             if c.external {
-                if t.excl[c.local as usize] != NONE && t.csteps[c.start as usize] == DEREF {
+                if t.excl.get(c.local as usize).is_some_and(|&e| e != NONE)
+                    && t.csteps.get(c.start as usize) == Some(&DEREF)
+                {
                     c.relied = true;
                 } else {
                     c.ok = false;
@@ -1595,7 +1841,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
         Tag::Read | Tag::Store | Tag::Drop | Tag::Ref | Tag::IsUnique => {
             let (l, temp) = resolve(b, a, &mut steps, &mut raw);
             let memory = raw.iter().any(|&s| s == ELEM || s == DEREF);
-            for k in 0..t.cands.len() {
+            for k in ks {
                 let c = t.cands[k];
                 let mine = l == c.local;
                 // Through an element reference local: into the buffer.
@@ -1674,7 +1920,7 @@ fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, lp: u32) {
                     (NONE, false)
                 }
             };
-            for c in &mut t.cands {
+            for c in &mut t.cands[ks] {
                 let cs = &t.csteps[c.start as usize..(c.start + c.len) as usize];
                 let mine = l == c.local && prefix(cs, &steps);
                 let exact = mine && steps.len() == cs.len();
@@ -1700,6 +1946,21 @@ mod exit_tests {
     use super::*;
     use crate::ir::{TirBuilder, TirSink};
     use hd_base::{DefId, NodeIdx};
+
+    /// The latest external change of a place of each local, kept in two
+    /// slots: one local's own changes never hide another's.
+    #[test]
+    fn external_kills_answer_each_local_from_two_slots() {
+        let mut k = ExternalKills::EMPTY;
+        assert_eq!(k.except(3), NONE);
+        k.add(10, 3);
+        assert_eq!((k.except(3), k.except(4)), (NONE, 10));
+        k.add(12, 3);
+        k.add(15, 4);
+        assert_eq!((k.except(3), k.except(4), k.except(5)), (15, 12, 15));
+        k.add(20, NONE);
+        assert_eq!((k.except(3), k.except(4)), (20, 20));
+    }
 
     #[test]
     fn exit_summary_visits_once_at_width_1000_and_depth_20() -> Result<(), String> {

@@ -385,9 +385,18 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
         row.0 = word(row.0);
     }
     b.full_cells.retain(|r| r.0 != NONE);
-    // A loop is never deleted; the place is rooted at a local.
+    // A loop is never deleted; the place is rooted at a local. A region
+    // bound the edits delete closes the region at the loop.
     for row in &mut b.stable_lists {
-        row.0 = word(row.0);
+        row[0] = word(row[0]);
+        let l = row[0];
+        for bound in &mut row[2..4] {
+            *bound = match (*bound, word(*bound)) {
+                (NONE, _) => NONE,
+                (_, NONE) => l,
+                (_, w) => w,
+            };
+        }
     }
     // Suspension scopes are mapped where they stand, so the body's
     // records keep their places.
@@ -560,6 +569,9 @@ mod tests {
         let mut new_of: Vec<u32> = (0..u32_of(n)).collect();
         new_of[1] = NONE;
         new_of[2] = 1;
+        // A region bound the edits delete closes the region at the loop.
+        let word = crate::ir::place::BARE_LOCAL;
+        b.stable_lists = vec![[2, word, 1, 0, 1], [2, word, NONE, 2, 0]];
         renumber(
             &mut b,
             &mut Through {
@@ -570,6 +582,7 @@ mod tests {
         .unwrap();
         assert_eq!(b.fallback, [[0, 0], [1, 0]]);
         assert_eq!(b.held_args, [(0, 0), (1, 1)]);
+        assert_eq!(b.stable_lists, [[1, word, 1, 0, 1], [1, word, NONE, 1, 0]]);
     }
 
     /// Instructions shifted by one, as a copy into a body that holds one

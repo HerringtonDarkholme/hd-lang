@@ -178,4 +178,4 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   storage sub 2: $2 cell
 >   storage sub 3: $2 cell
 >   summary kept [] borrows [$0 $1] writes
->   loop %44 keeps [$0]
+>   loop %44 keeps [$0] (-..%57)

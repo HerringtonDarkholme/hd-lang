@@ -39,7 +39,7 @@ fn digits(value: u64) -> List[u8]:
 >   %15 = Store [$3] %14 : ()
     buf
 >   %22 = Read move [$1] : List[u8]
->   loop %21 keeps [$1]
+>   loop %21 keeps [$1] (%1..%22)
 
 fn pushes(n: usize) -> List[i32]:
     let mut items: List[i32] = []

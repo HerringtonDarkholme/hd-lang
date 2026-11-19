@@ -1,0 +1,21 @@
+# @dump: wat
+# @build: v8 release
+# One length read below two counted loops over a list behind a reference,
+# then a push and a third loop: the first two loops' reads check nothing
+# (the list's region around each holds from the read), the third keeps
+# its check, as the push closes its region.
+fn total(xs: &mut List[i64]) -> i64:
+    n := xs.len()
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    for i in 0..n:
+        s = s + xs[i]
+    xs.push(5)
+    for i in 0..n:
+        s = s + xs[i]
+    s
+
+pub fn main() -> void $ Console:
+    let mut xs = [1i64, 2, 3, 4]
+    println(total(&mut xs))

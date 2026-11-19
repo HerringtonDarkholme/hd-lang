@@ -1,0 +1,19 @@
+# @dump: stdout
+# @build: dev | release
+# A list in a field: a length read, a pop of the field's list, then a
+# counted loop over it, which reads past the end and panics
+# (`expr.index.list.range`).
+struct Bag:
+    items: List[i64]
+
+fn total(bag: &mut Bag) -> i64:
+    n := bag.items.len()
+    let _ = bag.items.pop()
+    let s = 0i64
+    for i in 0..n:
+        s = s + bag.items[i]
+    s
+
+pub fn main() -> void $ Console:
+    let mut bag = Bag { items: [1i64, 2, 3, 4] }
+    println(total(&mut bag))

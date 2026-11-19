@@ -91,7 +91,8 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
     items
 >   %57 = Read move [$2] : List[usize]
 >   exit sub 0 drops [$0]
->   loop %48 keeps [$2]
+>   loop %48 keeps [$2] (%2..%57)
+>   loop %56 keeps len [$2] (%2..%57)
 
 fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 > app/main/copy
@@ -265,4 +266,4 @@ fn call(items: &mut List[usize], n: usize, f: fn() -> void) -> void:
 >   %37 = Read copy [$10] : usize
 >   %38 = Read copy [$6] : usize
 >   %39 = Store [*$0 [%37]] %38 : ()
->   loop %45 keeps [*$0]
+>   loop %45 keeps [*$0] (%18..-)

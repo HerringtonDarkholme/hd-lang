@@ -2583,11 +2583,14 @@ The list emitter recognizes an exact `usize` induction variable from
 zero to an observed list length. Its local definition and increment must
 match the loop test, with no cell or captured assignment; the index read
 must precede the increment and dominate the access. Scalar aliases and
-fields of fresh range values may carry the bound. It applies the existing
-within-body alias/resize proof both to the loop and to the statements
-between the length observation and loop entry. Thus a pop in that
-prelude invalidates the fact too. Unknown calls and possibly aliased
-mutations keep the normal check.
+fields of fresh range values may carry the bound. The list must keep its
+length over the loop and the statements from the length observation
+through the statement that holds the loop. The hoisting pass's row for
+the list and loop (`Body::stable_lists`) answers both: its region bounds
+are the last change before the loop and the first after it. A list with
+no row has the existing within-body alias/resize proof walk the loop and
+those statements. Thus a pop in that prelude invalidates the fact too.
+Unknown calls and possibly aliased mutations keep the normal check.
 
 For straight-line accesses, ownership and `hd_opt::prove` share
 `hd_tir::own::ElementChecks`; the pass marks each proven element step

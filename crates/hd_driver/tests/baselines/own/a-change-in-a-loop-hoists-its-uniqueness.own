@@ -92,8 +92,8 @@ fn shift(items: &mut List[i32]) -> void:
 >   %25 = Read copy [$1] : usize
 >   %26 = Prim Add [%25 1:usize] : usize
 >   %27 = Store [$1] %26 : ()
->   loop %23 keeps [*$0]
->   loop %33 keeps [*$0]
+>   loop %23 keeps [*$0] (-..-)
+>   loop %33 keeps [*$0] (-..-)
 
 fn total(items: &List[i32]) -> i32:
     let sum = +0
@@ -129,4 +129,4 @@ fn total(items: &List[i32]) -> i32:
 >   %13 = Store [$2] %12 : ()
     sum
 >   %20 = Read copy [$1] : i32
->   loop %19 keeps [*$0]
+>   loop %19 keeps [*$0] (-..-)

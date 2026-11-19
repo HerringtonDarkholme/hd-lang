@@ -78,7 +78,7 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
     total
 >   %50 = Read copy [$2] : usize
 >   summary kept [] borrows [$0 $1]
->   loop %49 keeps [$1]
+>   loop %49 keeps [$1] (-..-)
 
 fn local_plain(xs: List[string]) -> usize:
 > app/main/local_plain

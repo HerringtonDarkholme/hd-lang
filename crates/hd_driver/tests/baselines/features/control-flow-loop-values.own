@@ -53,7 +53,7 @@ fn first_long(xs: List[string]) -> string:
 >   %20 = Break L0 %19 : never
 >   %21 = Block - : never
 >   summary kept [] borrows [$0]
->   loop %34 keeps [$0]
+>   loop %34 keeps [$0] (-..-)
     else:
         "none"
 
@@ -103,7 +103,7 @@ fn first_index(xs: List[string]) -> usize:
 >   %23 = Read borrow [$0] : List[string]
 >   %24 = Intrinsic ListLen [%23] : usize
 >   summary kept [] borrows [$0]
->   loop %29 keeps [$0]
+>   loop %29 keeps [$0] (-..-)
 
 fn forever(s: string) -> string:
 > app/main/forever

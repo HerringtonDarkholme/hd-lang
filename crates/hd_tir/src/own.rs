@@ -2203,7 +2203,7 @@ pub(crate) mod tests {
         for (at, l) in &b.full_cells {
             let _ = writeln!(out, "full %{at} ${l}");
         }
-        for (at, word) in &b.stable_lists {
+        for [at, word, ..] in &b.stable_lists {
             if let Some(p) = b.decode_place(*word) {
                 let _ = writeln!(out, "stable %{at} {p}");
             }

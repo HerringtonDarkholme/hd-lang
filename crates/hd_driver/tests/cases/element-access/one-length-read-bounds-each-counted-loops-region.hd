@@ -1,0 +1,25 @@
+# @dump: own
+# @build: release
+# The hoisting pass's region of a list around each loop
+# (`Body::stable_lists`): the last change before the loop and the first
+# after it. One length read serves three counted loops; the pop between
+# the second and third closes the second loop's region after it and opens
+# the third's. The third loop writes an element under a test, so an
+# `IsUnique` in it may copy the buffer: it keeps only the length (`len`).
+fn total(c: bool) -> i64:
+    let mut xs = [1i64, 2, 3, 4]
+    n := xs.len()
+    let s = 0i64
+    for i in 0..n:
+        s = s + xs[i]
+    for i in 0..n:
+        s = s + xs[i]
+    let _ = xs.pop()
+    for i in 0..n - 1:
+        if c:
+            xs[i] = 0
+        s = s + xs[i]
+    s
+
+pub fn main() -> void $ Console:
+    println(total(true))

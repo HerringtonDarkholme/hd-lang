@@ -529,29 +529,36 @@ impl Em<'_, '_, '_> {
         // The hoisting pass found nothing in the loop changes the list's
         // header (`Body::stable_lists`, which the loop caches trust for its
         // length too), or this proof's own walk does.
+        let region = self.stable_roots(loop_inst).find(|r| r.0 == root);
         if self.is_cell(root.local as usize)
-            || !self.stable_roots(loop_inst).any(|r| r == root)
-                && !self.list_loop_safe(root, &body, &aliases)
+            || region.is_none() && !self.list_loop_safe(root, &body, &aliases)
         {
             return Vec::new();
         }
         // Length observation and loop entry can be separated by arbitrary
         // statements. A pop there invalidates the fact just as one in the
-        // loop does. Include nested statements of that prelude, through the
-        // statement that holds the loop: an arm or an outer loop around it
-        // runs there too. Only the loop and its body, which the test above
-        // took, are left out.
+        // loop does, through the statement that holds the loop: an arm or
+        // an outer loop around it runs there too. The hoisting pass's
+        // region of the list around the loop answers it; a list it does
+        // not prove has those statements walked, the loop and its body,
+        // which the test above took, left out.
         if before {
             let (blk, start) = (
                 self.topo.blk[len as usize],
                 self.topo.pos[len as usize] as usize,
             );
-            let Some(finish) = self.position_in(blk, loop_inst) else {
+            let Some(holder) = self.tree().child_above(blk, loop_inst) else {
                 return Vec::new();
             };
-            let mut prelude = self.statements(blk, start + 1, finish);
-            prelude.retain(|x| *x != loop_inst && body.binary_search(x).is_err());
-            if !self.list_loop_safe(root, &prelude, &aliases) {
+            let kept = if let Some((_, [before, after, _])) = region {
+                (before == NONE || before < len) && holder < after
+            } else {
+                let mut prelude =
+                    self.statements(blk, start + 1, self.topo.pos[holder as usize] as usize);
+                prelude.retain(|x| *x != loop_inst && body.binary_search(x).is_err());
+                self.list_loop_safe(root, &prelude, &aliases)
+            };
+            if !kept {
                 return Vec::new();
             }
         }
@@ -1141,14 +1148,16 @@ impl Em<'_, '_, '_> {
 
     /// The stable list places the hoisting pass lists for loop `l`
     /// (`Body::stable_lists`, sorted by loop) that are a local's list or
-    /// the list a reference local refers to. O(log rows + its rows).
-    fn stable_roots(&self, l: u32) -> impl Iterator<Item = ListRoot> + '_ {
+    /// the list a reference local refers to, each with the bounds of its
+    /// region around the loop and whether the loop keeps its buffer too
+    /// (else only its length). O(log rows + its rows).
+    fn stable_roots(&self, l: u32) -> impl Iterator<Item = (ListRoot, [u32; 3])> + '_ {
         let rows = &self.b.stable_lists;
-        let from = rows.partition_point(|r| r.0 < l);
+        let from = rows.partition_point(|r| r[0] < l);
         rows[from..]
             .iter()
-            .take_while(move |r| r.0 == l)
-            .filter_map(|&(_, word)| {
+            .take_while(move |r| r[0] == l)
+            .filter_map(|&[_, word, before, after, buffer]| {
                 let p = self.b.decode_place(word)?;
                 let hd_tir::ir::PlaceRoot::Local(local) = p.root else {
                     return None;
@@ -1158,7 +1167,10 @@ impl Em<'_, '_, '_> {
                     [hd_tir::ir::Proj::Deref] => true,
                     _ => return None,
                 };
-                Some(ListRoot::new(local.raw(), indirect))
+                Some((
+                    ListRoot::new(local.raw(), indirect),
+                    [before, after, buffer],
+                ))
             })
     }
 
@@ -1169,7 +1181,10 @@ impl Em<'_, '_, '_> {
     /// loop. Their uniqueness, if the
     /// loop changes them, was a hoisted `IsUnique`'s.
     fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
-        let stable: Vec<ListRoot> = self.stable_roots(l).collect();
+        let stable: Vec<ListRoot> = self
+            .stable_roots(l)
+            .filter_map(|(root, [.., buffer])| (buffer == 1).then_some(root))
+            .collect();
         let mut roots = Vec::new();
         for root in stable {
             let mut ty = self.b.local_ty[root.local as usize];

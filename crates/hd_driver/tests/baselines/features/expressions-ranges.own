@@ -84,4 +84,4 @@ fn lens(xs: List[string]) -> usize:
     n
 >   %36 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
->   loop %35 keeps [$0]
+>   loop %35 keeps [$0] (-..-)

@@ -60,7 +60,7 @@ fn doubled(values: List[string]) -> List[string]:
 >   %34 = Read move [$1] : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
->   loop %32 keeps [$2]
+>   loop %32 keeps [$2] (%4..%33)
 
 fn cursor_then_push(values: List[string], s: string) -> usize:
 > app/main/cursor_then_push

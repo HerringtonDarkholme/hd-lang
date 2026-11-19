@@ -103,7 +103,7 @@ impl Parser:
 >   %73 = Store [*$0 .at] %72 : ()
 >   %74 = Block - : ()
 >   summary kept [] writes
->   loop %79 keeps [*$0 .chars]
+>   loop %79 keeps [*$0 .chars] (-..-)
 
     @inline(.Never)
     fn expression(&mut self) -> Result[*i32, string]:

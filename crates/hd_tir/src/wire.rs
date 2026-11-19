@@ -117,7 +117,7 @@ fn references(b: &Body, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
             });
         }
     }
-    for (r, &(_, word)) in b.stable_lists.iter().enumerate() {
+    for (r, &[_, word, ..]) in b.stable_lists.iter().enumerate() {
         if word & place::BARE_LOCAL == 0 {
             place_refs(b, Holder::StableList(r), word, f)?;
         }
@@ -391,7 +391,7 @@ fn compact(b: &Body) -> StageResult<std::borrow::Cow<'_, Body>> {
             Holder::Extra(at) => out.extra[moved(at) as usize] = to,
             Holder::SubParams(s) => out.sub_params[s].start = to,
             Holder::Susp(s) => out.susp[s].scopes.start = to,
-            Holder::StableList(r) => out.stable_lists[r].1 = to,
+            Holder::StableList(r) => out.stable_lists[r][1] = to,
         }
     }
     Ok(std::borrow::Cow::Owned(out))
@@ -602,7 +602,15 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
     );
     pairs(w, &b.cancel);
     pairs(w, &b.full_cells);
-    pairs(w, &b.stable_lists);
+    u32s(
+        w,
+        b.stable_lists
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
     u32s(w, b.anchors.iter().copied());
     u32s(
         w,
@@ -668,7 +676,10 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         .collect::<Option<_>>()?;
     b.cancel = pairs(col(r));
     b.full_cells = pairs(col(r));
-    b.stable_lists = pairs(col(r));
+    b.stable_lists = col(r)
+        .chunks_exact(5)
+        .map(|c| [c[0], c[1], c[2], c[3], c[4]])
+        .collect();
     b.anchors = col(r);
     b.inlined = col(r)
         .chunks_exact(4)
@@ -1025,7 +1036,7 @@ mod tests {
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Cell)];
         body.cancel = vec![(1, 2)];
         body.full_cells = vec![(0, 0)];
-        body.stable_lists = vec![(2, crate::ir::place::BARE_LOCAL)];
+        body.stable_lists = vec![[2, crate::ir::place::BARE_LOCAL, 0, crate::ir::NONE, 1]];
         body.forwarded_reads = vec![(2, 0)];
         body.anchors = vec![0, crate::ir::NONE, 2];
         body.inlined = vec![[3, 2, g.raw(), 1]];
