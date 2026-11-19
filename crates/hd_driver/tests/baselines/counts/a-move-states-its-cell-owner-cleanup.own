@@ -61,19 +61,20 @@ fn take![T < 'static](value: T) -> T $ Clock:
 @cold
 > std/rt_tests.stage_case/stack
 >   local $0 value: T [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
->   %1 = Ref local frame [$0] : &T
->   %2 = Coerce %1 [Weaken -] : &T
->   %3 = Ref local frame [$0] : &T
->   %4 = Call std/rt_tests.stage_case/same[T] (%2, %3) : bool
->   %5 = Drop [%3] : ()
->   %6 = Drop [%2] : ()
->   %9 = Block %8 : T
+>   %0 = FlagSet [$0] #1 : ()
+>   %2 = Ref local frame [$0] : &T
+>   %3 = Coerce %2 [Weaken -] : &T
+>   %4 = Ref local frame [$0] : &T
+>   %5 = Call std/rt_tests.stage_case/same[T] (%3, %4) : bool
+>   %6 = Drop [%4] : ()
+>   %7 = Drop [%3] : ()
+>   %10 = Block %9 : T
     value
->   %7 = FlagClear [$0] #1 : ()
->   %8 = Read move [$0] : T
+>   %8 = FlagClear [$0] #1 : ()
+>   %9 = Read move [$0] : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 

@@ -1,6 +1,7 @@
 # The release-glue tests for std.rt.Drop. The conformance runner adds this
 # file to std as `std.rt_tests.drop_tests`, since only std may implement the
 # runtime trait.
+use std.annotation.inline
 use std.rt.Drop
 use std.rt.cycle.marking
 use std.collections.{UniqList, UniqListIntoIter, UniqMap}
@@ -15,6 +16,7 @@ let list_drops: usize = 0
 let cycle_drops: usize = 0
 let empty_drops: usize = 0
 let cursor_cycle_drops: usize = 0
+let slot_drops: usize = 0
 
 struct Inner:
     name: string
@@ -77,6 +79,51 @@ fn release_popped() -> void:
     items.push(Token { kind: 2 })
     _ := items.pop()
     items.truncate(1)
+
+# A local `&mut` addresses lives in a frame slot, which keeps its address
+# after a whole move (#2172): its flag local, not its address, says it
+# holds a value, so each value's hook runs once.
+struct Held:
+    id: usize
+
+impl !Copy for Held
+
+impl Drop for Held:
+    fn drop(&mut self) -> void:
+        slot_drops = slot_drops + 1
+
+fn bump(held: &mut Held) -> void:
+    held.id = held.id + 1
+
+@inline(.Never)
+fn consume(held: Held) -> usize:
+    held.id
+
+fn slot_moved_each_round(n: usize) -> usize:
+    let mut total = 0
+    for i in 0..n:
+        let mut held = Held { id: i }
+        bump(&mut held)
+        if i % 2 == 0:
+            total = total + consume(held)
+    total
+
+fn slot_moved_then_stored(n: usize) -> usize:
+    let mut held = Held { id: 0 }
+    let mut total = 0
+    for i in 0..n:
+        bump(&mut held)
+        if i % 2 == 0:
+            total = total + consume(held)
+        held = Held { id: i }
+    bump(&mut held)
+    total + held.id
+
+fn slot_parameter(mut held: Held, early: bool) -> usize:
+    bump(&mut held)
+    if early:
+        return consume(held)
+    held.id
 
 fn release_map() -> void:
     let mut items = UniqMap::[usize, Token].new()
@@ -249,3 +296,15 @@ tests:
             pressure := box(Pressure { next: .None })
             pressure.next = .Some(pressure)
         assert(cursor_cycle_drops == 1, "the cursor cycle drops once: $cursor_cycle_drops")
+
+    it("a frame slot moved whole drops each value once, in a loop and after a store"):
+        slot_drops = 0
+        assert(slot_moved_each_round(4) == 4, "two rounds moved")
+        assert(slot_drops == 4, "each round's value drops once: $slot_drops")
+        slot_drops = 0
+        stored := slot_moved_then_stored(4)
+        assert(stored == 7, "moved, then stored: $stored")
+        assert(slot_drops == 5, "each stored value drops once: $slot_drops")
+        slot_drops = 0
+        assert(slot_parameter(Held { id: 1 }, true) + slot_parameter(Held { id: 1 }, false) == 4, "a moved parameter")
+        assert(slot_drops == 2, "each parameter drops once: $slot_drops")

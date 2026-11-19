@@ -42,3 +42,4 @@ fn use_pup(p: Pup) -> usize:
     widen(&p) + loud(p)
 > app/main/use_pup
 >   release app.main.Pup [name.0] (last use)
+>   release app.main.Pup [name.0] (last use)

@@ -20,8 +20,9 @@ fn keep(value: string) -> string:
 @cold
 fn copied(value: string) -> (string, string):
     _ := same(&value, &value)
-    first := keep(value)
 > std/rt_tests.stage_case/copied
+>   release string (last use)
+    first := keep(value)
 >   retain string (stored)
     (first, value)
 

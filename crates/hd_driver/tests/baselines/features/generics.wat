@@ -8,7 +8,7 @@
   (import "fixture" "locals_base" (global $locals_base (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs i32) (local $out i32) (local $t2 i32) (local $value.1 i32)
+  (func $use_generic (param $s.0 i32) (param $s.1 i32) (param $t1 i32) (result i32) (local $t0 i32) (local $xs'1 i32) (local $xs'2 i32) (local $out i32) (local $t2 i32) (local $value.1 i32)
     ;; 22 |     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
     global.get $locals
     global.get $locals_base
@@ -45,34 +45,34 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.tee $xs
+    local.tee $xs'1
     local.get $t1
     i32.store $heap
     local.get $s.1
-    local.get $xs
+    local.get $xs'1
     i32.load $heap
     i32.load $heap offset=4
     i32.add
     local.set $t1
-    local.get $xs
+    local.get $xs'1
     i32.load $heap
-    local.get $xs
+    local.get $xs'1
     i32.const 0
     i32.store $heap
-    local.tee $xs
+    local.tee $xs'2
     i32.load $heap offset=4
     if (result i32)
       i32.const 0
-      local.get $xs
+      local.get $xs'2
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $xs
+      local.get $xs'2
       i32.load $heap offset=16
-      local.get $xs
+      local.get $xs'2
       i32.load $heap offset=20
       local.set $out
       local.tee $t2
@@ -85,19 +85,19 @@
       i32.const 0
     end
     local.set $t2
-    local.get $xs
+    local.get $xs'2
     if
-      local.get $xs
+      local.get $xs'2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $xs
+        local.get $xs'2
         call $rt:release_ref'1
       end
     end
     i32.const 16 ;; &"heap-exhausted"
-    local.set $xs
+    local.set $xs'2
     block
       block
         block
@@ -107,16 +107,16 @@
           local.get $t2
           local.get $out
           local.set $value.1
-          local.set $xs
+          local.set $xs'2
           br 0
           unreachable
         end
         br 1
       end
     end
-    local.get $xs
+    local.get $xs'2
     if
-      local.get $xs
+      local.get $xs'2
       call $rt:release_ref'2
     end
     local.get $t1
@@ -127,7 +127,7 @@
     local.tee $out
     local.tee $value.1
     i32.load $heap offset=4
-    local.tee $xs
+    local.tee $xs'2
     local.get $value.1
     i32.load $heap
     i32.eq
@@ -139,7 +139,7 @@
       local.set $out
     end
     local.get $value.1
-    local.get $xs
+    local.get $xs'2
     i32.const 8
     i32.mul
     i32.add
@@ -150,7 +150,7 @@
     local.get $s.1
     i32.store $heap offset=20
     local.get $value.1
-    local.get $xs
+    local.get $xs'2
     i32.const 1
     i32.add
     i32.store $heap offset=4
@@ -171,6 +171,24 @@
     local.get $t1
     local.get $s.0
     i32.add
+    local.set $s.0
+    local.get $xs'1
+    if
+      local.get $xs'1
+      i32.load $heap
+      local.tee $s.1
+      if
+        local.get $s.1
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $s.1
+          call $rt:release_ref'1
+        end
+      end
+    end
+    local.get $s.0
     local.get $t0
     i32.const 16 ;; &"heap-exhausted"
     i32.add

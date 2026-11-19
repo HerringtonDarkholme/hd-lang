@@ -26,7 +26,7 @@
 //!   leaves the box held, so its `Drop` and exit row stay to end it. A
 //!   `Drop` ends it, and a `Ref` that takes its count hands it to the
 //!   reference. A slot or a static cell needs no end of its own: a move
-//!   empties it as any local.
+//!   empties its value as any local's, and its address stays.
 //! - **The unwind set.** Each suspension point gets a row per owned value
 //!   that may hold a count there (`Body::unwind_drops`): its cancellation
 //!   is a way out that no TIR jump spells, so the backend releases those
@@ -35,9 +35,9 @@
 //! - **Rule 5, cells made before use.** An addressed local (a `Ref` of
 //!   its own storage, or a shared capture, puts it in a cell) gets a second
 //!   bit, set where it may hold no cell: before its first store in its
-//!   sub-body, after a `Drop` of it, a `Ref` that takes its count, and a
-//!   `move` read of a slot or static cell (a heap cell stays, "Boxes"); a
-//!   store into its own storage clears it. Each instruction that reads
+//!   sub-body, after a `Drop` of it and a `Ref` that takes its count (a
+//!   `move` leaves every cell's address, "Boxes"); a store into its own
+//!   storage clears it. Each instruction that reads
 //!   the local's storage (a `Read`, `Store`, `Ref`, `IsUnique` of a place
 //!   rooted at it, a `Closure` that captures it) and each `Loop` (where
 //!   the backend reads stable places before the loop) gets a row in
@@ -59,8 +59,8 @@
 //! no path reaches it with a count in its place; any other state keeps
 //! it, and a place that is empty there holds zero, which releases as
 //! nothing. A rule 5 row stands only where every path that reaches it
-//! stored into the local after the last `Drop`, move or taking `Ref` of
-//! it, and each store leaves the backend's cell made.
+//! stored into the local after the last `Drop` or taking `Ref` of it, and
+//! each store leaves the backend's cell made.
 //!
 //! The walk reads the body as the earlier passes' pending edits leave it
 //! ([`splice::Pending`]): a deleted statement is gone. One bit per tracked
@@ -734,9 +734,6 @@ impl Tables {
                         match tag {
                             Tag::Store if b.local_in_place(a).is_some() => {
                                 self.cell_mark(l, s, st, false);
-                            }
-                            Tag::Read if w == ReadMode::Move as u32 && !self.boxed[l as usize] => {
-                                self.cell_mark(l, s, st, true);
                             }
                             Tag::Ref if w & ref_word::TAKES != 0 => self.cell_mark(l, s, st, true),
                             _ => {}

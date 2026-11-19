@@ -26,3 +26,4 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   release List[string] (last use)
 >   release string (last use)
 >   release List[string] (last use)
+>   release List[string] (last use)

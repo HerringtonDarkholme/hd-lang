@@ -161,6 +161,19 @@ impl Em<'_, '_, '_> {
             }
     }
 
+    /// The flag local of slot `root`'s whole path, when a whole move may
+    /// empty it: the slot keeps its address, and this says whether it
+    /// holds a value, as rustc's drop flag of a maybe-moved place.
+    pub(super) fn slot_flag(&mut self, root: Root) -> StageResult<Option<u32>> {
+        let flags = self.tir_flags();
+        match (root, flags.get(&root).and_then(|ps| ps.first())) {
+            (Root::Local(l), Some((p, flag))) if p.is_empty() && self.slots.contains_key(&l) => {
+                Ok(Some(self.local(*flag)?[0]))
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// Local `root`'s cell address local and slots, when it is a cell.
     fn cell_slots(&self, root: Root) -> Option<(u32, Rc<CellLayout>)> {
         let Root::Local(l) = root else {
@@ -210,15 +223,16 @@ impl Em<'_, '_, '_> {
             return Ok(());
         };
         let set = u32::from(self.b.tags[i as usize] == Tag::FlagSet);
-        ledger!(if self.cell_slots(root).is_some() => "flag-stmt/cell-slot"
+        // A slot keeps its address after a whole move: its whole path's
+        // flag local says whether it holds a value ([`Em::slot_flag`]).
+        let slot =
+            p.proj.is_empty() && matches!(root, Root::Local(l) if self.slots.contains_key(&l));
+        ledger!(if slot => "flag-stmt/slot-whole" else if self.cell_slots(root).is_some() => "flag-stmt/cell-slot"
             else if self.tir_flagged(root, ty) => "flag-stmt/local" else "flag-stmt/ignored-here");
-        if let Some((c, cell)) = self.cell_slots(root) {
-            // A slot's whole move zeroes its one holder's address.
-            let slot = matches!(root, Root::Local(l) if self.slots.contains_key(&l));
-            if set == 1 || !p.proj.is_empty() || !slot {
-                self.cell_statement(c, &cell, &p.proj, set == 1);
-            }
-        } else if self.tir_flagged(root, ty) {
+        if let Some((c, cell)) = self.cell_slots(root).filter(|_| set == 1 || !slot) {
+            self.cell_statement(c, &cell, &p.proj, set == 1);
+        }
+        if slot || self.tir_flagged(root, ty) {
             let local = self.local(flag)?[0];
             self.f.u32(set);
             self.f.set(local);
@@ -284,6 +298,7 @@ impl Em<'_, '_, '_> {
             && crate::layout::holds_drop(self.pool(), self.env(), rt)
         {
             let cell = self.cell_slots(root);
+            let whole = self.slot_flag(root)?;
             let tir = self.tir_flags();
             let paths = match (&cell, self.tir_flagged(root, rt)) {
                 (None, true) => tir.get(&root).map_or(&[][..], Vec::as_slice),
@@ -301,6 +316,10 @@ impl Em<'_, '_, '_> {
                         })?;
                         self.f.get(*c);
                         self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
+                        if let Some(whole) = whole {
+                            self.f.get(whole);
+                            self.f.op(I::I32And);
+                        }
                     }
                     None => self.push_hook_guard(paths, &full)?,
                 }

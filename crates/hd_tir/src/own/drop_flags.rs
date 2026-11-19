@@ -23,7 +23,10 @@
 //! A cell differs in three ways: it is whole when it is made, so a
 //! parameter's gets no entry statement; its `Drop` releases the cell
 //! itself, so it clears nothing; and a whole move releases the cell
-//! too, so its clear goes before the move.
+//! too, so its clear goes before the move. A slot keeps its address
+//! after a whole move, so its whole path's flag is a local, set at a
+//! parameter's entry as a plain local's; a slot whose value only counts
+//! needs none, since the move zeroes its payload.
 //!
 //! Cost: one walk of the body, O(N + S) for N instructions and S place
 //! steps, one hash probe per step; then one statement per flagged path
@@ -34,7 +37,7 @@ use hd_types::Ty;
 
 use super::{OwnCx, Tri, splice};
 use crate::ir::{
-    Body, CaptureMode, NONE, ReadMode, Root, Tag, Topology, local_flags, place, u32_of,
+    Body, CaptureMode, NONE, ReadMode, Root, Storage, Tag, Topology, local_flags, place, u32_of,
 };
 
 /// The root of a move path: a local, or an instruction's value.
@@ -247,8 +250,10 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     // A local a closure shares, or a reference reaches, lives in a cell
     // or a frame slot, which keeps its flags in its layout.
     let mut cells = vec![false; b.local_ty.len()];
+    let mut slots = vec![false; b.local_ty.len()];
     for r in &b.storage {
         cells[r.1.idx()] = true;
+        slots[r.1.idx()] |= r.2 == Storage::Slot;
     }
     for (l, _) in (b.cap_local.iter().zip(&b.cap_mode))
         .filter(|(_, m)| matches!(m, CaptureMode::Shared | CaptureMode::Frame))
@@ -384,7 +389,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     }
     for (l, &s) in sub_of.iter().enumerate() {
         if b.local_flags[l] & local_flags::PARAM != 0
-            && !cells[l]
+            && (!cells[l] || slots[l])
             && let Some(&at) = paths.by_key.get(&Key::Local(u32_of(l)))
         {
             let root = b.sub_root[s];

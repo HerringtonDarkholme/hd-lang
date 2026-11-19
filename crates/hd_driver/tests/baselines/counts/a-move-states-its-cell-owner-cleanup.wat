@@ -1316,6 +1316,20 @@
     i32.const 0
     i32.store $heap offset=4
     ;; 18 |     _ := same(&value, &value)
+    local.set $t1
+    local.set $t2
+    local.get $value
+    if
+      local.get $value
+      i32.load $heap
+      local.tee $value
+      if
+        local.get $value
+        call $rt:release_ref'1
+      end
+    end
+    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 16
     i32.add

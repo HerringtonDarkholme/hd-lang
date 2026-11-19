@@ -282,15 +282,18 @@ impl Em<'_, '_, '_> {
     }
 
     /// Releases the value in local `l`'s slot, whose address local `c`
-    /// holds, or 0 when it holds none: the slot's end, as the last count
-    /// of a cell is the cell's.
+    /// holds, or 0 before it is made, when its flag says it holds one: the
+    /// slot's end, as the last count of a cell is the cell's.
     fn release_slot(&mut self, l: usize, c: u32) -> StageResult<()> {
         let t = self.b.local_ty[l];
         if !self.needs_drop(t) {
             return Ok(());
         }
         let (m, _) = self.cell_mem(l)?;
-        self.f.get(c);
+        let held = self
+            .slot_flag(super::drop_flags::Root::Local(l))?
+            .unwrap_or(c);
+        self.f.get(held);
         self.f.op(I::If(BlockType::Empty));
         if !matches!(self.kind(t), crate::layout::Kind::Value) || self.drop_calls(t).is_empty() {
             let ls = self.f.load_locals(c, &m.leaves);
@@ -427,9 +430,10 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// Moves local `l`'s value out of its cell into instruction `i`. A
-    /// heap cell stays, as Swift's box after a `load [take]`: its drop or
-    /// exit row ends it, and a later store fills it again. Move proves no use
+    /// Moves local `l`'s value out of its cell into instruction `i`. The
+    /// cell stays, as Swift's box after a `load [take]`: a heap cell's drop
+    /// or exit row ends it, a slot keeps its address and clears its flag
+    /// ([`Em::slot_flag`]), and a later store fills it again. Move proves no use
     /// reads the value before such a store; shared captures are not
     /// candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
@@ -447,11 +451,6 @@ impl Em<'_, '_, '_> {
                 offset: 0,
             };
             self.store_part(c, &m, all, &zero)?;
-        }
-        // A slot or a static cell has no end of its own: the move empties
-        // its local, and a later store makes it again (`Em::cell_of`).
-        if self.slots.contains_key(&l) || self.static_cells.contains(&l) {
-            self.f.zero(c);
         }
         for x in held {
             self.f.get(x);

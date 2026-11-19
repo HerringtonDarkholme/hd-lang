@@ -1,0 +1,75 @@
+# @dump: own wat
+# @build: std
+# A local `&mut` addresses lives in a frame slot, which keeps its address
+# after a whole move (#2172), as a heap box does. Its whole path gets a
+# `bool` flag local: each store sets it, the `Read move` clears it, and
+# the slot's release at the round's end (or the next store's) runs only
+# while it is set; a parameter's is set at the body's entry
+# (`parameter`). A payload that only counts gets none (`counted`): the
+# move zeroes it, so its release finds zeros. A slot no move empties gets
+# none (`kept`). The checked runtime cases are in
+# `std_rt/drop_tests.hd`.
+use std.annotation.inline
+use std.rt.Drop
+
+struct Held:
+    id: usize
+
+impl !Copy for Held
+
+impl Drop for Held:
+    fn drop(&mut self) -> void:
+        self.id = 0
+
+fn bump(held: &mut Held) -> void:
+    held.id = held.id + 1
+
+fn grow(xs: &mut List[string]) -> void:
+    xs.push("g")
+
+@inline(.Never)
+fn consume(held: Held) -> usize:
+    held.id
+
+@inline(.Never)
+fn eat(xs: List[string]) -> usize:
+    xs.len()
+
+fn moved_each_round(n: usize) -> usize:
+    let mut total = 0
+    for i in 0..n:
+        let mut held = Held { id: i }
+        bump(&mut held)
+        if i % 2 == 0:
+            total = total + consume(held)
+    total
+
+fn moved_then_stored(n: usize) -> usize:
+    let mut held = Held { id: 0 }
+    let mut total = 0
+    for i in 0..n:
+        bump(&mut held)
+        if i % 2 == 0:
+            total = total + consume(held)
+        held = Held { id: i }
+    total + held.id
+
+fn counted(n: usize) -> usize:
+    let mut total = 0
+    for i in 0..n:
+        let mut xs: List[string] = ["a"]
+        grow(&mut xs)
+        if i % 2 == 0:
+            total = total + eat(xs)
+    total
+
+fn parameter(mut held: Held, early: bool) -> usize:
+    bump(&mut held)
+    if early:
+        return consume(held)
+    held.id
+
+fn kept(n: usize) -> usize:
+    let mut held = Held { id: n }
+    bump(&mut held)
+    held.id

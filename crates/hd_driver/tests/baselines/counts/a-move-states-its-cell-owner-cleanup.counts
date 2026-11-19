@@ -45,6 +45,8 @@ fn take![T < 'static](value: T) -> T $ Clock:
 @cold
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
+> std/rt_tests.stage_case/stack
+>   release string (last use)
     value
 
 @cold

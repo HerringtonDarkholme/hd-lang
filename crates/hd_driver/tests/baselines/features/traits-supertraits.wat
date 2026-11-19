@@ -92,6 +92,18 @@
       call $rt:release_ref
     end
     i32.add
+    local.set $t1
+    local.get $p
+    if
+      local.get $p
+      i32.load $heap
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+    end
+    local.get $t1
     local.get $t0
     i32.const 16
     i32.add
