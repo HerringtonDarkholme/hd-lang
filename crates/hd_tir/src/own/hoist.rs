@@ -1420,12 +1420,18 @@ fn hoist_loop(
         let c = t.cands[k];
         // The list keeps its length through the loop, whatever its buffer
         // does: what the counter proofs ask of a region ([`regions`]). A
-        // parameter's twin answers only where the parameter has no row.
-        let length = c.ok
-            && c.used
-            && !c.pushes
-            && (!c.relied || c.hoist && is_exclusive(b))
-            && !(c.lent_param && rowed);
+        // parameter's twin rows only where the parameter has no row.
+        let length = c.ok && c.used && !c.pushes && (!c.relied || c.hoist && is_exclusive(b));
+        // Where the local rowed, its region takes the twin's externality:
+        // the twin exists only for a local no reference, capture or kept
+        // read reaches, so only the local's own changes close it (#2190).
+        if c.lent_param && rowed {
+            if let Some(r) = t.rkeys.last_mut() {
+                r.external = false;
+            }
+            rowed = false;
+            continue;
+        }
         let (word, stable) = 'hoist: {
             if !c.ok || (c.lent && !c.hoist) || c.lent_param {
                 break 'hoist (None, false);

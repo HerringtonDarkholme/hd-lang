@@ -18,7 +18,7 @@
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $b i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t6 i32) (local $t5 i32)
-    ;; 46 |     let mut b = Bag { items: [1i64, 2, 3, 4] }
+    ;; 74 |     let mut b = Bag { items: [1i64, 2, 3, 4] }
     global.get $locals
     global.get $locals_base
     i32.sub
@@ -81,10 +81,10 @@
     local.get $t1
     i32.store $heap
     local.get $b
-    ;; 47 |     s := pick(&mut b, true)
+    ;; 75 |     s := pick(&mut b, true)
     i32.const 1
     call $pick
-    ;; 48 |     println("$s ${b.items.len()}")
+    ;; 76 |     println("$s ${b.items.len()}")
     local.tee $t2
     local.tee $t3
     call $signed_magnitude
@@ -162,7 +162,7 @@
       local.get $t6
       call $rt:release_ref'2
     end
-    ;; 49 |     println(copy_twice([1i64, 2, 3]))
+    ;; 77 |     println(copy_twice([1i64, 2, 3]))
     i32.const 3
     call $rt:list_buf
     local.tee $t4
@@ -196,7 +196,64 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i64]"
-    ;; 50 |     println(captured([1i64, 2]))
+    ;; 78 |     println(lent_between([1i64, 2, 3]))
+    i32.const 3
+    call $rt:list_buf
+    local.tee $t4
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $t4
+    i64.const 1
+    i64.store $heap offset=16
+    local.get $t4
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 2
+    i64.store $heap offset=16
+    local.get $t1
+    i64.const 3
+    i64.store $heap offset=24
+    local.get $t4
+    call $lent_between
+    local.get $t4
+    if
+      local.get $t4
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t4
+        call $rt:release_ref'1
+      end
+    end
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i64]"
+    ;; 79 |     println(shrunk_between([1i64, 2, 3]))
+    i32.const 3
+    call $rt:list_buf
+    local.tee $t4
+    i32.const 3
+    i32.store $heap offset=4
+    local.get $t4
+    i64.const 1
+    i64.store $heap offset=16
+    local.get $t4
+    i32.const 8
+    i32.add
+    local.tee $t1
+    i64.const 2
+    i64.store $heap offset=16
+    local.get $t1
+    i64.const 3
+    i64.store $heap offset=24
+    local.get $t4
+    call $shrunk_between
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[i64]"
+    ;; 80 |     println(captured([1i64, 2]))
     i32.const 2
     call $rt:list_buf
     local.tee $t4
@@ -224,29 +281,29 @@
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i64]"
-    ;; 46 |     let mut b = Bag { items: [1i64, 2, 3, 4] }
+    ;; 74 |     let mut b = Bag { items: [1i64, 2, 3, 4] }
     local.get $t0
     i32.const 16
     i32.add
     global.set $locals
   )
   (func $captured (param $xs i32) (result i64) (local $n i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64) (local $t4 i32)
-    ;; 39 |     n := xs.len()
+    ;; 67 |     n := xs.len()
     local.get $xs
-    ;; 40 |     let mut out: List[i64] = []
+    ;; 68 |     let mut out: List[i64] = []
     i32.load $heap offset=4
-    ;; 41 |     for i in 0..n:
+    ;; 69 |     for i in 0..n:
     i32.const 128 ;; &empty-buffer
     local.set $n
     local.set $t0
-    ;; 37 |     f := fn() -> i64:
+    ;; 65 |     f := fn() -> i64:
     local.get $xs
-    ;; 43 |     i64(out.len())
+    ;; 71 |     i64(out.len())
     i32.load $heap offset=4
     local.set $t1
     block
       loop
-    ;; 41 |     for i in 0..n:
+    ;; 69 |     for i in 0..n:
         local.get $out
         local.get $t0
         i32.lt_u
@@ -254,7 +311,7 @@
         br_if 1
         local.get $out
         local.get $out
-    ;; 42 |         out.push(xs[i] + f())
+    ;; 70 |         out.push(xs[i] + f())
         i32.const 1
         i32.add
         local.set $out
@@ -274,7 +331,7 @@
         i64.load $heap offset=16
         local.get $t1
         i64.extend_i32_u
-    ;; 41 |     for i in 0..n:
+    ;; 69 |     for i in 0..n:
         i64.add
         local.set $t3
         local.get $n
@@ -303,16 +360,16 @@
         i32.const 1
         i32.add
         i32.store $heap offset=4
-    ;; 43 |     i64(out.len())
+    ;; 71 |     i64(out.len())
         br 0
       end
     end
     local.get $n
-    ;; 37 |     f := fn() -> i64:
+    ;; 65 |     f := fn() -> i64:
     i32.load $heap offset=4
-    ;; 43 |     i64(out.len())
+    ;; 71 |     i64(out.len())
     local.get $n
-    ;; 37 |     f := fn() -> i64:
+    ;; 65 |     f := fn() -> i64:
     if
       local.get $n
       i32.const 8
@@ -325,6 +382,45 @@
     end
     ;; (no span)
     i64.extend_i32_u
+  )
+  (func $sum (param $xs i32) (result i64) (local $s i64) (local $t0 i32) (local $t1 i32) (local $x i64)
+    ;; 38 |     for x in xs:
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $t0
+    block
+      loop
+        local.get $t1
+        local.get $t0
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $xs
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        local.set $x
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+        block
+          br 0
+          unreachable
+        end
+    ;; 39 |         s = s + x
+        local.get $s
+        local.get $x
+        i64.add
+        local.set $s
+    ;; 38 |     for x in xs:
+        br 0
+      end
+    end
+    ;; 40 |     s
+    local.get $s
   )
   (func $pick (param $b i32) (param $whole i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $i i32)
     ;; 18 |     ys := if whole: b.items else: [9i64]
@@ -454,9 +550,6 @@
       end
     end
     ;; 32 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap offset=4
-    local.set $t0
     block
       loop
         local.get $t3
@@ -465,21 +558,15 @@
         i32.eqz
         br_if 1
         local.get $t3
+        local.set $t0
         local.get $t3
         i32.const 1
         i32.add
         local.set $t3
     ;; 33 |         s = s + xs[i]
-        local.tee $i
-        local.get $t0
-        i32.ge_u
-        if
-          call $rt:panic
-          unreachable
-        end
         local.get $s
         local.get $xs
-        local.get $i
+        local.get $t0
         i32.const 8
         i32.mul
         i32.add
@@ -507,6 +594,313 @@
     i64.extend_i32_u
     local.get $s
     i64.add
+  )
+  (func $lent_between (param $xs i32) (result i64) (local $n i32) (local $out i32) (local $t0 i32) (local $t1 i32) (local $s i64) (local $t2 i32) (local $t3 i32)
+    ;; 43 |     n := xs.len()
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $n
+    ;; 44 |     let mut out: List[i64] = []
+    i32.const 128 ;; &empty-buffer
+    local.set $out
+    ;; 45 |     for i in 0..n:
+    block
+      loop
+        local.get $t0
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t0
+        local.get $t0
+        i32.const 1
+        i32.add
+        local.set $t0
+    ;; 46 |         out.push(xs[i])
+        local.tee $t1
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $xs
+        local.get $t1
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        local.set $s
+        local.get $out
+        local.tee $t1
+        i32.load $heap offset=4
+        local.tee $t2
+        local.get $t1
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t1
+          i32.const 2
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $t1
+          local.set $out
+        end
+        local.get $t1
+        local.get $t2
+        i32.const 8
+        i32.mul
+        i32.add
+        local.get $s
+        i64.store $heap offset=16
+        local.get $t1
+        local.get $t2
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 45 |     for i in 0..n:
+        br 0
+      end
+    end
+    ;; 47 |     let s = sum(xs)
+    local.get $xs
+    call $sum
+    local.set $s
+    ;; 48 |     for i in 0..n:
+    block
+      loop
+        local.get $t3
+        local.get $n
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t3
+        local.get $t3
+        i32.const 1
+        i32.add
+        local.set $t3
+    ;; 49 |         s = s + xs[i]
+        local.tee $t0
+        local.get $xs
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $s
+        local.get $xs
+        local.get $t0
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        i64.add
+        local.set $s
+    ;; 48 |     for i in 0..n:
+        br 0
+      end
+    end
+    ;; 50 |     i64(out.len()) + s
+    local.get $out
+    i32.load $heap offset=4
+    local.get $out
+    if
+      local.get $out
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $out
+        call $rt:release_ref'1
+      end
+    end
+    i64.extend_i32_u
+    local.get $s
+    i64.add
+  )
+  (func $shrunk_between (param $xs i32) (result i64) (local $ys i32) (local $t0 i32) (local $out i32) (local $t1 i32) (local $i i32) (local $t2 i64) (local $t3 i32) (local $s i64) (local $t4 i32)
+    ;; 53 |     let mut ys = xs
+    global.get $locals
+    global.get $locals_base
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      i32.const 1
+      memory.grow $heap
+      local.tee $t0
+      i32.const -1
+      i32.eq
+      if
+        unreachable
+      end
+      local.get $t0
+      i32.const 16
+      i32.shl
+      local.tee $t0
+      global.set $locals_base
+      local.get $t0
+      i32.const 65536
+      i32.add
+      global.set $locals
+    end
+    global.get $locals
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $locals
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $ys
+    local.get $xs
+    i32.store $heap
+    local.get $ys
+    ;; 54 |     n := ys.len()
+    i32.load $heap
+    i32.load $heap offset=4
+    local.set $xs
+    ;; 55 |     let mut out: List[i64] = []
+    i32.const 128 ;; &empty-buffer
+    local.set $out
+    ;; 56 |     for i in 0..n:
+    block
+      loop
+        local.get $t1
+        local.get $xs
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t1
+        local.set $i
+        local.get $t1
+        i32.const 1
+        i32.add
+        local.set $t1
+    ;; 57 |         out.push(ys[i])
+        local.get $ys
+        i32.load $heap
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        local.set $t2
+        local.get $out
+        local.tee $i
+        i32.load $heap offset=4
+        local.tee $t3
+        local.get $i
+        i32.load $heap
+        i32.eq
+        if
+          local.get $i
+          i32.const 2
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $i
+          local.set $out
+        end
+        local.get $i
+        local.get $t3
+        i32.const 8
+        i32.mul
+        i32.add
+        local.get $t2
+        i64.store $heap offset=16
+        local.get $i
+        local.get $t3
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+    ;; 56 |     for i in 0..n:
+        br 0
+      end
+    end
+    ;; 58 |     let _ = ys.pop()
+    local.get $ys
+    call $"impl[T] List[T].pop[i64]"
+    drop
+    drop
+    ;; 60 |     for i in 0..n:
+    block
+      loop
+        local.get $t4
+        local.get $xs
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t4
+        local.get $t4
+        i32.const 1
+        i32.add
+        local.set $t4
+    ;; 61 |         s = s + ys[i]
+        local.get $ys
+        i32.load $heap
+        local.set $t1
+        local.tee $i
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic
+          unreachable
+        end
+        local.get $s
+        local.get $t1
+        local.get $i
+        i32.const 8
+        i32.mul
+        i32.add
+        i64.load $heap offset=16
+        i64.add
+        local.set $s
+    ;; 60 |     for i in 0..n:
+        br 0
+      end
+    end
+    local.get $ys
+    if
+      local.get $ys
+      i32.load $heap
+      local.tee $xs
+      if
+        local.get $xs
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $xs
+          call $rt:release_ref'1
+        end
+      end
+    end
+    ;; 62 |     i64(out.len()) + s
+    local.get $out
+    i32.load $heap offset=4
+    local.get $out
+    if
+      local.get $out
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $out
+        call $rt:release_ref'1
+      end
+    end
+    i64.extend_i32_u
+    local.get $s
+    i64.add
+    ;; 53 |     let mut ys = xs
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $locals
   )
   (func $drain (param $b i32)
     ;; 15 |     let _ = b.items.pop()

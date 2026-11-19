@@ -1,13 +1,13 @@
 # @dump: wat
 # @build: v8 release
-# expected: `copy_twice`'s second loop keeps its check (known:
-# /tmp/lt217/a-by-value-parameters-region-closes-at-a-call-that-cannot-change-it.md):
-# the parameter's region row is the external one, which the first loop's
-# push closes.
 # Counted loops over lists no reference reaches, across calls that may
-# write: `copy_twice`'s by-value parameter across a push and `pick`'s
+# write: `copy_twice`'s by-value parameter across a push, in both loops
+# (the second's row takes the twin's region, #2190), and `pick`'s
 # `if`-bound local across a call that pops another list read nothing
 # checked. `captured`'s parameter, which a closure captures, keeps its check.
+# `lent_between` passes its list to a call, a kept read, so it has no twin
+# and both loops keep their checks; `shrunk_between`'s second loop keeps its
+# check, as the list pops between the loops.
 struct Bag:
     items: List[i64]
 
@@ -33,6 +33,34 @@ fn copy_twice(xs: List[i64]) -> i64:
         s = s + xs[i]
     i64(out.len()) + s
 
+fn sum(xs: List[i64]) -> i64:
+    let s = 0i64
+    for x in xs:
+        s = s + x
+    s
+
+fn lent_between(xs: List[i64]) -> i64:
+    n := xs.len()
+    let mut out: List[i64] = []
+    for i in 0..n:
+        out.push(xs[i])
+    let s = sum(xs)
+    for i in 0..n:
+        s = s + xs[i]
+    i64(out.len()) + s
+
+fn shrunk_between(xs: List[i64]) -> i64:
+    let mut ys = xs
+    n := ys.len()
+    let mut out: List[i64] = []
+    for i in 0..n:
+        out.push(ys[i])
+    let _ = ys.pop()
+    let s = 0i64
+    for i in 0..n:
+        s = s + ys[i]
+    i64(out.len()) + s
+
 fn captured(xs: List[i64]) -> i64:
     f := fn() -> i64:
         i64(xs.len())
@@ -47,4 +75,6 @@ pub fn main() -> void $ Console:
     s := pick(&mut b, true)
     println("$s ${b.items.len()}")
     println(copy_twice([1i64, 2, 3]))
+    println(lent_between([1i64, 2, 3]))
+    println(shrunk_between([1i64, 2, 3]))
     println(captured([1i64, 2]))
