@@ -156,7 +156,7 @@
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $message.0 i32) (local $t2 i32) (local $value i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.0 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
     local.get $p
     i32.const 4
@@ -174,8 +174,6 @@
       unreachable
     end
     local.get $t0
-    i32.const 1
-    local.set $t1
     i32.load $heap
     local.tee $value
     i32.const 2031616
@@ -192,24 +190,10 @@
       i32.add
       i32.store $heap
     end
-    local.get $t1
-    i32.const 1
-    i32.eq
-    if
-      local.get $message.0
-      i32.const 65536
-      i32.add
-      local.set $message.0
-    end
-    local.get $t1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t2
-      i32.const 65536
-      i32.add
-      local.set $t2
-    end
+    local.get $message.0
+    i32.const 65536
+    i32.add
+    local.set $message.0
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -293,15 +277,6 @@
         i32.sub
         i32.store $heap
       end
-      local.get $t1
-      i32.const 2
-      i32.eq
-      if
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        local.set $t2
-      end
     end
     ;; 31 |     alias.push()
     local.get $alias
@@ -310,8 +285,6 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t2
-    i32.ne
     if
       call $rt:panic'2
       unreachable

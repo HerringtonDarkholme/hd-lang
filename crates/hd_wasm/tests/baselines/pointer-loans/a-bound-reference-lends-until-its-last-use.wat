@@ -30,6 +30,7 @@
     i32.const 2097152
     i32.add
     local.set $t1
+    local.get $p
     ;; 12 |     p.other = "b"
     local.get $p
     i32.const 4
@@ -60,16 +61,13 @@
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
-    ;; 11 |     r := &mut p.value
-    local.get $p
     ;; 13 |     seen := *r
-    i32.load $heap
     local.tee $t1
-    ;; 11 |     r := &mut p.value
-    local.get $p
-    ;; 13 |     seen := *r
-    i32.load $heap offset=4
+    i32.load $heap
     local.tee $t2
+    local.get $t1
+    i32.load $heap offset=4
+    local.tee $t1
     call $rt:retain
     local.get $t0
     if
@@ -131,7 +129,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t1
     local.get $t2
+    local.get $t1
   )
 )

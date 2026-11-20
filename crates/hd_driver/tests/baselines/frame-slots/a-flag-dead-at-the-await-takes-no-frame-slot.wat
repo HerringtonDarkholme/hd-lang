@@ -32,14 +32,14 @@
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 104
+    i32.const 64
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 104
+    i32.const 64
     i32.sub
     local.tee $t0
     global.set $stack
@@ -71,7 +71,7 @@
     if
       local.get $t2
       i32.const 0
-      i32.const 104
+      i32.const 64
       memory.fill $heap
       local.get $t2
       local.get $kept.name.0
@@ -107,7 +107,7 @@
       if
         local.get $t2
         i32.const 1
-        i32.store $heap offset=84
+        i32.store $heap offset=44
         local.get $t2
         i32.load $heap offset=12
         if
@@ -132,7 +132,7 @@
             i32.const 2097152
             i32.and
             local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.const 2097152
             i32.and
             i32.ne
@@ -147,7 +147,7 @@
             i32.load $heap offset=28
             if
               local.get $t2
-              i32.load $heap offset=76
+              i32.load $heap offset=36
               if
                 local.get $t2
                 i32.load $heap offset=28
@@ -158,19 +158,13 @@
                 i32.sub
                 i32.store $heap
                 local.get $t2
-                i32.load $heap offset=32
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t2
-                  i32.load $heap offset=88
-                  i32.const 2097152
-                  i32.sub
-                  local.set $kept.name.0
-                  local.get $t2
-                  local.get $kept.name.0
-                  i32.store $heap offset=88
-                end
+                i32.load $heap offset=48
+                i32.const 2097152
+                i32.sub
+                local.set $kept.name.0
+                local.get $t2
+                local.get $kept.name.0
+                i32.store $heap offset=48
               else
                 local.get $t2
                 i32.load $heap offset=28
@@ -193,30 +187,21 @@
                   i32.store $heap
                 end
                 local.get $t2
-                i32.load $heap offset=32
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t2
-                  i32.load $heap offset=88
-                  i32.const 65536
-                  i32.sub
-                  local.set $kept.name.0
-                  local.get $t2
-                  local.get $kept.name.0
-                  i32.store $heap offset=88
-                end
+                i32.load $heap offset=48
+                i32.const 65536
+                i32.sub
+                local.set $kept.name.0
+                local.get $t2
+                local.get $kept.name.0
+                i32.store $heap offset=48
               end
               local.get $t2
               i32.const 0
-              i32.store $heap offset=76
+              i32.store $heap offset=36
             end
             local.get $t2
             local.get $kept.name.1
             i32.store $heap offset=28
-            local.get $t2
-            i32.const 1
-            i32.store $heap offset=32
             local.get $t2
             i32.load $heap offset=28
             i32.load $heap
@@ -238,19 +223,13 @@
               i32.store $heap
             end
             local.get $t2
-            i32.load $heap offset=32
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 65536
-              i32.add
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 65536
+            i32.add
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
             local.get $ready
             local.get $bag
             local.set $provider0
@@ -268,7 +247,7 @@
               i32.const 4128768
               i32.and
               local.get $t2
-              i32.load $heap offset=88
+              i32.load $heap offset=48
               i32.ne
               if
                 call $rt:panic'3
@@ -295,19 +274,13 @@
                 i32.store $heap
               end
               local.get $t2
-              i32.load $heap offset=32
-              i32.const 1
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=88
-                i32.const 65536
-                i32.sub
-                local.set $kept.name.0
-                local.get $t2
-                local.get $kept.name.0
-                i32.store $heap offset=88
-              end
+              i32.load $heap offset=48
+              i32.const 65536
+              i32.sub
+              local.set $kept.name.0
+              local.get $t2
+              local.get $kept.name.0
+              i32.store $heap offset=48
               local.get $t2
               i32.load $heap offset=28
               local.get $t2
@@ -317,22 +290,16 @@
               i32.add
               i32.store $heap
               local.get $t2
-              i32.load $heap offset=32
-              i32.const 1
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=88
-                i32.const 2097152
-                i32.add
-                local.set $kept.name.0
-                local.get $t2
-                local.get $kept.name.0
-                i32.store $heap offset=88
-              end
+              i32.load $heap offset=48
+              i32.const 2097152
+              i32.add
+              local.set $kept.name.0
+              local.get $t2
+              local.get $kept.name.0
+              i32.store $heap offset=48
               local.get $t2
               i32.const 1
-              i32.store $heap offset=76
+              i32.store $heap offset=36
             end
             local.get $provider0.vtable
             local.get $provider0
@@ -348,7 +315,7 @@
             i32.const 2097152
             i32.and
             local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.const 2097152
             i32.and
             i32.ne
@@ -383,7 +350,7 @@
             i32.const 2097152
             i32.and
             local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.const 2097152
             i32.and
             i32.ne
@@ -418,7 +385,7 @@
             i32.const 4128768
             i32.and
             local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.ne
             if
               call $rt:panic'5
@@ -431,7 +398,7 @@
             i32.load $heap offset=28
             if
               local.get $t2
-              i32.load $heap offset=76
+              i32.load $heap offset=36
               if
                 local.get $t2
                 i32.load $heap offset=28
@@ -442,19 +409,13 @@
                 i32.sub
                 i32.store $heap
                 local.get $t2
-                i32.load $heap offset=32
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t2
-                  i32.load $heap offset=88
-                  i32.const 2097152
-                  i32.sub
-                  local.set $kept.name.0
-                  local.get $t2
-                  local.get $kept.name.0
-                  i32.store $heap offset=88
-                end
+                i32.load $heap offset=48
+                i32.const 2097152
+                i32.sub
+                local.set $kept.name.0
+                local.get $t2
+                local.get $kept.name.0
+                i32.store $heap offset=48
               else
                 local.get $t2
                 i32.load $heap offset=28
@@ -477,108 +438,20 @@
                   i32.store $heap
                 end
                 local.get $t2
-                i32.load $heap offset=32
-                i32.const 1
-                i32.eq
-                if
-                  local.get $t2
-                  i32.load $heap offset=88
-                  i32.const 65536
-                  i32.sub
-                  local.set $kept.name.0
-                  local.get $t2
-                  local.get $kept.name.0
-                  i32.store $heap offset=88
-                end
-              end
-              local.get $t2
-              i32.const 0
-              i32.store $heap offset=76
-              local.get $t2
-              i32.const 0
-              i32.store $heap offset=28
-            end
-            local.get $t2
-            i32.load $heap offset=36
-            if
-              local.get $t2
-              i32.load $heap offset=36
-              i32.load $heap
-              local.tee $kept.name.0
-              i32.const 2031616
-              i32.and
-              i32.const 2031616
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=36
-                call $rt:loan_unshare
-              else
-                local.get $t2
-                i32.load $heap offset=36
-                local.get $kept.name.0
-                i32.const 65536
-                i32.sub
-                i32.store $heap
-              end
-              local.get $t2
-              i32.load $heap offset=40
-              i32.const 1
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=88
+                i32.load $heap offset=48
                 i32.const 65536
                 i32.sub
                 local.set $kept.name.0
                 local.get $t2
                 local.get $kept.name.0
-                i32.store $heap offset=88
+                i32.store $heap offset=48
               end
               local.get $t2
               i32.const 0
               i32.store $heap offset=36
-            end
-            local.get $t2
-            i32.load $heap offset=44
-            if
-              local.get $t2
-              i32.load $heap offset=44
-              i32.load $heap
-              local.tee $kept.name.0
-              i32.const 2031616
-              i32.and
-              i32.const 2031616
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=44
-                call $rt:loan_unshare
-              else
-                local.get $t2
-                i32.load $heap offset=44
-                local.get $kept.name.0
-                i32.const 65536
-                i32.sub
-                i32.store $heap
-              end
-              local.get $t2
-              i32.load $heap offset=48
-              i32.const 1
-              i32.eq
-              if
-                local.get $t2
-                i32.load $heap offset=88
-                i32.const 65536
-                i32.sub
-                local.set $kept.name.0
-                local.get $t2
-                local.get $kept.name.0
-                i32.store $heap offset=88
-              end
               local.get $t2
               i32.const 0
-              i32.store $heap offset=44
+              i32.store $heap offset=28
             end
     ;; 27 |         if early:
           end
@@ -592,7 +465,7 @@
         local.get $t2
         i64.const 1
         call $"impl Duration.milliseconds"
-        i64.store $heap offset=96
+        i64.store $heap offset=56
     ;; 25 |     if ready:
       end
     ;; 29 |     sleep!(ms(1))
@@ -620,7 +493,7 @@
           end
           local.get $kept.name.0
           local.get $t2
-          i64.load $heap offset=96
+          i64.load $heap offset=56
           local.get $t2
           i32.load $heap offset=20
           local.get $t2
@@ -679,7 +552,7 @@
               i32.store $heap offset=12
             end
             local.get $t0
-            i32.const 104
+            i32.const 64
             i32.add
             global.set $stack
             return
@@ -748,7 +621,7 @@
             i32.store $heap offset=12
           end
           local.get $t0
-          i32.const 104
+          i32.const 64
           i32.add
           global.set $stack
           return
@@ -768,7 +641,7 @@
         i32.load $heap offset=28
         if
           local.get $t2
-          i32.load $heap offset=76
+          i32.load $heap offset=36
           if
             local.get $t2
             i32.load $heap offset=28
@@ -779,19 +652,13 @@
             i32.sub
             i32.store $heap
             local.get $t2
-            i32.load $heap offset=32
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 2097152
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 2097152
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           else
             local.get $t2
             i32.load $heap offset=28
@@ -814,140 +681,46 @@
               i32.store $heap
             end
             local.get $t2
-            i32.load $heap offset=32
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 65536
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 65536
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=76
+          i32.store $heap offset=36
           local.get $t2
           i32.const 0
           i32.store $heap offset=28
         end
         local.get $t2
-        i32.load $heap offset=36
+        i32.load $heap offset=32
         if
-          local.get $t2
-          i32.load $heap offset=36
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=36
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=36
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
           local.get $t2
           i32.load $heap offset=40
-          i32.const 1
-          i32.eq
           if
             local.get $t2
-            i32.load $heap offset=88
-            i32.const 65536
-            i32.sub
-            local.set $kept.name.0
+            i32.load $heap offset=32
             local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=36
-        end
-        local.get $t2
-        i32.load $heap offset=44
-        if
-          local.get $t2
-          i32.load $heap offset=44
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=44
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=44
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-          local.get $t2
-          i32.load $heap offset=48
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
-            i32.const 65536
-            i32.sub
-            local.set $kept.name.0
-            local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=44
-        end
-        local.get $t2
-        i32.load $heap offset=52
-        if
-          local.get $t2
-          i32.load $heap offset=80
-          if
-            local.get $t2
-            i32.load $heap offset=52
-            local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             i32.const 2097152
             i32.sub
             i32.store $heap
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 2097152
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 2097152
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           else
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             local.tee $kept.name.0
             i32.const 2031616
@@ -956,119 +729,31 @@
             i32.eq
             if
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               call $rt:loan_unshare
             else
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               local.get $kept.name.0
               i32.const 65536
               i32.sub
               i32.store $heap
             end
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 65536
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
-          end
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=80
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=52
-        end
-        local.get $t2
-        i32.load $heap offset=60
-        if
-          local.get $t2
-          i32.load $heap offset=60
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=60
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=60
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-          local.get $t2
-          i32.load $heap offset=64
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.const 65536
             i32.sub
             local.set $kept.name.0
             local.get $t2
             local.get $kept.name.0
-            i32.store $heap offset=88
+            i32.store $heap offset=48
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=60
-        end
-        local.get $t2
-        i32.load $heap offset=68
-        if
-          local.get $t2
-          i32.load $heap offset=68
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=68
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=68
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-          local.get $t2
-          i32.load $heap offset=72
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
-            i32.const 65536
-            i32.sub
-            local.set $kept.name.0
-            local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
+          i32.store $heap offset=40
           local.get $t2
           i32.const 0
-          i32.store $heap offset=68
+          i32.store $heap offset=32
         end
         i32.const 1
         local.set $t4
@@ -1088,7 +773,7 @@
         i32.const 2097152
         i32.and
         local.get $t2
-        i32.load $heap offset=88
+        i32.load $heap offset=48
         i32.const 2097152
         i32.and
         i32.ne
@@ -1100,36 +785,30 @@
         i32.load $heap offset=8
         local.set $bag
         local.get $t2
-        i32.load $heap offset=52
+        i32.load $heap offset=32
         if
           local.get $t2
-          i32.load $heap offset=80
+          i32.load $heap offset=40
           if
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             i32.const 2097152
             i32.sub
             i32.store $heap
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 2097152
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 2097152
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           else
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             local.tee $kept.name.0
             i32.const 2031616
@@ -1138,43 +817,34 @@
             i32.eq
             if
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               call $rt:loan_unshare
             else
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               local.get $kept.name.0
               i32.const 65536
               i32.sub
               i32.store $heap
             end
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 65536
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 65536
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=80
+          i32.store $heap offset=40
         end
         local.get $t2
         local.get $kept.name.1
-        i32.store $heap offset=52
+        i32.store $heap offset=32
         local.get $t2
-        i32.const 1
-        i32.store $heap offset=56
-        local.get $t2
-        i32.load $heap offset=52
+        i32.load $heap offset=32
         i32.load $heap
         local.tee $kept.name.0
         i32.const 2031616
@@ -1183,30 +853,24 @@
         i32.eq
         if
           local.get $t2
-          i32.load $heap offset=52
+          i32.load $heap offset=32
           call $rt:loan_share
         else
           local.get $t2
-          i32.load $heap offset=52
+          i32.load $heap offset=32
           local.get $kept.name.0
           i32.const 65536
           i32.add
           i32.store $heap
         end
         local.get $t2
-        i32.load $heap offset=56
-        i32.const 1
-        i32.eq
-        if
-          local.get $t2
-          i32.load $heap offset=88
-          i32.const 65536
-          i32.add
-          local.set $kept.name.0
-          local.get $t2
-          local.get $kept.name.0
-          i32.store $heap offset=88
-        end
+        i32.load $heap offset=48
+        i32.const 65536
+        i32.add
+        local.set $kept.name.0
+        local.get $t2
+        local.get $kept.name.0
+        i32.store $heap offset=48
         local.get $t2
         i32.load $heap
         local.get $t2
@@ -1221,24 +885,24 @@
         i32.store $heap offset=4
         local.get $t2
         i32.const 0
-        i32.store $heap offset=84
+        i32.store $heap offset=44
         local.get $t2
-        i32.load $heap offset=52
+        i32.load $heap offset=32
         if
           local.get $t2
-          i32.load $heap offset=52
+          i32.load $heap offset=32
           i32.load $heap
           i32.const 4128768
           i32.and
           local.get $t2
-          i32.load $heap offset=88
+          i32.load $heap offset=48
           i32.ne
           if
             call $rt:panic'3
             unreachable
           end
           local.get $t2
-          i32.load $heap offset=52
+          i32.load $heap offset=32
           i32.load $heap
           local.tee $kept.name.0
           i32.const 2031616
@@ -1247,55 +911,43 @@
           i32.eq
           if
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             call $rt:loan_unshare
           else
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             local.get $kept.name.0
             i32.const 65536
             i32.sub
             i32.store $heap
           end
           local.get $t2
-          i32.load $heap offset=56
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
-            i32.const 65536
-            i32.sub
-            local.set $kept.name.0
-            local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
+          i32.load $heap offset=48
+          i32.const 65536
+          i32.sub
+          local.set $kept.name.0
           local.get $t2
-          i32.load $heap offset=52
+          local.get $kept.name.0
+          i32.store $heap offset=48
           local.get $t2
-          i32.load $heap offset=52
+          i32.load $heap offset=32
+          local.get $t2
+          i32.load $heap offset=32
           i32.load $heap
           i32.const 2097152
           i32.add
           i32.store $heap
           local.get $t2
-          i32.load $heap offset=56
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
-            i32.const 2097152
-            i32.add
-            local.set $kept.name.0
-            local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
+          i32.load $heap offset=48
+          i32.const 2097152
+          i32.add
+          local.set $kept.name.0
+          local.get $t2
+          local.get $kept.name.0
+          i32.store $heap offset=48
           local.get $t2
           i32.const 1
-          i32.store $heap offset=80
+          i32.store $heap offset=40
         end
         local.get $ready
         local.get $kept.name.1
@@ -1311,7 +963,7 @@
         i32.const 2097152
         i32.and
         local.get $t2
-        i32.load $heap offset=88
+        i32.load $heap offset=48
         i32.const 2097152
         i32.and
         i32.ne
@@ -1346,7 +998,7 @@
         i32.const 2097152
         i32.and
         local.get $t2
-        i32.load $heap offset=88
+        i32.load $heap offset=48
         i32.const 2097152
         i32.and
         i32.ne
@@ -1381,7 +1033,7 @@
         i32.const 4128768
         i32.and
         local.get $t2
-        i32.load $heap offset=88
+        i32.load $heap offset=48
         i32.ne
         if
           call $rt:panic'5
@@ -1391,36 +1043,30 @@
         local.get $kept.name.0
         i32.store $heap offset=8
         local.get $t2
-        i32.load $heap offset=52
+        i32.load $heap offset=32
         if
           local.get $t2
-          i32.load $heap offset=80
+          i32.load $heap offset=40
           if
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             i32.const 2097152
             i32.sub
             i32.store $heap
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 2097152
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
+            i32.load $heap offset=48
+            i32.const 2097152
+            i32.sub
+            local.set $kept.name.0
+            local.get $t2
+            local.get $kept.name.0
+            i32.store $heap offset=48
           else
             local.get $t2
-            i32.load $heap offset=52
+            i32.load $heap offset=32
             i32.load $heap
             local.tee $kept.name.0
             i32.const 2031616
@@ -1429,125 +1075,37 @@
             i32.eq
             if
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               call $rt:loan_unshare
             else
               local.get $t2
-              i32.load $heap offset=52
+              i32.load $heap offset=32
               local.get $kept.name.0
               i32.const 65536
               i32.sub
               i32.store $heap
             end
             local.get $t2
-            i32.load $heap offset=56
-            i32.const 1
-            i32.eq
-            if
-              local.get $t2
-              i32.load $heap offset=88
-              i32.const 65536
-              i32.sub
-              local.set $kept.name.0
-              local.get $t2
-              local.get $kept.name.0
-              i32.store $heap offset=88
-            end
-          end
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=80
-          local.get $t2
-          i32.const 0
-          i32.store $heap offset=52
-        end
-        local.get $t2
-        i32.load $heap offset=60
-        if
-          local.get $t2
-          i32.load $heap offset=60
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=60
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=60
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-          local.get $t2
-          i32.load $heap offset=64
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
+            i32.load $heap offset=48
             i32.const 65536
             i32.sub
             local.set $kept.name.0
             local.get $t2
             local.get $kept.name.0
-            i32.store $heap offset=88
+            i32.store $heap offset=48
           end
           local.get $t2
           i32.const 0
-          i32.store $heap offset=60
-        end
-        local.get $t2
-        i32.load $heap offset=68
-        if
-          local.get $t2
-          i32.load $heap offset=68
-          i32.load $heap
-          local.tee $kept.name.0
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=68
-            call $rt:loan_unshare
-          else
-            local.get $t2
-            i32.load $heap offset=68
-            local.get $kept.name.0
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-          local.get $t2
-          i32.load $heap offset=72
-          i32.const 1
-          i32.eq
-          if
-            local.get $t2
-            i32.load $heap offset=88
-            i32.const 65536
-            i32.sub
-            local.set $kept.name.0
-            local.get $t2
-            local.get $kept.name.0
-            i32.store $heap offset=88
-          end
+          i32.store $heap offset=40
           local.get $t2
           i32.const 0
-          i32.store $heap offset=68
+          i32.store $heap offset=32
         end
     ;; 30 |     if early:
       end
     ;; 25 |     if ready:
       local.get $t2
-      i32.load $heap offset=84
+      i32.load $heap offset=44
       local.set $kept.name.0
       local.get $t2
       i32.load $heap
@@ -1566,7 +1124,7 @@
     ;; 30 |     if early:
       local.get $t2
       i32.const 0
-      i32.store $heap offset=84
+      i32.store $heap offset=44
     ;; 25 |     if ready:
       local.get $t2
       i32.load $heap offset=8
@@ -1588,7 +1146,7 @@
       i32.store $heap offset=8
     end
     local.get $t2
-    i32.load $heap offset=84
+    i32.load $heap offset=44
     local.set $kept.name.0
     local.get $t2
     i32.load $heap
@@ -1644,7 +1202,7 @@
       i32.store $heap offset=12
     end
     local.get $t0
-    i32.const 104
+    i32.const 64
     i32.add
     global.set $stack
   )
@@ -1742,7 +1300,7 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=108
+      i32.load $heap offset=68
       local.set $t1
       local.get $t0
       i32.load $heap offset=24
@@ -1811,7 +1369,7 @@
     i32.store $heap offset=48
     local.get $t0
     i32.const 1
-    i32.store $heap offset=108
+    i32.store $heap offset=68
     local.get $t6
     if
       local.get $t6
@@ -1835,7 +1393,7 @@
       i32.const 24
       i32.add
       local.get $t1
-      i32.const 104
+      i32.const 64
       memory.copy $heap $heap
       i32.const 1
       local.set $t2

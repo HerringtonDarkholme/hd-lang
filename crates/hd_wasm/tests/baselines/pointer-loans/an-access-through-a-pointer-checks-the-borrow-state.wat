@@ -11,7 +11,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32)
+  (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 30 |     held := &mut t.lead
     local.get $t
     i32.const 4
@@ -30,6 +30,7 @@
     i32.const 2097152
     i32.add
     i32.store $heap
+    local.get $t
     i32.const 12
     i32.const 1
     call $rt:new/class-2
@@ -83,13 +84,9 @@
     local.get $t1
     i32.const 0
     i32.store $heap offset=8
-    ;; 30 |     held := &mut t.lead
-    local.get $t
-    ;; 32 |     *held = box(User { name: "c", age: +0 })
+    local.tee $t2
     i32.load $heap
-    ;; 30 |     held := &mut t.lead
-    local.get $t
-    ;; 32 |     *held = box(User { name: "c", age: +0 })
+    local.get $t2
     local.get $t1
     i32.store $heap
     local.tee $t1

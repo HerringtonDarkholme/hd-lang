@@ -69,8 +69,6 @@
       unreachable
     end
     local.get $sink.1
-    i32.const 2
-    local.set $sink.0
     local.get $sink.1
     i32.load $heap
     i32.const 2097152
@@ -95,15 +93,10 @@
       i32.const 2097152
       i32.sub
       i32.store $heap
-      local.get $sink.0
-      i32.const 2
-      i32.eq
-      if
-        local.get $t5
-        i32.const 2097152
-        i32.sub
-        local.set $t5
-      end
+      local.get $t5
+      i32.const 2097152
+      i32.sub
+      local.set $t5
     end
     ;; 30 |     $.with(Sink = first):
     local.get $t2

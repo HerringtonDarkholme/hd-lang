@@ -487,11 +487,14 @@ pub(super) struct Borrows {
     /// The `*T` reads a call lends: whether as `&mut`, and whether as a
     /// two-phase receiver, shared until its call.
     lent: HashMap<u32, (bool, bool)>,
-    /// Each `LoanBegin`: how many objects its site may cross, and once
-    /// the function has locals, a slot per object: the local of the
-    /// header address (0 while no loan is held) and of the pointer's key
-    /// index plus one.
-    begins: HashMap<u32, (usize, Vec<(u32, u32)>)>,
+    /// Each kept `LoanBegin`: a slot per object its site crosses, in
+    /// `LoanBegin` order (the last crossed first): the local of the
+    /// header address, 0 while no loan is held, made once the function
+    /// has locals, and the pointer key its loan counts as the
+    /// function's own through, fixed before emission (a close can be
+    /// emitted before its begin, as a loop's close where its site runs
+    /// again).
+    begins: HashMap<u32, Vec<(u32, Option<usize>)>>,
     /// Each site's `LoanBegin`, and per two-phase `LoanBegin` the local
     /// set once its call activates it, so its last object's loan is
     /// exclusive.
@@ -999,6 +1002,9 @@ impl Em<'_, '_, '_> {
             }
         }
         let sub = u32::from(self.sub_id);
+        // The place sites, for their pointer keys below, and the
+        // `LoanBegin` of each whose loan elision keeps.
+        let (mut kept_begin, mut sites) = (HashMap::default(), Vec::new());
         for i in 0..self.b.tags.len() {
             if self.b.tags[i] != Tag::LoanBegin || self.topo.sub[i] != sub {
                 continue;
@@ -1016,7 +1022,7 @@ impl Em<'_, '_, '_> {
             if word & loan_word::INNER != 0 {
                 if kept {
                     st.begins
-                        .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                        .insert(u32::try_from(i).expect("insts"), vec![(0, None)]);
                 }
                 continue;
             }
@@ -1026,43 +1032,28 @@ impl Em<'_, '_, '_> {
                 st.valued.insert(site);
                 if kept {
                     st.begins
-                        .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                        .insert(u32::try_from(i).expect("insts"), vec![(0, None)]);
                 }
                 continue;
             }
-            let Some(p) = self.b.decode_place(self.b.data[site as usize][0]) else {
+            if self.b.decode_place(self.b.data[site as usize][0]).is_none() {
                 continue;
-            };
+            }
             match self.b.tags[site as usize] {
                 Tag::Ref => {}
                 // A `*T` a call lends: its whole object, through the
                 // pointer the read's place names (a `*dyn` receiver's
                 // pointer is the place before its dereference).
                 Tag::Read => {
-                    if matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
-                        let mut q = p.clone();
-                        if dyn_receiver(self.pool(), self.env(), self.b, site as usize).is_some() {
-                            q.proj.pop();
-                        }
-                        let key = st.capture_origins.key((q.root, q.proj, ANY_FRAME));
-                        st.intern_key(key);
-                    }
                     st.lent.insert(site, (word & loan_word::EXCL != 0, false));
                 }
                 _ => continue,
             }
-            self.intern_ref_keys(&mut st, site);
             st.refs.insert(site, Vec::new());
-            // Each object the site's place may cross: its root's, each
-            // dereference on its read's path and its own, and a lent
-            // pointer's whole object.
-            let derefs =
-                |q: &hd_tir::ir::Place| q.proj.iter().filter(|s| **s == Proj::Deref).count();
-            let read = root_read(self.b, &p).map_or(0, |(_, q)| derefs(&q));
-            let i = u32::try_from(i).expect("insts");
             if kept {
-                st.begins.insert(i, (derefs(&p) + read + 3, Vec::new()));
+                kept_begin.insert(site, u32::try_from(i).expect("insts"));
             }
+            sites.push(site);
         }
         // A two-phase receiver lends `&mut`, shared until its call.
         for site in st.active.keys() {
@@ -1070,6 +1061,35 @@ impl Em<'_, '_, '_> {
                 *x = (true, true);
             }
         }
+        self.borrows = st;
+        // Each site's crossings and their pointer keys, as its access
+        // check takes them (`Em::crossings_of`): the keys are the
+        // function's own-loan counters, and each kept begin's slots,
+        // last crossed first, with a lent pointer's whole object last
+        // crossed of all.
+        for site in sites {
+            // The link table lists only places from a local, a value or
+            // a top-level binding, as the access check takes them.
+            let Some(p) = self.b.decode_place(self.b.data[site as usize][0]) else {
+                continue;
+            };
+            let mut keys: Vec<Option<usize>> = self
+                .crossings_of(site, &p)
+                .0
+                .into_iter()
+                .map(|c| c.2)
+                .collect();
+            if self.borrows.lent.contains_key(&site)
+                && let Some((.., key)) = self.lend_of(site)
+            {
+                keys.push(key);
+            }
+            if let Some(&begin) = kept_begin.get(&site) {
+                let slots = keys.into_iter().rev().map(|k| (0, k)).collect();
+                self.borrows.begins.insert(begin, slots);
+            }
+        }
+        let mut st = std::mem::take(&mut self.borrows);
         st.loans = st.keys.len();
         for ci in 0..self.b.tags.len() {
             if self.b.tags[ci] == Tag::Closure {
@@ -1090,11 +1110,12 @@ impl Em<'_, '_, '_> {
         let mut begins: Vec<u32> = self.borrows.begins.keys().copied().collect();
         begins.sort_stable();
         for i in begins {
-            let n = self.borrows.begins[&i].0;
-            let slots = (0..n)
-                .map(|_| (self.f.local(Val::I32), self.f.local(Val::I32)))
+            let keys: Vec<Option<usize>> = self.borrows.begins[&i].iter().map(|x| x.1).collect();
+            let slots = keys
+                .into_iter()
+                .map(|k| (self.f.local(Val::I32), k))
                 .collect();
-            self.borrows.begins.get_mut(&i).expect("begin").1 = slots;
+            self.borrows.begins.insert(i, slots);
         }
         // A two-phase site's flag, keyed by its `LoanBegin`.
         let mut sites: Vec<u32> = self.borrows.active.keys().copied().collect();
@@ -1126,19 +1147,17 @@ impl Em<'_, '_, '_> {
         let Some(taken) = self.borrows.refs.get(&site).cloned() else {
             return;
         };
-        let Some((_, slots)) = self.borrows.begins.get(&i).cloned() else {
+        let Some(slots) = self.borrows.begins.get(&i).cloned() else {
             return;
         };
-        debug_assert!(
-            taken.len() <= slots.len(),
-            "a site's crossings fit its slots"
-        );
+        debug_assert_eq!(taken.len(), slots.len(), "a slot per crossing");
         let excl = word & loan_word::EXCL != 0;
         for (s, (header, key, keep)) in taken.into_iter().rev().enumerate() {
             if !keep {
                 continue;
             }
-            let (h, kl) = slots[s];
+            let (h, k) = slots[s];
+            debug_assert_eq!(key, k, "a slot's key is its crossing's");
             let delta = if s == 0 && excl {
                 LOAN_EXCL
             } else {
@@ -1146,25 +1165,17 @@ impl Em<'_, '_, '_> {
             };
             self.f.get(h);
             self.f.op(I::If(BlockType::Empty));
-            self.slot_end(i, s, h, kl, delta);
+            self.slot_end(i, s, h, k, delta);
             self.f.op(I::End);
             self.f.get(header);
             self.f.set(h);
-            match key {
-                Some(k) => {
-                    self.own_local(k);
-                    self.f.u32(u32::try_from(k + 1).expect("keys"));
-                }
-                None => self.f.i32(0),
-            }
-            self.f.set(kl);
             // A `*dyn` receiver's object may be absent: header 0.
             let nullable = self.borrows.nullable.contains(&header);
             if nullable {
                 self.f.get(h);
                 self.f.op(I::If(BlockType::Empty));
             }
-            self.borrow_add(h, kl, delta, 1);
+            self.borrow_add(h, k, delta, 1);
             if nullable {
                 self.f.op(I::End);
             }
@@ -1215,7 +1226,7 @@ impl Em<'_, '_, '_> {
         if !self.m.kept.contains(&(self.inst, site, u32::MAX - 1)) {
             return;
         }
-        let Some((_, slots)) = self.borrows.begins.get(&i).cloned() else {
+        let Some(slots) = self.borrows.begins.get(&i).cloned() else {
             return;
         };
         let Some(&r) = self.vals.get(&site).and_then(|v| v.first()) else {
@@ -1237,8 +1248,6 @@ impl Em<'_, '_, '_> {
         self.f.u32(4);
         self.f.op(I::I32Add);
         self.f.set(h);
-        self.f.i32(0);
-        self.f.set(kl);
         self.f.get(h);
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
         self.f.u32(mask);
@@ -1271,7 +1280,7 @@ impl Em<'_, '_, '_> {
 
     /// Ends the loans `LoanBegin` `begin` holds on this path.
     fn loan_end(&mut self, begin: u32) {
-        let Some((_, slots)) = self.borrows.begins.get(&begin).cloned() else {
+        let Some(slots) = self.borrows.begins.get(&begin).cloned() else {
             return;
         };
         let excl = self.b.data[begin as usize][1] & loan_word::EXCL != 0;
@@ -1289,10 +1298,10 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Ends slot `s` of `LoanBegin` `begin` (header local `h`, key local
-    /// `kl`), whose loan is `delta`, or exclusive once its two-phase call
-    /// activated it.
-    fn slot_end(&mut self, begin: u32, s: usize, h: u32, kl: u32, delta: u32) {
+    /// Ends slot `s` of `LoanBegin` `begin` (header local `h`, pointer
+    /// key `kl`), whose loan is `delta`, or exclusive once its two-phase
+    /// call activated it.
+    fn slot_end(&mut self, begin: u32, s: usize, h: u32, kl: Option<usize>, delta: u32) {
         match self.borrows.active.get(&begin).copied().filter(|_| s == 0) {
             Some(flag) => {
                 self.f.get(flag);
@@ -1315,7 +1324,7 @@ impl Em<'_, '_, '_> {
         let Some(&begin) = self.borrows.site_begin.get(&site) else {
             return;
         };
-        let (Some(&flag), Some((_, slots))) = (
+        let (Some(&flag), Some(slots)) = (
             self.borrows.active.get(&begin),
             self.borrows.begins.get(&begin).cloned(),
         ) else {
@@ -1590,53 +1599,6 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The objects this body's places may start at.
-    fn roots<'s>(
-        &'s self,
-        shared: &'s hd_base::HashSet<usize>,
-        pointers: &'s hd_base::HashSet<usize>,
-        storage: &'s StorageRoots,
-    ) -> Roots<'s> {
-        Roots {
-            storage,
-            shared,
-            pointers,
-            objects: &self.m.objects,
-            env: self.env(),
-        }
-    }
-
-    /// Interns the pointers `Ref` `v`'s place reaches objects through.
-    fn intern_ref_keys(&self, st: &mut Borrows, v: u32) {
-        let Some(p) = self.b.decode_place(self.b.data[v as usize][0]) else {
-            return;
-        };
-        if let Some((r, _)) = self
-            .roots(&st.shared, &st.pointers, &st.storage_roots)
-            .of(self.b, &p)
-        {
-            let key = st
-                .capture_origins
-                .key((r, Vec::new(), st.frames[v as usize]));
-            st.intern_key(key);
-        }
-        let p = match root_read(self.b, &p) {
-            Some((_, q)) => q,
-            None => p,
-        };
-        if !matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)) {
-            return;
-        }
-        let root = self.at_root_ty(p.root);
-        let pointer_root = matches!(p.root, PlaceRoot::Local(l) if st.pointers.contains(&l.idx()));
-        if pointer_root && p.proj.first() == Some(&Proj::Deref) {
-            st.intern_key((p.root, Vec::new(), ANY_FRAME));
-        }
-        for (k, _) in crossings(self.pool(), self.env(), root, &p.proj) {
-            st.intern_key((p.root, p.proj[..k].to_vec(), ANY_FRAME));
-        }
-    }
-
     /// The index of pointer `key`, interned.
     fn borrow_key(&mut self, key: Key) -> usize {
         self.borrows.intern_key(key)
@@ -1651,6 +1613,109 @@ impl Em<'_, '_, '_> {
         let l = self.f.local(Val::I32);
         self.borrows.keys[k].1 = Some(l);
         l
+    }
+
+    /// The objects access `i`'s place `p` crosses, in order, each with
+    /// the pointer key its check compares the function's own loans
+    /// through: from the link pass's table (`Module::crossed`), less a
+    /// shared variable's cell where it is no cell yet; with the root
+    /// object it starts at and the read its root value is.
+    #[allow(clippy::type_complexity)]
+    fn crossings_of(
+        &mut self,
+        i: u32,
+        p: &hd_tir::ir::Place,
+    ) -> (
+        Vec<(usize, Ty, Option<usize>)>,
+        Option<(PlaceRoot, Ty)>,
+        Option<(u32, hd_tir::ir::Place)>,
+    ) {
+        let listed = self
+            .m
+            .crossed
+            .get(&(self.inst, i))
+            .cloned()
+            .unwrap_or_default();
+        // The root object: a shared variable's cell, but not at the store
+        // that makes it, as no reference reaches a cell before it exists;
+        // or a top-level binding's slot.
+        let root_obj = if listed.first().is_some_and(|&(k, _)| k == ROOT) {
+            let st = &self.borrows;
+            Roots {
+                storage: &st.storage_roots,
+                shared: &st.shared,
+                pointers: &st.pointers,
+                objects: &self.m.objects,
+                env: self.env(),
+            }
+            .of(self.b, p)
+            .filter(|(r, _)| match r {
+                PlaceRoot::Local(l) => {
+                    self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
+                }
+                _ => true,
+            })
+        } else {
+            None
+        };
+        // The dereferences of the read the place's root value is.
+        let read = root_read(self.b, p);
+        let mut out = Vec::with_capacity(listed.len());
+        for (k, object) in listed {
+            let key = match (k, root_obj) {
+                (ROOT, None) => continue,
+                (ROOT, Some((r, _))) => {
+                    let frame = self.borrows.frames[i as usize];
+                    Some(self.borrow_key((r, Vec::new(), frame)))
+                }
+                (k, _) if k >= READ => read.as_ref().map(|(_, q)| {
+                    self.borrow_key((q.root, q.proj[..k - READ].to_vec(), ANY_FRAME))
+                }),
+                _ => matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+                    .then(|| self.borrow_key((p.root, p.proj[..k].to_vec(), ANY_FRAME))),
+            };
+            out.push((k, object, key));
+        }
+        (out, root_obj, read)
+    }
+
+    /// What a `*T` read `i` lends to a call, when the lend takes a loan
+    /// slot ([`Em::borrow_lend_pointer`]): its place, the trait of a
+    /// `*dyn` receiver, the lent object's type, whether a loan of it may
+    /// be exclusive, and the pointer key of its whole object.
+    #[allow(clippy::type_complexity)]
+    fn lend_of(
+        &mut self,
+        i: u32,
+    ) -> Option<(
+        hd_tir::ir::Place,
+        Option<hd_base::DefId>,
+        Ty,
+        bool,
+        Option<usize>,
+    )> {
+        let p = self.b.decode_place(self.b.data[i as usize][0])?;
+        if !matches!(
+            p.root,
+            PlaceRoot::Local(_) | PlaceRoot::Value(_) | PlaceRoot::Global(..)
+        ) {
+            return None;
+        }
+        // A `*dyn` receiver lends the object at its data address, of one
+        // of the types the program converts to its trait.
+        let dyn_recv = dyn_receiver(self.pool(), self.env(), self.b, i as usize);
+        let (target, lent) = match (self.kind(self.ty(i)), dyn_recv) {
+            (_, Some(tr)) => (
+                strip_newtype(self.pool(), self.env(), self.ty(i)),
+                self.lent_dyn(tr),
+            ),
+            (Kind::Ref { target, .. }, None) => (target, self.lent_of(target)),
+            _ => return None,
+        };
+        let pointer = p.proj.len() - usize::from(dyn_recv.is_some());
+        let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+            .then(|| self.borrow_key((p.root, p.proj[..pointer].to_vec(), ANY_FRAME)));
+        Some((p, dyn_recv, target, lent?, key))
     }
 
     /// Before instruction `i`: the borrow-state checks of the access it
@@ -1686,42 +1751,7 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let lends = self.borrows.refs.contains_key(&i);
-        // The objects the place crosses, decided at link
-        // (`hd_tir::own::pointer::Decisions::crossed`); an access that
-        // crosses none has no entry.
-        let listed = self
-            .m
-            .crossed
-            .get(&(self.inst, i))
-            .cloned()
-            .unwrap_or_default();
-        // The root object: a shared variable's cell, but not at the store
-        // that makes it, as no reference reaches a cell before it exists;
-        // or a top-level binding's slot.
-        let root_obj = if listed.first().is_some_and(|&(k, _)| k == ROOT) {
-            let shared = std::mem::take(&mut self.borrows.shared);
-            let pointers = std::mem::take(&mut self.borrows.pointers);
-            let root_obj = self
-                .roots(&shared, &pointers, &self.borrows.storage_roots)
-                .of(self.b, &p)
-                .filter(|(r, _)| match r {
-                    PlaceRoot::Local(l) => {
-                        self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
-                    }
-                    _ => true,
-                });
-            self.borrows.shared = shared;
-            self.borrows.pointers = pointers;
-            root_obj
-        } else {
-            None
-        };
-        let crossed: Vec<(usize, Ty)> = listed
-            .into_iter()
-            .filter(|&(k, _)| k != ROOT || root_obj.is_some())
-            .collect();
-        // The dereferences of the read the place's root value is.
-        let read = root_read(self.b, &p);
+        let (crossed, root_obj, read) = self.crossings_of(i, &p);
         let last = crossed.len().wrapping_sub(1);
         let mut taken = Vec::new();
         // A top-level binding root's slot: `Roots::of` returns a global
@@ -1730,7 +1760,7 @@ impl Em<'_, '_, '_> {
             Some((PlaceRoot::Global(def, _), _)) => self.def_slot(def),
             _ => None,
         };
-        for (n, (k, object)) in crossed.into_iter().enumerate() {
+        for (n, (k, object, key)) in crossed.into_iter().enumerate() {
             let writes = write && n == last;
             let mask = match self.lent_of(object) {
                 Some(_) if writes => Some(LOAN_STATE),
@@ -1744,17 +1774,6 @@ impl Em<'_, '_, '_> {
             let keep = lends
                 && !lent_root
                 && (self.m.kept).contains(&(self.inst, i, u32::try_from(k).expect("steps")));
-            let key = match (k, root_obj) {
-                (ROOT, Some((r, _))) => {
-                    let frame = self.borrows.frames[i as usize];
-                    Some(self.borrow_key((r, Vec::new(), frame)))
-                }
-                (k, _) if k >= READ && k != ROOT => read.as_ref().map(|(_, q)| {
-                    self.borrow_key((q.root, q.proj[..k - READ].to_vec(), ANY_FRAME))
-                }),
-                _ => matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-                    .then(|| self.borrow_key((p.root, p.proj[..k].to_vec(), ANY_FRAME))),
-            };
             if mask.is_none() && !keep {
                 if lends {
                     taken.push((u32::MAX, key, false));
@@ -1842,22 +1861,17 @@ impl Em<'_, '_, '_> {
 
     /// Adds `delta` (or subtracts it, with `sign` -1) to the state at the
     /// header address in local `header`, and to the function's own loans
-    /// through the pointer whose index plus one local `key` holds.
-    fn borrow_add(&mut self, header: u32, key: u32, delta: u32, sign: i32) {
+    /// through pointer `key`.
+    fn borrow_add(&mut self, header: u32, key: Option<usize>, delta: u32, sign: i32) {
         let op = if sign < 0 { I::I32Sub } else { I::I32Add };
         self.loan_state_add(header, delta, sign);
-        for k in 0..self.borrows.loans {
+        if let Some(k) = key.filter(|&k| k < self.borrows.loans) {
             let own = self.own_local(k);
-            self.f.get(key);
-            self.f.u32(u32::try_from(k + 1).expect("keys"));
-            self.f.op(I::I32Eq);
-            self.f.op(I::If(BlockType::Empty));
             self.f.get(own);
             self.f.u32(delta);
             self.f.op(op);
             self.f.set(own);
             self.own_mirror(k, own, delta, sign);
-            self.f.op(I::End);
         }
     }
 
@@ -1912,32 +1926,10 @@ impl Em<'_, '_, '_> {
         i: u32,
         (mutable, two_phase): (bool, bool),
     ) -> StageResult<Option<(u32, Option<usize>, bool)>> {
-        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+        let Some((p, dyn_recv, target, lent, key)) = self.lend_of(i) else {
             return Ok(None);
         };
-        if !matches!(
-            p.root,
-            PlaceRoot::Local(_) | PlaceRoot::Value(_) | PlaceRoot::Global(..)
-        ) {
-            return Ok(None);
-        }
-        // A `*dyn` receiver lends the object at its data address, of one
-        // of the types the program converts to its trait.
-        let dyn_recv = dyn_receiver(self.pool(), self.env(), self.b, i as usize);
-        let (target, lent) = match (self.kind(self.ty(i)), dyn_recv) {
-            (_, Some(tr)) => (
-                strip_newtype(self.pool(), self.env(), self.ty(i)),
-                self.lent_dyn(tr),
-            ),
-            (Kind::Ref { target, .. }, None) => (target, self.lent_of(target)),
-            _ => return Ok(None),
-        };
-        if lent.is_none() {
-            return Ok(None);
-        }
         let pointer = p.proj.len() - usize::from(dyn_recv.is_some());
-        let key = matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-            .then(|| self.borrow_key((p.root, p.proj[..pointer].to_vec(), ANY_FRAME)));
         let (at, _) = self.walk_place(i, &p, pointer, None)?;
         let o = if dyn_recv.is_some() {
             self.data_address(&at)
@@ -1969,7 +1961,7 @@ impl Em<'_, '_, '_> {
         // activation checks the whole state; without a loan the lend's
         // check is a write's at once.
         let writes = mutable && !(two_phase && keep);
-        if keep || mutable || lent == Some(true) {
+        if keep || mutable || lent {
             let mask = if writes { LOAN_STATE } else { LOAN_EXCL };
             self.borrow_check(header, mask, key, target, writes);
         }

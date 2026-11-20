@@ -225,7 +225,7 @@
       i32.const 0
     end
   )
-  (func $through_inline (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $t1 i32) (local $message.0 i32) (local $value i32)
+  (func $through_inline (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $value i32)
     ;; 31 |     r := fwd(p.get_ref().expect("slot"))
     local.get $p
     i32.const 4
@@ -239,10 +239,8 @@
       unreachable
     end
     local.get $t0
-    i32.const 1
-    local.set $message.1
     i32.load $heap
-    local.tee $message.0
+    local.tee $message.1
     i32.const 2031616
     i32.and
     i32.const 2031616
@@ -252,19 +250,10 @@
       call $rt:loan_share
     else
       local.get $t0
-      local.get $message.0
+      local.get $message.1
       i32.const 65536
       i32.add
       i32.store $heap
-    end
-    local.get $message.1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t1
-      i32.const 65536
-      i32.add
-      local.set $t1
     end
     local.get $p
     call $"impl Slots.get_ref"
@@ -298,8 +287,6 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t1
-    i32.ne
     if
       call $rt:panic'4
       unreachable
@@ -308,18 +295,18 @@
     call $"impl Slots.push"
     ;; 33 |     *r
     i32.load $heap
-    local.tee $t1
+    local.tee $message.1
     ;; 31 |     r := fwd(p.get_ref().expect("slot"))
     local.get $value
     ;; 33 |     *r
     i32.load $heap offset=4
-    local.tee $message.1
+    local.tee $message.0
     call $rt:retain
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.0
+      local.tee $value
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -329,7 +316,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.0
+        local.get $value
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -358,10 +345,10 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t1
     local.get $message.1
+    local.get $message.0
   )
-  (func $through_call (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $t1 i32) (local $message.0 i32) (local $value i32)
+  (func $through_call (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $value i32)
     ;; 26 |     r := keep(p.get_ref().expect("slot"))
     local.get $p
     i32.const 4
@@ -375,10 +362,8 @@
       unreachable
     end
     local.get $t0
-    i32.const 1
-    local.set $message.1
     i32.load $heap
-    local.tee $message.0
+    local.tee $message.1
     i32.const 2031616
     i32.and
     i32.const 2031616
@@ -388,19 +373,10 @@
       call $rt:loan_share
     else
       local.get $t0
-      local.get $message.0
+      local.get $message.1
       i32.const 65536
       i32.add
       i32.store $heap
-    end
-    local.get $message.1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t1
-      i32.const 65536
-      i32.add
-      local.set $t1
     end
     local.get $p
     call $"impl Slots.get_ref"
@@ -435,8 +411,6 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t1
-    i32.ne
     if
       call $rt:panic'4
       unreachable
@@ -444,18 +418,18 @@
     local.get $alias
     call $"impl Slots.push"
     ;; 28 |     *r
-    local.tee $t1
-    i32.load $heap
     local.tee $message.1
-    local.get $t1
+    i32.load $heap
+    local.tee $message.0
+    local.get $message.1
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $message.1
     call $rt:retain
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.0
+      local.tee $value
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -465,7 +439,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.0
+        local.get $value
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -494,7 +468,7 @@
         call $rt:release_ref'2
       end
     end
+    local.get $message.0
     local.get $message.1
-    local.get $t1
   )
 )

@@ -46,10 +46,9 @@
     i32.const 2097152
     i32.add
     i32.store $heap
+    i32.const 24 ;; &TOTAL
     ;; 21 |     add()
     call $add
-    ;; 20 |     r := &mut TOTAL.value
-    i32.const 24 ;; &TOTAL
     ;; 22 |     *r
     i32.load $heap
     local.set $t0
