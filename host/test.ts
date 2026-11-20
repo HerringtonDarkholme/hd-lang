@@ -1,4 +1,4 @@
-// `hd test` on V8 (Node): the test program is compiled once, and the
+// `hd test` on V8 (Node): test programs are compiled once, and the
 // shared case loop (cases.ts) runs each case in its own fresh instance
 // (docs/compiler/engines-and-test-runner.md §19.3). `argv[3]` is the run's
 // configuration, a `.json` file that `hd test` writes: the program's
@@ -70,7 +70,53 @@ function olderThan(have: string, need: string): boolean {
   return false;
 }
 
-const config = configOf(process.argv[3] ?? "");
+// A batch shares compiled modules across worker chunks and uses one global
+// job budget. Workers, instances and each case's host state remain fresh.
+async function runBatch(batch: ReturnType<typeof JSON.parse>) {
+  if (!Number.isSafeInteger(batch.jobs) || batch.jobs < 1) {
+    throw new Error("the test batch needs a positive integer job count");
+  }
+  const tasks: {
+    module: WebAssembly.Module;
+    config: ReturnType<typeof JSON.parse>;
+    program: number;
+  }[] = [];
+  for (let program = 0; program < batch.programs.length; program++) {
+    const entry = batch.programs[program];
+    const config = configOf(entry.config);
+    if (config.cases.length === 0) {
+      continue;
+    }
+    const module = await WebAssembly.compile(readFileSync(entry.wasm));
+    const workers = Math.min(batch.jobs, config.cases.length);
+    const chunks = Array.from({ length: workers }, () => [] as ReturnType<typeof JSON.parse>[]);
+    for (let index = 0; index < config.cases.length; index++) {
+      chunks[index % workers].push(config.cases[index]);
+    }
+    for (const cases of chunks) {
+      tasks.push({ module, config: { ...config, cases }, program });
+    }
+  }
+  const stopped: Awaited<ReturnType<typeof supervise>> = [];
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(batch.jobs, tasks.length) }, async () => {
+      while (next < tasks.length) {
+        const task = tasks[next++];
+        const ended = await supervise(task.module, task.config, (text) =>
+          writeOut(`${task.program}\t${text}`),
+        );
+        for (const worker of ended) {
+          stopped.push(worker);
+        }
+      }
+    }),
+  );
+  return stopped;
+}
+
+const batch = process.argv[2] === "--batch" ? configOf(process.argv[3] ?? "") : null;
+const config = batch ?? configOf(process.argv[3] ?? "");
 if (typeof config.node === "string" && olderThan(process.versions.node, config.node)) {
   process.stderr.write(
     `hd test runs on Node ${config.node} or newer, and \`node\` is ${process.versions.node}\n`,
@@ -79,6 +125,10 @@ if (typeof config.node === "string" && olderThan(process.versions.node, config.n
 }
 // The cases' worker loads the host while the program compiles.
 prestart();
-const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
 // Every result is written; `hd` reads the results, not the status.
-exitPast(await supervise(compiled, config, writeOut));
+if (batch !== null) {
+  exitPast(await runBatch(batch));
+} else {
+  const compiled = await WebAssembly.compile(readFileSync(process.argv[2]));
+  exitPast(await supervise(compiled, config, writeOut));
+}
