@@ -128,3 +128,5 @@ std.http_wire.WireRequest	std/server-sdk.md#r-std-server-sdk.wire-request
 std.http_wire.WireResponse	std/server-sdk.md#r-std-server-sdk.wire-response
 std.http.request_from_wire	std/server-sdk.md#r-std-server-sdk.request-from-wire
 std.http.response_to_wire	std/server-sdk.md#r-std-server-sdk.response-to-wire
+std.http_wire.Http	std/http.md#r-std-http.wire.host
+std.http_wire.WireHttpError	std/http.md#r-std-http.wire.error

@@ -1,0 +1,46 @@
+# test: every public wire HTTP error variant retains its typed payload
+use std.http_wire.{WireHttpError, WireResponse}
+
+fn payload(error: WireHttpError) -> string:
+    match error:
+        .NotGranted(host) => "grant:$host"
+        .InvalidUrl(url) => "url:$url"
+        .Dns(host) => "dns:$host"
+        .Connect(message) => "connect:$message"
+        .Tls(message) => "tls:$message"
+        .Timeout => "timeout"
+        .TooManyRedirects(url) => "redirect:$url"
+        .Other(message) => "other:$message"
+        .Status(response) => "status:${response.status}:${response.body.len()}"
+        .InvalidHeader(name) => "header:$name"
+        .Body(error) =>
+            match error:
+                .Used => "body:used"
+                .Json(_) => "body:json"
+                .Form(_) => "body:form"
+        .InvalidContentEncoding(encoding) => "encoding:$encoding"
+        .OutputTooLarge => "large"
+        .UnsupportedSetting(name) => "setting:$name"
+
+tests:
+    use std.testing.assert_equal
+
+    it("all declared transport failures can be constructed and matched"):
+        cases := [
+            (WireHttpError.NotGranted("host"), "grant:host"),
+            (WireHttpError.InvalidUrl("url"), "url:url"),
+            (WireHttpError.Dns("host"), "dns:host"),
+            (WireHttpError.Connect("message"), "connect:message"),
+            (WireHttpError.Tls("message"), "tls:message"),
+            (WireHttpError.Timeout, "timeout"),
+            (WireHttpError.TooManyRedirects("url"), "redirect:url"),
+            (WireHttpError.Other("message"), "other:message"),
+            (WireHttpError.Status(WireResponse { status: 503, body: [1, 2] }), "status:503:2"),
+            (WireHttpError.InvalidHeader("name"), "header:name"),
+            (WireHttpError.Body(.Used), "body:used"),
+            (WireHttpError.InvalidContentEncoding("encoding"), "encoding:encoding"),
+            (WireHttpError.OutputTooLarge, "large"),
+            (WireHttpError.UnsupportedSetting("name"), "setting:name"),
+        ]
+        for (error, expected) in cases:
+            assert_equal(payload(error), expected, reason="the declared error payload survives")
