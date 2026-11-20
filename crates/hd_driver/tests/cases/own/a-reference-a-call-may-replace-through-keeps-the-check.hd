@@ -1,0 +1,30 @@
+# @dump: own
+# Fresh lists (#2210): a reference to all of a fresh list keeps it fresh
+# only when `list_reserve` alone receives it (the pinned
+# reserved-list-push case). A reference a function of the program
+# receives may have a shared list stored through it, so `replaced`'s
+# pushes keep their check (hoisted, not fresh), as do `copied`'s, whose
+# list shares its buffer with its copy.
+use std.annotation.inline
+
+let shared: List[usize] = [1, 2, 3]
+
+@inline(.Never)
+fn swap_in(xs: &mut List[usize]) -> void:
+    *xs = shared
+
+fn replaced(count: usize, transform: fn(usize) -> usize) -> List[usize]:
+    let mut output: List[usize] = []
+    output.reserve(count)
+    swap_in(&mut output)
+    for index in 0..count:
+        output.push(transform(index))
+    output
+
+fn copied(count: usize, transform: fn(usize) -> usize) -> usize:
+    let mut output: List[usize] = []
+    output.reserve(count)
+    kept := output
+    for index in 0..count:
+        output.push(transform(index))
+    kept.len() + output.len()

@@ -2,16 +2,15 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 4 funcref))
+  (import "fixture" "table0" (table $table0 3 funcref))
   (func $fresh (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $t0 i32) (local $index i32) (local $t1 i32) (local $t2 i32)
-    ;; 21 |     let mut output: List[usize] = []
+    ;; 23 |     let mut output: List[usize] = []
     i32.const 80 ;; &empty-buffer
     local.set $output
-    ;; 22 |     for index in 0..count:
+    ;; 24 |     for index in 0..count:
     block
       loop
         local.get $t0
@@ -25,7 +24,7 @@
         i32.const 1
         i32.add
         local.set $t0
-    ;; 23 |         output.push(transform(index))
+    ;; 25 |         output.push(transform(index))
         local.get $transform.1
         local.get $index
         i32.const 0
@@ -58,15 +57,15 @@
         i32.const 1
         i32.add
         i32.store $heap offset=4
-    ;; 22 |     for index in 0..count:
+    ;; 24 |     for index in 0..count:
         br 0
       end
     end
-    ;; 24 |     output
+    ;; 26 |     output
     local.get $output
   )
   (func $with_capacity (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $items i32) (local $t0 i32) (local $t1 i32) (local $index i32) (local $t2 i32) (local $t3 i32)
-    ;; 8 |     let mut output = List::[usize].with_capacity(count)
+    ;; 10 |     let mut output = List::[usize].with_capacity(count)
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -105,7 +104,7 @@
     i32.const 0
     i32.store $heap
     local.set $items
-    ;; 9 |     for index in 0..count:
+    ;; 11 |     for index in 0..count:
     block
       loop
         local.get $t1
@@ -119,7 +118,7 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 10 |         output.push(transform(index))
+    ;; 12 |         output.push(transform(index))
         local.get $transform.1
         local.get $index
         i32.const 0
@@ -127,8 +126,6 @@
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $index
         local.get $items
-        call $rt:list_unique
-        local.tee $items
         local.tee $t2
         i32.load $heap offset=4
         local.tee $t3
@@ -154,20 +151,20 @@
         i32.const 1
         i32.add
         i32.store $heap offset=4
-    ;; 9 |     for index in 0..count:
+    ;; 11 |     for index in 0..count:
         br 0
       end
     end
-    ;; 11 |     output
+    ;; 13 |     output
     local.get $items
-    ;; 8 |     let mut output = List::[usize].with_capacity(count)
+    ;; 10 |     let mut output = List::[usize].with_capacity(count)
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
   (func $reserve (param $count i32) (param $transform.0 i32) (param $transform.1 i32) (result i32) (local $output i32) (local $t0 i32) (local $t1 i32) (local $index i32) (local $t2 i32) (local $t3 i32)
-    ;; 14 |     let mut output: List[usize] = []
+    ;; 16 |     let mut output: List[usize] = []
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -191,7 +188,7 @@
     local.tee $output
     i32.const 80 ;; &empty-buffer
     i32.store $heap
-    ;; 15 |     output.reserve(count)
+    ;; 17 |     output.reserve(count)
     local.get $count
     if
       local.get $output
@@ -201,7 +198,7 @@
       call $rt:list_reserve
       i32.store $heap
     end
-    ;; 16 |     for index in 0..count:
+    ;; 18 |     for index in 0..count:
     block
       loop
         local.get $t1
@@ -215,18 +212,13 @@
         i32.const 1
         i32.add
         local.set $t1
-    ;; 17 |         output.push(transform(index))
+    ;; 19 |         output.push(transform(index))
         local.get $transform.1
         local.get $index
         i32.const 0
         local.get $transform.0
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $index
-        local.get $output
-        local.get $output
-        i32.load $heap
-        call $rt:list_unique
-        i32.store $heap
         local.get $output
         i32.load $heap
         local.tee $t2
@@ -256,17 +248,17 @@
         i32.const 1
         i32.add
         i32.store $heap offset=4
-    ;; 16 |     for index in 0..count:
+    ;; 18 |     for index in 0..count:
         br 0
       end
     end
-    ;; 18 |     output
+    ;; 20 |     output
     local.get $output
     i32.load $heap
     local.get $output
     i32.const 0
     i32.store $heap
-    ;; 14 |     let mut output: List[usize] = []
+    ;; 16 |     let mut output: List[usize] = []
     local.get $t0
     i32.const 16
     i32.add

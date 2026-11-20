@@ -1,8 +1,10 @@
 # @build: release
 # @dump: wat
-# expected: #2210. Both reserved outputs remain fresh across a callback
-# that never receives them. Their push loops should have no list_unique,
-# as the unreserved control already does; today reservation loses the proof.
+# #2210: both reserved outputs remain fresh across a callback that never
+# receives them, so their push loops call no list_unique, as the unreserved
+# control's does not. A reserve keeps a fresh list fresh (its reference
+# reaches only `list_reserve`), and `with_capacity`'s list moves out of its
+# inlined body fresh.
 
 fn with_capacity(count: usize, transform: fn(usize) -> usize) -> List[usize]:
     let mut output = List::[usize].with_capacity(count)

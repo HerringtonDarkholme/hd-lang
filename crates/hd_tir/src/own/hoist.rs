@@ -563,7 +563,7 @@ pub(crate) fn run(
     b.stable_lists.clear();
     t.relies = 0;
     let n = b.len();
-    let fresh = fresh_locals(b);
+    let fresh = fresh_locals(b, cx);
     let element_checks = super::ElementChecks::new(b);
     let mut marked = Vec::new();
     for i in 0..n {
@@ -818,17 +818,21 @@ pub(crate) fn fresh_unique(b: &Body, fresh: &[bool], i: usize) -> bool {
 
 /// The **fresh-buffer locals** of `b` (step 15a), whose buffer nothing
 /// else can hold, so it is always unique: a local that is no parameter,
-/// never addressed or captured, stored at least once, every whole store of
+/// never captured, stored at least once, every whole store of
 /// which stores a new collection (`NewList`, `NewMap`) that is empty or
 /// has an element that is no constant (a literal of constants is static
-/// data, shared), and whose every
+/// data, shared), or moves all of another such local out, and whose every
 /// read lets nothing share its header. A read either moves all of it out,
 /// or is used only by a collection intrinsic that lends it (`ListPush`,
 /// `ListReserve`, `MapSet`, `MapGet`, a length, an entry walk), an
 /// operator, a `Drop`, or as the root of a read or a store (an element or a field). A
 /// copy of all of it, a call argument (the callee may keep it), a store of
-/// it, a `Ref` into it, or any other use keeps its checks.
-pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
+/// it, a `Ref` into it, or any other use keeps its checks. A `Ref` of all
+/// of it does not, when that reference is only read whole, coerced to its
+/// own type, ended, or passed first to a call that changes the list in
+/// place and leaves its buffer unique (`OwnCx::keeps_unique`: a reserve,
+/// as Swift's `reserveCapacity` ends in `end_cow_mutation [keep_unique]`).
+pub(crate) fn fresh_locals(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
     let n = b.len();
     let locals = b.local_ty.len();
     let mut ok = vec![false; locals];
@@ -836,9 +840,9 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
         return ok;
     }
     for (l, flags) in b.local_flags.iter().enumerate() {
-        ok[l] = flags
-            & (local_flags::PARAM | local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
-            == 0;
+        // An address taken sets `CAPTURED` too: a capture is judged by
+        // the captures below, an address by its `Ref`s.
+        ok[l] = flags & local_flags::PARAM == 0;
     }
     for sub in 1..b.sub_params.len() {
         for &x in b.sub_param_locals(sub) {
@@ -855,6 +859,10 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
     let mut stored = vec![false; locals];
     // Per instruction: the local it reads all of without moving, or `NONE`.
     let mut read_of = vec![NONE; n];
+    // Per instruction: the local whose whole reference it is, or `NONE`.
+    let mut ref_of = vec![NONE; n];
+    // (local, local it moves all of out of): fresh when that one is.
+    let mut moved_from = Vec::new();
     for (i, read) in read_of.iter_mut().enumerate() {
         let p = b.view(b.data[i][0]);
         let Some(l) = (match b.tags[i] {
@@ -867,7 +875,18 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
         match b.tags[i] {
             Tag::Store if p.whole() => {
                 stored[li] = true;
-                let v = b.data[i][1] as usize;
+                let mut v = b.data[i][1] as usize;
+                if v < n && b.tags[v] == Tag::Scope {
+                    v = b.wrapper_value(v).map_or(v, |x| x as usize);
+                }
+                if let Some(m) = (v < n && b.tags[v] == Tag::Read)
+                    .then(|| b.view(b.data[v][0]))
+                    .filter(|q| q.whole() && b.data[v][1] == ReadMode::Move as u32)
+                    .and_then(PlaceView::local)
+                {
+                    moved_from.push((l, m));
+                    continue;
+                }
                 // A nonempty literal of constants is static data the
                 // backend shares (`static_scalar_list`), not a fresh buffer.
                 ok[li] &= Ref(b.data[i][1]).as_inst().is_some()
@@ -878,6 +897,7 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
                         items.is_empty() || items.iter().any(|&x| Ref(x).as_inst().is_some())
                     };
             }
+            Tag::Ref if p.whole() => ref_of[i] = l,
             Tag::Ref => ok[li] = false,
             Tag::Read if p.whole() => {
                 if b.data[i][1] == ReadMode::Copy as u32 {
@@ -891,9 +911,42 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
     }
     let mut ops = Vec::new();
     for i in 0..n {
+        // A whole reference to a local, read whole or coerced to its own
+        // type, is that reference again; one ended (its `Drop`, which the
+        // last pass makes a `LoanEnd`) is used up.
+        let again = match b.tags[i] {
+            Tag::Read | Tag::LoanEnd | Tag::Drop => {
+                let q = b.view(b.data[i][0]);
+                match q.root {
+                    Root::Value(v) if q.whole() => Some(v as usize),
+                    _ => None,
+                }
+            }
+            Tag::Coerce => Ref(b.data[i][0]).as_inst().map(|x| x.0 as usize),
+            _ => None,
+        };
+        if let Some(v) = again.filter(|&v| v < n && ref_of[v] != NONE) {
+            if b.ty[v] == b.ty[i] {
+                ref_of[i] = ref_of[v];
+                continue;
+            }
+            if matches!(b.tags[i], Tag::LoanEnd | Tag::Drop) {
+                continue;
+            }
+        }
         operands(b, i, &mut ops);
         for op in &ops {
             let v = op.value as usize;
+            if v < n && ref_of[v] != NONE {
+                let kept = b.tags[i] == Tag::Call
+                    && b.call_args(i).first() == Some(&op.value)
+                    && Callee::from_words(b.record(b.data[i][0]))
+                        .is_some_and(|c| cx.keeps_unique(&c));
+                if !kept {
+                    ok[ref_of[v] as usize] = false;
+                }
+                continue;
+            }
             if v >= n || read_of[v] == NONE {
                 continue;
             }
@@ -933,6 +986,12 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
             Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Drop
         ) {
             let p = b.view(b.data[i][0]);
+            // Any other place through a whole reference reaches the list.
+            if let Root::Value(v) = p.root
+                && ref_of.get(v as usize).is_some_and(|&l| l != NONE)
+            {
+                ok[ref_of[v as usize] as usize] = false;
+            }
             if let Root::Value(v) = p.root
                 && (v as usize) < n
                 && read_of[v as usize] != NONE
@@ -945,6 +1004,18 @@ pub(crate) fn fresh_locals(b: &Body) -> Vec<bool> {
     }
     for (o, s) in ok.iter_mut().zip(&stored) {
         *o &= *s;
+    }
+    // A local a store moves another out into is fresh when that one is:
+    // each local found not fresh clears its dependents once, O(L + D log D).
+    moved_from.sort_stable_by_key(|&(_, m)| m);
+    let mut stack: Vec<u32> = (0..locals).filter(|&l| !ok[l]).map(u32_of).collect();
+    while let Some(m) = stack.pop() {
+        let at = moved_from.partition_point(|&(_, x)| x < m);
+        for &(l, _) in moved_from[at..].iter().take_while(|&&(_, x)| x == m) {
+            if std::mem::take(&mut ok[l as usize]) {
+                stack.push(l);
+            }
+        }
     }
     ok
 }

@@ -297,7 +297,7 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     // A fresh buffer's `IsUnique` is of a local that keeps it fresh, and one
     // that runs, which says its buffer may be shared, isn't of such a local.
     if b.tags.contains(&Tag::IsUnique) {
-        let fresh = hoist::fresh_locals(b);
+        let fresh = hoist::fresh_locals(b, cx);
         for i in 0..n {
             if b.tags[i] != Tag::IsUnique {
                 continue;

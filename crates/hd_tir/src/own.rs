@@ -308,6 +308,13 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
+    /// Whether this callee only changes the list its first argument
+    /// refers to in place and leaves that list's buffer unique, copying
+    /// a shared one: a reserve.
+    fn keeps_unique(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.

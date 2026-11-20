@@ -690,6 +690,11 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_probe"))
     }
 
+    fn keeps_unique(&self, callee: &Callee) -> bool {
+        // `rt:list_reserve` copies a buffer it does not own.
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("list_reserve"))
+    }
+
     fn counted(&self, ty: Ty) -> bool {
         // A generic body's open type may count in an instance.
         self.is_open(ty) || self.layout_facts(ty).0

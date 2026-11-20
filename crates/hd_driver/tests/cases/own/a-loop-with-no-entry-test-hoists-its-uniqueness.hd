@@ -3,11 +3,18 @@
 # whenever it is entered, so the changes in its body and in the inner
 # loops that stand there make each list unique once, before it
 # (`IsUnique hoisted` for both lists before the outer loop). The lists
-# come from comprehensions, moved into their locals: fresh, so a store
-# into one list's buffer leaves the other's check hoisted.
+# are calls' results moved into their locals: hoisting's fresh values,
+# though not fresh buffers (`IsUnique fresh`, only new collections), so
+# a store into one list's buffer leaves the other's check hoisted.
+use std.annotation.inline
+
+@inline(.Never)
+fn filled(n: usize, value: usize) -> List[usize]:
+    [for _ in 0..n => value]
+
 fn rotate(n: usize) -> usize:
-    let mut items = [for i in 0..n => i]
-    let mut count = [for _ in 0..n => 1]
+    let mut items = filled(n, 0)
+    let mut count = filled(n, 1)
     let r: usize = 1
     while true:
         first := items[0]
