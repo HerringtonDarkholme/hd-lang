@@ -1477,9 +1477,9 @@ impl Drop for TempDirs {
     }
 }
 
-/// Runs the cases program by program on up to `jobs` workers, round
-/// robin in content order, and prints the results in content order
-/// (`cli.test.report.stream`), whatever order the workers finish in. An
+/// Runs cases on up to `jobs` workers and prints in content order
+/// (`cli.test.report.stream`), whatever order workers finish in. Node shares
+/// compiled modules in one command batch; the native engine uses its session. An
 /// integration test program or a doc test with a totally denied need stops
 /// the command before any case runs (`cli.cap.total.test`).
 fn run(
@@ -1559,6 +1559,41 @@ fn run(
     if running.iter().all(Vec::is_empty) {
         return Ok(());
     }
+    let temps: Vec<TempDirs> = built
+        .iter()
+        .map(|_| TempDirs::new().map_err(|error| report.rep.fail(&error)))
+        .collect::<Result<_, _>>()?;
+    let make_cases = |program: usize| -> Vec<HostCase> {
+        let prog = &built[program];
+        let cases_to_run = &running[program];
+        cases_to_run
+            .iter()
+            .map(|&(i, (test, init))| HostCase {
+                test,
+                init,
+                kind: cases[i].kind.clone(),
+                temp_dir: temps[program].case(i),
+                seed: seeds[i],
+                snapshot: Snapshot {
+                    folder: format!("__snapshots__/{}", selected[i].snapshots),
+                    regressions: format!("__regressions__/{}", selected[i].snapshots),
+                    root: env.root.to_path_buf(),
+                    slug: slug(&cases[i].name),
+                    update: env.update,
+                },
+                grants: if prog.cwd.is_some() {
+                    crate::caps::test_grants(
+                        &env.table,
+                        env.root,
+                        env.flags,
+                        &temps[program].case(i),
+                    )
+                } else {
+                    hd_run::Grants::default()
+                },
+            })
+            .collect()
+    };
     let (session, prepared) = {
         let session = TestSession::new(
             options.engine,
@@ -1586,156 +1621,201 @@ fn run(
         (session, prepared)
     };
     let mut updates = crate::snapshot_update::Updates::default();
-    for (p, ((prog, running), prepared)) in built.iter().zip(&running).zip(&prepared).enumerate() {
-        if running.is_empty() {
-            continue;
-        }
-        // Read only when a case asks: a stored build's are built again.
+    let mut error = None;
+    let mut finish = |p: usize, i: usize, c: CaseRun| {
+        let prog = &built[p];
         let frames_of = || prog.frames.as_ref().or_else(|| env.lazy.get(p));
-        let Some(prepared) = prepared else {
-            return Err(report.rep.fail("internal: a test program was not prepared"));
-        };
-        let temp = TempDirs::new().map_err(|e| report.rep.fail(&e))?;
-        let test_env = TestEnv {
-            cwd: prog.cwd.as_deref(),
-            program: &prog.program,
-            programs: programs.filter(|_| prog.cwd.is_some()),
-        };
-        // An integration test or a doc test gets the test grant; a unit test
-        // gets no host provider, so no grant limits it.
-        let host_case = |i: usize, (test, init): (u32, u32)| HostCase {
-            test,
-            init,
-            kind: cases[i].kind.clone(),
-            temp_dir: temp.case(i),
-            seed: seeds[i],
-            snapshot: Snapshot {
-                folder: format!("__snapshots__/{}", selected[i].snapshots),
-                regressions: format!("__regressions__/{}", selected[i].snapshots),
-                root: env.root.to_path_buf(),
-                slug: slug(&cases[i].name),
-                update: env.update,
-            },
-            grants: if prog.cwd.is_some() {
-                crate::caps::test_grants(&env.table, env.root, env.flags, &temp.case(i))
-            } else {
-                hd_run::Grants::default()
-            },
-        };
-        let workers = options.jobs.min(running.len()).max(1);
-        let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
         let mut error = None;
-        std::thread::scope(|s| {
-            for w in 0..workers {
-                let tx = tx.clone();
-                let chunk: Vec<(usize, (u32, u32))> =
-                    running.iter().skip(w).step_by(workers).copied().collect();
-                let host_cases: Vec<HostCase> =
-                    chunk.iter().map(|&(i, run)| host_case(i, run)).collect();
-                let test_env = &test_env;
-                let session = &session;
-                let mut builder = std::thread::Builder::new();
-                if let Some(size) = options
-                    .engine
-                    .worker_stack(crate::level_of(options.release))
-                {
-                    builder = builder.stack_size(size);
-                }
-                let worker = builder.spawn_scoped(s, move || {
-                    let r = session.run(
-                        prepared,
-                        test_env,
-                        &host_cases,
-                        options.limits,
-                        &mut |c: CaseRun| {
-                            if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test) {
-                                let _ = tx.send(Ok((*i, c)));
-                            }
-                        },
-                    );
-                    if let Err(e) = r {
-                        let _ = tx.send(Err(e));
-                    }
-                });
-                if let Err(spawn_error) = worker {
-                    error.get_or_insert_with(|| {
-                        format!("cannot start a test worker: {spawn_error}")
-                    });
-                }
-            }
-            drop(tx);
-            for msg in rx {
-                match msg {
-                    Ok((i, c)) => {
-                        if c.last() {
-                            temp.end(i);
-                        }
-                        let mut k = key(i);
-                        // Each row of an `it_each` case is a case of its
-                        // own, which its first result lists
-                        // (`std-testing.it-each`).
-                        if let Some((row, rows)) = c.row {
-                            let name = &cases[i].name;
-                            if row == 0 {
-                                let kept: Vec<u32> = (0..rows)
-                                    .filter(|r| row_selected(name, *r, env.filter))
-                                    .collect();
-                                report.release(&cases, &seeds, cursor.rows(&k, &kept));
-                            }
-                            if rows == 0 || !row_selected(name, row, env.filter) {
-                                continue;
-                            }
-                            k.row = row;
-                        }
-                        if let Some(input) = &c.input {
-                            report.inputs.insert(k.clone(), input.clone());
-                        }
-                        // The snapshots an update run recorded
-                        // (`cli.test.snapshot.update`); one that cannot be
-                        // rewritten fails its case, since the host let it
-                        // pass.
-                        let mut lost = None;
-                        for r in &c.snapshots {
-                            let Ok((site, text)) = Site::parse(&r.text) else {
-                                error.get_or_insert_with(|| {
-                                    "internal: a snapshot update without its site".to_owned()
-                                });
-                                continue;
-                            };
-                            let literal = crate::snapshot_update::debug_literal(text);
-                            match site.and_then(|s| frames_of()?.snapshot_site(s)) {
-                                Some(site) => updates.record(site, &literal),
-                                None => {
-                                    lost.get_or_insert(literal);
-                                }
-                            }
-                        }
-                        let frames = match (&prog.wasm, c.trapped) {
-                            (Some(wasm), true) => frames_of()
-                                .map(|f| f.lines(wasm, &c.frames, env.sources))
-                                .unwrap_or_default(),
-                            _ => Vec::new(),
-                        };
-                        let mut r = judge(&cases[i], &c, frames);
-                        if let (Some(actual), CaseResult::Passed { .. }) = (lost, &r) {
-                            r = CaseResult::Failed {
-                                message: format!(
-                                    "an update run cannot rewrite a snapshot here (a call from a library); the text is {actual}"
-                                ),
-                            };
-                        }
-                        report.release(&cases, &seeds, cursor.finish(k, r));
-                    }
-                    Err(e) => {
-                        error.get_or_insert(e);
-                    }
-                }
-            }
-        });
-        if let Some(e) = error {
-            report.flush();
-            return Err(report.rep.fail(&e));
+
+        if c.last() {
+            temps[p].end(i);
         }
+        let mut k = key(i);
+        // Each row of an `it_each` case is a case of its
+        // own, which its first result lists
+        // (`std-testing.it-each`).
+        if let Some((row, rows)) = c.row {
+            let name = &cases[i].name;
+            if row == 0 {
+                let kept: Vec<u32> = (0..rows)
+                    .filter(|r| row_selected(name, *r, env.filter))
+                    .collect();
+                report.release(&cases, &seeds, cursor.rows(&k, &kept));
+            }
+            if rows == 0 || !row_selected(name, row, env.filter) {
+                return None;
+            }
+            k.row = row;
+        }
+        if let Some(input) = &c.input {
+            report.inputs.insert(k.clone(), input.clone());
+        }
+        // The snapshots an update run recorded
+        // (`cli.test.snapshot.update`); one that cannot be
+        // rewritten fails its case, since the host let it
+        // pass.
+        let mut lost = None;
+        for r in &c.snapshots {
+            let Ok((site, text)) = Site::parse(&r.text) else {
+                error.get_or_insert_with(|| {
+                    "internal: a snapshot update without its site".to_owned()
+                });
+                continue;
+            };
+            let literal = crate::snapshot_update::debug_literal(text);
+            match site.and_then(|s| frames_of()?.snapshot_site(s)) {
+                Some(site) => updates.record(site, &literal),
+                None => {
+                    lost.get_or_insert(literal);
+                }
+            }
+        }
+        let frames = match (&prog.wasm, c.trapped) {
+            (Some(wasm), true) => frames_of()
+                .map(|f| f.lines(wasm, &c.frames, env.sources))
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let mut r = judge(&cases[i], &c, frames);
+        if let (Some(actual), CaseResult::Passed { .. }) = (lost, &r) {
+            r = CaseResult::Failed {
+                message: format!(
+                    "an update run cannot rewrite a snapshot here (a call from a library); the text is {actual}"
+                ),
+            };
+        }
+        report.release(&cases, &seeds, cursor.finish(k, r));
+
+        error
+    };
+
+    if options.engine == crate::engine::EngineKind::Node {
+        let host_cases: Vec<Vec<HostCase>> = (0..built.len()).map(&make_cases).collect();
+        let children = match programs {
+            Some(TestPrograms::Node(children)) => Some(children),
+            None => None,
+            Some(TestPrograms::Wasmtime(_)) => None,
+        };
+        let batch = built
+            .iter()
+            .zip(&host_cases)
+            .enumerate()
+            .filter(|(_, (_, cases))| !cases.is_empty())
+            .map(|(program, (prog, cases_to_run))| {
+                let wasm = prog
+                    .wasm
+                    .as_deref()
+                    .ok_or_else(|| "internal: a test program was not built".to_owned())?;
+                Ok(crate::node::BatchProgram {
+                    program,
+                    wasm,
+                    env: crate::node::TestEnv {
+                        cwd: prog.cwd.as_deref(),
+                        program: &prog.program,
+                        programs: children.filter(|_| prog.cwd.is_some()),
+                        wall_ms: options.limits.wall_ms,
+                    },
+                    cases: cases_to_run,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>();
+        let result = batch.and_then(|batch| {
+            if matches!(programs, Some(TestPrograms::Wasmtime(_))) {
+                return Err("internal: Wasmtime child programs on Node".to_owned());
+            }
+            crate::node::run_batch(
+                &batch,
+                options.jobs,
+                env.root,
+                &mut |program, position, case| {
+                    let index = running[program][position].0;
+                    if let Some(message) = finish(program, index, case) {
+                        error.get_or_insert(message);
+                    }
+                },
+            )
+        });
+        if let Err(message) = result {
+            error.get_or_insert(message);
+        }
+    } else {
+        for (p, ((prog, running), prepared)) in
+            built.iter().zip(&running).zip(&prepared).enumerate()
+        {
+            if running.is_empty() {
+                continue;
+            }
+            let Some(prepared) = prepared else {
+                error.get_or_insert_with(|| "internal: a test program was not prepared".to_owned());
+                break;
+            };
+            let test_env = TestEnv {
+                cwd: prog.cwd.as_deref(),
+                program: &prog.program,
+                programs: programs.filter(|_| prog.cwd.is_some()),
+            };
+            let workers = options.jobs.min(running.len()).max(1);
+            let (tx, rx) = mpsc::channel::<Result<(usize, CaseRun), String>>();
+            let mut native_chunks: Vec<Vec<HostCase>> = (0..workers).map(|_| Vec::new()).collect();
+            for (index, case) in make_cases(p).into_iter().enumerate() {
+                native_chunks[index % workers].push(case);
+            }
+            std::thread::scope(|s| {
+                for (w, host_cases) in native_chunks.into_iter().enumerate() {
+                    let tx = tx.clone();
+                    let chunk: Vec<(usize, (u32, u32))> =
+                        running.iter().skip(w).step_by(workers).copied().collect();
+                    let test_env = &test_env;
+                    let session = &session;
+                    let mut builder = std::thread::Builder::new();
+                    if let Some(size) = options
+                        .engine
+                        .worker_stack(crate::level_of(options.release))
+                    {
+                        builder = builder.stack_size(size);
+                    }
+                    let worker = builder.spawn_scoped(s, move || {
+                        let r = session.run(
+                            prepared,
+                            test_env,
+                            &host_cases,
+                            options.limits,
+                            &mut |c: CaseRun| {
+                                if let Some((i, _)) = chunk.iter().find(|(_, (t, _))| *t == c.test)
+                                {
+                                    let _ = tx.send(Ok((*i, c)));
+                                }
+                            },
+                        );
+                        if let Err(e) = r {
+                            let _ = tx.send(Err(e));
+                        }
+                    });
+                    if let Err(spawn_error) = worker {
+                        error.get_or_insert_with(|| {
+                            format!("cannot start a test worker: {spawn_error}")
+                        });
+                    }
+                }
+                drop(tx);
+                for msg in rx {
+                    match msg {
+                        Ok((i, c)) => {
+                            if let Some(message) = finish(p, i, c) {
+                                error.get_or_insert(message);
+                            }
+                        }
+                        Err(e) => {
+                            error.get_or_insert(e);
+                        }
+                    }
+                }
+            });
+        }
+    }
+    if let Some(message) = error {
+        report.flush();
+        return Err(report.rep.fail(&message));
     }
     // `cli.test.snapshot.update`: the literals the failed snapshots want.
     let done = updates.apply(
