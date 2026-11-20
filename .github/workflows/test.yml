@@ -408,11 +408,9 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
-        with:
-          workspaces: ". -> target/publish/target"
-
+      # No Rust cache: the script builds from nothing in its own cargo home,
+      # because cargo would reuse an earlier run's packages of the same
+      # version (scripts/publish-crates.ts, `cargoHome`).
       - name: Package and verify the crates
         run: node scripts/publish-crates.ts
 

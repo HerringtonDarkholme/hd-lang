@@ -23,8 +23,9 @@
 // of about 26 crates meets; the script waits and retries.
 //
 // Cost per run: one copy of each source file under crates/ (about 5,600),
-// one build of the publishable crates and their dependencies, and with
-// --publish one index request and one upload per crate.
+// one download and one build from nothing of the publishable crates and
+// their dependencies (a run keeps no cargo state, see `cargoHome`), and
+// with --publish one index request and one upload per crate.
 //
 // Usage: node scripts/publish-crates.ts             stage, package, verify
 //        node scripts/publish-crates.ts --publish   the same, then upload
@@ -35,9 +36,20 @@ import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const root = join(import.meta.dirname, "..");
-const stage = join(root, "target", "publish", "stage");
-/** Outside the stage, so a run keeps the dependencies the last one built. */
-const targetDir = join(root, "target", "publish", "target");
+/** Everything a run writes. A run starts by deleting it. */
+const work = join(root, "target", "publish");
+const stage = join(work, "stage");
+const targetDir = join(work, "target");
+/**
+ * The verifying cargo's own home. cargo takes a registry package of one
+ * name and version as never changing: it unpacks it once under its home and
+ * compiles it once into a target directory. A second run with the same
+ * version then builds against the first run's packages (2026-11-20: hd_wasm
+ * was checked against the hd_tir of an older commit, and failed). With the
+ * home and the target directory inside `work`, nothing outlives a run, and
+ * nothing is written outside target/.
+ */
+const cargoHome = join(work, "cargo-home");
 const manifest = join(stage, "Cargo.toml");
 
 /** The crate users install, and the program its package must run. */
@@ -82,7 +94,7 @@ function copyInto(files: string[], destination: (file: string) => string): void 
 }
 
 function stageWorkspace(): void {
-  rmSync(stage, { recursive: true, force: true });
+  rmSync(work, { recursive: true, force: true });
   copyInto(
     sourceFiles("Cargo.toml", "Cargo.lock", "README.md", "rust-toolchain.toml", "crates"),
     (file) => join(stage, file),
@@ -154,26 +166,19 @@ function publishOrder(): Package[] {
   return order;
 }
 
-function cargo(args: string[]): void {
-  const result = spawnSync("cargo", args, { cwd: stage, stdio: "inherit" });
-  if (result.status !== 0) {
-    throw new Error(`cargo ${args.slice(0, 2).join(" ")} failed`);
-  }
-}
-
 /** Packages every crate and builds each package against the others'. */
 function verify(order: Package[]): void {
-  // A binary an earlier run left must not stand in for this run's.
-  rmSync(packagedHd, { force: true });
-  cargo([
-    "publish",
-    "--dry-run",
-    "--manifest-path",
-    manifest,
-    "--target-dir",
-    targetDir,
-    ...order.flatMap((crate) => ["-p", crate.name]),
-  ]);
+  const args = ["publish", "--dry-run", "--manifest-path", manifest, "--target-dir", targetDir];
+  const result = spawnSync("cargo", [...args, ...order.flatMap((crate) => ["-p", crate.name])], {
+    cwd: stage,
+    stdio: "inherit",
+    // cargo still reads the user's configuration, from the .cargo
+    // directories above the stage.
+    env: { ...process.env, CARGO_HOME: cargoHome },
+  });
+  if (result.status !== 0) {
+    throw new Error("cargo publish --dry-run failed");
+  }
 }
 
 /**

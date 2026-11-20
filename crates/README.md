@@ -155,7 +155,9 @@ node scripts/publish-crates.ts --publish   # the same, then upload to crates.io
 
 The dry run builds each package against the other packages, never against
 workspace paths, then runs the packaged `hd` on Wasmtime with an empty
-`PATH`. `--publish` needs a clean tree and a crates.io token
+`PATH`. Each run builds from nothing, in its own cargo home under
+`target/publish`: cargo takes a package of one version as never changing,
+so kept state would check new packages against old ones. `--publish` needs a clean tree and a crates.io token
 (`cargo login`). It uploads in dependency order and skips a version
 crates.io already has, so a stopped run resumes. crates.io limits new crate
 names to a burst of 5 and then one every 10 minutes; the script waits and
