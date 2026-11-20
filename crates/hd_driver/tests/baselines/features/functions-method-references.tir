@@ -71,16 +71,19 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   %0 = Read [$0] : *mut User
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read [$2] : *mut User
->   %3 = Read [$3] : string
->   %4 = Call app/main/impl User.rename[] (%2, %3) : ()
->   %5 = Block %4 : ()
->   %6 = Closure #1 : fn(string) -> ()
->   %7 = Store [$4] %6 : ()
->   %11 = Block - : ()
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Read [$3] : string
+>   %5 = LoanBegin %2 #2 : ()
+>   %6 = Call app/main/impl User.rename[] (%2, %4) : ()
+>   %7 = LoanClose %3 : ()
+>   %8 = Block %6 : ()
+>   %9 = Closure #1 : fn(string) -> ()
+>   %10 = Store [$4] %9 : ()
+>   %14 = Block - : ()
     f(n)
->   %8 = Read [$4] : fn(string) -> ()
->   %9 = Read [$1] : string
->   %10 = CallValue %8 [%9] : ()
+>   %11 = Read [$4] : fn(string) -> ()
+>   %12 = Read [$1] : string
+>   %13 = CallValue %11 [%12] : ()
 
 fn adapter(us: List[User]) -> usize:
     g := fn(u: User) -> usize: u.name_len()

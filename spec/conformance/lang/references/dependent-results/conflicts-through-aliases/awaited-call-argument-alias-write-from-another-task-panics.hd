@@ -1,0 +1,30 @@
+# fixture-runtime-profile: pending-tick
+# test: a task awaiting a call that holds a `&mut` lent from a `*T` keeps its loan across the wait, so another task's write through an alias panics
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan; Spec 11 Joining.
+use std.task.join
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
+
+struct Counter:
+    value: i32
+
+fn hold!(c: &mut Counter) -> i32 $ Tick:
+    host_wait!()
+    c.value
+
+fn first!(p: *mut Counter) -> i32 $ Tick:
+    hold!(p)
+
+fn poke!(alias: *mut Counter) -> i32:
+    alias.value = 99 # panic: borrow-conflict
+    0
+
+pub fn main!() -> void $ Console + Tick:
+    let p: *mut Counter = box(Counter { value: 1 })
+    let alias = p
+    let (held, poked) = join!(first(p), poke(alias))
+    println("${held} ${poked}")

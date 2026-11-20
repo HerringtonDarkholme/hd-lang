@@ -23,18 +23,18 @@
     local.get $self
     i32.load $heap
   )
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t1 i32) (local $r i32) (local $t0 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 17 |     r := p.slot()
     local.get $p
     call $"impl Outer.slot"
-    local.tee $r
-    call $block_of
     local.tee $t0
+    call $block_of
+    local.tee $t1
     if
-      local.get $t0
+      local.get $t1
       i32.const 4
       i32.add
-      local.tee $t0
+      local.tee $t1
       i32.load $heap
       i32.const 4128768
       i32.and
@@ -42,8 +42,8 @@
         call $rt:panic'2
         unreachable
       end
-      local.get $t0
-      local.get $t0
+      local.get $t1
+      local.get $t1
       i32.load $heap
       i32.const 2097152
       i32.add
@@ -71,46 +71,27 @@
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
-    ;; 19 |     *r
-    local.get $r
-    i32.load $heap
-    local.tee $t1
-    local.get $r
-    i32.load $heap offset=4
-    local.tee $r
-    call $rt:retain
     ;; 17 |     r := p.slot()
     local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      i32.const 0
-      local.set $t0
-    end
+    ;; 19 |     *r
+    i32.load $heap
+    local.tee $t2
+    ;; 17 |     r := p.slot()
     local.get $t0
+    ;; 19 |     *r
+    i32.load $heap offset=4
+    local.tee $t0
+    call $rt:retain
+    local.get $t1
     if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
+      local.get $t1
+      local.get $t1
       i32.load $heap
       i32.const 2097152
       i32.sub
       i32.store $heap
     end
+    ;; 17 |     r := p.slot()
     local.get $p
     if
       local.get $p
@@ -133,7 +114,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t1
-    local.get $r
+    local.get $t2
+    local.get $t0
   )
 )

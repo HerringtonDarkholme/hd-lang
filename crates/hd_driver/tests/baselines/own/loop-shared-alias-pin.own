@@ -9,12 +9,12 @@ fn alias_push() -> void:
 >   local $1 a: *mut List[i32] [:= read assigned] value
 >     uses $1: %6 -> %7 consume, %9 lend last
 >   local $2 b: *mut List[i32] [:= read assigned] value
->     uses $2: %8 -> %23 lend
+>     uses $2: %8 -> %24 lend
 >   local $3 $len: usize [assigned] value
 >     uses $3: %11 -> %14 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 c: &i32 [read assigned] value
->     uses $5: %27 -> %21 lend last
+>     uses $5: %28 -> %22 lend last
 >   %0 = Coerce 1:i32 [Identity -] : i32
 >   %1 = Coerce 2:i32 [Identity -] : i32
 >   %2 = NewList - [%0 %1] : List[i32]
@@ -22,7 +22,7 @@ fn alias_push() -> void:
 >   %4 = Store [$0] %2 : ()
 >   %5 = Ref take mut [$0] : *mut List[i32]
 >   %6 = Store [$1] %5 : ()
->   %40 = Block - : ()
+>   %43 = Block - : ()
     b := a
 >   %7 = Read borrow [$1] : *mut List[i32]
 >   %8 = Store [$2] %7 : ()
@@ -39,23 +39,26 @@ fn alias_push() -> void:
 >   %18 = Prim Add [%17 1:usize] : usize
 >   %19 = Store [$4] %18 : ()
 >   %20 = Ref local pins [%9 [%16]] : &i32
->   %25 = Block - : ()
->   %26 = Read borrow [%20] : &i32
->   %27 = Store [$5] %26 : ()
->   %29 = Block - : never
->   %30 = Match %20 [%29 %25] : ()
->   %31 = LoanEnd [%20] : ()
->   %32 = Block - : ()
->   %33 = Break L0 - : never
->   %34 = Block - : ()
->   %35 = If %15 [%32 %34] : ()
+>   %21 = LoanBegin %20 #0 : ()
+>   %26 = Block - : ()
+>   %27 = Read borrow [%20] : &i32
+>   %28 = Store [$5] %27 : ()
+>   %30 = Block - : never
+>   %31 = Match %20 [%30 %26] : ()
+>   %32 = LoanEnd [%20] : ()
+>   %33 = Block - : ()
+>   %34 = LoanClose %21 : ()
+>   %35 = Break L0 - : never
 >   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [%9] : ()
->   %39 = Drop [$1] : ()
+>   %37 = If %15 [%33 %36] : ()
+>   %38 = Block - : ()
+>   %39 = Loop %38 - : ()
+>   %40 = Drop [%9] : ()
+>   %41 = Drop [$1] : ()
+>   %42 = LoanClose %21 : ()
         b.push(*c) # panic: borrow-conflict
->   %21 = Read copy [*$5] : i32
->   %22 = IsUnique [*$2] : ()
->   %23 = Read borrow [*$2] : List[i32]
->   %24 = Intrinsic ListPush [%23 %21] : ()
+>   %22 = Read copy [*$5] : i32
+>   %23 = IsUnique [*$2] : ()
+>   %24 = Read borrow [*$2] : List[i32]
+>   %25 = Intrinsic ListPush [%24 %22] : ()
 >   storage sub 0: $0 cell

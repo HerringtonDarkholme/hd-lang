@@ -3,22 +3,19 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $through_struct (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $t1 i32) (local $t2 i32)
+  (func $through_struct (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $value i32) (local $t1 i32)
     ;; 43 |     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
     local.get $p
     i32.const 4
     i32.sub
-    local.get $p
-    call $"impl Slots.get_ref"
-    local.set $self
     local.tee $t0
     i32.load $heap
     i32.const 2097152
@@ -44,14 +41,17 @@
       i32.add
       i32.store $heap
     end
+    local.get $p
+    call $"impl Slots.get_ref"
     i32.const 16 ;; &"slot"
     i32.const 4
     local.set $message.1
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $self
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -66,52 +66,9 @@
       unreachable
     end
     i32.const 42
-    local.get $self
+    local.get $value
     call $"unwrap[&string]"
-    local.set $self
-    local.get $t0
-    local.tee $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_share
-      else
-        local.get $message.1
-        local.get $message.0
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $message.0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
+    local.set $message.1
     ;; 44 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -132,7 +89,7 @@
     i32.store $heap
     local.get $message.0
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $value
     local.get $message.0
     i32.load $heap
     i32.eq
@@ -146,99 +103,34 @@
       i32.store $heap
     end
     local.get $message.0
-    local.get $t1
+    local.get $value
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 20 ;; &"grown"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t1
     i32.const 5
     i32.store $heap offset=20
     local.get $message.0
-    local.get $t1
+    local.get $value
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 45 |     *held
-    local.get $self
+    local.get $message.1
     i32.load $heap
     local.tee $message.0
-    local.get $self
+    local.get $message.1
     i32.load $heap offset=4
-    local.tee $self
+    local.tee $message.1
     call $rt:retain
-    ;; 43 |     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.1
+      local.tee $value
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -248,12 +140,13 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.1
+        local.get $value
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
+    ;; 43 |     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
     local.get $p
     if
       local.get $p
@@ -277,27 +170,85 @@
       end
     end
     local.get $message.0
-    local.get $self
+    local.get $message.1
   )
   (func $"unwrap[&string]" (param $value.padding i32) (param $value.value i32) (result i32)
     ;; 30 |     value.value
     local.get $value.value
   )
-  (func $through_optional (param $p i32) (param $q i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $t1 i32) (local $message.1'1 i32) (local $message.1'2 i32) (local $message.0'1 i32) (local $message.0'2 i32) (local $t2 i32)
+  (func $through_optional (param $p i32) (param $q i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1'1 i32) (local $message.1'2 i32) (local $message.0 i32) (local $value'1 i32) (local $value'2 i32)
     ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
     local.get $p
     i32.const 4
     i32.sub
-    local.get $p
-    call $"impl Slots.get_ref"
-    local.set $self
     local.tee $t0
-    i32.const 1
-    local.set $t1
     i32.load $heap
     i32.const 2097152
     i32.and
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.const 1
+    local.set $message.1'1
+    i32.load $heap
+    local.tee $message.0
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $message.0
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
     local.get $message.1'1
+    i32.const 2
+    i32.eq
+    if
+      local.get $message.1'2
+      i32.const 65536
+      i32.add
+      local.set $message.1'2
+    end
+    local.get $p
+    call $"impl Slots.get_ref"
+    i32.const 16 ;; &"slot"
+    i32.const 4
+    local.set $message.1'1
+    local.set $message.0
+    local.set $value'1
+    block
+      block
+        block
+          local.get $value'1
+          i32.eqz
+          br_if 1
+          br 0
+          unreachable
+        end
+        br 1
+      end
+      local.get $message.0
+      local.get $message.1'1
+      i32.const 1
+      call_indirect $table0 (param i32 i32)
+      unreachable
+    end
+    local.get $q
+    i32.const 4
+    i32.sub
+    local.tee $message.1'1
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $message.1'2
     i32.const 2097152
     i32.and
     i32.ne
@@ -305,7 +256,7 @@
       call $rt:panic'1
       unreachable
     end
-    local.get $t0
+    local.get $message.1'1
     i32.load $heap
     local.tee $message.1'2
     i32.const 2031616
@@ -313,93 +264,26 @@
     i32.const 2031616
     i32.eq
     if
-      local.get $t0
+      local.get $message.1'1
       call $rt:loan_share
     else
-      local.get $t0
+      local.get $message.1'1
       local.get $message.1'2
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $t1
-    i32.const 1
-    i32.eq
-    if
-    end
-    local.get $t1
-    i32.const 2
-    i32.eq
-    if
-      local.get $message.0'1
-      i32.const 65536
-      i32.add
-      local.set $message.0'1
-    end
-    i32.const 16 ;; &"slot"
-    i32.const 4
-    local.set $message.1'2
-    local.set $message.0'2
-    block
-      block
-        block
-          local.get $self
-          i32.eqz
-          br_if 1
-          br 0
-          unreachable
-        end
-        br 1
-      end
-      local.get $message.0'2
-      local.get $message.1'2
-      i32.const 1
-      call_indirect $table0 (param i32 i32)
-      unreachable
-    end
-    local.get $q
-    i32.const 4
-    i32.sub
     local.get $q
     call $"impl Slots.get_ref"
-    local.set $message.1'2
-    local.tee $message.0'2
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    local.get $message.0'1
-    i32.const 2097152
-    i32.and
-    i32.ne
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $message.0'2
-    i32.load $heap
-    local.tee $t2
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $message.0'2
-      call $rt:loan_share
-    else
-      local.get $message.0'2
-      local.get $t2
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
     i32.const 16 ;; &"slot"
     i32.const 4
-    local.set $message.1'1
-    local.set $message.0'1
+    local.set $message.1'2
+    local.set $message.0
+    local.set $value'2
     block
       block
         block
-          local.get $message.1'2
+          local.get $value'2
           i32.eqz
           br_if 1
           br 0
@@ -407,59 +291,16 @@
         end
         br 1
       end
-      local.get $message.0'1
-      local.get $message.1'1
+      local.get $message.0
+      local.get $message.1'2
       i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $self
-    local.get $message.1'2
+    local.get $value'1
+    local.get $value'2
     call $"optional[&string]"
-    local.set $message.1'1
-    local.get $t0
-    local.tee $message.0'1
-    if
-      local.get $message.0'1
-      i32.load $heap
-      local.tee $self
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.0'1
-        call $rt:loan_share
-      else
-        local.get $message.0'1
-        local.get $self
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $self
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $self
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
+    local.set $message.1'2
     ;; 39 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -474,139 +315,54 @@
     local.get $alias
     i32.load $heap
     call $rt:list_unique
-    local.set $self
+    local.set $message.0
     local.get $alias
-    local.get $self
+    local.get $message.0
     i32.store $heap
-    local.get $self
+    local.get $message.0
     i32.load $heap offset=4
-    local.tee $t1
-    local.get $self
+    local.tee $value'1
+    local.get $message.0
     i32.load $heap
     i32.eq
     if
-      local.get $self
+      local.get $message.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $self
+      local.set $message.0
       local.get $alias
-      local.get $self
+      local.get $message.0
       i32.store $heap
     end
-    local.get $self
-    local.get $t1
+    local.get $message.0
+    local.get $value'1
     i32.const 8
     i32.mul
     i32.add
-    local.tee $message.1'2
+    local.tee $value'2
     i32.const 20 ;; &"grown"
     i32.store $heap offset=16
-    local.get $message.1'2
+    local.get $value'2
     i32.const 5
     i32.store $heap offset=20
-    local.get $self
-    local.get $t1
+    local.get $message.0
+    local.get $value'1
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 40 |     *held
-    local.get $message.1'1
+    local.get $message.1'2
     i32.load $heap
-    local.tee $self
-    local.get $message.1'1
+    local.tee $message.0
+    local.get $message.1'2
     i32.load $heap offset=4
-    local.tee $message.1'1
+    local.tee $message.1'2
     call $rt:retain
-    ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
-    local.get $message.0'1
-    if
-      local.get $message.0'1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.0'1
-        call $rt:loan_unshare
-      else
-        local.get $message.0'1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.0'1
-    end
-    local.get $message.0'1
-    if
-      local.get $message.0'1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.0'1
-        call $rt:loan_unshare
-      else
-        local.get $message.0'1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.0'1
-    end
-    local.get $message.0'1
-    if
-      local.get $message.0'1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.0'1
-        call $rt:loan_unshare
-      else
-        local.get $message.0'1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $message.0'2
-    if
-      local.get $message.0'2
-      i32.load $heap
-      local.tee $message.0'1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.0'2
-        call $rt:loan_unshare
-      else
-        local.get $message.0'2
-        local.get $message.0'1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.0'1
+      local.tee $value'1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -616,12 +372,33 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.0'1
+        local.get $value'1
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
+    local.get $message.1'1
+    if
+      local.get $message.1'1
+      i32.load $heap
+      local.tee $t0
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $message.1'1
+        call $rt:loan_unshare
+      else
+        local.get $message.1'1
+        local.get $t0
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
+    ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
     local.get $p
     if
       local.get $p
@@ -655,8 +432,8 @@
         call $rt:release_ref
       end
     end
-    local.get $self
-    local.get $message.1'1
+    local.get $message.0
+    local.get $message.1'2
   )
   (func $"optional[&string]" (param $value i32) (param $fallback i32) (result i32)
     ;; 24 |     match value:
@@ -677,14 +454,11 @@
     end
     local.get $fallback
   )
-  (func $through_generic (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $t1 i32) (local $t2 i32)
+  (func $through_generic (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $value i32) (local $t1 i32)
     ;; 33 |     held := keep((42, p.get_ref().expect("slot")))
     local.get $p
     i32.const 4
     i32.sub
-    local.get $p
-    call $"impl Slots.get_ref"
-    local.set $self
     local.tee $t0
     i32.load $heap
     i32.const 2097152
@@ -710,14 +484,17 @@
       i32.add
       i32.store $heap
     end
+    local.get $p
+    call $"impl Slots.get_ref"
     i32.const 16 ;; &"slot"
     i32.const 4
     local.set $message.1
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $self
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -732,53 +509,10 @@
       unreachable
     end
     i32.const 42
-    local.get $self
+    local.get $value
     call $"keep[(usize, &string)]"
-    local.set $self
+    local.set $message.1
     drop
-    local.get $t0
-    local.tee $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_share
-      else
-        local.get $message.1
-        local.get $message.0
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $message.0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
     ;; 34 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -799,7 +533,7 @@
     i32.store $heap
     local.get $message.0
     i32.load $heap offset=4
-    local.tee $t1
+    local.tee $value
     local.get $message.0
     i32.load $heap
     i32.eq
@@ -813,99 +547,34 @@
       i32.store $heap
     end
     local.get $message.0
-    local.get $t1
+    local.get $value
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t2
+    local.tee $t1
     i32.const 20 ;; &"grown"
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t1
     i32.const 5
     i32.store $heap offset=20
     local.get $message.0
-    local.get $t1
+    local.get $value
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 35 |     *held._1
-    local.get $self
+    local.get $message.1
     i32.load $heap
     local.tee $message.0
-    local.get $self
+    local.get $message.1
     i32.load $heap offset=4
-    local.tee $self
+    local.tee $message.1
     call $rt:retain
-    ;; 33 |     held := keep((42, p.get_ref().expect("slot")))
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.1
+      local.tee $value
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -915,12 +584,13 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.1
+        local.get $value
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
+    ;; 33 |     held := keep((42, p.get_ref().expect("slot")))
     local.get $p
     if
       local.get $p
@@ -944,7 +614,7 @@
       end
     end
     local.get $message.0
-    local.get $self
+    local.get $message.1
   )
   (func $"impl Slots.get_ref" (param $self i32) (result i32)
     ;; 12 |         if self.items.len() > 0: .Some(&self.items[0]) else: .None
@@ -979,15 +649,59 @@
 == @build: release
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
-  (func $through_struct (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $message.1 i32) (local $message.0 i32)
+  (func $through_struct (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $value i32) (local $message.0 i32) (local $t1 i32)
     ;; 43 |     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $message.0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.const 1
+    local.set $value
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $value
+    i32.const 1
+    i32.eq
+    if
+      local.get $message.0
+      i32.const 65536
+      i32.add
+      local.set $message.0
+    end
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -998,10 +712,10 @@
       i32.load $heap
       i32.const 4128768
       i32.and
-      local.get $t0
+      local.get $message.0
       i32.ne
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $p
@@ -1010,10 +724,6 @@
       call $rt:list_unique
       i32.store $heap
       local.get $p
-      i32.const 4
-      i32.sub
-      local.set $t1
-      local.get $p
       i32.load $heap
       local.set $p
       i32.const 0
@@ -1021,7 +731,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $p
@@ -1030,39 +740,15 @@
     else
       i32.const 0
     end
-    local.set $p
-    local.get $t1
-    i32.const 1
-    local.set $t2
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t1
-      call $rt:loan_share
-    else
-      local.get $t1
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t2
-    i32.const 1
-    i32.eq
-    if
-    end
     i32.const 16 ;; &"slot"
     i32.const 4
-    local.set $message.1
+    local.set $p
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $p
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -1071,58 +757,15 @@
         br 1
       end
       local.get $message.0
-      local.get $message.1
+      local.get $p
       i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
     end
     i32.const 42
-    local.get $p
+    local.get $value
     call $"unwrap[&string]"
     local.set $p
-    local.get $t1
-    local.tee $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_share
-      else
-        local.get $message.1
-        local.get $message.0
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t1
-    end
     ;; 44 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -1131,33 +774,33 @@
     i32.const 4128768
     i32.and
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $alias
     i32.load $heap
     call $rt:list_unique
-    local.set $t0
+    local.set $message.0
     local.get $alias
-    local.get $t0
+    local.get $message.0
     i32.store $heap
-    local.get $t0
+    local.get $message.0
     i32.load $heap offset=4
-    local.tee $t2
-    local.get $t0
+    local.tee $value
+    local.get $message.0
     i32.load $heap
     i32.eq
     if
-      local.get $t0
+      local.get $message.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $t0
+      local.set $message.0
       local.get $alias
-      local.get $t0
+      local.get $message.0
       i32.store $heap
     end
-    local.get $t0
-    local.get $t2
+    local.get $message.0
+    local.get $value
     i32.const 8
     i32.mul
     i32.add
@@ -1167,8 +810,8 @@
     local.get $alias
     i32.const 5
     i32.store $heap offset=20
-    local.get $t0
-    local.get $t2
+    local.get $message.0
+    local.get $value
     i32.const 1
     i32.add
     i32.store $heap offset=4
@@ -1180,91 +823,27 @@
     i32.load $heap offset=4
     local.tee $p
     call $rt:retain
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $message.0
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $message.0
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 43 |     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $alias
     local.get $p
   )
@@ -1272,8 +851,60 @@
     ;; 30 |     value.value
     local.get $value.value
   )
-  (func $through_optional (param $p i32) (param $q i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $message.1 i32) (local $t3 i32) (local $message.0 i32) (local $t4 i32)
+  (func $through_optional (param $p i32) (param $q i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $value'1 i32) (local $message.0 i32) (local $value'2 i32) (local $t1 i32)
     ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $message.0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.const 1
+    local.set $value'1
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $value'1
+    i32.const 1
+    i32.eq
+    if
+      local.get $message.0
+      i32.const 65536
+      i32.add
+      local.set $message.0
+    end
+    local.get $value'1
+    i32.const 2
+    i32.eq
+    if
+      local.get $value'2
+      i32.const 65536
+      i32.add
+      local.set $value'2
+    end
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -1284,10 +915,10 @@
       i32.load $heap
       i32.const 4128768
       i32.and
-      local.get $t0
+      local.get $message.0
       i32.ne
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $p
@@ -1295,10 +926,6 @@
       i32.load $heap
       call $rt:list_unique
       i32.store $heap
-      local.get $p
-      i32.const 4
-      i32.sub
-      local.set $t1
       local.get $p
       i32.load $heap
       local.set $p
@@ -1307,7 +934,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $p
@@ -1316,52 +943,15 @@
     else
       i32.const 0
     end
-    local.set $p
-    local.get $t1
-    i32.const 1
-    local.set $t2
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t1
-      call $rt:loan_share
-    else
-      local.get $t1
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t2
-    i32.const 1
-    i32.eq
-    if
-      local.get $t0
-      i32.const 65536
-      i32.add
-      local.set $t0
-    end
-    local.get $t2
-    i32.const 2
-    i32.eq
-    if
-      local.get $t3
-      i32.const 65536
-      i32.add
-      local.set $t3
-    end
     i32.const 16 ;; &"slot"
     i32.const 4
-    local.set $message.1
+    local.set $p
     local.set $message.0
+    local.set $value'1
     block
       block
         block
-          local.get $p
+          local.get $value'1
           i32.eqz
           br_if 1
           br 0
@@ -1370,10 +960,53 @@
         br 1
       end
       local.get $message.0
-      local.get $message.1
+      local.get $p
       i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
+    end
+    local.get $q
+    i32.const 4
+    i32.sub
+    local.tee $p
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $value'2
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $p
+    i32.const 2
+    local.set $message.0
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $p
+      call $rt:loan_share
+    else
+      local.get $p
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $message.0
+    i32.const 2
+    i32.eq
+    if
+      local.get $value'2
+      i32.const 65536
+      i32.add
+      local.set $value'2
     end
     local.get $q
     i32.load $heap
@@ -1385,10 +1018,10 @@
       i32.load $heap
       i32.const 4128768
       i32.and
-      local.get $t3
+      local.get $value'2
       i32.ne
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $q
@@ -1397,10 +1030,6 @@
       call $rt:list_unique
       i32.store $heap
       local.get $q
-      i32.const 4
-      i32.sub
-      local.set $t4
-      local.get $q
       i32.load $heap
       local.set $q
       i32.const 0
@@ -1408,7 +1037,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $q
@@ -1417,52 +1046,15 @@
     else
       i32.const 0
     end
-    local.set $q
-    local.get $t4
-    i32.const 2
-    local.set $message.1
-    i32.load $heap
-    local.tee $message.0
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t4
-      call $rt:loan_share
-    else
-      local.get $t4
-      local.get $message.0
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $message.1
-    i32.const 1
-    i32.eq
-    if
-      local.get $t0
-      i32.const 65536
-      i32.add
-      drop
-    end
-    local.get $message.1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t3
-      i32.const 65536
-      i32.add
-      drop
-    end
     i32.const 16 ;; &"slot"
     i32.const 4
-    local.set $message.1
+    local.set $q
     local.set $message.0
+    local.set $value'2
     block
       block
         block
-          local.get $q
+          local.get $value'2
           i32.eqz
           br_if 1
           br 0
@@ -1471,68 +1063,15 @@
         br 1
       end
       local.get $message.0
-      local.get $message.1
+      local.get $q
       i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $p
-    local.get $q
+    local.get $value'1
+    local.get $value'2
     call $"optional[&string]"
-    local.set $p
-    local.get $t1
-    local.tee $q
-    if
-      local.get $q
-      i32.load $heap
-      local.tee $message.1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $q
-        call $rt:loan_share
-      else
-        local.get $q
-        local.get $message.1
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-      local.get $t2
-      i32.const 1
-      i32.eq
-      if
-      end
-      local.get $t2
-      i32.const 2
-      i32.eq
-      if
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $message.1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $message.1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t1
-    end
+    local.set $q
     ;; 39 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -1541,33 +1080,33 @@
     i32.const 4128768
     i32.and
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $alias
     i32.load $heap
     call $rt:list_unique
-    local.set $t0
+    local.set $message.0
     local.get $alias
-    local.get $t0
+    local.get $message.0
     i32.store $heap
-    local.get $t0
+    local.get $message.0
     i32.load $heap offset=4
-    local.tee $t3
-    local.get $t0
+    local.tee $value'2
+    local.get $message.0
     i32.load $heap
     i32.eq
     if
-      local.get $t0
+      local.get $message.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $t0
+      local.set $message.0
       local.get $alias
-      local.get $t0
+      local.get $message.0
       i32.store $heap
     end
-    local.get $t0
-    local.get $t3
+    local.get $message.0
+    local.get $value'2
     i32.const 8
     i32.mul
     i32.add
@@ -1577,126 +1116,62 @@
     local.get $alias
     i32.const 5
     i32.store $heap offset=20
-    local.get $t0
-    local.get $t3
+    local.get $message.0
+    local.get $value'2
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 40 |     *held
-    local.get $p
+    local.get $q
     i32.load $heap
     local.tee $alias
-    local.get $p
+    local.get $q
     i32.load $heap offset=4
-    local.tee $p
+    local.tee $q
     call $rt:retain
-    ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
-    local.get $q
+    local.get $t0
     if
-      local.get $q
+      local.get $t0
       i32.load $heap
-      local.tee $t0
+      local.tee $message.0
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $q
-        call $rt:loan_unshare
-      else
-        local.get $q
         local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $q
-    end
-    local.get $q
-    if
-      local.get $q
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $q
         call $rt:loan_unshare
       else
-        local.get $q
         local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $q
-    end
-    local.get $q
-    if
-      local.get $q
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $q
-        call $rt:loan_unshare
-      else
-        local.get $q
-        local.get $t0
+        local.get $message.0
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
-    local.get $t4
-    if
-      local.get $t4
-      i32.load $heap
-      local.tee $q
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t4
-        call $rt:loan_unshare
-      else
-        local.get $t4
-        local.get $q
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $q
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $q
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $alias
     local.get $p
+    if
+      local.get $p
+      i32.load $heap
+      local.tee $message.0
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $p
+        call $rt:loan_unshare
+      else
+        local.get $p
+        local.get $message.0
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
+    ;; 38 |     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
+    local.get $alias
+    local.get $q
   )
   (func $"optional[&string]" (param $value i32) (param $fallback i32) (result i32)
     ;; 24 |     match value:
@@ -1717,8 +1192,51 @@
     end
     local.get $fallback
   )
-  (func $through_generic (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $message.1 i32) (local $message.0 i32)
+  (func $through_generic (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $value i32) (local $message.0 i32) (local $t1 i32)
     ;; 33 |     held := keep((42, p.get_ref().expect("slot")))
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $message.0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.const 1
+    local.set $value
+    i32.load $heap
+    local.tee $t1
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t1
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $value
+    i32.const 1
+    i32.eq
+    if
+      local.get $message.0
+      i32.const 65536
+      i32.add
+      local.set $message.0
+    end
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -1729,10 +1247,10 @@
       i32.load $heap
       i32.const 4128768
       i32.and
-      local.get $t0
+      local.get $message.0
       i32.ne
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $p
@@ -1741,10 +1259,6 @@
       call $rt:list_unique
       i32.store $heap
       local.get $p
-      i32.const 4
-      i32.sub
-      local.set $t1
-      local.get $p
       i32.load $heap
       local.set $p
       i32.const 0
@@ -1752,7 +1266,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $p
@@ -1761,39 +1275,15 @@
     else
       i32.const 0
     end
-    local.set $p
-    local.get $t1
-    i32.const 1
-    local.set $t2
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t1
-      call $rt:loan_share
-    else
-      local.get $t1
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t2
-    i32.const 1
-    i32.eq
-    if
-    end
     i32.const 16 ;; &"slot"
     i32.const 4
-    local.set $message.1
+    local.set $p
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $p
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -1802,59 +1292,16 @@
         br 1
       end
       local.get $message.0
-      local.get $message.1
+      local.get $p
       i32.const 1
       call_indirect $table0 (param i32 i32)
       unreachable
     end
     i32.const 42
-    local.get $p
+    local.get $value
     call $"keep[(usize, &string)]"
     local.set $p
     drop
-    local.get $t1
-    local.tee $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_share
-      else
-        local.get $message.1
-        local.get $message.0
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t1
-    end
     ;; 34 |     alias.items.push("grown")
     local.get $alias
     i32.const 4
@@ -1863,33 +1310,33 @@
     i32.const 4128768
     i32.and
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $alias
     i32.load $heap
     call $rt:list_unique
-    local.set $t0
+    local.set $message.0
     local.get $alias
-    local.get $t0
+    local.get $message.0
     i32.store $heap
-    local.get $t0
+    local.get $message.0
     i32.load $heap offset=4
-    local.tee $t2
-    local.get $t0
+    local.tee $value
+    local.get $message.0
     i32.load $heap
     i32.eq
     if
-      local.get $t0
+      local.get $message.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $t0
+      local.set $message.0
       local.get $alias
-      local.get $t0
+      local.get $message.0
       i32.store $heap
     end
-    local.get $t0
-    local.get $t2
+    local.get $message.0
+    local.get $value
     i32.const 8
     i32.mul
     i32.add
@@ -1899,8 +1346,8 @@
     local.get $alias
     i32.const 5
     i32.store $heap offset=20
-    local.get $t0
-    local.get $t2
+    local.get $message.0
+    local.get $value
     i32.const 1
     i32.add
     i32.store $heap offset=4
@@ -1912,91 +1359,27 @@
     i32.load $heap offset=4
     local.tee $p
     call $rt:retain
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $message.0
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $message.0
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 33 |     held := keep((42, p.get_ref().expect("slot")))
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $message.1
-    end
-    local.get $message.1
-    if
-      local.get $message.1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $message.1
-        call $rt:loan_unshare
-      else
-        local.get $message.1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $t1
-    if
-      local.get $t1
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t1
-        call $rt:loan_unshare
-      else
-        local.get $t1
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $alias
     local.get $p
   )
@@ -2014,7 +1397,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $self

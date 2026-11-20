@@ -2065,6 +2065,60 @@ impl<'a> FnValues<'a> {
     }
 }
 
+/// A body's run-time loan sites, and each holder of one with the site's
+/// index ([`hd_tir::own::loans::place`]).
+pub(crate) type RunLoans = (
+    Vec<hd_tir::own::loans::Site>,
+    Vec<(hd_tir::own::loans::Holder, u32)>,
+);
+
+/// Whether instruction `i` may take a run-time loan
+/// (`ref.excl.alias.loan`): a `Ref`, or a `Read` of a pointer or through
+/// one, whose place may cross an object a pointer, a shared variable's cell
+/// or a top-level binding's slot holds. Its place, and the reads its root
+/// value comes from, are followed down to a local or a global: a
+/// dereference, a global root or a captured local's root crosses. The
+/// backend takes the loans of the crossings that hold a counted object.
+pub(crate) fn runtime_site(b: &Body, pool: Types<'_>, i: u32) -> bool {
+    // A same-value coercion lends what it coerces (`*mut T` as `*T`).
+    let Some(i) = b.direct_value(i).and_then(|v| u32::try_from(v).ok()) else {
+        return false;
+    };
+    let tag = b.tags.get(i as usize);
+    if !matches!(tag, Some(Tag::Ref | Tag::Read)) {
+        return false;
+    }
+    if tag == Some(&Tag::Read)
+        && matches!(
+            pool.get(b.ty[i as usize]),
+            TyData::Ref { counted: true, .. }
+        )
+    {
+        return true;
+    }
+    let mut at = i as usize;
+    // Each step goes to an earlier instruction, so the walk ends.
+    loop {
+        let Some(p) = b.decode_place(b.data[at][0]) else {
+            return false;
+        };
+        if p.proj.iter().any(|s| matches!(s, Proj::Deref)) {
+            return true;
+        }
+        match p.root {
+            PlaceRoot::Global(..) => return true,
+            PlaceRoot::Local(l) => return b.cap_local.contains(&l),
+            PlaceRoot::Value(r) => match r.as_inst() {
+                Some(r) if (r.0 as usize) < at && b.tags[r.0 as usize] == Tag::Read => {
+                    at = r.0 as usize;
+                }
+                _ => return false,
+            },
+            _ => return false,
+        }
+    }
+}
+
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 enum Origin {
@@ -2090,6 +2144,11 @@ enum Origin {
     /// reaches, or a `&mut` binding a call reads as `&`, for the conflict
     /// check only (`ref.excl.shared`, `ref.excl.call`).
     Site(u32),
+    /// A `Ref`, or a call's argument, through a pointer that no conflict
+    /// check needs: a run-time loan only, which the regions carry so that
+    /// it lives while a value holding it does (`ref.excl.alias.loan`).
+    /// Never a diagnostic.
+    Lent(u32),
 }
 
 /// The definition word of [`Origin::Static`] for a constant literal, which
@@ -2140,6 +2199,10 @@ struct Inputs<'a> {
     /// The values bound to a binding written `&'static T`
     /// ([`Ck::static_values`]).
     statics: &'a [(hd_tir::ir::Ref, Box<[u32]>)],
+    /// Each argument a call lends to a local-reference parameter, whether
+    /// as `&mut`, and the call when it is a `&mut self` receiver, shared
+    /// until the call starts ([`Ck::lent_args`]).
+    lent: Vec<(u32, bool, u32)>,
 }
 
 impl Inputs<'_> {
@@ -4235,7 +4298,9 @@ impl Ck<'_, '_> {
                 | Tag::LoanEnd
                 | Tag::Retain
                 | Tag::Release
-                | Tag::MakeUnique => {}
+                | Tag::MakeUnique
+                | Tag::LoanBegin
+                | Tag::LoanClose => {}
             }
         }
         // The arguments a call's result holds, for the backend's run-time
@@ -4284,7 +4349,13 @@ impl Ck<'_, '_> {
                 || o.capture_elided == Elided::Missing
                     && ls.of(o.ret).tops.iter().any(|&k| ls.of(o.ret).slots[k].fun)
         });
-        if own.is_none() && !through && closures.is_empty() {
+        // A place through a pointer may take a run-time loan, whose holders
+        // the regions give.
+        let lends = {
+            let b = self.b.body();
+            (0..b.len()).any(|i| runtime_site(b, pool, w(i)))
+        };
+        if own.is_none() && !through && !lends && closures.is_empty() {
             return;
         }
         let body = self.b.body();
@@ -4309,6 +4380,7 @@ impl Ck<'_, '_> {
             paths: &paths,
             annotated: self.annotated_params(ls),
             statics: &self.static_values,
+            lent: self.lent_args(body),
         };
         let slots = own
             .as_ref()
@@ -4328,12 +4400,78 @@ impl Ck<'_, '_> {
             closures: &closures,
             skip: &skip,
         };
-        let verdicts = constraints::solve(&s, &returns);
+        let mut verdicts = constraints::solve(&s, &returns);
+        let run_loans = std::mem::take(&mut verdicts.run_loans);
         let sigs = (own.as_ref(), mine.as_ref());
         for (at, code, msg) in self.verdict_list(verdicts, sigs, fun, &paths) {
             let node = self.cx.src.parse.tree.node(at);
             self.err(code, node, &msg);
         }
+        if !run_loans.0.is_empty() {
+            self.run_loans = Some(run_loans);
+        }
+    }
+
+    /// Each argument a call lends to a local-reference parameter of its
+    /// callee's declared signature, and whether as `&mut`
+    /// (`ref.excl.alias.loan`): a `*T` passed where `&T` is expected takes
+    /// a run-time loan for the call, whether or not its result holds it.
+    /// Cost: one pass over the calls, each callee's signature read once
+    /// per call.
+    fn lent_args(&self, b: &Body) -> Vec<(u32, bool, u32)> {
+        let pool = self.pool();
+        let mut out = Vec::new();
+        for i in 0..b.len() {
+            let method = match b.tags[i] {
+                Tag::Call | Tag::Await => match Callee::from_words(b.record(b.data[i][0])) {
+                    Some(Callee::Item { def, .. }) => Some(def),
+                    Some(Callee::TraitMethod { method, .. }) => Some(method),
+                    _ => None,
+                },
+                Tag::CallDyn => (b.record(b.data[i][1]).first()).map(|&m| DefId::from_raw(m)),
+                _ => None,
+            };
+            let names = &self.cx.names;
+            let params: Vec<(bool, Ty)> = match (method, b.tags[i]) {
+                (Some(def), _) => (self.sig_of(def).into_iter())
+                    .flat_map(|s| {
+                        s.params
+                            .into_iter()
+                            .map(|p| (names.text(p.0) == "self", p.1))
+                    })
+                    .collect(),
+                (None, Tag::CallValue) => {
+                    match b.ty.get(b.data[i][0] as usize).map(|&t| pool.get(t)) {
+                        Some(TyData::Fn { params, .. }) => pool
+                            .list_items(params)
+                            .iter()
+                            .map(|&t| (false, t))
+                            .collect(),
+                        _ => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
+            };
+            for (p, &(is_self, t)) in params.iter().enumerate() {
+                if !matches!(local_ref(pool, t), Some((false, _))) {
+                    continue;
+                }
+                if let Some(a) = source_arg(b, i, p)
+                    && runtime_site(b, pool, a)
+                {
+                    let excl = constraints::is_mut(pool, t);
+                    // A `&mut self` receiver is shared until its call
+                    // starts (two-phase, `ref.excl.alias.loan`).
+                    let activate = if excl && is_self && p == 0 {
+                        w(i)
+                    } else {
+                        NONE
+                    };
+                    out.push((a, excl, activate));
+                }
+            }
+        }
+        out
     }
 
     /// `ref.result.path.fields`: the body's result paths, each step a field
@@ -4775,7 +4913,7 @@ impl Ck<'_, '_> {
                     None => format!("`{}` is another parameter", name(p)),
                 }
             }
-            Origin::Hidden(_) | Origin::Site(_) | Origin::Outside(_) => {
+            Origin::Hidden(_) | Origin::Site(_) | Origin::Lent(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }
             Origin::Global(_) | Origin::Static(_) => {
@@ -4847,6 +4985,8 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
 /// The diagnostics one solver gives a body, before their messages.
 #[derive(Default)]
 struct Verdicts {
+    /// The run-time loan sites and their holders (`ref.excl.alias.loan`).
+    run_loans: RunLoans,
     /// Stores into a place the caller owns (`ref.dep.store`).
     stores: Vec<NodeIdx>,
     /// Captured function values kept where they may not go: the origin
@@ -4989,7 +5129,9 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
             | Tag::LoanEnd
             | Tag::Retain
             | Tag::Release
-            | Tag::MakeUnique => {}
+            | Tag::MakeUnique
+            | Tag::LoanBegin
+            | Tag::LoanClose => {}
         }
         if i == root && b.tags[i as usize] == Tag::Block {
             out.push(b.data[i as usize][1]);

@@ -50,8 +50,11 @@ impl Step for Erased:
         self.source.step()
 > app/main/impl Step for Erased.step
 >   %0 = Read [*$0 .source *] : Step
->   %1 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
->   %2 = Block %1 : i64?
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanBegin %0 #2 : ()
+>   %3 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
+>   %4 = LoanClose %1 : ()
+>   %5 = Block %3 : i64?
 
 fn total(items: Erased) -> i64:
     let mut cursor = items

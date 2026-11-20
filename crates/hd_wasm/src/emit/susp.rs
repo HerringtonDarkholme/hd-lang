@@ -1314,6 +1314,7 @@ impl Em<'_, '_, '_> {
             cancelled.is_some(),
             "emit::instance must install cancellation state"
         );
+        self.loan_close_all();
         if self.counting
             && let Some(cancelled) = cancelled
         {
@@ -1519,7 +1520,6 @@ pub(super) fn finish(
             load(&mut em, &ls),
             "cold owned parameter and capture locals have frame save slots",
         );
-        em.borrow_release(l);
         em.because(Reason::Cancelled, |em| {
             if em.is_cell(l) {
                 em.count_local(l, &loaded, false)

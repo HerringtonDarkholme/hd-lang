@@ -1,0 +1,23 @@
+# @dump: stdout
+# @build: dev | release
+# A loan site an ownership pass deletes (a local reference forwarded to its
+# place) takes its `LoanBegin` and closes along (`splice::apply`).
+struct Point:
+    x: i32
+    y: i32
+
+fn make_point() -> Point:
+    Point { x: 1, y: 2 }
+
+pub fn main() -> void $ Console:
+    r := &make_point()
+    println("${r.x} ${r.y}")
+    m := &mut make_point()
+    m.y = 7
+    println("${m.x} ${m.y}")
+    lit := &mut Point { x: 3, y: 4 }
+    println(lit.x)
+    first := &mut make_point()
+    second := &mut make_point()
+    first.x = 50
+    println("${first.x} ${second.x}")

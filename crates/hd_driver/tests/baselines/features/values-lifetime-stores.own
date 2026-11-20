@@ -46,11 +46,11 @@ fn total(a: User, b: User) -> usize:
 >   local $2 seen: List[&User] [read assigned captured captured-assigned] place
 >   local $3 by: Map[string, &User] [read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %33 -> %34 lend last
+>     uses $4: %36 -> %37 lend last
 >   local $5 self: string [read] value
->     uses $5: %26 -> %27 lend last
->   %0 = Retain %47 Entry local $0 #0 : ()
->   %1 = Retain %47 Entry local $1 #0 : ()
+>     uses $5: %27 -> %28 lend last
+>   %0 = Retain %51 Entry local $0 #0 : ()
+>   %1 = Retain %51 Entry local $1 #0 : ()
     let mut seen: List[&User] = []
 >   %2 = Box #0 #0 : ()
 >   %3 = Box #1 #0 : ()
@@ -58,7 +58,7 @@ fn total(a: User, b: User) -> usize:
 >   %5 = Box #2 #0 : ()
 >   %6 = Store [$2] %4 : ()
 >   %18 = Box #3 #0 : ()
->   %47 = Block %46 : usize
+>   %51 = Block %50 : usize
     remember(&mut seen, &a)
 >   %7 = Ref mut local frame [$2] : &mut List[&User]
 >   %8 = Ref local frame [$0] : &User
@@ -82,27 +82,31 @@ fn total(a: User, b: User) -> usize:
 >   %24 = LoanEnd [%20] : ()
     seen[0].name.len() + seen[1].name.len() + by.len()
 >   %25 = Read borrow [$2 [0:usize] * .name] : string
->   %26 = Store [$5] %25 : ()
->   %27 = Read borrow [$5] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
->   %29 = Break L1 %28 : never
->   %30 = Block - : usize
->   %31 = Scope %30 [] : usize
->   %32 = Read borrow [$2 [1:usize] * .name] : string
->   %33 = Store [$4] %32 : ()
->   %34 = Read borrow [$4] : string
->   %35 = Call std/rt.bytes/bytes_len[] (%34) : usize
->   %36 = Break L0 %35 : never
->   %37 = Block - : usize
->   %38 = Scope %37 [] : usize
->   %39 = Drop [$2] : ()
->   %40 = Drop [$1] : ()
->   %41 = Prim Add [%31 %38] : usize
->   %42 = Read move [$3] : Map[string, &User]
->   %43 = Intrinsic MapLen [%42] : usize
->   %44 = Drop [%42] : ()
->   %45 = Drop [$0] : ()
->   %46 = Prim Add [%41 %43] : usize
+>   %26 = LoanBegin %25 #0 : ()
+>   %27 = Store [$5] %25 : ()
+>   %28 = Read borrow [$5] : string
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Break L1 %29 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = LoanClose %26 : ()
+>   %34 = Read borrow [$2 [1:usize] * .name] : string
+>   %35 = LoanBegin %34 #0 : ()
+>   %36 = Store [$4] %34 : ()
+>   %37 = Read borrow [$4] : string
+>   %38 = Call std/rt.bytes/bytes_len[] (%37) : usize
+>   %39 = Break L0 %38 : never
+>   %40 = Block - : usize
+>   %41 = Scope %40 [] : usize
+>   %42 = Drop [$2] : ()
+>   %43 = Drop [$1] : ()
+>   %44 = LoanClose %35 : ()
+>   %45 = Prim Add [%32 %41] : usize
+>   %46 = Read move [$3] : Map[string, &User]
+>   %47 = Intrinsic MapLen [%46] : usize
+>   %48 = Drop [%46] : ()
+>   %49 = Drop [$0] : ()
+>   %50 = Prim Add [%45 %47] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot, $2 slot, $3 slot
 >   summary kept [$0 $1] writes

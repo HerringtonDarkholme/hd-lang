@@ -452,6 +452,17 @@ pub(super) fn call_site(s: &Inputs<'_>, v: u32) -> bool {
     loan_path(s, v).is_some()
 }
 
+/// Whether instruction `i` may take a run-time loan
+/// (`ref.excl.alias.loan`): a `Ref`, or a `Read` a call lends, whose place
+/// may cross an object a pointer, a shared variable's cell or a top-level
+/// binding's slot holds: a dereference on its path or on the path of the
+/// read it is rooted at, a global root, a captured local's root, or a
+/// `Read` of a pointer. The backend takes the loans of the crossings that
+/// hold a counted object; one with none takes nothing.
+pub(super) fn runtime_site(s: &Inputs<'_>, i: u32) -> bool {
+    crate::dep_results::runtime_site(s.b, s.pool, i)
+}
+
 /// Whether argument `u` passes local `root` itself as a counted pointer,
 /// `*T` or `*mut T`, through any same-value coercion.
 fn passes_pointer(s: &Inputs<'_>, u: u32, root: u32) -> bool {
@@ -724,9 +735,10 @@ impl Gen<'_, '_> {
                 }
             });
             for v in args {
-                if call_site(self.s, v)
-                    && let Some(&top) = self.val(v).as_ref().and_then(|x| x.0.first())
-                {
+                let Some(&top) = self.val(v).as_ref().and_then(|x| x.0.first()) else {
+                    continue;
+                };
+                if call_site(self.s, v) {
                     self.seed(top, Origin::Site(v));
                 }
             }

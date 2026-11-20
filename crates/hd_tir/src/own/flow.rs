@@ -229,6 +229,8 @@ pub(crate) trait Backward {
     /// `x` over `live` once the walk has been through the blocks it runs,
     /// before its operands' uses: what holds before it runs them.
     fn ran(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _live: usize) {}
+    /// Block `blk` over `live`, the state at its start: observation only.
+    fn enter(&mut self, _: &Body, _blk: u32, _s: &mut BitArena, _live: usize) {}
 }
 
 /// Walks each sub-body of `b` backward, from nothing live at its end, with

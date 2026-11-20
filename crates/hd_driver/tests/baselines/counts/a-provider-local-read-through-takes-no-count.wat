@@ -38,7 +38,7 @@
     end
     local.get $t2
     local.tee $t3
-    i32.const 380 ;; &vtable[rt:dyn_slot]
+    i32.const 456 ;; &vtable[rt:dyn_slot]
     local.tee $t4
     ;; 31 |         line("ab")
     local.set $sink.1
@@ -69,7 +69,7 @@
       unreachable
     end
     local.get $sink.1
-    i32.const 1
+    i32.const 2
     local.set $sink.0
     local.get $sink.1
     i32.load $heap
@@ -83,11 +83,10 @@
     i32.const 19 ;; &"c"
     i32.const 1
     local.get $t1
-    i32.const 380 ;; &vtable[rt:dyn_slot]
+    i32.const 456 ;; &vtable[rt:dyn_slot]
     local.get $t3
     local.get $t4
     call $swapped
-    ;; 30 |     $.with(Sink = first):
     local.get $sink.1
     if
       local.get $sink.1
@@ -97,7 +96,7 @@
       i32.sub
       i32.store $heap
       local.get $sink.0
-      i32.const 1
+      i32.const 2
       i32.eq
       if
         local.get $t5
@@ -105,9 +104,8 @@
         i32.sub
         local.set $t5
       end
-      i32.const 0
-      local.set $sink.1
     end
+    ;; 30 |     $.with(Sink = first):
     local.get $t2
     if
       local.get $t2
@@ -166,17 +164,6 @@
         call $rt:release_ref'2
       end
     end
-    local.set $t5
-    local.get $sink.1
-    if
-      local.get $sink.1
-      local.get $sink.1
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
-    local.get $t5
   )
   (func $"impl Sink for Count.put" (param $self i32) (param $text.0 i32) (param $text.1 i32)
     ;; 14 |         self.n = self.n + text.len()

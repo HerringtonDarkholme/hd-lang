@@ -2,67 +2,24 @@
 == @build: dev
 (module
   (import "fixture" "impl Slots.get_ref" (func $"impl Slots.get_ref" (param i32) (result i32)))
-  (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $t1 i32) (local $message.1 i32) (local $t2 i32) (local $message.0 i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
     local.get $p
-    i32.const 4
-    i32.sub
-    local.get $p
     call $"impl Slots.get_ref"
-    local.set $self
-    local.tee $t0
-    i32.const 1
-    local.set $t1
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $t0
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t0
-      call $rt:loan_share
-    else
-      local.get $t0
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t2
-      i32.const 65536
-      i32.add
-      local.set $t2
-    end
     i32.const 124 ;; &"slot"
     i32.const 4
     local.set $message.1
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $self
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -76,77 +33,14 @@
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $self
+    local.get $value
     call $read
-    local.set $self
-    local.set $message.1
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $message.0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      local.get $t1
-      i32.const 2
-      i32.eq
-      if
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        local.set $t2
-      end
-      i32.const 0
-      local.set $t0
-    end
     ;; 31 |     alias.push()
-    local.get $alias
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    local.get $t2
-    i32.ne
-    if
-      call $rt:panic'2
-      unreachable
-    end
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t2
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
+    local.set $message.1
+    local.set $message.0
     local.get $p
     if
       local.get $p
@@ -169,75 +63,32 @@
         call $rt:release_ref
       end
     end
+    local.get $message.0
     local.get $message.1
-    local.get $self
   )
 )
 == @build: checked
 (module
   (import "fixture" "impl Slots.get_ref" (func $"impl Slots.get_ref" (param i32) (result i32)))
-  (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $self i32) (local $t0 i32) (local $t1 i32) (local $message.1 i32) (local $t2 i32) (local $message.0 i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
     local.get $p
-    i32.const 4
-    i32.sub
-    local.get $p
     call $"impl Slots.get_ref"
-    local.set $self
-    local.tee $t0
-    i32.const 1
-    local.set $t1
-    i32.load $heap
-    i32.const 2097152
-    i32.and
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    local.get $t0
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t0
-      call $rt:loan_share
-    else
-      local.get $t0
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t2
-      i32.const 65536
-      i32.add
-      local.set $t2
-    end
     i32.const 130 ;; &"slot"
     i32.const 4
     local.set $message.1
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $self
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -251,77 +102,14 @@
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $self
+    local.get $value
     call $read
-    local.set $self
-    local.set $message.1
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $message.0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $message.0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      local.get $t1
-      i32.const 2
-      i32.eq
-      if
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        local.set $t2
-      end
-      i32.const 0
-      local.set $t0
-    end
     ;; 31 |     alias.push()
-    local.get $alias
-    i32.const 4
-    i32.sub
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    local.get $t2
-    i32.ne
-    if
-      call $rt:panic'2
-      unreachable
-    end
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t2
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
+    local.set $message.1
+    local.set $message.0
     local.get $p
     if
       local.get $p
@@ -352,23 +140,76 @@
     else
       call $skipped_test
     end
+    local.get $message.0
     local.get $message.1
-    local.get $self
   )
 )
 == @build: release
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $message.1 i32) (local $t2 i32) (local $message.0 i32)
+  (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $message.0 i32) (local $t2 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    local.get $message.0
+    i32.const 2097152
+    i32.and
+    i32.ne
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    local.get $t0
+    i32.const 1
+    local.set $t1
+    i32.load $heap
+    local.tee $value
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $value
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $t1
+    i32.const 1
+    i32.eq
+    if
+      local.get $message.0
+      i32.const 65536
+      i32.add
+      local.set $message.0
+    end
+    local.get $t1
+    i32.const 2
+    i32.eq
+    if
+      local.get $t2
+      i32.const 65536
+      i32.add
+      local.set $t2
+    end
     local.get $p
     i32.load $heap
     i32.load $heap offset=4
@@ -379,8 +220,10 @@
       i32.load $heap
       i32.const 4128768
       i32.and
+      local.get $message.0
+      i32.ne
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $p
@@ -389,10 +232,6 @@
       call $rt:list_unique
       i32.store $heap
       local.get $p
-      i32.const 4
-      i32.sub
-      local.set $t0
-      local.get $p
       i32.load $heap
       local.set $p
       i32.const 0
@@ -400,7 +239,7 @@
       i32.load $heap offset=4
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $p
@@ -409,43 +248,15 @@
     else
       i32.const 0
     end
-    local.set $p
-    local.get $t0
-    i32.const 1
-    local.set $t1
-    i32.load $heap
-    local.tee $message.1
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
-    i32.eq
-    if
-      local.get $t0
-      call $rt:loan_share
-    else
-      local.get $t0
-      local.get $message.1
-      i32.const 65536
-      i32.add
-      i32.store $heap
-    end
-    local.get $t1
-    i32.const 2
-    i32.eq
-    if
-      local.get $t2
-      i32.const 65536
-      i32.add
-      local.set $t2
-    end
     i32.const 124 ;; &"slot"
     i32.const 4
-    local.set $message.1
+    local.set $p
     local.set $message.0
+    local.set $value
     block
       block
         block
-          local.get $p
+          local.get $value
           i32.eqz
           br_if 1
           br 0
@@ -454,20 +265,20 @@
         br 1
       end
       local.get $message.0
-      local.get $message.1
+      local.get $p
       i32.const 2
       call_indirect $table0 (param i32 i32)
       unreachable
     end
-    local.get $p
+    local.get $value
     call $read
     local.set $p
-    local.set $message.1
+    local.set $message.0
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $message.0
+      local.tee $value
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -477,7 +288,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $message.0
+        local.get $value
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -491,8 +302,6 @@
         i32.sub
         local.set $t2
       end
-      i32.const 0
-      local.set $t0
     end
     ;; 31 |     alias.push()
     local.get $alias
@@ -504,33 +313,13 @@
     local.get $t2
     i32.ne
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $alias
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $alias
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    local.get $message.1
+    local.get $message.0
     local.get $p
   )
 )

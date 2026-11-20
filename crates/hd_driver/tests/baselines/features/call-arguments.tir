@@ -69,21 +69,29 @@ fn by_ptr(n: *Node) -> usize:
     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
 > app/main/by_ptr
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Prim Add [%1 1:usize] : usize
->   %3 = Ref local [*$0 .name] : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Prim Add [%4 2:usize] : usize
->   %6 = Prim Mul [%2 %5] : usize
->   %7 = Ref local [*$0 .name] : &string
->   %8 = Call std/text/impl string.len[] (%7) : usize
->   %9 = Prim Add [%8 3:usize] : usize
->   %10 = Prim Mul [%6 %9] : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/text/impl string.len[] (%0) : usize
+>   %3 = LoanClose %1 : ()
+>   %4 = Prim Add [%2 1:usize] : usize
+>   %5 = Ref local [*$0 .name] : &string
+>   %6 = LoanBegin %5 #0 : ()
+>   %7 = Call std/text/impl string.len[] (%5) : usize
+>   %8 = LoanClose %6 : ()
+>   %9 = Prim Add [%7 2:usize] : usize
+>   %10 = Prim Mul [%4 %9] : usize
 >   %11 = Ref local [*$0 .name] : &string
->   %12 = Call std/text/impl string.len[] (%11) : usize
->   %13 = Prim Add [%12 5:usize] : usize
->   %14 = Prim Div [%10 %13] : usize
->   %15 = Block %14 : usize
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Call std/text/impl string.len[] (%11) : usize
+>   %14 = LoanClose %12 : ()
+>   %15 = Prim Add [%13 3:usize] : usize
+>   %16 = Prim Mul [%10 %15] : usize
+>   %17 = Ref local [*$0 .name] : &string
+>   %18 = LoanBegin %17 #0 : ()
+>   %19 = Call std/text/impl string.len[] (%17) : usize
+>   %20 = LoanClose %18 : ()
+>   %21 = Prim Add [%19 5:usize] : usize
+>   %22 = Prim Div [%16 %21] : usize
+>   %23 = Block %22 : usize
 
 fn calls(s: string, n: *Node) -> usize:
     let mut t = s

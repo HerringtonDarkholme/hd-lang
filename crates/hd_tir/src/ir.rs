@@ -195,6 +195,29 @@ tags! {
     Release: Inst, Record;
     // A deferred operation's uniqueness action, with the same descriptor.
     MakeUnique: Inst, Record;
+    // Run-time pointer loans (`docs/compiler/ownership.md`, "Pointer
+    // Loans"), which the checker places from its lifetime regions:
+    // `LoanBegin` takes the loans of site a (a `Ref`, a lent argument, or
+    // a call whose result points into an object), named as an instruction,
+    // not used as a value, so no pass counts it as a use; b a
+    // [`loan_word`];
+    // `LoanClose` ends the loans of the `LoanBegin` a names, after the
+    // last use of every value and local whose region holds them.
+    LoanBegin: Inst, Meta;
+    LoanClose: Inst, None;
+}
+
+/// The kind word of a `LoanBegin`.
+pub mod loan_word {
+    /// An exclusive loan on the last object crossed, for a `&mut`.
+    pub const EXCL: u32 = 1;
+    /// A two-phase `&mut self` receiver's activation, right before its
+    /// call: the shared loan the site's own `LoanBegin` reserved becomes
+    /// exclusive. Its `a` is that `LoanBegin`'s site.
+    pub const ACTIVATE: u32 = 2;
+    /// The object a call's returned reference points into, which the
+    /// callee reached through a pointer: its site is the call.
+    pub const INNER: u32 = 4;
 }
 
 pub mod count;
@@ -2759,6 +2782,12 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
                 Op::Inst if word >= n => {
                     errs.push(err(1, "count target instruction out of range".into()));
                 }
+                Op::Inst if tag == Tag::LoanClose && b.tags[word as usize] != Tag::LoanBegin => {
+                    errs.push(err(1, format!("`LoanClose` of %{word}, no `LoanBegin`")));
+                }
+                Op::Inst if tag == Tag::LoanBegin && word >= i => {
+                    errs.push(err(1, format!("`LoanBegin` of %{word}, after it")));
+                }
                 Op::Value if word != NONE && word & Ref::CONST_BIT == 0 && word >= i => {
                     errs.push(err(1, format!("value %{word} used before it is defined")));
                 }
@@ -4627,7 +4656,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 60);
+        assert_eq!(Tag::ALL.len(), 62);
         assert_eq!(Tag::Release as usize, 58);
         assert_eq!(Tag::MakeUnique as usize, 59);
         assert_eq!(

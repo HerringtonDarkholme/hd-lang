@@ -12,6 +12,7 @@ use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::fmt::Write as _;
 
+use crate::dep_results::RunLoans;
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::{Item, ItemData, Lookup, ModuleScope, Names, Src};
@@ -479,6 +480,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// reported, and the types the body and its signature write.
     pub ref_origins: HashMap<LocalId, hd_base::TokenIdx>,
     pub ref_captured: HashSet<LocalId>,
+    /// The body's run-time loan sites and their holders, from its region
+    /// solution, placed as statements when the body is finished
+    /// (`hd_tir::own::loans`).
+    pub run_loans: Option<RunLoans>,
     /// The source starts of bound method references whose local receiver
     /// already reported `local-reference-escapes`, so the result checks
     /// report no second one there.
@@ -826,6 +831,7 @@ pub(crate) fn new_ck<'a, 'c>(
         undo: Vec::new(),
         ref_origins: HashMap::default(),
         ref_captured: HashSet::default(),
+        run_loans: None,
         bound_escapes: HashSet::default(),
         boxes: HashSet::default(),
         local_capture_argument: None,
@@ -5579,6 +5585,14 @@ impl Ck<'_, '_> {
         // bodies freeze their checked call evidence before verification.
         if !errors && !self.cx.results.borrow().inferring() {
             crate::providers::finalize(self.cx, body)?;
+        }
+        // The run-time loans, in the body as the checks left it, before
+        // the places are rooted (`ref.excl.alias.loan`).
+        if let Some((sites, rows)) = self.run_loans.take()
+            && !errors
+        {
+            hd_tir::own::loans::place(body, &sites, &rows)
+                .map_err(|e| NotImplemented::bug(Stage::Body, format!("loan placement: {e}")))?;
         }
         // No call is known pure here: the driver roots again across the
         // calls that write nothing, before the ownership passes.

@@ -377,7 +377,9 @@ to 23 in `crates/hd_tir/DESIGN.md` §4.13.11's list:
    a list header names). A value root is never written in place.
 3. **Checker output has no ownership.** Before the passes every `Read`
    has mode `use` and there is no `Drop`, `IsUnique`, `Pin` or
-   `exit_drops` row.
+   `exit_drops` row. The checker does write the run-time pointer loans,
+   `LoanBegin` and `LoanClose` (`hd_tir::own::loans`), from its lifetime
+   regions; the passes copy them as any statement.
 4. **After the passes, ownership balances** (checked in debug and
    checked builds): every owned value has exactly one consumer or one
    `Drop` on each path; no `Read` of a place follows its `move` on any

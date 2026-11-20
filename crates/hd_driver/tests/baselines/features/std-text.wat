@@ -165,7 +165,6 @@
     local.get $t1
     call $"impl StringBuilder.build"
     local.get $t1
-    ;; 10 |     sb := StringBuilder::new()
     if
       local.get $t1
       i32.const 8

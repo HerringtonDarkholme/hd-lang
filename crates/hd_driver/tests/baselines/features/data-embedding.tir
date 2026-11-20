@@ -14,8 +14,10 @@ impl Stamp:
         self.by.len()
 > app/main/impl Stamp.by_len
 >   %0 = Ref local [*$0 .by] : &string
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Block %1 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/text/impl string.len[] (%0) : usize
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : usize
 
 struct Post:
     Stamp

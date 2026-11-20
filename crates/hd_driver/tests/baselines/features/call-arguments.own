@@ -112,53 +112,61 @@ fn by_mut(s: &mut string) -> void:
 fn by_ptr(n: *Node) -> usize:
 > app/main/by_ptr
 >   local $0 n: *Node [param read] value
->     uses $0: entry -> %1 lend, %9 lend, %18 lend, %27 lend last
+>     uses $0: entry -> %1 lend, %11 lend, %22 lend, %33 lend last
 >   local $1 self: string [read] value
->     uses $1: %28 -> %29 lend last
+>     uses $1: %35 -> %36 lend last
 >   local $2 self: string [read] value
->     uses $2: %19 -> %20 lend last
+>     uses $2: %24 -> %25 lend last
 >   local $3 self: string [read] value
->     uses $3: %10 -> %11 lend last
+>     uses $3: %13 -> %14 lend last
 >   local $4 self: string [read] value
->     uses $4: %2 -> %3 lend last
->   %0 = Release %36 Exit local $0 #2 : ()
+>     uses $4: %3 -> %4 lend last
+>   %0 = Release %44 Exit local $0 #2 : ()
     (n.name.len() + 1) * (n.name.len() + 2) * (n.name.len() + 3) / (n.name.len() + 5)
 >   %1 = Read borrow [*$0 .name] : string
->   %2 = Store [$4] %1 : ()
->   %3 = Read borrow [$4] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
->   %5 = Break L3 %4 : never
->   %6 = Block - : usize
->   %7 = Scope %6 [] : usize
->   %8 = Prim Add [%7 1:usize] : usize
->   %9 = Read borrow [*$0 .name] : string
->   %10 = Store [$3] %9 : ()
->   %11 = Read borrow [$3] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L2 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Prim Add [%15 2:usize] : usize
->   %17 = Prim Mul [%8 %16] : usize
->   %18 = Read borrow [*$0 .name] : string
->   %19 = Store [$2] %18 : ()
->   %20 = Read borrow [$2] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L1 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = Prim Add [%24 3:usize] : usize
->   %26 = Prim Mul [%17 %25] : usize
->   %27 = Read borrow [*$0 .name] : string
->   %28 = Store [$1] %27 : ()
->   %29 = Read borrow [$1] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
->   %31 = Break L0 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Prim Add [%33 5:usize] : usize
->   %35 = Prim Div [%26 %34] : usize
->   %36 = Block %35 : usize
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = Store [$4] %1 : ()
+>   %4 = Read borrow [$4] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L3 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
+>   %9 = LoanClose %2 : ()
+>   %10 = Prim Add [%8 1:usize] : usize
+>   %11 = Read borrow [*$0 .name] : string
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Store [$3] %11 : ()
+>   %14 = Read borrow [$3] : string
+>   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %16 = Break L2 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = LoanClose %12 : ()
+>   %20 = Prim Add [%18 2:usize] : usize
+>   %21 = Prim Mul [%10 %20] : usize
+>   %22 = Read borrow [*$0 .name] : string
+>   %23 = LoanBegin %22 #0 : ()
+>   %24 = Store [$2] %22 : ()
+>   %25 = Read borrow [$2] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = LoanClose %23 : ()
+>   %31 = Prim Add [%29 3:usize] : usize
+>   %32 = Prim Mul [%21 %31] : usize
+>   %33 = Read borrow [*$0 .name] : string
+>   %34 = LoanBegin %33 #0 : ()
+>   %35 = Store [$1] %33 : ()
+>   %36 = Read borrow [$1] : string
+>   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
+>   %38 = Break L0 %37 : never
+>   %39 = Block - : usize
+>   %40 = Scope %39 [] : usize
+>   %41 = LoanClose %34 : ()
+>   %42 = Prim Add [%40 5:usize] : usize
+>   %43 = Prim Div [%32 %42] : usize
+>   %44 = Block %43 : usize
 >   summary kept [] borrows [$0]
 
 fn calls(s: string, n: *Node) -> usize:

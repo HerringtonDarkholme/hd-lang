@@ -11,7 +11,6 @@
     local.get $p
     i32.const 4
     i32.sub
-    ;; 132 |     view := View40 {
     local.tee $t0
     i32.load $heap
     local.tee $t1
@@ -29,6 +28,8 @@
       i32.add
       i32.store $heap
     end
+    ;; 172 |                                                                                                                                                                     inner: View0 {
+    local.get $p
     ;; 215 |     alias.value = "changed"
     local.get $alias
     i32.const 4
@@ -52,56 +53,35 @@
     i32.store $heap offset=4
     call $rt:release
     ;; 216 |     *view.inner
-    local.get $p
     i32.load $heap
     local.tee $alias
+    ;; 172 |                                                                                                                                                                     inner: View0 {
     local.get $p
+    ;; 216 |     *view.inner
     i32.load $heap offset=4
     local.tee $p
     call $rt:retain
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $t1
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t1
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 132 |     view := View40 {
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $alias
     local.get $p
   )

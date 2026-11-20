@@ -18,91 +18,93 @@ impl Display for YamlError:
 >   local $0 self: &YamlError [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
->     uses $1: %50 -> %55 lend last
+>     uses $1: %52 -> %57 lend last
 >   local $2 offset: usize [read] value
->     uses $2: %51 -> %57 lend last
+>     uses $2: %53 -> %59 lend last
 >   local $3 value: i64 [read] value
->     uses $3: %52 -> %54 lend last
+>     uses $3: %54 -> %56 lend last
 >   local $4 width: usize [read] value
->     uses $4: %53 -> %59 lend last
+>     uses $4: %55 -> %61 lend last
 >   local $5 result: string [read] value
->     uses $5: %31 -> %34 lend last
+>     uses $5: %33 -> %36 lend last
 >   local $6 offset: usize [read] value
->     uses $6: %32 -> %37 lend last
+>     uses $6: %34 -> %39 lend last
 >   local $7 text: string [read] value
->     uses $7: %33 -> %39 lend, %42 lend last
+>     uses $7: %35 -> %41 lend, %44 lend last
 >   local $8 size: usize [read] value
->     uses $8: %24 -> %25 lend last
+>     uses $8: %26 -> %27 lend last
 >   local $9 value: i64 [read] value
->     uses $9: %4 -> %5 consume last
+>     uses $9: %6 -> %7 consume last
 >   local $10 value: i64 [read] value
->     uses $10: %6 -> %7 lend, %10 lend last
+>     uses $10: %8 -> %9 lend, %12 lend last
 >   %0 = Ref local [*$0 .line] : &i64
->   %1 = Read copy [*%0] : i64
->   %2 = LoanEnd [%0] : ()
->   %3 = Prim Conv [%1] : i64
->   %4 = Store [$9] %3 : ()
->   %5 = Read copy [$9] : i64
->   %6 = Store [$10] %5 : ()
->   %7 = Read copy [$10] : i64
->   %8 = Call std/rt.bytes/signed_magnitude[] (%7) : u64
->   %9 = Call std/rt.bytes/unsigned_width[] (%8) : usize
->   %10 = Read copy [$10] : i64
->   %11 = Prim Lt [%10 0:i64] : bool
->   %12 = Block 1:usize : usize
->   %13 = Block 0:usize : usize
->   %14 = If %11 [%12 %13] : usize
->   %15 = Prim Add [%9 %14] : usize
->   %16 = Break L3 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Break L4 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Prim Add [0:usize 17:usize] : usize
->   %23 = Prim Add [%22 %21] : usize
->   %24 = Store [$8] %23 : ()
->   %25 = Read copy [$8] : usize
->   %26 = Call std/rt.memory/new_string[] (%25) : string
->   %27 = Break L2 %26 : never
->   %28 = Block - : string
->   %29 = Scope %28 [] : string
->   %30 = Read borrow [%29] : string
->   %31 = Store [$5] %30 : ()
->   %32 = Store [$6] 0:usize : ()
->   %33 = Store [$7] "bad yaml at line " : ()
->   %34 = Read borrow [$5] : string
->   %35 = Call std/rt.memory/string_bytes[] (%34) : Ptr[u8]
->   %36 = Read copy [%35 .address] : usize
->   %37 = Read copy [$6] : usize
->   %38 = Prim Add [%36 %37] : usize
->   %39 = Read borrow [$7] : string
->   %40 = Call std/rt.memory/string_bytes[] (%39) : Ptr[u8]
->   %41 = Read copy [%40 .address] : usize
->   %42 = Read borrow [$7] : string
->   %43 = Call std/rt.bytes/bytes_len[] (%42) : usize
->   %44 = Call std/rt.memory/copy[] (%38, %41, %43) : ()
->   %45 = Break L1 - : never
->   %46 = Block - : ()
->   %47 = Scope %46 [] : ()
->   %48 = Read borrow [%29] : string
->   %49 = Drop [$7] : ()
->   %50 = Store [$1] %48 : ()
->   %51 = Store [$2] %22 : ()
->   %52 = Store [$3] %3 : ()
->   %53 = Store [$4] %21 : ()
->   %54 = Read copy [$3] : i64
->   %55 = Read borrow [$1] : string
->   %56 = Call std/rt.memory/string_bytes[] (%55) : Ptr[u8]
->   %57 = Read copy [$2] : usize
->   %58 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%56, %57) : Ptr[u8]
->   %59 = Read copy [$4] : usize
->   %60 = Call std/rt.bytes/write_signed_sized[] (%54, %58, %59) : ()
->   %61 = Break L0 - : never
->   %62 = Block - : ()
->   %63 = Scope %62 [] : ()
->   %64 = Read move [%29] : string
->   %65 = Block %64 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Read copy [*%0] : i64
+>   %3 = LoanEnd [%0] : ()
+>   %4 = LoanClose %1 : ()
+>   %5 = Prim Conv [%2] : i64
+>   %6 = Store [$9] %5 : ()
+>   %7 = Read copy [$9] : i64
+>   %8 = Store [$10] %7 : ()
+>   %9 = Read copy [$10] : i64
+>   %10 = Call std/rt.bytes/signed_magnitude[] (%9) : u64
+>   %11 = Call std/rt.bytes/unsigned_width[] (%10) : usize
+>   %12 = Read copy [$10] : i64
+>   %13 = Prim Lt [%12 0:i64] : bool
+>   %14 = Block 1:usize : usize
+>   %15 = Block 0:usize : usize
+>   %16 = If %13 [%14 %15] : usize
+>   %17 = Prim Add [%11 %16] : usize
+>   %18 = Break L3 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Break L4 %20 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
+>   %24 = Prim Add [0:usize 17:usize] : usize
+>   %25 = Prim Add [%24 %23] : usize
+>   %26 = Store [$8] %25 : ()
+>   %27 = Read copy [$8] : usize
+>   %28 = Call std/rt.memory/new_string[] (%27) : string
+>   %29 = Break L2 %28 : never
+>   %30 = Block - : string
+>   %31 = Scope %30 [] : string
+>   %32 = Read borrow [%31] : string
+>   %33 = Store [$5] %32 : ()
+>   %34 = Store [$6] 0:usize : ()
+>   %35 = Store [$7] "bad yaml at line " : ()
+>   %36 = Read borrow [$5] : string
+>   %37 = Call std/rt.memory/string_bytes[] (%36) : Ptr[u8]
+>   %38 = Read copy [%37 .address] : usize
+>   %39 = Read copy [$6] : usize
+>   %40 = Prim Add [%38 %39] : usize
+>   %41 = Read borrow [$7] : string
+>   %42 = Call std/rt.memory/string_bytes[] (%41) : Ptr[u8]
+>   %43 = Read copy [%42 .address] : usize
+>   %44 = Read borrow [$7] : string
+>   %45 = Call std/rt.bytes/bytes_len[] (%44) : usize
+>   %46 = Call std/rt.memory/copy[] (%40, %43, %45) : ()
+>   %47 = Break L1 - : never
+>   %48 = Block - : ()
+>   %49 = Scope %48 [] : ()
+>   %50 = Read borrow [%31] : string
+>   %51 = Drop [$7] : ()
+>   %52 = Store [$1] %50 : ()
+>   %53 = Store [$2] %24 : ()
+>   %54 = Store [$3] %5 : ()
+>   %55 = Store [$4] %23 : ()
+>   %56 = Read copy [$3] : i64
+>   %57 = Read borrow [$1] : string
+>   %58 = Call std/rt.memory/string_bytes[] (%57) : Ptr[u8]
+>   %59 = Read copy [$2] : usize
+>   %60 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%58, %59) : Ptr[u8]
+>   %61 = Read copy [$4] : usize
+>   %62 = Call std/rt.bytes/write_signed_sized[] (%56, %60, %61) : ()
+>   %63 = Break L0 - : never
+>   %64 = Block - : ()
+>   %65 = Scope %64 [] : ()
+>   %66 = Read move [%31] : string
+>   %67 = Block %66 : string
 >   summary kept [] writes
 
 impl Error for YamlError

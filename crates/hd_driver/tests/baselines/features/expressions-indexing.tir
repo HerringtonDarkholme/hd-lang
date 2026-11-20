@@ -43,5 +43,7 @@ fn ref_list_index(xs: &List[string], i: usize) -> usize:
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
 >   %1 = Ref local [*$0 [%0]] : &string
->   %2 = Call std/text/impl string.len[] (%1) : usize
->   %3 = Block %2 : usize
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = Call std/text/impl string.len[] (%1) : usize
+>   %4 = LoanClose %2 : ()
+>   %5 = Block %3 : usize

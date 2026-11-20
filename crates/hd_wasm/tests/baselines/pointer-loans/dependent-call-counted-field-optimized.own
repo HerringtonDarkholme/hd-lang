@@ -14,7 +14,9 @@ fn name_of(p: &P) -> &string:
 >   local $0 p: &P [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Block %0 : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &string
 >   summary kept []
 
 fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
@@ -22,33 +24,37 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   local $0 h: *mut H [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 alias: *mut H [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %14 lend last
 >   local $2 next: *P [param read] value
->     uses $2: entry -> %11 consume last
+>     uses $2: entry -> %13 consume last
 >   local $3 d: &string [:= read assigned] value
->     uses $3: %10 -> %14 lend last
+>     uses $3: %12 -> %16 lend last
 >   local $4 p: &P [read] value
->     uses $4: %4 -> %5 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
->   %1 = Release %16 Exit local $1 #2 : ()
->   %2 = Retain %16 Entry local $2 #0 : ()
+>     uses $4: %5 -> %6 lend last
+>   %0 = Release %20 Exit local $0 #2 : ()
+>   %1 = Release %20 Exit local $1 #2 : ()
+>   %2 = Retain %20 Entry local $2 #0 : ()
     d := name_of(h.p)
 >   %3 = Ref local [*$0 .p *] : &P
->   %4 = Store [$4] %3 : ()
->   %5 = Ref local [*$4 .name] : &string
->   %6 = Break L0 %5 : never
->   %7 = Block - : &string
->   %8 = Scope %7 [] : &string
->   %9 = LoanEnd [$4] : ()
->   %10 = Store [$3] %8 : ()
->   %16 = Block %14 : string
+>   %4 = LoanBegin %3 #0 : ()
+>   %5 = Store [$4] %3 : ()
+>   %6 = Ref local [*$4 .name] : &string
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Break L0 %6 : never
+>   %9 = Block - : &string
+>   %10 = Scope %9 [] : &string
+>   %11 = LoanEnd [$4] : ()
+>   %12 = Store [$3] %10 : ()
+>   %20 = Block %16 : string
     alias.p = next
->   %11 = Read move [$2] : *P
->   %12 = Store [*$1 .p] %11 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %13 = Read move [$2] : *P
+>   %14 = Store [*$1 .p] %13 : ()
+>   %15 = Release %14 Operation #3 : ()
     *d
->   %14 = Read copy [*$3] : string
->   %15 = LoanEnd [$3] : ()
+>   %16 = Read copy [*$3] : string
+>   %17 = LoanEnd [$3] : ()
+>   %18 = LoanClose %4 : ()
+>   %19 = LoanClose %7 : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes
 
@@ -61,7 +67,9 @@ fn name_mut(p: &mut P) -> &mut string:
 >   local $0 p: &mut P [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Ref mut local [*$0 .name] : &mut string
->   %1 = Block %0 : &mut string
+>   %1 = LoanBegin %0 #1 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &mut string
 >   summary kept [] writes
 
 fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
@@ -69,32 +77,36 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   local $0 h: *mut M [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 alias: *mut M [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %14 lend last
 >   local $2 next: *mut P [param read] value
->     uses $2: entry -> %11 consume last
+>     uses $2: entry -> %13 consume last
 >   local $3 d: &mut string [:= read assigned] value
->     uses $3: %10 -> %14 lend last
+>     uses $3: %12 -> %16 lend last
 >   local $4 p: &mut P [read] value
->     uses $4: %4 -> %5 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
->   %1 = Release %16 Exit local $1 #2 : ()
->   %2 = Retain %16 Entry local $2 #0 : ()
+>     uses $4: %5 -> %6 lend last
+>   %0 = Release %20 Exit local $0 #2 : ()
+>   %1 = Release %20 Exit local $1 #2 : ()
+>   %2 = Retain %20 Entry local $2 #0 : ()
     d := name_mut(h.p)
 >   %3 = Ref mut local [*$0 .p *] : &mut P
->   %4 = Store [$4] %3 : ()
->   %5 = Ref mut local [*$4 .name] : &mut string
->   %6 = Break L0 %5 : never
->   %7 = Block - : &mut string
->   %8 = Scope %7 [] : &mut string
->   %9 = LoanEnd [$4] : ()
->   %10 = Store [$3] %8 : ()
->   %16 = Block %14 : string
+>   %4 = LoanBegin %3 #1 : ()
+>   %5 = Store [$4] %3 : ()
+>   %6 = Ref mut local [*$4 .name] : &mut string
+>   %7 = LoanBegin %6 #1 : ()
+>   %8 = Break L0 %6 : never
+>   %9 = Block - : &mut string
+>   %10 = Scope %9 [] : &mut string
+>   %11 = LoanEnd [$4] : ()
+>   %12 = Store [$3] %10 : ()
+>   %20 = Block %16 : string
     alias.p = next
->   %11 = Read move [$2] : *mut P
->   %12 = Store [*$1 .p] %11 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %13 = Read move [$2] : *mut P
+>   %14 = Store [*$1 .p] %13 : ()
+>   %15 = Release %14 Operation #3 : ()
     *d
->   %14 = Read copy [*$3] : string
->   %15 = LoanEnd [$3] : ()
+>   %16 = Read copy [*$3] : string
+>   %17 = LoanEnd [$3] : ()
+>   %18 = LoanClose %4 : ()
+>   %19 = LoanClose %7 : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes

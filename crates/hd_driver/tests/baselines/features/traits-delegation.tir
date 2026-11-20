@@ -25,8 +25,10 @@ struct Service:
 impl Describe for Service by Logger
 > app/main/impl Describe for Service by Logger.describe
 >   %0 = Ref local [*$0 .Logger] : &Logger
->   %1 = Call app/main/Describe.describe for Logger [] via Impl (%0) : string
->   %2 = Block %1 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/Describe.describe for Logger [] via Impl (%0) : string
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : string
 
 fn delegated(s: Service) -> usize:
     s.describe().len()

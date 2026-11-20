@@ -40,21 +40,23 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   local $0 value: &dyn Inspectable [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $3 self: TypeId [read] value
->     uses $3: %3 -> %5 lend last
+>     uses $3: %5 -> %7 lend last
 >   local $4 other: TypeId [read] value
->     uses $4: %4 -> %6 lend last
+>     uses $4: %6 -> %8 lend last
 >   %0 = Read borrow [*$0] : Inspectable
->   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
->   %2 = Call std/inspect/impl TypeId.of[User] () : TypeId
->   %3 = Store [$3] %1 : ()
->   %4 = Store [$4] %2 : ()
->   %5 = Read copy [$3 .info .address] : usize
->   %6 = Read copy [$4 .info .address] : usize
->   %7 = Prim Eq [%5 %6] : bool
->   %8 = Break L0 %7 : never
->   %9 = Block - : bool
->   %10 = Scope %9 [] : bool
->   %11 = Block %10 : bool
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
+>   %3 = LoanClose %1 : ()
+>   %4 = Call std/inspect/impl TypeId.of[User] () : TypeId
+>   %5 = Store [$3] %2 : ()
+>   %6 = Store [$4] %4 : ()
+>   %7 = Read copy [$3 .info .address] : usize
+>   %8 = Read copy [$4 .info .address] : usize
+>   %9 = Prim Eq [%7 %8] : bool
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : bool
+>   %12 = Scope %11 [] : bool
+>   %13 = Block %12 : bool
 >   summary kept [] writes
 
 fn erase(u: User) -> *dyn Inspectable:

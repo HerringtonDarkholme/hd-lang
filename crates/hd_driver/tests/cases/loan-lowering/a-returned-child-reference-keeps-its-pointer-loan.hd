@@ -1,8 +1,8 @@
 # @dump: stdout
 # @build: dev | checked | release
-# expected: #2174: the aliased child write must panic with borrow-conflict.
 # The argument is a stored local reference, so its call has no newly
-# crossed pointer head. The result still borrows the counted child.
+# crossed pointer head; the result still borrows the counted child, so the
+# aliased child write panics borrow-conflict (#2174).
 use std.annotation.inline
 
 struct Node:

@@ -1,0 +1,15 @@
+# @dump: tir
+# A `*T` lent to `&self` begins a loan at its read, and the call's result
+# holds it: the loan closes after the result's last use, past the alias
+# write (`ref.excl.alias.loan`), whatever the callee's result depends on.
+struct Cell:
+    value: string
+
+impl Cell:
+    fn slot_ref(&self) -> &string:
+        &self.value
+
+fn probe(p: *mut Cell, alias: *mut Cell) -> string:
+    r := p.slot_ref()
+    alias.value = "fresh"
+    *r

@@ -11,13 +11,17 @@ fn name_of(u: &User) -> &string:
     &u.name
 > app/main/name_of
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Block %0 : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &string
 
 fn first_name(us: &List[User]) -> &string:
     &us[0].name
 > app/main/first_name
 >   %0 = Ref local [*$0 [0:usize] .name] : &string
->   %1 = Block %0 : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &string
 
 fn read(u: User) -> usize:
     name_of(&u).len()
@@ -41,6 +45,10 @@ fn through_ptr(u: *User) -> usize:
     name_of(u).len()
 > app/main/through_ptr
 >   %0 = Ref local [*$0] : &User
->   %1 = Call app/main/name_of[] (%0) : &string
->   %2 = Call std/text/impl string.len[] (%1) : usize
->   %3 = Block %2 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/name_of[] (%0) : &string
+>   %3 = LoanBegin %2 #4 : ()
+>   %4 = Call std/text/impl string.len[] (%2) : usize
+>   %5 = LoanClose %1 : ()
+>   %6 = LoanClose %3 : ()
+>   %7 = Block %4 : usize

@@ -52,19 +52,22 @@ fn count(n: i64) -> void $ Meter:
 >   %13 = Read [$1] : i64
 >   %14 = Prim Add [%13 1:i64] : i64
 >   %15 = Store [$1] %14 : ()
->   %21 = Block - : ()
->   %22 = Break L0 - : never
->   %23 = Block - : ()
->   %24 = If %10 [%21 %23] : ()
->   %25 = Block - : ()
->   %26 = Loop %25 - : ()
->   %27 = Block - : ()
+>   %24 = Block - : ()
+>   %25 = Break L0 - : never
+>   %26 = Block - : ()
+>   %27 = If %10 [%24 %26] : ()
+>   %28 = Block - : ()
+>   %29 = Loop %28 - : ()
+>   %30 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Meter
 >   %18 = Read [*%17] : Meter
->   %19 = Read [$4] : i64
->   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
+>   %19 = LoanBegin %18 #0 : ()
+>   %20 = Read [$4] : i64
+>   %21 = LoanBegin %18 #2 : ()
+>   %22 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
+>   %23 = LoanClose %19 : ()
 
 fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
     for i in 0..n:
@@ -91,22 +94,25 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %13 = Read [$2] : i64
 >   %14 = Prim Add [%13 1:i64] : i64
 >   %15 = Store [$2] %14 : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %10 [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = Block - : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %10 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
+>   %32 = Block - : ()
         $.use(Meter).record(i)
 >   %16 = ProviderGet #22 : Meter
 >   %17 = Coerce %16 [ProviderAsRef -] : &mut dyn Meter
 >   %18 = Read [*%17] : Meter
->   %19 = Read [$5] : i64
->   %20 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %19) : ()
+>   %19 = LoanBegin %18 #0 : ()
+>   %20 = Read [$5] : i64
+>   %21 = LoanBegin %18 #2 : ()
+>   %22 = Call app/main/Meter.record for Meter [] via TraitValue (%18, %20) : ()
+>   %23 = LoanClose %19 : ()
         wait!()
->   %21 = Read [$1] : Suspend[()]
->   %22 = AwaitValue %21 : ()
+>   %24 = Read [$1] : Suspend[()]
+>   %25 = AwaitValue %24 : ()
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })

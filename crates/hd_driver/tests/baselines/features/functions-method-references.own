@@ -132,27 +132,30 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >   local $0 u: *mut User [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %7 consume last
+>     uses $1: entry -> %8 consume last
 >   local $2 $receiver: *mut User [read assigned] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $receiver: *mut User [read assigned] place
->   %0 = Release %14 Exit local $0 #2 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
+>   %0 = Release %17 Exit local $0 #2 : ()
+>   %1 = Retain %17 Entry local $1 #0 : ()
     f := u::rename
 >   %2 = Read borrow [$0] : *mut User
 >   %3 = Store [$2] %2 : ()
 >   %4 = Read borrow [$2] : *mut User
 >   %5 = Store [$3] %4 : ()
->   %14 = Block - : ()
+>   %17 = Block - : ()
     f(n)
 >   %6 = Read borrow [$3] : *mut User
->   %7 = Read move [$1] : string
->   %8 = Call app/main/impl User.rename[] (%6, %7) : ()
->   %9 = Read borrow [$3] : *mut User
->   %10 = Block - : ()
->   %11 = Break L0 %8 : never
->   %12 = Block - : ()
->   %13 = Scope %12 [%10] : ()
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Read move [$1] : string
+>   %9 = LoanBegin %6 #2 : ()
+>   %10 = Call app/main/impl User.rename[] (%6, %8) : ()
+>   %11 = LoanClose %7 : ()
+>   %12 = Read borrow [$3] : *mut User
+>   %13 = Block - : ()
+>   %14 = Break L0 %10 : never
+>   %15 = Block - : ()
+>   %16 = Scope %15 [%13] : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 

@@ -15,26 +15,30 @@ fn in_struct(t: &Team, alias: *mut User) -> string:
 > app/main/in_struct
 >   local $2 held: Held [:= read assigned]
 >   %0 = Ref local [*$0 .lead * .name] : &string
->   %1 = NewStruct [%0] : Held
->   %2 = Store [$2] %1 : ()
->   %5 = Block %4 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = NewStruct [%0] : Held
+>   %3 = Store [$2] %2 : ()
+>   %7 = Block %5 : string
     alias.name = "b"
->   %3 = Store [*$1 .name] "b" : ()
+>   %4 = Store [*$1 .name] "b" : ()
     *held.name
->   %4 = Read [$2 .name *] : string
+>   %5 = Read [$2 .name *] : string
+>   %6 = LoanClose %1 : ()
 
 fn in_tuple(t: &Team, alias: *mut User) -> string:
     held := (&t.lead.name, +1)
 > app/main/in_tuple
 >   local $2 held: (&string, i32) [:= read assigned]
 >   %0 = Ref local [*$0 .lead * .name] : &string
->   %1 = NewTuple - [%0 1:i32] : (&string, i32)
->   %2 = Store [$2] %1 : ()
->   %5 = Block %4 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = NewTuple - [%0 1:i32] : (&string, i32)
+>   %3 = Store [$2] %2 : ()
+>   %7 = Block %5 : string
     alias.name = "b"
->   %3 = Store [*$1 .name] "b" : ()
+>   %4 = Store [*$1 .name] "b" : ()
     *held._0
->   %4 = Read [$2 .0 *] : string
+>   %5 = Read [$2 .0 *] : string
+>   %6 = LoanClose %1 : ()
 
 fn in_option(t: &Team, alias: *mut User) -> string:
     let held: Option[&string] = .Some(&t.lead.name)
@@ -42,21 +46,27 @@ fn in_option(t: &Team, alias: *mut User) -> string:
 >   local $2 held: &string? [read assigned]
 >   local $3 name: &string [read assigned]
 >   %0 = Ref local [*$0 .lead * .name] : &string
->   %1 = NewVariant #1 [%0] : &string?
->   %2 = Store [$2] %1 : ()
->   %17 = Block %16 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = NewVariant #1 [%0] : &string?
+>   %3 = Store [$2] %2 : ()
+>   %23 = Block %21 : string
     alias.name = "b"
->   %3 = Store [*$1 .name] "b" : ()
+>   %4 = Store [*$1 .name] "b" : ()
     match held:
->   %4 = Read [$2] : &string?
->   %15 = Block - : never
->   %16 = Match %4 [%15 %6 %7] : string
+>   %5 = Read [$2] : &string?
+>   %9 = LoanClose %1 : ()
+>   %20 = Block - : never
+>   %21 = Match %5 [%20 %8 %10] : string
+>   %22 = LoanClose %1 : ()
         .Some(name) => *name
->   %5 = Read [*$3] : string
->   %6 = Block %5 : string
->   %8 = Read [%4 as #1 .0] : &string
->   %9 = Store [$3] %8 : ()
->   %11 = Block - : never
->   %14 = SwitchTag %4 [#1 %11 %13] : never
+>   %6 = Read [*$3] : string
+>   %7 = LoanClose %1 : ()
+>   %8 = Block %6 : string
+>   %11 = Read [%5 as #1 .0] : &string
+>   %12 = Store [$3] %11 : ()
+>   %14 = Block - : never
+>   %15 = LoanClose %1 : ()
+>   %18 = SwitchTag %5 [#1 %14 %17] : never
+>   %19 = LoanClose %1 : ()
         .None => ""
->   %7 = Block "" : string
+>   %10 = Block "" : string

@@ -15,10 +15,12 @@ fn ordinary(work: &dyn Work) -> i32 $ Tag:
 >   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Work
->   %1 = Call app/main/Work.run for Work [] via TraitValue (%0) : i32
->   %2 = Retain %1 Operation row #0 : ()
->   %3 = Release %1 Operation row #2 : ()
->   %4 = Block %1 : i32
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/Work.run for Work [] via TraitValue (%0) : i32
+>   %3 = Retain %2 Operation row #0 : ()
+>   %4 = Release %2 Operation row #2 : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = Block %2 : i32
 >   summary kept [] writes
 
 fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
@@ -27,10 +29,12 @@ fn cold(work: &dyn Work) -> Suspend[i32] $ Tag:
 >   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Work
->   %1 = Call app/main/Work.later for Work [] via TraitValue (%0) : Suspend[i32]
->   %2 = Retain %1 Operation row #0 : ()
->   %3 = Release %1 Operation row #2 : ()
->   %4 = Block %1 : Suspend[i32]
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/Work.later for Work [] via TraitValue (%0) : Suspend[i32]
+>   %3 = Retain %2 Operation row #0 : ()
+>   %4 = Release %2 Operation row #2 : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = Block %2 : Suspend[i32]
 >   summary kept [] writes
 
 fn awaited!(work: &dyn Work) -> i32 $ Tag:

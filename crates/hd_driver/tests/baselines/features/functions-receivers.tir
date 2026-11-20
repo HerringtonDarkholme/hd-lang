@@ -16,8 +16,10 @@ impl Vec2:
         self.name.len()
 > app/main/impl Vec2.label_len
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Block %1 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/text/impl string.len[] (%0) : usize
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : usize
 
     fn shift(&mut self, d: i64) -> void:
         self.x += d
@@ -73,8 +75,11 @@ fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
 >   local $1 i: usize [param read]
 >   %0 = Read [$1] : usize
 >   %1 = Ref mut local [*$0 [%0]] : &mut Vec2
->   %2 = Call app/main/impl Vec2.shift[] (%1, 1:i64) : ()
->   %3 = Block - : ()
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = LoanBegin %1 #2 : ()
+>   %4 = Call app/main/impl Vec2.shift[] (%1, 1:i64) : ()
+>   %5 = LoanClose %2 : ()
+>   %6 = Block - : ()
 
 fn element_read(xs: List[Vec2], i: usize) -> usize:
     xs[i].label_len()

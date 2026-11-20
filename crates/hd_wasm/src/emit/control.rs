@@ -102,7 +102,6 @@ impl Em<'_, '_, '_> {
                     let labelled = self.topo.label_of[blk as usize] != NONE;
                     if labelled {
                         self.open(Ctl::Brk(blk));
-                        self.loan_scope_begin(blk);
                     }
                     let mut items = self.items(list);
                     if let Some(k) = self.dead_from(&items, tail) {
@@ -139,7 +138,6 @@ impl Em<'_, '_, '_> {
                     // that cached place walk; inst's ordinary fallback discards it.
                     self.walked = None;
                     self.borrow_access(i)?;
-                    self.borrow_before_store(i);
                     work.push(Task::EndIfInst(i, state));
                     work.push(Task::If(i));
                 }
@@ -165,8 +163,6 @@ impl Em<'_, '_, '_> {
                 }
                 Task::Close => self.close(),
                 Task::EndIfInst(i, state) => {
-                    self.borrow_after_store(i);
-                    self.borrow_argument_end(i);
                     self.end_inst(i, state, Ok(()))?;
                 }
             }

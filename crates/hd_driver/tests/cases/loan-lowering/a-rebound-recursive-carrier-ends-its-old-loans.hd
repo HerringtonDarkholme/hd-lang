@@ -1,8 +1,8 @@
 # @dump: stdout
 # @build: dev | checked | release
-# expected: #2174: print 6 and exit successfully; rebinding cuts ancestry
-# at the counted-pointer dereference, and the final alias write follows
-# the last use of current. Today's path leaks an earlier iteration's loan.
+# Rebinding cuts ancestry at the counted-pointer dereference: an earlier
+# iteration's loan ends at its site's next run, and the final alias write
+# follows the last use of current, so it prints 6 (#2174).
 use std.annotation.inline
 
 struct Node:

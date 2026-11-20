@@ -1,0 +1,13 @@
+# @dump: tir
+# A loan live in one arm and dead at the other's start closes at that
+# arm's start, so the alias write in it finds no loan
+# (`ref.excl.alias.loan`).
+struct User:
+    age: i32
+
+fn pick(u: *mut User, alias: *mut User, c: bool) -> i32:
+    n := &u.age
+    if c:
+        return *n
+    alias.age += 1
+    0

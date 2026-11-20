@@ -46,7 +46,7 @@ mod drop_flags;
 pub(crate) use ctx::slot_ctx;
 mod dyn_value;
 mod excl;
-pub(crate) use excl::{OriginIndex, collect_loans};
+pub(crate) use excl::collect_loans;
 mod indirect;
 pub(crate) use indirect::Params as IndirectParams;
 mod iter;
@@ -55,7 +55,6 @@ mod loan;
 mod map;
 mod promote;
 pub use promote::{Settled, settled};
-pub(crate) mod ref_slots;
 mod refs;
 mod row;
 mod scope;
@@ -2273,7 +2272,6 @@ impl Em<'_, '_, '_> {
             self.tail_into(tail, d, blk)?;
         }
         if labelled {
-            self.loan_scope_end(blk);
             self.close();
             if let Some(d) = dest {
                 // A break out of the block stored its value in the
@@ -2439,13 +2437,7 @@ impl Em<'_, '_, '_> {
         {
             self.inst_call(i, a, bw)?;
         } else {
-            self.borrow_before_store(i);
             self.inst_tag(i, a, bw)?;
-            self.borrow_after_store(i);
-        }
-        self.borrow_argument_end(i);
-        if !matches!(self.b.tags[i as usize], Tag::Drop | Tag::LoanEnd) {
-            self.borrow_temporary_end(i);
         }
         Ok(())
     }
@@ -2454,11 +2446,7 @@ impl Em<'_, '_, '_> {
     /// its temporary argument loans out of non-call emitter frames.
     #[inline(never)]
     fn inst_call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        self.borrow_before_store(i);
-        self.borrow_call_begin(i);
         self.inst_tag(i, a, bw)?;
-        self.borrow_call_end(i);
-        self.borrow_after_store(i);
         Ok(())
     }
 
@@ -2521,12 +2509,12 @@ impl Em<'_, '_, '_> {
             }
             // Lowered in its store's walk of the place.
             Tag::MakeUnique => {}
+            Tag::LoanBegin => self.loan_begin(i),
+            Tag::LoanClose => self.loan_close(i),
             Tag::LoanEnd => {
-                self.borrow_drop(i);
                 self.own_loan_end(i);
             }
             Tag::Drop => {
-                self.borrow_drop(i);
                 if !self.provider_transferred_drop(i) && !self.drop_map_probe_ref(i) {
                     self.own_drop(i)?;
                 }
@@ -2640,9 +2628,7 @@ impl Em<'_, '_, '_> {
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
                 self.loops += 1;
-                self.loan_scope_begin(i);
                 self.block_into(a, None)?;
-                self.loan_scope_end(i);
                 self.loops -= 1;
                 self.f.op(Instruction::Br(0));
                 self.close();
@@ -2676,9 +2662,7 @@ impl Em<'_, '_, '_> {
                     self.slot(i)?;
                 }
                 self.open(Ctl::Plain);
-                self.loan_scope_begin(i);
                 self.block_into(a, Some(i))?;
-                self.loan_scope_end(i);
                 self.close();
                 if self.placed.contains_key(&i) {
                     self.written.insert(i);
@@ -2689,7 +2673,6 @@ impl Em<'_, '_, '_> {
                 let n = u32::try_from(blocks.len() - 1).expect("arms");
                 self.slot(i)?;
                 self.open(Ctl::Brk(i));
-                self.loan_scope_begin(i);
                 for k in (0..n).rev() {
                     self.open(Ctl::Arm(i, k));
                 }
@@ -2703,7 +2686,6 @@ impl Em<'_, '_, '_> {
                     self.block_into(*arm, Some(i))?;
                     self.exit(scope::Exit::Brk(i));
                 }
-                self.loan_scope_end(i);
                 self.close();
             }
             Tag::ToArm => {
@@ -3443,7 +3425,6 @@ impl Em<'_, '_, '_> {
         // Cold construction's argument loans end before block_on polls.
         // Keep that boundary when the first poll is fused here; otherwise
         // aliases used by tasks inside the drive see a spurious live loan.
-        self.borrow_call_end(i);
         // The check belongs to block_on even when its first drive is
         // emitted at the earlier construction site.
         let (at, origin) = (self.f.at, self.f.origin_at);

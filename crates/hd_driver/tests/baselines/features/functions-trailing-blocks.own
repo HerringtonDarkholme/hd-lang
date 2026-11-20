@@ -96,40 +96,44 @@ fn no_args(s: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 s: string [read assigned] place
 >   local $2 self: string [read] value
->     uses $2: %16 -> %17 lend last
+>     uses $2: %19 -> %20 lend last
 >   local $3 self: string [read] value
->     uses $3: %4 -> %5 lend last
->   %0 = Release %31 Exit local $0 #2 : ()
+>     uses $3: %5 -> %6 lend last
+>   %0 = Release %35 Exit local $0 #2 : ()
     twice:
 >   %3 = Read borrow [$1] : string
->   %4 = Store [$3] %3 : ()
->   %5 = Read borrow [$3] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = Read borrow [$1] : string
->   %11 = Block - : ()
->   %12 = Break L1 %9 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [%11] : usize
->   %15 = Read borrow [$1] : string
->   %16 = Store [$2] %15 : ()
->   %17 = Read borrow [$2] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L2 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Read borrow [$1] : string
->   %23 = Block - : ()
->   %24 = Break L3 %21 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [%23] : usize
->   %27 = Prim Add [%14 %26] : usize
->   %28 = Break L4 %27 : never
+>   %4 = LoanBegin %3 #0 : ()
+>   %5 = Store [$3] %3 : ()
+>   %6 = Read borrow [$3] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = LoanClose %4 : ()
+>   %12 = Read borrow [$1] : string
+>   %13 = Block - : ()
+>   %14 = Break L1 %10 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [%13] : usize
+>   %17 = Read borrow [$1] : string
+>   %18 = LoanBegin %17 #0 : ()
+>   %19 = Store [$2] %17 : ()
+>   %20 = Read borrow [$2] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L2 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = LoanClose %18 : ()
+>   %26 = Read borrow [$1] : string
+>   %27 = Block - : ()
+>   %28 = Break L3 %24 : never
 >   %29 = Block - : usize
->   %30 = Scope %29 [] : usize
->   %31 = Block %30 : usize
+>   %30 = Scope %29 [%27] : usize
+>   %31 = Prim Add [%16 %30] : usize
+>   %32 = Break L4 %31 : never
+>   %33 = Block - : usize
+>   %34 = Scope %33 [] : usize
+>   %35 = Block %34 : usize
         s.len()
 >   %1 = Read borrow [$0] : string
 >   %2 = Store [$1] %1 : ()

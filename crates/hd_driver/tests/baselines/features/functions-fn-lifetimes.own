@@ -13,7 +13,9 @@ fn name_of(u: &User) -> &string:
 >   local $0 u: &User [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Block %0 : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &string
 >   summary kept []
 
 fn apply(f: fn(&User) -> &string, u: &User) -> usize:
@@ -36,7 +38,7 @@ fn demo(a: &User) -> usize:
     apply(name_of, a) + apply(fn(u): &u.name, a)
 > app/main/demo
 >   local $0 a: &User [param read] value
->     uses $0: entry -> %1 lend, %10 lend last
+>     uses $0: entry -> %1 lend, %12 lend last
 >   local $1 u: &User [param read] value
 >     uses $1: entry -> %6 lend last
 >   %0 = ItemRef #0 [..] : fn(&User) -> &string
@@ -44,16 +46,18 @@ fn demo(a: &User) -> usize:
 >   %2 = Call app/main/apply[] (%0, %1) : usize
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Drop [%0] : ()
->   %5 = Retain %8 Entry local $1 #0 : ()
+>   %5 = Retain %10 Entry local $1 #0 : ()
 >   %6 = Ref local [*$1 .name] : &string
 >   %7 = Drop [$1] : ()
->   %8 = Block %6 : &string
->   %9 = Closure #1 : fn(&User) -> &string
->   %10 = Read borrow [$0] : &User
->   %11 = Call app/main/apply[] (%9, %10) : usize
->   %12 = Retain %11 Operation operand 0 #0 : ()
->   %13 = Drop [%9] : ()
->   %14 = Prim Add [%2 %11] : usize
->   %15 = Block %14 : usize
+>   %8 = LoanBegin %6 #0 : ()
+>   %9 = LoanClose %8 : ()
+>   %10 = Block %6 : &string
+>   %11 = Closure #1 : fn(&User) -> &string
+>   %12 = Read borrow [$0] : &User
+>   %13 = Call app/main/apply[] (%11, %12) : usize
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = Drop [%11] : ()
+>   %16 = Prim Add [%2 %13] : usize
+>   %17 = Block %16 : usize
 >   exit sub 1 drops [$1]
 >   summary kept [] writes

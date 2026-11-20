@@ -20,7 +20,9 @@ impl Index[usize] for Names:
 >     uses $1: entry -> %0 lend last
 >   %0 = Read copy [$1] : usize
 >   %1 = Ref local [*$0 .items [%0]] : &string
->   %2 = Block %1 : &string
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = LoanClose %2 : ()
+>   %4 = Block %1 : &string
 >   summary kept [] writes
 
 impl IndexSet[usize, string] for Names:
@@ -52,7 +54,7 @@ fn read_len(n: Names, i: usize) -> usize:
 >     uses $2: %4 -> %7 lend last
 >   local $3 key: usize [read] value
 >     uses $3: %5 -> %6 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
+>   %0 = Release %20 Exit local $0 #2 : ()
     n[i].len()
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Names
@@ -61,15 +63,19 @@ fn read_len(n: Names, i: usize) -> usize:
 >   %5 = Store [$3] %3 : ()
 >   %6 = Read copy [$3] : usize
 >   %7 = Ref local [*$2 .items [%6]] : &string
->   %8 = Break L0 %7 : never
->   %9 = Block - : &string
->   %10 = Scope %9 [] : &string
->   %11 = Ref local [*%10] : &string
->   %12 = LoanEnd [%10] : ()
->   %13 = Call std/text/impl string.len[] (%11) : usize
->   %14 = Drop [%11] : ()
->   %15 = LoanEnd [$2] : ()
->   %16 = Block %13 : usize
+>   %8 = LoanBegin %7 #0 : ()
+>   %9 = LoanClose %8 : ()
+>   %10 = Break L0 %7 : never
+>   %11 = Block - : &string
+>   %12 = Scope %11 [] : &string
+>   %13 = Ref local [*%12] : &string
+>   %14 = LoanEnd [%12] : ()
+>   %15 = LoanBegin %13 #0 : ()
+>   %16 = Call std/text/impl string.len[] (%13) : usize
+>   %17 = Drop [%13] : ()
+>   %18 = LoanEnd [$2] : ()
+>   %19 = LoanClose %15 : ()
+>   %20 = Block %16 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -115,13 +121,13 @@ fn generic_first(xs: List[string]) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %19 -> %20 lend last
+>     uses $1: %21 -> %22 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: &List[string] [read] value
 >     uses $4: %5 -> %8 lend last
 >   local $5 key: usize [read] value
 >     uses $5: %6 -> %7 lend last
->   %0 = Release %25 Exit local $0 #2 : ()
+>   %0 = Release %27 Exit local $0 #2 : ()
     first(xs).len()
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Box #3 #0 : ()
@@ -131,22 +137,24 @@ fn generic_first(xs: List[string]) -> usize:
 >   %6 = Store [$5] 0:usize : ()
 >   %7 = Read copy [$5] : usize
 >   %8 = Ref local [*$4 [%7]] : &string
->   %9 = Break L1 %8 : never
->   %10 = Block - : &string
->   %11 = Scope %10 [] : &string
->   %12 = Read borrow [*%11] : string
->   %13 = LoanEnd [%11] : ()
->   %14 = LoanEnd [$4] : ()
->   %15 = Break L2 %12 : never
+>   %9 = LoanBegin %8 #0 : ()
+>   %10 = LoanClose %9 : ()
+>   %11 = Break L1 %8 : never
+>   %12 = Block - : &string
+>   %13 = Scope %12 [] : &string
+>   %14 = Read borrow [*%13] : string
+>   %15 = LoanEnd [%13] : ()
 >   %16 = LoanEnd [$4] : ()
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Store [$1] %18 : ()
->   %20 = Read borrow [$1] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L0 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = Block %24 : usize
+>   %17 = Break L2 %14 : never
+>   %18 = LoanEnd [$4] : ()
+>   %19 = Block - : string
+>   %20 = Scope %19 [] : string
+>   %21 = Store [$1] %20 : ()
+>   %22 = Read borrow [$1] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Block %26 : usize
 >   storage sub 0: $3 slot
 >   summary kept [] borrows [$0]

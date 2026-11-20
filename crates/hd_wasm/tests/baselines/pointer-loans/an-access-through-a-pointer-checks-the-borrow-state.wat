@@ -83,9 +83,13 @@
     local.get $t1
     i32.const 0
     i32.store $heap offset=8
+    ;; 30 |     held := &mut t.lead
     local.get $t
+    ;; 32 |     *held = box(User { name: "c", age: +0 })
     i32.load $heap
+    ;; 30 |     held := &mut t.lead
     local.get $t
+    ;; 32 |     *held = box(User { name: "c", age: +0 })
     local.get $t1
     i32.store $heap
     local.tee $t1
@@ -99,27 +103,16 @@
         call $rt:release_ref
       end
     end
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+    end
     ;; 30 |     held := &mut t.lead
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
     local.get $t
     if
       local.get $t
@@ -263,7 +256,7 @@
     end
     local.get $t0
   )
-  (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $held i32) (local $t1 i32) (local $t2 i32)
+  (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 20 |     held := &t.lead.name
     local.get $t
     i32.const 4
@@ -289,10 +282,10 @@
     end
     local.get $t
     i32.load $heap
-    local.set $held
+    local.set $t1
     local.get $t0
     i32.load $heap
-    local.tee $t1
+    local.tee $t2
     i32.const 2031616
     i32.and
     i32.const 2031616
@@ -302,7 +295,7 @@
       call $rt:loan_share
     else
       local.get $t0
-      local.get $t1
+      local.get $t2
       i32.const 65536
       i32.add
       i32.store $heap
@@ -329,20 +322,22 @@
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
-    ;; 22 |     *held
-    local.get $held
-    i32.load $heap
-    local.tee $t1
-    local.get $held
-    i32.load $heap offset=4
-    local.tee $held
-    call $rt:retain
     ;; 20 |     held := &t.lead.name
+    local.get $t1
+    ;; 22 |     *held
+    i32.load $heap
+    local.tee $t2
+    ;; 20 |     held := &t.lead.name
+    local.get $t1
+    ;; 22 |     *held
+    i32.load $heap offset=4
+    local.tee $t1
+    call $rt:retain
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $t2
+      local.tee $t3
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -352,34 +347,13 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t2
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t2
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t2
+        local.get $t3
         i32.const 65536
         i32.sub
         i32.store $heap
       end
     end
+    ;; 20 |     held := &t.lead.name
     local.get $t
     if
       local.get $t
@@ -402,8 +376,8 @@
         call $rt:release_ref
       end
     end
+    local.get $t2
     local.get $t1
-    local.get $held
   )
   (func $lend_mut (param $t i32) (param $other i32) (local $t0 i32)
     ;; 25 |     held := &mut t.lead.age
@@ -456,27 +430,16 @@
     ;; 27 |     *held = +1
     i32.const 1
     i32.store $heap
+    local.get $t0
+    if
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+    end
     ;; 25 |     held := &mut t.lead.age
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
     local.get $t
     if
       local.get $t

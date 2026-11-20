@@ -5,7 +5,7 @@
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
+  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; 11 |     r := &mut p.value
     local.get $p
     i32.const 4
@@ -60,11 +60,14 @@
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
-    ;; 13 |     seen := *r
+    ;; 11 |     r := &mut p.value
     local.get $p
+    ;; 13 |     seen := *r
     i32.load $heap
     local.tee $t1
+    ;; 11 |     r := &mut p.value
     local.get $p
+    ;; 13 |     seen := *r
     i32.load $heap offset=4
     local.tee $t2
     call $rt:retain
@@ -76,8 +79,6 @@
       i32.const 2097152
       i32.sub
       i32.store $heap
-      i32.const 0
-      local.set $t0
     end
     ;; 14 |     alias.other = "c"
     local.get $alias
@@ -94,29 +95,20 @@
     local.get $alias
     i32.const 8
     i32.add
-    local.set $t3
+    local.set $t0
     drop
-    local.get $t3
+    local.get $t0
     i32.load $heap
-    local.get $t3
+    local.get $t0
     i32.load $heap offset=4
-    local.get $t3
+    local.get $t0
     i32.const 66 ;; &"c"
     i32.store $heap
-    local.get $t3
+    local.get $t0
     i32.const 1
     i32.store $heap offset=4
     call $rt:release
     ;; 11 |     r := &mut p.value
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
     local.get $p
     if
       local.get $p

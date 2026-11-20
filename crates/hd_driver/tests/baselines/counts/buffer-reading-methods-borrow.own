@@ -16,30 +16,37 @@ impl Bag:
         capacity := self.buffer.capacity()
 > std/rt_tests.stage_case/impl Bag.touch
 >   local $0 self: &mut Bag [param read] value
->     uses $0: entry -> %0 lend, %4 lend, %8 lend last
+>     uses $0: entry -> %0 lend, %6 lend, %13 lend last
 >   local $1 len: usize [param read] value
->     uses $1: entry -> %5 lend last
+>     uses $1: entry -> %8 lend last
 >   local $2 capacity: usize [:= read assigned] value
->     uses $2: %3 -> %13 lend last
+>     uses $2: %5 -> %20 lend last
 >   local $3 address: usize [:= read assigned] value
->     uses $3: %12 -> %14 lend last
+>     uses $3: %19 -> %21 lend last
 >   %0 = Ref local [*$0 .buffer] : &Buffer[i32]
->   %1 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%0) : usize
->   %2 = LoanEnd [%0] : ()
->   %3 = Store [$2] %1 : ()
->   %16 = Block %15 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%0) : usize
+>   %3 = LoanEnd [%0] : ()
+>   %4 = LoanClose %1 : ()
+>   %5 = Store [$2] %2 : ()
+>   %23 = Block %22 : usize
         self.buffer.grow(len)
->   %4 = Ref mut local [*$0 .buffer] : &mut Buffer[i32]
->   %5 = Read copy [$1] : usize
->   %6 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].grow[i32] (%4, %5) : ()
->   %7 = LoanEnd [%4] : ()
+>   %6 = Ref mut local [*$0 .buffer] : &mut Buffer[i32]
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Read copy [$1] : usize
+>   %9 = LoanBegin %6 #2 : ()
+>   %10 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].grow[i32] (%6, %8) : ()
+>   %11 = LoanEnd [%6] : ()
+>   %12 = LoanClose %7 : ()
         address := self.buffer.at(0).address
->   %8 = Ref local [*$0 .buffer] : &Buffer[i32]
->   %9 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%8, 0:usize) : Ptr[i32]
->   %10 = LoanEnd [%8] : ()
->   %11 = Read copy [%9 .address] : usize
->   %12 = Store [$3] %11 : ()
+>   %13 = Ref local [*$0 .buffer] : &Buffer[i32]
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%13, 0:usize) : Ptr[i32]
+>   %16 = LoanEnd [%13] : ()
+>   %17 = LoanClose %14 : ()
+>   %18 = Read copy [%15 .address] : usize
+>   %19 = Store [$3] %18 : ()
         capacity + address
->   %13 = Read copy [$2] : usize
->   %14 = Read copy [$3] : usize
->   %15 = Prim Add [%13 %14] : usize
+>   %20 = Read copy [$2] : usize
+>   %21 = Read copy [$3] : usize
+>   %22 = Prim Add [%20 %21] : usize

@@ -98,7 +98,6 @@ impl Em<'_, '_, '_> {
             self.f.set(code);
         }
         self.close();
-        self.borrow_scope_end(i);
         for ((&s, &f), w) in suites.iter().zip(&flags).zip(&waits).rev() {
             // Registered, or resumed into. A suite that ran clears its
             // flag, so a resume into a later rung skips it.
@@ -157,35 +156,6 @@ impl Em<'_, '_, '_> {
         }
         self.scope_exits(i, code);
         Ok(())
-    }
-
-    /// Reuse the defer exit ladder for abandoned call arguments.
-    pub(super) fn loan_scope_begin(&mut self, i: u32) {
-        if !self.borrow_has_scope(i) {
-            return;
-        }
-        ledger!("scope/loan-ladder");
-        let code = self.f.local(Val::I32);
-        self.scopes.insert(
-            i,
-            ScopeInfo {
-                code,
-                exits: Vec::new(),
-                index: hd_base::HashMap::default(),
-            },
-        );
-        self.open(Ctl::Scope(i));
-    }
-
-    pub(super) fn loan_scope_end(&mut self, i: u32) {
-        if !self.borrow_has_scope(i) {
-            return;
-        }
-        let code = self.scopes[&i].code;
-        self.f.zero(code);
-        self.close();
-        self.borrow_scope_end(i);
-        self.scope_exits(i, code);
     }
 
     fn scope_exits(&mut self, i: u32, code: u32) {

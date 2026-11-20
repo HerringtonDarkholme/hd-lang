@@ -1,0 +1,16 @@
+# @dump: tir
+# A site re-run in a loop begins again; its holder lives across the back
+# edge, so the loans close after the loop (`ref.excl.alias.loan`).
+struct Node:
+    value: usize
+    children: List[*mut Node]
+
+fn sum(head: *mut Node) -> usize:
+    let current = &*head
+    let total = 0
+    while true:
+        total += current.value
+        if current.children.is_empty():
+            break
+        current = &*current.children[0]
+    total

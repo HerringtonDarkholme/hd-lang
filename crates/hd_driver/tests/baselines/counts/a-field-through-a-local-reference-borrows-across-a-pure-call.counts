@@ -26,10 +26,10 @@ impl Reader:
 
     fn tally(&mut self, facts: Facts) -> void:
         for _ in 0..facts.items.len():
-> app/main/impl Reader.tally
->   release *mut app.main.Frame? (last use)
             self.seen = self.seen + 1
             _ := self.frames.pop()
+> app/main/impl Reader.tally
+>   release *mut app.main.Frame? (last use)
 
     fn name(&mut self, m: &Member) -> string:
         frame := self.top()

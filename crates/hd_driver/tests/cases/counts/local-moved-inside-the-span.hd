@@ -1,5 +1,8 @@
 # @dump: counts
 # @build: v8 release
+# expected: no count operations; today one final release of `b` remains, as
+# the loan placed on its lent read keeps the local reached
+# (/tmp/lt235/lent-local-keeps-its-final-release.md).
 # Release inlining leaves both readers borrowing `b`: `Holder` borrows
 # the same box, so its end does not consume the owner's count while
 # `keep` still reads it. The original local retains its final cleanup.

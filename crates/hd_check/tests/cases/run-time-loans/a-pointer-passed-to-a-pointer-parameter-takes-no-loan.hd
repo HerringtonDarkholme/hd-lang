@@ -1,0 +1,19 @@
+# @dump: tir
+# Passing a `*T` to a `*T` parameter is no access and takes no loan; a
+# `*T` lent to a `&mut self` method is lent, shared until the call starts
+# (two-phase): an activation stands right before the call.
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn set(&mut self, x: i32) -> void:
+        self.value = x
+    fn get(&self) -> i32:
+        self.value
+
+fn keep(c: *mut Counter) -> void:
+    c.value = 1
+
+fn both(p: *mut Counter, alias: *mut Counter) -> void:
+    keep(p)
+    p.set(alias.get() + 1)

@@ -1,0 +1,15 @@
+# @dump: tir
+# `n` points into the `User` that `r`'s `Team` holds: a `*T` read through
+# a reference, and a place on it, hold the reference's loan, so `r`'s loan
+# lives until `*n` (`ref.excl.alias.path-pointer`).
+struct User:
+    name: string
+
+struct Team:
+    lead: *mut User
+
+fn swap_lead(t: *mut Team, alias: *mut Team, other: *mut User) -> string:
+    r := &*t
+    n := &r.lead.name
+    alias.lead = other
+    *n

@@ -387,7 +387,104 @@ fn inline_bound_calls(
             b.local_flags[l as usize] &= !local_flags::CAPTURED;
         }
     }
+    carry_inner_loans(b)?;
     Ok(copied)
+}
+
+/// After the copies: a copied call's INNER loan (`LoanBegin` naming the
+/// `Scope` its call became, `crate::own::loans`) stood for the loans the
+/// callee's result carries out, which the callee closed where its result
+/// left it: at its root's end and before each `return`. Those closes move
+/// to where the caller closed the INNER loan, which goes: the loans the
+/// result holds then live while the caller's holders of it do, as the
+/// checker placed them for the call. Cost: one pass over the body, then
+/// each moved close.
+fn carry_inner_loans(b: &mut Body) -> Result<(), String> {
+    let n = b.len();
+    let inner: Vec<(u32, u32)> = (0..n)
+        .filter(|&i| {
+            b.tags[i] == Tag::LoanBegin
+                && b.data[i][1] & crate::ir::loan_word::INNER != 0
+                && b.tags.get(b.data[i][0] as usize) == Some(&Tag::Scope)
+        })
+        .map(|i| (u32_of(i), b.data[i][0]))
+        .collect();
+    if inner.is_empty() {
+        return Ok(());
+    }
+    let topo = crate::ir::Topology::new(b);
+    let mut closes: HashMap<u32, Vec<u32>> = HashMap::default();
+    let mut breaks: HashMap<u32, Vec<u32>> = HashMap::default();
+    for i in 0..n {
+        match b.tags[i] {
+            Tag::LoanClose => closes.entry(b.data[i][0]).or_default().push(u32_of(i)),
+            Tag::Break => {
+                if let Some(&to) = b.label_inst.get(b.data[i][0] as usize) {
+                    breaks.entry(to).or_default().push(u32_of(i));
+                }
+            }
+            _ => {}
+        }
+    }
+    // The closes in a block just before position `end`.
+    let trailing = |blk: u32, end: usize, out: &mut Vec<u32>| {
+        let members = b.record(b.data[blk as usize][0]);
+        for &m in members[..end].iter().rev() {
+            match b.tags[m as usize] {
+                Tag::LoanClose => out.push(m),
+                Tag::Block => {}
+                _ => break,
+            }
+        }
+    };
+    let mut edits = crate::own::splice::Tables::default();
+    let mut retarget = Vec::new();
+    for (x, scope) in inner {
+        let body = b.data[scope as usize][0];
+        if b.tags.get(body as usize) != Some(&Tag::Block) {
+            continue;
+        }
+        let mut carried = Vec::new();
+        trailing(body, b.record(b.data[body as usize][0]).len(), &mut carried);
+        let targets = [scope, body];
+        for &j in targets
+            .iter()
+            .flat_map(|t| breaks.get(t).into_iter().flatten())
+        {
+            let blk = topo.blk[j as usize];
+            if blk != NONE {
+                trailing(blk, topo.pos[j as usize] as usize, &mut carried);
+            }
+        }
+        if carried.is_empty() {
+            continue;
+        }
+        let mut ys: Vec<u32> = carried.iter().map(|&c| b.data[c as usize][0]).collect();
+        ys.sort_stable();
+        ys.dedup();
+        for &c in &carried {
+            edits.remove(c);
+        }
+        edits.remove(x);
+        for &c in closes.get(&x).into_iter().flatten() {
+            retarget.push((c, ys[0]));
+            let (blk, pos) = (topo.blk[c as usize], topo.pos[c as usize] + 1);
+            for &y in &ys[1..] {
+                edits.insert(
+                    blk,
+                    pos,
+                    Tag::LoanClose,
+                    [y, NONE],
+                    Ty::VOID,
+                    b.syn[c as usize],
+                );
+            }
+        }
+    }
+    for (c, y) in retarget {
+        b.data[c as usize][0] = y;
+    }
+    crate::own::splice::apply(b, &topo, &mut edits)
 }
 
 /// Whether local `l` of `b`, whose `Ref`s a by-value binding now reads

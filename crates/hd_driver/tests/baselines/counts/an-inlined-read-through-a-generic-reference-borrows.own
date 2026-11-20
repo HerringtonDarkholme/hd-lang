@@ -5,15 +5,17 @@ app/main/impl[S] Source[S].empty_at
   local $1 members: *Rec[S] [param read] value
     uses $1: entry -> %2 lend last
   local $2 self: List[string] [read] value
-    uses $2: %3 -> %4 lend last
+    uses $2: %4 -> %5 lend last
   %1 = Read copy [*$0 .at] : usize
   %2 = Read borrow [*$1 .infos [%1] .facts .items] : List[string]
-  %3 = Store [$2] %2 : ()
-  %4 = Read borrow [$2] : List[string]
-  %5 = Intrinsic ListLen [%4] : usize
-  %6 = Prim Eq [%5 0:usize] : bool
-  %7 = Break L0 %6 : never
-  %8 = Block - : bool
-  %9 = Scope %8 [] : bool
-  %10 = Block %9 : bool
+  %3 = LoanBegin %2 #0 : ()
+  %4 = Store [$2] %2 : ()
+  %5 = Read borrow [$2] : List[string]
+  %6 = Intrinsic ListLen [%5] : usize
+  %7 = Prim Eq [%6 0:usize] : bool
+  %8 = Break L0 %7 : never
+  %9 = Block - : bool
+  %10 = Scope %9 [] : bool
+  %11 = LoanClose %3 : ()
+  %12 = Block %10 : bool
   summary kept [] borrows [$1]

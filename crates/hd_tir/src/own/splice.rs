@@ -177,6 +177,22 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
     for &x in &t.removed {
         t.dead[x as usize] = true;
     }
+    // A deleted loan site takes its loan along: the `LoanBegin` that names
+    // it and every `LoanClose` of that begin. Begins come after their site
+    // and closes name a begin, so two passes in order find them all.
+    if !t.removed.is_empty() {
+        for tag in [Tag::LoanBegin, Tag::LoanClose] {
+            for i in 0..n {
+                if b.tags[i] == tag
+                    && !t.dead[i]
+                    && t.dead.get(b.data[i][0] as usize) == Some(&true)
+                {
+                    t.dead[i] = true;
+                    t.removed.push(u32_of(i));
+                }
+            }
+        }
+    }
     // Each edit's column position: before the first instruction of the
     // statement it precedes, or after a block's last statement.
     t.anchor.clear();

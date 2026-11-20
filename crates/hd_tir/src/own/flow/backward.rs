@@ -10,6 +10,8 @@ use crate::ir::{Body, NONE, Ref, Tag, Topology};
 #[derive(Clone, Copy)]
 enum Action {
     None,
+    /// A block's start, which observes and changes nothing.
+    Enter(u32),
     Stmt(u32),
     Finish(u32),
     Tail(u32),
@@ -36,7 +38,7 @@ impl Graph {
         let node = self.actions.len();
         let block = b.tags.get(x as usize) == Some(&Tag::Block);
         self.actions.extend(if block {
-            [Action::None; 2]
+            [Action::Enter(x), Action::None]
         } else {
             [Action::Finish(x), Action::Stmt(x)]
         });
@@ -222,6 +224,7 @@ impl Graph {
         charge(1);
         match self.actions[node] {
             Action::None => {}
+            Action::Enter(blk) => a.enter(b, blk, &mut s.arena, at),
             Action::Stmt(x) => a.stmt(b, x, &mut s.arena, at),
             Action::Tail(v) => a.uses(b, v, &mut s.arena, at),
             Action::Finish(x) => {

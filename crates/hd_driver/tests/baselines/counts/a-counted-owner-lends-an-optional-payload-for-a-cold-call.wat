@@ -40,7 +40,6 @@
     i32.const 2
     ;; 16 |     callback(.Some(owner))
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    ;; 14 |     let owner: *i32 = box(+7)
     local.get $t0
     if
       local.get $t0

@@ -1,0 +1,14 @@
+# @dump: tir
+# A tuple's slots say which loan each part holds: `._0` keeps only the first
+# loan, so the second closes after the tuple's last use.
+struct Slots:
+    items: List[string]
+
+impl Slots:
+    fn at['a](&'a self, index: usize) -> &'a string:
+        &self.items[index]
+
+fn pick(p: *mut Slots, q: *mut Slots) -> string:
+    first := (p.at(0), q.at(0))._0
+    q.items.push("x")
+    *first

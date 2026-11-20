@@ -1,10 +1,12 @@
 //! Whole-program pointer-loan decisions, after instance and layout resolution.
 //!
-//! This is a link-time result table, not loan begin/end statements in TIR.
-//! The context supplies program facts; this pass alone computes source-deduplicated
-//! accesses, transitive call effects, trait payload types and kept loan sites.
+//! The checker places each loan as `LoanBegin`/`LoanClose` statements; this
+//! link-time pass reads each loan's range from them and keeps the loans an
+//! access in range may meet. The context supplies program facts; this pass
+//! alone computes source-deduplicated accesses, transitive call effects,
+//! trait payload types and kept loan sites.
 
-use crate::ir::{Body, Place, PlaceRoot, Proj, Tag};
+use crate::ir::{Body, NONE, Place, PlaceRoot, Proj, Tag, loan_word};
 use hd_base::{DefId, HashMap, HashSet, InstId, NodeIdx, SliceSort as _};
 use hd_types::{Ty, TyList};
 
@@ -27,19 +29,6 @@ pub struct Call {
     pub default: bool,
     pub callees: Option<Vec<Option<InstId>>>,
 }
-
-/// A holder's structural source, before deciding whether to take a loan.
-#[derive(Clone, Copy)]
-pub enum Binding {
-    Reference(u32),
-    CallArgument(u32),
-    /// The containing objects of an argument whose call was inlined.
-    CallParent(u32),
-    Other,
-}
-
-/// The store, holder slot and source of a reference binding.
-pub type Holder = (usize, (usize, usize), Binding);
 
 /// One reachable trait conversion and its vtable's trait/supertrait order.
 pub struct Conversion {
@@ -65,9 +54,6 @@ pub trait Context {
     fn receiver(&self, id: InstId, instruction: usize) -> Option<Option<bool>>;
     fn params(&self, id: InstId, instruction: u32) -> Vec<Ty>;
     fn dyn_receiver(&self, id: InstId, value: usize) -> Option<DefId>;
-    fn bindings(&self, id: InstId) -> Vec<Holder>;
-    fn held_mutable(&self, id: InstId, held: (usize, usize)) -> bool;
-    fn carried_refs(&self, id: InstId, value: usize) -> Vec<u32>;
     fn param_locals(&self, id: InstId) -> Vec<usize>;
     fn conversions(&self) -> Vec<Conversion>;
 }
@@ -77,7 +63,6 @@ pub trait Context {
 pub struct Decisions {
     pub kept: HashSet<LoanSite>,
     pub lent: HashMap<Ty, bool>,
-    pub result_inner: HashSet<(InstId, u32)>,
     pub dyn_types: HashMap<DefId, Vec<Ty>>,
 }
 
@@ -434,169 +419,89 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 .get_or_init(|| EffectIndex::new(&accs[id], &sums))
                 .meets(from, to, excluded, ty, exclusive)
         };
-        let bindings = cx.bindings(*id);
-        // A holder's loans: its whole function.
-        for &(_, _, bind) in &bindings {
-            let Binding::Reference(a) = bind else {
-                continue;
-            };
-            let Some(v) = b.direct_value(a).filter(|&v| b.tags[v] == Tag::Ref) else {
-                continue;
-            };
-            let vu = u32::try_from(v).expect("insts");
-            ref_sites(cx, b, *id, vu, |site, object, excl| {
-                if program(object, excl, accs[id].get(&vu)) && meets(0, n, &[vu], object, excl) {
-                    kept.push((site, object, excl));
-                }
-            });
+        // Each loan's range: from its site, or from the start of a loop
+        // whose next round it may outlive (a close past the loop), to its
+        // last `LoanClose`, or the body's end with none. Cost: one pass over
+        // the instance's instructions, then each begin's loops.
+        let topo = crate::ir::Topology::new(b);
+        let mut last_close: HashMap<u32, u32> = HashMap::default();
+        // A two-phase site's loan becomes exclusive at its call.
+        let mut activated: HashSet<u32> = HashSet::default();
+        for &i in cx.instructions(*id) {
+            if b.tags[i] == Tag::LoanClose {
+                let end = last_close.entry(b.data[i][0]).or_insert(0);
+                *end = (*end).max(u32::try_from(i).expect("insts") + 1);
+            }
+            if b.tags[i] == Tag::LoanBegin && b.data[i][1] & loan_word::ACTIVATE != 0 {
+                activated.insert(b.data[i][0]);
+            }
         }
-        // A call's result's loans: its whole function (phase 5).
-        for (i, held, bind) in bindings {
-            let (a, parents) = match bind {
-                Binding::CallArgument(a) => (a, false),
-                Binding::CallParent(a) => (a, true),
-                _ => continue,
-            };
-            let iu = u32::try_from(i).expect("insts");
-            let call = b.held_args.iter().find(|x| x.1 == a).map(|x| x.0 as usize);
-            let (Some(c), Some(v), Some(s)) =
-                (call, b.direct_value(a), b.direct_value(b.data[i][1]))
-            else {
-                continue;
-            };
-            let (cu, vu) = (
-                u32::try_from(c).expect("insts"),
-                u32::try_from(v).expect("insts"),
-            );
-            if !b.held_args.contains(&(cu, a)) {
+        for &i in cx.instructions(*id) {
+            if b.tags[i] != Tag::LoanBegin {
                 continue;
             }
-            let excl = [c, s].iter().any(|&x| mutable(cx, b.ty[x])) || cx.held_mutable(*id, held);
-            let mut heads: Vec<(u32, Ty)> = Vec::new();
-            match b.tags[v] {
-                Tag::Ref => {
-                    let Some(p) = b.decode_place(b.data[v][0]) else {
-                        continue;
-                    };
-                    let Some(crossed) = cx.place_crossings(*id, &p) else {
-                        continue;
-                    };
-                    for (k, t) in crossed {
-                        heads.push((u32::try_from(k).expect("steps"), t));
+            let [v, word] = b.data[i];
+            if word & loan_word::ACTIVATE != 0 {
+                continue;
+            }
+            let iu = crate::ir::u32_of(i);
+            let hi = last_close.get(&iu).copied().unwrap_or(n);
+            let mut lo = v;
+            let mut l = topo.loop_of[v as usize];
+            while l != NONE {
+                if hi > l {
+                    lo = lo.min(topo.first[l as usize]);
+                }
+                l = topo.loop_of[l as usize];
+            }
+            let excl = word & loan_word::EXCL != 0 || activated.contains(&v);
+            let own = accs[id].get(&v);
+            if word & loan_word::INNER != 0 {
+                // The object a call's returned reference points into, past
+                // the argument's own: the callee reached it through a pointer.
+                let callee = match accs[id].get(&v).map(|x| &x.callees[..]) {
+                    Some([callee]) => Some(*callee),
+                    _ => None,
+                };
+                let inner: Vec<Ty> = (callee.into_iter())
+                    .flat_map(|c| {
+                        (0..call_args(b, v as usize).len())
+                            .flat_map(move |k| returned_inner(cx, c, k))
+                    })
+                    .collect();
+                if inner
+                    .iter()
+                    .any(|&t| program(t, excl, None) && meets(lo, hi, &[v], t, excl))
+                {
+                    for &t in &inner {
+                        kept.push(((*id, v, u32::MAX - 1), t, excl));
                     }
                 }
-                Tag::Read => {
-                    if let Some(Reference {
+                continue;
+            }
+            ref_sites(cx, b, *id, v, |site, object, x| {
+                if program(object, x, own) && meets(lo, hi, &[v], object, x) {
+                    kept.push((site, object, x));
+                }
+            });
+            if b.tags[v as usize] != Tag::Ref {
+                // A lent `*T` (read, or forwarded to its value): its whole
+                // object, or a `*dyn` receiver's payload types.
+                let whole = match cx.reference(b.ty[v as usize]) {
+                    Some(Reference {
                         target,
                         whole: true,
                         fat: false,
                         ..
-                    }) = cx.reference(b.ty[v])
-                    {
-                        // The result also depends on every object that keeps
-                        // the counted pointer slot alive. A local-reference
-                        // read instead keeps its independent source.
-                        if let Some(p) = b.decode_place(b.data[v][0])
-                            && let Some(crossed) = cx.place_crossings(*id, &p)
-                        {
-                            for (k, t) in crossed {
-                                heads.push((u32::try_from(k).expect("steps"), t));
-                            }
-                        }
-                        if !parents {
-                            heads.push((u32::MAX, target));
-                        }
-                    }
-                }
-                _ => {}
-            }
-            if heads.is_empty() {
-                continue;
-            }
-            let k_arg = call_args(b, c).iter().position(|&x| x == a);
-            let inner = match (k_arg, accs[id].get(&cu).map(|x| &x.callees[..])) {
-                (Some(k), Some([callee])) if !parents => returned_inner(cx, *callee, k),
-                _ => Vec::new(),
-            };
-            // The call and its argument make the loan; neither is in its range.
-            let last = heads.len() - 1;
-            for (j, (k, t)) in heads.iter().enumerate() {
-                let x = !parents && excl && inner.is_empty() && j == last;
-                if program(*t, x, accs[id].get(&vu)) && meets(0, n, &[vu, cu], *t, x) {
-                    kept.push(((*id, iu, *k), *t, x));
-                }
-            }
-            if !inner.is_empty() {
-                out.result_inner.insert((*id, iu));
-                if inner
-                    .iter()
-                    .any(|t| program(*t, excl, None) && meets(0, n, &[vu, cu], *t, excl))
-                {
-                    for t in &inner {
-                        kept.push(((*id, iu, u32::MAX - 1), *t, excl));
-                    }
-                }
-            }
-        }
-        // Call loans: from the argument to the call, and the callee.
-        for &i in cx.instructions(*id) {
-            let iu = u32::try_from(i).expect("insts");
-            let Some(receiver) = cx.receiver(*id, i) else {
-                continue;
-            };
-            let params = cx.params(*id, iu);
-            // The call's own row has only callee effects. Include it in
-            // the indexed range instead of rebuilding the callee union.
-            let call_end = iu + 1;
-            for (k, a) in call_args(b, i).into_iter().enumerate() {
-                let Some(v) = b.direct_value(a) else {
-                    continue;
+                    }) => vec![target],
+                    _ => cx
+                        .dyn_receiver(*id, v as usize)
+                        .and_then(|tr| out.dyn_types.get(&tr).cloned())
+                        .unwrap_or_default(),
                 };
-                let vu = u32::try_from(v).expect("insts");
-                if b.tags[v] == Tag::Ref {
-                    ref_sites(cx, b, *id, vu, |site, object, excl| {
-                        if program(object, excl, accs[id].get(&vu))
-                            && meets((vu + 1).min(iu), call_end, &[], object, excl)
-                        {
-                            kept.push((site, object, excl));
-                        }
-                    });
-                }
-                if b.tags[v] == Tag::Read {
-                    let lent =
-                        lent_objects(cx, &out.dyn_types, *id, b, params.get(k), v, k, receiver);
-                    // The pointer the call lends is read from its place, so
-                    // the loan also holds each object that place crosses,
-                    // as a `Ref` argument's does (`ref.excl.alias.path-pointer`):
-                    // replacing the pointer slot during the call conflicts.
-                    if !lent.is_empty() {
-                        ref_sites(cx, b, *id, vu, |site, object, excl| {
-                            if program(object, excl, accs[id].get(&vu))
-                                && meets((vu + 1).min(iu), call_end, &[], object, excl)
-                            {
-                                kept.push((site, object, excl));
-                            }
-                        });
-                    }
-                    for (mutable, target) in lent {
-                        if program(target, mutable, accs[id].get(&vu))
-                            && meets((vu + 1).min(iu), call_end, &[], target, mutable)
-                        {
-                            kept.push(((*id, vu, u32::MAX), target, mutable));
-                        }
-                    }
-                }
-                if b.tags[v] != Tag::Ref {
-                    // A `Ref` the argument carries through calls'
-                    // results: its loan runs from it to this call.
-                    for r in cx.carried_refs(*id, v) {
-                        ref_sites(cx, b, *id, r, |site, object, excl| {
-                            if program(object, excl, accs[id].get(&r))
-                                && meets((r + 1).min(iu), call_end, &[], object, excl)
-                            {
-                                kept.push((site, object, excl));
-                            }
-                        });
+                for t in whole {
+                    if program(t, excl, own) && meets(lo, hi, &[v], t, excl) {
+                        kept.push(((*id, v, u32::MAX), t, excl));
                     }
                 }
             }

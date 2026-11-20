@@ -223,7 +223,6 @@
         br 0
       end
     end
-    ;; 17 |     sink.emit(node.value)
     local.get $node
     if
       local.get $node

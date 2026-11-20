@@ -788,7 +788,6 @@ impl Em<'_, '_, '_> {
     /// Releases the count local `l` (Wasm locals `ls`) holds. A binding
     /// local ([`Em::loan_locals`]) holds a borrow, with no count.
     fn release_owned_local(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
-        self.borrow_release(l);
         if self.owned_locals.contains(&l) {
             let t = self.b.local_ty[l];
             if self.fat_local_ref(t) {
@@ -862,11 +861,6 @@ impl Em<'_, '_, '_> {
         // the move pass may omit it from `exit_drops`. Its contained
         // run-time loans still end when the value is released here.
         self.borrow_exit();
-        for l in self.borrow_locals() {
-            if !released.contains(&l) {
-                self.borrow_release(l);
-            }
-        }
         // Exit release descriptors are lowered here on every return, but
         // for a parameter this instance receives lent: the whole-program
         // pass lends it, or its type here is no owned one.
@@ -1159,9 +1153,6 @@ impl Em<'_, '_, '_> {
             };
         }
         let ls = self.local(u32::try_from(l).expect("locals"))?;
-        if mode == Some(ReadMode::Move) {
-            self.borrow_moved_slots(i, l, 0..ls.len());
-        }
         for x in &ls {
             self.f.get(*x);
         }

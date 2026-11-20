@@ -1,0 +1,16 @@
+# @dump: tir
+# A `Ref` through a pointer begins a run-time loan right after it, and the
+# loan closes after the last use of the local that holds it, before the
+# alias write (`ref.excl.alias.loan`).
+struct User:
+    name: string
+    age: i32
+
+struct Team:
+    lead: *mut User
+
+fn rename(t: *mut Team, alias: *mut Team) -> i32:
+    n := &t.lead.age
+    let k = *n
+    alias.lead.age += 1
+    k

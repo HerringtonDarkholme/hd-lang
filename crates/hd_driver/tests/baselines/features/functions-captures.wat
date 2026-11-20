@@ -87,6 +87,7 @@
   (func $copied (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 11 |     f := fn() -> usize: s.len()
     local.get $s.1
+    ;; 12 |     f() + s.len()
     local.get $s.1
     ;; (no span)
     i32.add

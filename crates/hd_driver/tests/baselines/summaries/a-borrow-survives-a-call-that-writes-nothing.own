@@ -15,26 +15,30 @@ impl Node:
 >   local $0 self: &Node [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 left: *Node [read assigned] value
->     uses $1: %13 -> %2 lend, %5 lend last
+>     uses $1: %17 -> %2 lend, %7 lend last
 >   %0 = Read borrow [*$0 .left] : *Node?
->   %17 = Block - : never
->   %18 = Match %0 [%17 %1 %9] : usize
->   %19 = Block %18 : usize
+>   %21 = Block - : never
+>   %22 = Match %0 [%21 %1 %13] : usize
+>   %23 = Block %22 : usize
             .None => 0
 >   %1 = Block 0:usize : usize
->   %11 = Block - : never
->   %16 = SwitchTag %0 [#0 %11 %15] : never
+>   %15 = Block - : never
+>   %20 = SwitchTag %0 [#0 %15 %19] : never
             .Some(left) => depth(left) + depth(left)
 >   %2 = Ref local [*$1] : &Node
->   %3 = Call app/main/depth[] (%2) : usize
->   %4 = LoanEnd [%2] : ()
->   %5 = Ref local [*$1] : &Node
->   %6 = Call app/main/depth[] (%5) : usize
->   %7 = LoanEnd [%5] : ()
->   %8 = Prim Add [%3 %6] : usize
->   %9 = Block %8 : usize
->   %12 = Read borrow [%0 as #1 .0] : *Node
->   %13 = Store [$1] %12 : ()
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Call app/main/depth[] (%2) : usize
+>   %5 = LoanEnd [%2] : ()
+>   %6 = LoanClose %3 : ()
+>   %7 = Ref local [*$1] : &Node
+>   %8 = LoanBegin %7 #0 : ()
+>   %9 = Call app/main/depth[] (%7) : usize
+>   %10 = LoanEnd [%7] : ()
+>   %11 = LoanClose %8 : ()
+>   %12 = Prim Add [%4 %9] : usize
+>   %13 = Block %12 : usize
+>   %16 = Read borrow [%0 as #1 .0] : *Node
+>   %17 = Store [$1] %16 : ()
 >   summary kept []
 
 fn depth(node: &Node) -> usize:
@@ -43,23 +47,25 @@ fn depth(node: &Node) -> usize:
 >   local $0 node: &Node [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 left: *Node [read assigned] value
->     uses $1: %10 -> %2 lend last
+>     uses $1: %12 -> %2 lend last
 >   %0 = Read borrow [*$0 .left] : *Node?
->   %14 = Block - : never
->   %15 = Match %0 [%14 %1 %6] : usize
->   %16 = Block %15 : usize
+>   %16 = Block - : never
+>   %17 = Match %0 [%16 %1 %8] : usize
+>   %18 = Block %17 : usize
         .None => 1
 >   %1 = Block 1:usize : usize
->   %8 = Block - : never
->   %13 = SwitchTag %0 [#0 %8 %12] : never
+>   %10 = Block - : never
+>   %15 = SwitchTag %0 [#0 %10 %14] : never
         .Some(left) => 1 + depth(left)
 >   %2 = Ref local [*$1] : &Node
->   %3 = Call app/main/depth[] (%2) : usize
->   %4 = LoanEnd [%2] : ()
->   %5 = Prim Add [1:usize %3] : usize
->   %6 = Block %5 : usize
->   %9 = Read borrow [%0 as #1 .0] : *Node
->   %10 = Store [$1] %9 : ()
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Call app/main/depth[] (%2) : usize
+>   %5 = LoanEnd [%2] : ()
+>   %6 = LoanClose %3 : ()
+>   %7 = Prim Add [1:usize %4] : usize
+>   %8 = Block %7 : usize
+>   %11 = Read borrow [%0 as #1 .0] : *Node
+>   %12 = Store [$1] %11 : ()
 >   summary kept [] recursive
 
 fn check(node: &Node) -> i64:
@@ -68,43 +74,49 @@ fn check(node: &Node) -> i64:
 >   local $0 node: &Node [param read] value
 >     uses $0: entry -> %0 lend, %2 lend last
 >   local $1 left: *Node [read assigned] value
->     uses $1: %30 -> %3 lend last, %8 lend last
+>     uses $1: %36 -> %3 lend last, %10 lend last
 >   local $2 right: *Node [read assigned] value
->     uses $2: %20 -> %12 lend last
+>     uses $2: %26 -> %16 lend last
 >   %0 = Read borrow [*$0 .left] : *Node?
->   %34 = Block - : never
->   %35 = Match %0 [%34 %1 %26] : i64
->   %36 = Block %35 : i64
+>   %40 = Block - : never
+>   %41 = Match %0 [%40 %1 %32] : i64
+>   %42 = Block %41 : i64
         .None => 1
 >   %1 = Block 1:i64 : i64
->   %28 = Block - : never
->   %33 = SwitchTag %0 [#0 %28 %32] : never
+>   %34 = Block - : never
+>   %39 = SwitchTag %0 [#0 %34 %38] : never
         .Some(left) =>
->   %29 = Read borrow [%0 as #1 .0] : *Node
->   %30 = Store [$1] %29 : ()
+>   %35 = Read borrow [%0 as #1 .0] : *Node
+>   %36 = Store [$1] %35 : ()
             match node.right:
 >   %2 = Read borrow [*$0 .right] : *Node?
->   %24 = Block - : never
->   %25 = Match %2 [%24 %7 %16] : i64
->   %26 = Block %25 : i64
+>   %30 = Block - : never
+>   %31 = Match %2 [%30 %9 %22] : i64
+>   %32 = Block %31 : i64
                 .None => 1 + check(left)
 >   %3 = Ref local [*$1] : &Node
->   %4 = Call app/main/check[] (%3) : i64
->   %5 = LoanEnd [%3] : ()
->   %6 = Prim Add [1:i64 %4] : i64
->   %7 = Block %6 : i64
->   %18 = Block - : never
->   %23 = SwitchTag %2 [#0 %18 %22] : never
+>   %4 = LoanBegin %3 #0 : ()
+>   %5 = Call app/main/check[] (%3) : i64
+>   %6 = LoanEnd [%3] : ()
+>   %7 = LoanClose %4 : ()
+>   %8 = Prim Add [1:i64 %5] : i64
+>   %9 = Block %8 : i64
+>   %24 = Block - : never
+>   %29 = SwitchTag %2 [#0 %24 %28] : never
                 .Some(right) => 1 + check(left) + check(right)
->   %8 = Ref local [*$1] : &Node
->   %9 = Call app/main/check[] (%8) : i64
->   %10 = LoanEnd [%8] : ()
->   %11 = Prim Add [1:i64 %9] : i64
->   %12 = Ref local [*$2] : &Node
->   %13 = Call app/main/check[] (%12) : i64
->   %14 = LoanEnd [%12] : ()
->   %15 = Prim Add [%11 %13] : i64
->   %16 = Block %15 : i64
->   %19 = Read borrow [%2 as #1 .0] : *Node
->   %20 = Store [$2] %19 : ()
+>   %10 = Ref local [*$1] : &Node
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Call app/main/check[] (%10) : i64
+>   %13 = LoanEnd [%10] : ()
+>   %14 = LoanClose %11 : ()
+>   %15 = Prim Add [1:i64 %12] : i64
+>   %16 = Ref local [*$2] : &Node
+>   %17 = LoanBegin %16 #0 : ()
+>   %18 = Call app/main/check[] (%16) : i64
+>   %19 = LoanEnd [%16] : ()
+>   %20 = LoanClose %17 : ()
+>   %21 = Prim Add [%15 %18] : i64
+>   %22 = Block %21 : i64
+>   %25 = Read borrow [%2 as #1 .0] : *Node
+>   %26 = Store [$2] %25 : ()
 >   summary kept [] recursive

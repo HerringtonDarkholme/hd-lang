@@ -26,8 +26,10 @@ fn measure(s: &dyn Shape) -> i64:
 >   local $0 s: &dyn Shape [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [*$0] : Shape
->   %1 = Call app/main/Shape.area for Shape [] via TraitValue (%0) : i64
->   %2 = Block %1 : i64
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/Shape.area for Shape [] via TraitValue (%0) : i64
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : i64
 
 fn caller(n: i64) -> i64:
     q := Square { side: n }

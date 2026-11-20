@@ -156,22 +156,24 @@ fn by_ref(r: &mut Res) -> usize:
 >     uses $0: entry -> %0 consume last
 >   local $1 held: &mut Res [:= read assigned] place
 >   local $2 self: string [read] value
->     uses $2: %7 -> %8 lend last
+>     uses $2: %8 -> %9 lend last
 >   %0 = Read borrow [$0] : &mut Res
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : &mut Res
 >   %3 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%2) : ()
 >   %4 = Block - : ()
 >   %5 = Defer #4 : ()
->   %13 = Block %12 : usize
->   %14 = Scope %13 [%4] : usize
->   %15 = Block %14 : usize
+>   %15 = Block %13 : usize
+>   %16 = Scope %15 [%4] : usize
+>   %17 = Block %16 : usize
     held.name.len()
 >   %6 = Read borrow [*$1 .name] : string
->   %7 = Store [$2] %6 : ()
->   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Store [$2] %6 : ()
+>   %9 = Read borrow [$2] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = LoanClose %7 : ()
 >   summary kept [] writes

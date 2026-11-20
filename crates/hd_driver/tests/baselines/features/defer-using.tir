@@ -37,12 +37,14 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %8 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%7) : ()
 >   %9 = Block - : ()
 >   %10 = Defer #9 : ()
->   %13 = Block %12 : usize
->   %14 = Scope %13 [%9] : usize
->   %15 = Block %14 : usize
+>   %15 = Block %13 : usize
+>   %16 = Scope %15 [%9] : usize
+>   %17 = Block %16 : usize
     s.len()
 >   %11 = Ref local [$1] : &string
->   %12 = Call std/text/impl string.len[] (%11) : usize
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Call std/text/impl string.len[] (%11) : usize
+>   %14 = LoanClose %12 : ()
 
 fn with_using(log: *mut List[string], s: string) -> usize:
     using r = box(Res { name: s, log: log })
@@ -61,9 +63,11 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   %7 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%6) : ()
 >   %8 = Block - : ()
 >   %9 = Defer #8 : ()
->   %12 = Block %11 : usize
->   %13 = Scope %12 [%8] : usize
->   %14 = Block %13 : usize
+>   %14 = Block %12 : usize
+>   %15 = Scope %14 [%8] : usize
+>   %16 = Block %15 : usize
     r.name.len()
 >   %10 = Ref local [*$3 .name] : &string
->   %11 = Call std/text/impl string.len[] (%10) : usize
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = LoanClose %11 : ()

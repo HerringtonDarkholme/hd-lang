@@ -851,7 +851,8 @@ pub(crate) fn aliases(
     }
     let mut named = vec![0u32; b.len()];
     for i in 0..b.len() {
-        let member = b.tags[i] == Tag::Block;
+        // A loan names its site, which is no use of it.
+        let member = matches!(b.tags[i], Tag::Block | Tag::LoanBegin);
         crate::ir::slots(b, i, |_, value, slot| {
             let statement = member && matches!(slot, crate::ir::Word::Inst);
             if !statement && let Some(n) = named.get_mut(value as usize) {
@@ -1190,9 +1191,10 @@ pub(crate) fn forward(
         return Ok(());
     }
     // A read some instruction names other than as a value, a provider or
-    // a block's statement keeps its local (a `Hook` observes it).
+    // a block's statement keeps its local (a `Hook` observes it). A loan's
+    // site moves to the value the read forwards to instead.
     for i in 0..b.len() {
-        let (to, member) = (&mut t.to, b.tags[i] == Tag::Block);
+        let (to, member) = (&mut t.to, matches!(b.tags[i], Tag::Block | Tag::LoanBegin));
         crate::ir::slots(b, i, |_, value, slot| {
             let named = match slot {
                 crate::ir::Word::Value(_)
@@ -1291,12 +1293,17 @@ pub(crate) fn forward(
     let mut writes = Vec::new();
     for i in 0..b.len() {
         crate::ir::slots(b, i, |at, value, slot| {
-            if matches!(
-                slot,
-                crate::ir::Word::Value(_)
-                    | crate::ir::Word::Provider
-                    | crate::ir::Word::ProviderRef
-            ) && t.to.get(value as usize).is_some_and(|&w| w != NONE)
+            let site = slot == crate::ir::Word::Inst && b.tags[i] == Tag::LoanBegin;
+            if (site
+                || matches!(
+                    slot,
+                    crate::ir::Word::Value(_)
+                        | crate::ir::Word::Provider
+                        | crate::ir::Word::ProviderRef
+                ))
+                && t.to
+                    .get(value as usize)
+                    .is_some_and(|&w| w != NONE && !(site && Ref(w).as_inst().is_none()))
             {
                 writes.push((i, at, t.to[value as usize]));
             }

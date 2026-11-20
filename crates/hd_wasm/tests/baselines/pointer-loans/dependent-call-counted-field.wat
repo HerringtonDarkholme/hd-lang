@@ -11,32 +11,33 @@
     ;; 21 |     &mut p.name
     local.get $p
   )
-  (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $d i32) (local $t0 i32) (local $t1 i32)
+  (func $replace (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 13 |     d := name_of(h.p)
     local.get $h
     i32.const 4
     i32.sub
     local.get $h
     i32.load $heap
-    call $name_of
-    local.set $d
-    local.tee $t0
-    i32.load $heap
+    local.set $t0
     local.tee $t1
+    i32.load $heap
+    local.tee $t2
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t0
+      local.get $t1
       call $rt:loan_share
     else
-      local.get $t0
       local.get $t1
+      local.get $t2
       i32.const 65536
       i32.add
       i32.store $heap
     end
+    local.get $t0
+    call $name_of
     ;; 14 |     alias.p = next
     local.get $alias
     i32.const 4
@@ -65,78 +66,34 @@
       end
     end
     ;; 15 |     *d
-    local.get $d
-    i32.load $heap
     local.tee $next
-    local.get $d
+    i32.load $heap
+    local.tee $t0
+    local.get $next
     i32.load $heap offset=4
-    local.tee $d
+    local.tee $next
     call $rt:retain
+    local.get $t1
+    if
+      local.get $t1
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t1
+        call $rt:loan_unshare
+      else
+        local.get $t1
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 13 |     d := name_of(h.p)
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $h
     if
       local.get $h
@@ -159,35 +116,36 @@
         call $rt:release_ref
       end
     end
+    local.get $t0
     local.get $next
-    local.get $d
   )
-  (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $d i32) (local $t0 i32) (local $t1 i32)
+  (func $replace_mut (param $h i32) (param $alias i32) (param $next i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 24 |     d := name_mut(h.p)
     local.get $h
     i32.const 4
     i32.sub
     local.get $h
     i32.load $heap
-    call $name_mut
-    local.set $d
-    local.tee $t0
-    i32.load $heap
+    local.set $t0
     local.tee $t1
+    i32.load $heap
+    local.tee $t2
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t0
+      local.get $t1
       call $rt:loan_share
     else
-      local.get $t0
       local.get $t1
+      local.get $t2
       i32.const 65536
       i32.add
       i32.store $heap
     end
+    local.get $t0
+    call $name_mut
     ;; 25 |     alias.p = next
     local.get $alias
     i32.const 4
@@ -216,78 +174,34 @@
       end
     end
     ;; 26 |     *d
-    local.get $d
-    i32.load $heap
     local.tee $next
-    local.get $d
+    i32.load $heap
+    local.tee $t0
+    local.get $next
     i32.load $heap offset=4
-    local.tee $d
+    local.tee $next
     call $rt:retain
+    local.get $t1
+    if
+      local.get $t1
+      i32.load $heap
+      local.tee $t2
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t1
+        call $rt:loan_unshare
+      else
+        local.get $t1
+        local.get $t2
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 24 |     d := name_mut(h.p)
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-      i32.const 0
-      local.set $t0
-    end
-    local.get $t0
-    if
-      local.get $t0
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_unshare
-      else
-        local.get $t0
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
     local.get $h
     if
       local.get $h
@@ -310,8 +224,8 @@
         call $rt:release_ref
       end
     end
+    local.get $t0
     local.get $next
-    local.get $d
   )
   (func $name_of (param $p i32) (result i32)
     ;; 10 |     &p.name

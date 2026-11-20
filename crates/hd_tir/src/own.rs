@@ -74,6 +74,7 @@ mod insert;
 mod known;
 mod late;
 mod lent;
+pub mod loans;
 pub(crate) mod map_key;
 pub(crate) mod map_probe_unique;
 pub(crate) mod map_value;

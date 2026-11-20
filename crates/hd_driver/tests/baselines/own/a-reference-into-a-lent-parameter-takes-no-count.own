@@ -3,6 +3,8 @@ app/main/bump_inner
   local $0 h: &mut Holder [param read] value
     uses $0: entry -> %0 lend last
   %0 = Ref mut local [*$0 .c] : &mut Counter
-  %1 = Call app/main/bump[] (%0) : ()
-  %2 = LoanEnd [%0] : ()
-  %3 = Block - : ()
+  %1 = LoanBegin %0 #1 : ()
+  %2 = Call app/main/bump[] (%0) : ()
+  %3 = LoanEnd [%0] : ()
+  %4 = LoanClose %1 : ()
+  %5 = Block - : ()

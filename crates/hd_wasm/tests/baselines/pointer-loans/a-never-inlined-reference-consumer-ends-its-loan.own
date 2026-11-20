@@ -64,12 +64,14 @@ impl Slots:
 >   %3 = Prim Lt [%0 %2] : bool
 >   %4 = Read copy [$1] : usize
 >   %5 = Ref local [*$0 .items [%4]] : &string
->   %6 = NewVariant #1 [%5] : &string?
->   %7 = Block %6 : &string?
->   %8 = NewVariant #0 [] : &string?
->   %9 = Block %8 : &string?
->   %10 = If %3 [%7 %9] : &string?
->   %11 = Block %10 : &string?
+>   %6 = LoanBegin %5 #0 : ()
+>   %7 = NewVariant #1 [%5] : &string?
+>   %8 = Block %7 : &string?
+>   %9 = NewVariant #0 [] : &string?
+>   %10 = Block %9 : &string?
+>   %11 = If %3 [%8 %10] : &string?
+>   %12 = LoanClose %6 : ()
+>   %13 = Block %11 : &string?
 
     fn get_mut['a](&'a mut self, index: usize) -> (&'a mut string)?:
         if index < self.items.len(): .Some(&mut self.items[index]) else: .None
@@ -85,12 +87,14 @@ impl Slots:
 >   %4 = Read copy [$1] : usize
 >   %5 = IsUnique [*$0 .items] : ()
 >   %6 = Ref mut local [*$0 .items [%4]] : &mut string
->   %7 = NewVariant #1 [%6] : &mut string?
->   %8 = Block %7 : &mut string?
->   %9 = NewVariant #0 [] : &mut string?
->   %10 = Block %9 : &mut string?
->   %11 = If %3 [%8 %10] : &mut string?
->   %12 = Block %11 : &mut string?
+>   %7 = LoanBegin %6 #1 : ()
+>   %8 = NewVariant #1 [%6] : &mut string?
+>   %9 = Block %8 : &mut string?
+>   %10 = NewVariant #0 [] : &mut string?
+>   %11 = Block %10 : &mut string?
+>   %12 = If %3 [%9 %11] : &mut string?
+>   %13 = LoanClose %7 : ()
+>   %14 = Block %12 : &mut string?
 
     fn push(&mut self, value: string) -> void:
 > app/main/impl Slots.push
@@ -113,12 +117,15 @@ impl Slots:
 >   local $0 self: &mut Slots [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 index: usize [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   %0 = Ref mut local [*$0 .items] : &mut List[string]
->   %1 = Read copy [$1] : usize
->   %2 = Call std/collections/impl[T] List[T].remove_at[string] (%0, %1) : string
->   %3 = LoanEnd [%0] : ()
->   %4 = Block %2 : string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Read copy [$1] : usize
+>   %3 = LoanBegin %0 #2 : ()
+>   %4 = Call std/collections/impl[T] List[T].remove_at[string] (%0, %2) : string
+>   %5 = LoanEnd [%0] : ()
+>   %6 = LoanClose %1 : ()
+>   %7 = Block %4 : string
 
     fn swap(&mut self, left: usize, right: usize) -> void:
         self.items.swap(left, right)
@@ -126,15 +133,18 @@ impl Slots:
 >   local $0 self: &mut Slots [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 left: usize [param read] value
->     uses $1: entry -> %1 lend last
+>     uses $1: entry -> %2 lend last
 >   local $2 right: usize [param read] value
->     uses $2: entry -> %2 lend last
+>     uses $2: entry -> %3 lend last
 >   %0 = Ref mut local [*$0 .items] : &mut List[string]
->   %1 = Read copy [$1] : usize
->   %2 = Read copy [$2] : usize
->   %3 = Call std/collections/impl[T] List[T].swap[string] (%0, %1, %2) : ()
->   %4 = LoanEnd [%0] : ()
->   %5 = Block - : ()
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Read copy [$1] : usize
+>   %3 = Read copy [$2] : usize
+>   %4 = LoanBegin %0 #2 : ()
+>   %5 = Call std/collections/impl[T] List[T].swap[string] (%0, %2, %3) : ()
+>   %6 = LoanEnd [%0] : ()
+>   %7 = LoanClose %1 : ()
+>   %8 = Block - : ()
 
 struct Outer:
     items: Slots
@@ -271,87 +281,98 @@ fn probe(p: *mut Outer, alias: *mut Outer) -> string:
 >   local $0 p: *mut Outer [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 alias: *mut Outer [param read] value
->     uses $1: entry -> %47 lend
+>     uses $1: entry -> %55 lend
 >   local $2 seen: string [:= read assigned] value
->     uses $2: %31 -> %60 consume last
+>     uses $2: %39 -> %71 consume last
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %36 -> %40 lend
+>     uses $4: %44 -> %48 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 round: usize [assigned] value
 >     uses $6: none
 >   local $8 self: &string? [read] value
->     uses $8: %5 -> %7 lend last
+>     uses $8: %7 -> %9 lend last
 >   local $9 message: string [read] value
->     uses $9: %6 -> %10 lend last
+>     uses $9: %8 -> %12 lend last
 >   local $10 value: &string [read assigned] value
->     uses $10: %14 -> %8 consume last
->   %0 = Release %61 Exit local $0 #2 : ()
->   %1 = Release %61 Exit local $1 #2 : ()
+>     uses $10: %16 -> %10 consume last
+>   %0 = Release %72 Exit local $0 #2 : ()
+>   %1 = Release %72 Exit local $1 #2 : ()
     seen := length(hold_ref(p.items.get_ref(1).expect("slot")))
 >   %2 = Ref local [*$0 .items] : &Slots
->   %3 = Call app/main/impl Slots.get_ref[] (%2, 1:usize) : &string?
->   %4 = LoanEnd [%2] : ()
->   %5 = Store [$8] %3 : ()
->   %6 = Store [$9] "slot" : ()
->   %7 = Read borrow [$8] : &string?
->   %8 = Read copy [$10] : &string
->   %9 = Block %8 : &string
->   %10 = Read borrow [$9] : string
->   %11 = Call std/core/panic[] (%10) : never
->   %12 = Block - : never
->   %13 = Read borrow [%7 as #1 .0] : &string
->   %14 = Store [$10] %13 : ()
->   %16 = Block - : never
->   %19 = SwitchTag %7 [#1 %16 %18] : never
->   %20 = Block - : never
->   %21 = Match %7 [%20 %9 %12] : &string
->   %22 = Break L1 %21 : never
->   %23 = Block - : &string
->   %24 = Scope %23 [] : &string
->   %25 = Drop [$9] : ()
->   %26 = Drop [$8] : ()
->   %27 = Call app/main/hold_ref[] (%24) : &string
->   %28 = Drop [%24] : ()
->   %29 = Call app/main/length[] (%27) : string
->   %30 = Drop [%27] : ()
->   %31 = Store [$2] %29 : ()
->   %61 = Block %60 : string
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Call app/main/impl Slots.get_ref[] (%2, 1:usize) : &string?
+>   %5 = LoanEnd [%2] : ()
+>   %6 = LoanBegin %4 #4 : ()
+>   %7 = Store [$8] %4 : ()
+>   %8 = Store [$9] "slot" : ()
+>   %9 = Read borrow [$8] : &string?
+>   %10 = Read copy [$10] : &string
+>   %11 = Block %10 : &string
+>   %12 = Read borrow [$9] : string
+>   %13 = Call std/core/panic[] (%12) : never
+>   %14 = Block - : never
+>   %15 = Read borrow [%9 as #1 .0] : &string
+>   %16 = Store [$10] %15 : ()
+>   %18 = Block - : never
+>   %21 = SwitchTag %9 [#1 %18 %20] : never
+>   %22 = Block - : never
+>   %23 = Match %9 [%22 %11 %14] : &string
+>   %24 = Break L1 %23 : never
+>   %25 = Block - : &string
+>   %26 = Scope %25 [] : &string
+>   %27 = Drop [$9] : ()
+>   %28 = Drop [$8] : ()
+>   %29 = LoanBegin %26 #4 : ()
+>   %30 = Call app/main/hold_ref[] (%26) : &string
+>   %31 = Drop [%26] : ()
+>   %32 = LoanBegin %30 #4 : ()
+>   %33 = Call app/main/length[] (%30) : string
+>   %34 = Drop [%30] : ()
+>   %35 = LoanClose %3 : ()
+>   %36 = LoanClose %6 : ()
+>   %37 = LoanClose %29 : ()
+>   %38 = LoanClose %32 : ()
+>   %39 = Store [$2] %33 : ()
+>   %72 = Block %71 : string
     for round in 0..16:
->   %32 = NewStruct [0:usize 16:usize 0:bool] : Range[usize]
->   %33 = Read copy [%32 .start] : usize
->   %34 = Store [$3] %33 : ()
->   %35 = Read copy [%32 .end] : usize
->   %36 = Store [$4] %35 : ()
->   %37 = Read copy [%32 .inclusive] : bool
->   %38 = Store [$5] %37 : ()
->   %39 = Read copy [$3] : usize
->   %40 = Read copy [$4] : usize
->   %41 = Prim Lt [%39 %40] : bool
->   %42 = Read copy [$3] : usize
->   %43 = Store [$6] %42 : ()
->   %44 = Read copy [$3] : usize
->   %45 = Prim Add [%44 1:usize] : usize
->   %46 = Store [$3] %45 : ()
->   %51 = Block - : ()
->   %52 = Break L0 - : never
->   %53 = Block - : ()
->   %54 = If %41 [%51 %53] : ()
->   %55 = Block - : ()
->   %56 = Loop %55 - : ()
+>   %40 = NewStruct [0:usize 16:usize 0:bool] : Range[usize]
+>   %41 = Read copy [%40 .start] : usize
+>   %42 = Store [$3] %41 : ()
+>   %43 = Read copy [%40 .end] : usize
+>   %44 = Store [$4] %43 : ()
+>   %45 = Read copy [%40 .inclusive] : bool
+>   %46 = Store [$5] %45 : ()
+>   %47 = Read copy [$3] : usize
+>   %48 = Read copy [$4] : usize
+>   %49 = Prim Lt [%47 %48] : bool
+>   %50 = Read copy [$3] : usize
+>   %51 = Store [$6] %50 : ()
+>   %52 = Read copy [$3] : usize
+>   %53 = Prim Add [%52 1:usize] : usize
+>   %54 = Store [$3] %53 : ()
+>   %62 = Block - : ()
+>   %63 = Break L0 - : never
+>   %64 = Block - : ()
+>   %65 = If %49 [%62 %64] : ()
+>   %66 = Block - : ()
+>   %67 = Loop %66 - : ()
         alias.items.push(fresh())
->   %47 = Ref mut local [*$1 .items] : &mut Slots
->   %48 = Call app/main/fresh[] () : string
->   %49 = Call app/main/impl Slots.push[] (%47, %48) : ()
->   %50 = LoanEnd [%47] : ()
+>   %55 = Ref mut local [*$1 .items] : &mut Slots
+>   %56 = LoanBegin %55 #0 : ()
+>   %57 = Call app/main/fresh[] () : string
+>   %58 = LoanBegin %55 #2 : ()
+>   %59 = Call app/main/impl Slots.push[] (%55, %57) : ()
+>   %60 = LoanEnd [%55] : ()
+>   %61 = LoanClose %56 : ()
     junk := churn()
->   %57 = Call app/main/churn[] () : List[string]
+>   %68 = Call app/main/churn[] () : List[string]
     _ := junk.len()
->   %58 = Intrinsic ListLen [%57] : usize
->   %59 = Drop [%57] : ()
+>   %69 = Intrinsic ListLen [%68] : usize
+>   %70 = Drop [%68] : ()
     seen
->   %60 = Read move [$2] : string
+>   %71 = Read move [$2] : string
 
 pub fn main() -> void $ Console:
     p := make()

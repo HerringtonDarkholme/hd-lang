@@ -18,7 +18,7 @@ fn build(parts: &List[string]) -> string:
 >   local $6 p: string [read assigned]
 >   %0 = Call std/text/impl StringBuilder.new[] () : *mut StringBuilder
 >   %1 = Store [$1] %0 : ()
->   %36 = Block %35 : string
+>   %45 = Block %43 : string
     for p in parts:
 >   %2 = Read [*$0] : List[string]
 >   %3 = Store [$2] %2 : ()
@@ -36,26 +36,35 @@ fn build(parts: &List[string]) -> string:
 >   %15 = Read [$4] : usize
 >   %16 = Prim Add [%15 1:usize] : usize
 >   %17 = Store [$4] %16 : ()
->   %23 = Block - : ()
->   %24 = Store [$6] %14 : ()
->   %26 = Block - : never
->   %27 = Match %14 [%26 %23] : ()
->   %28 = Block - : ()
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %12 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
+>   %29 = Block - : ()
+>   %30 = Store [$6] %14 : ()
+>   %32 = Block - : never
+>   %33 = Match %14 [%32 %29] : ()
+>   %34 = Block - : ()
+>   %35 = Break L0 - : never
+>   %36 = Block - : ()
+>   %37 = If %12 [%34 %36] : ()
+>   %38 = Block - : ()
+>   %39 = Loop %38 - : ()
         sb.push(p)
 >   %18 = Read [$1] : *mut StringBuilder
->   %19 = Read [$6] : string
->   %20 = Call std/text/impl StringBuilder.push[] (%18, %19) : ()
+>   %19 = LoanBegin %18 #0 : ()
+>   %20 = Read [$6] : string
+>   %21 = LoanBegin %18 #2 : ()
+>   %22 = Call std/text/impl StringBuilder.push[] (%18, %20) : ()
+>   %23 = LoanClose %19 : ()
         sb.push(",")
->   %21 = Read [$1] : *mut StringBuilder
->   %22 = Call std/text/impl StringBuilder.push[] (%21, ",") : ()
+>   %24 = Read [$1] : *mut StringBuilder
+>   %25 = LoanBegin %24 #0 : ()
+>   %26 = LoanBegin %24 #2 : ()
+>   %27 = Call std/text/impl StringBuilder.push[] (%24, ",") : ()
+>   %28 = LoanClose %25 : ()
     sb.build()
->   %34 = Read [$1] : *mut StringBuilder
->   %35 = Call std/text/impl StringBuilder.build[] (%34) : string
+>   %40 = Read [$1] : *mut StringBuilder
+>   %41 = LoanBegin %40 #0 : ()
+>   %42 = LoanBegin %40 #2 : ()
+>   %43 = Call std/text/impl StringBuilder.build[] (%40) : string
+>   %44 = LoanClose %41 : ()
 
 fn fields(line: string) -> usize:
     let mut n = 0

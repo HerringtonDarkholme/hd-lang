@@ -56,7 +56,7 @@ fn through_ref(r: &List[string]) -> usize:
 >   local $3 $pos: usize [assigned]
 >   local $4 p: &string [read assigned]
 >   %0 = Store [$1] 0:usize : ()
->   %30 = Block %29 : usize
+>   %33 = Block %32 : usize
     for p in &r:
 >   %1 = Read [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -70,24 +70,27 @@ fn through_ref(r: &List[string]) -> usize:
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
 >   %12 = Ref local [%1 [%8]] : &string
->   %18 = Block - : ()
->   %19 = Store [$4] %12 : ()
->   %21 = Block - : never
->   %22 = Match %12 [%21 %18] : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %7 [%23 %25] : ()
+>   %13 = LoanBegin %12 #0 : ()
+>   %19 = Block - : ()
+>   %20 = Store [$4] %12 : ()
+>   %22 = Block - : never
+>   %23 = Match %12 [%22 %19] : ()
+>   %24 = Block - : ()
+>   %25 = LoanClose %13 : ()
+>   %26 = Break L0 - : never
 >   %27 = Block - : ()
->   %28 = Loop %27 - : ()
+>   %28 = If %7 [%24 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = LoanClose %13 : ()
         n += p.len()
->   %13 = Read [$1] : usize
->   %14 = Read [$4] : &string
->   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Prim Add [%13 %15] : usize
->   %17 = Store [$1] %16 : ()
+>   %14 = Read [$1] : usize
+>   %15 = Read [$4] : &string
+>   %16 = Call std/text/impl string.len[] (%15) : usize
+>   %17 = Prim Add [%14 %16] : usize
+>   %18 = Store [$1] %17 : ()
     n
->   %29 = Read [$1] : usize
+>   %32 = Read [$1] : usize
 
 fn shouted(prices: List[string]) -> List[string]:
     let mut out = prices

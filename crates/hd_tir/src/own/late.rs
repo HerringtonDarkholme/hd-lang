@@ -35,6 +35,9 @@ pub(crate) struct Tables {
     uses: Vec<u32>,
     /// (read, consumer, operand position) of each read that moves.
     found: Vec<(u32, u32, Loc)>,
+    /// Per instruction, counted with `uses`: the `LoanBegin` that names it,
+    /// or `NONE`.
+    lent: Vec<u32>,
     /// Per local, counted once a candidate needs it: how many `Ref`s are
     /// rooted at it, plus one for a shared capture.
     reach: Vec<u32>,
@@ -82,6 +85,13 @@ pub(crate) fn run(
             }
             if t.uses.is_empty() {
                 count_uses(b, &mut t.ops, &mut t.uses);
+                t.lent.clear();
+                t.lent.resize(b.len(), NONE);
+                for x in 0..b.len() {
+                    if b.tags[x] == Tag::LoanBegin {
+                        t.lent[b.data[x][0] as usize] = u32_of(x);
+                    }
+                }
             }
             if t.uses[v] == 1 {
                 t.found.push((u32_of(v), u32_of(i), op.at));
@@ -94,6 +104,20 @@ pub(crate) fn run(
     }
     topo.build(b);
     edits.clear();
+    // A moved read's loan moves with it: its `LoanBegin` follows the copy,
+    // and the begin's closes name the new one.
+    let mut closes: hd_base::HashMap<u32, Vec<u32>> = hd_base::HashMap::default();
+    if t.found
+        .iter()
+        .any(|&(v, _, _)| t.lent.get(v as usize).is_some_and(|&x| x != NONE))
+    {
+        for x in 0..b.len() {
+            if b.tags[x] == Tag::LoanClose {
+                closes.entry(b.data[x][0]).or_default().push(u32_of(x));
+            }
+        }
+    }
+    let n = u32_of(b.len());
     for &(v, i, at) in &t.found {
         let (x, c) = (v as usize, i as usize);
         if topo.blk[x] == NONE || topo.blk[x] != topo.blk[c] {
@@ -109,6 +133,21 @@ pub(crate) fn run(
         );
         edits.rewrite(i, at, e);
         edits.remove(v);
+        if let Some(&begin) = t.lent.get(x).filter(|&&x| x != NONE) {
+            let word = b.data[begin as usize][1];
+            let moved = edits.insert(
+                topo.blk[c],
+                topo.pos[c],
+                Tag::LoanBegin,
+                [n + e, word],
+                hd_types::Ty::VOID,
+                b.syn[begin as usize],
+            );
+            edits.remove(begin);
+            for &close in closes.get(&begin).into_iter().flatten() {
+                b.data[close as usize][0] = n + moved;
+            }
+        }
     }
     splice::apply(b, topo, edits)?;
     edits.clear();

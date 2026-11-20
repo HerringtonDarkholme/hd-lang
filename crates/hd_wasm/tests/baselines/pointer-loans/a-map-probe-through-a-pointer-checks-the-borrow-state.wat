@@ -15,7 +15,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $main (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32)
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     i32.const 4
     call $rt:map_seed
@@ -110,20 +110,10 @@
       call $rt:panic'3
       unreachable
     end
-    local.get $t3
-    local.get $t3
-    i32.load $heap
-    i32.const 2097152
-    i32.add
-    i32.store $heap
-    i32.const 2097152
-    ;; 12 |     alias := stock
-    local.get $t0
-    ;; 13 |     insert(alias, &mut stock["apple"])
     local.get $t1
     i32.load $heap
-    local.tee $t0
-    local.get $t0
+    local.tee $t4
+    local.get $t4
     i32.load $heap offset=12
     i32.const 14
     i32.mul
@@ -136,15 +126,18 @@
     i32.add
     i32.const 8
     i32.add
-    call $insert
+    local.set $t2
     local.get $t3
     local.get $t3
     i32.load $heap
     i32.const 2097152
-    i32.sub
+    i32.add
     i32.store $heap
-    drop
-    ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
+    ;; 12 |     alias := stock
+    local.get $t0
+    ;; 13 |     insert(alias, &mut stock["apple"])
+    local.get $t2
+    call $insert
     local.get $t1
     if
       local.get $t1
@@ -155,6 +148,15 @@
         local.get $t1
         call $rt:release_ref
       end
+    end
+    local.get $t3
+    if
+      local.get $t3
+      local.get $t3
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
     end
   )
   (func $insert (param $stock i32) (param $apples i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)

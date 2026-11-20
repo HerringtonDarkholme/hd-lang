@@ -11,10 +11,9 @@ use hd_types::{InternPool, Ty};
 use crate::module::{HEAP, mem as memarg};
 use crate::op::Op as I;
 
-/// [`hd_layout::cached`] with the emitter's reference slot plans in
-/// place, for one link.
+/// [`hd_layout::cached`] for one link.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    let out = hd_layout::cached(|| crate::emit::ref_slots::cached(link));
+    let out = hd_layout::cached(link);
     ledger!(flush);
     out
 }

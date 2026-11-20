@@ -53,13 +53,13 @@
     ;; 22 |     *r
     i32.load $heap
     local.set $t0
-    ;; 20 |     r := &mut TOTAL.value
     i32.const 20
     i32.const 20
     i32.load $heap
     i32.const 2097152
     i32.sub
     i32.store $heap
+    ;; 20 |     r := &mut TOTAL.value
     local.get $t0
   )
   (func $add (local $t0 i32)

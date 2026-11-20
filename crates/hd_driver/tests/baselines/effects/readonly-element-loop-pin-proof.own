@@ -13,9 +13,9 @@ fn read_only(values: &List[string]) -> usize:
 >     uses $2: %3 -> %6 lend
 >   local $3 $pos: usize [assigned] place
 >   local $4 item: &string [read assigned] value
->     uses $4: %20 -> %14 lend last
+>     uses $4: %21 -> %15 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %32 = Block %31 : usize
+>   %35 = Block %34 : usize
     for item in &values:
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -29,26 +29,29 @@ fn read_only(values: &List[string]) -> usize:
 >   %10 = Prim Add [%9 1:usize] : usize
 >   %11 = Store [$3] %10 : ()
 >   %12 = Ref local pins [%1 [%8]] : &string
->   %18 = Block - : ()
->   %19 = Read borrow [%12] : &string
->   %20 = Store [$4] %19 : ()
->   %22 = Block - : never
->   %23 = Match %12 [%22 %18] : ()
->   %24 = LoanEnd [%12] : ()
->   %25 = Block - : ()
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If %7 [%25 %27] : ()
+>   %13 = LoanBegin %12 #0 : ()
+>   %19 = Block - : ()
+>   %20 = Read borrow [%12] : &string
+>   %21 = Store [$4] %20 : ()
+>   %23 = Block - : never
+>   %24 = Match %12 [%23 %19] : ()
+>   %25 = LoanEnd [%12] : ()
+>   %26 = Block - : ()
+>   %27 = LoanClose %13 : ()
+>   %28 = Break L0 - : never
 >   %29 = Block - : ()
->   %30 = Loop %29 - : ()
+>   %30 = If %7 [%26 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
+>   %33 = LoanClose %13 : ()
         total += item.len()
->   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$4] : &string
->   %15 = Call std/text/impl string.len[] (%14) : usize
->   %16 = Prim Add [%13 %15] : usize
->   %17 = Store [$1] %16 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Read borrow [$4] : &string
+>   %16 = Call std/text/impl string.len[] (%15) : usize
+>   %17 = Prim Add [%14 %16] : usize
+>   %18 = Store [$1] %17 : ()
     total
->   %31 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept []
 
 fn mutable(values: &mut List[string]) -> void:
@@ -60,7 +63,7 @@ fn mutable(values: &mut List[string]) -> void:
 >     uses $1: %2 -> %6 lend
 >   local $2 $pos: usize [assigned] place
 >   local $3 item: &mut string [read assigned] value
->     uses $3: %18 -> %14 lend last
+>     uses $3: %19 -> %15 lend last
 >   %0 = Read borrow [*$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Store [$1] %1 : ()
@@ -75,22 +78,25 @@ fn mutable(values: &mut List[string]) -> void:
 >   %11 = Store [$2] %10 : ()
 >   %12 = Read borrow [*$0] : List[string]
 >   %13 = Ref mut local [%12 [%8]] : &mut string
->   %16 = Block - : ()
->   %17 = Read borrow [%13] : &mut string
->   %18 = Store [$3] %17 : ()
->   %20 = Block - : never
->   %21 = Match %13 [%20 %16] : ()
->   %22 = LoanEnd [%13] : ()
->   %23 = Block - : ()
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If %7 [%23 %25] : ()
+>   %14 = LoanBegin %13 #1 : ()
+>   %17 = Block - : ()
+>   %18 = Read borrow [%13] : &mut string
+>   %19 = Store [$3] %18 : ()
+>   %21 = Block - : never
+>   %22 = Match %13 [%21 %17] : ()
+>   %23 = LoanEnd [%13] : ()
+>   %24 = Block - : ()
+>   %25 = LoanClose %14 : ()
+>   %26 = Break L0 - : never
 >   %27 = Block - : ()
->   %28 = Loop %27 - : ()
+>   %28 = If %7 [%24 %27] : ()
 >   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
+>   %31 = LoanClose %14 : ()
+>   %32 = Block - : ()
         *item = "changed"
->   %14 = Store [*$3] "changed" : ()
->   %15 = Release %14 Operation #3 : ()
+>   %15 = Store [*$3] "changed" : ()
+>   %16 = Release %15 Operation #3 : ()
 >   summary kept [$0] writes
 
 fn not_a_loop(values: &List[string]) -> usize:
@@ -99,14 +105,16 @@ fn not_a_loop(values: &List[string]) -> usize:
 >   local $0 values: &List[string] [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 item: &string [:= read assigned] value
->     uses $1: %1 -> %2 lend last
+>     uses $1: %2 -> %3 lend last
 >   %0 = Ref local [*$0 [0:usize]] : &string
->   %1 = Store [$1] %0 : ()
->   %5 = Block %3 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Store [$1] %0 : ()
+>   %7 = Block %4 : usize
     item.len()
->   %2 = Read move [$1] : &string
->   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = LoanEnd [%2] : ()
+>   %3 = Read move [$1] : &string
+>   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = LoanEnd [%3] : ()
+>   %6 = LoanClose %1 : ()
 >   summary kept [] writes
 
 fn read_inside_loop(values: &List[string]) -> usize:
@@ -121,9 +129,9 @@ fn read_inside_loop(values: &List[string]) -> usize:
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 item: &string [:= read assigned] value
->     uses $5: %18 -> %21 lend last
+>     uses $5: %19 -> %22 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %33 = Block %32 : usize
+>   %35 = Block %34 : usize
     for _ in 0..values.len():
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -141,23 +149,25 @@ fn read_inside_loop(values: &List[string]) -> usize:
 >   %14 = Read copy [$2] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
 >   %16 = Store [$2] %15 : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
 >   %28 = Block - : ()
->   %29 = If %12 [%26 %28] : ()
+>   %29 = Break L0 - : never
 >   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %31 = If %12 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         item := &values[0]
 >   %17 = Ref local [*$0 [0:usize]] : &string
->   %18 = Store [$5] %17 : ()
->   %19 = Release %18 Operation #3 : ()
+>   %18 = LoanBegin %17 #0 : ()
+>   %19 = Store [$5] %17 : ()
+>   %20 = Release %19 Operation #3 : ()
         total += item.len()
->   %20 = Read copy [$1] : usize
->   %21 = Read move [$5] : &string
->   %22 = Call std/text/impl string.len[] (%21) : usize
->   %23 = LoanEnd [%21] : ()
->   %24 = Prim Add [%20 %22] : usize
->   %25 = Store [$1] %24 : ()
+>   %21 = Read copy [$1] : usize
+>   %22 = Read move [$5] : &string
+>   %23 = Call std/text/impl string.len[] (%22) : usize
+>   %24 = LoanEnd [%22] : ()
+>   %25 = LoanClose %18 : ()
+>   %26 = Prim Add [%21 %23] : usize
+>   %27 = Store [$1] %26 : ()
     total
->   %32 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept [] writes

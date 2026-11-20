@@ -1,0 +1,21 @@
+# @dump: stdout
+# @build: dev | release
+# The ownership pass that moves a read to just before its consumer leaves
+# a read a `LoanBegin` names in place (`own/late.rs`): the receiver read
+# twice in one statement still lends, and the program prints its text.
+struct W:
+    text: string
+
+impl W:
+    fn put(&mut self, s: string) -> void:
+        self.text = self.text + s
+    fn cut(&self, s: string) -> string:
+        s
+
+fn show(out: *mut W, v: string) -> void:
+    out.put("\"" + out.cut(v) + "\"")
+
+pub fn main() -> void $ Console:
+    let w: *mut W = box(W { text: "" })
+    show(w, "a")
+    println(w.text)

@@ -10,6 +10,6 @@ fn read(value: &i32) -> i32:
 
 fn main_like(value: i32) -> i32:
     let saved = box(value)
+    read(saved)
 > app/main/main_like
 >   release *mut i32 (last use)
-    read(saved)

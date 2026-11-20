@@ -27,29 +27,40 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   local $2 o: &User? [read assigned]
 >   %0 = Read [$1] : bool
 >   %1 = Ref local [*$0 .left] : &User
->   %2 = NewVariant #1 [%1] : &User?
->   %3 = Block %2 : &User?
->   %4 = NewVariant #0 [] : &User?
->   %5 = Block %4 : &User?
->   %6 = If %0 [%3 %5] : &User?
->   %7 = Store [$2] %6 : ()
->   %11 = Block %10 : &User
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = NewVariant #1 [%1] : &User?
+>   %4 = Block %3 : &User?
+>   %5 = NewVariant #0 [] : &User?
+>   %6 = Block %5 : &User?
+>   %7 = If %0 [%4 %6] : &User?
+>   %8 = Store [$2] %7 : ()
+>   %18 = Block %13 : &User
     o.unwrap_or(&pair.right)
->   %8 = Read [$2] : &User?
->   %9 = Ref local [*$0 .right] : &User
->   %10 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%8, %9) : &User
+>   %9 = Read [$2] : &User?
+>   %10 = LoanClose %14 : ()
+>   %11 = Ref local [*$0 .right] : &User
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%9, %11) : &User
+>   %14 = LoanBegin %13 #4 : ()
+>   %15 = LoanClose %2 : ()
+>   %16 = LoanClose %12 : ()
+>   %17 = LoanClose %14 : ()
 
 fn demo(u: &User) -> usize:
     n := id(&u.name)
 > app/main/demo
 >   local $1 n: &string [:= read assigned]
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Call app/main/id[&string] (%0) : &string
->   %2 = Store [$1] %1 : ()
->   %5 = Block %4 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call app/main/id[&string] (%0) : &string
+>   %3 = LoanBegin %2 #4 : ()
+>   %4 = Store [$1] %2 : ()
+>   %9 = Block %6 : usize
     n.len()
->   %3 = Read [$1] : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = Read [$1] : &string
+>   %6 = Call std/text/impl string.len[] (%5) : usize
+>   %7 = LoanClose %1 : ()
+>   %8 = LoanClose %3 : ()
 
 fn keep[T < 'static](value: T) -> *mut T:
     box(value)

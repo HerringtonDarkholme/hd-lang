@@ -5,12 +5,12 @@
 
 use hd_base::{HashMap, HashSet, NodeIdx, SliceSort as _};
 use hd_resolve::ItemData;
-use hd_tir::ir::{IntrinsicOp, PlaceRoot, Proj, Role, Tag, Word, slots};
+use hd_tir::ir::{IntrinsicOp, NONE, PlaceRoot, Proj, Role, Tag, Word, slots};
 use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, STATIC, STATIC_MSG,
+    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, RunLoans, STATIC, STATIC_MSG,
     STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops,
     local_ref, referent, returned, scoped_uses, site, source_arg, w,
 };
@@ -840,6 +840,12 @@ impl Gen<'_, '_> {
                 // (`ref.dep.call`, `ref.excl.call`).
                 if exclusive::call_site(self.s, a) {
                     self.seed(h, Origin::Site(a));
+                } else if matches!(local_ref(pool, *pt), Some((false, _)))
+                    && exclusive::runtime_site(self.s, a)
+                {
+                    // A `*T` passed where a local reference is expected
+                    // is lent for the call (`ref.excl.alias.loan`).
+                    self.seed(h, Origin::Lent(a));
                 }
                 let node = self.node(a);
                 for v in vs {
@@ -1173,7 +1179,9 @@ impl Gen<'_, '_> {
             | Tag::LoanEnd
             | Tag::Retain
             | Tag::Release
-            | Tag::MakeUnique => {}
+            | Tag::MakeUnique
+            | Tag::LoanBegin
+            | Tag::LoanClose => {}
         }
         for (v, cat, held) in kept {
             let at = self.node(v);
@@ -1468,6 +1476,8 @@ impl Gen<'_, '_> {
                 }
                 if exclusive::site(self.s, i) {
                     self.seed(me.0[0], Origin::Site(i));
+                } else if exclusive::runtime_site(self.s, i) {
+                    self.seed(me.0[0], Origin::Lent(i));
                 }
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
                 // A reborrow of a local's or a reference's part, shared or
@@ -1681,7 +1691,7 @@ impl Gen<'_, '_> {
         let tops = self.split(v).0;
         let loans = tops.iter().flat_map(|&r| sol.loans(r));
         let mut set: Set = (loans.map(|l| self.loans[l as usize]))
-            .filter(|o| !matches!(o, Origin::Site(_) | Origin::Outside(_)))
+            .filter(|o| !matches!(o, Origin::Site(_) | Origin::Lent(_) | Origin::Outside(_)))
             .collect();
         set.sort_stable();
         set.dedup();
@@ -1770,6 +1780,315 @@ impl Gen<'_, '_> {
     /// parameter that only forwards captures the parameters' too, and the
     /// body's own lifetime a call passes an argument at its parameter
     /// slots of that lifetime.
+    /// The run-time loans (`ref.excl.alias.loan`): each `Lent` site, and
+    /// each `Site` that may cross a pointer, with the values and locals of
+    /// its sub-body whose regions hold it. Each solved component's loans
+    /// are read once. Cost: O(value and local slots + the loans of each
+    /// distinct component).
+    fn run_loans(&self, sol: &Solution) -> RunLoans {
+        use hd_tir::own::loans::{Holder, Site};
+        let b = self.s.b;
+        // Each argument a call lends as a local reference, exclusively for a
+        // `&mut`, whether or not its result holds it: a `*T` argument has
+        // no region of its own.
+        let lent_args: Vec<u32> = self.s.lent.iter().map(|x| x.0).collect();
+        let lent_mut: HashSet<u32> = (self.s.lent.iter()).filter(|x| x.1).map(|x| x.0).collect();
+        // A two-phase receiver's call, by its site.
+        let phased: HashMap<u32, u32> = (self.s.lent.iter())
+            .filter(|x| x.2 != NONE)
+            .filter_map(|x| Some((u32::try_from(b.direct_value(x.0)?).ok()?, x.2)))
+            .collect();
+        // Exception (owner, 2026-11-19; the gap is #2197): an awaited
+        // call's arguments take no run-time loan, as the tasks of one scope
+        // interleave their uses of them. This set is the one place.
+        let mut awaited: HashSet<u32> = HashSet::default();
+        for c in 0..b.len() {
+            if b.tags[c] == Tag::Await {
+                slots(b, c, |_, v, word| {
+                    if matches!(word, Word::Value(Role::Arg(_)))
+                        && let Some(v) = b.direct_value(v).and_then(|v| u32::try_from(v).ok())
+                    {
+                        awaited.insert(v);
+                    }
+                });
+            }
+        }
+        let lent_reads: HashSet<u32> = (self.s.lent.iter())
+            .filter_map(|x| b.direct_value(x.0).and_then(|v| u32::try_from(v).ok()))
+            .collect();
+        let mut index = vec![NONE; self.loans.len()];
+        let mut sites: Vec<Site> = Vec::new();
+        let mut by_inst: HashMap<u32, u32> = HashMap::default();
+        // Each loan's origin word, then each lent argument's, which a
+        // result need not hold.
+        let origins = (self.loans.iter().enumerate())
+            .filter_map(|(l, o)| match *o {
+                Origin::Site(r) | Origin::Lent(r) => Some((Some(l), r)),
+                _ => None,
+            })
+            .chain(lent_args.iter().map(|&a| (None, a)));
+        let mut arg_sites = Vec::new();
+        for (l, r) in origins {
+            // The site is what a same-value coercion lends.
+            let Some(i) = b.direct_value(r).and_then(|v| u32::try_from(v).ok()) else {
+                continue;
+            };
+            if (i as usize) >= b.len() || !exclusive::runtime_site(self.s, i) {
+                continue;
+            }
+            // A `*T` read takes a loan only where a call lends it as a
+            // local reference; passing a pointer is no access.
+            if b.tags[i as usize] == Tag::Read && !lent_reads.contains(&i) {
+                continue;
+            }
+            if awaited.contains(&i) {
+                continue;
+            }
+            let excl = match b.tags[i as usize] {
+                Tag::Ref => is_mut(self.s.pool, b.ty[i as usize]),
+                _ => lent_mut.contains(&r),
+            };
+            // Loans of one site (its `Ref`'s and its call's) are one.
+            let k = *by_inst.entry(i).or_insert_with(|| {
+                sites.push(Site {
+                    at: i,
+                    word: 0,
+                    activate: NONE,
+                });
+                w(sites.len() - 1)
+            });
+            match phased.get(&i) {
+                Some(&call) => sites[k as usize].activate = call,
+                None if excl => sites[k as usize].word |= hd_tir::ir::loan_word::EXCL,
+                None => {}
+            }
+            match l {
+                Some(l) => index[l] = k,
+                None => arg_sites.push((r, k)),
+            }
+        }
+        let mut rows = Vec::new();
+        if sites.is_empty() {
+            return (sites, rows);
+        }
+        let topo = hd_tir::ir::Topology::new(b);
+        let mut by_comp: HashMap<u32, Vec<u32>> = HashMap::default();
+        let mut add = |rows: &mut Vec<(Holder, u32)>,
+                       h: Holder,
+                       regions: &[Region],
+                       sub: Option<u32>| {
+            for &g in regions {
+                let found = by_comp.entry(sol.component(g)).or_insert_with(|| {
+                    sol.loans(g)
+                        .filter_map(|l| (index[l as usize] != NONE).then_some(index[l as usize]))
+                        .collect()
+                });
+                rows.extend(
+                    found
+                        .iter()
+                        .filter(|&&k| {
+                            sub.is_none_or(|s| topo.sub[sites[k as usize].at as usize] == s)
+                        })
+                        .map(|&k| (h, k)),
+                );
+            }
+        };
+        // A site's own value, and each coercion of it a call takes, holds
+        // its loan until it is used, whatever its regions say (a `*T` read
+        // lent as `&T` has none).
+        let chains = (self.loans.iter().enumerate())
+            .filter_map(|(l, o)| match *o {
+                Origin::Site(r) | Origin::Lent(r) if index[l] != NONE => Some((r, index[l])),
+                _ => None,
+            })
+            .chain(arg_sites);
+        for (r, k) in chains {
+            let mut v = r;
+            while v != sites[k as usize].at && (v as usize) < b.len() {
+                rows.push((Holder::Value(v), k));
+                v = b.data[v as usize][0];
+            }
+            rows.push((Holder::Value(v), k));
+        }
+        // Exception (owner, 2026-11-19): a task holds no run-time loan, so
+        // a suspending call's argument loans end with the call that makes
+        // it, before anything polls it. This test is the one place.
+        let suspend = self.s.cx.names.known.suspend;
+        let task = |t: Ty| matches!(self.s.pool.get(t), TyData::Adt { def, .. } if def == suspend);
+        for v in 0..w(b.len()) {
+            if task(b.ty[v as usize]) {
+                continue;
+            }
+            if let Some((regions, _)) = self.val(v) {
+                add(
+                    &mut rows,
+                    Holder::Value(v),
+                    &regions,
+                    Some(topo.sub[v as usize]),
+                );
+            }
+        }
+        for l in 0..self.locals {
+            if !task(b.local_ty[l as usize]) {
+                add(&mut rows, Holder::Local(l), &self.local(l).0, None);
+            }
+        }
+        // A `Ref` into a value read through a pointer (a loop's source
+        // list, `for c in &a`) is lent from that read, which holds its
+        // loan while it lives (`flow.for.ref.access`).
+        for (k, site) in sites.iter().enumerate() {
+            if b.tags[site.at as usize] != Tag::Ref {
+                continue;
+            }
+            let hd_tir::ir::Root::Value(x) = b.view(b.data[site.at as usize][0]).root else {
+                continue;
+            };
+            if b.tags.get(x as usize) == Some(&Tag::Read)
+                && b.view(b.data[x as usize][0])
+                    .steps(b)
+                    .any(|s| matches!(s, Proj::Deref))
+            {
+                rows.push((Holder::Value(x), w(k)));
+            }
+        }
+        // A local a holder value is stored into whole holds its loans,
+        // whatever the local's regions say, and a read of it through no
+        // dereference holds them too. Cost: one pass over the stores and
+        // the reads, and the rows of each stored value and read local.
+        rows.sort_stable();
+        let mut stored = Vec::new();
+        for i in 0..b.len() {
+            if b.tags[i] != Tag::Store {
+                continue;
+            }
+            let Some((l, true)) = b.stored_local(i) else {
+                continue;
+            };
+            let Some(v) = b
+                .direct_value(b.data[i][1])
+                .and_then(|v| u32::try_from(v).ok())
+            else {
+                continue;
+            };
+            let from = rows.partition_point(|r| r.0 < Holder::Value(v));
+            for &(h, k) in &rows[from..] {
+                if h != Holder::Value(v) {
+                    break;
+                }
+                stored.push((Holder::Local(l.raw()), k));
+            }
+        }
+        rows.extend(stored);
+        // A read of such a local through no dereference holds its loans.
+        rows.sort_stable();
+        let mut read = Vec::new();
+        for i in 0..b.len() {
+            if b.tags[i] != Tag::Read {
+                continue;
+            }
+            let p = b.view(b.data[i][0]);
+            let hd_tir::ir::Root::Local(l) = p.root else {
+                continue;
+            };
+            if p.steps(b).any(|s| matches!(s, Proj::Deref)) {
+                continue;
+            }
+            let from = rows.partition_point(|r| r.0 < Holder::Local(l));
+            for &(h, k) in &rows[from..] {
+                if h != Holder::Local(l) {
+                    break;
+                }
+                read.push((Holder::Value(w(i)), k));
+            }
+        }
+        rows.extend(read);
+        // A place rooted at a holder `*T` value (one read through a
+        // reference) is reached through what that value was read through, so a `Read` or `Ref` of it holds the value's
+        // loans (`ref.excl.alias.path-pointer`): one pass in instruction
+        // order, as a root comes before its place.
+        let mut by_val: HashMap<u32, Vec<u32>> = HashMap::default();
+        for &(h, k) in &rows {
+            if let Holder::Value(v) = h {
+                by_val.entry(v).or_default().push(k);
+            }
+        }
+        for i in 0..w(b.len()) {
+            if !matches!(b.tags[i as usize], Tag::Read | Tag::Ref) {
+                continue;
+            }
+            let hd_tir::ir::Root::Value(x) = b.view(b.data[i as usize][0]).root else {
+                continue;
+            };
+            // A root's regions (a tuple's slots) say which loans each part
+            // holds; a `*T` read through it, or a place on a `*T`, has no
+            // region for them and takes all.
+            let counted = |v: u32| {
+                (b.ty.get(v as usize))
+                    .is_some_and(|&t| matches!(local_ref(self.s.pool, t), Some((true, _))))
+            };
+            if !counted(x) && !counted(i) {
+                continue;
+            }
+            let Some(from) = by_val.get(&x).cloned() else {
+                continue;
+            };
+            rows.extend(from.iter().map(|&k| (Holder::Value(i), k)));
+            by_val.entry(i).or_default().extend(from);
+        }
+        // A call whose result holds an argument's loan may return a
+        // reference into an object the callee reached through a pointer:
+        // an INNER site at the call, which the link pass keeps only where
+        // the callee does (`hd_tir::own::pointer`). It lives while the
+        // values after the call that hold the argument's loan do.
+        let mut by_value: HashMap<u32, Vec<u32>> = HashMap::default();
+        for &(h, k) in &rows {
+            if let Holder::Value(v) = h {
+                by_value.entry(v).or_default().push(k);
+            }
+        }
+        let mut inner = Vec::new();
+        for c in 0..w(b.len()) {
+            if !matches!(
+                b.tags[c as usize],
+                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
+            ) || by_inst.contains_key(&c)
+            {
+                continue;
+            }
+            let Some(held) = by_value.get(&c) else {
+                continue;
+            };
+            let k = w(sites.len());
+            let excl = is_mut(self.s.pool, b.ty[c as usize]);
+            sites.push(Site {
+                at: c,
+                word: hd_tir::ir::loan_word::INNER
+                    | (u32::from(excl) * hd_tir::ir::loan_word::EXCL),
+                activate: NONE,
+            });
+            inner.push((c, k, held.clone()));
+        }
+        if !inner.is_empty() {
+            rows.sort_stable_by_key(|r| r.1);
+            let at = |k: u32| rows.partition_point(|r| r.1 < k);
+            let mut extra = Vec::new();
+            for (c, k, held) in inner {
+                extra.push((Holder::Value(c), k));
+                for s in held {
+                    for &(h, _) in &rows[at(s)..at(s + 1)] {
+                        if !matches!(h, Holder::Value(v) if v < c) {
+                            extra.push((h, k));
+                        }
+                    }
+                }
+            }
+            rows.extend(extra);
+        }
+        rows.sort_stable();
+        rows.dedup();
+        (sites, rows)
+    }
+
     fn verdicts(&self, sol: &Solution, r: &Returns<'_>) -> Verdicts {
         let (b, ls, pool) = (self.s.b, self.s.ls, self.s.pool);
         // Each slot behind a parameter's top `&mut` is a place the caller owns.
@@ -1835,7 +2154,7 @@ impl Gen<'_, '_> {
             let global = matches!(o, Origin::Global(_)) || statik(o);
             match e.cat {
                 // A site loan only marks what a shared `Ref` reaches.
-                _ if matches!(o, Origin::Site(_)) => true,
+                _ if matches!(o, Origin::Site(_) | Origin::Lent(_)) => true,
                 // An outside mark leaves only a returned slot of its path.
                 _ if let Origin::Outside(k) = o => {
                     e.cat != Category::Result || !results[&e.to].1.contains(&(PATH + k))
@@ -1944,6 +2263,7 @@ impl Gen<'_, '_> {
         }
         v.scope = scoped_uses(b, self.s.cx, r.skip, &|i| self.uses(sol, i));
         v.conflicts = self.conflicts(sol);
+        v.run_loans = self.run_loans(sol);
         let calls = self.call_conflicts(sol, &v.conflicts);
         v.conflicts.extend(calls);
         v

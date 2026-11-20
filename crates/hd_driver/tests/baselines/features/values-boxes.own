@@ -19,22 +19,22 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %10 consume last
 >   local $2 p: Point [read assigned mutated] value ×2
->     uses $2: %4 -> %5 consume last; %11 -> %21 consume last
+>     uses $2: %4 -> %5 consume last; %11 -> %23 consume last
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
 >   local $4 copy: *mut Point [:= read assigned] value
 >     uses $4: %9 -> %13 lend last
 >   local $5 self: string [read] value
->     uses $5: %22 -> %23 lend last
+>     uses $5: %24 -> %25 lend last
 >   local $6 self: string [read] value
->     uses $6: %14 -> %15 lend last
->   %0 = Retain %30 Entry local $0 #0 : ()
->   %1 = Retain %30 Entry local $1 #0 : ()
+>     uses $6: %15 -> %16 lend last
+>   %0 = Retain %32 Entry local $0 #0 : ()
+>   %1 = Retain %32 Entry local $1 #0 : ()
     let mut p = Point { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Point
 >   %4 = Store [$2] %3 : ()
 >   %6 = Box #3 #1 : ()
->   %30 = Block %29 : usize
+>   %32 = Block %31 : usize
     copy := box(p)
 >   %5 = Read copy [$2] : Point
 >   %7 = Store [$3] %5 : ()
@@ -46,22 +46,24 @@ fn copy_box(s: string, t: string) -> usize:
 >   %12 = Release %11 Operation #3 : ()
     copy.name.len() + p.name.len()
 >   %13 = Read borrow [*$4 .name] : string
->   %14 = Store [$6] %13 : ()
->   %15 = Read borrow [$6] : string
->   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
->   %17 = Break L1 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = Drop [$4] : ()
->   %21 = Read move [$2 .name] : string
->   %22 = Store [$5] %21 : ()
->   %23 = Read borrow [$5] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L0 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Drop [$5] : ()
->   %29 = Prim Add [%19 %27] : usize
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Store [$6] %13 : ()
+>   %16 = Read borrow [$6] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L1 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Drop [$4] : ()
+>   %22 = LoanClose %14 : ()
+>   %23 = Read move [$2 .name] : string
+>   %24 = Store [$5] %23 : ()
+>   %25 = Read borrow [$5] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L0 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Drop [$5] : ()
+>   %31 = Prim Add [%20 %29] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $3 cell
 >   summary kept [$0 $1]
@@ -96,9 +98,9 @@ fn shared(s: string, t: string) -> usize:
 >   local $4 h: Holder [:= read assigned] value
 >     uses $4: %10 -> %15 lend last
 >   local $5 self: string [read] value
->     uses $5: %16 -> %17 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
->   %1 = Retain %23 Entry local $1 #0 : ()
+>     uses $5: %17 -> %18 lend last
+>   %0 = Retain %25 Entry local $0 #0 : ()
+>   %1 = Retain %25 Entry local $1 #0 : ()
     b := box(Point { name: s })
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Point
@@ -106,7 +108,7 @@ fn shared(s: string, t: string) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %6 = Ref take mut [$2] : *mut Point
 >   %7 = Store [$3] %6 : ()
->   %23 = Block %21 : usize
+>   %25 = Block %22 : usize
     h := Holder { point: b }
 >   %8 = Read copy [$3] : *mut Point
 >   %9 = NewStruct [%8] : Holder
@@ -118,13 +120,15 @@ fn shared(s: string, t: string) -> usize:
 >   %14 = Drop [$3] : ()
     h.point.name.len()
 >   %15 = Read borrow [$4 .point * .name] : string
->   %16 = Store [$5] %15 : ()
->   %17 = Read borrow [$5] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L0 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Drop [$4] : ()
+>   %16 = LoanBegin %15 #0 : ()
+>   %17 = Store [$5] %15 : ()
+>   %18 = Read borrow [$5] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = Drop [$4] : ()
+>   %24 = LoanClose %16 : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

@@ -17,11 +17,11 @@ fn temp_ref(s: string) -> usize:
 
 fn new_mut(s: string, t: string) -> usize:
     m := &mut Named { name: s }
-> app/main/new_mut
->   release app.main.Named [name.0] (last use)
     m.name = t
+> app/main/new_mut
 >   release counted reference (overwritten)
     m.name.len()
+>   release app.main.Named [name.0] (last use)
 
 fn field_ref(s: string, t: string) -> usize:
     let mut p = Named { name: s }

@@ -21,6 +21,7 @@
     call $read
     ;; 11 |     let saved = box(value)
     local.get $t0
+    ;; 12 |     read(saved)
     if
       local.get $t0
       i32.const 8

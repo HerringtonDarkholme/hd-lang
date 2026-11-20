@@ -35,12 +35,14 @@ fn call() -> i32:
 >   %1 = Ref mut [$0] : *mut i32
 >   %2 = Coerce %1 [Weaken -] : *i32
 >   %3 = Store [$1] %2 : ()
->   %10 = Block %9 : i32
+>   %12 = Block %10 : i32
     let callback: fn((&i32)?) -> i32 = read
 >   %4 = ItemRef #3 [..] : fn(&i32?) -> i32
 >   %5 = Store [$2] %4 : ()
     callback(.Some(owner))
 >   %6 = Read [$2] : fn(&i32?) -> i32
 >   %7 = Ref local [*$1] : &i32
->   %8 = NewVariant #1 [%7] : &i32?
->   %9 = CallValue %6 [%8] : i32
+>   %8 = LoanBegin %7 #0 : ()
+>   %9 = NewVariant #1 [%7] : &i32?
+>   %10 = CallValue %6 [%9] : i32
+>   %11 = LoanClose %8 : ()

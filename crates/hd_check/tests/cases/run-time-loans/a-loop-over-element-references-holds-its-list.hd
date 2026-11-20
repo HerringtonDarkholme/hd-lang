@@ -1,0 +1,8 @@
+# @dump: tir
+# The list a loop over element references reads through a pointer holds
+# their loans for the whole loop (`flow.for.ref.access`).
+pub fn main() -> void:
+    a := box([+1, 2])
+    b := a
+    for c in &a:
+        b.push(*c)

@@ -56,10 +56,22 @@ and decides nothing.
 **As built (7ccbb4ea8).** The passes run per instance, write each count
 with a reason (`hd_tir/src/own/reason.rs`), and a checked build verifies
 the result (`verify_owned`). Two parts differ from the design below.
-Pointer loans are a whole-program link pass (`hd_tir/src/own/pointer.rs`),
-a result table rather than `LoanBegin` and `LoanEnd` statements in TIR.
-The emitter still decides parameter entry and exit counts, cancelled-await
-releases, every pointer loan and drop flags, and the peephole deletes
+Pointer loans are `LoanBegin` and `LoanClose` statements the checker
+places from its lifetime regions (#2174): a loan begins right after its
+site (a `Ref`, a `*T` a call lends as `&T` or `&mut T`, or a call whose
+result points into an object the callee reached through a pointer) and
+closes where the last value or local whose region holds it dies, on every
+path (`hd_tir/src/own/loans.rs`, a backward liveness walk over holders).
+Inlining, mono and the passes copy them; the inliner moves a callee's
+closes of the loans its result carries to where the caller closes them.
+A whole-program link pass (`hd_tir/src/own/pointer.rs`) keeps the loans an
+access in their statement range may meet. Two exceptions, owner
+2026-11-19: a `Suspend` value holds no run-time loan, so a suspending
+call's argument loans end with the call that makes the task
+(`Gen::run_loans`, `task`); and an awaited call's arguments take no
+run-time loan (`Ck::lent_args` and `Gen::run_loans`, `awaited`; the gap
+is #2197). The emitter still decides parameter entry and exit counts,
+cancelled-await releases and drop flags, and the peephole deletes
 releases by dataflow (#1420, #1781, #1792; docs/audit/review-2026-11-12.md
 §13).
 

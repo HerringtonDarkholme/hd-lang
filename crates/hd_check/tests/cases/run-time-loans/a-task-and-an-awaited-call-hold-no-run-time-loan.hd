@@ -1,0 +1,19 @@
+# @dump: tir
+# Two exceptions (owner, 2026-11-19): a `Suspend` value holds no run-time
+# loan, so a task's construction loan closes after the call that makes it;
+# an awaited call's argument takes none (#2197).
+use std.time.{Clock, ms, sleep}
+
+struct Counter:
+    value: i32
+
+fn hold!(c: &mut Counter) -> i32 $ Clock:
+    sleep!(ms(10))
+    c.value
+
+fn first!(p: *mut Counter) -> i32 $ Clock:
+    hold!(p)
+
+fn make(p: *mut Counter) -> void $ Clock:
+    let task: Suspend[i32] = hold(p)
+    task.abandon()

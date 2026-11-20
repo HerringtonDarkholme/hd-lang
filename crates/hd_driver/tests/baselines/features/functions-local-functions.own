@@ -16,16 +16,16 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   local $6 $end: usize [assigned] value
 >     uses $6: %7 -> %10 lend
 >   local $7 x: string [read assigned] value
->     uses $7: %40 -> %25 lend last
+>     uses $7: %42 -> %27 lend last
 >   local $8 prefix: string [read assigned] place
 >   local $11 self: string [read] value
->     uses $11: %19 -> %20 lend last
->   %0 = Release %51 Exit local $0 #2 : ()
->   %1 = Release %51 Exit local $1 #2 : ()
+>     uses $11: %20 -> %21 lend last
+>   %0 = Release %53 Exit local $0 #2 : ()
+>   %1 = Release %53 Exit local $1 #2 : ()
     fn width(s: string) -> usize:
 >   %2 = Read borrow [$0] : string
 >   %3 = Store [$8] %2 : ()
->   %51 = Block %50 : usize
+>   %53 = Block %52 : usize
         prefix.len() + s.len()
     let total: usize = 0
 >   %4 = Store [$2] 0:usize : ()
@@ -42,43 +42,45 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >   %14 = Read copy [$5] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
 >   %16 = Store [$5] %15 : ()
->   %38 = Block - : ()
->   %39 = Read borrow [%13] : string
->   %40 = Store [$7] %39 : ()
->   %42 = Block - : never
->   %43 = Match %13 [%42 %38] : ()
->   %44 = Block - : ()
->   %45 = Break L1 - : never
+>   %40 = Block - : ()
+>   %41 = Read borrow [%13] : string
+>   %42 = Store [$7] %41 : ()
+>   %44 = Block - : never
+>   %45 = Match %13 [%44 %40] : ()
 >   %46 = Block - : ()
->   %47 = If %11 [%44 %46] : ()
+>   %47 = Break L1 - : never
 >   %48 = Block - : ()
->   %49 = Loop %48 - : ()
+>   %49 = If %11 [%46 %48] : ()
+>   %50 = Block - : ()
+>   %51 = Loop %50 - : ()
         total += width(x)
 >   %17 = Read copy [$2] : usize
 >   %18 = Read borrow [$8] : string
->   %19 = Store [$11] %18 : ()
->   %20 = Read borrow [$11] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L3 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   %25 = Read borrow [$7] : string
->   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
->   %27 = Break L2 %26 : never
->   %28 = Block - : usize
->   %29 = Scope %28 [] : usize
->   %30 = Prim Add [%24 %29] : usize
->   %31 = Read borrow [$8] : string
->   %32 = Block - : ()
->   %33 = Break L0 %30 : never
->   %34 = Block - : usize
->   %35 = Scope %34 [%32] : usize
->   %36 = Prim Add [%17 %35] : usize
->   %37 = Store [$2] %36 : ()
+>   %19 = LoanBegin %18 #0 : ()
+>   %20 = Store [$11] %18 : ()
+>   %21 = Read borrow [$11] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L3 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = LoanClose %19 : ()
+>   %27 = Read borrow [$7] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L2 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Prim Add [%25 %31] : usize
+>   %33 = Read borrow [$8] : string
+>   %34 = Block - : ()
+>   %35 = Break L0 %32 : never
+>   %36 = Block - : usize
+>   %37 = Scope %36 [%34] : usize
+>   %38 = Prim Add [%17 %37] : usize
+>   %39 = Store [$2] %38 : ()
     total
->   %50 = Read copy [$2] : usize
+>   %52 = Read copy [$2] : usize
 >   summary kept [] borrows [$0 $1]
->   loop %49 keeps [$1] (-..-)
+>   loop %51 keeps [$1] (-..-)
 
 fn local_plain(xs: List[string]) -> usize:
 > app/main/local_plain

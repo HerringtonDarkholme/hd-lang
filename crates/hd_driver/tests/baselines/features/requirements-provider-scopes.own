@@ -277,17 +277,17 @@ fn unrelated_provider(s: string) -> usize:
 >     uses $0: entry -> %1 consume, %3 consume last
 >   local $1 s: string [read assigned] place
 >   local $2 self: string [read] value
->     uses $2: %35 -> %36 lend last
+>     uses $2: %36 -> %37 lend last
 >   local $3 $ref: string [read assigned captured captured-assigned] value
 >     uses $3: %24 -> %25 lend last
 >   local $5 provider: Named [read] value
 >     uses $5: %5 -> %6 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %51 Entry local $0 #0 : ()
+>   %0 = Retain %53 Entry local $0 #0 : ()
     f := fn() -> usize: s.len()
 >   %1 = Read copy [$0] : string
 >   %2 = Store [$1] %1 : ()
->   %51 = Block %48 : usize
+>   %53 = Block %50 : usize
     $.with(Tag=Named { label: s }):
 >   %3 = Read move [$0] : string
 >   %4 = NewStruct [%3] : Named
@@ -305,11 +305,11 @@ fn unrelated_provider(s: string) -> usize:
 >   %16 = LoanEnd [%12] : ()
 >   %17 = Coerce %15 [RefAsProvider -] : Tag
 >   %18 = LoanEnd [%15] : ()
->   %48 = With [Tag %17] %47 : usize
->   %49 = Drop [%17] : ()
->   %50 = Drop [$1] : ()
+>   %50 = With [Tag %17] %49 : usize
+>   %51 = Drop [%17] : ()
+>   %52 = Drop [$1] : ()
         read_tag() + f()
->   %19 = ProviderGet #88 : Tag
+>   %19 = ProviderGet #90 : Tag
 >   %20 = Coerce %19 [ProviderAsRef -] : &dyn Tag
 >   %21 = Read borrow [*%20] : Tag
 >   %22 = Drop [%20] : ()
@@ -325,19 +325,21 @@ fn unrelated_provider(s: string) -> usize:
 >   %32 = Block - : usize
 >   %33 = Scope %32 [] : usize
 >   %34 = Read borrow [$1] : string
->   %35 = Store [$2] %34 : ()
->   %36 = Read borrow [$2] : string
->   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
->   %38 = Break L1 %37 : never
->   %39 = Block - : usize
->   %40 = Scope %39 [] : usize
->   %41 = Read borrow [$1] : string
->   %42 = Block - : ()
->   %43 = Break L0 %40 : never
->   %44 = Block - : usize
->   %45 = Scope %44 [%42] : usize
->   %46 = Prim Add [%33 %45] : usize
->   %47 = Block %46 : usize
+>   %35 = LoanBegin %34 #0 : ()
+>   %36 = Store [$2] %34 : ()
+>   %37 = Read borrow [$2] : string
+>   %38 = Call std/rt.bytes/bytes_len[] (%37) : usize
+>   %39 = Break L1 %38 : never
+>   %40 = Block - : usize
+>   %41 = Scope %40 [] : usize
+>   %42 = LoanClose %35 : ()
+>   %43 = Read borrow [$1] : string
+>   %44 = Block - : ()
+>   %45 = Break L0 %41 : never
+>   %46 = Block - : usize
+>   %47 = Scope %46 [%44] : usize
+>   %48 = Prim Add [%33 %47] : usize
+>   %49 = Block %48 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $6 cell
 >   summary kept [$0] writes

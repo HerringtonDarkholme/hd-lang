@@ -28,8 +28,8 @@ fn temp_ref(s: string) -> usize:
 >   local $2 n: &Named [:= read assigned] value
 >     uses $2: %9 -> %10 lend last
 >   local $3 self: string [read] value
->     uses $3: %11 -> %12 lend last
->   %0 = Release %18 Exit local $0 #2 : ()
+>     uses $3: %12 -> %13 lend last
+>   %0 = Release %20 Exit local $0 #2 : ()
     n := &make(s)
 >   %1 = Read borrow [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -40,16 +40,18 @@ fn temp_ref(s: string) -> usize:
 >   %7 = Store [$1] %5 : ()
 >   %8 = Ref local frame [$1] : &Named
 >   %9 = Store [$2] %8 : ()
->   %18 = Block %16 : usize
+>   %20 = Block %17 : usize
     n.name.len()
 >   %10 = Read borrow [*$2 .name] : string
->   %11 = Store [$3] %10 : ()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = LoanEnd [$2] : ()
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Store [$3] %10 : ()
+>   %13 = Read borrow [$3] : string
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = LoanEnd [$2] : ()
+>   %19 = LoanClose %11 : ()
 >   storage sub 0: $1 slot
 >   summary kept [] borrows [$0]
 
@@ -63,9 +65,9 @@ fn new_mut(s: string, t: string) -> usize:
 >   local $3 m: &mut Named [:= read assigned] value
 >     uses $3: %7 -> %9 lend, %11 lend last
 >   local $4 self: string [read] value
->     uses $4: %12 -> %13 lend last
->   %0 = Retain %20 Entry local $0 #0 : ()
->   %1 = Retain %20 Entry local $1 #0 : ()
+>     uses $4: %13 -> %14 lend last
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
     m := &mut Named { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
@@ -73,21 +75,23 @@ fn new_mut(s: string, t: string) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %6 = Ref mut local frame [$2] : &mut Named
 >   %7 = Store [$3] %6 : ()
->   %20 = Block %17 : usize
+>   %22 = Block %18 : usize
     m.name = t
 >   %8 = Read move [$1] : string
 >   %9 = Store [*$3 .name] %8 : ()
 >   %10 = Release %9 Operation #3 : ()
     m.name.len()
 >   %11 = Read borrow [*$3 .name] : string
->   %12 = Store [$4] %11 : ()
->   %13 = Read borrow [$4] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = LoanEnd [$3] : ()
->   %19 = Drop [$2] : ()
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Store [$4] %11 : ()
+>   %14 = Read borrow [$4] : string
+>   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = LoanEnd [$3] : ()
+>   %20 = Drop [$2] : ()
+>   %21 = LoanClose %12 : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1]

@@ -4,24 +4,28 @@ app/main/borrowed
     uses $0: entry -> %1 consume last
   local $1 values: List[string] [read assigned] place
   local $2 current: &string [read assigned] value
-    uses $2: %7 -> %8 lend last
+    uses $2: %9 -> %10 lend last
   %1 = Read move [$0] : List[string]
   %2 = Box #1 #0 : ()
   %3 = Store [$1] %1 : ()
   %4 = Ref local frame [$1] : &List[string]
-  %5 = Call app/main/first[] (%4) : &string
-  %6 = LoanEnd [%4] : ()
-  %7 = Store [$2] %5 : ()
-  %8 = Read move [$2] : &string
-  %9 = Call std/text/impl string.len[] (%8) : usize
-  %10 = Read borrow [$1] : List[string]
-  %11 = Block - : ()
-  %12 = Drop [%8] : ()
-  %13 = Break L0 %9 : never
-  %14 = Block - : usize
-  %15 = Scope %14 [%11] : usize
-  %16 = Drop [$1] : ()
-  %17 = Block %15 : usize
+  %5 = LoanBegin %4 #0 : ()
+  %6 = Call app/main/first[] (%4) : &string
+  %7 = LoanEnd [%4] : ()
+  %8 = LoanBegin %6 #4 : ()
+  %9 = Store [$2] %6 : ()
+  %10 = Read move [$2] : &string
+  %11 = Call std/text/impl string.len[] (%10) : usize
+  %12 = Drop [%10] : ()
+  %13 = LoanClose %5 : ()
+  %14 = LoanClose %8 : ()
+  %15 = Read borrow [$1] : List[string]
+  %16 = Block - : ()
+  %17 = Break L0 %11 : never
+  %18 = Block - : usize
+  %19 = Scope %18 [%16] : usize
+  %20 = Drop [$1] : ()
+  %21 = Block %19 : usize
   exit sub 0 drops [$0 $1]
   storage sub 0: $1 slot
   summary kept [$0]

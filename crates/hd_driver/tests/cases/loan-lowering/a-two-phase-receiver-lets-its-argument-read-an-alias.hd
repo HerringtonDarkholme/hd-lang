@@ -1,0 +1,19 @@
+# @dump: stdout
+# @build: dev | release
+# A `&mut self` receiver is shared until its call starts (two-phase):
+# the alias read in its argument runs, and the call then takes it
+# exclusively.
+struct Box2:
+    v: i32
+
+impl Box2:
+    fn set(&mut self, x: i32) -> void:
+        self.v = x
+    fn get(&self) -> i32:
+        self.v
+
+pub fn main() -> void $ Console:
+    let p: *mut Box2 = box(Box2 { v: 1 })
+    let alias = p
+    p.set(alias.get() + 1)
+    println(p.v)

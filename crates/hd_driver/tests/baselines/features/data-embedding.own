@@ -16,15 +16,17 @@ impl Stamp:
 >   local $0 self: &Stamp [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 self: string [read] value
->     uses $1: %1 -> %2 lend last
+>     uses $1: %2 -> %3 lend last
 >   %0 = Read borrow [*$0 .by] : string
->   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L0 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Block %6 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Store [$1] %0 : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = LoanClose %1 : ()
+>   %9 = Block %7 : usize
 >   summary kept []
 
 struct Post:
@@ -51,16 +53,16 @@ fn make(s: string, t: string) -> Post:
 fn promoted(p: Post) -> usize:
 > app/main/promoted
 >   local $0 p: Post [param read] value
->     uses $0: entry -> %1 consume, %8 consume, %21 consume last
+>     uses $0: entry -> %1 consume, %8 consume, %23 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
 >     uses $1: %2 -> %3 lend last
 >   local $2 self: string [read] value
->     uses $2: %22 -> %23 lend last
+>     uses $2: %24 -> %25 lend last
 >   local $3 self: Stamp [read] value
 >     uses $3: %9 -> %10 consume last
 >   local $4 self: string [read] value
->     uses $4: %11 -> %12 lend last
->   %0 = Release %29 Exit local $0 #2 : ()
+>     uses $4: %12 -> %13 lend last
+>   %0 = Release %31 Exit local $0 #2 : ()
     p.by.len() + p.by_len() + p.title.len()
 >   %1 = Read borrow [$0 .Stamp .by] : string
 >   %2 = Store [$1] %1 : ()
@@ -72,25 +74,27 @@ fn promoted(p: Post) -> usize:
 >   %8 = Read borrow [$0 .Stamp] : Stamp
 >   %9 = Store [$3] %8 : ()
 >   %10 = Read borrow [$3 .by] : string
->   %11 = Store [$4] %10 : ()
->   %12 = Read borrow [$4] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L1 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Break L2 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = Prim Add [%7 %19] : usize
->   %21 = Read borrow [$0 .title] : string
->   %22 = Store [$2] %21 : ()
->   %23 = Read borrow [$2] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L0 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Prim Add [%20 %27] : usize
->   %29 = Block %28 : usize
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Store [$4] %10 : ()
+>   %13 = Read borrow [$4] : string
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %15 = Break L1 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = LoanClose %11 : ()
+>   %19 = Break L2 %17 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Prim Add [%7 %21] : usize
+>   %23 = Read borrow [$0 .title] : string
+>   %24 = Store [$2] %23 : ()
+>   %25 = Read borrow [$2] : string
+>   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %27 = Break L0 %26 : never
+>   %28 = Block - : usize
+>   %29 = Scope %28 [] : usize
+>   %30 = Prim Add [%22 %29] : usize
+>   %31 = Block %30 : usize
 >   summary kept [] borrows [$0]
 
 fn stamp_of(p: &Post) -> Stamp:

@@ -3,86 +3,145 @@ std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
 std/rt.cycle/push#0
+std/json/impl Iterator[(string, Json)] for JsonObjectIter.next#0
+std/hash/hash_bytes_long#0
+std/format/Display.write#0 [std.json.Json]
 std/rt.cycle/scan#0
 app/main/Row.structure handle 0 1#0
 std/rt.alloc/init_classes#0
 app/main/derive Serialize for Row.serialize#0 [std.json.TextWriter]
+std/json/impl JsonObject.set#0
+std/hash/hash_bytes#0
 std/rt.cycle/drain#0
+std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
 std/collections/impl TextRoom.take_text#0
 std/json/impl Serializer for TextWriter.end_variant#0
+std/structure/impl Facts.find#0 [std.serde.EnumTagging]
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 app/main/Row.structure handle 0#0
+std/collections/impl TextSink for TextRoom.append_unsigned#0
+std/collections/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
+std/collections/impl[T] List[T].pop#0 [std.json.ObjectEntry]
 std/json/impl Serializer for TextWriter.end_map#0
 std/json/impl TextWriter.start#0
 std/rt.alloc/release_known#0
+std/json/impl JsonObject.len#0
+std/serde/impl[T < Serialize] Serialize for List[T].serialize#0 [app.main.Row, std.json.JsonWriter]
 std/json/impl TextWriter.spaced_key#0
 std/rt.cycle/takes_part#0
+std/json/encode_pretty_fallback#0 [List[app.main.Row]]
 std/serde/member_name#0
 std/json/impl TextWriter.name_next#0
 app/main/Row.structure handle 0 1#1
 app/main/Row.structure handle 0#1
 app/main/Row.structure handle 0 0#2
+std/hash/hash_integer#0
 std/json/impl TextWriter.close#0
 std/rt.alloc/release#0
 std/json/impl Serializer for TextWriter.text#0
 std/rt.alloc/block_of#0
 app/main/Row.structure handle 0 0#0
 app/main/main#0
+std/hash/rotate_right#0
+std/json/impl Serializer for JsonWriter.begin_list#0
+std/collections/impl[T] List[T].pop#0 [string]
 std/rt.alloc/full#0
+std/hash/hash_string#0
 std/rt.alloc/move_table#0
 std/serde/joined_name#0
+std/json/impl JsonWriter.close#0
+std/json/impl TextWriter.finish#0
+app/main/derive Serialize for Row.regular#0
 std/json/impl Serializer for TextWriter.member#0
 std/serde/impl Serialize for i64.serialize#0 [std.json.TextWriter]
+std/json/encode_fallback#0 [List[app.main.Row]]
+std/json/enum_tagging#0
+std/json/impl Json.pretty#0
+std/json/impl Serializer for JsonWriter.int#0
+std/json/impl Serializer for JsonWriter.member#0
+std/text/impl StringBuilder.push#0
 std/text/impl string.repeat#0
+std/json/impl JsonObject.has_metadata#0
+std/json/impl JsonObject.position#0
 std/rt.alloc/unlink#0
 std/json/push_quoted#0
 std/json/encode_pretty#0 [List[app.main.Row]]
 std/rt.alloc/retain#0
 app/main/Row.structure handle 0 1#2
+std/serde/impl Serialize for string.serialize#0 [std.json.JsonWriter]
 std/rt.cycle/sweep#0
 std/text/impl List[string].join#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/num/impl[N < Integer] N.checked_add#0 [usize]
+std/json/impl JsonObject.take_metadata#0
 std/rt.alloc/claim#0
+std/hash/add_wrapping#0
 std/text/searcher#0
+std/json/impl JsonWriter.put#0
 std/json/impl TextWriter.open#0
 std/structure/impl Facts.find#0 [std.serde.RenameAll]
+std/json/object_of#0
 std/json/impl Serializer for TextWriter.begin_list#0
+app/main/derive Serialize for Row.serialize#0 [std.json.JsonWriter]
 std/json/key_print#0
 std/serde/case_name#0
+std/json/impl Serializer for JsonWriter.end_list#0
+std/json/tagged_json#0
 std/rt.entry/host_provider#0 [Console]
+std/json/render#0
 std/rt.alloc/retain_known#0
+std/rt.memory/room#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
 std/serde/impl Serialize for string.serialize#0 [std.json.TextWriter]
+std/collections/impl UniqList[u8].grow_bytes#0
+std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
 std/text/maximal_suffix#0
 std/json/impl TextWriter.give_up#0
 std/rt.alloc/start#0
+std/hash/hash_bytes_short#0
 std/rt.alloc/free_block#0
+std/json/impl Serializer for JsonWriter.end_map#0
+std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
+std/rt.cycle/hold_room#0
+std/json/impl Display for Json.to_string#0
 std/json/impl Serializer for TextWriter.end_list#0
 std/json/escape_text#0
+std/json/impl JsonWriter.open#0
 app/main/Row.structure handle 0 0#1
 std/rt.alloc/init.init#0
 std/json/encode#0 [List[app.main.Row]]
+std/collections/impl[T] List[T].pop#0 [std.json.OpenFrame]
 std/json/line_break#0
 std/rt.bytes/concat_all#0
+std/collections/impl[T] List[T].pop#0 [std.json.Json]
 std/rt.cycle/collection_due#0
+std/format/impl Display for f64.to_string#0
 app/main/Row.structure facts#0
 std/json/impl Serializer for TextWriter.int#0
+std/json/impl Serializer for JsonWriter.end_variant#0
 std/text/search_from#0
+std/text/impl StringBuilder.build#0
 std/collections/collection_capacity_sum#0
 std/collections/impl TextSink for TextRoom.append_text#0
 std/rt.cycle/mark#0
+std/json/impl JsonObject.index_dense#0
+std/iter/impl[T] Iterator[T] for ListIter[T].next#0 [std.json.ObjectEntry]
+std/json/impl Serializer for JsonWriter.end_data#0
 std/text/impl string.replace#0
+std/collections/impl ByteBuffer for UniqList[u8].take_text#0
 std/rt.cycle/visit#0
+std/serde/impl Serialize for i64.serialize#0 [std.json.JsonWriter]
+std/json/impl Serializer for JsonWriter.text#0
 std/json/impl TextWriter.add_key#0
 std/serde/uppercase_name#0
 std/structure/impl Facts.find#0 [std.serde.Rename]
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
+std/json/to_json#0 [List[app.main.Row]]
 std/collections/impl TextSink for TextRoom.append_signed#0
 std/text/pair_windows#0
 std/json/impl Serializer for TextWriter.end_data#0
@@ -94,6 +153,7 @@ std/text/plain_windows#0
 std/json/push_escaped#0
 rt:memory_copy/0/0
 rt:memory_copy/0/1
+rt:memory_copy/1/0
 rt:memory_fill/0/0
 rt:entry_init
 rt:entry_poll
@@ -116,44 +176,100 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:retain
+rt:retain#0
+rt:retain#1
+rt:retain#2
+rt:retain#3
+rt:retain#4
 rt:release#0
 rt:release#1
+rt:release#2
+rt:release#3
+rt:release#4
+rt:release#5
+rt:release#6
+rt:release#7
+rt:release#8
+rt:release#9
+rt:release#10
+rt:release#11
+rt:release#12
 rt:release_ref#0
 rt:release_drain
 rt:retain_known
 rt:release_ref#1
+rt:drop
 rt:list_buf#0
 rt:list_buf#1
 rt:list_buf#2
 rt:list_buf#3
 rt:list_buf#4
+rt:list_buf#5
+rt:list_buf#6
+rt:list_buf#7
 rt:drop_elems#0
 rt:drop_elems#1
 rt:drop_elems#2
+rt:drop_elems#3
+rt:drop_elems#4
+rt:drop_elems#5
 rt:coll_copy
 rt:copy_elems#0
 rt:copy_elems#1
+rt:copy_elems#2
+rt:copy_elems#3
+rt:copy_elems#4
 rt:list_unique#0
 rt:list_unique#1
 rt:list_unique#2
 rt:list_unique#3
+rt:list_unique#4
+rt:list_unique#5
+rt:list_unique#6
 rt:list_copy#0
 rt:list_copy#1
 rt:list_copy#2
 rt:list_copy#3
+rt:list_copy#4
+rt:list_copy#5
+rt:list_copy#6
 rt:list_grow#0
 rt:list_grow#1
 rt:list_grow#2
 rt:list_grow#3
+rt:list_grow#4
+rt:list_grow#5
+rt:list_grow#6
+rt:map_seed
+rt:map_table#0
+rt:map_table#1
+rt:drop_entries
+rt:map_hash#0
+rt:map_hash#1
+rt:map_find#0
+rt:map_find#1
+rt:map_lookup
+rt:map_put#0
+rt:map_put#1
+rt:map_grow#0
+rt:map_grow#1
+rt:map_unique#0
+rt:map_unique#1
+rt:list_truncate#0
+rt:list_truncate#1
+rt:list_truncate#2
+rt:list_truncate#3
 rt:type_info#0
 rt:type_info#1
+rt:type_info#2
 rt:dyn_trap
 rt:str_from_bytes
 rt:str_to_bytes
 rt:str_append
+rt:fmt_u64
 rt:fmt_i64
 rt:str_eq
+rt:prim/format_f64
 rt:hd:Console/write_sync
 rt:leb_get
 rt:dec#0

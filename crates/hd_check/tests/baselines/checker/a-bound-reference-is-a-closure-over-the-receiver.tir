@@ -6,8 +6,11 @@ app/main/bumper
   %0 = Read [$0] : *mut Counter
   %1 = Store [$1] %0 : ()
   %2 = Read [$1] : *mut Counter
-  %3 = Read [$2] : i32
-  %4 = Call app/main/impl Counter.bump[] (%2, %3) : ()
-  %5 = Block %4 : ()
-  %6 = Closure #1 : fn(i32) -> ()
-  %7 = Block %6 : fn(i32) -> ()
+  %3 = LoanBegin %2 #0 : ()
+  %4 = Read [$2] : i32
+  %5 = LoanBegin %2 #2 : ()
+  %6 = Call app/main/impl Counter.bump[] (%2, %4) : ()
+  %7 = LoanClose %3 : ()
+  %8 = Block %6 : ()
+  %9 = Closure #1 : fn(i32) -> ()
+  %10 = Block %9 : fn(i32) -> ()

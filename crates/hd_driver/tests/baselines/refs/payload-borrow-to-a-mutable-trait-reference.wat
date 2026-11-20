@@ -32,12 +32,12 @@
       local.get $slot
       i32.load $heap
       call_indirect $table0 (param i32)
-    ;; 13 |     match slot:
       local.get $t0
       if
         local.get $t0
         call $rt:release_ref
       end
+    ;; 13 |     match slot:
       return
     end
   )

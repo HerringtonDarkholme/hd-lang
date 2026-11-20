@@ -80,13 +80,15 @@ fn first_len(xs: &List[string]) -> usize:
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Prim Eq [%1 0:usize] : bool
 >   %5 = If %2 [%4 -] : ()
->   %8 = Block %7 : usize
+>   %10 = Block %8 : usize
         return 0
 >   %3 = Return 0:usize : never
 >   %4 = Block - : never
     xs[0].len()
 >   %6 = Ref local [*$0 [0:usize]] : &string
->   %7 = Call std/text/impl string.len[] (%6) : usize
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Call std/text/impl string.len[] (%6) : usize
+>   %9 = LoanClose %7 : ()
 
 fn use_first(xs: List[string]) -> usize:
     first_len(&xs) + checksum(&xs)

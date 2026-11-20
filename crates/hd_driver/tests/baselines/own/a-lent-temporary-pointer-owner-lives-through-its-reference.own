@@ -8,8 +8,10 @@ app/main/probe
   %2 = Ref take mut [$0] : *mut u32
   %3 = Store [$1] %2 : ()
   %4 = Ref local [*$1] : &u32
-  %5 = Call app/main/read[] (%4) : u32
-  %6 = LoanEnd [%4] : ()
-  %7 = Drop [$1] : ()
-  %8 = Block %5 : u32
+  %5 = LoanBegin %4 #0 : ()
+  %6 = Call app/main/read[] (%4) : u32
+  %7 = LoanEnd [%4] : ()
+  %8 = Drop [$1] : ()
+  %9 = LoanClose %5 : ()
+  %10 = Block %6 : u32
   storage sub 0: $0 cell

@@ -15,22 +15,24 @@ fn change!(n: *mut Note) -> usize:
 >   local $0 n: *mut Note [param read] value
 >     uses $0: entry -> %2 lend, %4 lend last
 >   local $1 self: string [read] value
->     uses $1: %5 -> %6 lend last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>     uses $1: %6 -> %7 lend last
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
     n.text = "m"
 >   %2 = Store [*$0 .text] "m" : ()
 >   %3 = Release %2 Operation #3 : ()
->   %12 = Block %10 : usize
+>   %14 = Block %11 : usize
     n.text.len()
 >   %4 = Read borrow [*$0 .text] : string
->   %5 = Store [$1] %4 : ()
->   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Drop [$0] : ()
+>   %5 = LoanBegin %4 #0 : ()
+>   %6 = Store [$1] %4 : ()
+>   %7 = Read borrow [$1] : string
+>   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %9 = Break L0 %8 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$0] : ()
+>   %13 = LoanClose %5 : ()
 >   exit sub 0 drops [$0]
 
 fn other!() -> usize:

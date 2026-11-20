@@ -23,7 +23,7 @@ fn copy_box(s: string, t: string) -> usize:
 >   %0 = Read [$0] : string
 >   %1 = NewStruct [%0] : Point
 >   %2 = Store [$2] %1 : ()
->   %14 = Block %13 : usize
+>   %16 = Block %15 : usize
     copy := box(p)
 >   %3 = Read [$2] : Point
 >   %4 = Store [$3] %3 : ()
@@ -34,10 +34,12 @@ fn copy_box(s: string, t: string) -> usize:
 >   %8 = Store [$2 .name] %7 : ()
     copy.name.len() + p.name.len()
 >   %9 = Ref local [*$4 .name] : &string
->   %10 = Call std/text/impl string.len[] (%9) : usize
->   %11 = Ref local [$2 .name] : &string
->   %12 = Call std/text/impl string.len[] (%11) : usize
->   %13 = Prim Add [%10 %12] : usize
+>   %10 = LoanBegin %9 #0 : ()
+>   %11 = Call std/text/impl string.len[] (%9) : usize
+>   %12 = LoanClose %10 : ()
+>   %13 = Ref local [$2 .name] : &string
+>   %14 = Call std/text/impl string.len[] (%13) : usize
+>   %15 = Prim Add [%11 %14] : usize
 
 fn move_box(s: string) -> *mut Point:
     p := Point { name: s }
@@ -67,7 +69,7 @@ fn shared(s: string, t: string) -> usize:
 >   %2 = Store [$2] %1 : ()
 >   %3 = Ref mut [$2] : *mut Point
 >   %4 = Store [$3] %3 : ()
->   %12 = Block %11 : usize
+>   %14 = Block %12 : usize
     h := Holder { point: b }
 >   %5 = Read [$3] : *mut Point
 >   %6 = NewStruct [%5] : Holder
@@ -77,4 +79,6 @@ fn shared(s: string, t: string) -> usize:
 >   %9 = Store [*$3 .name] %8 : ()
     h.point.name.len()
 >   %10 = Ref local [$4 .point * .name] : &string
->   %11 = Call std/text/impl string.len[] (%10) : usize
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Call std/text/impl string.len[] (%10) : usize
+>   %13 = LoanClose %11 : ()

@@ -20,8 +20,10 @@ fn view(p: &Point) -> usize:
     p.name.len()
 > app/main/view
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Block %1 : usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/text/impl string.len[] (%0) : usize
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : usize
 
 fn bump(p: &mut Point) -> void:
     q := p
@@ -39,14 +41,20 @@ fn lend(h: *mut Point) -> usize:
     nudge(h)
 > app/main/lend
 >   %0 = Ref mut local [*$0] : &mut Point
->   %1 = Call app/main/nudge[] (%0) : ()
->   %6 = Block %5 : usize
+>   %1 = LoanBegin %0 #1 : ()
+>   %2 = Call app/main/nudge[] (%0) : ()
+>   %3 = LoanClose %1 : ()
+>   %12 = Block %10 : usize
     bump(h)
->   %2 = Ref mut local [*$0] : &mut Point
->   %3 = Call app/main/bump[] (%2) : ()
+>   %4 = Ref mut local [*$0] : &mut Point
+>   %5 = LoanBegin %4 #1 : ()
+>   %6 = Call app/main/bump[] (%4) : ()
+>   %7 = LoanClose %5 : ()
     view(h)
->   %4 = Ref local [*$0] : &Point
->   %5 = Call app/main/view[] (%4) : usize
+>   %8 = Ref local [*$0] : &Point
+>   %9 = LoanBegin %8 #0 : ()
+>   %10 = Call app/main/view[] (%8) : usize
+>   %11 = LoanClose %9 : ()
 
 fn local(s: string) -> usize:
     let mut origin = Point { name: s, n: 0 }

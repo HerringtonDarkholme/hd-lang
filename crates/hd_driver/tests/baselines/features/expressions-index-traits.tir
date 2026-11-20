@@ -17,7 +17,9 @@ impl Index[usize] for Names:
 >   local $1 key: usize [param read]
 >   %0 = Read [$1] : usize
 >   %1 = Ref local [*$0 .items [%0]] : &string
->   %2 = Block %1 : &string
+>   %2 = LoanBegin %1 #0 : ()
+>   %3 = LoanClose %2 : ()
+>   %4 = Block %1 : &string
 
 impl IndexSet[usize, string] for Names:
     fn index_set(&mut self, key: usize, value: string) -> void:
@@ -39,8 +41,10 @@ fn read_len(n: Names, i: usize) -> usize:
 >   %1 = Read [$1] : usize
 >   %2 = Call std/ops/Index.index for Names [usize] via Impl (%0, %1) : &string
 >   %3 = Ref local [*%2] : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = Block %4 : usize
+>   %4 = LoanBegin %3 #0 : ()
+>   %5 = Call std/text/impl string.len[] (%3) : usize
+>   %6 = LoanClose %4 : ()
+>   %7 = Block %5 : usize
 
 fn write(n: &mut Names, i: usize, s: string) -> void:
     n[i] = s

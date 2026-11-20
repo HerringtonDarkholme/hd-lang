@@ -1169,8 +1169,6 @@ pub struct Module {
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Holder and carried-reference answers computed once at link time.
     pub(crate) loan_holders: Vec<std::sync::Arc<crate::emit::HolderFacts>>,
-    /// Immutable origin-query topology, shared by instances of each body.
-    pub(crate) loan_origins: Vec<std::sync::Arc<crate::emit::OriginIndex>>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
@@ -1252,11 +1250,6 @@ pub struct Module {
     /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
     /// the instruction that takes the loan, and the dereference it lies at.
     pub kept: hd_base::HashSet<crate::emit::LoanSite>,
-    /// Lazily indexed kept origins, shared by all body emitters.
-    pub kept_origins: std::sync::OnceLock<hd_base::HashSet<(hd_base::InstId, u32)>>,
-    /// The stores of a call's result whose callee's reference reaches one
-    /// more object than its argument, which the page table finds.
-    pub result_inner: hd_base::HashSet<(hd_base::InstId, u32)>,
     /// The types of the objects a trait value of each trait may hold:
     /// those the program converts to it or to a trait below it
     /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
@@ -1314,7 +1307,6 @@ impl Module {
             runtime: *runtime,
             inst_of: hd_base::HashMap::default(),
             loan_holders: Vec::default(),
-            loan_origins: Vec::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
             release_plans: hd_base::HashMap::default(),
@@ -1339,8 +1331,6 @@ impl Module {
             idle: Default::default(),
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
-            kept_origins: std::sync::OnceLock::default(),
-            result_inner: hd_base::HashSet::default(),
             dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
             static_labels: hd_base::HashMap::default(),

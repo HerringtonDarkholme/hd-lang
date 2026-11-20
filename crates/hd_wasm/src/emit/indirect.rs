@@ -621,9 +621,6 @@ impl Em<'_, '_, '_> {
         let (_, part) = self.fold_path(declared, &fields)?;
         // A move's flag is TIR's (`FlagClear` after it, [`Em::mem_release`]).
         let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
-        if moved {
-            self.borrow_moved_slots(i, l, part.first..part.first + part.count);
-        }
         if self.forward.contains(&i) {
             self.mem_vals.insert(i, (at, off + part.offset));
             return Ok(true);

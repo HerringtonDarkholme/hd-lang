@@ -31,38 +31,40 @@ fn total(head: *Chain?) -> usize:
 >   local $2 cur: *Chain? [read assigned mutated]
 >   local $3 c: *Chain [read assigned]
 >   %0 = Store [$1] 0:usize : ()
->   %30 = Block %29 : usize
+>   %32 = Block %31 : usize
     let cur = head
 >   %1 = Read [$0] : *Chain?
 >   %2 = Store [$2] %1 : ()
     while true:
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If 1:bool [%23 %25] : ()
+>   %26 = Break L0 - : never
 >   %27 = Block - : ()
->   %28 = Loop %27 - : ()
+>   %28 = If 1:bool [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         match cur:
 >   %3 = Read [$2] : *Chain?
->   %21 = Block - : never
->   %22 = Match %3 [%21 %11 %13] : ()
->   %23 = Block - : ()
+>   %23 = Block - : never
+>   %24 = Match %3 [%23 %13 %15] : ()
+>   %25 = Block - : ()
             .Some(c) =>
->   %14 = Read [%3 as #1 .0] : *Chain
->   %15 = Store [$3] %14 : ()
->   %17 = Block - : never
->   %20 = SwitchTag %3 [#1 %17 %19] : never
+>   %16 = Read [%3 as #1 .0] : *Chain
+>   %17 = Store [$3] %16 : ()
+>   %19 = Block - : never
+>   %22 = SwitchTag %3 [#1 %19 %21] : never
                 n += c.name.len()
 >   %4 = Read [$1] : usize
 >   %5 = Ref local [*$3 .name] : &string
->   %6 = Call std/text/impl string.len[] (%5) : usize
->   %7 = Prim Add [%4 %6] : usize
->   %8 = Store [$1] %7 : ()
->   %11 = Block - : ()
+>   %6 = LoanBegin %5 #0 : ()
+>   %7 = Call std/text/impl string.len[] (%5) : usize
+>   %8 = LoanClose %6 : ()
+>   %9 = Prim Add [%4 %7] : usize
+>   %10 = Store [$1] %9 : ()
+>   %13 = Block - : ()
                 cur = c.next
->   %9 = Read [*$3 .next] : *Chain?
->   %10 = Store [$2] %9 : ()
+>   %11 = Read [*$3 .next] : *Chain?
+>   %12 = Store [$2] %11 : ()
             .None => break
->   %12 = Break L0 - : never
->   %13 = Block - : never
+>   %14 = Break L0 - : never
+>   %15 = Block - : never
     n
->   %29 = Read [$1] : usize
+>   %31 = Read [$1] : usize

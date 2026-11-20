@@ -36,14 +36,16 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   local $1 $ref: TypeId [read assigned captured captured-assigned]
 >   local $2 $ref: TypeId [read assigned captured captured-assigned]
 >   %0 = Read [*$0] : Inspectable
->   %1 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
->   %2 = Call std/inspect/impl TypeId.of[User] () : TypeId
->   %3 = Store [$1] %1 : ()
->   %4 = Ref local [$1] : &TypeId
->   %5 = Store [$2] %2 : ()
->   %6 = Ref local [$2] : &TypeId
->   %7 = Call std/core/Eq.eq for TypeId [] via Impl (%4, %6) : bool
->   %8 = Block %7 : bool
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
+>   %3 = LoanClose %1 : ()
+>   %4 = Call std/inspect/impl TypeId.of[User] () : TypeId
+>   %5 = Store [$1] %2 : ()
+>   %6 = Ref local [$1] : &TypeId
+>   %7 = Store [$2] %4 : ()
+>   %8 = Ref local [$2] : &TypeId
+>   %9 = Call std/core/Eq.eq for TypeId [] via Impl (%6, %8) : bool
+>   %10 = Block %9 : bool
 
 fn erase(u: User) -> *dyn Inspectable:
     box(u)

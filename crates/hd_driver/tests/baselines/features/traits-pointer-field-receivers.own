@@ -56,9 +56,12 @@ impl Step for Erased:
 >   local $0 self: &mut Erased [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .source *] : Step
->   %1 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
->   %2 = Drop [%0] : ()
->   %3 = Block %1 : i64?
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanBegin %0 #2 : ()
+>   %3 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
+>   %4 = Drop [%0] : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = Block %3 : i64?
 >   summary kept [] writes relies [$0]
 
 fn total(items: Erased) -> i64:

@@ -36,7 +36,7 @@ fn total(a: User, b: User) -> usize:
 >   local $3 by: Map[string, &User] [read assigned captured captured-assigned]
 >   %0 = NewList - [] : List[&User]
 >   %1 = Store [$2] %0 : ()
->   %21 = Block %20 : usize
+>   %25 = Block %24 : usize
     remember(&mut seen, &a)
 >   %2 = Ref mut local [$2] : &mut List[&User]
 >   %3 = Ref local [$0] : &User
@@ -54,10 +54,14 @@ fn total(a: User, b: User) -> usize:
 >   %12 = Call app/main/index[] (%10, %11) : ()
     seen[0].name.len() + seen[1].name.len() + by.len()
 >   %13 = Ref local [$2 [0:usize] * .name] : &string
->   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = Ref local [$2 [1:usize] * .name] : &string
->   %16 = Call std/text/impl string.len[] (%15) : usize
->   %17 = Prim Add [%14 %16] : usize
->   %18 = Read [$3] : Map[string, &User]
->   %19 = Intrinsic MapLen [%18] : usize
->   %20 = Prim Add [%17 %19] : usize
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Call std/text/impl string.len[] (%13) : usize
+>   %16 = LoanClose %14 : ()
+>   %17 = Ref local [$2 [1:usize] * .name] : &string
+>   %18 = LoanBegin %17 #0 : ()
+>   %19 = Call std/text/impl string.len[] (%17) : usize
+>   %20 = LoanClose %18 : ()
+>   %21 = Prim Add [%15 %19] : usize
+>   %22 = Read [$3] : Map[string, &User]
+>   %23 = Intrinsic MapLen [%22] : usize
+>   %24 = Prim Add [%21 %23] : usize

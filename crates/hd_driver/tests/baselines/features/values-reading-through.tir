@@ -15,13 +15,15 @@ fn read_copy(r: &User) -> usize:
 >   local $1 copy: User [:= read assigned captured]
 >   %0 = Read [*$0] : User
 >   %1 = Store [$1] %0 : ()
->   %7 = Block %6 : usize
+>   %9 = Block %8 : usize
     r.name.len() + copy.name.len()
 >   %2 = Ref local [*$0 .name] : &string
->   %3 = Call std/text/impl string.len[] (%2) : usize
->   %4 = Ref local [$1 .name] : &string
->   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = Prim Add [%3 %5] : usize
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Call std/text/impl string.len[] (%2) : usize
+>   %5 = LoanClose %3 : ()
+>   %6 = Ref local [$1 .name] : &string
+>   %7 = Call std/text/impl string.len[] (%6) : usize
+>   %8 = Prim Add [%4 %7] : usize
 
 fn reset(r: &mut User, s: string) -> void:
     *r = User { name: s, n: 0 }

@@ -4,13 +4,12 @@
 use hd_base::{DefId, HashMap, HashSet, InstId};
 use hd_mono::{Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Place, Proj, Tag};
-use hd_tir::own::pointer::{self, Binding, Call, Context, Conversion, Holder, Reference};
+use hd_tir::own::pointer::{self, Call, Context, Conversion, Reference};
 use hd_types::{Ty, TyList};
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use super::borrow::{self, Roots};
-use super::excl::{self, Bind, Held};
+use super::excl;
 use crate::Input;
 use crate::layout::{self, Kind};
 use crate::module::Module;
@@ -21,22 +20,13 @@ pub(crate) struct HolderFacts {
     pub(super) shared: Arc<HashSet<usize>>,
     pub(super) pointers: Arc<HashSet<usize>>,
     pub(super) storage: Arc<borrow::StorageRoots>,
-    pub(super) bindings: Vec<(usize, Held, Bind)>,
-    pub(super) carried: Arc<HashMap<usize, Vec<u32>>>,
 }
 
 struct PreparedBody {
     rows: Vec<Arc<[usize]>>,
     shared: Arc<HashSet<usize>>,
-    origins: Arc<excl::OriginIndex>,
     stores: Vec<Arc<[usize]>>,
     storage: Arc<borrow::StorageRoots>,
-}
-
-#[derive(Default)]
-struct Carried {
-    graph: excl::OriginGraph,
-    answers: HashMap<usize, Vec<u32>>,
 }
 
 struct Facts<'a, 'b> {
@@ -46,14 +36,10 @@ struct Facts<'a, 'b> {
     /// Each instance's body, by instance number, which every fact reads.
     bodies: Vec<Option<&'a Body>>,
     rows: Vec<Arc<[usize]>>,
-    carried: RefCell<HashMap<InstId, Carried>>,
 }
 
 pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisions {
-    let empty_origins = Arc::new(excl::OriginIndex::default());
-    let mut origins = vec![empty_origins; input.collected.table.item.len()];
     let mut roots = HashMap::default();
-    let empty_carried = Arc::new(HashMap::default());
     let mut bodies = vec![None; input.collected.table.item.len()];
     // The retained body references keep these identities live throughout
     // preparation; no pointer key survives in Module. A generic body's
@@ -65,9 +51,9 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
             continue;
         };
         bodies[id.idx()] = Some(b);
-        let groups = grouped.entry(std::ptr::from_ref(b)).or_insert_with(|| {
-            let origins = Arc::new(excl::OriginIndex::new(b));
-            PreparedBody {
+        let groups = grouped
+            .entry(std::ptr::from_ref(b))
+            .or_insert_with(|| PreparedBody {
                 rows: {
                     let mut rows = vec![Vec::new(); b.sub_root.len()];
                     for (i, sub) in b.inst_subs().into_iter().enumerate() {
@@ -77,12 +63,9 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
                     rows.into_iter().map(Arc::from).collect()
                 },
                 shared: Arc::new(super::closure::shared_locals(b)),
-                origins,
                 stores: excl::binding_stores(b),
                 storage: Arc::new(borrow::StorageRoots::new(b)),
-            }
-        });
-        origins[id.idx()] = Arc::clone(&groups.origins);
+            });
         let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
             continue;
         };
@@ -94,31 +77,20 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
                 storage: Arc::clone(&groups.storage),
                 shared: Arc::clone(&groups.shared),
                 pointers: Arc::new(borrow::pointer_locals(input.pool, input.env, b, &sites)),
-                bindings: excl::binds(input.pool, input.env, b, &groups.origins, &sites)
-                    .into_iter()
-                    .map(|(i, held, bind, _)| (i, held, bind))
-                    .collect(),
-                carried: Arc::clone(&empty_carried),
             },
         );
     }
-    module.loan_origins = origins;
     let facts = Facts {
         input,
         module,
         roots,
         bodies,
         rows,
-        carried: RefCell::default(),
     };
     let decisions = pointer::decide(&facts);
-    let mut carried = facts.carried.into_inner();
     let empty = Arc::new(HolderFacts::default());
     let mut retained = vec![empty; input.collected.table.item.len()];
-    for (id, mut holder) in facts.roots {
-        if let Some(cache) = carried.remove(&id) {
-            holder.carried = Arc::new(cache.answers);
-        }
+    for (id, holder) in facts.roots {
         retained[id.idx()] = Arc::new(holder);
     }
     module.loan_holders = retained;
@@ -126,10 +98,6 @@ pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisio
 }
 
 impl Facts<'_, '_> {
-    fn origin_index(&self, id: InstId) -> &excl::OriginIndex {
-        &self.module.loan_origins[id.idx()]
-    }
-
     fn target(&self, id: InstId, instruction: u32) -> Option<&Target> {
         self.input.collected.calls[id.idx()].get(&instruction)
     }
@@ -239,55 +207,6 @@ impl Context for Facts<'_, '_> {
 
     fn dyn_receiver(&self, id: InstId, value: usize) -> Option<DefId> {
         borrow::dyn_receiver(self.input.pool, self.input.env, self.body(id)?, value)
-    }
-
-    fn bindings(&self, id: InstId) -> Vec<Holder> {
-        let Some(holder) = self.roots.get(&id) else {
-            return Vec::new();
-        };
-        holder
-            .bindings
-            .iter()
-            .copied()
-            .map(|(i, held, bind)| {
-                (
-                    i,
-                    (held.local, held.slot),
-                    match bind {
-                        Bind::Begin(a) => Binding::Reference(a),
-                        Bind::Call(a) => Binding::CallArgument(a),
-                        Bind::CallParent(a) => Binding::CallParent(a),
-                        Bind::Share(_) | Bind::Move(_) => Binding::Other,
-                    },
-                )
-            })
-            .collect()
-    }
-
-    fn held_mutable(&self, id: InstId, (local, slot): (usize, usize)) -> bool {
-        self.body(id).is_some_and(|b| {
-            excl::held_mutable(self.input.pool, self.input.env, b, Held { local, slot })
-        })
-    }
-
-    fn carried_refs(&self, id: InstId, value: usize) -> Vec<u32> {
-        self.body(id).map_or_else(Vec::new, |b| {
-            let mut cache = self.carried.borrow_mut();
-            let Carried { graph, answers } = cache.entry(id).or_default();
-            answers
-                .entry(value)
-                .or_insert_with(|| {
-                    excl::carried_refs(
-                        self.input.pool,
-                        self.input.env,
-                        b,
-                        self.origin_index(id),
-                        graph,
-                        value,
-                    )
-                })
-                .clone()
-        })
     }
 
     fn param_locals(&self, id: InstId) -> Vec<usize> {

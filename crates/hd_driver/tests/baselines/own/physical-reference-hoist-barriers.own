@@ -123,34 +123,36 @@ app/main/impl Probes.step
   summary kept []
 app/main/impl Probes.writing_call
   local $0 items: *mut List[usize] [param read] value
-    uses $0: entry -> %10 lend, %13 lend
+    uses $0: entry -> %12 lend, %15 lend
   local $1 alias: *mut List[usize] [param read] value
     uses $1: entry -> %6 lend
   local $2 source: List[usize] [param read] value
-    uses $2: entry -> %7 consume
+    uses $2: entry -> %8 consume
   local $3 i: usize [read assigned mutated] place
-  %0 = Release %23 Exit local $0 #2 : ()
-  %1 = Release %23 Exit local $1 #2 : ()
-  %2 = Release %23 Exit local $2 #2 : ()
+  %0 = Release %25 Exit local $0 #2 : ()
+  %1 = Release %25 Exit local $1 #2 : ()
+  %2 = Release %25 Exit local $2 #2 : ()
   %3 = Store [$3] 0:usize : ()
   %4 = Read copy [$3] : usize
   %5 = Prim Lt [%4 2:usize] : bool
   %6 = Ref mut local [*$1] : &mut List[usize]
-  %7 = Read copy [$2] : List[usize]
-  %8 = Call app/main/impl Probes.replace[] (%6, %7) : ()
-  %9 = LoanEnd [%6] : ()
-  %10 = Read copy [*$0 [0:usize]] : usize
-  %11 = Prim Add [%10 1:usize] : usize
-  %12 = IsUnique [*$0] : ()
-  %13 = Store [*$0 [0:usize]] %11 : ()
-  %14 = Read copy [$3] : usize
-  %15 = Prim Add [%14 1:usize] : usize
-  %16 = Store [$3] %15 : ()
-  %17 = Block - : ()
-  %18 = Break L0 - : never
+  %7 = LoanBegin %6 #1 : ()
+  %8 = Read copy [$2] : List[usize]
+  %9 = Call app/main/impl Probes.replace[] (%6, %8) : ()
+  %10 = LoanEnd [%6] : ()
+  %11 = LoanClose %7 : ()
+  %12 = Read copy [*$0 [0:usize]] : usize
+  %13 = Prim Add [%12 1:usize] : usize
+  %14 = IsUnique [*$0] : ()
+  %15 = Store [*$0 [0:usize]] %13 : ()
+  %16 = Read copy [$3] : usize
+  %17 = Prim Add [%16 1:usize] : usize
+  %18 = Store [$3] %17 : ()
   %19 = Block - : ()
-  %20 = If %5 [%17 %19] : ()
+  %20 = Break L0 - : never
   %21 = Block - : ()
-  %22 = Loop %21 - : ()
+  %22 = If %5 [%19 %21] : ()
   %23 = Block - : ()
+  %24 = Loop %23 - : ()
+  %25 = Block - : ()
   summary kept [] borrows [$0 $1 $2] writes

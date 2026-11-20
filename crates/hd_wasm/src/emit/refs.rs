@@ -300,9 +300,6 @@ impl Em<'_, '_, '_> {
         ledger!(if empty.is_some() => "partial-move/zeroed-in-place"
             else "partial-move/plain-untracked");
         ledger!("partial-move/niche-repairs" += empty.as_ref().map_or(0, |e| e.1.len()));
-        if let PlaceRoot::Local(local) = p.root {
-            self.borrow_moved_slots(i, local.idx(), part.slots.iter().copied());
-        }
         for &k in &part.slots {
             self.f.get(ls[k]);
         }

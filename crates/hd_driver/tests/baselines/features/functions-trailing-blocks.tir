@@ -48,10 +48,12 @@ fn no_args(s: string) -> usize:
     twice:
 > app/main/no_args
 >   local $0 s: string [param read captured]
->   %4 = Call app/main/twice[] (%3) : usize
->   %5 = Block %4 : usize
+>   %6 = Call app/main/twice[] (%5) : usize
+>   %7 = Block %6 : usize
         s.len()
 >   %0 = Ref local [$0] : &string
->   %1 = Call std/text/impl string.len[] (%0) : usize
->   %2 = Block %1 : usize
->   %3 = Closure #1 : fn() -> usize
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Call std/text/impl string.len[] (%0) : usize
+>   %3 = LoanClose %1 : ()
+>   %4 = Block %2 : usize
+>   %5 = Closure #1 : fn() -> usize

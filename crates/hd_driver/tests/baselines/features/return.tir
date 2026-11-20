@@ -40,7 +40,9 @@ fn ret_ref_field(r: &Rec) -> &string:
     &r.name
 > app/main/ret_ref_field
 >   %0 = Ref local [*$0 .name] : &string
->   %1 = Block %0 : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Block %0 : &string
 
 fn use_rets(r: Rec) -> usize:
     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
