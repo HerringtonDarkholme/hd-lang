@@ -1,0 +1,19 @@
+# Spec 04 Opaque Result Types: types.opaque.identity-position.
+fn by_int[N < const i32]() -> impl Eq:
+    +1
+
+fn by_bool[B < const bool]() -> impl Eq:
+    +1
+
+fn by_char[C < const char]() -> impl Eq:
+    +1
+
+fn by_text[S < const string]() -> impl Eq:
+    +1
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+pub fn main() -> void:
+    same(by_bool::[true](), by_bool::[false]()) # diagnostic: type-mismatch
+    same(by_text::["same"](), by_text::["same"]())

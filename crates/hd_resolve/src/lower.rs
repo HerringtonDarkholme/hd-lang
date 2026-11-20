@@ -2311,6 +2311,11 @@ struct Gen {
     lifetimes_past: bool,
     /// Where each type parameter's name is declared.
     decls: Scoped<(Symbol, Span)>,
+    /// Non-lifetime parameters in declaration order, including enclosing
+    /// scopes. Types and consts both use Param; rows wrap their slot in Row.
+    opaque_params: Vec<(ParamRef, bool)>,
+    /// Share the argument list across opaque occurrences in one scope.
+    opaque_cache: Cell<Option<(usize, Option<Ty>, TyList)>>,
     self_ty: Option<Ty>,
     /// The lifetime of each reference slot of an implementation's target,
     /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
@@ -2331,14 +2336,49 @@ impl Gen {
             self.lifetimes.len(),
         );
         let context = (self.self_ty, self.self_trait);
+        let opaque_len = self.opaque_params.len();
+        let opaque_cache = self.opaque_cache.get();
         let value = lower(self);
         self.tys.truncate(lengths.0);
         self.rows.truncate(lengths.1);
         self.consts.truncate(lengths.2);
         self.decls.truncate(lengths.3);
         self.lifetimes.truncate(lengths.4);
+        self.opaque_params.truncate(opaque_len);
+        self.opaque_cache.set(opaque_cache);
         (self.self_ty, self.self_trait) = context;
         value
+    }
+
+    fn opaque_args(&self, pool: Types<'_>) -> TyList {
+        // A trait method also captures Self, even when its bound omits it.
+        let self_ty = self.self_trait.and(self.self_ty);
+        let len = self.opaque_params.len();
+        if let Some((known_len, known_self, args)) = self.opaque_cache.get()
+            && known_len == len
+            && known_self == self_ty
+        {
+            return args;
+        }
+        let mut args = Vec::with_capacity(len + usize::from(self_ty.is_some()));
+        args.extend(self_ty);
+        for &(param, row) in &self.opaque_params {
+            crate::work::opaque_argument();
+            args.push(if row {
+                pool.intern_ty(&TyData::Row(pool.row(&RowData {
+                    keys: Vec::new(),
+                    params: vec![RowParamRef {
+                        owner: param.owner,
+                        index: param.index,
+                    }],
+                })))
+            } else {
+                pool.intern_ty(&TyData::Param(param))
+            });
+        }
+        let args = pool.list(&args);
+        self.opaque_cache.set(Some((len, self_ty, args)));
+        args
     }
 }
 
@@ -2602,6 +2642,7 @@ impl Lower<'_, '_, '_> {
                 .pool
                 .intern_ty(&TyData::Param(ParamRef { owner, index }));
             gn.tys.push(TyParam::new(name, t));
+            gn.opaque_params.push((ParamRef { owner, index }, false));
             out.push(Generic::plain(name));
         }
         for &gl in &lists {
@@ -4361,33 +4402,12 @@ impl Lower<'_, '_, '_> {
                         if let Some((o, s, _)) = self.opaque_result {
                             self.opaque_result = Some((o, s, borrows));
                         }
-                        let args: Vec<Ty> = gn
-                            .decls
-                            .iter()
-                            .filter_map(|(name, _)| {
-                                if let Some((_, r)) = gn.rows.first(*name) {
-                                    return Some(pool.intern_ty(&TyData::Row(pool.row(
-                                        &hd_types::RowData {
-                                            keys: vec![],
-                                            params: vec![*r],
-                                        },
-                                    ))));
-                                }
-                                gn.tys.first(*name).map(|t| t.ty)
-                            })
-                            .collect();
-                        // A trait method's opaque identity includes its implementation
-                        // target, even when the written bound never mentions `Self`.
-                        let args = if gn.self_trait.is_some() {
-                            gn.self_ty.into_iter().chain(args).collect()
-                        } else {
-                            args
-                        };
+                        let args = gn.opaque_args(pool.types());
                         pool.intern_ty(&TyData::Opaque {
                             owner,
                             site,
                             borrows,
-                            args: pool.list(&args),
+                            args,
                             bound,
                         })
                     }
@@ -4619,6 +4639,7 @@ impl Lower<'_, '_, '_> {
                 }));
                 gn.decls.push((name, name_span));
             }
+            gn.opaque_params.push((ParamRef { owner, index }, row));
             let mut generic = Generic::plain(name);
             generic.const_type = const_type;
             let toks = &self.src.parse.tokens;
@@ -4968,6 +4989,7 @@ impl Lower<'_, '_, '_> {
             .intern_ty(&TyData::Param(ParamRef { owner, index }));
         let slot = gn.tys.push(TyParam::new(name, ty));
         gn.decls.push((name, self.src.span(n)));
+        gn.opaque_params.push((ParamRef { owner, index }, false));
 
         let mut bounds = Vec::new();
         if let Some(bound_node) = n.children().find(|c| c.kind() == SyntaxKind::NamedType) {
@@ -10082,5 +10104,108 @@ mod top_binding_tests {
         assert_eq!(init_text(&src, &index, "B"), Some("7"));
         assert_eq!(init_text(&src, &index, "N0"), Some("0"));
         assert!(index.get(&src, "f").is_none());
+    }
+}
+
+#[cfg(test)]
+mod opaque_parameter_tests {
+    use super::*;
+
+    #[test]
+    fn opaque_arguments_visit_each_slot_once_at_1k_and_10k() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        for count in [1000_u16, 10000] {
+            let mut generics = Gen::default();
+            for index in 0..count {
+                generics.opaque_params.push((
+                    ParamRef {
+                        owner: DefId::from_raw(1),
+                        index,
+                    },
+                    index % 3 == 1,
+                ));
+            }
+            let ((args, probes), visits) = crate::work::count_opaque_arguments(|| {
+                crate::work::count_scope_probes(|| {
+                    let args = generics.opaque_args(types);
+                    for _ in 0..count {
+                        assert_eq!(generics.opaque_args(types), args);
+                    }
+                    types.list_items(args)
+                })
+            });
+            assert_eq!(args.len(), usize::from(count));
+            assert_eq!(visits, u64::from(count));
+            assert_eq!(probes, 0);
+            assert_eq!(
+                types.get(args[0]),
+                TyData::Param(ParamRef {
+                    owner: DefId::from_raw(1),
+                    index: 0
+                })
+            );
+            assert!(matches!(types.get(args[1]), TyData::Row(_)));
+            assert_eq!(
+                types.get(args[2]),
+                TyData::Param(ParamRef {
+                    owner: DefId::from_raw(1),
+                    index: 2
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn opaque_arguments_restore_enclosing_slots_after_nested_scopes() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        let outer = ParamRef {
+            owner: DefId::from_raw(1),
+            index: 0,
+        };
+        let inner = ParamRef {
+            owner: DefId::from_raw(2),
+            index: 0,
+        };
+        let mut generics = Gen::default();
+        generics.opaque_params.push((outer, false));
+        let outer_args = generics.opaque_args(types);
+        generics.with_scope(|generics| {
+            generics.opaque_params.push((inner, true));
+            assert_eq!(types.list_items(generics.opaque_args(types)).len(), 2);
+            generics.with_scope(|generics| {
+                generics.opaque_params.push((
+                    ParamRef {
+                        owner: DefId::from_raw(3),
+                        index: 0,
+                    },
+                    false,
+                ));
+                assert_eq!(types.list_items(generics.opaque_args(types)).len(), 3);
+            });
+            assert_eq!(types.list_items(generics.opaque_args(types)).len(), 2);
+        });
+        let (after, visits) = crate::work::count_opaque_arguments(|| generics.opaque_args(types));
+        assert_eq!(after, outer_args);
+        assert_eq!(visits, 0);
+    }
+
+    #[test]
+    fn opaque_arguments_cache_tracks_trait_self() {
+        let pool = InternPool::new();
+        let types = pool.types();
+        let integer = types.intern_ty(&TyData::Prim(Prim::I32));
+        let string = types.intern_ty(&TyData::Prim(Prim::String));
+        let mut generics = Gen {
+            self_trait: Some((DefId::from_raw(1), TyList::EMPTY)),
+            self_ty: Some(integer),
+            ..Gen::default()
+        };
+        assert_eq!(generics.opaque_args(types), types.list(&[integer]));
+        generics.self_ty = Some(string);
+        assert_eq!(generics.opaque_args(types), types.list(&[string]));
+        generics.self_trait = None;
+        assert_eq!(generics.opaque_args(types), TyList::EMPTY);
     }
 }

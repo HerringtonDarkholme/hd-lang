@@ -280,3 +280,24 @@ pub(crate) fn declaration_type_visit() {
         }
     });
 }
+
+thread_local! {
+    static OPAQUE_ARGUMENTS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count declared non-lifetime parameter slots materialized for opaque
+/// identities on this thread. The implicit Self adds fixed work per list.
+pub fn count_opaque_arguments<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = OPAQUE_ARGUMENTS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let count = OPAQUE_ARGUMENTS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, count)
+}
+
+pub(crate) fn opaque_argument() {
+    OPAQUE_ARGUMENTS.with(|c| {
+        if let Some(count) = c.get() {
+            c.set(Some(count + 1));
+        }
+    });
+}
