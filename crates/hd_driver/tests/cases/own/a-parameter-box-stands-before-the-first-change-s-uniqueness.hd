@@ -1,0 +1,39 @@
+# @dump: own wat stdout
+# @build: release
+# expected: a changed parameter cell's `Box` stands at the root's start,
+# before the `IsUnique` of a change in the first statement, which stays
+# right before the change's read (invariant 23, #2200). Each reader sees
+# the later change: 2 four times.
+use std.annotation.inline
+
+@inline(.Never)
+# subject
+fn list_size(mut items: List[usize]) -> usize:
+    read := fn() -> usize: items.len()
+    items.push(91)
+    read()
+
+@inline(.Never)
+fn map_size(mut items: Map[string, usize]) -> usize:
+    read := fn() -> usize: items.len()
+    items["next"] = 91
+    read()
+
+@inline(.Never)
+fn escaping(mut items: List[usize]) -> fn() -> usize:
+    read := fn() -> usize: items.len()
+    items.push(91)
+    read
+
+@inline(.Never)
+fn local_size() -> usize:
+    let mut items = [3]
+    read := fn() -> usize: items.len()
+    items.push(91)
+    read()
+
+pub fn main() -> void $ Console:
+    println(list_size([3]))
+    println(map_size({ "first": 3 }))
+    println(escaping([3])())
+    println(local_size())
