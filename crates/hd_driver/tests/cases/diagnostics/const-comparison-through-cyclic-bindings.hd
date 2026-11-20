@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# A comparison must not make a cycle of named bindings a closed const expression.
+# Report both the ordinary initialization error and the const cycle.
+
+LEFT := RIGHT
+RIGHT := LEFT
+
+struct Flag[Value < const bool]:
+    value: i32
+
+fn cyclic_comparison() -> void:
+    let _bad = Flag::[LEFT == 0] { value: +0 }
