@@ -19,7 +19,7 @@ sloppy-expect	hd_resolve	12
 sloppy-expect	hd_syntax	5
 sloppy-expect	hd_tir	55
 sloppy-expect	hd_types	8
-sloppy-expect	hd_wasm	210
+sloppy-expect	hd_wasm	207
 sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
 sloppy-std-path	hd_driver	9
