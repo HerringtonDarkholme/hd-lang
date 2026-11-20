@@ -2373,18 +2373,10 @@ impl Em<'_, '_, '_> {
         &mut self,
         i: u32,
         state: control::InstState,
-        mut r: StageResult<()>,
+        r: StageResult<()>,
     ) -> StageResult<()> {
         self.emitting.pop();
         self.f.at = state.at;
-        // Its value, when nothing uses it, ends here.
-        self.f.reason = Some(Reason::LastUse);
-        if r.is_ok()
-            && !self.uses.used.get(i as usize).copied().unwrap_or(false)
-            && self.needs_drop(self.ty(i))
-        {
-            r = self.release_value(i);
-        }
         self.f.reason = state.reason;
         self.settle(i);
         self.f.origin_at = state.origin_at;

@@ -38,7 +38,6 @@ pub(crate) struct BodyFacts {
 pub(super) struct UseFacts {
     pub consumer: Vec<u32>,
     pub copy_reasons: Vec<Option<Reason>>,
-    pub used: Vec<bool>,
     pub value_uses: Vec<u32>,
     pub part_only: Vec<bool>,
 }
@@ -110,12 +109,9 @@ impl UseFacts {
         checked: bool,
         consumers: &[u32],
     ) -> Self {
-        use hd_tir::ir::Tag;
-        use hd_tir::ir::count::{At, Info};
         let mut facts = Self {
             consumer: consumers.to_vec(),
             copy_reasons: Vec::new(),
-            used: Vec::new(),
             value_uses: Vec::new(),
             part_only: Vec::new(),
         };
@@ -135,21 +131,15 @@ impl UseFacts {
                 bad.join("\n")
             );
         }
-        facts.used.clear();
-        facts.used.resize(b.len(), false);
         facts.value_uses.clear();
         facts.value_uses.resize(b.len(), 0);
         facts.part_only.clear();
         facts.part_only.resize(b.len(), true);
         let mut ops = Vec::new();
         for i in 0..b.len() {
-            if b.tags[i] == Tag::Retain && Info::read(b, i).is_some_and(|c| c.at == At::Value) {
-                facts.used[b.data[i][0] as usize] = true;
-            }
             hd_tir::own::operands(b, i, &mut ops);
             let part = super::refs::part_use(b, i);
             for op in &ops {
-                facts.used[op.value as usize] = true;
                 if op.role != hd_tir::ir::Role::Dropped {
                     facts.value_uses[op.value as usize] += 1;
                 }
