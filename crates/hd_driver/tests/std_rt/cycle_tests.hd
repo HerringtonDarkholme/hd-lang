@@ -4,20 +4,22 @@
 # Only std may read the heap's size, so the conformance runner adds this
 # file to std as `std.rt_tests.cycle_tests`, as it does count_tests.hd.
 use std.collections.UniqList
-use std.rt.alloc.{alloc, free_block}
+use std.rt.alloc.{alloc, block_size, free_block, metadata}
 use std.rt.cycle.{collect, opaque, pending, suspect}
 use std.rt.memory.{pages, store_u32}
 use std.rt.checked.{live, released}
 use std.testing.assert
 
-# The heap's pages in a bounded run: the static page, the page table, a
-# page for each size class the objects use, the garbage dropped before a
-# collection (the candidate buffer's threshold of 10,000), and the buffer.
-# The rings take 23 pages; without the collector they take 430.
-BOUND := 32
-# The unique-list knots take 33 pages; without their buffers freed with
-# their holders they take 423.
-KNOT_BOUND := 48
+# Allocator pages in a bounded run: its page table, size-class spans,
+# garbage dropped before collection and the collector's candidate buffer.
+# Preserve the old limits minus their original one-page static prefix;
+# the actual static/shared-stack prefix is measured before each workload.
+BOUND := 31
+KNOT_BOUND := 47
+
+fn reuse_start() -> usize:
+    assert(block_size(1) > 0)
+    metadata() / 65536
 
 struct Stop:
     name: string
@@ -174,6 +176,7 @@ tests:
         assert(pending() > before, "a dropped ring of references is a candidate")
 
     it("two hundred thousand dropped rings run in bounded memory"):
+        start := reuse_start()
         let total = +0
         let round = +0
         while round < 200000:
@@ -182,9 +185,10 @@ tests:
         assert(total == 200000, "each ring reaches its second stop")
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
-            assert(pages() <= BOUND, "the rings' blocks are reused")
+            assert(pages() - start <= BOUND, "the rings' blocks are reused")
 
     it("two hundred thousand dropped unique-list rings free their buffers"):
+        start := reuse_start()
         let total: usize = 0
         let round = +0
         while round < 200000:
@@ -194,11 +198,12 @@ tests:
         # Without the buffers freed with their holders, each round would
         # keep its two boxes, two buffers and two names.
         if released() == 0:
-            assert(pages() <= KNOT_BOUND, "the knots' boxes and buffers are reused")
+            assert(pages() - start <= KNOT_BOUND, "the knots' boxes and buffers are reused")
         else:
             assert(live() < 100000, "checked mode frees the knots and their buffers")
 
     it("two hundred thousand dropped recursive closures run in bounded memory"):
+        start := reuse_start()
         let total = +0
         let round = +0
         while round < 200000:
@@ -207,7 +212,7 @@ tests:
         assert(total == 3300000, "each closure sums its range")
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
-            assert(pages() <= BOUND, "the closures' blocks are reused")
+            assert(pages() - start <= BOUND, "the closures' blocks are reused")
 
     it("two hundred thousand immutable recursive closures make no candidates"):
         before := pending()
@@ -222,6 +227,7 @@ tests:
         )
 
     it("dropped argument and capture frame cycles reuse their heap"):
+        start := reuse_start()
         let total = +0
         let round = +0
         while round < 200000:
@@ -230,9 +236,10 @@ tests:
             round += 1
         assert(total == 1800000, "each frame retains its argument or capture")
         if released() == 0:
-            assert(pages() <= 256, "cycle collection reuses suspension frames")
+            assert(pages() - start <= 255, "cycle collection reuses suspension frames")
 
     it("copied cyclic list headers keep their collection eligibility"):
+        start := reuse_start()
         let total = +0
         let round = +0
         while round < 20000:
@@ -240,7 +247,7 @@ tests:
             round += 1
         assert(total == 90000, "each copied list reaches its ring")
         if released() == 0:
-            assert(pages() <= 64, "cyclic headers and buffers are collected and reused")
+            assert(pages() - start <= 63, "cyclic headers and buffers are collected and reused")
 
     it("recursive values remain acyclic when copies are written"):
         before := pending()
