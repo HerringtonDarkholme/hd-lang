@@ -1,0 +1,48 @@
+# test: an application can implement the public wire HTTP transport contract
+use std.http_wire.{Http as WireHttp, WireHttpError, WireRequest, WireResponse}
+
+struct Echo:
+    received: List[WireRequest]
+
+impl WireHttp for Echo:
+    fn send!(&mut self, request: WireRequest) -> Result[WireResponse, WireHttpError]:
+        self.received.push(request)
+        if request.url == "fail":
+            return .Err(.Other("transport failed"))
+        .Ok(
+            WireResponse {
+                status: 201,
+                headers: request.headers,
+                body: request.body,
+                url: request.url,
+            },
+        )
+
+tests:
+    use std.testing.assert_equal
+
+    it("the host receives wire values and returns a wire response or error"):
+        host := box(Echo { received: [] })
+        request := WireRequest {
+            method: .Post,
+            url: "https://example.test/",
+            headers: [("x-test", "yes")],
+            body: [1, 2],
+            redirects: 3,
+        }
+        response := match host.send!(request):
+            .Ok(value) => value
+            .Err(_) => panic("the supplied host should return a wire response")
+        assert_equal(response.status, 201, reason="wire status")
+        assert_equal(response.headers, [("x-test", "yes")], reason="wire headers")
+        assert_equal(response.body, [1u8, 2u8], reason="wire body")
+        assert_equal(response.url, "https://example.test/", reason="wire URL")
+        assert_equal(
+            host.received[0].redirects,
+            3,
+            reason="transport settings arrive with the request",
+        )
+        match host.send!(WireRequest { method: .Get, url: "fail" }):
+            .Err(.Other(message)) => assert_equal(message, "transport failed", reason="wire error")
+            _ => assert_equal(false, true, reason="the host's typed error is returned")
+        assert_equal(host.received.len(), 2, reason="both calls reached the supplied host")

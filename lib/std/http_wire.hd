@@ -36,6 +36,8 @@ pub struct WireResponse:
     pub url: string = ""
 
 # Keep transport tags stable while keeping the Status payload a wire DTO.
+## A host transport failure, including its typed payload.
+## See [std-http.wire.error](../../spec/std/http.md#r-std-http.wire.error).
 pub enum WireHttpError:
     NotGranted(host: string)
     InvalidUrl(url: string)
@@ -52,6 +54,8 @@ pub enum WireHttpError:
     OutputTooLarge
     UnsupportedSetting(name: string)
 
+## The host-supplied HTTP transport over wire request and response values.
+## See [std-http.wire.host](../../spec/std/http.md#r-std-http.wire.host).
 @host
 pub trait Http:
     fn send!(&mut self, request: WireRequest) -> Result[WireResponse, WireHttpError]

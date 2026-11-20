@@ -7011,6 +7011,8 @@ std/server-sdk/wire-messages-and-conversion/wire-response.hd	runtime	accept	std/
 std/server-sdk/wire-messages-and-conversion/request-from-wire.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.request-from-wire
 std/server-sdk/wire-messages-and-conversion/response-to-wire.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.response-to-wire
 std/server-sdk/wire-messages-and-conversion/response-to-wire-values.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.response-to-wire.values
+std/http/wire-host-contract/wire-http-host.hd	runtime	accept	std/http.md#r-std-http.wire.host
+std/http/wire-host-contract/wire-http-errors.hd	runtime	accept	std/http.md#r-std-http.wire.error
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

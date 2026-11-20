@@ -994,3 +994,51 @@ See also: [Capability Grants](../cli/command-line.md#capability-grants),
 ## Timeout Conversion
 
 1. r[std-http.error.from-timed-out] `HttpError` implements `std.convert.From[std.task.TimedOut]`, converting every deadline error to `.Timeout`.
+
+## Wire Host Contract
+
+The host supplies the raw transport through a public trait over wire
+messages. The ordinary HTTP adapter translates its responses and errors.
+
+```hd
+use std.http_wire.{Http as WireHttp, WireHttpError, WireRequest, WireResponse}
+
+struct ExampleHost:
+    calls: usize
+
+impl WireHttp for ExampleHost:
+    fn send!(&mut self, request: WireRequest) -> Result[WireResponse, WireHttpError]:
+        self.calls += 1
+        .Ok(WireResponse { status: 200, headers: request.headers, body: request.body, url: request.url })
+```
+
+1. r[std-http.wire.host] `std.http_wire.Http` is a public `@host` trait whose host-supplied method exchanges wire messages with the signature below.
+
+| Method | Parameter | Result |
+| --- | --- | --- |
+| `send!(&mut self, request)` | `request: WireRequest` | `Result[WireResponse, WireHttpError]` |
+
+2. r[std-http.wire.error] `std.http_wire.WireHttpError` carries the transport failures and payloads in the following table.
+
+| Variant | Payload |
+| --- | --- |
+| `NotGranted` | `host: string` |
+| `InvalidUrl` | `url: string` |
+| `Dns` | `host: string` |
+| `Connect` | `message: string` |
+| `Tls` | `message: string` |
+| `Timeout` | none |
+| `TooManyRedirects` | `url: string` |
+| `Other` | `message: string` |
+| `Status` | `response: WireResponse` |
+| `InvalidHeader` | `name: string` |
+| `Body` | `error: BodyError` |
+| `InvalidContentEncoding` | `encoding: string` |
+| `OutputTooLarge` | none |
+| `UnsupportedSetting` | `name: string` |
+
+> **Why.** A host declaration must be public, and the ordinary HTTP adapter
+> imports its transport trait and error from another std module.
+
+See also: [Wire Messages And Conversion](server-sdk.md#wire-messages-and-conversion),
+[Package Host Declarations](../cli/command-line.md#package-host-declarations).
