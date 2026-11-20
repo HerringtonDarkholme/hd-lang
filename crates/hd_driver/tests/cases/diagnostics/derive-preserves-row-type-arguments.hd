@@ -1,0 +1,37 @@
+# @dump: diagnostics
+# annot.bound.declared and req.row.param.data-substitute: a derived
+# implementation retains the target's row argument, including in fields.
+
+use std.structure.{Structure, Describer, Variant, Field}
+
+trait Fields:
+    fn fields() -> usize
+
+struct Counter:
+    count: usize
+
+impl[S] Describer[S] for Counter:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < ?Copy](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.count += 1
+        .Ok(())
+
+impl[T] Fields for T by Structure:
+    fn fields() -> usize:
+        let mut counter = Counter { count: 0 }
+        _ := T::describe(&mut counter)
+        counter.count
+
+@derive(Fields)
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+fn require_fields[T < Fields](value: T) -> usize:
+    T::fields()
+
+fn check_row[$ R](value: OnExit[$ R]) -> usize:
+    require_fields(value)
