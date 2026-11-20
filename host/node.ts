@@ -1093,6 +1093,19 @@ function urandom(count: number): Uint8Array {
   return out;
 }
 
+// Namespace availability is independent of whether its per-host state is used.
+const NODE_PROVIDER_MODULES = [
+  "hd:ConsoleInput",
+  "hd:Sys",
+  "hd:Http",
+  "hd:Net",
+  "hd:Env",
+  "hd:FsRead",
+  "hd:FsWrite",
+  "hd:Process",
+  "hd:TestRunner",
+];
+
 // The Node layer for `createCoreHost`: the providers that touch the
 // machine, and what releases them.
 export const nodeLayer = {
@@ -1101,110 +1114,136 @@ export const nodeLayer = {
   sep,
   files: nodeFiles,
   providers: ({ env, sink, st, grant, flush, left }: DynamicRecord) => {
-    // `Net` and its socket handles (spec/std/net.md) on a client thread of
-    // this instance's own, which holds its sockets; `close` stops it.
-    const reactor = new Int32Array(new SharedArrayBuffer(4));
-    st.completionSyncToken = () => Atomics.load(reactor, 0);
+    let reactor: Int32Array<SharedArrayBuffer> | undefined;
+    const completion = () => (reactor ??= new Int32Array(new SharedArrayBuffer(4)));
+    st.completionSyncToken = () => Atomics.load(completion(), 0);
     st.waitCompletionSync = (ms: number, observed: number) =>
-      Atomics.wait(reactor, 0, observed, ms);
-    const net = syncClient("./net.ts", null, reactor);
-    const http = syncClient("./http.ts", null, reactor);
-    const child = syncClient("./process.ts", "close", reactor);
-    const files = syncClient("./fs.ts", "close", reactor);
-    const input = syncClient("./input.ts", null, reactor);
-    // A bare Promise does not keep Node alive. Reference one idle message
-    // port while the guest waits, without a polling timer or worker spin.
-    let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
-    let idleWaits = 0;
-    const releaseWait = () => {
-      idleWaits--;
-      if (idleWaits === 0) {
-        keeper?.port1.unref();
-      }
-    };
-    const keepAlive = () => {
-      if (keeper === null) {
-        keeper = new MessageChannel();
-        keeper.port1.on("message", () => undefined);
-        keeper.port2.unref();
-      }
-      idleWaits++;
-      keeper.port1.ref();
-      return releaseWait;
-    };
-    // The program's output reaches its stream before it waits on the host
-    // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
-    // client call and child process asks `waiting()` first.
-    const waiting = () => {
-      flush();
-      return left();
-    };
-    const client = (worker: SyncClient): Dynamic => ({
-      subscribe: (operation: number, ready: () => void, kind = "wait") =>
-        worker.subscribe(`${kind}:${operation}`, ready),
-      call: (request: Dynamic) => worker.call(request, waiting),
-      // Cancellation owns no I/O wait. It still releases resources after
-      // the program deadline expired, and never starts a replacement worker.
-      cancel: (request: Dynamic) =>
-        worker.started() ? worker.call(request, () => EXIT_GRACE_MS) : { ok: null },
-    });
-    const netClient = client(net);
-    const httpClient = client(http);
-    const grants = env.grants ?? {};
-    const testRunner = testRunnerProvider({ env, st });
-    return {
-      traits: {
-        "hd:ConsoleInput": consoleInputProvider({ env, flush, inputClient: client(input) }),
-        "hd:Sys": sysProvider({ grant }),
-        "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
-        "hd:Net": netProvider({ grant, netClient }),
-        "hd:Env": envProvider({ grant, sink, st, flush }),
-        ...fsProviders({ grant, flush, fsClient: client(files) }),
-        "hd:Process": processProvider({ grant, env, left: waiting, processClient: client(child) }),
-        "hd:TestRunner": testRunner.provider,
-      },
-      tempDir: testRunner.tempDir,
-      keepAlive,
-      drainReady: () => {
-        net.drainReady();
-        http.drainReady();
-        child.drainReady();
-        files.drainReady();
-        input.drainReady();
-      },
-      // The sockets still open, by kind (cli.test.leak).
-      leaks: () => {
-        if (!net.started()) {
-          return [];
+      Atomics.wait(completion(), 0, observed, ms);
+    const initialize = () => {
+      // `Net` and its socket handles (spec/std/net.md) on a client thread of
+      // this instance's own, which holds its sockets; `close` stops it.
+      const reactor = completion();
+      const net = syncClient("./net.ts", null, reactor);
+      const http = syncClient("./http.ts", null, reactor);
+      const child = syncClient("./process.ts", "close", reactor);
+      const files = syncClient("./fs.ts", "close", reactor);
+      const input = syncClient("./input.ts", null, reactor);
+      // A bare Promise does not keep Node alive. Reference one idle message
+      // port while the guest waits, without a polling timer or worker spin.
+      let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
+      let idleWaits = 0;
+      const releaseWait = () => {
+        idleWaits--;
+        if (idleWaits === 0) {
+          keeper?.port1.unref();
         }
-        const counts = net.call({ op: "open" }).ok ?? {};
-        return (
-          [
-            ["TcpStream", counts.stream ?? 0],
-            ["TcpListener", counts.listener ?? 0],
-            ["UdpSocket", counts.udp ?? 0],
-          ] as [string, number][]
-        ).filter(([, count]) => count > 0);
-      },
-      // Removes a directory the host made for itself, and closes its
-      // sockets.
-      close: () => {
-        keeper?.port1.close();
-        keeper?.port2.close();
-        keeper = null;
-        net.stop();
-        http.stop();
-        child.stop();
-        files.stop();
-        input.stop();
-        if (st.ownTemp) {
-          try {
-            rmSync(st.ownTemp, { recursive: true, force: true });
-          } catch {
-            // Already gone.
+      };
+      const keepAlive = () => {
+        if (keeper === null) {
+          keeper = new MessageChannel();
+          keeper.port1.on("message", () => undefined);
+          keeper.port2.unref();
+        }
+        idleWaits++;
+        keeper.port1.ref();
+        return releaseWait;
+      };
+      // The program's output reaches its stream before it waits on the host
+      // (std-console.host.visible-text-sync): a run stopped in a wait loses none. Each
+      // client call and child process asks `waiting()` first.
+      const waiting = () => {
+        flush();
+        return left();
+      };
+      const client = (worker: SyncClient): Dynamic => ({
+        subscribe: (operation: number, ready: () => void, kind = "wait") =>
+          worker.subscribe(`${kind}:${operation}`, ready),
+        call: (request: Dynamic) => worker.call(request, waiting),
+        // Cancellation owns no I/O wait. It still releases resources after
+        // the program deadline expired, and never starts a replacement worker.
+        cancel: (request: Dynamic) =>
+          worker.started() ? worker.call(request, () => EXIT_GRACE_MS) : { ok: null },
+      });
+      const netClient = client(net);
+      const httpClient = client(http);
+      const grants = env.grants ?? {};
+      const testRunner = testRunnerProvider({ env, st });
+      return {
+        traits: {
+          "hd:ConsoleInput": consoleInputProvider({ env, flush, inputClient: client(input) }),
+          "hd:Sys": sysProvider({ grant }),
+          "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
+          "hd:Net": netProvider({ grant, netClient }),
+          "hd:Env": envProvider({ grant, sink, st, flush }),
+          ...fsProviders({ grant, flush, fsClient: client(files) }),
+          "hd:Process": processProvider({
+            grant,
+            env,
+            left: waiting,
+            processClient: client(child),
+          }),
+          "hd:TestRunner": testRunner.provider,
+        },
+        tempDir: testRunner.tempDir,
+        keepAlive,
+        drainReady: () => {
+          net.drainReady();
+          http.drainReady();
+          child.drainReady();
+          files.drainReady();
+          input.drainReady();
+        },
+        // The sockets still open, by kind (cli.test.leak).
+        leaks: () => {
+          if (!net.started()) {
+            return [];
           }
-        }
-      },
+          const counts = net.call({ op: "open" }).ok ?? {};
+          return (
+            [
+              ["TcpStream", counts.stream ?? 0],
+              ["TcpListener", counts.listener ?? 0],
+              ["UdpSocket", counts.udp ?? 0],
+            ] as [string, number][]
+          ).filter(([, count]) => count > 0);
+        },
+        // Removes a directory the host made for itself, and closes its
+        // sockets.
+        close: () => {
+          keeper?.port1.close();
+          keeper?.port2.close();
+          keeper = null;
+          net.stop();
+          http.stop();
+          child.stop();
+          files.stop();
+          input.stop();
+          if (st.ownTemp) {
+            try {
+              rmSync(st.ownTemp, { recursive: true, force: true });
+            } catch {
+              // Already gone.
+            }
+          }
+        },
+      };
+    };
+    let platform: Dynamic;
+    const get = () => (platform ??= initialize());
+    const traits: DynamicRecord = {};
+    for (const module of NODE_PROVIDER_MODULES) {
+      Object.defineProperty(traits, module, {
+        enumerable: true,
+        get: () => get().traits[module],
+      });
+    }
+    return {
+      traits,
+      tempDir: () => get().tempDir(),
+      keepAlive: () => get().keepAlive(),
+      drainReady: () => platform?.drainReady(),
+      leaks: () => platform?.leaks() ?? [],
+      close: () => platform?.close(),
     };
   },
 };
