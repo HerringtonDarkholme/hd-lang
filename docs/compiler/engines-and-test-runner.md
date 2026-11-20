@@ -264,6 +264,14 @@ workers (--jobs): pull a case, then
 results: printed by the release cursor in content order
 ```
 
+On Node, one process supervises the command's test programs (`host/test.ts`).
+It compiles each module once and sends the `WebAssembly.Module` to fresh
+worker threads by structured clone. A single `--jobs` budget schedules
+case chunks across programs; each chunk keeps its property cases together.
+Results carry their program index to the CLI's existing release cursor.
+The process runs in the package directory, while each case keeps its own
+grants, arguments, seed, snapshot paths and temporary directory.
+
 - **A fresh instance per case**
   ([`module.testing.instance`](../../spec/lang/10-modules.md#r-module.testing.instance)),
   made cheap by `InstancePre` and the pooling allocator.
