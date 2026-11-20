@@ -813,6 +813,8 @@ pub(crate) fn run_batch(
     manifest.push_str("]}");
     let config = dir.0.join("batch.json");
     std::fs::write(&config, manifest).map_err(|error| format!("{}: {error}", config.display()))?;
+    // cost: one Node process per hd test command, shared by all programs;
+    // compiled module storage is linear in the command's module bytes.
     let mut child = Command::new(node_program())
         .arg(dir.0.join("test.js"))
         .arg("--batch")
@@ -828,6 +830,7 @@ pub(crate) fn run_batch(
     std::thread::scope(|scope| {
         // Drain diagnostics concurrently so a full stderr pipe cannot block
         // the host before it closes stdout.
+        // cost: one drain thread per Node process, reading diagnostic bytes once.
         let diagnostics = scope.spawn(move || std::io::read_to_string(stderr));
         let read = read_batch_results(BufReader::new(stdout), &tests, done);
         if read.is_err() {
