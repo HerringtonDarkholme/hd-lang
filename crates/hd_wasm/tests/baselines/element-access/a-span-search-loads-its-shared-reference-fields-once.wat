@@ -3,7 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "borders[u8]" (func $"borders[u8]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (func $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]" (param $t0 i32) (param $t7 i32) (param $t4 i32) (param $t3 i32) (result i32 i32) (local $t6 i32) (local $t14 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t9 i32) (local $t8 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32)
     block
     ;; (no span)

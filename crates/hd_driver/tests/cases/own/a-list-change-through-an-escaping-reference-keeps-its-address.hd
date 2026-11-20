@@ -1,0 +1,25 @@
+# @build: release
+# @dump: wat stdout
+# #2217: a list change through a reference that reaches more than the
+# change keeps the address path. `escaping` passes its `&mut` to `fill`
+# after the reserve, so its list keeps a 16-byte frame slot, and both
+# `List.reserve` and `fill` take that address.
+
+use std.annotation.inline
+
+@inline(.Never)
+fn fill(items: &mut List[usize], count: usize) -> void:
+    for index in 0..count:
+        items.push(index)
+
+@inline(.Never)
+fn escaping(count: usize) -> List[usize]:
+    let mut xs: List[usize] = [count]
+    let r = &mut xs
+    r.reserve(count)
+    fill(r, count)
+    xs
+
+pub fn main() -> void $ Console:
+    xs := escaping(3)
+    println("${xs.len()} ${xs[0]} ${xs[3]}")

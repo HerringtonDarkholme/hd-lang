@@ -254,7 +254,7 @@ pub fn promotable_args_in(b: &Body, call: usize, facts: &Promotion) -> u64 {
         .filter(|&(_, &v)| {
             census_work(1);
             Ref(v).as_inst().is_some_and(|i| {
-                lent_ref_with(b, i.0 as usize, call, Some(&facts.census))
+                lent_ref_with(b, i.0 as usize, call, Some(&facts.census), false)
                     .is_some_and(|steps| steps == Steps::InPlace)
             })
         })
@@ -359,12 +359,55 @@ impl Census {
 /// in it is one only an inlined copy may read by value
 /// ([`inline_args`]).
 fn lent_ref(b: &Body, i: usize, user: usize) -> Option<Steps> {
-    lent_ref_with(b, i, user, None)
+    lent_ref_with(b, i, user, None, false)
 }
 
-fn lent_ref_with(b: &Body, i: usize, user: usize, facts: Option<&Census>) -> Option<Steps> {
+/// The `Ref` `Call` `call`'s first argument is ([`reference_source`], each
+/// link used once by the next), a `&mut` with [`promotable_ref`]'s proof
+/// but for the change, taking no count, in a body with no suspension
+/// point: a list change may read its place and store the result back. One
+/// census lookup a link.
+#[must_use]
+pub fn changed_in_place(b: &Body, call: usize, facts: &Promotion) -> Option<usize> {
+    let (mut user, mut v) = (call, Ref(*b.call_args(call).first()?).as_inst()?.0 as usize);
+    while let Some(x) = link(b, v) {
+        census_work(1);
+        (facts.census.counts[x] == (1, v)).then_some(())?;
+        (user, v) = (v, x);
+    }
+    let ok = !facts.suspends && b.data[v][1] & crate::ir::ref_word::TAKES == 0;
+    (ok && lent_ref_with(b, v, user, Some(&facts.census), true) == Some(Steps::InPlace))
+        .then_some(v)
+}
+
+/// The instruction whose reference `v` of `b` is again, through whole
+/// reads and coercions to its own type, as an inlined `self` passes it on.
+#[must_use]
+pub fn reference_source(b: &Body, v: usize) -> usize {
+    std::iter::successors(Some(v), |&x| link(b, x))
+        .last()
+        .unwrap_or(v)
+}
+
+/// The value `v` reads all of or coerces, of `v`'s type.
+fn link(b: &Body, v: usize) -> Option<usize> {
+    let x = match *b.tags.get(v)? {
+        Tag::Read if b.view(b.data[v][0]).whole() => b.view(b.data[v][0]).value()? as usize,
+        Tag::Coerce => Ref(b.data[v][0]).as_inst()?.0 as usize,
+        _ => return None,
+    };
+    (b.ty.get(x) == Some(&b.ty[v])).then_some(x)
+}
+
+fn lent_ref_with(
+    b: &Body,
+    i: usize,
+    user: usize,
+    facts: Option<&Census>,
+    changes: bool,
+) -> Option<Steps> {
     let flags = b.data[i][1];
-    if b.tags[i] != Tag::Ref || flags & crate::ir::ref_word::MUT != 0 {
+    if b.tags[i] != Tag::Ref || (!changes && flags & crate::ir::ref_word::MUT != 0) {
         return None;
     }
     let p = b.view(b.data[i][0]);
@@ -451,7 +494,7 @@ pub fn inline_args(
         .filter(|&(k, &v)| {
             Ref(v).as_inst().is_some_and(|i| {
                 let i = i.0 as usize;
-                match lent_ref_with(b, i, call, Some(facts)) {
+                match lent_ref_with(b, i, call, Some(facts), false) {
                     Some(Steps::InPlace) => true,
                     Some(_) if relaxed & 1 << k == 0 => false,
                     Some(Steps::Elements) => true,
@@ -502,6 +545,66 @@ mod projection_work_tests {
                 assert!(index.permits_with(&body, r.0 as usize, reference.0, &mut || visits += 1));
             }
             assert_eq!(visits, width + depth + 1);
+        }
+        Ok(())
+    }
+
+    /// `n` locals, each changed by a call through `&mut`, as an inlined
+    /// `self` passes it: `Ref`, a whole read of it, an identity coercion.
+    /// Every third `Ref` has a second use, and every third local a
+    /// closure captures: those keep their address. One census for the
+    /// body, then one lookup a link: linear work.
+    #[test]
+    fn a_changed_reference_follows_its_links_in_linear_work() -> Result<(), String> {
+        use crate::ir::{Callee, Coercion, Providers, ReadMode, ref_word};
+        for n in [100_u32, 1_000] {
+            let none = NodeIdx::NONE;
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let block = b.open_block();
+            let callee = Callee::Item {
+                def: DefId::from_raw(2),
+                targs: hd_types::TyList::EMPTY,
+            };
+            let mut calls = Vec::new();
+            for k in 0..n {
+                let l = b.local(Ty::STRING, Symbol::NONE, 0, none);
+                let place = b.place(&Place::local(l));
+                let mode = ref_word::LOCAL | ref_word::MUT;
+                let r = b.emit(Tag::Ref, place, mode, Ty::I32, none);
+                let whole = b.place(&Place {
+                    root: PlaceRoot::Value(r),
+                    proj: Vec::new(),
+                });
+                let read = b.emit(Tag::Read, whole, ReadMode::Use as u32, Ty::I32, none);
+                let arg = b.coerce(Coercion::Identity, crate::ir::NONE, read, Ty::I32, none);
+                let call = b.call(&callee, &[arg], Providers::None, Ty::VOID, none);
+                calls.push((call, r, k % 3));
+                if k % 3 == 1 {
+                    b.call(&callee, &[r], Providers::None, Ty::VOID, none);
+                }
+            }
+            let root = b.close_block(block, None, Ty::VOID, none);
+            let mut body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            body.cap_local = (0..n)
+                .filter(|k| k % 3 == 2)
+                .map(hd_base::LocalId::from_raw)
+                .collect();
+            body.cap_mode = vec![crate::ir::CaptureMode::Shared; body.cap_local.len()];
+            let (found, work) = count_census(|| {
+                let facts = Promotion::new(&body);
+                (calls.iter())
+                    .map(|&(call, _, _)| changed_in_place(&body, call.0 as usize, &facts))
+                    .collect::<Vec<_>>()
+            });
+            for (&(call, r, kind), got) in calls.iter().zip(found) {
+                assert_eq!(got, (kind == 0).then_some(r.0 as usize));
+                assert_eq!(
+                    reference_source(&body, body.call_args(call.0 as usize)[0] as usize),
+                    r.0 as usize
+                );
+            }
+            // The census, then up to two links a call.
+            assert!(work <= u64::try_from(body.len()).expect("len") + 2 * u64::from(n));
         }
         Ok(())
     }

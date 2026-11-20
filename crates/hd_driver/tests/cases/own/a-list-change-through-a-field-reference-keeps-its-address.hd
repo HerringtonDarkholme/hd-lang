@@ -1,0 +1,35 @@
+# @build: release
+# @dump: wat stdout
+# #2217: a list change through a field behind a `&mut` keeps the address
+# path: `through_reference` passes the field's address, through its
+# parameter, to `List.reserve` and `List.truncate`. A field of a local
+# struct that no other reference reaches is a part of that local, so
+# `local_field` reserves its list by value, in Wasm locals with no frame.
+
+use std.annotation.inline
+
+struct Buffers:
+    items: List[usize]
+    count: usize
+
+@inline(.Never)
+fn through_reference(buffers: &mut Buffers, count: usize) -> void:
+    buffers.items.reserve(count)
+    buffers.items.push(count)
+    buffers.items.truncate(2)
+    buffers.count += 1
+
+@inline(.Never)
+fn local_field(count: usize) -> Buffers:
+    let mut buffers = Buffers { items: [count], count: 0 }
+    buffers.items.reserve(count)
+    buffers.items.push(count + 1)
+    buffers
+
+pub fn main() -> void $ Console:
+    let mut buffers = Buffers { items: [7], count: 0 }
+    through_reference(&mut buffers, 3)
+    through_reference(&mut buffers, 4)
+    println("${buffers.items.len()} ${buffers.items[1]} ${buffers.count}")
+    local := local_field(5)
+    println("${local.items.len()} ${local.items[0]} ${local.items[1]}")

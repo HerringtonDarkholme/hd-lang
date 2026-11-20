@@ -1,0 +1,34 @@
+# @build: release
+# @dump: wat stdout
+# #2217: aliased lists stay correct. In `captured`, a closure shares the
+# list, so it keeps its 16-byte frame slot and the reserve takes its
+# address. In `copied`, a second holder shares the buffer: the reserve and
+# the extend read the local by value with no frame, rt:list_reserve copies
+# the shared buffer, and the copy keeps its one element.
+
+use std.annotation.inline
+
+@inline(.Never)
+fn captured(count: usize) -> usize:
+    let mut xs: List[usize] = [count]
+    add := fn(value: usize) -> void: xs.push(value)
+    xs.reserve(count)
+    add(count + 1)
+    xs.extend([count + 2])
+    add(count + 3)
+    xs.len() * 10 + xs[3]
+
+@inline(.Never)
+fn copied(count: usize) -> List[usize]:
+    let mut xs: List[usize] = [count]
+    copy := xs
+    xs.reserve(count)
+    xs.push(count + 1)
+    xs.extend(copy)
+    xs.push(copy.len())
+    xs
+
+pub fn main() -> void $ Console:
+    println(captured(4))
+    xs := copied(6)
+    println("${xs.len()} ${xs[2]} ${xs[3]}")

@@ -435,18 +435,18 @@ impl Em<'_, '_, '_> {
     /// std's changes of a list through a reference: `list_truncate(items:
     /// &mut List[T], n)`, `list_extend(items, other)`,
     /// and `list_reserve(items, count)`. The list is read through its reference, changed
-    /// by its helper, and its buffer stored back. The other argument is
-    /// lent: the helper keeps no count of it. `list_reserve` is
-    /// [`Helper::ListReserve`] itself, the routine `list_extend` reserves
-    /// with, behind the same `count != 0` test.
+    /// by its helper, and its buffer stored back; a promoted `Ref`'s place
+    /// (`hd_tir::own::promote::changed_in_place`) is read and written. The
+    /// other argument is lent: the helper keeps no count of it.
+    /// `list_reserve` is [`Helper::ListReserve`] itself, the routine
+    /// `list_extend` reserves with, behind the same `count != 0` test.
     pub(super) fn list_ref_change(&mut self, key: &str, args: &[u32]) -> StageResult<()> {
+        let source = hd_tir::own::promote::reference_source(self.b, args[0] as usize);
+        let promoted = self.promoted(hd_tir::ir::u32_of(source));
         // ruled out: a first argument that is no reference. The intrinsic
         // table (`hd_resolve::intrinsics`) gives each a `&mut` first, and
-        // std declares it `items: &mut List[T]`.
-        let (lt, _) = self
-            .cx()
-            .reference(self.ty_of(args[0]))
-            .expect("`&mut List[T]`");
+        // std declares it `items: &mut List[T]`, a promoted one too.
+        let (lt, _) = (self.cx().reference(self.b.ty[source])).expect("`&mut List[T]`");
         let (_, elem) = self.elem(lt)?;
         let helper = match key {
             "list_truncate" => Helper::ListTruncate { elem },
@@ -461,13 +461,20 @@ impl Em<'_, '_, '_> {
         }
         let at = self.f.local(Val::I32);
         self.comp(args[0], 0)?;
-        self.f.set(at);
-        self.f.get(at);
-        self.f.get(at);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        if !promoted {
+            self.f.set(at);
+            self.f.get(at);
+            self.f.get(at);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        }
         self.push(args[1])?;
         self.f.helper(helper);
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        if promoted {
+            self.f.set(at);
+            self.put_buffer(self.b.data[source][0], at)?;
+        } else {
+            self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        }
         if reserve {
             self.f.op(I::End);
         }

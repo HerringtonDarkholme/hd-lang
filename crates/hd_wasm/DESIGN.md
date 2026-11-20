@@ -2851,7 +2851,16 @@ dev builds keep the address at a call; the inliner's by-value binding
   its referent and emits it as a read of its place. A plain function also reads
   the value for the primitive comparisons it lowers itself (`eq`, `cmp`,
   `partial_cmp` on a promotable referent), which load the referent
-  anyway.
+  anyway. A list change through `&mut` (`list_reserve`, `list_truncate`,
+  `list_extend`) promotes its first argument the same way, when it is a
+  `Ref` of a part of a local no closure captures, reached through whole
+  reads and identity coercions each used once, as an inlined `self`
+  passes it (`hd_tir::own::promote::changed_in_place`, #2217): the
+  emitter reads the place, calls the value-returning helper, and stores
+  its result back into the place (`Em::list_ref_change`). Swift does the
+  same for `reserveCapacity` on a local `Array` (swiftc 6.4 `-O
+  -emit-sil`: no `alloc_stack`, `_consumeAndCreateNew` takes and
+  returns the buffer as an `@owned` value).
 - **The inliner.** Every build copies an ordinary callee that takes
   references when each referent is one a promoted copy takes
   (`lent_referent`, counted parts allowed) and the copy only reads

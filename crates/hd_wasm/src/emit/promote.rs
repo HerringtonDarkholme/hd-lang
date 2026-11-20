@@ -5,7 +5,8 @@
 
 use hd_base::{HashMap, InstId};
 use hd_mono::{Sub, Target, TargetKind};
-use hd_tir::ir::{Body, Ref, Tag};
+use hd_tir::ir::{Body, Ref, Tag, u32_of};
+use hd_tir::own::promote::{Promotion, changed_in_place};
 
 use super::Em;
 use crate::Input;
@@ -94,6 +95,7 @@ pub fn settled(input: &Input<'_>) -> Settled {
         let plain = !env.suspends(item)
             || input.entry.root(item) && super::susp::plan(b, b.sub_root[0]).0.is_empty();
         let (mut args, mut ops, mut counted) = (Vec::new(), Vec::new(), Vec::new());
+        let mut census = None;
         let topo = hd_tir::ir::Topology::new(b);
         for (i, &sub) in topo.sub.iter().enumerate() {
             let (Some(Some(id)), Ok(sub)) = (insts.get(sub as usize), u16::try_from(sub)) else {
@@ -128,6 +130,14 @@ pub fn settled(input: &Input<'_>) -> Settled {
             } else if b.tags[i] == Tag::Call
                 && let Some(ct) = target.filter(|_| input.promote_args && sub == 0 && plain)
             {
+                // A list change through a local's `&mut` (`Em::list_ref_change`).
+                if let TargetKind::Intrinsic(k) = &ct.kind
+                    && matches!(k.as_str(), "list_truncate" | "list_extend" | "list_reserve")
+                {
+                    let census = census.get_or_insert_with(|| Promotion::new(b));
+                    args.extend(changed_in_place(b, i, census).map(|r| (sub, u32_of(r))));
+                    continue;
+                }
                 let path = (input.path)(ct.item);
                 let compares = matches!(
                     path.rsplit(['.', '/']).next(),

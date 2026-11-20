@@ -1,8 +1,9 @@
 # @build: release
 # @dump: wat
-# expected: #2217: reservation should keep the fresh list in a value local,
-# like the unreserved control. Today reserved adds a 16-byte stack frame
-# and stores rt:list_reserve's result back through the list address.
+# #2217: reservation keeps the fresh list in a value local, like the
+# unreserved control: the reserve's `&mut` reaches only `list_reserve`, so
+# rt:list_reserve takes the list's value and its result goes back into the
+# local, with no stack frame.
 
 use std.annotation.inline
 
