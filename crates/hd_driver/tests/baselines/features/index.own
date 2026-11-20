@@ -151,8 +151,8 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %17 = Break L0 %16 : never
 >   %18 = Block - : Ptr[string]
 >   %19 = Scope %18 [] : Ptr[string]
->   %20 = LoanEnd [%9] : ()
->   %21 = LoanClose %10 : ()
+>   %20 = LoanClose %10 : ()
+>   %21 = LoanEnd [%9] : ()
 >   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%19) : &string
 >   %23 = NewVariant #1 [%22] : &string?
 >   %24 = Block %23 : &string?
@@ -214,8 +214,8 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : Ptr[string]
 >   %20 = Scope %19 [] : Ptr[string]
->   %21 = LoanEnd [%10] : ()
->   %22 = LoanClose %11 : ()
+>   %21 = LoanClose %11 : ()
+>   %22 = LoanEnd [%10] : ()
 >   %23 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[string] (%20) : &mut string
 >   %24 = NewVariant #1 [%23] : &mut string?
 >   %25 = Block %24 : &mut string?

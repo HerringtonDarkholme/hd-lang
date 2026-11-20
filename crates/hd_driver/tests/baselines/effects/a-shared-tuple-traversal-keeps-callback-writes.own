@@ -42,10 +42,10 @@ impl PartialOrd for Observed:
 >   %5 = Ref local [*$1 .value] : &i32
 >   %6 = LoanBegin %5 #0 : ()
 >   %7 = Call std/cmp/PartialOrd.partial_cmp for i32 [] via Impl (%3, %5) : Ordering?
->   %8 = LoanEnd [%5] : ()
->   %9 = LoanEnd [%3] : ()
->   %10 = LoanClose %4 : ()
->   %11 = LoanClose %6 : ()
+>   %8 = LoanClose %4 : ()
+>   %9 = LoanClose %6 : ()
+>   %10 = LoanEnd [%5] : ()
+>   %11 = LoanEnd [%3] : ()
 >   summary kept [] writes
 
 type Values = (

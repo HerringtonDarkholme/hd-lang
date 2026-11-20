@@ -96,10 +96,10 @@ impl[T < Ord] Queue[T]:
 >   %29 = Ref local [*$0 .items [%27]] : &T
 >   %30 = LoanBegin %29 #0 : ()
 >   %31 = Call std/cmp/Ord.cmp for T [] via Bound (%24, %29) : Ordering
->   %32 = Drop [%29] : ()
->   %33 = Drop [%24] : ()
->   %34 = LoanClose %25 : ()
->   %35 = LoanClose %30 : ()
+>   %32 = LoanClose %25 : ()
+>   %33 = LoanClose %30 : ()
+>   %34 = Drop [%29] : ()
+>   %35 = Drop [%24] : ()
 >   %46 = Block - : never
 >   %47 = Match %31 [%46 %39 %40] : ()
 >   %48 = Block - : ()
@@ -119,9 +119,9 @@ impl[T < Ord] Queue[T]:
 >   %53 = Ref local [*$0 .items [%51]] : &T
 >   %54 = LoanBegin %53 #0 : ()
 >   %55 = Call std/cmp/Ord.cmp for T [] via Bound (%50, %53) : Ordering
->   %56 = Drop [%53] : ()
->   %57 = Drop [%50] : ()
->   %58 = LoanClose %54 : ()
+>   %56 = LoanClose %54 : ()
+>   %57 = Drop [%53] : ()
+>   %58 = Drop [%50] : ()
 >   %67 = Block - : never
 >   %68 = Match %55 [%67 %59 %61] : ()
                 .Less => pass

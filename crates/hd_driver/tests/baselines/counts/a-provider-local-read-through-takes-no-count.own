@@ -54,8 +54,8 @@ fn line(text: string) -> void $ Sink:
 >   %11 = LoanBegin %10 #0 : ()
 >   %12 = LoanBegin %10 #2 : ()
 >   %13 = Call app/main/Sink.put for Sink [] via TraitValue (%10, "!") : ()
->   %14 = Drop [$1] : ()
->   %15 = LoanClose %11 : ()
+>   %14 = LoanClose %11 : ()
+>   %15 = Drop [$1] : ()
 >   summary kept [] borrows [$0] writes
 
 fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
@@ -88,8 +88,8 @@ fn swapped(text: string, other: &mut dyn Sink) -> void $ Sink:
 >   %14 = LoanBegin %13 #0 : ()
 >   %15 = LoanBegin %13 #2 : ()
 >   %16 = Call app/main/Sink.put for Sink [] via TraitValue (%13, "!") : ()
->   %17 = Drop [$2] : ()
->   %18 = LoanClose %14 : ()
+>   %17 = LoanClose %14 : ()
+>   %18 = Drop [$2] : ()
 >   summary kept [$1] borrows [$0] writes
 
 pub fn go() -> usize:
@@ -148,8 +148,8 @@ pub fn go() -> usize:
 >   %30 = LoanBegin %29 #0 : ()
 >   %31 = LoanBegin %29 #2 : ()
 >   %32 = Call app/main/Sink.put for Sink [] via TraitValue (%29, "!") : ()
->   %33 = Drop [$7] : ()
->   %34 = LoanClose %30 : ()
+>   %33 = LoanClose %30 : ()
+>   %34 = Drop [$7] : ()
 >   %35 = Break L0 - : never
 >   %36 = Block - : ()
 >   %37 = Scope %36 [] : ()
@@ -165,9 +165,9 @@ pub fn go() -> usize:
 >   %45 = Block %43 : Sink
 >   %46 = RefDyn %45 : &mut dyn Sink
 >   %47 = Call app/main/swapped[] ("c", %46) : ()
->   %48 = Drop [%46] : ()
->   %49 = LoanEnd [$5] : ()
->   %50 = LoanClose %40 : ()
+>   %48 = LoanClose %40 : ()
+>   %49 = Drop [%46] : ()
+>   %50 = LoanEnd [$5] : ()
     first.n + second.n
 >   %54 = Read copy [*$1 .n] : usize
 >   %55 = Read copy [*$3 .n] : usize

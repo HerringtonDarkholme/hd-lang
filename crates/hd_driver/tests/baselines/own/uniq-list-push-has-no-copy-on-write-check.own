@@ -17,8 +17,8 @@ std/rt_tests.stage_case/add
   %7 = Ref local [*$2 .buffer] : &Buffer[Ticket]
   %8 = LoanBegin %7 #0 : ()
   %9 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[Ticket] (%7) : usize
-  %10 = LoanEnd [%7] : ()
-  %11 = LoanClose %8 : ()
+  %10 = LoanClose %8 : ()
+  %11 = LoanEnd [%7] : ()
   %12 = Read copy [$4] : usize
   %13 = Prim Le [%9 %12] : bool
   %14 = Read borrow [$2] : &mut UniqList[Ticket]
@@ -31,8 +31,8 @@ std/rt_tests.stage_case/add
   %21 = LoanBegin %20 #0 : ()
   %22 = Read copy [$4] : usize
   %23 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[Ticket] (%20, %22) : Ptr[Ticket]
-  %24 = LoanEnd [%20] : ()
-  %25 = LoanClose %21 : ()
+  %24 = LoanClose %21 : ()
+  %25 = LoanEnd [%20] : ()
   %26 = Read move [$1] : Ticket
   %27 = Store [ptr %23] %26 : ()
   %28 = Release %27 Operation #3 : ()

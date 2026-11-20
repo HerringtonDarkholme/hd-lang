@@ -60,15 +60,15 @@ fn walk(node: &Node, sink: &mut dyn Sink) -> void:
 >   %36 = If %12 [%32 %35] : ()
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
->   %39 = Drop [%6] : ()
->   %40 = LoanClose %18 : ()
+>   %39 = LoanClose %18 : ()
+>   %40 = Drop [%6] : ()
         walk(*child, sink)
 >   %19 = Ref local [**$4] : &Node
 >   %20 = LoanBegin %19 #0 : ()
 >   %21 = Read borrow [$1] : &mut dyn Sink
 >   %22 = Call app/main/walk[] (%19, %21) : ()
->   %23 = LoanEnd [%19] : ()
->   %24 = LoanClose %20 : ()
+>   %23 = LoanClose %20 : ()
+>   %24 = LoanEnd [%19] : ()
 >   summary kept [] writes relies [$0] recursive
 
 struct Total:
@@ -148,8 +148,8 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   %29 = If %6 [%25 %28] : ()
 >   %30 = Block - : ()
 >   %31 = Loop %30 - : ()
->   %32 = Drop [%0] : ()
->   %33 = LoanClose %12 : ()
+>   %32 = LoanClose %12 : ()
+>   %33 = Drop [%0] : ()
 >   %34 = Block - : ()
         keep(*e, k)
 >   %13 = Read copy [*$4] : *Node
@@ -183,10 +183,10 @@ pub fn run(root: *Node) -> i64:
 >   %11 = Block %9 : Sink
 >   %12 = RefDyn %11 : &mut dyn Sink
 >   %13 = Call app/main/walk[] (%4, %12) : ()
->   %14 = Drop [%12] : ()
->   %15 = LoanEnd [$2] : ()
->   %16 = LoanEnd [%4] : ()
->   %17 = LoanClose %5 : ()
+>   %14 = LoanClose %5 : ()
+>   %15 = Drop [%12] : ()
+>   %16 = LoanEnd [$2] : ()
+>   %17 = LoanEnd [%4] : ()
     let mut keeper = Keeper { saved: [] }
 >   %18 = NewList - [] : List[*Node]
 >   %19 = NewStruct [%18] : Keeper
@@ -196,9 +196,9 @@ pub fn run(root: *Node) -> i64:
 >   %23 = LoanBegin %22 #0 : ()
 >   %24 = Ref mut local frame [$3] : &mut Keeper
 >   %25 = Call app/main/save[] (%22, %24) : ()
->   %26 = LoanEnd [%24] : ()
->   %27 = LoanEnd [%22] : ()
->   %28 = LoanClose %23 : ()
+>   %26 = LoanClose %23 : ()
+>   %27 = LoanEnd [%24] : ()
+>   %28 = LoanEnd [%22] : ()
     total.sum + i64(keeper.saved.len())
 >   %29 = Read copy [$1 .sum] : i64
 >   %30 = Drop [$1] : ()

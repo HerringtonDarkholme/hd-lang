@@ -51,8 +51,8 @@ fn call() -> i32:
 >   %9 = LoanBegin %8 #0 : ()
 >   %10 = NewVariant #1 [%8] : &i32?
 >   %11 = CallValue %7 [%10] : i32
->   %12 = LoanEnd [%10] : ()
->   %13 = Drop [%7] : ()
->   %14 = Drop [$1] : ()
->   %15 = LoanClose %9 : ()
+>   %12 = LoanClose %9 : ()
+>   %13 = LoanEnd [%10] : ()
+>   %14 = Drop [%7] : ()
+>   %15 = Drop [$1] : ()
 >   storage sub 0: $0 cell

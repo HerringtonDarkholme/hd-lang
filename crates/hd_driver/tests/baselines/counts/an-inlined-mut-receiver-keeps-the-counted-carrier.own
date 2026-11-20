@@ -20,6 +20,6 @@ app/main/reject_once
   %12 = Break L1 - : never
   %13 = Block - : ()
   %14 = Scope %13 [] : ()
-  %15 = LoanEnd [$1] : ()
-  %16 = LoanClose %2 : ()
+  %15 = LoanClose %2 : ()
+  %16 = LoanEnd [$1] : ()
   summary kept [] borrows [$0] writes

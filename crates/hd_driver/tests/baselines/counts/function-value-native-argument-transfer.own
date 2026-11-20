@@ -62,8 +62,8 @@ fn boxed_size(value: *Resource) -> usize:
 >   %1 = Ref local [*$0 .owned] : &UniqList[usize]
 >   %2 = LoanBegin %1 #0 : ()
 >   %3 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
->   %4 = LoanEnd [%1] : ()
->   %5 = LoanClose %2 : ()
+>   %4 = LoanClose %2 : ()
+>   %5 = LoanEnd [%1] : ()
 >   %6 = Block %3 : usize
 
 @inline(.Never)
@@ -604,9 +604,9 @@ fn plain_controls() -> void:
 >   %279 = Ref local [*$7 .owned] : &UniqList[usize]
 >   %280 = LoanBegin %279 #0 : ()
 >   %281 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%279) : usize
->   %282 = LoanEnd [%279] : ()
->   %283 = Drop [$7] : ()
->   %284 = LoanClose %280 : ()
+>   %282 = LoanClose %280 : ()
+>   %283 = LoanEnd [%279] : ()
+>   %284 = Drop [$7] : ()
 >   %285 = Break L1 "" : never
 >   %286 = Block - : string
 >   %287 = Scope %286 [] : string
@@ -872,8 +872,8 @@ fn empty_controls() -> void:
 >   %84 = Ref local [*$19 .buffer] : &Buffer[usize]
 >   %85 = LoanBegin %84 #0 : ()
 >   %86 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%84) : usize
->   %87 = LoanEnd [%84] : ()
->   %88 = LoanClose %85 : ()
+>   %87 = LoanClose %85 : ()
+>   %88 = LoanEnd [%84] : ()
 >   %89 = Read copy [$21] : usize
 >   %90 = Prim Le [%86 %89] : bool
 >   %91 = Read borrow [$19] : &mut UniqList[usize]
@@ -886,8 +886,8 @@ fn empty_controls() -> void:
 >   %98 = LoanBegin %97 #0 : ()
 >   %99 = Read copy [$21] : usize
 >   %100 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%97, %99) : Ptr[usize]
->   %101 = LoanEnd [%97] : ()
->   %102 = LoanClose %98 : ()
+>   %101 = LoanClose %98 : ()
+>   %102 = LoanEnd [%97] : ()
 >   %103 = Read copy [$20] : usize
 >   %104 = Store [ptr %100] %103 : ()
 >   %105 = Read copy [$21] : usize
@@ -1084,8 +1084,8 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %60 = Ref local [*$5 .buffer] : &Buffer[usize]
 >   %61 = LoanBegin %60 #0 : ()
 >   %62 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%60) : usize
->   %63 = LoanEnd [%60] : ()
->   %64 = LoanClose %61 : ()
+>   %63 = LoanClose %61 : ()
+>   %64 = LoanEnd [%60] : ()
 >   %65 = Read copy [$7] : usize
 >   %66 = Prim Le [%62 %65] : bool
 >   %67 = Read borrow [$5] : &mut UniqList[usize]
@@ -1098,8 +1098,8 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %74 = LoanBegin %73 #0 : ()
 >   %75 = Read copy [$7] : usize
 >   %76 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%73, %75) : Ptr[usize]
->   %77 = LoanEnd [%73] : ()
->   %78 = LoanClose %74 : ()
+>   %77 = LoanClose %74 : ()
+>   %78 = LoanEnd [%73] : ()
 >   %79 = Read copy [$6] : usize
 >   %80 = Store [ptr %76] %79 : ()
 >   %81 = Read copy [$7] : usize

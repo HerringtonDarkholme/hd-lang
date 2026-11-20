@@ -33,8 +33,8 @@ impl Bag:
 >   %0 = Ref local [*$0 .items] : &List[i32]
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Call app/main/first[] (%0) : usize
->   %3 = LoanEnd [%0] : ()
->   %4 = LoanClose %1 : ()
+>   %3 = LoanClose %1 : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Block %2 : usize
 >   summary kept []
 
@@ -63,8 +63,8 @@ impl Bag:
 >   %13 = Ref local [*$1 .items] : &List[i32]
 >   %14 = LoanBegin %13 #0 : ()
 >   %15 = Call app/main/first[] (%13) : usize
->   %16 = LoanEnd [%13] : ()
->   %17 = LoanClose %14 : ()
+>   %16 = LoanClose %14 : ()
+>   %17 = LoanEnd [%13] : ()
 >   %18 = Break L0 %15 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize

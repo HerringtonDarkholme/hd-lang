@@ -93,8 +93,8 @@ fn through_ptr(u: *User) -> usize:
 >   %8 = Scope %7 [] : &string
 >   %9 = LoanEnd [$1] : ()
 >   %10 = Call std/text/impl string.len[] (%8) : usize
->   %11 = LoanEnd [%8] : ()
->   %12 = LoanClose %2 : ()
->   %13 = LoanClose %5 : ()
+>   %11 = LoanClose %2 : ()
+>   %12 = LoanClose %5 : ()
+>   %13 = LoanEnd [%8] : ()
 >   %14 = Block %10 : usize
 >   summary kept [] borrows [$0]

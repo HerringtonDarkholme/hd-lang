@@ -113,8 +113,8 @@ fn not_a_loop(values: &List[string]) -> usize:
     item.len()
 >   %3 = Read move [$1] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanClose %1 : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = LoanEnd [%3] : ()
 >   summary kept [] writes
 
 fn read_inside_loop(values: &List[string]) -> usize:
@@ -164,8 +164,8 @@ fn read_inside_loop(values: &List[string]) -> usize:
 >   %21 = Read copy [$1] : usize
 >   %22 = Read move [$5] : &string
 >   %23 = Call std/text/impl string.len[] (%22) : usize
->   %24 = LoanEnd [%22] : ()
->   %25 = LoanClose %18 : ()
+>   %24 = LoanClose %18 : ()
+>   %25 = LoanEnd [%22] : ()
 >   %26 = Prim Add [%21 %23] : usize
 >   %27 = Store [$1] %26 : ()
     total

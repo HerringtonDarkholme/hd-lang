@@ -139,8 +139,8 @@ app/main/impl Probes.writing_call
   %7 = LoanBegin %6 #1 : ()
   %8 = Read copy [$2] : List[usize]
   %9 = Call app/main/impl Probes.replace[] (%6, %8) : ()
-  %10 = LoanEnd [%6] : ()
-  %11 = LoanClose %7 : ()
+  %10 = LoanClose %7 : ()
+  %11 = LoanEnd [%6] : ()
   %12 = Read copy [*$0 [0:usize]] : usize
   %13 = Prim Add [%12 1:usize] : usize
   %14 = IsUnique [*$0] : ()

@@ -143,11 +143,11 @@ fn through_call(p: *mut Slots, alias: *mut Slots) -> string:
 >   %38 = LoanClose %35 : ()
     *r
 >   %39 = Read copy [*$2] : string
->   %40 = Drop [$2] : ()
->   %41 = LoanClose %3 : ()
->   %42 = LoanClose %6 : ()
->   %43 = LoanClose %29 : ()
->   %44 = LoanClose %32 : ()
+>   %40 = LoanClose %3 : ()
+>   %41 = LoanClose %6 : ()
+>   %42 = LoanClose %29 : ()
+>   %43 = LoanClose %32 : ()
+>   %44 = Drop [$2] : ()
 
 fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 > app/main/through_inline
@@ -209,11 +209,11 @@ fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 >   %41 = LoanClose %38 : ()
     *r
 >   %42 = Read copy [*$2] : string
->   %43 = Drop [$2] : ()
->   %44 = LoanClose %3 : ()
->   %45 = LoanClose %6 : ()
->   %46 = LoanClose %29 : ()
->   %47 = LoanClose %35 : ()
+>   %43 = LoanClose %3 : ()
+>   %44 = LoanClose %6 : ()
+>   %45 = LoanClose %29 : ()
+>   %46 = LoanClose %35 : ()
+>   %47 = Drop [$2] : ()
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["original-" + "z".repeat(40)] })

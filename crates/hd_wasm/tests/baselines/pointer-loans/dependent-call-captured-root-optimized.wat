@@ -181,6 +181,26 @@
     i32.load $heap offset=4
     local.tee $d
     call $rt:retain
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap
+      local.tee $t4
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $t4
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 11 |     let mut ps = [box(P { name: "a" })]
     local.get $t1
     if
@@ -200,28 +220,6 @@
         end
       end
     end
-    ;; 16 |     *d
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $t1
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $t1
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    ;; 11 |     let mut ps = [box(P { name: "a" })]
     local.get $t3
     local.get $d
     local.get $t0

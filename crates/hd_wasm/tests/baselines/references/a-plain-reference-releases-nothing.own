@@ -42,8 +42,8 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %17 = Break L0 %16 : never
 >   %18 = Block - : Ptr[i32]
 >   %19 = Scope %18 [] : Ptr[i32]
->   %20 = LoanEnd [%9] : ()
->   %21 = LoanClose %10 : ()
+>   %20 = LoanClose %10 : ()
+>   %21 = LoanEnd [%9] : ()
 >   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[i32] (%19) : &mut i32
 >   %23 = NewVariant #1 [%22] : &mut i32?
 >   %24 = Block %23 : &mut i32?
@@ -82,8 +82,8 @@ fn first(xs: &List[string]) -> usize:
     a.len()
 >   %3 = Read move [$1] : &string
 >   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = LoanEnd [%3] : ()
->   %6 = LoanClose %1 : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = LoanEnd [%3] : ()
 >   summary kept [] writes
 
 fn slot() -> i32:

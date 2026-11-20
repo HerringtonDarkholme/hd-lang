@@ -66,15 +66,15 @@ fn lend(h: *mut Point) -> usize:
 >   %1 = Ref mut local [*$0] : &mut Point
 >   %2 = LoanBegin %1 #1 : ()
 >   %3 = Call app/main/nudge[] (%1) : ()
->   %4 = LoanEnd [%1] : ()
->   %5 = LoanClose %2 : ()
+>   %4 = LoanClose %2 : ()
+>   %5 = LoanEnd [%1] : ()
 >   %27 = Block %25 : usize
     bump(h)
 >   %6 = Ref mut local [*$0] : &mut Point
 >   %7 = LoanBegin %6 #1 : ()
 >   %8 = Call app/main/bump[] (%6) : ()
->   %9 = LoanEnd [%6] : ()
->   %10 = LoanClose %7 : ()
+>   %9 = LoanClose %7 : ()
+>   %10 = LoanEnd [%6] : ()
     view(h)
 >   %11 = Read borrow [*$0] : Point
 >   %12 = LoanBegin %11 #0 : ()

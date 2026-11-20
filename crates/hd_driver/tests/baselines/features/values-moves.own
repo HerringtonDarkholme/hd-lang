@@ -109,8 +109,8 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %19 = Break L1 %18 : never
 >   %20 = Block - : usize
 >   %21 = Scope %20 [] : usize
->   %22 = LoanEnd [%16] : ()
->   %23 = LoanClose %17 : ()
+>   %22 = LoanClose %17 : ()
+>   %23 = LoanEnd [%16] : ()
 >   %24 = Read copy [$5] : usize
 >   %25 = Prim Le [%21 %24] : bool
 >   %26 = Read borrow [$3] : &mut UniqList[string]
@@ -130,8 +130,8 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %40 = Break L0 %39 : never
 >   %41 = Block - : Ptr[string]
 >   %42 = Scope %41 [] : Ptr[string]
->   %43 = LoanEnd [%32] : ()
->   %44 = LoanClose %33 : ()
+>   %43 = LoanClose %33 : ()
+>   %44 = LoanEnd [%32] : ()
 >   %45 = Read move [$1] : string
 >   %46 = Store [ptr %42] %45 : ()
 >   %47 = Release %46 Operation #3 : ()

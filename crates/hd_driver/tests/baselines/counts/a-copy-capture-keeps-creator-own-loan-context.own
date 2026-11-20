@@ -52,8 +52,8 @@ fn probe() -> (string, string):
 >   %19 = Scope %18 [] : ()
     (*r, p.value)
 >   %20 = Read copy [*$2] : string
->   %21 = LoanEnd [$2] : ()
->   %22 = LoanClose %6 : ()
+>   %21 = LoanClose %6 : ()
+>   %22 = LoanEnd [$2] : ()
 >   %23 = Read copy [*$1 .value] : string
 >   %24 = NewTuple - [%20 %23] : (string, string)
 >   %25 = Drop [$1] : ()

@@ -129,8 +129,8 @@ fn element_receiver(xs: &mut List[Vec2], i: usize) -> void:
 >   %3 = LoanBegin %2 #0 : ()
 >   %4 = LoanBegin %2 #2 : ()
 >   %5 = Call app/main/impl Vec2.shift[] (%2, 1:i64) : ()
->   %6 = LoanEnd [%2] : ()
->   %7 = LoanClose %3 : ()
+>   %6 = LoanClose %3 : ()
+>   %7 = LoanEnd [%2] : ()
 >   %8 = Block - : ()
 >   summary kept [] writes
 

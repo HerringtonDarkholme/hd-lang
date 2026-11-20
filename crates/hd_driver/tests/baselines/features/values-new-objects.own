@@ -50,8 +50,8 @@ fn temp_ref(s: string) -> usize:
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize
->   %18 = LoanEnd [$2] : ()
->   %19 = LoanClose %11 : ()
+>   %18 = LoanClose %11 : ()
+>   %19 = LoanEnd [$2] : ()
 >   storage sub 0: $1 slot
 >   summary kept [] borrows [$0]
 
@@ -89,9 +89,9 @@ fn new_mut(s: string, t: string) -> usize:
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
->   %19 = LoanEnd [$3] : ()
->   %20 = Drop [$2] : ()
->   %21 = LoanClose %12 : ()
+>   %19 = LoanClose %12 : ()
+>   %20 = LoanEnd [$3] : ()
+>   %21 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1]

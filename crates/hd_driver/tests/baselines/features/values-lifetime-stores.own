@@ -98,9 +98,9 @@ fn total(a: User, b: User) -> usize:
 >   %39 = Break L0 %38 : never
 >   %40 = Block - : usize
 >   %41 = Scope %40 [] : usize
->   %42 = Drop [$2] : ()
->   %43 = Drop [$1] : ()
->   %44 = LoanClose %35 : ()
+>   %42 = LoanClose %35 : ()
+>   %43 = Drop [$2] : ()
+>   %44 = Drop [$1] : ()
 >   %45 = Prim Add [%32 %41] : usize
 >   %46 = Read move [$3] : Map[string, &User]
 >   %47 = Intrinsic MapLen [%46] : usize

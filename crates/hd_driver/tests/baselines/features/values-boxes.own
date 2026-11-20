@@ -53,8 +53,8 @@ fn copy_box(s: string, t: string) -> usize:
 >   %18 = Break L1 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
->   %21 = Drop [$4] : ()
->   %22 = LoanClose %14 : ()
+>   %21 = LoanClose %14 : ()
+>   %22 = Drop [$4] : ()
 >   %23 = Read move [$2 .name] : string
 >   %24 = Store [$5] %23 : ()
 >   %25 = Read borrow [$5] : string
@@ -127,8 +127,8 @@ fn shared(s: string, t: string) -> usize:
 >   %20 = Break L0 %19 : never
 >   %21 = Block - : usize
 >   %22 = Scope %21 [] : usize
->   %23 = Drop [$4] : ()
->   %24 = LoanClose %16 : ()
+>   %23 = LoanClose %16 : ()
+>   %24 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

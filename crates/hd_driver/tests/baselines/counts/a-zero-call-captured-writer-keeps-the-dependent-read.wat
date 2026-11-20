@@ -286,6 +286,26 @@
     i32.load $heap offset=4
     local.tee $change.1
     call $rt:retain
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap
+      local.tee $t1
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $t1
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 24 |     let mut ps = [box(P { name: "a" })]
     local.get $t0
     if
@@ -300,28 +320,6 @@
         call $rt:release_ref
       end
     end
-    ;; 28 |     *d
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $t0
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $t0
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    ;; 24 |     let mut ps = [box(P { name: "a" })]
     local.get $change.0
     local.get $change.1
   )
@@ -392,6 +390,26 @@
     i32.load $heap offset=4
     local.tee $t0
     call $rt:retain
+    local.get $t2
+    if
+      local.get $t2
+      i32.load $heap
+      local.tee $t1
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t2
+        call $rt:loan_unshare
+      else
+        local.get $t2
+        local.get $t1
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 31 |     let mut h = Holder { p: box(P { name: "e" }) }
     local.get $h
     if
@@ -406,28 +424,6 @@
         call $rt:release_ref
       end
     end
-    ;; 35 |     *d
-    local.get $t2
-    if
-      local.get $t2
-      i32.load $heap
-      local.tee $h
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t2
-        call $rt:loan_unshare
-      else
-        local.get $t2
-        local.get $h
-        i32.const 65536
-        i32.sub
-        i32.store $heap
-      end
-    end
-    ;; 31 |     let mut h = Holder { p: box(P { name: "e" }) }
     local.get $change.0
     local.get $t0
   )

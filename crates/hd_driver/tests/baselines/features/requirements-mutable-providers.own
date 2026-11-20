@@ -63,8 +63,8 @@ fn tick(s: string) -> usize $ Recorder:
 >   %10 = Read borrow [*$1] : Recorder
 >   %11 = LoanBegin %10 #0 : ()
 >   %12 = Call app/main/Recorder.total for Recorder [] via TraitValue (%10) : usize
->   %13 = Drop [$1] : ()
->   %14 = LoanClose %11 : ()
+>   %13 = LoanClose %11 : ()
+>   %14 = Drop [$1] : ()
 >   summary kept [] borrows [$0] writes
 
 fn demo(a: string, b: string) -> usize:
@@ -117,8 +117,8 @@ fn demo(a: string, b: string) -> usize:
 >   %26 = Read borrow [*$8] : Recorder
 >   %27 = LoanBegin %26 #0 : ()
 >   %28 = Call app/main/Recorder.total for Recorder [] via TraitValue (%26) : usize
->   %29 = Drop [$8] : ()
->   %30 = LoanClose %27 : ()
+>   %29 = LoanClose %27 : ()
+>   %30 = Drop [$8] : ()
 >   %31 = Break L1 %28 : never
 >   %32 = Block - : usize
 >   %33 = Scope %32 [] : usize
@@ -136,8 +136,8 @@ fn demo(a: string, b: string) -> usize:
 >   %43 = Read borrow [*$6] : Recorder
 >   %44 = LoanBegin %43 #0 : ()
 >   %45 = Call app/main/Recorder.total for Recorder [] via TraitValue (%43) : usize
->   %46 = Drop [$6] : ()
->   %47 = LoanClose %44 : ()
+>   %46 = LoanClose %44 : ()
+>   %47 = Drop [$6] : ()
 >   %48 = Break L0 %45 : never
 >   %49 = Block - : usize
 >   %50 = Scope %49 [] : usize

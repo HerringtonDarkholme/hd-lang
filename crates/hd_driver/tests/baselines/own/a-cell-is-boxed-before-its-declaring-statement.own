@@ -794,8 +794,8 @@ fn param(p: string) -> string:
 >   %4 = Ref mut local [$1] : &mut string
 >   %5 = LoanBegin %4 #1 : ()
 >   %6 = Call std/rt_tests.stage_case/bang[] (%4) : ()
->   %7 = Drop [%4] : ()
->   %8 = LoanClose %5 : ()
+>   %7 = LoanClose %5 : ()
+>   %8 = Drop [%4] : ()
     add := fn() -> string: "${p}${q}"
 >   %9 = Retain %78 Entry captures #0 : ()
 >   %10 = Read move [$0] : string

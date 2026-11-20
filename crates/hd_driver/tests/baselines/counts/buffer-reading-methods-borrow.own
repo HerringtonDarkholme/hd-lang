@@ -26,8 +26,8 @@ impl Bag:
 >   %0 = Ref local [*$0 .buffer] : &Buffer[i32]
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[i32] (%0) : usize
->   %3 = LoanEnd [%0] : ()
->   %4 = LoanClose %1 : ()
+>   %3 = LoanClose %1 : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Store [$2] %2 : ()
 >   %23 = Block %22 : usize
         self.buffer.grow(len)
@@ -36,14 +36,14 @@ impl Bag:
 >   %8 = Read copy [$1] : usize
 >   %9 = LoanBegin %6 #2 : ()
 >   %10 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].grow[i32] (%6, %8) : ()
->   %11 = LoanEnd [%6] : ()
->   %12 = LoanClose %7 : ()
+>   %11 = LoanClose %7 : ()
+>   %12 = LoanEnd [%6] : ()
         address := self.buffer.at(0).address
 >   %13 = Ref local [*$0 .buffer] : &Buffer[i32]
 >   %14 = LoanBegin %13 #0 : ()
 >   %15 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[i32] (%13, 0:usize) : Ptr[i32]
->   %16 = LoanEnd [%13] : ()
->   %17 = LoanClose %14 : ()
+>   %16 = LoanClose %14 : ()
+>   %17 = LoanEnd [%13] : ()
 >   %18 = Read copy [%15 .address] : usize
 >   %19 = Store [$3] %18 : ()
         capacity + address

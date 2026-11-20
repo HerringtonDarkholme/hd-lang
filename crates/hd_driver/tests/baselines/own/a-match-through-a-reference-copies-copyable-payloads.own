@@ -35,13 +35,13 @@ fn eval(expr: &Expr) -> i64:
 >   %3 = Ref local [*$2] : &Expr
 >   %4 = LoanBegin %3 #0 : ()
 >   %5 = Call app/main/eval[] (%3) : i64
->   %6 = LoanEnd [%3] : ()
->   %7 = LoanClose %4 : ()
+>   %6 = LoanClose %4 : ()
+>   %7 = LoanEnd [%3] : ()
 >   %8 = Ref local [*$3] : &Expr
 >   %9 = LoanBegin %8 #0 : ()
 >   %10 = Call app/main/eval[] (%8) : i64
->   %11 = LoanEnd [%8] : ()
->   %12 = LoanClose %9 : ()
+>   %11 = LoanClose %9 : ()
+>   %12 = LoanEnd [%8] : ()
 >   %13 = Prim Add [%5 %10] : i64
 >   %16 = Block %13 : i64
 >   %22 = Read copy [%17 as #1 .0] : *Expr

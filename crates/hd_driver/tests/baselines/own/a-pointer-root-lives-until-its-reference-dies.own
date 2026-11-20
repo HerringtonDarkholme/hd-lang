@@ -53,8 +53,8 @@ fn probe(items: UniqList[string]) -> string:
 >   %18 = LoanBegin %17 #0 : ()
 >   %19 = Read copy [$9] : usize
 >   %20 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[string] (%17, %19) : Ptr[string]
->   %21 = LoanEnd [%17] : ()
->   %22 = LoanClose %18 : ()
+>   %21 = LoanClose %18 : ()
+>   %22 = LoanEnd [%17] : ()
 >   %23 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%20) : &string
 >   %24 = NewVariant #1 [%23] : &string?
 >   %25 = Block %24 : &string?
@@ -90,10 +90,10 @@ fn probe(items: UniqList[string]) -> string:
 >   %57 = Store [$4] %56 : ()
     *r + junk
 >   %58 = Read copy [*$3] : string
->   %59 = Drop [$3] : ()
->   %60 = LoanClose %9 : ()
->   %61 = LoanClose %31 : ()
->   %62 = LoanClose %54 : ()
+>   %59 = LoanClose %9 : ()
+>   %60 = LoanClose %31 : ()
+>   %61 = LoanClose %54 : ()
+>   %62 = Drop [$3] : ()
 >   %63 = Read move [$4] : string
 >   %64 = Intrinsic StrConcat [%58 %63] : string
 >   %65 = Release %64 Operation operand 0 #2 : ()

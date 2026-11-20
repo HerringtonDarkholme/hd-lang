@@ -15,7 +15,7 @@ app/main/project
   %7 = Break L0 %6 : never
   %8 = Block - : usize
   %9 = Scope %8 [] : usize
-  %10 = LoanEnd [$2] : ()
-  %11 = LoanClose %2 : ()
+  %10 = LoanClose %2 : ()
+  %11 = LoanEnd [$2] : ()
   %12 = Block %9 : usize
   summary kept [] borrows [$1] writes

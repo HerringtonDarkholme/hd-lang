@@ -138,6 +138,15 @@
     ;; 13 |     insert(alias, &mut stock["apple"])
     local.get $t2
     call $insert
+    local.get $t3
+    if
+      local.get $t3
+      local.get $t3
+      i32.load $heap
+      i32.const 2097152
+      i32.sub
+      i32.store $heap
+    end
     ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     local.get $t1
     if
@@ -149,16 +158,6 @@
         local.get $t1
         call $rt:release_ref
       end
-    end
-    ;; 13 |     insert(alias, &mut stock["apple"])
-    local.get $t3
-    if
-      local.get $t3
-      local.get $t3
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
     end
   )
   (func $insert (param $stock i32) (param $apples i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)

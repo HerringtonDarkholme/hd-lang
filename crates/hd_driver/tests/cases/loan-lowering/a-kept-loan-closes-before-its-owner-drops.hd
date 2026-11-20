@@ -1,0 +1,15 @@
+# @dump: own
+# @build: dev
+# `bump` may write `b` through `a`, so the loan on `*x` is kept. Its close
+# ends the loan before the `Drop` of `x` (`splice::apply`); the other order
+# would clear loan bits in the header of a box the release freed.
+struct Box:
+    n: i32
+
+fn bump(a: *mut Box, b: &Box) -> i32:
+    a.n = 1
+    b.n
+
+fn last(y: *mut Box) -> i32:
+    x := box(Box { n: 0 })
+    bump(y, x)

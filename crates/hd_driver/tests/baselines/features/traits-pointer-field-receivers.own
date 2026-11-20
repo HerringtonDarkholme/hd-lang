@@ -59,8 +59,8 @@ impl Step for Erased:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = LoanBegin %0 #2 : ()
 >   %3 = Call app/main/Step.step for Step [] via TraitValue (%0) : i64?
->   %4 = Drop [%0] : ()
->   %5 = LoanClose %1 : ()
+>   %4 = LoanClose %1 : ()
+>   %5 = Drop [%0] : ()
 >   %6 = Block %3 : i64?
 >   summary kept [] writes relies [$0]
 

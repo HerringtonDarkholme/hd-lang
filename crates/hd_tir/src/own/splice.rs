@@ -193,6 +193,25 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
             }
         }
     }
+    // A `Drop` inserted where `LoanClose`s stand goes after them: they end
+    // loans on what it may release, and a close of a kept loan writes the
+    // object's header. One walk per inserted position.
+    let mut closes: hd_base::HashMap<(u32, u32), u32> = hd_base::HashMap::default();
+    for ed in &mut t.edits {
+        if ed.tag == Tag::Drop {
+            let members = b.record(b.data[ed.blk as usize][0]);
+            ed.pos = *closes.entry((ed.blk, ed.pos)).or_insert_with(|| {
+                let mut p = ed.pos as usize;
+                while members
+                    .get(p)
+                    .is_some_and(|&m| b.tags[m as usize] == Tag::LoanClose)
+                {
+                    p += 1;
+                }
+                u32_of(p)
+            });
+        }
+    }
     // Each edit's column position: before the first instruction of the
     // statement it precedes, or after a block's last statement.
     t.anchor.clear();

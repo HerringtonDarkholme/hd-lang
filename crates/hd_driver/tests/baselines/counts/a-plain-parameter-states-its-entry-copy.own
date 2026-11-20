@@ -317,8 +317,8 @@ pub fn main() -> void $ Console:
 >   %96 = Break L2 %95 : never
 >   %97 = Block - : usize
 >   %98 = Scope %97 [] : usize
->   %99 = LoanEnd [%93] : ()
->   %100 = LoanClose %94 : ()
+>   %99 = LoanClose %94 : ()
+>   %100 = LoanEnd [%93] : ()
 >   %101 = Read copy [$9] : usize
 >   %102 = Prim Le [%98 %101] : bool
 >   %103 = Read borrow [$7] : &mut UniqList[i32]
@@ -338,8 +338,8 @@ pub fn main() -> void $ Console:
 >   %117 = Break L1 %116 : never
 >   %118 = Block - : Ptr[i32]
 >   %119 = Scope %118 [] : Ptr[i32]
->   %120 = LoanEnd [%109] : ()
->   %121 = LoanClose %110 : ()
+>   %120 = LoanClose %110 : ()
+>   %121 = LoanEnd [%109] : ()
 >   %122 = Read copy [$8] : i32
 >   %123 = Store [ptr %119] %122 : ()
 >   %124 = Read copy [$9] : usize

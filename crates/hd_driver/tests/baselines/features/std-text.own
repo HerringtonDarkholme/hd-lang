@@ -78,8 +78,8 @@ fn build(parts: &List[string]) -> string:
 >   %49 = LoanBegin %48 #0 : ()
 >   %50 = LoanBegin %48 #2 : ()
 >   %51 = Call std/text/impl StringBuilder.build[] (%48) : string
->   %52 = Drop [%48] : ()
->   %53 = LoanClose %49 : ()
+>   %52 = LoanClose %49 : ()
+>   %53 = Drop [%48] : ()
 >   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
 >   loop %46 keeps [$2] (%10..%47)

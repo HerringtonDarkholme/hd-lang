@@ -120,8 +120,8 @@ app/main/replaced
   %87 = Store [$5] %86 : ()
   %88 = Read move [$4] : &string
   %89 = Call std/text/impl string.len[] (%88) : usize
-  %90 = LoanEnd [%88] : ()
-  %91 = LoanClose %15 : ()
+  %90 = LoanClose %15 : ()
+  %91 = LoanEnd [%88] : ()
   %92 = Read borrow [$3 [0:usize] * .name] : string
   %93 = LoanBegin %92 #0 : ()
   %94 = Store [$7] %92 : ()
@@ -130,10 +130,10 @@ app/main/replaced
   %97 = Break L1 %96 : never
   %98 = Block - : usize
   %99 = Scope %98 [] : usize
-  %100 = Drop [$3] : ()
-  %101 = Drop [$2] : ()
-  %102 = Drop [$1] : ()
-  %103 = LoanClose %93 : ()
+  %100 = LoanClose %93 : ()
+  %101 = Drop [$3] : ()
+  %102 = Drop [$2] : ()
+  %103 = Drop [$1] : ()
   %104 = Prim Add [%89 %99] : usize
   %105 = Read borrow [$5] : string
   %106 = Call std/rt.bytes/bytes_len[] (%105) : usize

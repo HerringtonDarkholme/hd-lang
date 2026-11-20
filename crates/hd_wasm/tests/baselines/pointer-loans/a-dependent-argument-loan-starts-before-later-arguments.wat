@@ -79,10 +79,10 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "later" (func $later (param i32) (result i32)))
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 26 |     observe(p.items.at(0), later(alias))
     local.get $p
     i32.const 4
@@ -124,22 +124,11 @@
     call $observe
     local.set $alias
     local.set $t1
-    local.get $p
-    if
-      local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref
-      end
-    end
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $p
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -149,10 +138,21 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $p
+        local.get $t2
         i32.const 65536
         i32.sub
         i32.store $heap
+      end
+    end
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
       end
     end
     local.get $t1

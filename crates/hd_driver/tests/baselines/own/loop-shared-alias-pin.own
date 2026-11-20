@@ -53,9 +53,9 @@ fn alias_push() -> void:
 >   %37 = If %15 [%33 %36] : ()
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
->   %40 = Drop [%9] : ()
->   %41 = Drop [$1] : ()
->   %42 = LoanClose %21 : ()
+>   %40 = LoanClose %21 : ()
+>   %41 = Drop [%9] : ()
+>   %42 = Drop [$1] : ()
         b.push(*c) # panic: borrow-conflict
 >   %22 = Read copy [*$5] : i32
 >   %23 = IsUnique [*$2] : ()

@@ -51,8 +51,8 @@ std/rt_tests.stage_case/wait
   %24 = Ref local [*$9 .buffer] : &Buffer[Item]
   %25 = LoanBegin %24 #0 : ()
   %26 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[Item] (%24) : usize
-  %27 = LoanEnd [%24] : ()
-  %28 = LoanClose %25 : ()
+  %27 = LoanClose %25 : ()
+  %28 = LoanEnd [%24] : ()
   %29 = Read copy [$11] : usize
   %30 = Prim Le [%26 %29] : bool
   %31 = Read borrow [$9] : *mut UniqList[Item]
@@ -65,8 +65,8 @@ std/rt_tests.stage_case/wait
   %38 = LoanBegin %37 #0 : ()
   %39 = Read copy [$11] : usize
   %40 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[Item] (%37, %39) : Ptr[Item]
-  %41 = LoanEnd [%37] : ()
-  %42 = LoanClose %38 : ()
+  %41 = LoanClose %38 : ()
+  %42 = LoanEnd [%37] : ()
   %43 = Read move [$10] : Item
   %44 = FlagClear [$10] #13 : ()
   %45 = Store [ptr %40] %43 : ()
@@ -108,8 +108,8 @@ std/rt_tests.stage_case/wait
   %81 = Ref local [*$5 .buffer] : &Buffer[Item]
   %82 = LoanBegin %81 #0 : ()
   %83 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[Item] (%81) : usize
-  %84 = LoanEnd [%81] : ()
-  %85 = LoanClose %82 : ()
+  %84 = LoanClose %82 : ()
+  %85 = LoanEnd [%81] : ()
   %86 = Read copy [$7] : usize
   %87 = Prim Le [%83 %86] : bool
   %88 = Read borrow [$5] : *mut UniqList[Item]
@@ -122,8 +122,8 @@ std/rt_tests.stage_case/wait
   %95 = LoanBegin %94 #0 : ()
   %96 = Read copy [$7] : usize
   %97 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[Item] (%94, %96) : Ptr[Item]
-  %98 = LoanEnd [%94] : ()
-  %99 = LoanClose %95 : ()
+  %98 = LoanClose %95 : ()
+  %99 = LoanEnd [%94] : ()
   %100 = Read move [$6] : Item
   %101 = FlagClear [$6] #15 : ()
   %102 = Store [ptr %97] %100 : ()

@@ -176,18 +176,12 @@
         local.get $t4
         call $observe
         drop
-    ;; 26 |     for round in 0..2:
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref'1
-        end
-    ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
+        local.set $t2
         local.get $t3
         if
           local.get $t3
           i32.load $heap
-          local.tee $t2
+          local.tee $t4
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -197,7 +191,7 @@
             call $rt:loan_unshare
           else
             local.get $t3
-            local.get $t2
+            local.get $t4
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -224,6 +218,11 @@
           local.set $t3
         end
     ;; 26 |     for round in 0..2:
+        local.get $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
         br 0
       end
     end
@@ -282,7 +281,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (local $t3 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32)
+  (func $probe (param $p i32) (param $alias i32) (local $t3 i32) (local $t5 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
     ;; 26 |     for round in 0..2:
     i32.const 2
     local.set $t0
@@ -449,29 +448,12 @@
         local.get $t4
         call $observe
         drop
-    ;; 26 |     for round in 0..2:
-        local.tee $t2
-        if
-          local.get $t2
-          call $rt:release_ref'1
-        end
-        local.get $t4
-        if
-          local.get $t4
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          if
-            local.get $t4
-            call $rt:release_ref'2
-          end
-        end
-    ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
+        local.set $t2
         local.get $t3
         if
           local.get $t3
           i32.load $heap
-          local.tee $t2
+          local.tee $t8
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -481,7 +463,7 @@
             call $rt:loan_unshare
           else
             local.get $t3
-            local.get $t2
+            local.get $t8
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -508,6 +490,22 @@
           local.set $t3
         end
     ;; 26 |     for round in 0..2:
+        local.get $t2
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
+        local.get $t4
+        if
+          local.get $t4
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t4
+            call $rt:release_ref'2
+          end
+        end
         br 0
       end
     end

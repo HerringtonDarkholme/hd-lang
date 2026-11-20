@@ -66,8 +66,8 @@ impl['a] Cursor['a]:
 >   %16 = Break L1 %15 : never
 >   %17 = Block - : Ptr[Slot]
 >   %18 = Scope %17 [] : Ptr[Slot]
->   %19 = LoanEnd [%8] : ()
->   %20 = LoanClose %9 : ()
+>   %19 = LoanClose %9 : ()
+>   %20 = LoanEnd [%8] : ()
 >   %21 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[Slot] (%18) : &Slot
 >   %36 = Block - : never
 >   %37 = Match %21 [%36 %26 %27] : ()

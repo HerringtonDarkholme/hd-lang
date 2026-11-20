@@ -114,8 +114,8 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %34 = Break L1 %33 : never
 >   %35 = Block - : usize
 >   %36 = Scope %35 [] : usize
->   %37 = LoanEnd [%31] : ()
->   %38 = LoanClose %32 : ()
+>   %37 = LoanClose %32 : ()
+>   %38 = LoanEnd [%31] : ()
 >   %39 = Read copy [$5] : usize
 >   %40 = Prim Le [%36 %39] : bool
 >   %41 = Read borrow [$3] : &mut UniqList[string]
@@ -135,8 +135,8 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %55 = Break L0 %54 : never
 >   %56 = Block - : Ptr[string]
 >   %57 = Scope %56 [] : Ptr[string]
->   %58 = LoanEnd [%47] : ()
->   %59 = LoanClose %48 : ()
+>   %58 = LoanClose %48 : ()
+>   %59 = LoanEnd [%47] : ()
 >   %60 = Read move [$2] : string
 >   %61 = Store [ptr %57] %60 : ()
 >   %62 = Release %61 Operation #3 : ()

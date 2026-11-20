@@ -31,8 +31,8 @@ fn change!(n: *mut Note) -> usize:
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Drop [$0] : ()
->   %13 = LoanClose %5 : ()
+>   %12 = LoanClose %5 : ()
+>   %13 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 
 fn other!() -> usize:

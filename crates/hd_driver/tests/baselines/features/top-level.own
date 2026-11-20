@@ -158,8 +158,8 @@ fn read_top() -> usize:
 >   %1 = Ref local [@app/main/greeting] : &string
 >   %2 = LoanBegin %1 #0 : ()
 >   %3 = Call std/text/impl string.len[] (%1) : usize
->   %4 = LoanEnd [%1] : ()
->   %5 = LoanClose %2 : ()
+>   %4 = LoanClose %2 : ()
+>   %5 = LoanEnd [%1] : ()
 >   %6 = Read borrow [@app/main/names] : List[string]
 >   %7 = Intrinsic ListLen [%6] : usize
 >   %8 = Prim Add [%3 %7] : usize

@@ -78,9 +78,9 @@ fn demo(u: &User) -> usize:
     n.len()
 >   %7 = Read move [$1] : &string
 >   %8 = Call std/text/impl string.len[] (%7) : usize
->   %9 = Drop [%7] : ()
->   %10 = LoanClose %1 : ()
->   %11 = LoanClose %5 : ()
+>   %9 = LoanClose %1 : ()
+>   %10 = LoanClose %5 : ()
+>   %11 = Drop [%7] : ()
 >   summary kept []
 
 fn keep[T < 'static](value: T) -> *mut T:

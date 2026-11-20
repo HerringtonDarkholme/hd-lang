@@ -123,8 +123,8 @@ impl Slots:
 >   %2 = Read copy [$1] : usize
 >   %3 = LoanBegin %0 #2 : ()
 >   %4 = Call std/collections/impl[T] List[T].remove_at[string] (%0, %2) : string
->   %5 = LoanEnd [%0] : ()
->   %6 = LoanClose %1 : ()
+>   %5 = LoanClose %1 : ()
+>   %6 = LoanEnd [%0] : ()
 >   %7 = Block %4 : string
 
     fn swap(&mut self, left: usize, right: usize) -> void:
@@ -142,8 +142,8 @@ impl Slots:
 >   %3 = Read copy [$2] : usize
 >   %4 = LoanBegin %0 #2 : ()
 >   %5 = Call std/collections/impl[T] List[T].swap[string] (%0, %2, %3) : ()
->   %6 = LoanEnd [%0] : ()
->   %7 = LoanClose %1 : ()
+>   %6 = LoanClose %1 : ()
+>   %7 = LoanEnd [%0] : ()
 >   %8 = Block - : ()
 
 struct Outer:
@@ -329,11 +329,11 @@ fn probe(p: *mut Outer, alias: *mut Outer) -> string:
 >   %31 = Drop [%26] : ()
 >   %32 = LoanBegin %30 #4 : ()
 >   %33 = Call app/main/length[] (%30) : string
->   %34 = Drop [%30] : ()
->   %35 = LoanClose %3 : ()
->   %36 = LoanClose %6 : ()
->   %37 = LoanClose %29 : ()
->   %38 = LoanClose %32 : ()
+>   %34 = LoanClose %3 : ()
+>   %35 = LoanClose %6 : ()
+>   %36 = LoanClose %29 : ()
+>   %37 = LoanClose %32 : ()
+>   %38 = Drop [%30] : ()
 >   %39 = Store [$2] %33 : ()
 >   %72 = Block %71 : string
     for round in 0..16:
@@ -364,8 +364,8 @@ fn probe(p: *mut Outer, alias: *mut Outer) -> string:
 >   %57 = Call app/main/fresh[] () : string
 >   %58 = LoanBegin %55 #2 : ()
 >   %59 = Call app/main/impl Slots.push[] (%55, %57) : ()
->   %60 = LoanEnd [%55] : ()
->   %61 = LoanClose %56 : ()
+>   %60 = LoanClose %56 : ()
+>   %61 = LoanEnd [%55] : ()
     junk := churn()
 >   %68 = Call app/main/churn[] () : List[string]
     _ := junk.len()

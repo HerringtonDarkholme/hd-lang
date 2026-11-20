@@ -52,8 +52,8 @@ impl Members:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = LoanBegin %0 #2 : ()
 >   %3 = Call std/collections/impl[T] List[T].pop[Info] (%0) : Info?
->   %4 = LoanEnd [%0] : ()
->   %5 = LoanClose %1 : ()
+>   %4 = LoanClose %1 : ()
+>   %5 = LoanEnd [%0] : ()
 >   %16 = Block - : never
 >   %17 = Match %3 [%16 %7 %8] : usize
 >   %18 = Drop [%3] : ()

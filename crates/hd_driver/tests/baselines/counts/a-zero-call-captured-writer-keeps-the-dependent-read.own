@@ -110,10 +110,10 @@ fn element() -> string:
 >   %28 keeps %27
     *d
 >   %29 = Read copy [*$4] : string
->   %30 = Drop [$4] : ()
->   %31 = Drop [$1] : ()
->   %32 = LoanClose %22 : ()
->   %33 = LoanClose %25 : ()
+>   %30 = LoanClose %22 : ()
+>   %31 = LoanClose %25 : ()
+>   %32 = Drop [$4] : ()
+>   %33 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell
@@ -165,10 +165,10 @@ fn field() -> string:
 >   %28 keeps %27
     *d
 >   %29 = Read copy [*$4] : string
->   %30 = Drop [$4] : ()
->   %31 = Drop [$1] : ()
->   %32 = LoanClose %22 : ()
->   %33 = LoanClose %25 : ()
+>   %30 = LoanClose %22 : ()
+>   %31 = LoanClose %25 : ()
+>   %32 = Drop [$4] : ()
+>   %33 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell

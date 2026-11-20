@@ -40,8 +40,8 @@ impl Display for YamlError:
 >   %0 = Ref local [*$0 .line] : &i64
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Read copy [*%0] : i64
->   %3 = LoanEnd [%0] : ()
->   %4 = LoanClose %1 : ()
+>   %3 = LoanClose %1 : ()
+>   %4 = LoanEnd [%0] : ()
 >   %5 = Prim Conv [%2] : i64
 >   %6 = Store [$9] %5 : ()
 >   %7 = Read copy [$9] : i64

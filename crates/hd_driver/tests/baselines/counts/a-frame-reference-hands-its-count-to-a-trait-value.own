@@ -94,8 +94,8 @@ pub fn main!() -> void $ Console + Clock:
 >   %39 = Ref local [*$1 .n] : &i32
 >   %40 = LoanBegin %39 #0 : ()
 >   %41 = Read copy [*%39] : i32
->   %42 = LoanEnd [%39] : ()
->   %43 = LoanClose %40 : ()
+>   %42 = LoanClose %40 : ()
+>   %43 = LoanEnd [%39] : ()
 >   %44 = Prim Conv [%41] : i64
 >   %45 = Drop [$1] : ()
 >   %46 = Store [$8] %44 : ()

@@ -86,8 +86,8 @@ fn total(owner: &Owner, depth: usize) -> usize:
 >   %27 = Break L1 %26 : never
 >   %28 = Block - : usize
 >   %29 = Scope %28 [] : usize
->   %30 = LoanEnd [%15] : ()
->   %31 = LoanClose %1 : ()
+>   %30 = LoanClose %1 : ()
+>   %31 = LoanEnd [%15] : ()
 >   %32 = Read copy [$3] : usize
 >   %33 = Prim Add [%29 %32] : usize
 >   summary kept [] recursive

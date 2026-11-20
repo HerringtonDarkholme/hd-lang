@@ -10,8 +10,8 @@ app/main/probe
   %4 = Ref local [*$1] : &u32
   %5 = LoanBegin %4 #0 : ()
   %6 = Call app/main/read[] (%4) : u32
-  %7 = LoanEnd [%4] : ()
-  %8 = Drop [$1] : ()
-  %9 = LoanClose %5 : ()
+  %7 = LoanClose %5 : ()
+  %8 = LoanEnd [%4] : ()
+  %9 = Drop [$1] : ()
   %10 = Block %6 : u32
   storage sub 0: $0 cell

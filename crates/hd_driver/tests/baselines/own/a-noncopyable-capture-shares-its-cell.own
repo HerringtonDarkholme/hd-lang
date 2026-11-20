@@ -5,9 +5,9 @@ std/rt_tests.stage_case/later
   %21 = Ref local [$0] : &UniqList[i64]
   %22 = LoanBegin %21 #0 : ()
   %23 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i64] (%21) : usize
-  %24 = Drop [%21] : ()
-  %25 = Drop [$0] : ()
-  %26 = LoanClose %22 : ()
+  %24 = LoanClose %22 : ()
+  %25 = Drop [%21] : ()
+  %26 = Drop [$0] : ()
   %27 = Block %23 : usize
   %28 = Closure #1 : fn() -> usize
   %29 = Retain %28 Operation captures #0 : ()

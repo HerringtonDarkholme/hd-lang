@@ -262,17 +262,6 @@
     call $observe
     local.set $alias
     local.set $t1
-    local.get $p
-    if
-      local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref
-      end
-    end
     local.get $t0
     if
       local.get $t4
@@ -286,7 +275,7 @@
       else
         local.get $t0
         i32.load $heap
-        local.tee $p
+        local.tee $t4
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -296,11 +285,22 @@
           call $rt:loan_unshare
         else
           local.get $t0
-          local.get $p
+          local.get $t4
           i32.const 65536
           i32.sub
           i32.store $heap
         end
+      end
+    end
+    local.get $p
+    if
+      local.get $p
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $p
+        call $rt:release_ref
       end
     end
     local.get $t1

@@ -218,6 +218,26 @@
         br 0
       end
     end
+    local.get $t5
+    if
+      local.get $t5
+      i32.load $heap
+      local.tee $t7
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t5
+        call $rt:loan_unshare
+      else
+        local.get $t5
+        local.get $t7
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
     ;; 5 |     a := box([+1, 2])
     local.get $t1
     if
@@ -239,27 +259,6 @@
       if
         local.get $t0
         call $rt:release_ref
-      end
-    end
-    ;; 7 |     for c in &a:
-    local.get $t5
-    if
-      local.get $t5
-      i32.load $heap
-      local.tee $t7
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t5
-        call $rt:loan_unshare
-      else
-        local.get $t5
-        local.get $t7
-        i32.const 65536
-        i32.sub
-        i32.store $heap
       end
     end
   )
