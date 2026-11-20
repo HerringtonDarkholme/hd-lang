@@ -34,7 +34,7 @@ impl Vec2:
     fn renamed(mut self, n: string) -> Vec2:
         self.name = n
 > app/main/impl Vec2.renamed
->   local $0 self: Vec2 [param read assigned]
+>   local $0 self: Vec2 [param read assigned mutated]
 >   local $1 n: string [param read]
 >   %0 = Read [$1] : string
 >   %1 = Store [$0 .name] %0 : ()

@@ -47,7 +47,7 @@ impl Vec2:
 
     fn renamed(mut self, n: string) -> Vec2:
 > app/main/impl Vec2.renamed
->   local $0 self: Vec2 [param read assigned] value ×2
+>   local $0 self: Vec2 [param read assigned mutated] value ×2
 >     uses $0: %3 -> %5 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %2 consume last
@@ -209,7 +209,7 @@ fn mut_self(v: Vec2, n: string) -> usize:
 >     uses $3: %21 -> %22 lend last
 >   local $4 self: string [read] value
 >     uses $4: %13 -> %14 lend last
->   local $5 self: Vec2 [read assigned] place
+>   local $5 self: Vec2 [read assigned mutated] place
 >   %0 = Retain %29 Entry local $0 #0 : ()
 >   %1 = Retain %29 Entry local $1 #0 : ()
     w := v.renamed(n)
