@@ -647,8 +647,8 @@ function argsDecoder(
   message: Dynamic,
   view: (length: number) => Uint8Array,
   text: (length: number) => string,
+  scalars: number,
 ): (raw: Dynamic[]) => Dynamic[] {
-  const scalars = message.params.filter((item: Dynamic) => typeof item === "string").length;
   if (scalars === message.params.length) {
     return (raw) => raw;
   }
@@ -680,7 +680,18 @@ function traitImports(
     if (!message) {
       throw new Error(`the host ABI has no \`${module}\` \`${name}\``);
     }
-    const decode = argsDecoder(message, view, text);
+    const scalars = message.params.filter((item: Dynamic) => typeof item === "string").length;
+    // Classify once at binding. Wasm already supplies these arguments
+    // and accepts the scalar result (or ignores it for void).
+    if (
+      message.wait === "never" &&
+      scalars === message.params.length &&
+      typeof message.result === "string"
+    ) {
+      out[name] = providerFunction;
+      continue;
+    }
+    const decode = argsDecoder(message, view, text, scalars);
     const key = `${module} ${name}`;
     // The import's result: a scalar as itself; a structured value written
     // at offset 0 and its length; `void` nothing, or 0 from a `.finish`.
