@@ -9,7 +9,8 @@
 //! `path` is the case path from `spec/conformance/cases.tsv`, or `cli/NAME`
 //! for a CLI case. `issue` is the GitHub issue `#N` that tracks the fix.
 //! `engine` is empty for every engine, or one engine name (`node`,
-//! `wasmtime`). `reason` says briefly why the case fails.
+//! `wasmtime`). An optional `@dev` or `@optimized` suffix selects a pipeline;
+//! `@optimized` without an engine selects both engines. `reason` explains the failure.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -35,7 +36,21 @@ impl KnownFailure {
     /// Whether the row applies to a run on `engine`.
     #[must_use]
     pub fn applies_to(&self, engine: &str) -> bool {
-        self.engine.as_deref().is_none_or(|own| own == engine)
+        self.engine.as_deref().is_none_or(|own| {
+            let own = own.split('@').next().unwrap_or_default();
+            own.is_empty() || own == engine
+        })
+    }
+
+    /// Match a pipeline-qualified row without accepting it in other builds.
+    #[must_use]
+    pub fn applies_in(&self, engine: &str, pipeline: Option<&str>) -> bool {
+        self.applies_to(engine)
+            && self
+                .engine
+                .as_deref()
+                .and_then(|own| own.split_once('@'))
+                .is_none_or(|(_, own)| Some(own) == pipeline)
     }
 }
 
@@ -63,9 +78,14 @@ pub fn parse(text: &str) -> Result<Vec<KnownFailure>, String> {
         if number.is_empty() || !number.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(format!("KNOWN_FAILURES.tsv issue must be #N: {line}"));
         }
-        if !engine.is_empty() && !ENGINES.contains(&engine) {
+        let (name, pipeline) = engine
+            .split_once('@')
+            .map_or((engine, None), |(e, p)| (e, Some(p)));
+        if (!name.is_empty() && !ENGINES.contains(&name))
+            || pipeline.is_some_and(|p| !matches!(p, "dev" | "optimized"))
+        {
             return Err(format!(
-                "KNOWN_FAILURES.tsv engine must be empty or one of {ENGINES:?}: {line}"
+                "KNOWN_FAILURES.tsv engine must be empty or one of {ENGINES:?}, optionally @dev or @optimized: {line}"
             ));
         }
         if path.is_empty() || reason.is_empty() {
@@ -120,7 +140,7 @@ pub fn judge(
 ) -> (String, Vec<String>) {
     let listed: BTreeMap<&str, &KnownFailure> = known
         .iter()
-        .filter(|row| in_tier(&row.path) && row.applies_to(engine))
+        .filter(|row| in_tier(&row.path) && row.applies_in(engine, pipeline))
         .map(|row| (row.path.as_str(), row))
         .collect();
     let mut errors = Vec::new();
@@ -227,6 +247,51 @@ mod tests {
         assert!(parse(&format!("{HEADER}\na.hd\t#9\tv8\twhy\n")).is_err());
         assert!(parse(&format!("{HEADER}\na.hd\t#9\t\t\n")).is_err());
         assert!(parse(&format!("{HEADER}\na.hd\t#9\t\twhy\na.hd\t#9\t\twhy\n")).is_err());
+    }
+
+    #[test]
+    fn pipeline_pins_are_exact_and_cannot_hide_a_new_pass() {
+        let rows = parse(&format!(
+            "{HEADER}\na.hd\t#2199\t@optimized\tsplicer crash\n"
+        ))
+        .expect("pipeline pin parses");
+        let pass = [Outcome {
+            path: "a.hd",
+            bucket: None,
+        }];
+        let crash = [Outcome {
+            path: "a.hd",
+            bucket: Some("crash:panic".to_owned()),
+        }];
+        assert!(
+            judge("driver", "node", Some("dev"), &rows, |_| true, &pass)
+                .1
+                .is_empty()
+        );
+        for engine in ENGINES {
+            assert!(rows[0].applies_in(engine, Some("optimized")));
+            assert!(
+                judge("driver", engine, Some("optimized"), &rows, |_| true, &crash)
+                    .1
+                    .is_empty()
+            );
+            assert_eq!(
+                judge("driver", engine, Some("optimized"), &rows, |_| true, &pass)
+                    .1
+                    .len(),
+                1
+            );
+        }
+        assert_eq!(
+            judge("driver", "node", Some("dev"), &rows, |_| true, &crash)
+                .1
+                .len(),
+            1
+        );
+        let scoped =
+            parse(&format!("{HEADER}\na.hd\t#9\tnode@optimized\twhy\n")).expect("scoped pin");
+        assert!(!scoped[0].applies_in("wasmtime", Some("optimized")));
+        assert!(parse(&format!("{HEADER}\na.hd\t#9\t@unknown\twhy\n")).is_err());
     }
 
     #[test]

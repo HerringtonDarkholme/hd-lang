@@ -2631,7 +2631,10 @@ fn print_filtered(cases: &[Case], results: &[Verdict], store: &Store) {
             "{bucket}\t{}\t{}\t{}",
             case.path,
             case.expectation,
-            detail(case, store)
+            match verdict {
+                Verdict::Crash(message) => message.clone(),
+                _ => detail(case, store),
+            }
         );
     }
     let mut sorted: Vec<_> = buckets.into_iter().collect();
@@ -2779,10 +2782,23 @@ fn specification_conformance_passes_except_known_failures() {
     if mode != EngineMode::Node || selected_tier.is_some() {
         report_runtime(&cases, &results, elapsed);
     }
+    let known = known_failures::load(&root());
+    let pinned: BTreeSet<_> = known
+        .iter()
+        .filter(|row| {
+            row.engine
+                .as_deref()
+                .is_some_and(|selector| selector.contains('@'))
+                && row.applies_in(mode.name(), Some(pipeline_name()))
+        })
+        .map(|row| row.path.as_str())
+        .collect();
     let crashes: Vec<_> = cases
         .iter()
         .zip(&results)
-        .filter(|(_, verdict)| matches!(verdict, Verdict::Crash(_)))
+        .filter(|(case, verdict)| {
+            matches!(verdict, Verdict::Crash(_)) && !pinned.contains(case.path.as_str())
+        })
         .map(|(case, verdict)| format!("{}: {verdict:?}", case.path))
         .collect();
     assert!(
@@ -2808,7 +2824,6 @@ fn specification_conformance_passes_except_known_failures() {
             },
         })
         .collect();
-    let known = known_failures::load(&root());
     let (summary, errors) = if only.is_some() || selected_tier.is_some() {
         known_failures::judge_selection("driver", engine, Some(pipeline_name()), &known, &outcomes)
     } else {

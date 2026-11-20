@@ -31,3 +31,10 @@ tests:
 
     it("a reader sees a mutable receiver field write"):
         assert_equal(Point { x: 3 }.changed(), 91)
+
+    it("a nested closure sees its closure parameter assignment"):
+        change := fn(mut value: usize) -> usize:
+            read := fn() -> usize: value
+            value = 91
+            read()
+        assert_equal(change(3), 91)

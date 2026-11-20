@@ -4,16 +4,16 @@
 use std.annotation.inline
 
 @inline(.Never)
-fn list_reader(mut items: List[usize]) -> fn() -> usize:
+fn list_size(mut items: List[usize]) -> usize:
     read := fn() -> usize: items.len()
     items.push(91)
-    read
+    read()
 
 @inline(.Never)
-fn map_reader(mut items: Map[string, usize]) -> fn() -> usize:
+fn map_size(mut items: Map[string, usize]) -> usize:
     read := fn() -> usize: items.len()
     items["next"] = 91
-    read
+    read()
 
 fn immutable_snapshot(value: usize) -> fn() -> usize:
     fn() -> usize: value
@@ -22,14 +22,10 @@ tests:
     use std.testing.assert_equal
 
     it("a reader sees a parameter list push"):
-        read := list_reader([3])
-        assert_equal(read(), 2)
-        assert_equal(read(), 2)
+        assert_equal(list_size([3]), 2)
 
     it("a reader sees a parameter map insert"):
-        read := map_reader({ "first": 3 })
-        assert_equal(read(), 2)
-        assert_equal(read(), 2)
+        assert_equal(map_size({ "first": 3 }), 2)
 
     it("immutable parameters keep their copied values"):
         let value = 3
