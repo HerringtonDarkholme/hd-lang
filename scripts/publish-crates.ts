@@ -70,6 +70,7 @@ interface Package {
 }
 
 function git(...args: string[]): string {
+  // cost: one git process per call; the publish run makes a fixed handful.
   return execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
 }
 
@@ -105,6 +106,7 @@ function stageWorkspace(): void {
   }
   copyInto(std, (file) => join(stage, "crates", "hd_driver", "std", file.slice("lib/std/".length)));
   const host = join(stage, "crates", "hd_command", "host");
+  // cost: one node process, once per publish run, listing the host files.
   const listing = execFileSync(
     process.execPath,
     ["--no-warnings", join(root, "scripts", "ship-host.ts"), host],
@@ -117,6 +119,7 @@ function stageWorkspace(): void {
 
 /** The publishable crates, each after the crates it depends on. */
 function publishOrder(): Package[] {
+  // cost: one `cargo metadata` process, once per publish run.
   const metadata = JSON.parse(
     execFileSync(
       "cargo",
@@ -169,6 +172,7 @@ function publishOrder(): Package[] {
 /** Packages every crate and builds each package against the others'. */
 function verify(order: Package[]): void {
   const args = ["publish", "--dry-run", "--manifest-path", manifest, "--target-dir", targetDir];
+  // cost: one cargo process for every crate together, once per publish run.
   const result = spawnSync("cargo", [...args, ...order.flatMap((crate) => ["-p", crate.name])], {
     cwd: stage,
     stdio: "inherit",
@@ -194,6 +198,7 @@ function smoke(): void {
   if (!existsSync(hd)) {
     throw new Error(`cargo left no hd at ${hd}`);
   }
+  // cost: one run of the packaged `hd` on one small program, once per publish run.
   const result = spawnSync(hd, ["--engine", "wasmtime", SMOKE], {
     cwd: root,
     encoding: "utf8",

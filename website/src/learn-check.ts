@@ -29,6 +29,7 @@ export function compilerCommand(): string[] {
     );
   }
   if (!existsSync(HD_BINARY)) {
+    // cost: one cargo build, only when the binary is missing.
     execFileSync("cargo", ["build", "-p", "hd_command"], { cwd: REPO_DIR, stdio: "inherit" });
   }
   return [HD_BINARY];
