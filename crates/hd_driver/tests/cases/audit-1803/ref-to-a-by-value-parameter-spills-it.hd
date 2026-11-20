@@ -1,0 +1,21 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 62. Taking `&p` of a by-value struct parameter
+# copies the whole struct into a stack frame: a reservation, a stack check, four
+# stores and two loads, only to read two fields. The retain and release the
+# audit named are gone; this copy is the cost left. The fields should be read
+# from the parameter's scalars.
+use std.annotation.inline
+
+struct Point:
+    x: i32
+    y: i32
+    name: string
+
+@inline(.Never)
+fn sum(p: Point) -> i32:
+    r := &p
+    r.x + r.y
+
+pub fn main() -> void $ Console:
+    println("${sum(Point { x: 1, y: 2, name: "a" + "b" })}")

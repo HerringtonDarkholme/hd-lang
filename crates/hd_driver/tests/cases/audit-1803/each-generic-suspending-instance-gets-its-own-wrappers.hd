@@ -1,0 +1,19 @@
+# @build: release
+# @dump: functions stdout
+# expected: audit #1803 draft 61. Each instance of the generic suspending
+# function `relay` gets its own body, `.poll` and `.drop`: three functions per
+# instance, four instances here. The wrappers depend only on the frame layout,
+# so instances of one layout should share them.
+use std.task.{block_on}
+use std.time.{Clock, s, sleep}
+
+fn relay![T](x: T) -> T $ Clock:
+    sleep!(s(0))
+    x
+
+pub fn main() -> void $ Console + Clock:
+    _ := block_on(relay(1))
+    _ := block_on(relay(2u64))
+    _ := block_on(relay(true))
+    _ := block_on(relay("s"))
+    println("done")

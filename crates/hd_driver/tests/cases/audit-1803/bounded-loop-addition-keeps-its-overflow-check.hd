@@ -1,0 +1,17 @@
+# @dump: wat
+# expected: audit #1803 draft 87 (dev and checked builds; release wraps). `i`
+# starts at 0 and is below `xs.len()` when it is incremented, so `i + 1` can't
+# overflow, but the dev build still checks the addition for overflow.
+use std.annotation.inline
+
+@inline(.Never)
+fn count(xs: &List[i32]) -> i32:
+    let mut total = 0
+    let mut i: usize = 0
+    while i < xs.len():
+        total = total + xs[i]
+        i = i + 1
+    total
+
+pub fn main() -> void $ Console:
+    println("${count(&[1, 2])}")

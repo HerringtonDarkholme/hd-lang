@@ -1,0 +1,19 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 57 no longer holds. Each copy's `rt:retain`
+# takes its four operands from their own locals, not through one shared
+# scratch local. This case keeps it that way.
+use std.annotation.inline
+
+struct Pair:
+    a: string
+    b: string
+
+@inline(.Never)
+fn dup(p: &Pair) -> (Pair, Pair):
+    (*p, *p)
+
+pub fn main() -> void $ Console:
+    q := Pair { a: "x" + "y", b: "z" + "w" }
+    let (l, r) = dup(&q)
+    println("${l.a}${r.b}")

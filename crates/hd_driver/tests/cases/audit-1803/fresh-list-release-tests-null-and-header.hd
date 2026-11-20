@@ -1,0 +1,16 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 58. The list `[1, 2, 3]` is allocated in this
+# function and owned by it alone, yet its release still tests the pointer for
+# null and loads the count header before calling the release. A fresh
+# allocation's release should go straight to the free path. Today it doesn't.
+use std.annotation.inline
+
+@inline(.Never)
+fn fresh() -> usize:
+    xs := [1, 2, 3]
+    ys := xs
+    ys.len()
+
+pub fn main() -> void $ Console:
+    println("${fresh()}")

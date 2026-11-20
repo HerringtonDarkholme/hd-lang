@@ -1,0 +1,17 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 59 no longer holds in this shape. With `id`
+# inlined, `twice` has no retain and release pair left: it reads `s` twice.
+# This case keeps it that way.
+use std.annotation.inline
+
+fn id(s: string) -> string:
+    s
+
+@inline(.Never)
+fn twice(s: string) -> usize:
+    t := id(s)
+    t.len() + t.len()
+
+pub fn main() -> void $ Console:
+    println("${twice("ab" + "c")}")

@@ -1,0 +1,23 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 55. Suspension code is linear in the number of
+# awaits (500 awaits measured 6.7x the size of 50), but each await costs about
+# 440 bytes of code: frame save, state store, poll and resume dispatch per
+# point. Shared resume code and smaller per-point records should cut that.
+use std.task.{block_on}
+use std.time.{Clock, s, sleep}
+
+fn step!(x: i32) -> i32 $ Clock:
+    sleep!(s(0))
+    x + 1
+
+fn three!(x: i32) -> i32 $ Clock:
+    let mut v = x
+    v = step!(v)
+    v = step!(v)
+    v = step!(v)
+    v
+
+pub fn main() -> void $ Console + Clock:
+    _ := block_on(three(0))
+    println("done")

@@ -1,0 +1,16 @@
+# @build: release
+# @dump: wat
+# expected: audit #1803 draft 86. The suspending body tests its frame pointer
+# for null several times and loads the same header word twice in a row to set
+# one flag bit: no redundant-load elimination, and the frame protocol tests and
+# writes piece by piece. Each test and load should happen once.
+use std.task.{block_on}
+use std.time.{Clock, s, sleep}
+
+fn step!(x: i32) -> i32 $ Clock:
+    sleep!(s(0))
+    x + 1
+
+pub fn main() -> void $ Console + Clock:
+    _ := block_on(step(1))
+    println("done")
