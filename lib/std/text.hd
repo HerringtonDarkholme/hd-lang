@@ -4,15 +4,15 @@
 # Positions and lengths are byte offsets (Strings STR1-STR6, STR10). The
 # built-in methods (`len`, `chars`, `char_indices`, `bytes`, `slice`, `trim`,
 # `lower`, `split`, `replace`, `starts_with`) are ordinary hd code here too. Every method is built on the byte primitives at the end of this
-# file; `lower` and `upper` call the host, which holds the Unicode case
-# tables (src/README.md, Compiler/library boundary). The raw-text prefix
+# file; ASCII case conversion stays in Wasm, while full Unicode case
+# conversion uses the host's mappings. The raw-text prefix
 # `r` is here too (Literal Suffixes L20), with the prefix helpers
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
 use std.num.Integer
 use std.collections.UniqList
-use std.rt.memory.{new_string, string_bytes, copy}
+use std.rt.memory.{new_string, string_bytes, copy, load_u64, store_u8}
 use std.annotation.inline
 use std.rt.bytes.{
     bytes_len,
@@ -478,12 +478,12 @@ impl string:
     ## Returns the string in lowercase.
     ## See [std-text.string.lower](../../spec/std/text.md#r-std-text.string.lower).
     pub fn lower(self) -> string:
-        host_lower(self)
+        ascii_case(self, false)
 
     ## Returns the string in uppercase.
     ## See [std-text.more.upper](../../spec/std/text.md#r-std-text.more.upper).
     pub fn upper(self) -> string:
-        host_upper(self)
+        ascii_case(self, true)
 
     ## Returns the string without its `prefix` when it starts with it, in `.Some`, or `.None`.
     ## See [std-text.more.strip](../../spec/std/text.md#r-std-text.more.strip).
@@ -1356,3 +1356,66 @@ fn utf8_valid_len(bytes: List[u8]) -> usize:
             return index
         index = index + width
     size
+
+# Rust core's slice/ascii.rs checks the high bits a word at a time. Wasm
+# permits unaligned loads, so no alignment loop is needed. Every load is
+# inside the string; the last word covers the remaining tail bytes.
+@inline(.Always)
+fn case_ascii_only(text: string) -> bool:
+    size := bytes_len(text)
+    source := string_bytes(text).address
+    if size >= 8:
+        let mask: u64 = 0x8080808080808080
+        if (load_u64(source) | load_u64(source + size - 8)) & mask != 0:
+            return false
+        let at: usize = 8
+        while size - at >= 32:
+            words := (
+                load_u64(source + at)
+                | load_u64(source + at + 8)
+                | load_u64(source + at + 16)
+                | load_u64(source + at + 24)
+            )
+            if words & mask != 0:
+                return false
+            at = at + 32
+        while size - at >= 8:
+            if load_u64(source + at) & mask != 0:
+                return false
+            at = at + 8
+        return true
+    let at: usize = 0
+    while at < size:
+        if bytes_at(text, at) >= 128:
+            return false
+        at = at + 1
+    true
+
+# Verify the whole input before mapping: Unicode default case conversion
+# can depend on context outside an ASCII prefix. The fallback receives
+# the original whole string. Both scans are linear, with constant stack.
+fn ascii_case(text: string, upper: bool) -> string:
+    if !case_ascii_only(text):
+        return if upper: host_upper(text) else: host_lower(text)
+    low := if upper: 97u8 else: 65u8
+    high := low + 25
+    size := bytes_len(text)
+    let first: usize = 0
+    while first < size:
+        byte := bytes_at(text, first)
+        if byte >= low && byte <= high:
+            break
+        first = first + 1
+    if first == size:
+        return text
+    result := new_string(size)
+    address := string_bytes(result).address
+    copy(address, string_bytes(text).address, size)
+    let at = first
+    while at < size:
+        byte := bytes_at(text, at)
+        if byte >= low && byte <= high:
+            mapped := if upper: byte - 32 else: byte + 32
+            store_u8(address + at, mapped)
+        at = at + 1
+    result
