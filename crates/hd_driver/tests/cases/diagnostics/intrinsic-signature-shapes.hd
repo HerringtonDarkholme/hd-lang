@@ -1,0 +1,32 @@
+# @dump: diagnostics
+# @build: std
+# trait.impl.intrinsic.shape: malformed std declarations print every
+# accepted signature shape, including references, options and alternatives.
+
+@intrinsic("format_int")
+fn bad_tuple(value: i64, pointer: usize) -> void:
+    pass
+
+@intrinsic("downcast_ref")
+fn bad_reference[T](value: usize) -> void:
+    pass
+
+@intrinsic("downcast_mut")
+fn bad_mutable_reference[T](value: usize) -> void:
+    pass
+
+@intrinsic("task_wait_signal")
+fn bad_counted_reference(value: usize) -> void:
+    pass
+
+@intrinsic("task_idle_hook")
+fn bad_callback(value: usize) -> void:
+    pass
+
+@intrinsic("caller_args")
+fn bad_named_result() -> void:
+    pass
+
+@intrinsic("not_an_intrinsic")
+fn bad_key() -> void:
+    pass
