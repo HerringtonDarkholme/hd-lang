@@ -12,6 +12,11 @@ them in a real program. Each topic links to its page of the
 [tour](../tour/01-hello.md), where you run and change the code; the
 [specification](../../spec/README.md) is the normative reference.
 
+To run the examples on your machine, install `hd` from
+[crates.io](https://crates.io/crates/hd-lang) with `cargo install hd-lang`,
+or press **Run** in the [tour](../tour/01-hello.md) to run them in your
+browser.
+
 ## Hello
 
 A file can start with plain top-level statements. `#` starts a comment.

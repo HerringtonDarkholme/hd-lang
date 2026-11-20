@@ -4,6 +4,17 @@ This page is the task-oriented guide to the `hd` command. The normative
 reference is [Command Line](../../spec/cli/command-line.md); this page shows
 each job the way you would do it, with real output.
 
+## Install
+
+`hd` is published on [crates.io](https://crates.io/crates/hd-lang) as
+`hd-lang`. With Rust 1.97 or newer:
+
+```sh
+$ cargo install hd-lang
+```
+
+This puts `hd` in `~/.cargo/bin`. `hd help` lists every command.
+
 ## Start A Project
 
 You want a new package. `hd new` needs to know which kind: `--app` for an
