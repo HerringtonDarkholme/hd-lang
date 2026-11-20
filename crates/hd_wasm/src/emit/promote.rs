@@ -188,27 +188,4 @@ impl Em<'_, '_, '_> {
         let i = i as usize;
         self.b.tags[i] == Tag::Ref && self.b.data[i][1] & hd_tir::ir::ref_word::PROMOTED != 0
     }
-
-    /// Types each promoted argument of this sub-body as its referent.
-    /// A counted one is a loan: its read takes no count, and its `Drop`
-    /// releases none, as the callee only borrows it. One that takes its
-    /// local's count (`ref_word::TAKES`) moves the value out of the local
-    /// instead ([`Em::place_ref`]), and its `Drop`, after the call,
-    /// releases it.
-    pub(super) fn type_promoted(&mut self) {
-        let rows = std::sync::Arc::clone(&self.rows);
-        for a in rows.iter().map(|&a| hd_tir::ir::u32_of(a)) {
-            // ruled out: promoted copies select only lent_referent types;
-            // primitive comparisons use promotable_referent. Both are thin.
-            if self.promoted(a)
-                && let Some((target, false)) = self.ref_target(self.ty(a))
-            {
-                self.retyped.insert(a, target);
-                let takes = self.b.data[a as usize][1] & hd_tir::ir::ref_word::TAKES != 0;
-                if self.tracked(target) && !takes {
-                    self.loans.insert(a);
-                }
-            }
-        }
-    }
 }

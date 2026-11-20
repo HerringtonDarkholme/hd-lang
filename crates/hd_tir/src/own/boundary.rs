@@ -4,8 +4,9 @@
 //! so work is O(instructions + distinct local-place projection steps), with
 //! expected constant-time lookups and no traversal controlled by native depth.
 
-use crate::ir::{Body, Proj, ReadMode, Root, Tag, place};
+use crate::ir::{Body, Proj, ReadMode, Root, Tag, place, ref_word};
 use hd_base::{HashMap, HashSet, SliceSort as _};
+use hd_types::Ty;
 
 #[derive(Clone, Copy)]
 struct PlaceFacts {
@@ -202,6 +203,8 @@ pub struct SubBoundary {
     pub loans: Vec<u32>,
     pub slices: Vec<(u32, u32)>,
     pub slice_loans: Vec<u32>,
+    /// Each promoted argument with the referent type it is read as.
+    pub promoted: Vec<(u32, Ty)>,
 }
 
 /// One instruction/place census and one visit per parameter/capture use.
@@ -240,6 +243,19 @@ pub fn plan(
             rows.loans.push(x);
             if b.tags[i] == Tag::Scope {
                 rows.loans.push(b.data[i][0]);
+            }
+        }
+        // A promoted argument (§23.40) is a read of its place, typed as its
+        // thin referent; a counted one lends, unless it takes its local's
+        // count (`ref_word::TAKES`).
+        if b.tags[i] == Tag::Ref
+            && b.data[i][1] & ref_word::PROMOTED != 0
+            && let Some(target) = cx.reference_target(b.ty[i]).filter(|&t| !cx.trait_value(t))
+        {
+            let rows = &mut out.subs[topo.sub[i] as usize];
+            rows.promoted.push((x, target));
+            if cx.counted(target) && b.data[i][1] & ref_word::TAKES == 0 {
+                rows.loans.push(x);
             }
         }
         if b.tags[i] == Tag::Intrinsic
@@ -369,7 +385,6 @@ mod tests {
     use super::*;
     use crate::ir::BodyKind;
     use hd_base::DefId;
-    use hd_types::Ty;
     use std::num::TryFromIntError;
 
     // These tests exercise instruction/place metadata only. Local field types
@@ -533,7 +548,6 @@ mod boundary_tests {
     use crate::ir::count::{At, Info, Part};
     use crate::ir::{BodyKind, TirBuilder, TirSink, local_flags};
     use hd_base::{DefId, LocalId, NodeIdx, SubId, Symbol};
-    use hd_types::Ty;
 
     #[test]
     fn wide_and_deep_boundaries_are_indexed_once_and_queries_have_no_body_to_rescan()

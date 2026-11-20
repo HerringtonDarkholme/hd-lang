@@ -223,7 +223,9 @@ fn body_func<'a>(
     let mut em = Em::new(input, m, b, item, targets, cells, (sub, boundary, facts));
     em.inst = inst.unwrap_or(InstId::from_raw(u32::MAX));
     em.static_cells = kind(Storage::Static).collect();
-    em.type_promoted();
+    // Each promoted argument reads as its referent (`own::boundary`).
+    em.retyped
+        .extend(em.boundary.subs[usize::from(sub)].promoted.iter().copied());
     em.plan_slots(&slots, framed_slots)?;
     em.origin_root = b.anchor(b.sub_root[sub as usize]);
     if sub == 0 {
