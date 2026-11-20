@@ -87,6 +87,11 @@ pub(super) fn binding_stores(b: &Body) -> Vec<Arc<[usize]>> {
 /// Install the TIR link pass's pointer-loan tables for emission.
 pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
     let decisions = super::loan_facts::decide(input, m);
+    m.kept_sites = decisions
+        .kept
+        .iter()
+        .map(|&(id, site, _)| (id, site))
+        .collect();
     m.kept = decisions.kept;
     m.lent = decisions.lent;
     m.dyn_types = decisions.dyn_types;

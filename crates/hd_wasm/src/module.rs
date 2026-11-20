@@ -1250,6 +1250,9 @@ pub struct Module {
     /// The pointer loans elision keeps (`hd_tir::own::pointer`): by instance,
     /// the instruction that takes the loan, and the dereference it lies at.
     pub kept: hd_base::HashSet<crate::emit::LoanSite>,
+    /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
+    /// site keeps no loan lowers to nothing.
+    pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
     /// The types of the objects a trait value of each trait may hold:
     /// those the program converts to it or to a trait below it
     /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
@@ -1331,6 +1334,7 @@ impl Module {
             idle: Default::default(),
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
+            kept_sites: hd_base::HashSet::default(),
             dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
             static_labels: hd_base::HashMap::default(),

@@ -6,31 +6,30 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "impl Slots.at" (func $"impl Slots.at" (param i32 i32) (result i32)))
-  (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "later" (func $later (param i32) (result i32)))
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t1 i32) (local $t3 i32)
     ;; 27 |     observe(p.items.at(0), later(alias))
     local.get $p
     i32.const 4
     i32.sub
     local.tee $t0
     i32.load $heap
-    i32.const 2097152
+    i32.const 4128768
     i32.and
     local.get $t1
-    i32.const 2097152
-    i32.and
     i32.ne
     if
       call $rt:panic'1
       unreachable
     end
     local.get $t0
+    i32.const 1
+    local.set $t2
     i32.load $heap
-    local.tee $t2
+    local.tee $t3
     i32.const 2031616
     i32.and
     i32.const 2031616
@@ -40,102 +39,95 @@
       call $rt:loan_share
     else
       local.get $t0
-      local.get $t2
+      local.get $t3
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $t1
-    i32.const 65536
-    i32.add
-    local.set $t1
+    local.get $t2
     i32.const 1
-    local.set $t2
-    local.get $t0
-    i32.load $heap
-    i32.const 4128768
-    i32.and
-    local.get $t1
-    i32.ne
-    if
-      call $rt:panic'2
-      unreachable
-    end
-    local.get $t0
-    i32.load $heap
-    local.tee $t3
-    i32.const 2031616
-    i32.and
-    i32.const 2031616
     i32.eq
     if
-      local.get $t0
-      call $rt:loan_unshare
-    else
-      local.get $t0
-      local.get $t3
+      local.get $t1
       i32.const 65536
-      i32.sub
-      i32.store $heap
+      i32.add
+      local.set $t1
     end
-    local.get $t1
-    i32.const 65536
-    i32.sub
     local.get $t0
-    local.get $t0
-    i32.load $heap
-    i32.const 2097152
-    i32.add
-    i32.store $heap
-    i32.const 2097152
-    i32.add
-    local.get $p
-    i32.const 0
-    call $"impl Slots.at"
-    local.set $t3
-    local.get $t0
-    local.get $t0
-    i32.load $heap
-    i32.const 2097152
-    i32.sub
-    i32.store $heap
-    i32.const 2097152
-    i32.sub
-    local.set $t1
-    local.get $t2
     if
       local.get $t0
-      local.tee $t4
       i32.load $heap
       i32.const 4128768
       i32.and
       local.get $t1
       i32.ne
       if
-        call $rt:panic'3
+        call $rt:panic'2
         unreachable
       end
-      local.get $t4
-      local.get $t4
+      local.get $t0
+      i32.load $heap
+      local.tee $t4
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t4
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t0
       i32.load $heap
       i32.const 2097152
       i32.add
       i32.store $heap
+      i32.const 1
+      local.set $t4
     end
-    local.get $t3
+    local.get $p
+    i32.const 0
+    call $"impl Slots.at"
     local.get $alias
     call $later
     call $observe
     local.set $alias
     local.set $t1
-    local.get $t4
+    local.get $t0
     if
       local.get $t4
-      local.get $t4
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+      else
+        local.get $t0
+        i32.load $heap
+        local.tee $t4
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $t4
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+      end
     end
     local.get $p
     if
@@ -155,14 +147,16 @@
 == @build: release
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
+  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "later" (func $later (param i32) (result i32)))
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
+  (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t4 i32) (local $t1 i32) (local $t3 i32)
     ;; 27 |     observe(p.items.at(0), later(alias))
     local.get $p
     i32.const 4
@@ -177,18 +171,72 @@
       call $rt:panic'1
       unreachable
     end
+    local.get $t0
     i32.const 1
     local.set $t2
-    local.get $t0
-    local.get $t0
     i32.load $heap
-    i32.const 2097152
-    i32.add
-    i32.store $heap
-    local.get $t1
-    i32.const 2097152
-    i32.add
-    local.set $t1
+    local.tee $t3
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
+      local.get $t0
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $t3
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $t2
+    i32.const 1
+    i32.eq
+    if
+      local.get $t1
+      i32.const 65536
+      i32.add
+      local.set $t1
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      i32.const 4128768
+      i32.and
+      local.get $t1
+      i32.ne
+      if
+        call $rt:panic'2
+        unreachable
+      end
+      local.get $t0
+      i32.load $heap
+      local.tee $t4
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $t4
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+      local.get $t0
+      local.get $t0
+      i32.load $heap
+      i32.const 2097152
+      i32.add
+      i32.store $heap
+      i32.const 1
+      local.set $t4
+    end
     local.get $p
     local.get $p
     i32.load $heap
@@ -202,82 +250,60 @@
     i32.load $heap offset=4
     i32.ge_u
     if
-      call $rt:panic'2
+      call $rt:panic'3
       unreachable
     end
     local.get $p
     i32.const 16
     i32.add
-    local.set $p
-    local.get $t2
-    if
-      local.get $t0
-      local.tee $t3
-      i32.load $heap
-      i32.const 4128768
-      i32.and
-      local.get $t1
-      i32.ne
-      if
-        call $rt:panic'3
-        unreachable
-      end
-      local.get $t3
-      local.get $t3
-      i32.load $heap
-      i32.const 2097152
-      i32.add
-      i32.store $heap
-    end
-    local.get $t0
-    if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-      i32.const 0
-      local.set $t0
-    end
     local.get $alias
     call $later
-    local.set $alias
-    local.get $p
-    local.get $alias
+    local.tee $p
     call $observe
-    local.set $p
+    local.set $alias
     local.set $t1
-    local.get $t3
+    local.get $p
     if
-      local.get $t3
-      local.get $t3
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
-    end
-    local.get $alias
-    if
-      local.get $alias
+      local.get $p
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $alias
+        local.get $p
         call $rt:release_ref
       end
     end
     local.get $t0
     if
-      local.get $t0
-      local.get $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.sub
-      i32.store $heap
+      local.get $t4
+      if
+        local.get $t0
+        local.get $t0
+        i32.load $heap
+        i32.const 2097152
+        i32.sub
+        i32.store $heap
+      else
+        local.get $t0
+        i32.load $heap
+        local.tee $p
+        i32.const 2031616
+        i32.and
+        i32.const 2031616
+        i32.eq
+        if
+          local.get $t0
+          call $rt:loan_unshare
+        else
+          local.get $t0
+          local.get $p
+          i32.const 65536
+          i32.sub
+          i32.store $heap
+        end
+      end
     end
     local.get $t1
-    local.get $p
+    local.get $alias
   )
 )

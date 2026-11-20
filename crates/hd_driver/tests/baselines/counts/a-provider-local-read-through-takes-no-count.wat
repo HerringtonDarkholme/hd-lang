@@ -38,7 +38,7 @@
     end
     local.get $t2
     local.tee $t3
-    i32.const 456 ;; &vtable[rt:dyn_slot]
+    i32.const 380 ;; &vtable[rt:dyn_slot]
     local.tee $t4
     ;; 31 |         line("ab")
     local.set $sink.1
@@ -83,7 +83,7 @@
     i32.const 19 ;; &"c"
     i32.const 1
     local.get $t1
-    i32.const 456 ;; &vtable[rt:dyn_slot]
+    i32.const 380 ;; &vtable[rt:dyn_slot]
     local.get $t3
     local.get $t4
     call $swapped

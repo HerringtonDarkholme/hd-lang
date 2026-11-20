@@ -1009,18 +1009,25 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             st.site_begin.insert(site, u32::try_from(i).expect("insts"));
+            // A site that keeps no loan takes its access check only: its
+            // `LoanBegin` and closes lower to nothing.
+            let kept = self.m.kept_sites.contains(&(self.inst, site));
             // The object a call's result points into: one slot.
             if word & loan_word::INNER != 0 {
-                st.begins
-                    .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                if kept {
+                    st.begins
+                        .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                }
                 continue;
             }
             // A site an ownership pass forwarded to a `*T` value: its
             // whole object, at the value's address.
             if !matches!(self.b.tags[site as usize], Tag::Ref | Tag::Read) {
                 st.valued.insert(site);
-                st.begins
-                    .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                if kept {
+                    st.begins
+                        .insert(u32::try_from(i).expect("insts"), (1, Vec::new()));
+                }
                 continue;
             }
             let Some(p) = self.b.decode_place(self.b.data[site as usize][0]) else {
@@ -1053,7 +1060,9 @@ impl Em<'_, '_, '_> {
                 |q: &hd_tir::ir::Place| q.proj.iter().filter(|s| **s == Proj::Deref).count();
             let read = root_read(self.b, &p).map_or(0, |(_, q)| derefs(&q));
             let i = u32::try_from(i).expect("insts");
-            st.begins.insert(i, (derefs(&p) + read + 3, Vec::new()));
+            if kept {
+                st.begins.insert(i, (derefs(&p) + read + 3, Vec::new()));
+            }
         }
         // A two-phase receiver lends `&mut`, shared until its call.
         for site in st.active.keys() {
