@@ -3,13 +3,16 @@
 use std.http.{Method, BodyError}
 use std.time.Duration
 
-# A client identity's PEM certificate chain and PEM private key.
+## A wire request's PEM certificate chain and PEM private key.
+## See [std-server-sdk.wire-identity](../../spec/std/server-sdk.md#r-std-server-sdk.wire-identity).
 pub struct WireIdentity:
     pub certificate_chain: string
     pub private_key: string
 
 # The transport settings of a derived provider travel with each request,
 # never in the public Request. `.None` and `[]` are the host defaults.
+## The request bytes and transport settings exchanged with a host.
+## See [std-server-sdk.wire-request](../../spec/std/server-sdk.md#r-std-server-sdk.wire-request).
 pub struct WireRequest:
     pub method: Method
     pub url: string
@@ -24,6 +27,8 @@ pub struct WireRequest:
     pub response_header_timeout: Duration? = .None
     pub body_read_timeout: Duration? = .None
 
+## The response bytes exchanged with a host.
+## See [std-server-sdk.wire-response](../../spec/std/server-sdk.md#r-std-server-sdk.wire-response).
 pub struct WireResponse:
     pub status: u16
     pub headers: List[(string, string)] = []

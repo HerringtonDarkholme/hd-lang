@@ -2657,7 +2657,7 @@ fn unsupported(name: string) -> *mut dyn Http:
 # The compiler installs this ordinary HD adapter around either a default
 # wire provider or a package host's returned Http handle. W is the raw
 # wire trait value; only its retained reference escapes into the adapter.
-pub fn host_provider[W < WireHttp & 'static](wire: W) -> *mut dyn Http:
+fn host_provider[W < WireHttp & 'static](wire: W) -> *mut dyn Http:
     # Both boxes escape: the returned trait provider retains its erased wire provider.
     box(HostHttp { wire: box(wire), settings: HostSettings {} })
 
@@ -2748,6 +2748,7 @@ fn response_from_wire(response: WireResponse) -> Result[Response, HttpError]:
     )
 
 ## Host adapter: builds a public incoming message from its byte DTO.
+## See [std-server-sdk.request-from-wire](../../spec/std/server-sdk.md#r-std-server-sdk.request-from-wire).
 pub fn request_from_wire(request: WireRequest) -> Result[Request, HttpError]:
     url := Url::parse(request.url)?
     .Ok(
@@ -2760,6 +2761,7 @@ pub fn request_from_wire(request: WireRequest) -> Result[Request, HttpError]:
     )
 
 ## Host adapter: validates fields, then claims the outgoing body once.
+## See [std-server-sdk.response-to-wire](../../spec/std/server-sdk.md#r-std-server-sdk.response-to-wire).
 pub fn response_to_wire(response: &Response) -> Result[WireResponse, HttpError]:
     validate_headers(&response.headers)?
     headers := [for (name, value) in response.headers.entries() => (name.wire_name(), value)]

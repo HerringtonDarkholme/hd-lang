@@ -7005,6 +7005,12 @@ lang/references/static-references/static-reference-top-level-binding.hd	runtime	
 lang/references/static-references/static-reference-top-level-mutable-source.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
 lang/references/static-references/static-reference-read-owned-counted-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.no-count
 lang/references/static-references/static-reference-bound-with-sub-obligations.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.not-local
+std/server-sdk/wire-messages-and-conversion/wire-identity.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-identity
+std/server-sdk/wire-messages-and-conversion/wire-request.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-request
+std/server-sdk/wire-messages-and-conversion/wire-response.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-response
+std/server-sdk/wire-messages-and-conversion/request-from-wire.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.request-from-wire
+std/server-sdk/wire-messages-and-conversion/response-to-wire.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.response-to-wire
+std/server-sdk/wire-messages-and-conversion/response-to-wire-values.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.response-to-wire.values
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

@@ -1,0 +1,60 @@
+# test: wire requests expose their message fields and default transport settings
+use std.http_wire.WireRequest
+use std.time.Duration
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("only method and URL are required"):
+        request := WireRequest { method: .Get, url: "https://example.test/" }
+        assert_equal(request.url, "https://example.test/", reason="written URL")
+        assert(request.headers.is_empty(), reason="empty headers")
+        assert(request.body.is_empty(), reason="empty body")
+        assert_equal(request.redirects, 0, reason="no redirects")
+        assert(request.dns_servers.is_none(), reason="default DNS")
+        assert(request.tls_roots.is_empty(), reason="default roots")
+        assert(request.tls_identity.is_none(), reason="no client identity")
+        assert(request.connect_timeout.is_none(), reason="default connect timeout")
+        assert(request.tls_handshake_timeout.is_none(), reason="default TLS timeout")
+        assert(request.response_header_timeout.is_none(), reason="default headers timeout")
+        assert(request.body_read_timeout.is_none(), reason="default body timeout")
+
+    it("transport fields accept their declared values"):
+        request := WireRequest {
+            method: .Post,
+            url: "https://example.test/",
+            headers: [("x-test", "yes")],
+            body: [1, 2],
+            redirects: 3,
+            dns_servers: .Some(["127.0.0.1"]),
+            tls_roots: ["test root"],
+            connect_timeout: .Some(Duration::milliseconds(10)),
+            tls_handshake_timeout: .Some(Duration::milliseconds(20)),
+            response_header_timeout: .Some(Duration::milliseconds(30)),
+            body_read_timeout: .Some(Duration::milliseconds(40)),
+        }
+        assert_equal(request.headers[0]._1, "yes", reason="header pairs")
+        assert_equal(request.body, [1u8, 2u8], reason="body bytes")
+        assert_equal(request.redirects, 3, reason="redirect count")
+        assert_equal(request.dns_servers.unwrap_or([]), ["127.0.0.1"], reason="DNS list")
+        assert_equal(request.tls_roots, ["test root"], reason="TLS roots")
+        assert_equal(
+            request.connect_timeout.unwrap_or(Duration::milliseconds(0)).as_milliseconds(),
+            10,
+            reason="connect timeout",
+        )
+        assert_equal(
+            request.tls_handshake_timeout.unwrap_or(Duration::milliseconds(0)).as_milliseconds(),
+            20,
+            reason="TLS timeout",
+        )
+        assert_equal(
+            request.response_header_timeout.unwrap_or(Duration::milliseconds(0)).as_milliseconds(),
+            30,
+            reason="headers timeout",
+        )
+        assert_equal(
+            request.body_read_timeout.unwrap_or(Duration::milliseconds(0)).as_milliseconds(),
+            40,
+            reason="body timeout",
+        )

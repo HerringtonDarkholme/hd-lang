@@ -1,0 +1,28 @@
+# test: the public wire request conversion parses the URL and preserves message values
+use std.http.{Method, request_from_wire}
+use std.http_wire.WireRequest
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("wire request fields become a typed request"):
+        wire := WireRequest {
+            method: .Post,
+            url: "https://example.test/path",
+            headers: [("x-test", "yes")],
+            body: [1, 2],
+        }
+        request := request_from_wire(wire).expect("valid wire message")
+        assert_equal(request.method, Method.Post, reason="request method")
+        assert_equal(request.url.host, "example.test", reason="parsed host")
+        assert_equal(request.url.path, "/path", reason="parsed path")
+        assert_equal(request.headers.entries()[0]._1, "yes", reason="header value")
+        assert_equal(
+            request.bytes().expect("valid wire message"),
+            [1u8, 2u8],
+            reason="request bytes",
+        )
+
+    it("an invalid URL returns an error"):
+        result := request_from_wire(WireRequest { method: .Get, url: "http://" })
+        assert(result.is_err(), reason="URL parsing errors are returned")

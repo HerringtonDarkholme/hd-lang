@@ -1,0 +1,23 @@
+# test: successful wire response conversion preserves the message and optional final URL
+use std.convert.From
+use std.http.{Body, Headers, Response, Url, response_to_wire}
+
+tests:
+    use std.testing.assert_equal
+
+    it("the converted response preserves status headers bytes and URL"):
+        response := Response {
+            status: .Other(201),
+            headers: Headers::from([("x-test", "yes")]),
+            body: Body::from_bytes([3, 4]),
+            url: .Some(Url::parse("https://example.test/final").expect("valid wire message")),
+        }
+        wire := response_to_wire(&response).expect("valid wire message")
+        assert_equal(wire.status, 201, reason="status code")
+        assert_equal(wire.headers, [("x-test", "yes")], reason="header pairs")
+        assert_equal(wire.body, [3u8, 4u8], reason="body bytes")
+        assert_equal(wire.url, "https://example.test/final", reason="final URL")
+
+    it("an absent response URL becomes empty text"):
+        wire := response_to_wire(&Response {}).expect("valid wire message")
+        assert_equal(wire.url, "", reason="no final URL")

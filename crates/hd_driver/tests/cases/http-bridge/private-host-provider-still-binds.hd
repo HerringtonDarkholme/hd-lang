@@ -1,0 +1,6 @@
+# @build: release
+# @dump: stdout
+use std.http.Http
+
+pub fn main() -> void $ Http:
+    pass

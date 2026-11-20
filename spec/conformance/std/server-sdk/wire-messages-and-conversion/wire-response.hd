@@ -1,0 +1,25 @@
+# test: wire responses expose their message fields and defaults
+use std.http_wire.WireResponse
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("status is required and the remaining fields have defaults"):
+        response := WireResponse { status: 204 }
+        assert_equal(response.status, 204, reason="status code")
+        assert(response.headers.is_empty(), reason="empty headers")
+        assert(response.body.is_empty(), reason="empty body")
+        assert_equal(response.url, "", reason="absent final URL")
+
+    it("all response fields can be written and copied"):
+        response := WireResponse {
+            status: 201,
+            headers: [("x-test", "yes")],
+            body: [3, 4],
+            url: "https://example.test/final",
+        }
+        copy := response
+        assert_equal(copy.status, 201, reason="written status")
+        assert_equal(copy.headers, [("x-test", "yes")], reason="written header pairs")
+        assert_equal(copy.body, [3u8, 4u8], reason="written body bytes")
+        assert_equal(copy.url, "https://example.test/final", reason="written final URL")
