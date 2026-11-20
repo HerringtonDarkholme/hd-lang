@@ -134,10 +134,10 @@ function finishRun({ live, ran, dir, started, updates, files }: DynamicRecord): 
   if (leaked) {
     io.stderr += leakReport(leaks);
   }
-  if (dir) {
+  const st = host.core.st;
+  if (dir && st.tempMade) {
     files.remove(dir);
   }
-  const st = host.core.st;
   if (st.ownTemp) {
     files.remove(st.ownTemp);
     st.ownTemp = null;
