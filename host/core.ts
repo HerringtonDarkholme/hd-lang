@@ -1134,7 +1134,20 @@ function buildCoreImports(options: Dynamic): Dynamic {
     prepared: (value: Dynamic) => (value instanceof Later ? value : null),
   };
   for (const [module, provider] of Object.entries(providers)) {
-    imports[module] = traitImports(module, provider, io);
+    // Keep provider state per host; build codecs only for namespaces a
+    // module actually imports. Replacement must not materialize defaults.
+    Object.defineProperty(imports, module, {
+      enumerable: true,
+      configurable: true,
+      get() {
+        const value = traitImports(module, provider, io);
+        Object.defineProperty(imports, module, { value, writable: true });
+        return value;
+      },
+      set(value: Dynamic) {
+        Object.defineProperty(imports, module, { value, writable: true });
+      },
+    });
   }
   if (env.providers) {
     Object.assign(imports, env.providers({ put, Enc, pending, finish: options.finish }));
