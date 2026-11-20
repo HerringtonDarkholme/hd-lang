@@ -231,6 +231,17 @@ pub fn plan(
     for i in 0..b.len() {
         uses.observe(b, i, topo.sub[i], &mut || work(1));
         out.counts.observe(b, i);
+        // What lends its value with no count of its own
+        // (`docs/compiler/tir-v2.md`, "Borrow"): a borrow, a coercion or
+        // a wrapper of one, and the block a borrowed scope breaks out of.
+        let x = crate::ir::u32_of(i);
+        if b.is_borrow(x) || (lending_tag(b.tags[i]) && b.is_borrowed_coercion(x)) {
+            let rows = &mut out.subs[topo.sub[i] as usize];
+            rows.loans.push(x);
+            if b.tags[i] == Tag::Scope {
+                rows.loans.push(b.data[i][0]);
+            }
+        }
         if b.tags[i] == Tag::Intrinsic
             && IntrinsicOp::from_u32(b.data[i][0]) == Some(IntrinsicOp::StrEq)
         {
@@ -332,6 +343,25 @@ pub fn plan(
     }
     out.consumers = consumers;
     out
+}
+
+/// The tags whose value can be a borrowed coercion: a coercion, a
+/// wrapper literal, a selection, or a scope a borrow breaks out of.
+fn lending_tag(tag: Tag) -> bool {
+    matches!(
+        tag,
+        Tag::NewStruct
+            | Tag::NewTuple
+            | Tag::NewVariant
+            | Tag::Coerce
+            | Tag::Scope
+            | Tag::If
+            | Tag::Match
+            | Tag::SwitchTag
+            | Tag::SwitchInt
+            | Tag::SwitchChar
+            | Tag::SwitchStr
+    )
 }
 
 #[cfg(test)]

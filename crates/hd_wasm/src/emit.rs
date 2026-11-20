@@ -476,7 +476,6 @@ fn body_func<'a>(
     };
     let lent_here: hd_base::HashSet<_> = if em.counting {
         let rows = &em.boundary.subs[usize::from(sub)];
-        em.loans.extend(rows.loans.iter().copied());
         rows.borrowed.iter().copied().collect()
     } else {
         hd_base::HashSet::default()

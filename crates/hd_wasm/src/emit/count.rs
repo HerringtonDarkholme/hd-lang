@@ -145,12 +145,12 @@ impl Em<'_, '_, '_> {
     /// count nothing.
     pub(super) fn prepare_own_loans(&mut self) -> StageResult<()> {
         use hd_tir::ir::place;
-        self.string_slice_comparisons.extend(
-            self.boundary.subs[usize::from(self.sub_id)]
-                .slices
-                .iter()
-                .copied(),
-        );
+        // The TIR boundary pass decided what lends (`own::boundary`).
+        let boundary = std::sync::Arc::clone(&self.boundary);
+        let rows = &boundary.subs[usize::from(self.sub_id)];
+        self.string_slice_comparisons
+            .extend(rows.slices.iter().copied());
+        self.loans.extend(rows.loans.iter().copied());
         for i in std::sync::Arc::clone(&self.rows).iter().copied() {
             let [a, w] = self.b.data[i];
             let x = u32::try_from(i).expect("insts");
@@ -170,62 +170,29 @@ impl Em<'_, '_, '_> {
                     }
                 }
             }
-            match self.b.tags[i] {
-                Tag::Read if self.b.is_borrow(x) => {
-                    self.loans.insert(x);
-                }
-                // A coercion of a borrow keeps its value, with no count;
-                // so does a wrapper block a borrow breaks out of.
-                Tag::NewStruct | Tag::NewTuple | Tag::NewVariant
-                    if self.b.is_borrowed_coercion(x) =>
+            // A borrowed read or selected parameter stores its loan.
+            if self.b.tags[i] == Tag::Store
+                && let Some(w) = self.b.loan_value(w)
+            {
+                let p = self.b.view(a);
+                let l = p.whole().then(|| p.local()).flatten().map(|l| l as usize);
+                // A borrow of all of another such local holds that
+                // one's read, whose fresh value its kept `Drop`s
+                // release (`hd_tir::own::derive`'s bindings).
+                if let Some(l) = l
+                    && self.loans.contains(&w)
                 {
-                    self.loans.insert(x);
+                    let read = self.b.loan_read(w);
+                    let from = read.map(|r| self.b.data[r as usize][0]);
+                    let held = from
+                        .filter(|from| from & place::BARE_LOCAL != 0)
+                        .and_then(|from| self.loan_locals.get(&bare_local(self.b, from)))
+                        .copied();
+                    self.loan_locals.insert(l, held.unwrap_or(w));
                 }
-                Tag::Coerce if self.b.is_borrowed_coercion(x) => {
-                    self.loans.insert(x);
-                }
-                Tag::Scope if self.b.is_borrowed_coercion(x) => {
-                    self.loans.insert(x);
-                    self.loans.insert(a);
-                }
-                Tag::If
-                | Tag::Match
-                | Tag::SwitchTag
-                | Tag::SwitchInt
-                | Tag::SwitchChar
-                | Tag::SwitchStr
-                    if self.b.is_borrowed_coercion(x) =>
-                {
-                    self.loans.insert(x);
-                }
-                // A borrowed read or selected parameter stores its loan.
-                Tag::Store if let Some(w) = self.b.loan_value(w) => {
-                    let p = self.b.view(a);
-                    let l = p.whole().then(|| p.local()).flatten().map(|l| l as usize);
-                    // A borrow of all of another such local holds that
-                    // one's read, whose fresh value its kept `Drop`s
-                    // release (`hd_tir::own::derive`'s bindings).
-                    if let Some(l) = l
-                        && self.loans.contains(&w)
-                    {
-                        let read = self.b.loan_read(w);
-                        let from = read.map(|r| self.b.data[r as usize][0]);
-                        let held = from
-                            .filter(|from| from & place::BARE_LOCAL != 0)
-                            .and_then(|from| self.loan_locals.get(&bare_local(self.b, from)))
-                            .copied();
-                        self.loan_locals.insert(l, held.unwrap_or(w));
-                    }
-                }
-                _ => {}
             }
         }
-        self.loans.extend(
-            self.boundary.subs[usize::from(self.sub_id)]
-                .slice_loans
-                .iter()
-                .copied(),
-        );
+        self.loans.extend(rows.slice_loans.iter().copied());
         Ok(())
     }
 
@@ -1122,10 +1089,6 @@ impl Em<'_, '_, '_> {
         }
         if self.is_cell(l) {
             return match mode {
-                Some(ReadMode::Borrow) => {
-                    self.loans.insert(i);
-                    self.cell_get(i, l)
-                }
                 // A last whole-value read moves the payload out and ends
                 // the cell. A last reference instead takes the cell's
                 // count (`docs/compiler/tir-v2.md`, "Move" rule 4).
@@ -1146,10 +1109,6 @@ impl Em<'_, '_, '_> {
                     }
                 }
                 Ok(())
-            }
-            Some(ReadMode::Borrow) => {
-                self.loans.insert(i);
-                self.store(i)
             }
             _ => self.store(i),
         }
