@@ -6434,7 +6434,11 @@ impl Ck<'_, '_> {
         self.normalize_deep_in(t, &mut memo)
     }
 
-    fn normalize_deep_in(&mut self, t: Ty, memo: &mut HashMap<Ty, Ty>) -> StageResult<Ty> {
+    pub(crate) fn normalize_deep_in(
+        &mut self,
+        t: Ty,
+        memo: &mut HashMap<Ty, Ty>,
+    ) -> StageResult<Ty> {
         enum Constructor {
             Assoc(DefId, DefId),
             Adt(DefId),

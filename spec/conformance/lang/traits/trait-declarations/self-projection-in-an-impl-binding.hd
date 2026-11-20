@@ -1,0 +1,54 @@
+# test: Self projections in impl bindings retain the declaring trait and its arguments
+# Rule: trait.assoc.self.
+trait Chain:
+    type First
+    type Last
+
+trait GenericChain[A]:
+    type First
+    type Last
+    fn first(&self, value: Self::Last) -> Self::First
+    fn nested(&self, value: (A, List[A])) -> List[A]
+
+struct Wrap[T]:
+    value: T
+
+impl[T] Chain for Wrap[T]:
+    type First = Self::Last
+    type Last = i32
+
+impl[T] GenericChain[T] for Wrap[T]:
+    type First = Self::Last
+    type Last = T
+    fn first(&self, value: Self::Last) -> Self::First:
+        value
+    fn nested(&self, value: (Self::First, List[Self::First])) -> List[Self::First]:
+        value._1
+
+fn select[C < Chain[First = i32]](value: C, first: C::First) -> i32:
+    first
+
+fn generic[C < GenericChain[i32, First = i32]](value: C, first: C::First) -> i32:
+    first
+
+pub fn main() -> void:
+    let first: i32 = select(Wrap { value: +1 }, +7)
+    let second: i32 = generic(Wrap { value: +1 }, first)
+
+trait Parent[A]:
+    type Item
+
+trait Child[A] < Parent[A]:
+    type First
+
+impl[T] Parent[T] for Wrap[T]:
+    type Item = T
+
+impl[T] Child[T] for Wrap[T]:
+    type First = Self::Item
+
+fn inherited[C < Child[i32, First = i32]](value: C, first: C::First) -> i32:
+    first
+
+fn check_inherited() -> i32:
+    inherited(Wrap { value: +1 }, +7)

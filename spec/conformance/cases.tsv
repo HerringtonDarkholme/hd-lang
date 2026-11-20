@@ -2169,6 +2169,8 @@ lang/traits/trait-declarations/projection-binding-chain-normalizes-40-deep.hd	ty
 lang/traits/trait-declarations/projection-binding-chain-past-depth-limit.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.depth
 lang/traits/trait-declarations/projection-binding-cycle.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.cycle
 lang/traits/trait-declarations/projection-binding-cycle-two-steps.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.cycle
+lang/traits/trait-declarations/self-projection-in-an-impl-binding.hd	type	accept	lang/09-traits.md#r-trait.assoc.self
+lang/traits/trait-declarations/self-projection-in-an-impl-binding-cycle.hd	type	reject:trait-resolution-depth	lang/09-traits.md#r-trait.assoc.projection.cycle
 lang/traits/trait-implementations/comparison-traits/partial-eq-names-no-trait.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.cmp.one-eq
 lang/traits/trait-implementations/comparison-traits/float-ord-bound.hd	type	reject:unsatisfied-trait-bound	lang/09-traits.md#r-trait.cmp.float-ord
 lang/traits/trait-implementations/comparison-traits/partial-ord-requires-eq.hd	type	reject:missing-supertrait-implementation	lang/09-traits.md#r-trait.cmp.partial-ordering

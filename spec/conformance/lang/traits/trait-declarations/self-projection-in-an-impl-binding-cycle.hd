@@ -1,0 +1,13 @@
+# test: a self projection in an implementation binding remains a projection cycle
+# Rule: trait.assoc.projection.cycle.
+trait Chain:
+    type First
+
+struct Wrap:
+    value: i32
+
+impl Chain for Wrap: # diagnostic: trait-resolution-depth
+    type First = Self::First
+
+pub fn main() -> void:
+    ()

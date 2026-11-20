@@ -2315,7 +2315,7 @@ struct Gen {
     /// The lifetime of each reference slot of an implementation's target,
     /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
     self_slots: Vec<u16>,
-    self_trait: Option<DefId>,
+    self_trait: Option<BoundRef>,
 }
 
 impl Gen {
@@ -4402,12 +4402,11 @@ impl Lower<'_, '_, '_> {
                         // implicit (each use instantiates them); `T::X` names the
                         // bound's arguments, defaults filled, so `T::Out` under
                         // `T < Add` is `<T as Add[T]>::Out`.
-                        let mut cands: Vec<BoundRef> = Vec::new();
-                        if Some(base) == gn.self_ty
-                            && let Some(tr) = gn.self_trait
-                        {
-                            cands.push((tr, TyList::EMPTY));
-                        }
+                        let mut cands: Vec<BoundRef> = gn
+                            .self_trait
+                            .filter(|_| Some(base) == gn.self_ty)
+                            .into_iter()
+                            .collect();
                         let param = gn.tys.of_ty(base);
                         if let Some(p) = param {
                             cands.extend(p.bounds.iter().copied());
@@ -6130,6 +6129,7 @@ impl Lower<'_, '_, '_> {
                 }
             }
         };
+        gn.self_trait = (trait_ != DefId::NONE).then_some((trait_, trait_args));
         // An impl head names `Structure` outside a template, an error of
         // its own beside the sealed one below, in both the positive and
         // the negative form (`annot.structure.named-positions.error`).
@@ -6837,7 +6837,7 @@ impl Lower<'_, '_, '_> {
             .set_param_name(hd_base::PathId::from_raw(h.def.raw()), 0, "Self");
         let mut gn = Gen {
             self_ty: Some(self_ty),
-            self_trait: Some(h.def),
+            self_trait: Some((h.def, TyList::EMPTY)),
             ..Gen::default()
         };
         let gl = Src::child(h.node, SyntaxKind::GenericParameterList);

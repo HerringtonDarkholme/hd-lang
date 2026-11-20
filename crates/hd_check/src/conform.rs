@@ -13,58 +13,6 @@ use std::fmt::Write as _;
 
 use crate::body::Ck;
 
-/// Whether a type mentions an associated type projection, which this
-/// comparison leaves to the bodies: through references, data and trait
-/// value arguments, tuple members and rest, and function parameters,
-/// results and row keys.
-///
-/// Cost: each distinct type once, from an explicit stack with a visited
-/// set, so a tuple doubled through n aliases costs n visits, not its 2^n
-/// parts (an `impl` over `W[D130]` did not check in 15 s), and no native
-/// recursion follows its depth.
-fn has_assoc(pool: Types<'_>, t: Ty) -> bool {
-    let mut seen: hd_base::HashSet<Ty> = hd_base::HashSet::default();
-    let mut stack = vec![t];
-    while let Some(t) = stack.pop() {
-        if !seen.insert(t) {
-            continue;
-        }
-        let projection = match pool.get(t) {
-            TyData::Assoc { .. } => true,
-            TyData::Ref { inner, .. } => {
-                stack.push(inner);
-                false
-            }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                stack.extend(pool.list_items(args).iter().copied());
-                false
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend(pool.list_items(elems).iter().copied());
-                stack.extend(rest);
-                false
-            }
-            TyData::Fn {
-                params,
-                result,
-                row,
-                ..
-            } => {
-                stack.extend(pool.list_items(params).iter().copied());
-                stack.push(result);
-                stack.extend(pool.row_data(row).keys);
-                false
-            }
-            // A projection inside another form is the bodies' to compare.
-            _ => false,
-        };
-        if projection {
-            return true;
-        }
-    }
-    false
-}
-
 /// The trait method's types at the implementation (`inst`), and a
 /// projection's binding in the implementation (`bound`).
 type SigMaps<'x> = (&'x dyn Fn(Ty) -> Ty, &'x dyn Fn(Ty) -> Option<Ty>);
@@ -87,11 +35,17 @@ fn same_but_projections(
         a.len() == b.len()
     };
     let mut stack = vec![(w, g)];
+    let mut seen = hd_base::HashSet::default();
     while let Some((w, g)) = stack.pop() {
-        if w == g || !has_assoc(pool, w) && !matches!(pool.get(w), TyData::Assoc { .. }) {
-            if w != g {
-                return false;
-            }
+        #[cfg(test)]
+        comparison_tests::visit();
+        if w == g {
+            continue;
+        }
+        if !pool.has_assoc(w) {
+            return false;
+        }
+        if !seen.insert((w, g)) {
             continue;
         }
         let fits = match (pool.get(w), pool.get(g)) {
@@ -371,10 +325,24 @@ impl Ck<'_, '_> {
                 .iter()
                 .find(|(d, _)| *d == assoc)
                 .map(|&(_, b)| b)
-                .filter(|&b| !has_assoc(pool, b) && !matches!(pool.get(b), TyData::Assoc { .. })),
+                .filter(|&b| !pool.has_assoc(b)),
             _ => None,
         };
-        if let Some(why) = Self::sig_differs(pool, (tsig, sig), free_bounds, (&inst, &bound))
+        // Reuse the body's memoized projection normalizer for every nested
+        // form, including chained impl bindings and function rows.
+        let mut checked = std::borrow::Cow::Borrowed(sig);
+        let mut normalized = hd_base::HashMap::default();
+        for (index, &(_, ty)) in sig.params.iter().enumerate() {
+            let resolved = self.normalize_deep_in(ty, &mut normalized)?;
+            if resolved != ty {
+                checked.to_mut().params[index].1 = resolved;
+            }
+        }
+        let resolved = self.normalize_deep_in(sig.ret, &mut normalized)?;
+        if resolved != sig.ret {
+            checked.to_mut().ret = resolved;
+        }
+        if let Some(why) = Self::sig_differs(pool, (tsig, &checked), free_bounds, (&inst, &bound))
             && !(omitted && why == "the result type")
         {
             let mut msg = format!(
@@ -516,5 +484,55 @@ impl Ck<'_, '_> {
             return Some("a parameter default, which only the trait declares");
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    thread_local! { static VISITS: Cell<usize> = const { Cell::new(0) }; }
+
+    pub(super) fn visit() {
+        VISITS.set(VISITS.get() + 1);
+    }
+
+    #[test]
+    fn nested_impl_projection_comparison_visits_shared_pairs_once() {
+        let pool = hd_types::InternPool::new();
+        let projection = pool.intern_ty(&TyData::Assoc {
+            assoc: DefId::from_raw(1),
+            trait_: DefId::from_raw(2),
+            self_ty: Ty::I32,
+            args: TyList::EMPTY,
+        });
+        let pair = |values: &[Ty]| {
+            pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(values),
+                rest: None,
+            })
+        };
+        let bound = |ty| (ty == projection).then_some(Ty::I32);
+        let mut work = Vec::new();
+        for width in [100, 1_000] {
+            let (mut want, mut got) = (Ty::I32, projection);
+            for _ in 0..20 {
+                want = pair(&[want, want]);
+                got = pair(&[got, got]);
+            }
+            want = pair(&vec![want; width]);
+            got = pair(&vec![got; width]);
+            VISITS.set(0);
+            assert!(same_but_projections(pool.types(), (got, want), &bound));
+            work.push(VISITS.get());
+        }
+        assert!(work[0] > 100);
+        assert!(work[1] <= work[0] * 10);
+        assert!(!same_but_projections(
+            pool.types(),
+            (Ty::BOOL, projection),
+            &bound
+        ));
     }
 }
