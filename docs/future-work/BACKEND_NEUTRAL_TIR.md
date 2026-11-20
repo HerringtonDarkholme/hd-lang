@@ -1,7 +1,7 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals; partly built (2026-11-19): steps 0, 2a and 6, and most of step 1. It replaces
+recommendations"); domain: compiler internals; partly built (2026-11-20): steps 0, 1, 2a, 3 and 6, and step 5a; step 5b in progress. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
@@ -201,12 +201,12 @@ Each step deletes the path it replaces. Rows are in landing order.
 | Step | Adds, and deletes | `hd_wasm` | `hd_tir` | Elsewhere | Net |
 | --- | --- | --- | --- | --- | --- |
 | 0 | #2166: the owned verifier's re-proofs (lane 204, done) | 0 | −365 | 0 | −365 |
-| 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` (done) | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
+| 1 | `hd_layout`; the leaf fallback, the layout memo scopes, the driver's layout calls into `hd_wasm` (done; the `Mem.leaves` remainder was closed not planned on #2170: the measured migration was +585 against ≤ 0, so `Mem.leaves` stays as a `Scalars` layout's leaf list) | −3,000 | −100 | `hd_layout` +2,950; `own.rs` −500 | −650 |
 | 2a | cancel blocks: each await gets a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go (lane 210, done) | −17 | +61 | −1 | +43 |
 | 6 | index guards as an optimization (done, #2175): the list proofs in `hd_opt::prove`, `emit/guards.rs` deleted, the list caches as TIR values; `stable_lists` stays as the region rows | −3,608 | +771 | `hd_opt` +1,251; others +87 | −1,499, measured |
-| 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs`, the loan scopes in `scope.rs`, the loan reads in `count.rs` | −5,408 | +4,390 | 0 | −1,018 |
+| 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs`, the loan scopes in `scope.rs`, the loan reads in `count.rs`. 5a done (#2174, d63923f1e, −3,461 measured): the checker places `LoanBegin`/`LoanClose` from its lifetime regions before inlining, as a `Ref<T>` guard's lifetime (owner: a `&*T` loan is local, like `Rc<RefCell<T>>`); the origin graph and the emitter's placement are deleted. 5b in progress: `Access` markers placed at the start of the ownership passes, after inlining (places are rebuilt there), and own-loan counters as TIR locals | −5,408 | +4,390 | 0 | −1,018 |
 | 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, `ReleasePlan`, the count decisions in `count.rs` | −401 | +850 | `hd_layout` −1,538 | −1,089 |
-| 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` passes, the flag tags | −1,150 | +267 | 0 | −883 |
+| 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` passes, the flag tags. Done (#2172): storage kinds and a `Box` at scope entry in TIR (c4f7976dd, fixed by #2195), the emitter's memory-local flags as TIR flags. Drop elaboration moved into step 4's done check, since it needs the exit set as statements first | −1,150 | +267 | 0 | −883 |
 | 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −601, plus the lifting | 0 | priced when step 3 lands |
 | 2b | scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` | −228 | +245 | 0 | +17 |
 | 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave | −2,505 | +1,600 | 0 | −905 |
