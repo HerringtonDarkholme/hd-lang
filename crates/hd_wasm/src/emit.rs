@@ -230,7 +230,7 @@ fn body_func<'a>(
         em.lends = own.lends;
     }
     if own.cold.is_none() {
-        em.find_borrows(closure.map(|(ci, _, _)| ci));
+        em.find_borrows();
     }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
@@ -338,7 +338,7 @@ fn body_func<'a>(
     if !suspending && own.cold.is_none() {
         em.frame_locals()?;
     }
-    em.borrow_init_flags();
+    em.borrow_init_flags()?;
     em.f.reason = Some(Reason::Conservative("entry"));
     em.f.names_counts = em.names_counts();
     if em.m.track_origins {
@@ -2511,6 +2511,8 @@ impl Em<'_, '_, '_> {
             Tag::MakeUnique => {}
             Tag::LoanBegin => self.loan_begin(i),
             Tag::LoanClose => self.loan_close(i),
+            // The counter it names is read where the loan code needs it.
+            Tag::OwnLoans => {}
             Tag::LoanEnd => {
                 self.own_loan_end(i);
             }

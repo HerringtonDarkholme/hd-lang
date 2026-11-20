@@ -4299,7 +4299,8 @@ impl Ck<'_, '_> {
                 | Tag::Release
                 | Tag::MakeUnique
                 | Tag::LoanBegin
-                | Tag::LoanClose => {}
+                | Tag::LoanClose
+                | Tag::OwnLoans => {}
             }
         }
         // The arguments a call's result holds, for the backend's run-time
@@ -5135,7 +5136,8 @@ fn returned(b: &Body, root: u32) -> Vec<u32> {
             | Tag::Release
             | Tag::MakeUnique
             | Tag::LoanBegin
-            | Tag::LoanClose => {}
+            | Tag::LoanClose
+            | Tag::OwnLoans => {}
         }
         if i == root && b.tags[i as usize] == Tag::Block {
             out.push(b.data[i as usize][1]);

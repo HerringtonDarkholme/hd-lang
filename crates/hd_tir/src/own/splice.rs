@@ -195,7 +195,8 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
     }
     // A `Drop` inserted where `LoanClose`s stand goes after them: they end
     // loans on what it may release, and a close of a kept loan writes the
-    // object's header. One walk per inserted position.
+    // object's header; so do the `OwnLoans` uses of the counters those
+    // closes change. One walk per inserted position.
     let mut closes: hd_base::HashMap<(u32, u32), u32> = hd_base::HashMap::default();
     for ed in &mut t.edits {
         if ed.tag == Tag::Drop {
@@ -204,7 +205,7 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
                 let mut p = ed.pos as usize;
                 while members
                     .get(p)
-                    .is_some_and(|&m| b.tags[m as usize] == Tag::LoanClose)
+                    .is_some_and(|&m| matches!(b.tags[m as usize], Tag::LoanClose | Tag::OwnLoans))
                 {
                     p += 1;
                 }
@@ -248,8 +249,9 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
         }
     }
     // The `LoanClose`s right after a statement end its holders' loans as
-    // it finishes, so they lend no anchor: a new instruction before them
-    // runs where the statement after them does, or at the block's exit.
+    // it finishes, and the `OwnLoans` there are its counters' uses, so
+    // they lend no anchor: a new instruction before them runs where the
+    // statement after them does, or at the block's exit.
     // One walk per inserted position, however many edits share it.
     let mut past: hd_base::HashMap<(u32, u32), u32> = hd_base::HashMap::default();
     // Append the new instructions, numbered n.. in the old numbering.
@@ -259,7 +261,7 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
             let mut p = ed.pos as usize;
             while members
                 .get(p)
-                .is_some_and(|&m| b.tags[m as usize] == Tag::LoanClose)
+                .is_some_and(|&m| matches!(b.tags[m as usize], Tag::LoanClose | Tag::OwnLoans))
             {
                 p += 1;
             }

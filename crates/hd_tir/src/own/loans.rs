@@ -30,7 +30,7 @@ use hd_types::Ty;
 
 use super::flow::{BitArena, Flow, backward};
 use super::splice::{BatchInsert, insert_batch};
-use crate::ir::{Body, NONE, Root, Tag, Topology, loan_word, u32_of};
+use crate::ir::{Body, NONE, Ref, Root, Tag, Topology, loan_word, local_flags, u32_of};
 
 /// A run-time loan site: the instruction whose loans it takes, and its
 /// [`loan_word`]. `activate` is the call before which a two-phase site's
@@ -75,6 +75,188 @@ pub fn place(b: &mut Body, sites: &[Site], rows: &[(Holder, u32)]) -> Result<(),
         }
     }
     let inserts = walk.inserts(b, &topo);
+    insert_batch(b, &topo, &inserts).map(|_| ())
+}
+
+/// The pointer local an access's place, a loan site's among them, goes
+/// through: its root local, or the root local of the read its root value
+/// is (`&mut p.items` in a loop over it), where the step after that local
+/// dereferences it; or, for a loan site (`lent`), the local a whole read
+/// lends (`[$p]` passed as `&T`).
+#[must_use]
+pub fn site_pointer(b: &Body, site: u32, lent: bool) -> Option<u32> {
+    let tag = *b.tags.get(site as usize)?;
+    if !matches!(tag, Tag::Ref | Tag::Read | Tag::Store | Tag::IsUnique) {
+        return None;
+    }
+    let p = b.view(b.data[site as usize][0]);
+    let through = |q: crate::ir::PlaceView| match q.root {
+        Root::Local(l) if q.first(b) == Some(crate::ir::Proj::Deref) => Some(l),
+        _ => None,
+    };
+    match p.root {
+        Root::Local(l) if lent && tag == Tag::Read && p.whole() => Some(l),
+        Root::Local(_) => through(p),
+        Root::Value(v) if b.tags.get(v as usize) == Some(&Tag::Read) => {
+            through(b.view(b.data[v as usize][0]))
+        }
+        _ => None,
+    }
+}
+
+/// Gives each pointer local that a closure captures and a loan site goes
+/// through a local counting the function's own loans through it
+/// (`docs/compiler/ownership.md`, "Closures"): its loans' `LoanBegin`s
+/// name it ([`loan_word::COUNTER_SHIFT`]), and each closure that captures
+/// the pointer captures the counter too, shared, so the storage pass gives
+/// it a cell the creator and its closures count in, across suspensions.
+/// An inlined closure's snapshot of a pointer counts as its creator's.
+/// Runs before the storage pass. Cost: one pass over the body, its
+/// captures and its `LoanBegin`s.
+///
+/// # Errors
+/// A malformed insertion, which is a compiler bug.
+pub(crate) fn share_counters(b: &mut Body, temporary: hd_base::Symbol) -> Result<(), String> {
+    let mut captured = vec![false; b.local_ty.len()];
+    // The captures of each closure's sub-body.
+    let mut captured_in: hd_base::HashSet<(u32, u32)> = hd_base::HashSet::default();
+    let mut closures = Vec::new();
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Closure {
+            let r = b.record(b.data[i][1]);
+            for c in r[0]..r[0] + r[1] {
+                let l = b.cap_local[c as usize];
+                captured[l.idx()] = true;
+                captured_in.insert((b.data[i][0], l.raw()));
+            }
+            closures.push(i);
+        }
+    }
+    if closures.is_empty() {
+        return Ok(());
+    }
+    // A snapshot's creator, through chains of inlined closures.
+    let mut creator: Vec<u32> = (0..u32_of(b.local_ty.len())).collect();
+    for &(_, snapshot, made) in &b.inlined_capture_origins {
+        creator[snapshot.idx()] = creator[made.idx()];
+    }
+    // A pointer's loans that its closures must see: one taken in a
+    // sub-body that does not capture the pointer, its creator's.
+    let topo = Topology::new(b);
+    let mut shared = vec![false; b.local_ty.len()];
+    let mut begins = Vec::new();
+    for i in 0..b.len() {
+        let [site, word] = b.data[i];
+        if b.tags[i] != Tag::LoanBegin || word & (loan_word::ACTIVATE | loan_word::INNER) != 0 {
+            continue;
+        }
+        if let Some(local) = site_pointer(b, site, true) {
+            let p = creator[local as usize] as usize;
+            if captured[p] {
+                begins.push((i, p));
+                shared[p] |= !captured_in.contains(&(topo.sub[i], local));
+            }
+        }
+    }
+    begins.retain(|&(_, p)| shared[p]);
+    if begins.is_empty() {
+        return Ok(());
+    }
+    let mut counter = vec![NONE; b.local_ty.len()];
+    for &(_, p) in &begins {
+        if counter[p] == NONE {
+            counter[p] = u32_of(b.local_ty.len());
+            let syn = b.local_syn[p];
+            b.local_ty.push(Ty::I32);
+            b.local_name.push(temporary);
+            b.local_syn.push(syn);
+            b.local_flags.push(
+                local_flags::ASSIGNED
+                    | local_flags::READ
+                    | local_flags::CAPTURED
+                    | local_flags::CAPTURED_ASSIGNED,
+            );
+        }
+    }
+    for (i, p) in begins {
+        b.data[i][1] |= (counter[p] + 1) << loan_word::COUNTER_SHIFT;
+    }
+    // Each closure capturing a counted pointer takes its counter: its
+    // captures move to the end of the list with the counters after them.
+    for ci in closures {
+        let r = b.record(b.data[ci][1]).to_vec();
+        let range = r[0] as usize..(r[0] + r[1]) as usize;
+        let mut add: Vec<u32> = b.cap_local[range.clone()]
+            .iter()
+            .map(|l| counter[creator[l.idx()] as usize])
+            .filter(|&c| c != NONE)
+            .collect();
+        add.sort_stable();
+        add.dedup();
+        if add.is_empty() {
+            continue;
+        }
+        let start = u32_of(b.cap_local.len());
+        let (locals, modes) = (
+            b.cap_local[range.clone()].to_vec(),
+            b.cap_mode[range].to_vec(),
+        );
+        b.cap_local.extend(locals);
+        b.cap_mode.extend(modes);
+        for c in &add {
+            b.cap_local.push(hd_base::LocalId::from_raw(*c));
+            b.cap_mode.push(crate::ir::CaptureMode::Shared);
+        }
+        let len = u32_of(b.cap_local.len()) - start;
+        let mut words = r.clone();
+        words[0] = start;
+        words[1] = len;
+        b.data[ci][1] = b.push_record(&words);
+    }
+    // Each counter starts at 0 where the body starts, and is used, so
+    // the passes keep it, right after each access through its pointer,
+    // whose check reads it, and each loan statement through it.
+    let zero = Ref::konst(u32_of(b.consts.len())).0;
+    b.consts.push((Ty::I32, 0));
+    let root = b.sub_root[0];
+    let mut inserts: Vec<BatchInsert> = (0..counter.len())
+        .filter(|&p| counter[p] != NONE)
+        .map(|p| BatchInsert {
+            block: root,
+            pos: 0,
+            tag: Tag::Store,
+            data: [crate::ir::place::BARE_LOCAL | counter[p], zero],
+            ty: Ty::VOID,
+            syn: b.local_syn[p],
+        })
+        .collect();
+    let mut used = |at: usize, c: u32| {
+        inserts.push(BatchInsert {
+            block: topo.blk[at],
+            pos: topo.pos[at] + 1,
+            tag: Tag::OwnLoans,
+            data: [crate::ir::place::BARE_LOCAL | c, NONE],
+            ty: Ty::VOID,
+            syn: b.syn[at],
+        });
+    };
+    for i in 0..b.len() {
+        let tag = b.tags[i];
+        if matches!(tag, Tag::LoanBegin | Tag::LoanClose) {
+            let begin = if tag == Tag::LoanBegin {
+                i
+            } else {
+                b.data[i][0] as usize
+            };
+            if let Some(c) = b.data.get(begin).and_then(|d| loan_word::counter(d[1])) {
+                used(i, c);
+            }
+        } else if let Some(p) = site_pointer(b, u32_of(i), false)
+            && counter[creator[p as usize] as usize] != NONE
+        {
+            used(i, counter[creator[p as usize] as usize]);
+        }
+    }
     insert_batch(b, &topo, &inserts).map(|_| ())
 }
 

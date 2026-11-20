@@ -551,7 +551,8 @@ impl Forward for Walk<'_> {
             | Tag::Release
             | Tag::MakeUnique
             | Tag::LoanBegin
-            | Tag::LoanClose => {}
+            | Tag::LoanClose
+            | Tag::OwnLoans => {}
         }
     }
 

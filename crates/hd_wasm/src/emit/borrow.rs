@@ -48,9 +48,8 @@
 //!
 //! **Suspension.** A suspending body's frame saves every local, the
 //! loans' too, so a loan held across a suspension stays held while the
-//! task waits. A task that unwinds ends its loans at its exits; one whose
-//! frame is released while it waits ends them in its release glue
-//! ([`Em::borrow_abandon`]), so no object stays borrowed after it.
+//! task waits. A task that unwinds ends its loans at its exits; a frame
+//! released before it starts holds none.
 
 use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_layout::field_ty;
@@ -251,36 +250,6 @@ mod capture_origin_tests {
     }
 
     #[test]
-    fn loaded_capture_cells_route_creator_and_snapshot_lookups() {
-        let body = body(4, &[(1, 0), (2, 1)]);
-        let mut borrows = Borrows {
-            capture_origins: CaptureOrigins::new(&body, &[], |_| true),
-            ..Borrows::default()
-        };
-        // An ordinary capture has no source routing entry.
-        borrows.load_own_cell(3, 43, true);
-        assert!(borrows.own_cell_sources.is_empty());
-        assert_eq!(borrows.own_cell_source(3), 3);
-        assert_eq!(borrows.own_cells[&3], (43, true));
-
-        // The closure prologue loads a snapshot's cell. Later accesses
-        // through either its creator or another eliminated snapshot must
-        // find that same cell, including its borrowed-frame flag.
-        borrows.load_own_cell(2, 41, false);
-        for local in 0..3 {
-            let source = borrows.own_cell_source(local);
-            assert_eq!(source, 2);
-            assert_eq!(borrows.own_cells[&source], (41, false));
-        }
-        assert_eq!(borrows.own_cell_sources.len(), 1);
-
-        // A physical cell already held by the creator takes precedence.
-        borrows.load_own_cell(0, 47, true);
-        assert_eq!(borrows.own_cell_source(0), 0);
-        assert_eq!(borrows.own_cells[&0], (47, true));
-    }
-
-    #[test]
     fn capture_provenance_chains_have_linear_counted_work() {
         for width in [100u32, 1_000] {
             let depth = 20;
@@ -410,6 +379,7 @@ impl CaptureOrigins {
         self.lent.get(l).copied().unwrap_or(false)
     }
 
+    #[cfg(test)]
     fn local(&self, l: usize) -> usize {
         self.roots
             .get(l)
@@ -512,9 +482,6 @@ pub(super) struct Borrows {
     /// The first `loans` keys are those a loan is taken through, interned
     /// before emission.
     loans: usize,
-    /// Set once a frame's release glue is emitted ([`Em::borrow_abandon`]):
-    /// the body's locals are gone, and a cold frame holds no loan.
-    abandoned: bool,
     /// The locals a closure shares: each lives in a cell, an object its
     /// places cross at their root ([`ROOT`]).
     shared: std::sync::Arc<hd_base::HashSet<usize>>,
@@ -523,18 +490,12 @@ pub(super) struct Borrows {
     /// The local references that hold only `*T` values
     /// ([`pointer_locals`]).
     pointers: std::sync::Arc<hd_base::HashSet<usize>>,
-    /// The `*T` locals a closure of the body captures with its creator's
-    /// own loans through them ([`Em::own_caps`]).
-    own_shared: hd_base::HashSet<usize>,
-    /// The cell holding the own loans through each of them: the local of
-    /// its address, and whether this body holds a count of it, which its
-    /// end or abandonment releases: one it made, or a suspending closure's,
-    /// whose frame counts its environment's cells.
-    own_cells: HashMap<usize, (u32, bool)>,
-    /// A canonical creator's loaded capture cell, when its environment
-    /// names a snapshot. Keep ownership keyed by the actual loaded local:
-    /// distinct environment fields still release their own held counts.
-    own_cell_sources: HashMap<usize, usize>,
+    /// The counter local of the own loans through each pointer local a
+    /// closure shares (`hd_tir::own::loans::share_counters`), and where
+    /// each counter is: a local, or a cell's address and the word's
+    /// offset in it.
+    counters: HashMap<usize, usize>,
+    counter_at: HashMap<usize, Option<u32>>,
     /// The header locals of loans on a `*dyn` receiver's object, which
     /// are 0 where its data address is (a trait value of no Wasm values):
     /// no loan is taken then.
@@ -953,22 +914,6 @@ impl Borrows {
             }
         }
     }
-
-    fn load_own_cell(&mut self, local: usize, cell: u32, held: bool) {
-        self.own_cells.insert(local, (cell, held));
-        let root = self.capture_origins.local(local);
-        if root != local {
-            self.own_cell_sources.insert(root, local);
-        }
-    }
-
-    fn own_cell_source(&self, local: usize) -> usize {
-        if self.own_cells.contains_key(&local) {
-            return local;
-        }
-        let root = self.capture_origins.local(local);
-        self.own_cell_sources.get(&root).copied().unwrap_or(root)
-    }
 }
 
 impl Em<'_, '_, '_> {
@@ -976,7 +921,7 @@ impl Em<'_, '_, '_> {
     /// which the checker placed (`hd_tir::own::loans`), and the pointers
     /// their loans go through, whose own-loan counts the access checks
     /// compare with. Cost: one pass over the body's instructions.
-    pub(super) fn find_borrows(&mut self, closure: Option<usize>) {
+    pub(super) fn find_borrows(&mut self) {
         if self.m.lent.is_empty() {
             return;
         }
@@ -994,11 +939,23 @@ impl Em<'_, '_, '_> {
             pointers: std::sync::Arc::clone(&holder.pointers),
             ..Borrows::default()
         };
-        // A closure inherits its creator's own-loan cells for captured
-        // pointers even when this sub-body takes no reference itself.
-        if let Some(ci) = closure {
-            for local in self.own_capture_ids(ci) {
-                st.intern_key((PlaceRoot::Local(local), Vec::new(), ANY_FRAME));
+        // The counters of the own loans through the pointers a closure
+        // shares, which the `LoanBegin`s through them name in any
+        // sub-body: a closure's check through one compares with it even
+        // where the closure takes no loan itself.
+        for i in 0..self.b.tags.len() {
+            let [site, word] = self.b.data[i];
+            if self.b.tags[i] == Tag::LoanBegin
+                && let Some(c) = loan_word::counter(word)
+                && let Some(p) = hd_tir::own::loans::site_pointer(self.b, site, true)
+            {
+                let local = PlaceRoot::Local(hd_base::LocalId::from_raw(p));
+                let key = st.capture_origins.key((local, Vec::new(), ANY_FRAME));
+                if let PlaceRoot::Local(l) = key.0 {
+                    st.counters.insert(l.idx(), c as usize);
+                }
+                st.counters.insert(p as usize, c as usize);
+                st.intern_key(key);
             }
         }
         let sub = u32::from(self.sub_id);
@@ -1091,22 +1048,27 @@ impl Em<'_, '_, '_> {
         }
         let mut st = std::mem::take(&mut self.borrows);
         st.loans = st.keys.len();
-        for ci in 0..self.b.tags.len() {
-            if self.b.tags[ci] == Tag::Closure {
-                st.own_shared.extend(
-                    self.own_caps(ci)
-                        .into_iter()
-                        .map(|l| st.capture_origins.local(l)),
-                );
-            }
-        }
         self.borrows = st;
     }
 
     /// Once the function has its locals: each loan's slots, a header
     /// address and a pointer key per object its site may cross, zero
     /// while it holds no loan.
-    pub(super) fn borrow_init_flags(&mut self) {
+    pub(super) fn borrow_init_flags(&mut self) -> StageResult<()> {
+        let mut counters: Vec<usize> = self.borrows.counters.values().copied().collect();
+        counters.sort_stable();
+        counters.dedup();
+        for c in counters {
+            // The counter's own local is looked up at its first use,
+            // after its store at the root or its closure's capture load
+            // made it: only the word's offset in a cell is known here.
+            let at = if self.is_cell(c) {
+                Some(self.cell_mem(c)?.0.leaves[0].offset)
+            } else {
+                None
+            };
+            self.borrows.counter_at.insert(c, at);
+        }
         let mut begins: Vec<u32> = self.borrows.begins.keys().copied().collect();
         begins.sort_stable();
         for i in begins {
@@ -1127,6 +1089,7 @@ impl Em<'_, '_, '_> {
                 self.borrows.active.insert(begin, flag);
             }
         }
+        Ok(())
     }
 
     /// `LoanBegin` `i`: the loans of its site on each object the site
@@ -1362,42 +1325,9 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
     }
 
-    /// At the function's exit: the own-loan cells it holds go.
-    pub(super) fn borrow_exit(&mut self) {
-        self.own_cells_release();
-    }
-
-    /// Whether the body takes a pointer loan or holds an own-loan cell.
+    /// Whether the body takes a pointer loan.
     pub(super) fn borrow_needs_exit(&self) -> bool {
-        !self.borrows.begins.is_empty() || !self.borrows.own_shared.is_empty()
-    }
-
-    /// The captures of closure `ci` that carry its creator's own loans
-    /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`): each `*T`
-    /// local whose pointee a loan may
-    /// hold. The closure checks an access through one against the loans
-    /// its creator holds through it, which a cell in its environment
-    /// keeps, as the creator's own local does.
-    pub(super) fn own_caps(&self, ci: usize) -> Vec<usize> {
-        self.own_capture_ids(ci)
-            .map(hd_base::LocalId::idx)
-            .collect()
-    }
-
-    /// Keeps the capture column's typed IDs through own-loan discovery.
-    fn own_capture_ids(&self, ci: usize) -> impl Iterator<Item = hd_base::LocalId> + '_ {
-        let rec = self.b.record(self.b.data[ci][1]);
-        let (start, len) = (rec[0] as usize, rec[1] as usize);
-        let captures = if self.m.lent.is_empty() {
-            &[][..]
-        } else {
-            &self.b.cap_local[start..start + len]
-        };
-        let own = self.recursive_bindings.self_local(ci);
-        captures
-            .iter()
-            .copied()
-            .filter(move |l| Some(*l) != own && self.own_pointer(*l))
+        !self.borrows.begins.is_empty()
     }
 
     fn own_pointer(&self, l: hd_base::LocalId) -> bool {
@@ -1408,171 +1338,37 @@ impl Em<'_, '_, '_> {
             } if self.lent_of(target).is_some())
     }
 
-    /// The index of pointer local `l`'s own key, when the body takes a
-    /// loan through it.
-    fn own_key(&self, l: usize) -> Option<usize> {
-        let local = hd_base::LocalId::from_raw(u32::try_from(l).ok()?);
-        let key =
-            self.borrows
-                .capture_origins
-                .key((PlaceRoot::Local(local), Vec::new(), ANY_FRAME));
-        let k = *self.borrows.key_index.get(&key)?;
-        (k < self.borrows.loans).then_some(k)
-    }
-
-    /// The local holding the address of the cell of the own loans through
-    /// captured pointer local `l`, 0 until the body makes it.
-    fn own_cell(&mut self, l: usize) -> u32 {
-        if let Some(&(c, _)) = self.borrows.own_cells.get(&l) {
-            return c;
-        }
-        let l = self.own_cell_source(l);
-        if let Some(&(c, _)) = self.borrows.own_cells.get(&l) {
-            return c;
-        }
-        let c = self.f.local(Val::I32);
-        self.borrows.own_cells.insert(l, (c, true));
-        c
-    }
-
-    fn own_cell_source(&self, l: usize) -> usize {
-        self.borrows.own_cell_source(l)
-    }
-
-    /// At a closure that captures pointer local `l`: the cell of the own
-    /// loans through it, for its environment, which takes a count of it.
-    /// The body makes it once, at its first such closure, and keeps it
-    /// current as its own loans change, across suspensions too.
-    pub(super) fn own_cell_for(&mut self, l: usize) -> StageResult<u32> {
-        let own = self.own_key(l).map(|k| self.own_local(k));
-        let m = crate::layout::mem(self.pool(), self.env(), Ty::I32)?;
-        let c = self.own_cell(l);
-        if self
-            .borrows
-            .own_cells
-            .get(&self.own_cell_source(l))
-            .is_some_and(|x| !x.1)
-        {
-            return Ok(c);
-        }
-        self.f.get(c);
-        self.f.op(I::I32Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        let at = self.object(&m, None, false, false, None);
-        self.f.get(at);
-        self.f.set(c);
-        self.f.get(c);
-        match own {
-            Some(own) => self.f.get(own),
-            None => self.f.i32(0),
-        }
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.op(I::End);
-        Ok(c)
-    }
-
-    /// In closure `ci`'s prologue: the cells of the own loans through
-    /// the pointers it captures, from the environment's slots `cells`, and
-    /// its own loans through each start as its creator's; `held` when its
-    /// frame holds a count of each.
-    pub(super) fn own_cells_load(&mut self, ci: usize, cells: &[u32], held: bool) {
-        for (l, c) in self.own_caps(ci).into_iter().zip(cells.iter().copied()) {
-            self.borrows.load_own_cell(l, c, held);
-            if let Some(k) = self.own_key(l) {
-                let own = self.own_local(k);
-                self.f.get(c);
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-                self.f.set(own);
-            }
-        }
-    }
-
-    /// The cell of own loans through key `k`'s pointer, when a closure
-    /// of the body captures that pointer.
-    fn own_cell_of_key(&mut self, k: usize) -> Option<u32> {
-        let l = match &self.borrows.keys[k].0 {
-            (PlaceRoot::Local(x), proj, f) if proj.is_empty() && *f == ANY_FRAME => x.idx(),
-            _ => return None,
-        };
-        self.borrows
-            .own_shared
-            .contains(&l)
-            .then(|| self.own_cell(l))
-    }
-
     /// The local of the own loans through key `k`, read again from their
     /// cell where one is made: the creator and its closures, suspending
     /// ones too, change one count
-    /// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
-    fn own_read(&mut self, k: usize) -> u32 {
-        let own = self.own_local(k);
-        if let Some(c) = self.own_cell_of_key(k) {
-            self.f.get(c);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.get(c);
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            self.f.set(own);
-            self.f.op(I::End);
-        }
-        own
-    }
-
-    /// The body's locals for captured pointer `l`'s own loans, for a
-    /// suspending closure's frame: its cell's (`true`) and its own count's.
-    pub(super) fn own_frame_locals(&self, l: usize) -> Vec<(u32, bool)> {
-        let mut out: Vec<(u32, bool)> = self
-            .borrows
-            .own_cells
-            .get(&self.own_cell_source(l))
-            .map(|x| (x.0, true))
-            .into_iter()
-            .collect();
-        if let Some(k) = self.own_key(l)
-            && let Some(own) = self.borrows.keys[k].1
+    /// Where the function's own loans through key `k` are counted: in the
+    /// counter a closure shares, a cell's word (its address local and the
+    /// word's offset) or a local, or else in a local of its own.
+    fn own_at(&mut self, k: usize) -> (u32, Option<u32>) {
+        if let (PlaceRoot::Local(l), proj, frame) = &self.borrows.keys[k].0
+            && proj.is_empty()
+            && *frame == ANY_FRAME
+            && let Some(&c) = self.borrows.counters.get(&l.idx())
+            && let Some(&off) = self.borrows.counter_at.get(&c)
+            && let Ok(ls) = self.local(hd_tir::ir::u32_of(c))
         {
-            out.push((own, false));
+            return (ls[0], off);
         }
-        out
+        (self.own_local(k), None)
     }
 
-    /// After own loans through key `k` change by `delta` (`sign` -1 for
-    /// an end): their cell, once made, takes the same change, and the
-    /// local reads it back.
-    fn own_mirror(&mut self, k: usize, own: u32, delta: u32, sign: i32) {
-        let Some(c) = self.own_cell_of_key(k) else {
-            return;
-        };
-        self.f.get(c);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.get(c);
-        self.f.get(c);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.u32(delta);
-        self.f.op(if sign < 0 { I::I32Sub } else { I::I32Add });
-        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
-        self.f.get(c);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.set(own);
-        self.f.op(I::End);
-    }
-
-    /// At the exit: the cells of own loans the body made.
-    fn own_cells_release(&mut self) {
-        let mut mine: Vec<u32> = (self.borrows.own_cells.values())
-            .filter(|x| x.1)
-            .map(|x| x.0)
-            .collect();
-        mine.sort_stable();
-        for c in mine {
-            self.f.get(c);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.get(c);
-            self.because(
-                hd_tir::own::Reason::Conservative("loan cell"),
-                Self::release_cell,
-            );
-            self.f.zero(c);
-            self.f.op(I::End);
+    /// A local holding the function's own loans through key `k` as they
+    /// stand.
+    fn own_read(&mut self, k: usize) -> u32 {
+        match self.own_at(k) {
+            (own, None) => own,
+            (cell, Some(off)) => {
+                let own = self.f.local(Val::I32);
+                self.f.get(cell);
+                self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+                self.f.set(own);
+                own
+            }
         }
     }
 
@@ -1866,12 +1662,22 @@ impl Em<'_, '_, '_> {
         let op = if sign < 0 { I::I32Sub } else { I::I32Add };
         self.loan_state_add(header, delta, sign);
         if let Some(k) = key.filter(|&k| k < self.borrows.loans) {
-            let own = self.own_local(k);
-            self.f.get(own);
-            self.f.u32(delta);
-            self.f.op(op);
-            self.f.set(own);
-            self.own_mirror(k, own, delta, sign);
+            match self.own_at(k) {
+                (own, None) => {
+                    self.f.get(own);
+                    self.f.u32(delta);
+                    self.f.op(op);
+                    self.f.set(own);
+                }
+                (cell, Some(off)) => {
+                    self.f.get(cell);
+                    self.f.get(cell);
+                    self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+                    self.f.u32(delta);
+                    self.f.op(op);
+                    self.f.op(I::I32Store(mem(HEAP, u64::from(off), 2)));
+                }
+            }
         }
     }
 
@@ -1969,43 +1775,5 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
         }
         Ok(Some((header, key, keep)))
-    }
-
-    /// Creator loan cells that the separate frame destructor reads.
-    pub(super) fn select_frame_loan_cells(&self, selected: &mut [bool]) {
-        for &(local, owned) in self.borrows.own_cells.values() {
-            if owned {
-                selected[local as usize] = true;
-            }
-        }
-    }
-
-    /// In a frame's release glue (`.drop`), which frees only a frame that
-    /// never started (#1430): releases the cells of the creator's own loans
-    /// a suspending closure's frame holds, read from the frame's save
-    /// (`at_of`). A cold frame holds no loan of its body's own, so
-    /// `borrow_release` ends none in this glue (`abandoned`).
-    pub(super) fn borrow_abandon(&mut self, at_of: &dyn Fn(u32) -> Option<(u32, Val)>) {
-        self.borrows.abandoned = true;
-        // The cells of own loans the body made, from the frame's save.
-        let mut mine: Vec<u32> = (self.borrows.own_cells.values())
-            .filter(|x| x.1)
-            .map(|x| x.0)
-            .collect();
-        mine.sort_stable();
-        for c in mine {
-            let Some((at, v)) = at_of(c) else {
-                continue;
-            };
-            let x = self.f.local(v);
-            self.f.get(super::susp::FRAME);
-            self.f.op(super::susp::load_op(v, at));
-            self.f.set(x);
-            self.f.get(x);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.get(x);
-            self.release_cell();
-            self.f.op(I::End);
-        }
     }
 }

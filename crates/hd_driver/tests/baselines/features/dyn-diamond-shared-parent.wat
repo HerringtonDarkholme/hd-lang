@@ -3,9 +3,10 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
-  (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
-  (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
+  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -21,22 +22,31 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 8
+    i32.const 24
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 8
+    i32.const 24
     i32.sub
     local.tee $t0
     global.set $stack
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=8
+    local.get $t0
+    i32.const 16
+    i32.add
+    local.tee $t1
+    i32.const 0
+    i32.store $heap
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -50,7 +60,7 @@
     call $"println[i32]"
     i32.const 0
     i32.const 0
-    call $rt:new/class-1'1
+    call $rt:new/class-1
     ;; 43 |     let boxed: *dyn Top = box(S {})
     i32.const 300 ;; &vtable[]
     local.set $boxed.1
@@ -64,7 +74,7 @@
     ;; 42 |     println(read(&S {}))
     i32.const 0
     i32.const 0
-    call $rt:new/class-1'1
+    call $rt:new/class-1
     ;; 45 |     let mutable: *mut dyn Top = box(S {})
     local.tee $mutable.0
     i32.const 300 ;; &vtable[]
@@ -92,20 +102,25 @@
     call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
     i32.const 5
-    i32.const 8
+    i32.const 12
     i32.const -2147483647
-    call $rt:new/class-1'2
+    call $rt:new/class-2
     local.tee $mutable.0
     local.get $boxed.0
     i32.store $heap
     local.get $mutable.0
     local.get $boxed.1
     i32.store $heap offset=4
+    local.get $mutable.0
+    local.get $t1
+    i32.store $heap offset=8
+    local.get $mutable.0
+    call $rt:retain_fields
     ;; 50 |     println(callback())
-    local.set $boxed.1
+    local.set $t1
     local.get $mutable.0
     i32.const 0
-    local.get $boxed.1
+    local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $mutable.0
     if
@@ -125,7 +140,7 @@
     call $"println[i32]"
     ;; 42 |     println(read(&S {}))
     local.get $t0
-    i32.const 8
+    i32.const 24
     i32.add
     global.set $stack
   )
@@ -237,6 +252,7 @@
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
+  (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -252,22 +268,31 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $boxed.0 i32) (local $boxed.1 i32) (local $mutable.0 i32)
     ;; 42 |     println(read(&S {}))
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 8
+    i32.const 24
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 8
+    i32.const 24
     i32.sub
     local.tee $t0
     global.set $stack
+    local.get $t0
+    i64.const 0
+    i64.store $heap offset=8
+    local.get $t0
+    i32.const 16
+    i32.add
+    local.tee $t1
+    i32.const 0
+    i32.store $heap
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -325,7 +350,7 @@
     call $"println[i32]"
     ;; 49 |     callback := fn() -> i32: read(boxed)
     i32.const 5
-    i32.const 8
+    i32.const 12
     i32.const -2147483647
     call $rt:new
     local.tee $mutable.0
@@ -334,11 +359,16 @@
     local.get $mutable.0
     local.get $boxed.1
     i32.store $heap offset=4
+    local.get $mutable.0
+    local.get $t1
+    i32.store $heap offset=8
+    local.get $mutable.0
+    call $rt:retain_fields
     ;; 50 |     println(callback())
-    local.set $boxed.1
+    local.set $t1
     local.get $mutable.0
     i32.const 0
-    local.get $boxed.1
+    local.get $t1
     call_indirect $table0 (param i32 i32) (result i32)
     local.get $mutable.0
     if
@@ -362,7 +392,7 @@
     call $"println[i32]"
     ;; 42 |     println(read(&S {}))
     local.get $t0
-    i32.const 8
+    i32.const 24
     i32.add
     global.set $stack
   )

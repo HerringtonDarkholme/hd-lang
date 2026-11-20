@@ -1149,6 +1149,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.late,
         &mut scratch.splice,
     )?;
+    loans::share_counters(b, cx.temporary_owner_name())?;
     insert::run(b, cx, scratch)?;
     known::cancel_blocks(b);
     scratch.topo.build(b);

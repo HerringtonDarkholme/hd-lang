@@ -205,6 +205,11 @@ tags! {
     // last use of every value and local whose region holds them.
     LoanBegin: Inst, Meta;
     LoanClose: Inst, None;
+    // `OwnLoans` uses the own-loan counter local its place a names
+    // ([`loan_word::COUNTER_SHIFT`]) where a loan through its pointer
+    // begins or closes or an access through it is checked, so the passes
+    // keep the counter, and a suspending body's frame, until then.
+    OwnLoans: Place, None;
 }
 
 /// The kind word of a `LoanBegin`.
@@ -218,6 +223,16 @@ pub mod loan_word {
     /// The object a call's returned reference points into, which the
     /// callee reached through a pointer: its site is the call.
     pub const INNER: u32 = 4;
+    /// Above the flags: the local plus one that counts the function's own
+    /// loans through the site's pointer, where a closure shares that
+    /// pointer (`own::loans::share_counters`); 0 for none.
+    pub const COUNTER_SHIFT: u32 = 8;
+
+    /// The own-loan counter local `word` names.
+    #[must_use]
+    pub fn counter(word: u32) -> Option<u32> {
+        (word >> COUNTER_SHIFT).checked_sub(1)
+    }
 }
 
 pub mod count;
@@ -4656,7 +4671,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 62);
+        assert_eq!(Tag::ALL.len(), 63);
         assert_eq!(Tag::Release as usize, 58);
         assert_eq!(Tag::MakeUnique as usize, 59);
         assert_eq!(

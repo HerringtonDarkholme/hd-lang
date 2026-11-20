@@ -1,0 +1,26 @@
+# @dump: stdout own
+# @build: dev | release
+# A closure, suspending or not, that writes another field through its
+# creator's pointer while the creator's reference into it lives checks
+# against the creator's own loans, which a counter both share; the
+# suspending one keeps that counter in its frame. Prints ok.
+struct Cell:
+    value: string
+    other: string
+
+fn run!(f: fn!() -> void) -> void:
+    f!()
+
+fn run_plain(f: fn() -> void) -> void:
+    f()
+
+pub fn main!() -> void $ Console:
+    p := box(Cell { value: "a", other: "o" })
+    r := &p.other
+    run_plain(fn() -> void: p.value = "b")
+    run!(fn!() -> void:
+        p.value = "c"
+    )
+    if *r != "o" || p.value != "c":
+        panic("the writes disagree")
+    println("ok")

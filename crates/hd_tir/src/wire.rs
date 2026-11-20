@@ -244,7 +244,8 @@ fn tag_ids(b: &Body, i: usize, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
         | Tag::FlagClear
         | Tag::Box
         | Tag::LoanBegin
-        | Tag::LoanClose => {}
+        | Tag::LoanClose
+        | Tag::OwnLoans => {}
         Tag::Prim
         | Tag::CallHost
         | Tag::CallValue

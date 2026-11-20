@@ -19,7 +19,7 @@ use wasm_encoder::BlockType;
 
 use super::scope::Exit;
 use super::{Ctl, Em};
-use crate::layout::{IsOps as _, LeafOps as _};
+use crate::layout::IsOps as _;
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
 
@@ -1425,7 +1425,6 @@ pub(super) fn finish(
         .filter(|local| em.parameter_positions.contains_key(local) || em.captured_local(*local))
         .collect();
     em.select_frame_drop_flags(&owned, &mut selected);
-    em.select_frame_loan_cells(&mut selected);
     for &local in em.exit_owners().iter().chain(plocals) {
         if (em.parameter_positions.contains_key(&local) || em.captured_local(local))
             && let Some(values) = em.locals.get(&local)
@@ -1495,8 +1494,6 @@ pub(super) fn finish(
             places.push((l, ls.clone()));
         }
     }
-    // The pointer loans the waiting body holds end with it.
-    em.borrow_abandon(&at_of);
     let load = |em: &mut Em<'_, '_, '_>, ls: &[u32]| {
         let mut loaded = Vec::new();
         for &l in ls {
@@ -1796,34 +1793,6 @@ pub(super) fn finish(
                         if let Some((at, v)) = at_of(*x) {
                             em.f.get(fr);
                             em.f.get(*y);
-                            em.f.op(store_op(v, at));
-                        }
-                    }
-                }
-                // The cells of the creator's own loans
-                // (docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2), each with a count
-                // the frame holds, and the body's own loans as they stand.
-                let own = em.own_caps(ci);
-                for (l, p) in own.into_iter().zip(&parts[caps.len()..]) {
-                    let y = em.f.local(Val::I32);
-                    em.f.get(0);
-                    em.f.op(m.leaves[p.first].load(0));
-                    em.f.set(y);
-                    // ruled out: own::cold_captures includes the counted/shared
-                    // pointer captures whose creator loan cells own_caps copies.
-                    let reason = super::required(copy, "own::cold_captures must state loan copy");
-                    em.because(reason, |em| {
-                        em.f.get(y);
-                        em.f.helper(Helper::RetainKnown);
-                    });
-
-                    for (x, cell) in em.own_frame_locals(l) {
-                        if let Some((at, v)) = at_of(x) {
-                            em.f.get(fr);
-                            em.f.get(y);
-                            if !cell {
-                                em.f.op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
-                            }
                             em.f.op(store_op(v, at));
                         }
                     }

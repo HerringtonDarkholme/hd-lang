@@ -569,7 +569,9 @@ fn locals(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables, edits: &mut
     for i in 0..n {
         let [a, w] = b.data[i];
         match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref => {
+            // An own-loan counter's use (`own::loans::share_counters`)
+            // keeps it as a read does.
+            Tag::Read | Tag::Store | Tag::Ref | Tag::OwnLoans => {
                 if let Some(l) = b.view(a).local() {
                     t.acc.push((topo.sub[i], l, u32_of(i)));
                     // A reference to the local's own storage puts it in a

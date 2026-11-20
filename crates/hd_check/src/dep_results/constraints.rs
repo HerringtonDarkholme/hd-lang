@@ -1181,7 +1181,8 @@ impl Gen<'_, '_> {
             | Tag::Release
             | Tag::MakeUnique
             | Tag::LoanBegin
-            | Tag::LoanClose => {}
+            | Tag::LoanClose
+            | Tag::OwnLoans => {}
         }
         for (v, cat, held) in kept {
             let at = self.node(v);

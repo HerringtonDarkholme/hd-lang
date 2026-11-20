@@ -860,7 +860,6 @@ impl Em<'_, '_, '_> {
         // A value made only of references needs no ownership drop, so
         // the move pass may omit it from `exit_drops`. Its contained
         // run-time loans still end when the value is released here.
-        self.borrow_exit();
         // Exit release descriptors are lowered here on every return, but
         // for a parameter this instance receives lent: the whole-program
         // pass lends it, or its type here is no owned one.

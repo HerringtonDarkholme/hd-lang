@@ -92,7 +92,7 @@ impl Calls {
                                 .steps(b)
                                 .any(|step| matches!(step, Proj::Deref)) => {}
                     // A loan's statements change no buffer.
-                    Tag::Prim | Tag::LoanBegin | Tag::LoanClose => {}
+                    Tag::Prim | Tag::LoanBegin | Tag::LoanClose | Tag::OwnLoans => {}
                     Tag::Coerce if b.same_value_coercion(i) => {}
                     _ => endpoint = NONE,
                 }

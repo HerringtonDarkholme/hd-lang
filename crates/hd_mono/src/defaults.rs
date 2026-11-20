@@ -784,6 +784,7 @@ pub fn local_only(body: &Body, quiet: &dyn Fn(&Body, usize) -> bool) -> bool {
             // A run-time loan's statements change nothing a caller sees.
             | Tag::LoanBegin
             | Tag::LoanClose
+            | Tag::OwnLoans
             | Tag::Release
             | Tag::NewStruct
             | Tag::NewVariant

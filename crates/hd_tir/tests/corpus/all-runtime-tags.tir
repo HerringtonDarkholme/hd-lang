@@ -60,3 +60,4 @@ const 4 0
 %50 = Ref 2147483648 1 : 4 @-
 %51 = LoanBegin 50 0 : 4 @-
 %52 = LoanClose 51 - : 4 @-
+%53 = OwnLoans 2147483648 - : 4 @-

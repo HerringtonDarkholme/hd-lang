@@ -19,7 +19,7 @@ use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{LeafOps as _, Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
+use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
 
@@ -122,18 +122,15 @@ impl Em<'_, '_, '_> {
 
     /// The layout of closure `ci`'s environment, whose captures are
     /// `caps`: a cell's address for a shared capture, the value for any
-    /// other, and after them the address of the cell of its creator's own
-    /// loans through each pointer of [`Em::own_caps`].
+    /// other.
     pub(super) fn env_layout(
         &self,
-        ci: usize,
+        _ci: usize,
         caps: &[(usize, bool)],
     ) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
-        let own = self.own_caps(ci).into_iter().map(|_| (Ty::I32, true));
         let fields: Vec<(Ty, bool)> = caps
             .iter()
             .map(|(l, shared)| (self.b.local_ty[*l], *shared))
-            .chain(own)
             .collect();
         let (m, parts, walk) = env_mem(self.pool(), self.env(), &fields)?;
         Ok((m, parts, walk.filter(|_| true)))
@@ -520,12 +517,6 @@ impl Em<'_, '_, '_> {
                 self.local(l32)?
             }));
         }
-        // The cells of the creator's own loans
-        // (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
-        for l in self.own_caps(i as usize) {
-            let c = self.own_cell_for(l)?;
-            srcs.push(Src::Locals(vec![c]));
-        }
         let tys: Vec<Ty> = caps.iter().map(|(l, _)| self.b.local_ty[*l]).collect();
         // The literal knows whether it captures a shared cell. Its
         // value type alone cannot describe that mutable reference edge.
@@ -618,19 +609,6 @@ impl Em<'_, '_, '_> {
                 self.borrowed.insert(*l);
             }
         }
-        // The cells of the creator's own loans. A suspending closure's
-        // frame holds a count of each (`susp::finish`), which its end or
-        // abandonment releases.
-        let cells: Vec<u32> = (parts[caps.len()..].iter())
-            .map(|p| {
-                let c = self.f.local(Val::I32);
-                self.f.get(env);
-                self.f.op(m.leaves[p.first].load(0));
-                self.f.set(c);
-                c
-            })
-            .collect();
-        self.own_cells_load(ci, &cells, env != 0);
         Ok(())
     }
 
