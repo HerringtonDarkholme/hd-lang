@@ -9,6 +9,7 @@
 
 mod all_wakes;
 mod allocator_init;
+mod ascii_case_work;
 mod block_decorator;
 mod checker;
 mod claim_order;

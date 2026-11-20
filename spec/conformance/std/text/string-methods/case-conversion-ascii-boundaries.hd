@@ -1,0 +1,79 @@
+# test: ASCII case conversion covers every byte and word boundary
+# Rules: std-text.string.lower, std-text.more.upper.
+
+tests:
+    use std.testing.assert_equal
+
+    it("converts every ASCII byte across slice alignments"):
+        all := [
+            "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}",
+            "\u{8}\u{9}\u{a}\u{b}\u{c}\u{d}\u{e}\u{f}",
+            "\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}",
+            "\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}",
+            " !\"#\$%&'",
+            "()*+,-./",
+            "01234567",
+            "89:;<=>?",
+            "@ABCDEFG",
+            "HIJKLMNO",
+            "PQRSTUVW",
+            "XYZ[\\]^_",
+            "`abcdefg",
+            "hijklmno",
+            "pqrstuvw",
+            "xyz{|}~\u{7f}",
+        ].join("")
+        lower := [
+            "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}",
+            "\u{8}\u{9}\u{a}\u{b}\u{c}\u{d}\u{e}\u{f}",
+            "\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}",
+            "\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}",
+            " !\"#\$%&'",
+            "()*+,-./",
+            "01234567",
+            "89:;<=>?",
+            "@abcdefg",
+            "hijklmno",
+            "pqrstuvw",
+            "xyz[\\]^_",
+            "`abcdefg",
+            "hijklmno",
+            "pqrstuvw",
+            "xyz{|}~\u{7f}",
+        ].join("")
+        upper := [
+            "\u{0}\u{1}\u{2}\u{3}\u{4}\u{5}\u{6}\u{7}",
+            "\u{8}\u{9}\u{a}\u{b}\u{c}\u{d}\u{e}\u{f}",
+            "\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}",
+            "\u{18}\u{19}\u{1a}\u{1b}\u{1c}\u{1d}\u{1e}\u{1f}",
+            " !\"#\$%&'",
+            "()*+,-./",
+            "01234567",
+            "89:;<=>?",
+            "@ABCDEFG",
+            "HIJKLMNO",
+            "PQRSTUVW",
+            "XYZ[\\]^_",
+            "`ABCDEFG",
+            "HIJKLMNO",
+            "PQRSTUVW",
+            "XYZ{|}~\u{7f}",
+        ].join("")
+        for padding in 0..17:
+            prefix := "x".repeat(padding)
+            whole := prefix + all + "x"
+            text := whole.slice(padding, padding + 128)
+            assert_equal(text.lower(), lower)
+            assert_equal(text.upper(), upper)
+
+    it("covers empty, unchanged and changed text at word boundaries"):
+        for size in 0..34:
+            upper := "A".repeat(size)
+            lower := "a".repeat(size)
+            assert_equal(upper.lower(), lower)
+            assert_equal(lower.upper(), upper)
+            assert_equal(upper.upper(), upper)
+            assert_equal(lower.lower(), lower)
+            plain := "0!?_\u{0}".repeat(size)
+            assert_equal(plain.lower(), plain)
+            assert_equal(plain.upper(), plain)

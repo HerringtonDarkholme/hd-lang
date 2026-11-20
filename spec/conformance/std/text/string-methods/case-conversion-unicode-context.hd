@@ -1,0 +1,37 @@
+# test: full Unicode case conversion preserves context and expanding mappings
+# Rules: std-text.string.lower, std-text.more.upper.
+
+tests:
+    use std.testing.assert_equal
+
+    it("keeps whole-string context across ASCII prefixes"):
+        assert_equal("ΟΣ".lower(), "ος")
+        assert_equal("ΟΣΑ".lower(), "οσα")
+        assert_equal("AΣ".lower(), "aς")
+        assert_equal("AΣA".lower(), "aσa")
+        assert_equal("AΣ\u{301}".lower(), "aς\u{301}")
+        assert_equal("A'Σ".lower(), "a'ς")
+        for padding in 0..17:
+            prefix := "A".repeat(padding)
+            assert_equal((prefix + "ΟΣ").lower(), "a".repeat(padding) + "ος")
+            suffix := "A".repeat(padding)
+            expected := if padding == 0: "ος" else: "οσ" + "a".repeat(padding)
+            assert_equal(("ΟΣ" + suffix).lower(), expected)
+
+    it("keeps full Unicode and supplementary-plane mappings"):
+        assert_equal("İ".lower(), "i\u{307}")
+        assert_equal("ßﬃ".upper(), "SSFFI")
+        assert_equal("ıſ".upper(), "IS")
+        assert_equal("\u{10400}".lower(), "\u{10428}")
+        assert_equal("\u{10428}".upper(), "\u{10400}")
+
+    it("finds non-ASCII bytes in every word and grouped-load position"):
+        for padding in 0..97:
+            prefix := "A".repeat(padding)
+            suffix := "Z".repeat(96 - padding)
+            text := prefix + "İΣß" + suffix
+            assert_equal(
+                text.lower(),
+                "a".repeat(padding) + "i\u{307}σß" + "z".repeat(96 - padding),
+            )
+            assert_equal(text.upper(), prefix + "İΣSS" + suffix)
