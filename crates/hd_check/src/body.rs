@@ -2082,9 +2082,11 @@ impl Ck<'_, '_> {
             }
         }
         let flags = self.b.body_mut().local_flags[l.idx()];
+        // Parameters arrive initialized: their first write is a mutation,
+        // just as a local's first write after its initializer is.
         if captured {
             self.add_flags(l, local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED);
-        } else if flags & local_flags::ASSIGNED != 0 {
+        } else if flags & (local_flags::ASSIGNED | local_flags::PARAM) != 0 {
             self.add_flags(l, local_flags::MUTATED);
         }
         self.add_flags(l, local_flags::ASSIGNED);

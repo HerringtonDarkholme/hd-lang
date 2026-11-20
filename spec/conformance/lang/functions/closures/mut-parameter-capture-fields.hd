@@ -16,8 +16,18 @@ fn changed(mut value: Outer) -> usize:
     value.point.x = 91
     first() + second()
 
+impl Point:
+    @inline(.Never)
+    fn changed(mut self) -> usize:
+        read := fn() -> usize: self.x
+        self.x = 91
+        read()
+
 tests:
     use std.testing.assert_equal
 
     it("two readers see a nested parameter field write"):
         assert_equal(changed(Outer { point: Point { x: 3 } }), 182)
+
+    it("a reader sees a mutable receiver field write"):
+        assert_equal(Point { x: 3 }.changed(), 91)

@@ -1,0 +1,20 @@
+# @dump: own
+# First writes to initialized parameters require shared capture storage.
+fn changed(mut value: usize) -> usize:
+    first := fn() -> usize: value
+    second := fn() -> usize: value
+    value = 91
+    first() + second()
+
+fn immutable(value: usize) -> fn() -> usize:
+    fn() -> usize: value
+
+fn closure_parameter() -> usize:
+    change := fn(mut value: usize) -> usize:
+        read := fn() -> usize: value
+        value = 91
+        read()
+    change(3)
+
+pub fn main() -> usize:
+    changed(3) + immutable(3)() + closure_parameter()
