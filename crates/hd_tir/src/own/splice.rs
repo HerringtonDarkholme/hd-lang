@@ -228,10 +228,25 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
             }
         }
     }
+    // The `LoanClose`s right after a statement end its holders' loans as
+    // it finishes, so they lend no anchor: a new instruction before them
+    // runs where the statement after them does, or at the block's exit.
+    // One walk per inserted position, however many edits share it.
+    let mut past: hd_base::HashMap<(u32, u32), u32> = hd_base::HashMap::default();
     // Append the new instructions, numbered n.. in the old numbering.
     for ed in &t.edits {
         let members = b.record(b.data[ed.blk as usize][0]);
-        let anchor = match members.get(ed.pos as usize) {
+        let at = *past.entry((ed.blk, ed.pos)).or_insert_with(|| {
+            let mut p = ed.pos as usize;
+            while members
+                .get(p)
+                .is_some_and(|&m| b.tags[m as usize] == Tag::LoanClose)
+            {
+                p += 1;
+            }
+            u32_of(p)
+        });
+        let anchor = match members.get(at as usize) {
             Some(&m) if anchored && ed.syn != NodeIdx::NONE => {
                 let next = b.anchors[m as usize];
                 (t.by_syn.get(&(ed.syn, frame(b, next))).copied()).unwrap_or(next)
@@ -436,5 +451,58 @@ mod tests {
         // No source position: no anchor, as the emitter writes no row for
         // it.
         assert_eq!(added(&[(1, 0)]), [NONE]);
+    }
+
+    #[test]
+    fn a_statement_inserted_before_a_loan_close_takes_no_anchor_of_the_close() {
+        let mut tb = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = tb.open_block();
+        let callee = Callee::Item {
+            def: DefId::from_raw(7),
+            targs: TyList::EMPTY,
+        };
+        let site = tb.call(
+            &callee,
+            &[],
+            Providers::None,
+            Ty::VOID,
+            NodeIdx::from_raw(10),
+        );
+        let begin = tb.emit(Tag::LoanBegin, site.0, 0, Ty::VOID, NodeIdx::from_raw(10));
+        tb.emit(
+            Tag::LoanClose,
+            begin.0,
+            NONE,
+            Ty::VOID,
+            NodeIdx::from_raw(20),
+        );
+        let root = tb.close_block(root, None, Ty::VOID, NodeIdx::from_raw(30));
+        let mut b = tb.finish(root, &[]).unwrap();
+        b.anchors = (0..u32_of(b.len())).collect();
+        let topo = Topology::new(&b);
+        let mut t = Tables::default();
+        // After the begin, where the close stands: before the close, but
+        // with the block exit's anchor, not the close's.
+        let block = b.sub_root[0];
+        t.insert(
+            block,
+            2,
+            Tag::IsUnique,
+            [0, 0],
+            Ty::VOID,
+            NodeIdx::from_raw(20),
+        );
+        apply(&mut b, &topo, &mut t).unwrap();
+        let tags: Vec<Tag> = b
+            .record(b.data[b.sub_root[0] as usize][0])
+            .iter()
+            .map(|&m| b.tags[m as usize])
+            .collect();
+        assert_eq!(
+            tags,
+            [Tag::Call, Tag::LoanBegin, Tag::IsUnique, Tag::LoanClose]
+        );
+        let new = b.tags.iter().position(|&t| t == Tag::IsUnique).unwrap();
+        assert_eq!(b.anchors[new], NONE);
     }
 }

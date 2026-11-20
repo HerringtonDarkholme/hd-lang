@@ -119,6 +119,7 @@
     i32.load $heap offset=4
     local.set $s.0
     drop
+    ;; 18 |     m := &mut Named { name: s }
     local.get $t1
     if
       local.get $t1
@@ -129,7 +130,6 @@
         call $rt:release_ref
       end
     end
-    ;; 18 |     m := &mut Named { name: s }
     local.get $s.0
     local.get $t0
     i32.const 16

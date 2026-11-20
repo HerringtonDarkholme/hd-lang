@@ -286,6 +286,7 @@
     i32.load $heap offset=4
     local.tee $change.1
     call $rt:retain
+    ;; 24 |     let mut ps = [box(P { name: "a" })]
     local.get $t0
     if
       local.get $t0
@@ -299,6 +300,7 @@
         call $rt:release_ref
       end
     end
+    ;; 28 |     *d
     local.get $t2
     if
       local.get $t2
@@ -390,6 +392,7 @@
     i32.load $heap offset=4
     local.tee $t0
     call $rt:retain
+    ;; 31 |     let mut h = Holder { p: box(P { name: "e" }) }
     local.get $h
     if
       local.get $h
@@ -403,6 +406,7 @@
         call $rt:release_ref
       end
     end
+    ;; 35 |     *d
     local.get $t2
     if
       local.get $t2

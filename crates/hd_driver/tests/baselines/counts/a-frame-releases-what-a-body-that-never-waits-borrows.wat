@@ -805,6 +805,7 @@
     i32.load $heap offset=4
     local.set $self.1
     drop
+    ;; 13 |     n.text = "m"
     local.get $n
     if
       local.get $n
@@ -818,7 +819,6 @@
         call $rt:release_ref'1
       end
     end
-    ;; 13 |     n.text = "m"
     local.get $self.1
     local.get $frame
     if

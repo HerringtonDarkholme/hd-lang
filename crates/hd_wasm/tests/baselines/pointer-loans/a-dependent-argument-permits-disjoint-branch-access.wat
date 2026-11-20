@@ -243,11 +243,13 @@
         call $later
         call $observe
         drop
+    ;; 26 |     for round in 0..4:
         local.tee $pick
         if
           local.get $pick
           call $rt:release_ref'1
         end
+    ;; 29 |         _ := observe(if pick: p.items.at(0) else: other.items.at(0), later(alias))
         local.get $t2
         if
           local.get $t2
@@ -619,6 +621,7 @@
         local.get $alias
         call $observe
         drop
+    ;; 26 |     for round in 0..4:
         local.tee $pick
         if
           local.get $pick
@@ -635,6 +638,7 @@
             call $rt:release_ref'2
           end
         end
+    ;; 29 |         _ := observe(if pick: p.items.at(0) else: other.items.at(0), later(alias))
         local.get $t2
         if
           local.get $t2

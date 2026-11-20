@@ -1235,9 +1235,11 @@
       i32.load $heap offset=4
       local.tee $t3
       call $rt:retain
+    ;; 25 |     value := p.first()
       local.get $t2
       i32.const 0
       i32.store $heap offset=44
+    ;; 28 |     *value
       local.get $t2
       i32.load $heap offset=16
       if
@@ -2945,9 +2947,11 @@
       i32.load $heap offset=4
       local.tee $t3
       call $rt:retain
+    ;; 25 |     value := p.first()
       local.get $t2
       i32.const 0
       i32.store $heap offset=44
+    ;; 28 |     *value
       local.get $t2
       i32.load $heap offset=16
       if

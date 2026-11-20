@@ -152,6 +152,7 @@
     i32.load $heap offset=4
     local.tee $change.1
     call $rt:retain
+    ;; 10 |     let mut ps = [box(P { name: "a" })]
     local.get $t1
     if
       local.get $t1
@@ -170,6 +171,7 @@
         end
       end
     end
+    ;; 15 |     *d
     local.get $t3
     if
       local.get $t3

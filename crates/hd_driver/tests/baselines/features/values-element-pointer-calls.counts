@@ -16,10 +16,10 @@ trait Sink:
 
 fn walk(node: &Node, sink: &mut dyn Sink) -> void:
     sink.emit(node.value)
-    for child in &node.children:
 > app/main/walk
->   copy List[*app.main.Node] (second owner)
 >   release List[*app.main.Node] (last use)
+    for child in &node.children:
+>   copy List[*app.main.Node] (second owner)
         walk(*child, sink)
 
 struct Total:

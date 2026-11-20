@@ -176,11 +176,13 @@
         local.get $t4
         call $observe
         drop
+    ;; 26 |     for round in 0..2:
         local.tee $t2
         if
           local.get $t2
           call $rt:release_ref'1
         end
+    ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
         local.get $t3
         if
           local.get $t3
@@ -447,6 +449,7 @@
         local.get $t4
         call $observe
         drop
+    ;; 26 |     for round in 0..2:
         local.tee $t2
         if
           local.get $t2
@@ -463,6 +466,7 @@
             call $rt:release_ref'2
           end
         end
+    ;; 27 |         _ := observe(p.items.at(0), if p.items.items.len() == 1: break else: later(alias))
         local.get $t3
         if
           local.get $t3

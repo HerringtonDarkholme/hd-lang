@@ -9,14 +9,14 @@ use std.text.StringBuilder
 
 fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
-    for p in parts:
 > app/main/build
+>   release *mut std.text.StringBuilder (last use)
+    for p in parts:
 >   copy counted reference (second owner)
 >   release List[string] (last use)
         sb.push(p)
         sb.push(",")
     sb.build()
->   release *mut std.text.StringBuilder (last use)
 
 fn fields(line: string) -> usize:
     let mut n = 0

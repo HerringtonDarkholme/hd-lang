@@ -36,6 +36,7 @@
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
     drop
+    ;; 21 |     let h: &mut dyn Handle = $.use(Vault).open()
     local.get $h.0
     if
       local.get $h.0

@@ -138,6 +138,7 @@
     ;; 13 |     insert(alias, &mut stock["apple"])
     local.get $t2
     call $insert
+    ;; 11 |     stock := box::[Map[string, i32]]({ "apple": 3 })
     local.get $t1
     if
       local.get $t1
@@ -149,6 +150,7 @@
         call $rt:release_ref
       end
     end
+    ;; 13 |     insert(alias, &mut stock["apple"])
     local.get $t3
     if
       local.get $t3

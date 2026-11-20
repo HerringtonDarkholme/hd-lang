@@ -56,6 +56,7 @@
     local.get $env
     ;; 55 |             borrowed.len()
     call $"impl string.len"
+    ;; 53 |         fn() -> usize:
     local.get $ctx
     if
       local.get $ctx

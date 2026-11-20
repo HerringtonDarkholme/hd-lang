@@ -136,6 +136,7 @@
     i32.load $heap offset=4
     local.set $s.1
     drop
+    ;; 25 |     b := box(Point { name: s })
     local.get $s.0
     if
       local.get $s.0
@@ -147,7 +148,6 @@
         call $rt:release_ref'2
       end
     end
-    ;; 25 |     b := box(Point { name: s })
     local.get $s.1
   )
 )

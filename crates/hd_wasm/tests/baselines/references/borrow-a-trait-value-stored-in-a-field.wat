@@ -26,6 +26,7 @@
     local.get $holder
     i32.load $heap
     call_indirect $table0 (param i32) (result i32)
+    ;; 19 |     let borrowed: &dyn Reader = &*holder.value
     local.get $t0
     if
       local.get $t0

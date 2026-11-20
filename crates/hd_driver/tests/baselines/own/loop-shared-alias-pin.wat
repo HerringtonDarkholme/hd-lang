@@ -218,6 +218,7 @@
         br 0
       end
     end
+    ;; 5 |     a := box([+1, 2])
     local.get $t1
     if
       local.get $t1
@@ -240,6 +241,7 @@
         call $rt:release_ref
       end
     end
+    ;; 7 |     for c in &a:
     local.get $t5
     if
       local.get $t5
