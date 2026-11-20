@@ -1616,7 +1616,10 @@ pub(super) fn finish(
         em.f.set(fr);
         // Borrowed arguments take a count or collection copy before the
         // frame keeps them. Transferred arguments arrive with theirs.
-        let transferred = em.cold_transferred_locals(plocals);
+        let transferred = |em: &Em<'_, '_, '_>, l: usize| match em.sub_id {
+            0 => em.cx().cold_parameter_transfers(em.item, em.b.local_ty[l]),
+            _ => em.cx().input_transfers(em.b.local_ty[l]),
+        };
         for &l in plocals {
             let ls = arrived(em, l);
             let t = em.b.local_ty[l];
@@ -1626,7 +1629,7 @@ pub(super) fn finish(
                     "cold entry local index exceeds u32",
                 )
             })?;
-            if em.sub_id != 0 && transferred.contains(&l) {
+            if em.sub_id != 0 && transferred(em, l) {
                 if let Some(walk) = crate::layout::function_input(em.pool(), em.env(), t).borrowed {
                     let reason = em.required_stated_count(
                         Tag::Retain,
@@ -1645,7 +1648,7 @@ pub(super) fn finish(
             }
             if let Some(reason) =
                 em.stated_count(Tag::Retain, CountAt::Cold, CountPart::Local(local))
-                && !transferred.contains(&l)
+                && !transferred(em, l)
                 && !crate::layout::holds_drop(em.pool(), em.env(), t)
             {
                 em.because(reason, |em| em.retain_locals(&ls, t))?;

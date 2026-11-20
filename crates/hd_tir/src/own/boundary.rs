@@ -207,6 +207,17 @@ pub struct SubBoundary {
     pub promoted: Vec<(u32, Ty)>,
     /// The short loans the link decides (`short::mark_indexed`).
     pub short: Vec<super::short::Mark>,
+    /// What each parameter's entry does in this instance.
+    pub entry: Vec<(usize, Entry)>,
+}
+
+/// A parameter's entry in one instance: lent, a stated count of its own,
+/// or the counted portion of a transferred input's lent ABI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Entry {
+    Lent,
+    Retain(super::Reason),
+    Transfer(super::Reason),
 }
 
 /// One instruction/place census and one visit per parameter/capture use.
@@ -359,8 +370,63 @@ pub fn plan(
             }
         }
     }
+    for input in inputs {
+        entries(b, cx, input, any_await, &mut out);
+    }
     out.consumers = consumers;
     out
+}
+
+/// Each parameter's entry in sub-body `input.sub`: lent when its pass is
+/// a loan the instance does not own (its lend mask, the exit set, the lent
+/// rows), its stated `Retain Entry` when it arrives with no count and holds
+/// no hook, and a transferred closure input's lent portion. One visit per
+/// parameter, after the rows are built.
+fn entries(b: &Body, cx: &dyn super::OwnCx, input: &Input, any_await: bool, out: &mut Boundary) {
+    use crate::ir::count::{At, Part};
+    let (sub, root) = (input.sub, b.sub_root[input.sub as usize]);
+    let stated = |l: u32| out.counts.get(root, Tag::Retain, At::Entry, Part::Local(l));
+    let lent: HashSet<usize> = out.subs[sub as usize].borrowed.iter().copied().collect();
+    let unsuspended = input.suspending && input.closure.is_none() && !any_await;
+    let mut entry = Vec::new();
+    for (k, l) in super::cold::locals(b, sub).into_iter().enumerate() {
+        let ty = b.local_ty[l as usize];
+        let held = lent.contains(&(l as usize));
+        if input.by_type {
+            if sub != 0 && cx.input_transfers(ty) {
+                if let Some(reason) = stated(l).filter(|_| !input.suspending) {
+                    entry.push((l as usize, Entry::Transfer(reason)));
+                }
+                continue;
+            }
+            let unowned = !out.counts.owned.contains(&(sub, l as usize));
+            match cx.parameter_mode(ty, sub != 0).with_lends(input.lends, k) {
+                super::ParameterMode::Lent if unowned || held => {
+                    entry.push((l as usize, Entry::Lent));
+                    continue;
+                }
+                super::ParameterMode::Lent => {}
+                // Its count arrives with it.
+                _ => continue,
+            }
+        }
+        let transferred = input.suspending
+            && if sub != 0 {
+                cx.input_transfers(ty)
+            } else {
+                cx.cold_parameter_transfers(b.item, ty)
+            };
+        if unsuspended && held && !transferred {
+            entry.push((l as usize, Entry::Lent));
+        } else if !transferred && cx.holds_drop(ty) == super::Tri::No {
+            let copy = stated(l);
+            // ruled out: own::parameter_copy states each tracked plain
+            // parameter's entry retain when its exit owns it.
+            assert!(copy.is_some() || !cx.tracked(ty));
+            entry.extend(copy.map(|reason| (l as usize, Entry::Retain(reason))));
+        }
+    }
+    out.subs[sub as usize].entry = entry;
 }
 
 /// The tags whose value can be a borrowed coercion: a coercion, a

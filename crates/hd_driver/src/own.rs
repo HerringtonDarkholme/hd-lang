@@ -793,6 +793,10 @@ impl OwnCx for Env<'_> {
         matches!(self.intrinsic(*def).as_deref(), Some("ptr_ref" | "ptr_mut"))
     }
 
+    fn input_transfers(&self, ty: Ty) -> bool {
+        self.function_input(ty).transfer
+    }
+
     fn pointer_ref(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("ptr_ref"))
     }

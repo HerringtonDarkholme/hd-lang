@@ -22,6 +22,7 @@ use hd_tir::ir::{
     Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Storage, Tag, local_flags,
 };
 use hd_tir::own::Reason;
+use hd_tir::own::boundary::Entry;
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
@@ -267,7 +268,6 @@ fn body_func<'a>(
         .collect();
     // Plain functions use `layout::Pass` (§23.25). Cold and fresh
     // suspending entries use the selected cold argument convention.
-    let by_type = own.cold.is_some() || !suspending && (sub != 0 || !input.env.suspends(item));
     for (k, &l) in plocals.iter().enumerate() {
         if let Some(Some(mem)) = own.indirect.as_ref().map(|abi| abi.params[k].clone()) {
             let at = shape::u32_of(params.len());
@@ -459,55 +459,31 @@ fn body_func<'a>(
         em.f.set(em.susp.as_ref().map_or(0, |s| s.pc));
         em.f.op(Instruction::Else);
     }
-    // The TIR boundary pass already decided which parameters, captures and
-    // reads lend here. No parameter/capture-use analysis runs in emission.
-    let unsuspended = suspending
-        && closure.is_none()
-        && !b.tags.iter().any(|&t| {
-            matches!(
-                t,
-                Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
-            )
-        });
-    let transferred = if suspending {
-        em.cold_transferred_locals(&plocals)
-    } else {
-        hd_base::HashSet::default()
-    };
-    let lent_here: hd_base::HashSet<_> = if em.counting {
-        let rows = &em.boundary.subs[usize::from(sub)];
-        rows.borrowed.iter().copied().collect()
-    } else {
-        hd_base::HashSet::default()
-    };
+    // The TIR boundary pass decided each parameter's entry and which
+    // captures and reads lend here (`own::boundary`).
+    let rows = &em.boundary.subs[usize::from(sub)];
+    let lent_here: hd_base::HashSet<_> = rows.borrowed.iter().copied().collect();
+    let entries: HashMap<usize, Entry> = rows.entry.iter().copied().collect();
     if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
             // cell below.
-            if let Some(k) = em.parameter_positions.get(l).copied() {
+            if em.parameter_positions.contains_key(l) {
                 let t = b.local_ty[*l];
-                // A lent parameter the passes leave unowned is outside the
-                // exit set: the body takes no count of it, and an instance
-                // that owns it releases it by the stated exit `Release`.
-                let unowned = by_type && !em.owns_at_exit(*l);
-                if by_type {
-                    let input = crate::layout::function_input(em.pool(), em.env(), t);
-                    if sub != 0 && input.transfer {
-                        // The native owner arrived with this argument. Only
-                        // the reference-count portion of the common ABI was
-                        // lent, so acquire exactly that portion for the body.
-                        if let Some(walk) = input.borrowed.filter(|_| !suspending) {
+                match entries.get(l) {
+                    Some(Entry::Lent) => {
+                        em.borrowed.insert(*l);
+                    }
+                    Some(&Entry::Retain(reason)) => {
+                        em.because(reason, |em| em.count_locals(ls, t, true))?;
+                    }
+                    // The native owner arrived with this argument. Only the
+                    // reference-count portion of the common ABI was lent, so
+                    // acquire exactly that portion for the body.
+                    Some(&Entry::Transfer(reason)) => {
+                        let input = crate::layout::function_input(em.pool(), em.env(), t);
+                        if let Some(walk) = input.borrowed {
                             let vals = em.vals(t)?;
-                            let reason = em.required_stated_count(
-                                Tag::Retain,
-                                CountAt::Entry,
-                                CountPart::Local(u32::try_from(*l).map_err(|_| {
-                                    hd_base::NotImplemented::bug(
-                                        hd_base::Stage::Emit,
-                                        "closure entry local index exceeds u32",
-                                    )
-                                })?),
-                            );
                             em.because(reason, |em| {
                                 for &local in ls {
                                     em.f.get(local);
@@ -515,36 +491,8 @@ fn body_func<'a>(
                                 em.f.helper(Helper::Retain { vals, walk });
                             });
                         }
-                        continue;
                     }
-                    match em.parameter_pass(k, t) {
-                        Pass::Borrowed if unowned || lent_here.contains(l) => {
-                            em.borrowed.insert(*l);
-                            continue;
-                        }
-                        // Its count arrives with it.
-                        Pass::Uncounted | Pass::Owned(_) => continue,
-                        // The body owns every other parameter: the passes
-                        // drop each one.
-                        Pass::Borrowed => {}
-                    }
-                }
-                if unsuspended && lent_here.contains(l) && !transferred.contains(l) {
-                    em.borrowed.insert(*l);
-                    continue;
-                }
-                if !transferred.contains(l) && !crate::layout::holds_drop(em.pool(), em.env(), t) {
-                    let copy = em.stated_count(
-                        Tag::Retain,
-                        CountAt::Entry,
-                        CountPart::Local(u32::try_from(*l).expect("local")),
-                    );
-                    // ruled out: own::parameter_copy states each tracked
-                    // plain parameter's entry retain when its exit owns it.
-                    assert!(copy.is_some() || !em.cx().tracked(t));
-                    if let Some(reason) = copy {
-                        em.because(reason, |em| em.count_locals(ls, t, true))?;
-                    }
+                    None => {}
                 }
             } else if em.borrowed.contains(l) || lent_here.contains(l) {
                 em.borrowed.insert(*l);
@@ -2933,32 +2881,6 @@ impl Em<'_, '_, '_> {
         self.close();
         self.providers.truncate(self.providers.len() - pushed);
         r
-    }
-
-    fn cold_transferred_locals(&self, locals: &[usize]) -> hd_base::HashSet<usize> {
-        if self.sub_id != 0 {
-            return locals
-                .iter()
-                .copied()
-                .filter(|&l| {
-                    crate::layout::function_input(self.pool(), self.env(), self.b.local_ty[l])
-                        .transfer
-                })
-                .collect();
-        }
-        self.env()
-            .params(self.item)
-            .unwrap_or_default()
-            .into_iter()
-            .zip(locals.iter().copied())
-            // A parameter local's type is its declared type at the
-            // instance's arguments.
-            .filter_map(|(_, l)| {
-                self.env()
-                    .cold_transfers(self.item, self.b.local_ty[l])
-                    .then_some(l)
-            })
-            .collect()
     }
 
     /// The direct cold call and its fused fresh start have one ABI.

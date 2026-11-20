@@ -364,6 +364,11 @@ pub trait OwnCx {
     fn reference(&self, ty: Ty) -> Option<(Ty, bool)> {
         self.reference_target(ty).map(|t| (t, self.trait_value(t)))
     }
+    /// Whether a function value's input of `ty` transfers its native owner
+    /// (`FunctionInput::transfer`).
+    fn input_transfers(&self, _ty: Ty) -> bool {
+        false
+    }
     /// Whether `ty` is a mutable reference.
     fn mutable_ref(&self, _ty: Ty) -> bool {
         false
