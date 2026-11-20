@@ -973,6 +973,7 @@ impl[T < Copy] UniqList[T]:
     ## See [std-collections.uniq-list.conversion](../../spec/std/collections.md#r-std-collections.uniq-list.conversion).
     pub fn to_list(&self) -> List[T]:
         let mut out: List[T] = []
+        list_reserve(&mut out, self.len())
         let index: usize = 0
         while index < self.len():
             out.push(*self.buffer.at(index).as_ref())
@@ -1804,6 +1805,7 @@ impl[T] List[T]:
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
     pub fn map[U](&self, transform: fn(&T) -> U) -> List[U]:
         let mut mapped: List[U] = []
+        list_reserve(&mut mapped, self.len())
         for item in self:
             mapped.push(transform(&item))
         mapped
@@ -1833,6 +1835,7 @@ impl[T] List[T]:
     ## See [std-collections.access.take](../../spec/std/collections.md#r-std-collections.access.take).
     pub fn take(self, count: usize) -> List[T]:
         let mut kept: List[T] = []
+        list_reserve(&mut kept, if count < self.len(): count else: self.len())
         let index: usize = 0
         while index < count && index < self.len():
             kept.push(self[index])
@@ -1860,6 +1863,7 @@ impl[T] List[T]:
     ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
     pub fn reversed(self) -> List[T]:
         let mut backwards: List[T] = []
+        list_reserve(&mut backwards, self.len())
         let index = self.len()
         while index > 0:
             index = index - 1
@@ -1874,6 +1878,7 @@ impl[T] List[T]:
         let mut sorted = UniqList::[T].from_list(*self)
         sorted.sort_by(compare)
         let mut out: List[T] = []
+        list_reserve(&mut out, sorted.len())
         let index: usize = 0
         size := sorted.len
         sorted.len = 0
@@ -1924,6 +1929,7 @@ impl[T] List[T]:
         if size == 0:
             panic("chunks: size must be positive")
         let mut pieces: List[ListView[T]] = []
+        list_reserve(&mut pieces, if self.len() == 0: 0 else: (self.len() - 1) / size + 1)
         let start: usize = 0
         while start < self.len():
             remaining := self.len() - start
@@ -1937,6 +1943,7 @@ impl[T] List[T]:
     ## See [std-collections.access.zip](../../spec/std/collections.md#r-std-collections.access.zip).
     pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
         let mut pairs: List[(T, U)] = []
+        list_reserve(&mut pairs, if self.len() < other.len(): self.len() else: other.len())
         let index: usize = 0
         while index < self.len() && index < other.len():
             pairs.push((self[index], other[index]))
@@ -1951,6 +1958,7 @@ impl[T] List[T]:
     ## See [std-collections.helper.sorted-by-key](../../spec/std/collections.md#r-std-collections.helper.sorted-by-key).
     pub fn sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]:
         let mut keyed: List[(K, usize)] = []
+        list_reserve(&mut keyed, self.len())
         let index: usize = 0
         for item in self:
             keyed.push((key(&item), index))
@@ -1959,6 +1967,7 @@ impl[T] List[T]:
             fn(left: &(K, usize), right: &(K, usize)) -> Ordering: left._0.cmp(&right._0)
         )
         let mut sorted: List[T] = []
+        list_reserve(&mut sorted, self.len())
         for (_, at) in order:
             sorted.push(self[at])
         sorted
@@ -2035,6 +2044,7 @@ impl[T] List[T]:
         if size > self.len():
             return runs
         last := self.len() - size
+        runs.reserve(last + 1)
         let start: usize = 0
         while start <= last:
             runs.push(self.view(start, start + size))
@@ -2104,6 +2114,7 @@ impl[T < Ord] List[T]:
         let mut sorted = UniqList::[T].from_list(*self)
         sorted.sort()
         let mut out: List[T] = []
+        list_reserve(&mut out, sorted.len())
         let index: usize = 0
         size := sorted.len
         sorted.len = 0
@@ -2250,6 +2261,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
     pub fn keys(&self) -> List[K]:
         let mut found: List[K] = []
+        list_reserve(&mut found, self.len())
         for (key, _) in self:
             found.push(*key)
         found
@@ -2258,6 +2270,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
     pub fn values(&self) -> List[V]:
         let mut found: List[V] = []
+        list_reserve(&mut found, self.len())
         for (_, value) in self:
             found.push(*value)
         found
@@ -2274,6 +2287,7 @@ impl[K < Eq & Hash, V] Map[K, V]:
     ## See [std-collections.map.entries](../../spec/std/collections.md#r-std-collections.map.entries).
     pub fn entries(&self) -> List[(K, V)]:
         let mut found: List[(K, V)] = []
+        list_reserve(&mut found, self.len())
         for (key, value) in self:
             found.push((*key, *value))
         found
@@ -2352,6 +2366,7 @@ impl[T] ListView[T]:
     ## See [std-collections.view.to-list-value](../../spec/std/collections.md#r-std-collections.view.to-list-value).
     pub fn to_list(&self) -> List[T]:
         let mut copy: List[T] = []
+        list_reserve(&mut copy, self.len())
         let index = self.start
         while index < self.end:
             copy.push(self.items[index])

@@ -57,6 +57,15 @@ fn count_loops(
     wasm: &[u8],
     counted: &dyn Fn(&str) -> bool,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    count_sites(wasm, counted, false)
+}
+
+/// The same binary rewrite counts either loop iterations or function entries.
+fn count_sites(
+    wasm: &[u8],
+    counted: &dyn Fn(&str) -> bool,
+    entries: bool,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     use wasmparser::{Operator, Parser, Payload, TypeRef};
     let at = |n: u64| usize::try_from(n);
     let mut sections: Vec<(u8, Range<usize>)> = Vec::new();
@@ -96,9 +105,13 @@ fn count_loops(
             Payload::CodeSectionEntry(body) => {
                 let mut ops = body.get_operators_reader()?;
                 let mut loops = Vec::new();
-                while !ops.eof() {
-                    if let Operator::Loop { .. } = ops.read()? {
-                        loops.push(at(ops.original_position())?);
+                if entries {
+                    loops.push(at(ops.original_position())?);
+                } else {
+                    while !ops.eof() {
+                        if let Operator::Loop { .. } = ops.read()? {
+                            loops.push(at(ops.original_position())?);
+                        }
                     }
                 }
                 let range = body.range();
@@ -197,16 +210,22 @@ fn count_loops(
 /// the compiler's build nor the machine; the run's random hash seed moves
 /// it by a few units.
 fn map_loop_work(name: &str, main: &str) -> (String, u64) {
-    let wasm = count_loops(&wasm_of(main), &map_runtime).expect("count the map's loops");
+    runtime_work(name, count_loops(&wasm_of(main), &map_runtime)).expect("count the map's loops")
+}
+
+fn runtime_work(
+    name: &str,
+    wasm: Result<Vec<u8>, Box<dyn std::error::Error>>,
+) -> Result<(String, u64), Box<dyn std::error::Error>> {
+    let wasm = wasm?;
     let path = Scratch::unmade(
         env!("CARGO_TARGET_TMPDIR"),
         &format!("map-work-{name}.wasm"),
     );
-    std::fs::write(&path, wasm).expect("write wasm");
+    std::fs::write(&path, wasm)?;
     let core = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../host/core.ts")
-        .canonicalize()
-        .expect("host/core.ts");
+        .canonicalize()?;
     let script = format!(
         r"
 import {{ readFileSync }} from 'node:fs';
@@ -228,17 +247,16 @@ try {{
     // cost: one Node process per measured program.
     let r = hd_testkit::node::command()
         .args(["--input-type=module", "-e", &script])
-        .output()
-        .expect("node");
+        .output()?;
     let _ = std::fs::remove_file(&path);
     assert!(
         r.status.success(),
         "{name}: {}",
         String::from_utf8_lossy(&r.stderr)
     );
-    let text = String::from_utf8(r.stdout).expect("UTF-8");
-    let (loops, out) = text.split_once('\n').expect("a count line");
-    (out.to_owned(), loops.parse().expect("a count"))
+    let text = String::from_utf8(r.stdout)?;
+    let (loops, out) = text.split_once('\n').ok_or("missing count line")?;
+    Ok((out.to_owned(), loops.parse()?))
 }
 
 /// The least and most keys a collision test measures: a linear map does
@@ -452,4 +470,34 @@ pub fn main() -> void $ Console:
         assert_eq!(out, format!("{n}\n{n}\n0\n{}\n", n - 1));
         work
     });
+}
+
+/// Count actual grow entries, with an unreserved control proving the counter
+/// observes growth. The input is already reserved, so only materialization
+/// contributes grow calls. Tenfold input growth must leave that work at zero.
+#[test]
+fn known_length_list_map_materialization_never_grows_at_1k_and_10k()
+-> Result<(), Box<dyn std::error::Error>> {
+    for n in [1_000, 10_000] {
+        for reserved in [false, true] {
+            let mapping = if reserved {
+                "mapped := input.map(fn(value: &usize) -> usize: value + 1)"
+            } else {
+                "let mut mapped: List[usize] = []\n        for value in input:\n            mapped.push(value + 1)"
+            };
+            let main = format!(
+                "pub fn main() -> void $ Console:\n    let mut input = List::[usize].with_capacity({n})\n    for index in 0..{n}: input.push(index)\n    let checksum: usize = 0\n    for _ in 0..100:\n        {mapping}\n        checksum += mapped[{last}]\n    println(checksum)\n",
+                last = n - 1
+            );
+            let wasm = count_sites(&wasm_of(&main), &|name| name == "rt:list_grow", true);
+            let (out, growths) = runtime_work(&format!("materialize-{n}-{reserved}"), wasm)?;
+            assert_eq!(out, format!("{}\n", n * 100));
+            if reserved {
+                assert_eq!(growths, 0, "reserved map at n={n}");
+            } else {
+                assert!(growths > 0, "the control must exercise list_grow");
+            }
+        }
+    }
+    Ok(())
 }
