@@ -205,10 +205,9 @@
       "program": "bench/study/fannkuch_redux.hd",
       "retained": "0",
       "released": "5",
-      "uniques": "6",
-      "total": "11",
-      "noOpsAndSkipped": "3",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "uniques": "3",
+      "total": "8",
+      "noOpsAndSkipped": "3"
     },
     {
       "program": "bench/study/function-value-inputs.hd",
@@ -276,10 +275,9 @@
       "program": "bench/study/sieve.hd",
       "retained": "0",
       "released": "3",
-      "uniques": "785",
-      "total": "788",
-      "noOpsAndSkipped": "1",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "uniques": "1",
+      "total": "4",
+      "noOpsAndSkipped": "1"
     },
     {
       "program": "bench/study/spectral_norm.hd",
