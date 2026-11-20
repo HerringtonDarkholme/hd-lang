@@ -1,0 +1,31 @@
+# Spec 04 Opaque Result Types: types.opaque.identity-position.
+struct Maker[T, $ R, N < const i32]:
+    value: T
+
+impl[T, $ R, N < const i32] Maker[T, $ R, N]:
+    fn result(&self) -> impl Eq:
+        +1
+
+    fn extra[M < const bool, $ S](&self) -> impl Eq:
+        +2
+
+trait Produce:
+    fn produce(&self) -> impl Eq
+
+impl[T, $ R, N < const i32] Produce for Maker[T, $ R, N]:
+    fn produce(&self) -> impl Eq:
+        +3
+
+fn outer[T, N < const i32, $ R](value: T) -> impl Eq:
+    fn inner() -> impl Eq:
+        +4
+    inner()
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+pub fn main() -> void:
+    left := Maker::[i32, $(), 1] { value: +0 }
+    right := Maker::[i32, $ Console, 2] { value: +0 }
+    same(left.extra::[true, $()](), left.extra::[false, $()]()) # diagnostic: type-mismatch
+    same(left.result(), left.result())

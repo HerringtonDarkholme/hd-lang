@@ -1,0 +1,12 @@
+# Spec 04 Opaque Result Types: types.opaque.identity-position.
+fn make[T, $ R, N < const i32](value: T) -> (impl Eq, List[impl Eq]):
+    (+1, [+2])
+
+fn anonymous(value: impl Eq) -> impl Eq:
+    +1
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+pub fn main() -> void:
+    same(make::[i32, $(), 1](+0)._0, make::[string, $(), 1]("x")._0) # diagnostic: type-mismatch
