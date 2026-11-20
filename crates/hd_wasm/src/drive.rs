@@ -67,7 +67,11 @@ pub fn block_on_of(b: &Body, topo: &Topology, calls: &HashMap<u32, Target>, c: u
             match b.tags[xi] {
                 // A block runs where the instruction that owns it runs.
                 Tag::Block => {}
-                Tag::Release | Tag::FlagSet | Tag::FlagClear => {}
+                // A loan's statements run no program code; a fused drive
+                // runs the closes between the call and its `block_on` first
+                // (`Em::call_known_drive`), so the cold call's argument loans
+                // end before the drive, as without fusion.
+                Tag::Release | Tag::FlagSet | Tag::FlagClear | Tag::LoanBegin | Tag::LoanClose => {}
                 Tag::Drop | Tag::LoanEnd => match b.decode_place(b.data[xi][0]).map(|p| p.root) {
                     Some(PlaceRoot::Value(v))
                         if v.as_inst().is_none_or(|v| v.0 != c && Some(v.0) != moved) => {}

@@ -3423,8 +3423,20 @@ impl Em<'_, '_, '_> {
         let values: Vec<u32> = self.vals(inner)?.iter().map(|v| self.f.local(*v)).collect();
         let frame = self.f.local(Val::I32);
         // Cold construction's argument loans end before block_on polls.
-        // Keep that boundary when the first poll is fused here; otherwise
-        // aliases used by tasks inside the drive see a spurious live loan.
+        // Keep that boundary when the first poll is fused here: the closes
+        // between the call and its `block_on` run now (their own place
+        // then finds nothing held); otherwise aliases used by tasks inside
+        // the drive see a spurious live loan.
+        let blk = self.topo.blk[i as usize];
+        if blk != NONE {
+            let members = self.b.record(self.b.data[blk as usize][0]).to_vec();
+            let from = self.topo.pos[i as usize] as usize + 1;
+            for &x in members.iter().skip(from).take_while(|&&x| x != on) {
+                if self.b.tags[x as usize] == Tag::LoanClose {
+                    self.loan_close(x);
+                }
+            }
+        }
         // The check belongs to block_on even when its first drive is
         // emitted at the earlier construction site.
         let (at, origin) = (self.f.at, self.f.origin_at);
