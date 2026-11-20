@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# types.generic.const.types: floating literals are not const argument values.
+# types.generic.const.operator-set: a prefixed string is a call, not const text.
+
+use std.text.r
+
+struct Count[Value < const i32]:
+    value: i32
+
+struct Text[Value < const string]:
+    value: i32
+
+fn single(value: Count[1.5f32]) -> void:
+    pass
+
+fn double(value: Count[1.5f64]) -> void:
+    pass
+
+fn plain(value: Count[1.5]) -> void:
+    pass
+
+fn prefixed(value: Text[r"raw"]) -> void:
+    pass
