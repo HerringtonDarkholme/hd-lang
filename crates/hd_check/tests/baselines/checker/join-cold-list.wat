@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $later_list (param $tasks i32) (result i32) (local $t0 i32)
     ;; 6 |     join(tasks...)
