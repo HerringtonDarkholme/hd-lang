@@ -1,0 +1,22 @@
+# test: wire client identities are public records used by wire requests
+use std.http_wire.{WireIdentity, WireRequest}
+
+tests:
+    use std.testing.assert_equal
+
+    it("a wire request stores an application-constructed identity"):
+        identity := WireIdentity { certificate_chain: "test chain", private_key: "test key" }
+        request := WireRequest {
+            method: .Get,
+            url: "https://example.test/",
+            tls_identity: .Some(identity),
+        }
+        match request.tls_identity:
+            .Some(value) =>
+                assert_equal(
+                    value.certificate_chain,
+                    "test chain",
+                    reason="certificate chain field",
+                )
+                assert_equal(value.private_key, "test key", reason="private key field")
+            .None => assert_equal(false, true, reason="the supplied identity is present")

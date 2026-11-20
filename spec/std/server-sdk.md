@@ -14,6 +14,64 @@ These names are also re-exported from the package's root module.
 3. r[std-server-sdk.request-id-identity] Both fields identify a request lease within its source instance.
 4. r[std-server-sdk.response-wire] Host replies use `std.http_wire.WireResponse`, while application handlers return `std.http.Response`.
 
+## Wire Messages And Conversion
+
+The SDK and its ordinary application sources exchange the public wire
+values below. Conversions use the public `std.http` message types.
+
+```hd
+use std.http.{Response, request_from_wire, response_to_wire}
+use std.http_wire.WireRequest
+
+pub fn main() -> void:
+    wire := WireRequest { method: .Get, url: "https://example.test/" }
+    request := request_from_wire(wire).expect("valid request URL")
+    response := Response::status(.Ok).set_bytes(request.url.path.to_utf8())
+    _ := response_to_wire(&response).expect("valid response with an unread body")
+```
+
+1. r[std-server-sdk.wire-identity] `std.http_wire.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
+2. r[std-server-sdk.wire-request] `std.http_wire.WireRequest` has the public fields in the following table, with the listed defaults.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `method` | `std.http.Method` | required |
+| `url` | `string` | required |
+| `headers` | `List[(string, string)]` | `[]` |
+| `body` | `List[u8]` | `[]` |
+| `redirects` | `usize` | `0` |
+| `dns_servers` | `List[string]?` | `.None` |
+| `tls_roots` | `List[string]` | `[]` |
+| `tls_identity` | `WireIdentity?` | `.None` |
+| `connect_timeout` | `std.time.Duration?` | `.None` |
+| `tls_handshake_timeout` | `std.time.Duration?` | `.None` |
+| `response_header_timeout` | `std.time.Duration?` | `.None` |
+| `body_read_timeout` | `std.time.Duration?` | `.None` |
+
+3. r[std-server-sdk.wire-response] `std.http_wire.WireResponse` has the public fields in the following table, with the listed defaults.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `status` | `u16` | required |
+| `headers` | `List[(string, string)]` | `[]` |
+| `body` | `List[u8]` | `[]` |
+| `url` | `string` | `""` |
+
+The conversion functions are in `std.http`, with these signatures.
+
+| Function | Parameter | Result |
+| --- | --- | --- |
+| `request_from_wire` | `request: std.http_wire.WireRequest` | `Result[Request, HttpError]` |
+| `response_to_wire` | `response: &Response` | `Result[std.http_wire.WireResponse, HttpError]` |
+
+4. r[std-server-sdk.request-from-wire] `request_from_wire` parses the wire URL with `Url::parse` and preserves the method, header pairs, and body bytes.
+5. r[std-server-sdk.response-to-wire] `response_to_wire` validates headers before reading the shared body once, returning any header or body error.
+6. r[std-server-sdk.response-to-wire.values] A successful conversion preserves the status code, header pairs, and body bytes, with the response URL's text or `""` when absent.
+
+> **Why.** SDK packages use the same module visibility rules as applications.
+> Their conversions and the values they exchange are public APIs; a private
+> host-provider constructor is not needed to use them.
+
 ## Errors And Cancellation
 
 1. r[std-server-sdk.error] `ServerError` has variants `Closed`, `Expired`, and `Other(reason: string)`.

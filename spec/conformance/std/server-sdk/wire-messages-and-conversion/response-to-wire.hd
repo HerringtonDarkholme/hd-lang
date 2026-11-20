@@ -1,0 +1,28 @@
+# test: the public wire response conversion validates headers before reading its shared body once
+use std.convert.From
+use std.http.{Body, Headers, Response, response_to_wire}
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a converted body is consumed once across response copies"):
+        response := Response { body: Body::from_bytes([1, 2]) }
+        copy := response
+        assert(response_to_wire(&response).is_ok(), reason="the first conversion reads the body")
+        match response_to_wire(&copy):
+            .Err(.Body(.Used)) => pass
+            _ => assert_equal(false, true, reason="a copy shares body consumption")
+
+    it("invalid headers fail before consuming the body"):
+        response := Response {
+            headers: Headers::from([("x-test", "bad\r\nvalue")]),
+            body: Body::from_bytes([7]),
+        }
+        match response_to_wire(&response):
+            .Err(.InvalidHeader(_)) => pass
+            _ => assert_equal(false, true, reason="invalid header error")
+        assert_equal(
+            response.bytes().expect("valid wire message"),
+            [7u8],
+            reason="header rejection did not read the body",
+        )
