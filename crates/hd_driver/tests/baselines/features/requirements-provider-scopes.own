@@ -309,7 +309,7 @@ fn unrelated_provider(s: string) -> usize:
 >   %51 = Drop [%17] : ()
 >   %52 = Drop [$1] : ()
         read_tag() + f()
->   %19 = ProviderGet #90 : Tag
+>   %19 = ProviderGet #91 : Tag
 >   %20 = Coerce %19 [ProviderAsRef -] : &dyn Tag
 >   %21 = Read borrow [*%20] : Tag
 >   %22 = Drop [%20] : ()

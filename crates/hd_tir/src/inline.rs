@@ -681,23 +681,22 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     let ty = out.ty[c];
     // The bindings stand right before the `Scope` in the call's block, so
     // an argument is consumed in the block that made it; the block also
-    // lists the root, which the `Scope` runs.
+    // lists the blocks the `Scope` runs, its cleanup suite and its root: a
+    // child block stands in the block around its runner (`Topology::blk`).
     let scope = root_at + 1;
-    let mut before = Vec::with_capacity(np + 1);
-    for p in 0..np {
-        before.push(base + u32_of(p));
-    }
+    let cleanup_root = if environment.is_empty() {
+        root_at
+    } else {
+        root_at - 2
+    };
+    let mut before: Vec<u32> = (0..np).map(|p| base + u32_of(p)).collect();
+    before.extend((cleanup_root != root_at).then_some(cleanup_root));
     before.push(root_at);
     // The root's members: the callee's, then the final `Break`.
     let [members, tail] = out.data[root];
     let mut list = out.record(members).to_vec();
     list.push(root_at - 1);
     let rec = out.push_record(&list);
-    let cleanup_root = if environment.is_empty() {
-        root_at
-    } else {
-        root_at - 2
-    };
     let cleanup_start = base + u32_of(np + m - 1);
     let cleanup_members: Vec<u32> = (0..u32_of(environment.len()))
         .map(|i| cleanup_start + i)

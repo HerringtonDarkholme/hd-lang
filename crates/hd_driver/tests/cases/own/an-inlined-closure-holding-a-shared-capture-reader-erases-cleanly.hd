@@ -1,0 +1,33 @@
+# @dump: wat stdout
+# @build: release
+# expected: an optimized build that inlines a closure holding an inlined
+# shared-capture reader keeps the reader's cleanup suite listed in its
+# block, so erasing the dead outer closure splices cleanly (#2199). Each
+# reader sees the later write: 91, 92, 93 and 3.
+# subject
+pub fn main() -> void $ Console:
+    change := fn(mut value: usize) -> usize:
+        read := fn() -> usize: value
+        value = 91
+        read()
+    println(change(3))
+    local := fn() -> usize:
+        let mut value = 3
+        read := fn() -> usize: value
+        value = 92
+        read()
+    println(local())
+    two := fn(mut value: usize) -> usize:
+        first := fn() -> usize: value
+        second := fn() -> usize: value + 1
+        value = 46
+        first() + second()
+    println(two(3))
+    looped := fn(mut value: usize) -> usize:
+        read := fn() -> usize: value
+        let mut total = 0
+        for i in 0..3:
+            value = i
+            total += read()
+        total
+    println(looped(9))
