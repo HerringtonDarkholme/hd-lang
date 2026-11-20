@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# #1442: types.generic.const.operator-set and types.generic.const.identity.
+# Const evaluation produces the same generic argument as the written literal.
+# Boolean comparison accepts both equality operators, including composed
+# boolean operands; shifts use the full signed and unsigned 64-bit widths.
+
+struct Flag[Value < const bool]:
+    value: i32
+
+struct Signed[Value < const i64]:
+    value: i32
+
+struct Unsigned[Value < const u64]:
+    value: i32
+
+fn boolean_comparisons() -> void:
+    let _equal_true: Flag[true] = Flag::[true == true] { value: +0 }
+    let _equal_false: Flag[false] = Flag::[true == false] { value: +0 }
+    let _different_true: Flag[true] = Flag::[false != true] { value: +0 }
+    let _different_false: Flag[false] = Flag::[false != false] { value: +0 }
+    let _logical: Flag[true] = Flag::[(true && false) == false] { value: +0 }
+    let _comparison: Flag[true] = Flag::[(1 < 2) == true] { value: +0 }
+    let _negation: Flag[true] = Flag::[(!false) == true] { value: +0 }
+
+fn wide_shifts() -> void:
+    let _high: Unsigned[9223372036854775808] = Unsigned::[1u64 << 63u8] { value: +0 }
+    let _negative: Signed[-1] = Signed::[-2i64 >> 1u8] { value: +0 }
