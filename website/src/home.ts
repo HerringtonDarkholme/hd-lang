@@ -275,7 +275,7 @@ ${explorer("std", "Standard library", stdItems)}
 <div class="install-card">
 <div class="install-text">
 <h2 id="install-title">Start building with hd</h2>
-<p>hd installs from source with the Rust toolchain, and programs run on Node or wasmtime.</p>
+<p>hd installs from crates.io with the Rust toolchain, and programs run on Wasmtime or Node.</p>
 <div class="install-actions">
 <a class="button button-primary" href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn hd in 10 minutes ${ARROW_ICON}</a>
 <a class="button" href="${REPOSITORY_URL}">View on GitHub</a>
