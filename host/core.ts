@@ -1101,11 +1101,12 @@ function buildCoreImports(options: Dynamic): Dynamic {
   // The platform layer's providers; a module it names extends the core's
   // provider for that module rather than replacing it.
   const platform: Dynamic = layer?.providers({ env, sink, st, grant, flush, left }) ?? null;
-  for (const [module, provider] of Object.entries(platform?.traits ?? {})) {
-    providers[module] = {
-      ...providers[module],
-      ...(provider as Record<string, ProviderFunction>),
-    };
+  for (const module of Object.keys(platform?.traits ?? {})) {
+    const base = providers[module];
+    Object.defineProperty(providers, module, {
+      enumerable: true,
+      get: () => ({ ...base, ...platform.traits[module] }),
+    });
   }
   const imports: DynamicRecord = {
     "hd:rt": rtImports({
@@ -1133,14 +1134,14 @@ function buildCoreImports(options: Dynamic): Dynamic {
     prepare: pendingOperation,
     prepared: (value: Dynamic) => (value instanceof Later ? value : null),
   };
-  for (const [module, provider] of Object.entries(providers)) {
+  for (const module of Object.keys(providers)) {
     // Keep provider state per host; build codecs only for namespaces a
     // module actually imports. Replacement must not materialize defaults.
     Object.defineProperty(imports, module, {
       enumerable: true,
       configurable: true,
       get() {
-        const value = traitImports(module, provider, io);
+        const value = traitImports(module, providers[module], io);
         Object.defineProperty(imports, module, { value, writable: true });
         return value;
       },
