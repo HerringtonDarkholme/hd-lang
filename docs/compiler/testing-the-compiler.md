@@ -53,7 +53,7 @@ B none, with the same diagnostics.
 ### 8.2 Incremental Soundness
 
 The driver's scripted-edit test went with the Wasm GC backend in
-dc358a56e and has no replacement yet; `hd_cli`'s `same_size_edit.rs`
+dc358a56e and has no replacement yet; `hd_command`'s `same_size_edit.rs`
 covers one edit through the CLI.
 
 Planned, not built: the edit-script fuzzer applies random edits to a
@@ -96,7 +96,7 @@ The edit vocabulary:
   is the exact spec sync.
 - **CLI tier against the binary.** The CLI cases
   (`spec/conformance/cli-cases.tsv`) run in
-  `crates/hd_cli/tests/cli_conformance.rs` against the built `hd` binary,
+  `crates/hd_command/tests/cli_conformance.rs` against the built `hd` binary,
   under the same rule; their rows are `cli/NAME`. Each tier prints its
   pass, known, fail and unsupported counts.
 - **Header pass against full parse.** The `hd_syntax` unit test

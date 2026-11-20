@@ -2,6 +2,11 @@
 //! §2.2): the file system (`DiskSources`, the disk `CacheStore`), the clock,
 //! the executor and the engine (`node::NodeEngine`, an `hd_run::Engine`,
 //! or wasmtime in-process with `--engine wasmtime`; `engine.rs`).
+//!
+//! It is a library with one entry, [`main`], because two binaries run it:
+//! this crate's own `hd` (`main.rs`), built without Wasmtime by default,
+//! and the `hd-lang` crate's, which `cargo install hd-lang` builds with the
+//! `dist` feature (`crates/README.md`, "Publishing").
 
 mod affected;
 mod cache_cmd;
@@ -86,7 +91,8 @@ fn usage() -> ExitCode {
 /// which run on this thread, take the chains a worker takes
 /// (`grammar.limit.chain`). A main thread gets 8 MiB from the OS, and a
 /// chain of 10,000 calls needs more. Untouched stack pages cost no memory.
-fn main() -> ExitCode {
+#[must_use]
+pub fn main() -> ExitCode {
     let work = work::start();
     let status = match std::thread::Builder::new()
         .name("main".to_owned())

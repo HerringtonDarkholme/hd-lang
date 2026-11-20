@@ -27,11 +27,27 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
 
 fn main() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
-    let root = Path::new(&manifest).join("../../lib/std");
+    // A published package cannot read outside its own directory, so
+    // `scripts/publish-crates.ts` copies `lib/std` into it as `std/`. That
+    // copy is also what tells a package from a checkout: the script stages
+    // outside the source tree, so a checkout never has one.
+    let staged = Path::new(&manifest).join("std");
+    let published = staged.is_dir();
+    let root = if published {
+        staged
+    } else {
+        Path::new(&manifest).join("../../lib/std")
+    };
     let root = root.canonicalize().unwrap_or(root);
     println!("cargo::rerun-if-changed={}", root.display());
     let mut files = Vec::new();
     walk(&root, &root, &mut files);
+    assert!(
+        !files.is_empty(),
+        "no std sources under {}: a checkout has them in lib/std, and a published \
+         hd_driver carries a copy that scripts/publish-crates.ts stages",
+        root.display()
+    );
     files.sort_stable();
     let out = std::env::var("OUT_DIR").unwrap_or_default();
     // The embedded text carries no plain `#` comments: neither the compiler
@@ -94,37 +110,63 @@ fn main() {
         "/// The std files this build embeds: without `##` doc comments for the\n/// browser build, with them otherwise.\npub static STD_FILES: &[(&str, &str)] = {chosen};"
     );
     let _ = std::fs::write(Path::new(&out).join("std_files.rs"), code);
-    build_id(&manifest);
+    let id = if published {
+        published_build_id()
+    } else {
+        build_id(&manifest)
+    };
+    println!("cargo::rustc-env=HD_BUILD_ID={id:016x}");
 }
+
+/// FNV-1a: stable across toolchains and runs.
+fn fnv(h: &mut u64, bytes: impl IntoIterator<Item = u8>) {
+    for b in bytes {
+        *h ^= u64::from(b);
+        *h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+}
+
+const FNV_START: u64 = 0xcbf2_9ce4_8422_2325;
 
 /// The compiler build id of `crates/hd_cache/DESIGN.md` §5.3's `toolchain_key`: a hash of every
 /// compiler crate's Rust sources and manifests, so an entry written by one
 /// compiler build never decodes under another.
-fn build_id(manifest: &str) {
+fn build_id(manifest: &str) -> u64 {
     let crates = Path::new(manifest).join("..");
     let crates = crates.canonicalize().unwrap_or(crates);
     println!("cargo::rerun-if-changed={}", crates.display());
     let mut files = Vec::new();
     sources(&crates, &mut files);
     files.sort_stable();
-    // FNV-1a over (path, contents): stable across toolchains and runs.
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut h = FNV_START;
     for path in &files {
         let rel = path
             .strip_prefix(&crates)
             .unwrap_or(path)
             .to_string_lossy()
             .into_owned();
-        for b in rel
-            .bytes()
-            .chain([0])
-            .chain(std::fs::read(path).unwrap_or_default())
-        {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0100_0000_01b3);
-        }
+        fnv(
+            &mut h,
+            rel.bytes()
+                .chain([0])
+                .chain(std::fs::read(path).unwrap_or_default()),
+        );
     }
-    println!("cargo::rustc-env=HD_BUILD_ID={h:016x}");
+    h
+}
+
+/// A published package's build id: its version. The sibling directories of a
+/// package in cargo's registry are every other crate on the machine, so the
+/// source hash of [`build_id`] has nothing to read there. The version names
+/// the same thing, because the compiler crates require each other by exact
+/// version (the root manifest's `[workspace.dependencies]`) and a published
+/// version's sources never change. rustc keys its incremental cache the same
+/// way, by the compiler's version string.
+fn published_build_id() -> u64 {
+    let version = std::env::var("CARGO_PKG_VERSION").unwrap_or_default();
+    let mut h = FNV_START;
+    fnv(&mut h, b"published ".iter().copied().chain(version.bytes()));
+    h
 }
 
 fn sources(dir: &Path, out: &mut Vec<PathBuf>) {

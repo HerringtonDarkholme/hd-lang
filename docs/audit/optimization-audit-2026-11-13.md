@@ -13,7 +13,7 @@ or a public surface are marked **owner**.
 | Source | What it gave |
 | --- | --- |
 | CI metrics, `metrics-data` `daily/2026-11-13T04.json`, commit `8d928bfcf`, 4-CPU `ubuntu-latest` | the misses and their notes |
-| Local release build of `a45fdfc17` (`cargo build --release -p hd_cli`), Apple arm64, 14 cores | profiles and timings |
+| Local release build of `a45fdfc17` (`cargo build --release -p hd_command`), Apple arm64, 14 cores | profiles and timings |
 | [samply](https://github.com/mstange/samply) profiles of generated 10k- and 50k-line packages (`bench/metrics/lib/gen.ts`) | phase costs |
 | An agent's run of 2,827 `reject:` conformance fixtures and 720 one-edit typos of valid fixtures, on the installed `hd` of 2026-11-10 | diagnostic counts |
 | An agent's code trace of the pillar 3 misses | host, test runner, JSON and regex causes |
@@ -166,7 +166,7 @@ not measured.
 
 9. **D8. The output format spends tokens on nothing. [V by agent]**
    - The text summary `check result: FAILED. errors: 1; warnings: 0`
-     (`hd_cli/src/check_cmd.rs:653`) is about 11 tokens, roughly 30% of
+     (`hd_command/src/check_cmd.rs:653`) is about 11 tokens, roughly 30% of
      a typical run's output.
    - In JSON, `"fixes":[]` appears on 96% of rows. `kind` and `severity`
      appear on every row, and an edit repeats its file. The `check`
@@ -249,7 +249,7 @@ CI's p50 is 52 ms against a target of 50.
 17. **I2. Files under two seconds old are read and skimmed again. [V,
     review §7]**
     - Evidence: a file whose mtime or ctime is within `SETTLE`
-      (`crates/hd_cli/src/disk.rs:132`) gets no stamp. Its skim is not
+      (`crates/hd_command/src/disk.rs:132`) gets no stamp. Its skim is not
       recorded, and the whole-package fast path (#1510) is off for that
       run.
     - Effect: this is why `io-per-check` reads 79 files. After a `git
@@ -275,7 +275,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
       `#[global_allocator]`.
     - Tried: `a45fdfc17` built twice from one target directory, as is and
       with `mimalloc = { version = "0.1", default-features = false }` as
-      the global allocator in `hd_cli`. Medians, runs interleaved:
+      the global allocator in `hd_command`. Medians, runs interleaved:
 
       | Workload | Instructions, system to mimalloc | Cycles |
       | --- | --- | --- |
@@ -364,7 +364,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
     46 ms for 388 files, while `cat` reads them all in about 20 ms.
     `read_regular` makes a `metadata` call and then `fs::read`, and
     `Arc::from(Vec)` copies the bytes again
-    (`crates/hd_cli/src/disk.rs:111-115`, `:210`). Fix: one `open`, then
+    (`crates/hd_command/src/disk.rs:111-115`, `:210`). Fix: one `open`, then
     `fstat` on the handle and a read into an `Arc<[u8]>` of known size.
     Read in parallel (S4).
 
@@ -438,7 +438,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
       88M instructions against 86M for 1.
     - Effect: `concurrency` CPU grows as N^1.11, and p95 is 2.23x at
       N = 4. The default is one thread per core, capped at 8
-      (`crates/hd_cli/src/main.rs:379`). So N agents start 8N threads, and
+      (`crates/hd_command/src/main.rs:379`). So N agents start 8N threads, and
       each pays the cycle cost above on a machine with fewer free cores.
     - Tried, no gain [M]: every interner shard as a `RwLock`, with lookups
       and hits under the shared lock (at `101151bf0`). Cold check of 50k
@@ -502,7 +502,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
         "planned, not built" in `crates/hd_sched/DESIGN.md` §6.3; every
         task runs at priority 0 today.
       - Publish the cache after printing the output, on an I/O thread.
-        That is also planned (`crates/hd_cli/DESIGN.md`, line 46).
+        That is also planned (`crates/hd_command/DESIGN.md`, line 46).
     - Expected: `parallel-speedup` from 1.92x to the 2.4x target.
 
 36. **S5. `hd test` starts parallel workers that buy nothing on small
@@ -589,7 +589,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
 43. **E1. Every run and test program starts a Node process and compiles
     with no cache. owner [V, M]**
     - Evidence: CI builds without the `wasmtime` feature, and Node is the
-      default engine (`crates/hd_cli/src/engine.rs:229`). Bare
+      default engine (`crates/hd_command/src/engine.rs:229`). Bare
       `node --experimental-wasm-jspi -e 0` takes 28 ms. A hello run takes
       about 69 ms, and `hd check` of it 4 ms.
     - The host's share, in instructions over bare Node with the JSPI flag
@@ -664,7 +664,7 @@ with std already cached. 4,100 samples, 0.64 CPU-s, 9.8G instructions,
         (`node --build-snapshot`) and start from it.
       - Write the host once to a stable cached directory, not a fresh temp
         directory per run (29 files, 464 KB written and removed each run,
-        `crates/hd_cli/src/node.rs:196-219`). On its own this saves little,
+        `crates/hd_command/src/node.rs:196-219`). On its own this saves little,
         as the compile-cache result shows.
 
 44. **E2. Each test worker and each test program compiles the module
@@ -958,7 +958,7 @@ rechecked at the cited lines. Two were measured.
 <a id="n4"></a>
 63. **N4. `hd check --tests` runs the driver twice. [V, M]**
    - Evidence: `check_one` calls `check_role` with `Goal::Analyze`, then
-     again with `Goal::CheckTests` (`crates/hd_cli/src/check_cmd.rs:248-266`),
+     again with `Goal::CheckTests` (`crates/hd_command/src/check_cmd.rs:248-266`),
      and merges with a linear `shown.contains`. The `hd-cli` skill tells
      agents to add `--tests` while they work.
    - Measured: after a body edit on the 10k package, `hd check` takes
@@ -970,7 +970,7 @@ rechecked at the cited lines. Two were measured.
 64. **N5. `hd doc NAME` checks the whole package first, even for std
    names. [V, M]**
    - Evidence: `document` calls `build_goal_with(…, Goal::Analyze, …)`
-     before the lookup (`crates/hd_cli/src/doc_cmd.rs:115`). A `std.` name
+     before the lookup (`crates/hd_command/src/doc_cmd.rs:115`). A `std.` name
      is answered from the embedded std text alone
      (`crates/hd_doc/src/lookup.rs:73-75`).
    - Measured: `hd doc std.collections.List` in the warm 10k package takes
@@ -989,7 +989,7 @@ rechecked at the cited lines. Two were measured.
 
 66. **N7. Every run lists every dependency's sources and reads `hd.toml`
    several times. [V by the reviewer]** `sources_of` walks a dependency's
-   `src`, `tasks` and `tests` (`crates/hd_cli/src/disk.rs:556`, `:864`).
+   `src`, `tasks` and `tests` (`crates/hd_command/src/disk.rs:556`, `:864`).
    `walk_below` canonicalizes every directory (`:282`). The manifest is
    parsed again for dependencies, lints, capabilities and executables.
    Fix: key a fetched dependency's listing by its `hd.sum` hash, skip its
@@ -999,9 +999,9 @@ rechecked at the cited lines. Two were measured.
 
 67. **N8. `hd test` preparation does quadratic set work. [V by the
    reviewer]** Diagnostics are deduplicated by comparing formatted text
-   pairwise (`crates/hd_cli/src/test_cmd.rs:1268`). Each program keeps
+   pairwise (`crates/hd_command/src/test_cmd.rs:1268`). Each program keeps
    sources with `spec.keep.iter().any` (`:1132`). `add_synthetic` sorts the
-   file list once per doc test (`crates/hd_cli/src/disk.rs:57`). Fix: hash
+   file list once per doc test (`crates/hd_command/src/disk.rs:57`). Fix: hash
    sets keyed by code, file, line and message. This is the same pattern
    as the review's F12 and F13, at sites they do not list.
 

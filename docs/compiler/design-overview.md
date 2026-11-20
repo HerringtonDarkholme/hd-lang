@@ -157,7 +157,7 @@ crates, and the back half (`hd_mono`, `hd_opt`, `hd_wasm`) depends on
 
 1. **Leaf crates off the hot path.** `wasmtime` and Cranelift sit only in
    `hd_run_wasmtime`; `rayon` only behind `hd_sched`'s `threads` feature.
-   File-system access is in `hd_cache`'s `disk` feature, `hd_cli`,
+   File-system access is in `hd_cache`'s `disk` feature, `hd_command`,
    `hd_deps`, `hd_run_wasmtime` and `hd_base::path`'s canonicalizing
    helpers. A front-half edit never rebuilds `hd_run_wasmtime`.
 2. **Generated code is checked in.** The diagnostic code enum

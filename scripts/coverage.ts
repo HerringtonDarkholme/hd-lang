@@ -9,7 +9,7 @@
 //     (`conformance`), checked (`conformance-checked`) and checked optimized
 //     (`conformance-checked-optimized`);
 //   - std's runtime modules on the checked runtime (`std-rt-checked`);
-//   - hd_cli's CLI conformance cases (`cli-conformance`), the snapshot tests
+//   - hd_command's CLI conformance cases (`cli-conformance`), the snapshot tests
 //     that alone reach `hd fmt`, `hd doc` and `--tests`. They run the
 //     instrumented `hd` on Node; the wasmtime engine, and with it the REPL,
 //     is left out.
@@ -121,7 +121,7 @@ const RUNS: Run[] = [
   conformance("std-rt-checked", STD_RT, { HD_CONFORMANCE_CHECKED: "1" }),
   {
     name: "cli-conformance",
-    args: ["-p", "hd_cli", "--test", "cli_conformance", "--", "--exact", CLI_SUITE],
+    args: ["-p", "hd_command", "--test", "cli_conformance", "--", "--exact", CLI_SUITE],
     env: {},
     conformance: "filtered",
   },

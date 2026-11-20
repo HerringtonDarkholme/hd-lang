@@ -155,7 +155,7 @@ export function treeBytes(root: string): { readonly bytes: number; readonly file
 /**
  * How long hd waits before it trusts a file's stamp: a file whose mtime or
  * ctime is newer than this when a run lists it is read again on every run
- * (`SETTLE` in crates/hd_cli/src/disk.rs, git's racy-clean rule). The margin
+ * (`SETTLE` in crates/hd_command/src/disk.rs, git's racy-clean rule). The margin
  * covers the coarse clock.
  */
 export const SETTLE_MS = 2_000;

@@ -322,7 +322,7 @@ pub struct Program {
     pub dev_requires: Requires,
     /// The packages its path requirements reach.
     pub deps: Vec<DiskPackage>,
-    /// What its manifest breaks (`crates/hd_cli/DESIGN.md` §7.1 step 1); any error stops
+    /// What its manifest breaks (`crates/hd_command/DESIGN.md` §7.1 step 1); any error stops
     /// the command before compiling.
     pub problems: Vec<Diag>,
     /// A single-file program's FILE as the command line wrote it

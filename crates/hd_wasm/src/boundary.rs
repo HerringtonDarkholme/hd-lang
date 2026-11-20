@@ -2823,7 +2823,7 @@ pub fn package_wire_name(input: &Input<'_>, target: DefId, owner: DefId, name: &
         return name.to_owned();
     }
     let identity = (input.package_trait)(owner);
-    // ruled out: hd_cli's dependency resolution (disk.rs `dependencies`)
+    // ruled out: hd_command's dependency resolution (disk.rs `dependencies`)
     // gives each package of a build its `HostPackage`, and hd_driver's
     // `package_trait_identity` gives std's traits the ABI identity, so a
     // package host's supertrait has an identity.

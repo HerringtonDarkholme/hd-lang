@@ -1,14 +1,17 @@
 [package]
 name = "hd_fmt"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "The green-tree formatter behind `hd fmt` (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_diag = { path = "../hd_diag" }
-hd_syntax = { path = "../hd_syntax" }
+hd_base = { workspace = true }
+hd_diag = { workspace = true }
+hd_syntax = { workspace = true }
 
 [dev-dependencies]
 hd_sched = { path = "../hd_sched", features = ["threads"] }

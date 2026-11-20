@@ -34,7 +34,7 @@ function ledgerHd(): string {
     "build",
     "--release",
     "-p",
-    "hd_cli",
+    "hd_command",
     "--bin",
     "hd",
     "--features",

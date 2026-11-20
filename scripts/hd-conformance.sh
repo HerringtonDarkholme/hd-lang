@@ -35,7 +35,7 @@ if [ "${1-}" = parse ]; then
     exec "$parser" "$@"
 fi
 hd="$target/debug/hd"
-[ -x "$hd" ] || cargo build -q --manifest-path "$root/Cargo.toml" -p hd_cli >&2
+[ -x "$hd" ] || cargo build -q --manifest-path "$root/Cargo.toml" -p hd_command >&2
 case "${1-}" in
     check | test) "$hd" "$@" 2> >(contract >&2) | contract ;;
     *) "$hd" "$@" 2> >(contract >&2) ;;

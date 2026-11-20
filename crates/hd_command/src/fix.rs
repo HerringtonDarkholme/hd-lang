@@ -2,7 +2,7 @@
 //! package, apply eligible fix-its, and check again, in rounds.
 //! Edits are tried in memory, through `DiskSources::set_text`, and only
 //! the files they change are written at the end, each through a temporary
-//! file. `crates/hd_cli/DESIGN.md` §7.6 has the design.
+//! file. `crates/hd_command/DESIGN.md` §7.6 has the design.
 //!
 //! A fix-it is tried when the compiler marks it exact and every edit lies
 //! in a package source file, or when a missing-capability fix inserts

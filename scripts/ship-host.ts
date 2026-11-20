@@ -1,5 +1,5 @@
 // Writes the Node host that `hd` embeds as plain JavaScript, so no
-// `hd run` or `hd test` pays Node's type stripping (#1697). hd_cli's build
+// `hd run` or `hd test` pays Node's type stripping (#1697). hd_command's build
 // script runs it once per change to the host.
 //
 // It walks the module graph from the entry points `hd` starts. Each

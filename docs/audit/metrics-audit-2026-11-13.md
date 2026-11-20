@@ -213,7 +213,7 @@ host ABI.
 - **Miss.** `parallel-speedup`: 1.92x on 4 threads against 1, 50k lines
   (target 2.4x).
 - **Evidence.** No scheduler trace or critical-path report exists
-  (`hd_sched`, `hd_cli`, `hd_driver`). So the serial parts cannot be named
+  (`hd_sched`, `hd_command`, `hd_driver`). So the serial parts cannot be named
   yet. Candidates: module discovery, skims before the task graph starts,
   `PackageResult`, coherence and the cache publish.
 - **State of the art.** rustc `-Z self-profile`, Go's `go tool trace`, and
@@ -224,12 +224,12 @@ host ABI.
 ## Pillar 3: Artifact Quality
 
 **The fact behind most of these.** CI builds `cargo build --release -p
-hd_cli` (`.github/workflows/metrics.yml:42`). That build leaves out the
-`wasmtime` feature (`crates/hd_cli/Cargo.toml:13`), and the default engine
-is Node (`crates/hd_cli/src/engine.rs:229`). So every `hd FILE.wasm` and
+hd_command` (`.github/workflows/metrics.yml:42`). That build leaves out the
+`wasmtime` feature (`crates/hd_command/Cargo.toml:13`), and the default engine
+is Node (`crates/hd_command/src/engine.rs:229`). So every `hd FILE.wasm` and
 every `hd test` in the pillar 3 metrics starts a `node` child process. It
 writes the JS host and `main.wasm` to a fresh temp directory
-(`crates/hd_cli/src/node.rs:196-219`), and V8 compiles the module with no
+(`crates/hd_command/src/node.rs:196-219`), and V8 compiles the module with no
 saved code cache (`host/run.ts:213`, `host/test.ts:57`).
 
 ### C10. A Node process and an uncached compile per run
@@ -240,7 +240,7 @@ saved code cache (`host/run.ts:213`, `host/test.ts:57`).
 - **Evidence (verified).** A Node boot alone is 30 to 40 ms
   (`node --experimental-wasm-jspi -e 0`), so 5 ms cannot be reached
   this way. Each `tests/` program and each doc test is its own module, run
-  one after another (`crates/hd_cli/src/test_cmd.rs:1565`). Within one
+  one after another (`crates/hd_command/src/test_cmd.rs:1565`). Within one
   program, each worker starts its own Node process and compiles again
   (`test_cmd.rs:1601-1636`). Even when built in, the wasmtime engine
   caches below wasmtime's module cache, so it still translates every
@@ -371,7 +371,7 @@ Fix these before reading the related numbers as compiler facts.
 
 | Metric                            | Problem                                                                                                                                                                                                                                                                                       | Fix                                                                                                    |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `io-per-check`, 79 files read     | The package is generated, warmed and edited within 2 s. A file whose mtime or ctime is within `SETTLE` (2 s, `crates/hd_cli/src/disk.rs:132`) gets no stamp (git's racy-clean rule), so its skim is never recorded and every check reads it. The lazy-text and stamp path is in place (`lib.rs:2441`, `skims.rs:471`). | Backdate the generated files with `utimes`, or wait 2 s before the warm-up. Then measure again.        |
+| `io-per-check`, 79 files read     | The package is generated, warmed and edited within 2 s. A file whose mtime or ctime is within `SETTLE` (2 s, `crates/hd_command/src/disk.rs:132`) gets no stamp (git's racy-clean rule), so its skim is never recorded and every check reads it. The lazy-text and stamp path is in place (`lib.rs:2441`, `skims.rs:471`). | Backdate the generated files with `utimes`, or wait 2 s before the warm-up. Then measure again.        |
 | `disk`                            | Counts the `hd` binary as per-worktree disk (see C8).                                                                                                                                                                                                                                         | Owner decision on what the metric counts.                                                              |
 
 ## Owner Decisions

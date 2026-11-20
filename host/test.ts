@@ -54,7 +54,7 @@ function writeOut(text: string): void {
 
 // The exit status of a Node older than the run's `node`, the repository
 // package.json's `engines.node`, which `hd test` reports as it is
-// (`hd_cli::node::run_cases`).
+// (`hd_command::node::run_cases`).
 const OLD_NODE = 78;
 
 // Whether Node `have` (`process.versions.node`, `major.minor.patch`) is

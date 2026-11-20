@@ -1,16 +1,18 @@
 [package]
 name = "hd_layout"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Target-independent type layout: sizes, offsets, niches, enum encodings and the type facts the ownership passes and every backend read"
+repository.workspace = true
+include.workspace = true
+description = "Target-independent type layout: sizes, offsets, niches, enum encodings and the type facts the ownership passes and every backend read (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_types = { path = "../hd_types" }
-hd_mono = { path = "../hd_mono" }
-hd_tir = { path = "../hd_tir" }
+hd_base = { workspace = true }
+hd_types = { workspace = true }
+hd_mono = { workspace = true }
+hd_tir = { workspace = true }
 
 [lints]
 workspace = true

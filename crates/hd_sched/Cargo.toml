@@ -1,10 +1,12 @@
 [package]
 name = "hd_sched"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The task graph and its serial, stepping and pool executors"
+repository.workspace = true
+include.workspace = true
+description = "The task graph and its serial, stepping and pool executors (hd compiler internals, no stable API; install `hd-lang`)"
 
 [features]
 threads = ["dep:rayon"]

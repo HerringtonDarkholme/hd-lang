@@ -78,8 +78,8 @@ Services, driver and runtime:
 
 Tools and front ends:
 
-- `hd_cli`: the `hd` binary: commands, disk sources and cache, the Node
-  engine, the REPL. [DESIGN.md](../../crates/hd_cli/DESIGN.md)
+- `hd_command`: the `hd` binary: commands, disk sources and cache, the Node
+  engine, the REPL. [DESIGN.md](../../crates/hd_command/DESIGN.md)
 - `hd_deps`: version selection, fetching with `git`, tree hashes, `hd.sum`.
 - `hd_fmt`: the green-tree formatter.
 - `hd_doc`: documentation pages for `hd doc`.
@@ -102,7 +102,7 @@ Tools and front ends:
   content fields, never a run ID. A key must cover everything its entry
   depends on, so that a hit is sound.
 - **The driver does no I/O of its own.** Sources, the cache store, the
-  executor and the clock come from the caller, so `hd_cli`, `hd_web` and
+  executor and the clock come from the caller, so `hd_command`, `hd_web` and
   the tests share one driver.
 - **`unsafe_code` is denied** workspace-wide. Two modules allow it:
   `hd_base`'s `AppendVec` and `hd_web`'s exports.

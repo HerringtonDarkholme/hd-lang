@@ -1,17 +1,20 @@
 [package]
 name = "hd_run_wasmtime"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "The in-process wasmtime engine and its host providers (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
 # `OptLevel`, which selects the engine options (`EngineConfig::pipeline`).
-hd_base = { path = "../hd_base" }
+hd_base = { workspace = true }
 # The compiled cache's private `clpack` entries (`code_cache.rs`).
-hd_cache = { path = "../hd_cache", features = ["disk"] }
-hd_host_abi = { path = "../hd_host_abi" }
-hd_run = { path = "../hd_run" }
+hd_cache = { workspace = true, features = ["disk"] }
+hd_host_abi = { workspace = true }
+hd_run = { workspace = true }
 # Session inputs (`f1c55020:future-work/compiler/repl-plan.md` §2.3): the session module name and keys.
 # The path sandbox (`fs/sandbox.rs`): a granted directory is opened once
 # and every file operation resolves under its handle (`cli.cap.scope.path`).

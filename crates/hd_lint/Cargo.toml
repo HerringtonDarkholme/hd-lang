@@ -1,19 +1,22 @@
 [package]
 name = "hd_lint"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Read-only advice over checked source facts, behind `hd lint` (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_check = { path = "../hd_check" }
-hd_diag = { path = "../hd_diag" }
-hd_driver = { path = "../hd_driver", features = ["analysis"] }
-hd_project = { path = "../hd_project" }
-hd_resolve = { path = "../hd_resolve" }
-hd_syntax = { path = "../hd_syntax" }
-hd_types = { path = "../hd_types" }
+hd_base = { workspace = true }
+hd_check = { workspace = true }
+hd_diag = { workspace = true }
+hd_driver = { workspace = true, features = ["analysis"] }
+hd_project = { workspace = true }
+hd_resolve = { workspace = true }
+hd_syntax = { workspace = true }
+hd_types = { workspace = true }
 
 [dev-dependencies]
 hd_sched = { path = "../hd_sched" }

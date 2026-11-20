@@ -34,8 +34,8 @@ pnpm run metrics -- --only long-run-memory --long # the 10-minute soak
 
 - `--hd COMMAND` is the `hd` under test. The default is
   `target/release/hd`, the Rust compiler; build it first with
-  `cargo build --release -p hd_cli`. The daily run measures the shipped
-  binary, `--hd target/dist/hd` from `cargo build --profile dist -p hd_cli`
+  `cargo build --release -p hd_command`. The daily run measures the shipped
+  binary, `--hd target/dist/hd` from `cargo build --profile dist -p hd_command`
   (stripped, ThinLTO). A word of the
   command that names an existing file is made absolute, so relative paths
   work from the repository root. `HD_METRICS_COMMAND` also sets it.
@@ -156,7 +156,7 @@ Notes on the choices:
 | Script             | Measures                                                                                                                                                                                                                                     | Target                                                                                                              | n/a when                                                                                   |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `resources`        | CPU time and peak RSS of `hd check`, `hd test` and `hd build` on the small, 10k and 50k packages, each cold (fresh copy, empty `HD_CACHE`) then warm; one line per run                                                                       | warm check of 10k lines ≤ 0.2 CPU-s and ≤ 50 MB; every other run completes within its timeout                       | no `/usr/bin/time`                                                                         |
-| `long-session`     | RSS of one REPL session over 1,000 inputs, sampled with `ps` every 50 inputs, driven in process by `cargo test -p hd_cli --features wasmtime long_session_plain -- --ignored` (the session API the REPL uses; the `--hd` command is not run) | growth from input 100 to 1,000 under 100 KiB per input on 16 KiB pages, scaled by the page size (owner, 2026-10-13) | no cargo                                                                                   |
+| `long-session`     | RSS of one REPL session over 1,000 inputs, sampled with `ps` every 50 inputs, driven in process by `cargo test -p hd_command --features wasmtime long_session_plain -- --ignored` (the session API the REPL uses; the `--hd` command is not run) | growth from input 100 to 1,000 under 100 KiB per input on 16 KiB pages, scaled by the page size (owner, 2026-10-13) | no cargo                                                                                   |
 | `startup`          | wall time, CPU time and peak RSS of `hd --version` (or `hd version`, else `hd help`) and of `hd check empty.hd` just written and settled, median of 5                                                                                                                 | ≤ 20 ms; ≤ 10 MB                                                                                                    | CPU and RSS lines: no `/usr/bin/time`                                                      |
 | `concurrency`      | N = 1, 4, 16 (and 64 with `--max`) `hd check` processes at once, each in its own copy of the small package, one shared empty `HD_CACHE`                                                                                                      | p95 ≤ 1.5x of N = 1 up to N = cores; total CPU sublinear in N                                                       | CPU line: no `/usr/bin/time`                                                               |
 | `disk`             | files `hd check`, `hd test` and `hd build` add to the small package; the toolchain's size is a second line with no target                                                                                                                  | ≤ 10 MB                                                                                                             | never                                                                                      |
@@ -177,7 +177,7 @@ Notes on the choices:
   1.5x × N / cores. The owner may change both.
 - **`startup`** judges CPU time against the 20 ms wall target too. Its wall
   time includes `/usr/bin/time`'s own start, about 1 ms.
-- **`long-session`** runs the REPL's session in the `hd_cli` test, since bare
+- **`long-session`** runs the REPL's session in the `hd_command` test, since bare
   `hd` needs a terminal. Its inputs each show the value 1000000 + i
   (`cli.repl.value`). It takes cargo, the `wasmtime` feature and minutes
   (since #17's C12 an input's build time stays nearly flat, `f1c55020:future-work/compiler/repl-plan.md` §4),
@@ -280,7 +280,7 @@ Notes on the choices:
 
 | Script                  | Measures                                                                                                                                                                                                                     | Target                 | n/a when                                         |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------ |
-| `conformance`           | the rows of the root `KNOWN_FAILURES.tsv`; with `--suite`, the cargo conformance tiers (`hd_driver --test conformance`, `hd_cli --test cli_conformance --features wasmtime`): passed / unlisted cases                        | 100%; 0 known failures | pass rate: without `--suite`                     |
+| `conformance`           | the rows of the root `KNOWN_FAILURES.tsv`; with `--suite`, the cargo conformance tiers (`hd_driver --test conformance`, `hd_command --test cli_conformance --features wasmtime`): passed / unlisted cases                        | 100%; 0 known failures | pass rate: without `--suite`                     |
 | `incremental-soundness` | a seeded script of 16 edits to the small package: after each, `hd check --tests --format json` in the working copy, with its own cache, against a fresh copy with an empty cache; `hd test --format json` too every 4th edit | 100% match             | no compilation cache: a 4-edit sample still runs |
 
 - **Conformance** reads the tiers' summary lines, so the listed known
@@ -321,7 +321,7 @@ generator's output at its smallest size checks clean (`hd check --tests`),
 each mistake program reports its expected code and no code beyond its
 `# cascade:` list, its `# fixed:` variant checks clean, and each
 `errors-per-run` file reports its marked lines. A fixture file no check
-uses fails too. `cargo test -p hd_cli --test all metrics_fixtures` runs it
+uses fails too. `cargo test -p hd_command --test all metrics_fixtures` runs it
 with the `hd` it builds, so CI fails when a language change breaks a
 fixture; then update the fixture to today's hd.
 

@@ -13,13 +13,13 @@ export const LEARN_PAGE = "website/guide/LEARN_IN_10_MINUTES.md";
 /** The repository root, where `cargo` builds `hd`. */
 const REPO_DIR = resolve(import.meta.dirname, "../..");
 
-/** The `hd` binary that `cargo build -p hd_cli` writes in the dev profile. */
+/** The `hd` binary that `cargo build -p hd_command` writes in the dev profile. */
 const HD_BINARY = join(REPO_DIR, "target", "debug", process.platform === "win32" ? "hd.exe" : "hd");
 
 /**
  * The compiler, called through the conformance command contract
  * (spec/conformance/README.md, Command Contract): $HD_TEST_COMMAND, else the
- * repository's Rust `hd`, built with `cargo build -p hd_cli` when missing.
+ * repository's Rust `hd`, built with `cargo build -p hd_command` when missing.
  */
 export function compilerCommand(): string[] {
   const text = process.env.HD_TEST_COMMAND;
@@ -29,7 +29,7 @@ export function compilerCommand(): string[] {
     );
   }
   if (!existsSync(HD_BINARY)) {
-    execFileSync("cargo", ["build", "-p", "hd_cli"], { cwd: REPO_DIR, stdio: "inherit" });
+    execFileSync("cargo", ["build", "-p", "hd_command"], { cwd: REPO_DIR, stdio: "inherit" });
   }
   return [HD_BINARY];
 }

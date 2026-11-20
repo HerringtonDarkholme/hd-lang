@@ -15,7 +15,7 @@ supervision. The SDK also prepares Cloudflare Worker output through an
 ordinary deployment task. A second task prepares supervised Vercel Node
 functions. Hosted deployment acceptance remains unproven.
 
-From the repository root, build `cargo build -p hd_cli --features wasmtime`.
+From the repository root, build `cargo build -p hd_command --features wasmtime`.
 Then run `hd run` from `examples/server-api`, granting the SDK trait in the
 application's manifest. The sample accepts a JSON object with a `message`
 string; malformed JSON returns 400. `POST /slow` suspends for 150 ms and

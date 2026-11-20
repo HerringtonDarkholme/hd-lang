@@ -577,7 +577,7 @@ pub fn run_node(
             .join("hd.exe");
         assert!(
             hd.is_file(),
-            "build hd_cli before Windows process parity: {}",
+            "build hd_command before Windows process parity: {}",
             hd.display()
         );
         format!(

@@ -1,7 +1,7 @@
 // The run worker: it runs what the compiler worker (worker.ts) built, Run's
 // program or Test's cases, with the browser host. A Stop or the run limit
 // terminates this worker alone, so the compiler keeps its warm store
-// (crates/hd_cli/DESIGN.md §7.9, docs/compiler/engines-and-test-runner.md §18.4).
+// (crates/hd_command/DESIGN.md §7.9, docs/compiler/engines-and-test-runner.md §18.4).
 
 import type { RunResult } from "./runner.ts";
 import { runCompiled, type CompiledRun } from "./rust-runner.ts";

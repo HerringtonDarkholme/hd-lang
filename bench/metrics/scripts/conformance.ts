@@ -5,7 +5,7 @@
 // - known failures: the rows of KNOWN_FAILURES.tsv;
 // - pass rate (only with --suite): runs the two cargo conformance tiers in
 //   the repository root (`hd_driver --test conformance` and
-//   `hd_cli --test cli_conformance --features wasmtime`, as CI runs the CLI
+//   `hd_command --test cli_conformance --features wasmtime`, as CI runs the CLI
 //   cases with the wasmtime engine; the `--hd` command is not used) and
 //   reads their summary lines: passed / (total - known).
 // It takes minutes, so the pass rate runs only with --suite.
@@ -28,7 +28,7 @@ const TIMEOUT_MS = 30 * 60_000;
 /** Each tier's crate, test target and cargo features. */
 const TIERS = [
   ["hd_driver", "conformance", []],
-  ["hd_cli", "cli_conformance", ["--features", "wasmtime"]],
+  ["hd_command", "cli_conformance", ["--features", "wasmtime"]],
 ] as const;
 
 /**

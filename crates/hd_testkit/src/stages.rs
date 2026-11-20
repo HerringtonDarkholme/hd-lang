@@ -1079,7 +1079,7 @@ pub fn functions(p: &Program, at: Build) -> String {
 ///
 /// A checked build's stderr ends with the `cycles freed:` summary only
 /// when the `checked-report` cargo feature is on. CI's workspace test
-/// enables it through `hd_cli`, and `cargo test -p <crate>` does not, so the
+/// enables it through `hd_command`, and `cargo test -p <crate>` does not, so the
 /// line is left out: a baseline never depends on feature unification.
 /// Leaks and double frees still fail the checked run itself.
 #[must_use]

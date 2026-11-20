@@ -2,7 +2,7 @@
 //! and `defer`): module initialization, suspension state machines and the
 //! `defer` exit ladder build, a second build is warm, and the Wasm is
 //! byte-identical across the serial and pool executors. Their output on V8
-//! is checked by `hd_cli`'s `run` tests.
+//! is checked by `hd_command`'s `run` tests.
 
 use std::path::Path;
 

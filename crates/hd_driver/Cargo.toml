@@ -1,10 +1,13 @@
 [package]
 name = "hd_driver"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock"
+repository.workspace = true
+# `scripts/publish-crates.ts` stages `std/` into the package (`build.rs`).
+include = ["/src/**", "/build.rs", "/std/**"]
+description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock (hd compiler internals, no stable API; install `hd-lang`)"
 
 [features]
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
@@ -34,28 +37,28 @@ analysis = []
 wasmtime = ["dep:hd_run_wasmtime"]
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_cache = { path = "../hd_cache" }
-hd_check = { path = "../hd_check" }
-hd_diag = { path = "../hd_diag" }
-hd_host_abi = { path = "../hd_host_abi" }
-hd_intern = { path = "../hd_intern" }
-hd_mono = { path = "../hd_mono" }
-hd_opt = { path = "../hd_opt" }
-hd_project = { path = "../hd_project" }
-hd_resolve = { path = "../hd_resolve" }
-hd_run_wasmtime = { path = "../hd_run_wasmtime", optional = true }
-hd_sched = { path = "../hd_sched" }
-hd_structure = { path = "../hd_structure" }
-hd_syntax = { path = "../hd_syntax" }
-hd_tir = { path = "../hd_tir" }
-hd_types = { path = "../hd_types" }
-hd_layout = { path = "../hd_layout" }
-hd_wasm = { path = "../hd_wasm" }
+hd_base = { workspace = true }
+hd_cache = { workspace = true }
+hd_check = { workspace = true }
+hd_diag = { workspace = true }
+hd_host_abi = { workspace = true }
+hd_intern = { workspace = true }
+hd_mono = { workspace = true }
+hd_opt = { workspace = true }
+hd_project = { workspace = true }
+hd_resolve = { workspace = true }
+hd_run_wasmtime = { workspace = true, optional = true }
+hd_sched = { workspace = true }
+hd_structure = { workspace = true }
+hd_syntax = { workspace = true }
+hd_tir = { workspace = true }
+hd_types = { workspace = true }
+hd_layout = { workspace = true }
+hd_wasm = { workspace = true }
 
 [build-dependencies]
-hd_base = { path = "../hd_base" }
-hd_syntax = { path = "../hd_syntax" }
+hd_base = { workspace = true }
+hd_syntax = { workspace = true }
 
 [lints]
 workspace = true

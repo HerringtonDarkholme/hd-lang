@@ -13,7 +13,7 @@ Versions measured: moon 0.1.20261023 (3778465 2026-10-23), node v24.19.0.
 ## Build
 
 ```sh
-cargo build --release -p hd_cli -j 4            # target/release/hd
+cargo build --release -p hd_command -j 4            # target/release/hd
 node bench/study/moonbit/compare.ts --build    # hd packages into work/, then moon build
 # the MoonBit half alone:
 cd bench/study/moonbit && /Users/hd/.moon/bin/moon build --target wasm --release

@@ -34,7 +34,7 @@ export type RustMode = "run" | "check" | "test";
 /**
  * A project the compiler built for Run or Test: what the run worker
  * (run-worker.ts) needs to run it, so the compiler's worker never runs a
- * program and a Stop leaves its warm store (crates/hd_cli/DESIGN.md §7.9).
+ * program and a Stop leaves its warm store (crates/hd_command/DESIGN.md §7.9).
  */
 export interface CompiledRun {
   readonly mode: "run" | "test";

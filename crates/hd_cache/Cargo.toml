@@ -1,16 +1,18 @@
 [package]
 name = "hd_cache"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The cache store interface, its memory and disk stores, entry framing and the cache key rules"
+repository.workspace = true
+include.workspace = true
+description = "The cache store interface, its memory and disk stores, entry framing and the cache key rules (hd compiler internals, no stable API; install `hd-lang`)"
 
 [features]
 disk = []
 
 [dependencies]
-hd_base = { path = "../hd_base" }
+hd_base = { workspace = true }
 
 [lints]
 workspace = true

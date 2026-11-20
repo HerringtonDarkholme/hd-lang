@@ -1,9 +1,13 @@
 [package]
-name = "hd_cli"
-version = "0.0.0"
+name = "hd_command"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+# `scripts/publish-crates.ts` stages `host/` into the package (`build.rs`).
+include = ["/src/**", "/build.rs", "/host/**"]
+description = "The `hd` command as a library: commands, disk sources and cache, the Node engine and the REPL (hd compiler internals, no stable API; install `hd-lang`)"
 
 [[bin]]
 name = "hd"
@@ -24,23 +28,23 @@ dist = ["wasmtime"]
 plant-quadratic = []
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_cache = { path = "../hd_cache", features = ["disk"] }
-hd_check = { path = "../hd_check" }
-hd_lint = { path = "../hd_lint" }
-hd_deps = { path = "../hd_deps" }
-hd_diag = { path = "../hd_diag" }
-hd_doc = { path = "../hd_doc" }
-hd_driver = { path = "../hd_driver", features = ["threads", "checked-report", "analysis"] }
-hd_fmt = { path = "../hd_fmt" }
+hd_base = { workspace = true }
+hd_cache = { workspace = true, features = ["disk"] }
+hd_check = { workspace = true }
+hd_lint = { workspace = true }
+hd_deps = { workspace = true }
+hd_diag = { workspace = true }
+hd_doc = { workspace = true }
+hd_driver = { workspace = true, features = ["threads", "checked-report", "analysis"] }
+hd_fmt = { workspace = true }
 # `native-rust`: the Rust companion of `hd build --engine wasmtime`.
-hd_host_abi = { path = "../hd_host_abi", features = ["native-rust"] }
-hd_project = { path = "../hd_project" }
-hd_run = { path = "../hd_run" }
-hd_run_wasmtime = { path = "../hd_run_wasmtime", optional = true }
-hd_sched = { path = "../hd_sched", features = ["threads"] }
-hd_resolve = { path = "../hd_resolve" }
-hd_syntax = { path = "../hd_syntax" }
+hd_host_abi = { workspace = true, features = ["native-rust"] }
+hd_project = { workspace = true }
+hd_run = { workspace = true }
+hd_run_wasmtime = { workspace = true, optional = true }
+hd_sched = { workspace = true, features = ["threads"] }
+hd_resolve = { workspace = true }
+hd_syntax = { workspace = true }
 # The REPL (`cli.repl.*`): the prompt's line editor with in-memory history,
 # and SIGINT while an input runs, which stops it (`cli.repl.stop`).
 ctrlc = "=3.5.2"
@@ -53,7 +57,7 @@ rustyline = { version = "=18.0.1", default-features = false, optional = true }
 
 # Unix: an interrupt that `hd` hears (SIGINT or SIGTERM) is passed on to the
 # Node engine's child as SIGUSR2 (`cli.cancel.forward`). Both crates have
-# safe APIs for it; `hd_cli` stays free of `unsafe`.
+# safe APIs for it; `hd_command` stays free of `unsafe`.
 [target.'cfg(unix)'.dependencies]
 nix = { version = "=0.31.3", default-features = false, features = ["signal"] }
 signal-hook = "=0.3.18"

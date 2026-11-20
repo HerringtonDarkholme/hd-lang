@@ -9,7 +9,7 @@ Every command and flag here matches `hd help` and `hd help COMMAND`; run
 those when in doubt. The guide is
 [website/guide/COMMANDS.md](../../../website/guide/COMMANDS.md) and the
 reference is [spec/cli/command-line.md](../../../spec/cli/command-line.md).
-In this repo, build the compiler with `cargo build -p hd_cli` and run
+In this repo, build the compiler with `cargo build -p hd_command` and run
 `target/debug/hd`.
 
 ## The Edit-Check Loop

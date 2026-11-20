@@ -94,6 +94,6 @@ temp/
 .claude/settings.json
 website/playground/assets/hd_wat.wasm
 
-# Server SDK test caches the hd_cli tests create in the worktree.
+# Server SDK test caches the hd_command tests create in the worktree.
 /.cache-muse-*/
 *.profraw

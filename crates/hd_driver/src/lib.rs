@@ -2165,7 +2165,7 @@ pub struct Packages<'a> {
     pub doc_scopes: bool,
     /// For `Goal::Analyze` and `Goal::CheckTests`: the files whose modules
     /// are checked, with every module they use, deeply, and the folders of
-    /// those modules' closures (`hd check FILE`, `crates/hd_cli/DESIGN.md`
+    /// those modules' closures (`hd check FILE`, `crates/hd_command/DESIGN.md`
     /// §7.2). `None` checks the whole package.
     pub check_roots: Option<Vec<String>>,
     /// Cached source/check entries and the linking ABI of earlier REPL

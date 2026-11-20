@@ -1,16 +1,19 @@
 [package]
 name = "hd_doc"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Documentation extraction and rendering, behind `hd doc` (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_intern = { path = "../hd_intern" }
-hd_resolve = { path = "../hd_resolve" }
-hd_syntax = { path = "../hd_syntax" }
-hd_types = { path = "../hd_types" }
+hd_base = { workspace = true }
+hd_intern = { workspace = true }
+hd_resolve = { workspace = true }
+hd_syntax = { workspace = true }
+hd_types = { workspace = true }
 
 [lints]
 workspace = true

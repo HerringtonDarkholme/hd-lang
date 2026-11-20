@@ -2,7 +2,7 @@
 //
 // The REPL needs a terminal (bare `hd` with piped text runs a program), so
 // this metric does not start `hd`. It runs the in-process test
-// `repl::tests::long_session_plain` of `hd_cli` (cargo, with the `wasmtime`
+// `repl::tests::long_session_plain` of `hd_command` (cargo, with the `wasmtime`
 // feature, in the repository root; the `--hd` command is not used). The
 // test drives the session API the REPL uses (`Goal::ReplInput` builds over
 // the kept session, `WasmtimeSession::run_input`): 1,000 inputs, where even
@@ -119,7 +119,7 @@ export const longSession: Metric = {
         "test",
         "-q",
         "-p",
-        "hd_cli",
+        "hd_command",
         "--features",
         "wasmtime",
         "long_session_plain",

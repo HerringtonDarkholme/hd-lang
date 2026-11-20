@@ -53,7 +53,7 @@ jobs:
       # The tour and learn-page checks run snippets through the Rust `hd`
       # (website/src/learn-check.ts), which test:ui and website:build use.
       - name: Build hd
-        run: cargo build -p hd_cli
+        run: cargo build -p hd_command
 
       # The website and playground tests gate the deploy; they are not
       # part of `pnpm run check`.

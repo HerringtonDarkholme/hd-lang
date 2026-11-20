@@ -1,10 +1,12 @@
 [package]
 name = "hd_wasm"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The linear-memory backend: reference-counted values in Wasm linear memory, emitted from TIR and collection output"
+repository.workspace = true
+include.workspace = true
+description = "The linear-memory backend: reference-counted values in Wasm linear memory, emitted from TIR and collection output (hd compiler internals, no stable API; install `hd-lang`)"
 
 [features]
 checked-report = []
@@ -13,13 +15,13 @@ checked-report = []
 ledger = []
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_types = { path = "../hd_types" }
-hd_tir = { path = "../hd_tir" }
-hd_opt = { path = "../hd_opt" }
-hd_mono = { path = "../hd_mono" }
-hd_layout = { path = "../hd_layout" }
-hd_host_abi = { path = "../hd_host_abi" }
+hd_base = { workspace = true }
+hd_types = { workspace = true }
+hd_tir = { workspace = true }
+hd_opt = { workspace = true }
+hd_mono = { workspace = true }
+hd_layout = { workspace = true }
+hd_host_abi = { workspace = true }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

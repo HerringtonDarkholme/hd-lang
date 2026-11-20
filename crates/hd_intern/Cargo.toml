@@ -1,12 +1,15 @@
 [package]
 name = "hd_intern"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Interned strings and stable paths (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
+hd_base = { workspace = true }
 
 [lints]
 workspace = true

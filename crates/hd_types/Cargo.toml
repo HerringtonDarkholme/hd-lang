@@ -1,13 +1,16 @@
 [package]
 name = "hd_types"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Type storage, inference primitives, rows and solver data (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_intern = { path = "../hd_intern" }
+hd_base = { workspace = true }
+hd_intern = { workspace = true }
 
 [lints]
 workspace = true

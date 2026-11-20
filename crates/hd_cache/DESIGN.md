@@ -920,7 +920,7 @@ A warm run reads no source file it does not check, and hashes none
 
 - **Stamps.** A source set lists each file with a change stamp
   (`SourceEntry::stamp`): equal stamps under one set promise equal
-  bytes. The disk set (`hd_cli::disk::stamp`) hashes the file's size,
+  bytes. The disk set (`hd_command::disk::stamp`) hashes the file's size,
   modification and change times (seconds and nanoseconds), inode and
   device, from the `stat` its listing makes anyway. Any write moves the
   change time, which no tool can set back, so an edit that keeps the

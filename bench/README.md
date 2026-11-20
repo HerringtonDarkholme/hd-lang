@@ -4,7 +4,7 @@ These programs exercise the current compiler subset with inputs larger and
 more varied than `examples/`. Run a checked-in case from the repository root:
 
 ```sh
-cargo run --release -p hd_cli -- bench/tokenizer/main.hd
+cargo run --release -p hd_command -- bench/tokenizer/main.hd
 ```
 
 Compare its stdout with the adjacent `expected.out`. The hand-written cases
@@ -20,7 +20,7 @@ nested folders, then run it:
 
 ```sh
 node bench/generated/generate.ts
-(cd bench/generated/out/package && cargo run --release --manifest-path ../../../../Cargo.toml -p hd_cli -- run)
+(cd bench/generated/out/package && cargo run --release --manifest-path ../../../../Cargo.toml -p hd_command -- run)
 ```
 
 Generated sources live under `generated/out/` and are intentionally ignored.
@@ -61,7 +61,7 @@ JavaScript, Go and Python version that print the same output, and
 The runner also times `runtime/progs`, `micro`, `tokenizer`, `math` and an empty program:
 
 ```sh
-cargo build --release -p hd_cli --features wasmtime
+cargo build --release -p hd_command --features wasmtime
 node bench/study/run.ts                      # every case, median of 5
 node bench/study/run.ts --quick              # hd on V8 only, 3 runs, about a minute
 node bench/study/run.ts --only nbody,json    # some cases
@@ -105,7 +105,7 @@ measurements do not launch a reference to obtain its output.
 (crates/hd_wasm/DESIGN.md §23.24) and prints the retains, releases,
 allocations and heap pages it ran. The CLI has no flag for checked mode,
 so PATH is an `hd` built with two local edits: `Program::packages` in
-`crates/hd_cli/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,
+`crates/hd_command/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,
 and `retained()` and `released()` in `lib/std/rt/checked/mod.hd` put
 `allocated()` and `pages()` in the high 32 bits of their results.
 

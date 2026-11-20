@@ -17,7 +17,7 @@
 //
 // check-fixtures.ts checks every fixture, template output and corpus
 // program with the hd under test, so a language change that breaks one
-// fails CI (crates/hd_cli/tests/all/metrics_fixtures.rs).
+// fails CI (crates/hd_command/tests/all/metrics_fixtures.rs).
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";

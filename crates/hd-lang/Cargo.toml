@@ -1,0 +1,27 @@
+[package]
+name = "hd-lang"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+include.workspace = true
+description = "The hd programming language: the `hd` command, with its compiler, test runner, formatter and REPL"
+readme = "../../README.md"
+keywords = ["language", "compiler", "wasm", "effects"]
+categories = ["compilers", "command-line-utilities"]
+
+# `cargo install hd-lang` builds this binary. A separate crate from
+# `hd_command`, which has the code, because `cargo install` takes a crate's
+# default features: here they are the shipped set (`dist`, so Wasmtime in
+# process), while `hd_command`'s stay Wasmtime-free for developer builds.
+[[bin]]
+name = "hd"
+path = "src/main.rs"
+
+[dependencies]
+hd_command = { workspace = true, features = ["dist"] }
+
+[lints]
+workspace = true

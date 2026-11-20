@@ -128,21 +128,28 @@ track every target. The scripts are in [bench/metrics](bench/metrics/README.md).
 
 ## Install
 
-hd is installed from source for now. You need the Rust toolchain
-([rustup](https://rustup.rs); the repository pins its version in
-`rust-toolchain.toml`), git (used to fetch dependencies), and Node.js 26.13.1
-(pinned in `.node-version`, used to embed the Node host during the build).
+```sh
+cargo install hd-lang
+```
+
+This builds the `hd` command from [crates.io](https://crates.io/crates/hd-lang)
+and puts it in `~/.cargo/bin`. You need Rust 1.97 or newer
+([rustup](https://rustup.rs)), and git, which `hd` uses to fetch
+dependencies. The installed `hd` runs programs on Wasmtime in process, so
+it needs no Node; `--engine node` selects Node, and packages with their own
+host traits select it before startup.
+
+To install from a checkout instead, you also need Node.js 26.13.1 (pinned in
+`.node-version`), which embeds the Node host during the build:
 
 ```sh
 git clone https://github.com/HerringtonDarkholme/hd-lang
 cd hd-lang
-cargo install --path crates/hd_cli --profile dist --features dist
+cargo install --path crates/hd-lang --profile dist
 ```
 
-This puts `hd` in `~/.cargo/bin`. The released binary defaults to Wasmtime
-in process; `--engine node` selects Node. Packages with their own host
-traits select Node before startup. The measured macOS arm64 binary is
-25.0 MiB (26,193,872 bytes). Developer builds keep Node as their default.
+The `dist` profile's macOS arm64 binary is 25.0 MiB (26,193,872 bytes).
+Developer builds (`cargo build -p hd_command`) keep Node as their default.
 
 ## Start
 

@@ -78,7 +78,7 @@ pub(crate) fn finish(file: Option<std::ffi::OsString>) {
     }
 }
 
-/// The scale check's self-test (`cargo build --release -p hd_cli
+/// The scale check's self-test (`cargo build --release -p hd_command
 /// --features plant-quadratic`): a quadratic loop over the lines of the
 /// package's sources, hashing every pair, which the check must flag on
 /// any shape. It runs only with `HD_WORK` set.

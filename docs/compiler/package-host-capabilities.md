@@ -109,7 +109,7 @@ pub fn main!() -> void $ HttpServer:
 Build the dev compiler in the isolated checkout, then run from the app directory:
 
 ```sh
-cargo build -p hd_cli
+cargo build -p hd_command
 embedding_hd="$(pwd)/target/debug/hd"
 cd ../embedding-demo/app
 "$embedding_hd" check

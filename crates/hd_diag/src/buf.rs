@@ -15,7 +15,7 @@ pub const INTERNAL_ERROR: &str = "internal-error: ";
 
 /// Exact is mechanically safe to apply, so a CLI `--fix` mode may try it;
 /// checker fixing also keeps it only if the check adds no diagnostic
-/// (`crates/hd_cli/src/fix.rs`). Lint fixing has an additional
+/// (`crates/hd_command/src/fix.rs`). Lint fixing has an additional
 /// behavior-preservation bar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FixSafety {

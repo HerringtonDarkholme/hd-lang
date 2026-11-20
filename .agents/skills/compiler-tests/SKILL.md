@@ -171,11 +171,11 @@ be 0. Use `nice` and `-j 2`, with the dev profile.
   hd_check --test stages` only when stage baselines can change.
 - Diagnostic, fix-it, or diagnostic JSON changes also run both affected
   snapshot targets before push: `cargo test -j 2 -p hd_driver --test stages`
-  and `cargo test -j 2 -p hd_cli --test cli_conformance`. Review every diff;
+  and `cargo test -j 2 -p hd_command --test cli_conformance`. Review every diff;
   keep `RUST_TEST_THREADS=2`, `HD_TEST_JOBS=2`, and a scratch `HD_CACHE`.
 - Bench byte-identity only when codegen could change.
 - No workspace-wide `cargo test`, no `--all-features`, no unfocused
-  conformance, no native release builds, and no `hd_cli`/web/UI runs
+  conformance, no native release builds, and no `hd_command`/web/UI runs
   unless the change touches those paths.
 - A bless is a review. Read every changed line against the case's source and
   its `expected:` note, explain it from the code that caused it, and check the

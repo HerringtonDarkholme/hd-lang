@@ -17,7 +17,7 @@ unit, `opt-level = "s"`, `panic = "abort"`, `strip`), linked with
 `--compress-relocations` by `scripts/build-web-compiler.ts`. It depends on
 `hd_driver` with `default-features = false`, so the driver's `threads`
 feature (which enables `hd_sched/threads` and `Executor::Pool`) and
-rayon stay out of the wasm tree; `hd_cli` turns the feature on. The driver's
+rayon stay out of the wasm tree; `hd_command` turns the feature on. The driver's
 default-enabled `fixtures`, `host-artifacts` and `checked-builds` features
 also stay off: the browser does not request stage fixtures, TIR text views,
 or checked (count-audit, ownership-verifying) builds, and its wire results
@@ -178,7 +178,7 @@ The JS host is split, not forked:
   Pages cannot serve the cross-origin-isolation headers
   `SharedArrayBuffer` needs.
 - `host/node.ts` adds `Fs*`, `Process`, `Net`, `Http`, `Env`, `Sys` and
-  `ConsoleInput`; `hd_cli/src/node.rs` embeds it.
+  `ConsoleInput`; `hd_command/src/node.rs` embeds it.
 - `host/web.ts` adds the playground's `Http`, a synchronous
   `XMLHttpRequest` limited to the page's own origin, and
   `TestRunner.temp_dir`. The program runs in a dedicated worker, which

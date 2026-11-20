@@ -1,15 +1,17 @@
 [package]
 name = "hd_deps"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Dependency fetching: version selection, git, the version cache, tree hashes and hd.sum"
+repository.workspace = true
+include.workspace = true
+description = "Dependency fetching: version selection, git, the version cache, tree hashes and hd.sum (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_diag = { path = "../hd_diag" }
-hd_project = { path = "../hd_project" }
+hd_base = { workspace = true }
+hd_diag = { workspace = true }
+hd_project = { workspace = true }
 sha2 = { version = "0.10", default-features = false }
 
 [lints]

@@ -1,18 +1,20 @@
 [package]
 name = "hd_tir"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "TIR: the typed IR in columns, its builder, verifier, printer and wire form"
+repository.workspace = true
+include.workspace = true
+description = "TIR: the typed IR in columns, its builder, verifier, printer and wire form (hd compiler internals, no stable API; install `hd-lang`)"
 
 [features]
 test-utils = []
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_intern = { path = "../hd_intern" }
-hd_types = { path = "../hd_types" }
+hd_base = { workspace = true }
+hd_intern = { workspace = true }
+hd_types = { workspace = true }
 
 [lints]
 workspace = true

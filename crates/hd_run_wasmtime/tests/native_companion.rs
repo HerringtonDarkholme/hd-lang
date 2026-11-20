@@ -1540,7 +1540,7 @@ fn counted(bytes: usize) {
 }
 
 // SAFETY: every method forwards to `System` with its own arguments, as
-// `hd_cli`'s work allocator does; the count touches only a thread-local
+// `hd_command`'s work allocator does; the count touches only a thread-local
 // cell and never allocates.
 #[allow(unsafe_code)]
 unsafe impl std::alloc::GlobalAlloc for Counting {

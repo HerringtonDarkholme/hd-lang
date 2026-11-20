@@ -526,7 +526,7 @@ The CLI is a host on this API; the test runner and later embedders are
 others. It lives in `hd_run`:
 
 ```rust
-pub trait Engine: Send + Sync {                       // wasmtime natively; Node through hd_cli
+pub trait Engine: Send + Sync {                       // wasmtime natively; Node through hd_command
     type Module: Send + Sync;
     fn load(&self, wasm: &[u8], cache: &dyn CacheStore) -> Result<Self::Module, LoadError>;
     fn instantiate(&self, m: &Self::Module, host: &HostSetup) -> Result<Box<dyn Instance>, StartError>;

@@ -1,9 +1,12 @@
 [package]
 name = "hd_host_abi"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Host import and ABI descriptions (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dev-dependencies]
 # Reads std's declarations for the ABI model (`tests/abi_model.rs`).
@@ -21,4 +24,4 @@ native-rust = []
 
 [dependencies]
 # Contract integer encoding and the generator's fixed-seed hash maps.
-hd_base = { path = "../hd_base" }
+hd_base = { workspace = true }

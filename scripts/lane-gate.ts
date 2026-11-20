@@ -22,7 +22,7 @@
 //                     `--features analysis --test analysis` when an analysis.rs changes; hd_check's
 //                     also run when any compiler crate is selected, since its
 //                     stage baselines dump later stages through hd_testkit;
-//                     hd_cli: `--bins` when touched, plus `--test all` for the test
+//                     hd_command: `--lib` when touched, plus `--test all` for the test
 //                     modules the diff changes; hd_cache: also `--features disk --lib`,
 //                     as CI runs it; every other touched crate: all its targets; a
 //                     selected crate that is only a dependent: clippy's type check
@@ -38,7 +38,7 @@
 //                     diagnostic change).
 //   conformance       the named CASES plus runtime/typing fixtures the diff adds or
 //                     changes (dev, checked, optimized); changed spec/conformance/cli
-//                     case directories run through hd_cli's cli_conformance.
+//                     case directories run through hd_command's cli_conformance.
 //   std_rt            a compiler crate selected (hd_check, hd_tir, hd_mono, hd_opt,
 //                     hd_wasm) or lib/std changed.
 //   spec-sync, cost   any file outside crates/*/src and crates/*/tests (spec-sync);
@@ -248,7 +248,7 @@ const lintRule: Rule = (ctx) => {
 };
 
 const crateRule: Rule = (ctx) => {
-  const rest = [...ctx.selected].filter((name) => !STAGE_CRATES.has(name) && name !== "hd_cli");
+  const rest = [...ctx.selected].filter((name) => !STAGE_CRATES.has(name) && name !== "hd_command");
   if (rest.length === 0) {
     return [];
   }
@@ -386,7 +386,7 @@ const sdkRule: Rule = (ctx) => {
       "build",
       "-q",
       "-p",
-      "hd_cli",
+      "hd_command",
     ]),
     step("sdk_schema", "lib/std server modules or packages/server-sdk changed", [
       "node",
@@ -398,15 +398,15 @@ const sdkRule: Rule = (ctx) => {
 };
 
 const cliRule: Rule = (ctx) => {
-  // hd_cli's test binaries are debug links of the whole compiler. When hd_cli
+  // hd_command's test binaries are debug links of the whole compiler. When hd_command
   // is only a dependent, clippy type-checks it and CI runs its tests; the gate
-  // runs them for a change to hd_cli itself, its test modules, or the metrics
+  // runs them for a change to hd_command itself, its test modules, or the metrics
   // fixtures.
   const steps: Step[] = [];
-  if (ctx.touched.has("hd_cli")) {
-    steps.push(step("cli_bins", "hd_cli touched", cargoTest("-p", "hd_cli", "--bins")));
+  if (ctx.touched.has("hd_command")) {
+    steps.push(step("cli_lib", "hd_command touched", cargoTest("-p", "hd_command", "--lib")));
   }
-  const filters = captures(ctx, /^crates\/hd_cli\/tests\/all\/([^/.]+)(?:\.rs|\/)/).map(
+  const filters = captures(ctx, /^crates\/hd_command\/tests\/all\/([^/.]+)(?:\.rs|\/)/).map(
     (name) => `${name}::`,
   );
   const metrics = has(ctx, /^bench\/metrics\/(fixtures\/|check-fixtures\.ts)/);
@@ -415,7 +415,9 @@ const cliRule: Rule = (ctx) => {
   }
   if (filters.length > 0) {
     const why = metrics ? "metrics fixtures changed" : "changed test modules";
-    steps.push(step("cli_all", why, cargoTest("-p", "hd_cli", "--test", "all", "--", ...filters)));
+    steps.push(
+      step("cli_all", why, cargoTest("-p", "hd_command", "--test", "all", "--", ...filters)),
+    );
   }
   return steps;
 };
@@ -429,7 +431,7 @@ const cliCaseRule: Rule = (ctx) => {
     step(
       "cli_conf",
       `${cases.length} changed cli case(s)`,
-      cargoTest("-p", "hd_cli", "--test", "cli_conformance"),
+      cargoTest("-p", "hd_command", "--test", "cli_conformance"),
       { HD_CONFORMANCE_ONLY: cases.join(",") },
     ),
   ];

@@ -7,7 +7,7 @@ reference-types, extended-const), so no emitter change was needed. The
 spike also timed wasmtime against Node; those numbers and the report are in
 git history (`git show 44890c30:audit/compiler/wasmtime-audit-2026-10-10.md`).
 Runtime numbers now come from V8 only (`bench/runtime/run.ts`).
-Run, after `cargo build --release -p hd_cli`:
+Run, after `cargo build --release -p hd_command`:
 
 ```sh
 WASMTIME=/path/to/wasmtime sh bench/wasmtime/run.sh

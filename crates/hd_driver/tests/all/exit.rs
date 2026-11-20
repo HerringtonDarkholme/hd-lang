@@ -1,7 +1,7 @@
 //! The phase-1 exit program (`examples/exit`) through the driver:
 //! std bodies reach emission, a second run is warm, and the Wasm is
 //! byte-identical across the serial and pool executors. Its output on V8
-//! is checked by `hd_cli`'s `run` tests.
+//! is checked by `hd_command`'s `run` tests.
 
 use std::path::Path;
 

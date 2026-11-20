@@ -1,17 +1,19 @@
 [package]
 name = "hd_structure"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "The compiler-supplied Structure generator: TIR bodies of a target's facts, name, walk, describe, build and handles"
+repository.workspace = true
+include.workspace = true
+description = "The compiler-supplied Structure generator: TIR bodies of a target's facts, name, walk, describe, build and handles (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_intern = { path = "../hd_intern" }
-hd_resolve = { path = "../hd_resolve" }
-hd_tir = { path = "../hd_tir" }
-hd_types = { path = "../hd_types" }
+hd_base = { workspace = true }
+hd_intern = { workspace = true }
+hd_resolve = { workspace = true }
+hd_tir = { workspace = true }
+hd_types = { workspace = true }
 
 [lints]
 workspace = true

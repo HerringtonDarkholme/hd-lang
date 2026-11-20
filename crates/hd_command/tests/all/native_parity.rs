@@ -993,7 +993,7 @@ fn median(mut samples: Vec<f64>) -> f64 {
 }
 
 /// The A/B of #2083, run by hand on a release build:
-/// `cargo test --release -p hd_cli --features wasmtime --test all
+/// `cargo test --release -p hd_command --features wasmtime --test all
 /// native_parity::measure -- --ignored --nocapture`. Each engine runs the
 /// same release `.wasm` with no calls, `READY` ready calls and `PENDING` pending
 /// calls, alternating engines, and reports each form's median cost per

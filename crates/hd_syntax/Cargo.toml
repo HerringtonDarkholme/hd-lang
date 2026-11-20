@@ -1,14 +1,17 @@
 [package]
 name = "hd_syntax"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "The lexer, layout, parser, green tree and skeletons (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_diag = { path = "../hd_diag" }
-hd_intern = { path = "../hd_intern" }
+hd_base = { workspace = true }
+hd_diag = { workspace = true }
+hd_intern = { workspace = true }
 unicode-ident = "1.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

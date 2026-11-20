@@ -6,7 +6,7 @@
 //! exact. Unsupported surface counts as not passing, and crashes always
 //! fail. A full run prints the pass, known, fail and unsupported counts and
 //! the failure buckets. The CLI tier runs in
-//! `hd_cli/tests/cli_conformance.rs` under the same rule.
+//! `hd_command/tests/cli_conformance.rs` under the same rule.
 //!
 //! `HD_CONFORMANCE_ENGINE=wasmtime` compares runtime programs, including
 //! fixture profiles, on both engines and judges by wasmtime.

@@ -179,7 +179,7 @@ many others (`ModulePrep`, `FolderGraph`) first.
   executor reads it. `--max-errors` does not cancel checking: output is
   in content order, and counts in the summary stay exact.
 - **The memory cap** is opt-in (§4.15) and sets the cancellation flag.
-  Implementation differs: `hd_cli` counts compiler heap bytes and exits
+  Implementation differs: `hd_command` counts compiler heap bytes and exits
   the process with a report when the cap is crossed, cancelling no task;
   not judged.
 

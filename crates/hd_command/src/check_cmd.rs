@@ -383,7 +383,7 @@ fn check_role(
         executor: executor(),
     };
     // `hd check FILE` checks only FILE's module, its doc tests and what
-    // they use, deeply (crates/hd_cli/DESIGN.md §7.2), the modules `shown`
+    // they use, deeply (crates/hd_command/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
     packages.doc_scopes = matches!(goal, Goal::Analyze)

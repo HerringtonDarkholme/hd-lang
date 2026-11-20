@@ -762,7 +762,7 @@ fn snapshot_update(site: string) -> bool:
 
 # What an update run rewrites for a failing `snapshot` call
 # (module.testing.snapshot.site), for `hd test --update`
-# (crates/hd_cli/src/snapshot_update.rs): fields separated by U+001F, the
+# (crates/hd_command/src/snapshot_update.rs): fields separated by U+001F, the
 # kind, the file, the call's line, the start line and column and the end
 # line and column, then `text`. The kind is `expect` for the span of the `expect` argument,
 # the one named `expect` or the second positional one; `add` for the end of

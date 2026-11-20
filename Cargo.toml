@@ -1,15 +1,57 @@
 [workspace]
-members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_fmt", "crates/hd_project", "crates/hd_types", "crates/hd_resolve", "crates/hd_tir", "crates/hd_structure", "crates/hd_check", "crates/hd_lint", "crates/hd_mono", "crates/hd_opt", "crates/hd_host_abi", "crates/hd_layout", "crates/hd_wasm", "crates/hd_run", "crates/hd_run_wasmtime", "crates/hd_sched", "crates/hd_cache", "crates/hd_deps", "crates/hd_driver", "crates/hd_doc", "crates/hd_stdpack", "crates/hd_web", "crates/hd_wat", "crates/hd_testkit", "crates/hd_cli"]
+members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_fmt", "crates/hd_project", "crates/hd_types", "crates/hd_resolve", "crates/hd_tir", "crates/hd_structure", "crates/hd_check", "crates/hd_lint", "crates/hd_mono", "crates/hd_opt", "crates/hd_host_abi", "crates/hd_layout", "crates/hd_wasm", "crates/hd_run", "crates/hd_run_wasmtime", "crates/hd_sched", "crates/hd_cache", "crates/hd_deps", "crates/hd_driver", "crates/hd_doc", "crates/hd_stdpack", "crates/hd_web", "crates/hd_wat", "crates/hd_testkit", "crates/hd_command", "crates/hd-lang"]
 # wasmtime and cranelift are most of a cold build, so plain `cargo build`,
 # `cargo test` and `cargo clippy` leave `hd_run_wasmtime` out. `--workspace`
 # or `--features wasmtime` brings it in (see crates/README.md, "Wasmtime Engine").
-default-members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_fmt", "crates/hd_project", "crates/hd_types", "crates/hd_resolve", "crates/hd_tir", "crates/hd_structure", "crates/hd_check", "crates/hd_lint", "crates/hd_mono", "crates/hd_opt", "crates/hd_host_abi", "crates/hd_layout", "crates/hd_wasm", "crates/hd_run", "crates/hd_sched", "crates/hd_cache", "crates/hd_deps", "crates/hd_driver", "crates/hd_doc", "crates/hd_stdpack", "crates/hd_web", "crates/hd_wat", "crates/hd_testkit", "crates/hd_cli"]
+# `hd-lang`, the crate `cargo install hd-lang` builds, turns Wasmtime on, so
+# it is left out too (crates/README.md, "Publishing").
+default-members = ["crates/hd_base", "crates/hd_intern", "crates/hd_diag", "crates/hd_syntax", "crates/hd_fmt", "crates/hd_project", "crates/hd_types", "crates/hd_resolve", "crates/hd_tir", "crates/hd_structure", "crates/hd_check", "crates/hd_lint", "crates/hd_mono", "crates/hd_opt", "crates/hd_host_abi", "crates/hd_layout", "crates/hd_wasm", "crates/hd_run", "crates/hd_sched", "crates/hd_cache", "crates/hd_deps", "crates/hd_driver", "crates/hd_doc", "crates/hd_stdpack", "crates/hd_web", "crates/hd_wat", "crates/hd_testkit", "crates/hd_command"]
 resolver = "2"
 
 [workspace.package]
+# One version for every published crate (crates/README.md, "Publishing").
+version = "0.0.1"
 edition = "2024"
 license = "MIT"
 rust-version = "1.97"
+repository = "https://github.com/HerringtonDarkholme/hd-lang"
+homepage = "https://herringtondarkholme.github.io/hd-lang/"
+# A published crate carries what its build reads and nothing else: no tests,
+# baselines or design notes. Paths are relative to each crate.
+include = ["/src/**", "/build.rs", "/README.md"]
+
+# The crates `hd-lang` is built from, which crates.io needs by version as
+# well as by path. The pins are exact, as Wasmtime's are between its own
+# crates: one version then names one set of compiler sources, which is what
+# a cache entry's compiler build id records (crates/hd_driver/build.rs).
+# Dev-dependencies name a path only, so cargo leaves them out of a
+# published manifest.
+[workspace.dependencies]
+hd_base = { path = "crates/hd_base", version = "=0.0.1" }
+hd_intern = { path = "crates/hd_intern", version = "=0.0.1" }
+hd_diag = { path = "crates/hd_diag", version = "=0.0.1" }
+hd_syntax = { path = "crates/hd_syntax", version = "=0.0.1" }
+hd_fmt = { path = "crates/hd_fmt", version = "=0.0.1" }
+hd_project = { path = "crates/hd_project", version = "=0.0.1" }
+hd_types = { path = "crates/hd_types", version = "=0.0.1" }
+hd_resolve = { path = "crates/hd_resolve", version = "=0.0.1" }
+hd_tir = { path = "crates/hd_tir", version = "=0.0.1" }
+hd_structure = { path = "crates/hd_structure", version = "=0.0.1" }
+hd_check = { path = "crates/hd_check", version = "=0.0.1" }
+hd_lint = { path = "crates/hd_lint", version = "=0.0.1" }
+hd_mono = { path = "crates/hd_mono", version = "=0.0.1" }
+hd_opt = { path = "crates/hd_opt", version = "=0.0.1" }
+hd_host_abi = { path = "crates/hd_host_abi", version = "=0.0.1" }
+hd_layout = { path = "crates/hd_layout", version = "=0.0.1" }
+hd_wasm = { path = "crates/hd_wasm", version = "=0.0.1" }
+hd_run = { path = "crates/hd_run", version = "=0.0.1" }
+hd_run_wasmtime = { path = "crates/hd_run_wasmtime", version = "=0.0.1" }
+hd_sched = { path = "crates/hd_sched", version = "=0.0.1" }
+hd_cache = { path = "crates/hd_cache", version = "=0.0.1" }
+hd_deps = { path = "crates/hd_deps", version = "=0.0.1" }
+hd_driver = { path = "crates/hd_driver", version = "=0.0.1" }
+hd_doc = { path = "crates/hd_doc", version = "=0.0.1" }
+hd_command = { path = "crates/hd_command", version = "=0.0.1" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -40,7 +82,7 @@ opt-level = 1
 lto = "off"
 debug = "line-tables-only"
 
-# The shipped `hd` binary: `cargo build --profile dist -p hd_cli --features dist`, written
+# The shipped `hd` binary: `cargo build --profile dist -p hd_command --features dist`, written
 # to target/dist/hd (the metrics workflow measures it). Stripped, ThinLTO,
 # one codegen unit, as cargo-dist's `dist` profile. `release` stays
 # untuned, because `cargo test --release` builds every test binary with it.

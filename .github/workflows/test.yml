@@ -306,7 +306,7 @@ jobs:
   # assertions and overflow checks are on.
   #
   # cargo test runs test binaries one after another, so the suite is split
-  # into two shards that run side by side: hd_cli, and every other crate. The cli
+  # into two shards that run side by side: hd_command, and every other crate. The cli
   # shard's cargo test builds the release `hd` its tests run. On Linux nothing
   # in the other shard runs it.
   test:
@@ -319,9 +319,9 @@ jobs:
       matrix:
         include:
           - shard: cli
-            args: -p hd_cli
+            args: -p hd_command
           - shard: workspace
-            args: --workspace --exclude hd_cli
+            args: --workspace --exclude hd_command
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -369,7 +369,7 @@ jobs:
 
       - name: Build release compiler and parser dump
         run: |
-          cargo build --release -p hd_cli
+          cargo build --release -p hd_command
           cargo build --release -p hd_syntax --example parse_check
 
       - name: Scale check
@@ -379,12 +379,42 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          cargo build --release -p hd_cli --features plant-quadratic
+          cargo build --release -p hd_command --features plant-quadratic
           status=0
           HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1 || status=$?
           cat planted.log
           test "$status" -eq 1
           grep -q "FAIL scale: fn-items check: .*hashes" planted.log
+
+  # `cargo install hd-lang` builds the published packages, and a package
+  # holds only its own directory (crates/README.md, "Publishing"). The dry
+  # run packages every published crate, builds each package against the
+  # others' packages, and runs the packaged `hd` with no Node on PATH, so a
+  # crate that starts to read outside its directory fails here, not at the
+  # next release.
+  package:
+    name: Crate packages
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      # Stages the Node host as plain JavaScript (scripts/ship-host.ts).
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: ". -> target/publish/target"
+
+      - name: Package and verify the crates
+        run: node scripts/publish-crates.ts
 
   # Whether this commit runs the Windows and macOS jobs. They run on host code here,
   # and on everything twice a day, so a compiler or std change that breaks only on
@@ -424,7 +454,7 @@ jobs:
           fi
           changed="$(git diff --name-only "$base" HEAD)"
           echo "$changed"
-          if echo "$changed" | grep -qE '^(crates/hd_cache/|crates/hd_run_wasmtime/|crates/hd_run/|crates/hd_cli/|host/|\.github/|Cargo\.lock$|Cargo\.toml$|rust-toolchain)'; then
+          if echo "$changed" | grep -qE '^(crates/hd_cache/|crates/hd_run_wasmtime/|crates/hd_run/|crates/hd_command/|host/|\.github/|Cargo\.lock$|Cargo\.toml$|rust-toolchain)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -472,7 +502,7 @@ jobs:
 
       - name: Lint host crates
         if: matrix.shard != 'cli conformance'
-        run: cargo clippy -p hd_run_wasmtime -p hd_cli --features hd_cli/wasmtime --all-targets -- -D warnings
+        run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/wasmtime --all-targets -- -D warnings
 
       # --no-fail-fast: one run reports every failing test binary, not just
       # the first.
@@ -480,12 +510,12 @@ jobs:
       # by these host tests, without HD_ENGINE masking default selection.
       - name: Test the shipped CLI conformance cases
         if: matrix.shard != 'rest'
-        run: cargo test --release --no-fail-fast --features hd_cli/dist -p hd_cli --test cli_conformance
+        run: cargo test --release --no-fail-fast --features hd_command/dist -p hd_command --test cli_conformance
 
       # The wasmtime host's process parity tests run the release CLI.
       - name: Build the CLI
         if: matrix.shard != 'cli conformance'
-        run: cargo build --release -p hd_cli --features hd_cli/wasmtime
+        run: cargo build --release -p hd_command --features hd_command/wasmtime
 
       # File locks and rejected-query handoff are platform dependent too.
       - name: Test the disk cache
@@ -498,7 +528,7 @@ jobs:
 
       - name: Test the CLI
         if: matrix.shard != 'cli conformance'
-        run: cargo test --release --no-fail-fast --features hd_cli/wasmtime -p hd_cli --bins --test all
+        run: cargo test --release --no-fail-fast --features hd_command/wasmtime -p hd_command --lib --test all
 
   # Split from the tests so the longest suite overlaps with the rest. Default and
   # checked runs share a binary, so they share a job; a mode that builds or runs on

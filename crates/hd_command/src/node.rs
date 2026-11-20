@@ -732,7 +732,7 @@ fn grants_json(g: &Grants) -> String {
     out
 }
 
-/// The Node every host process starts: `node` from PATH; in `hd_cli`'s own
+/// The Node every host process starts: `node` from PATH; in `hd_command`'s own
 /// unit tests, the version `.node-version` pins, so an older PATH Node
 /// fails them once at setup (`hd_testkit::node`, #2059).
 pub(crate) fn node_program() -> &'static std::ffi::OsStr {

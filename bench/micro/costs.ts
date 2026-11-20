@@ -92,12 +92,12 @@ const cases = requested.length > 0 ? requested : [...ALL_CASES];
 
 function hdBinary(): string {
   if (!existsSync(HD)) {
-    const build = spawnSync("cargo", ["build", "--release", "-p", "hd_cli"], {
+    const build = spawnSync("cargo", ["build", "--release", "-p", "hd_command"], {
       cwd: ROOT,
       encoding: "utf8",
     });
     if (build.status !== 0 || !existsSync(HD)) {
-      throw new Error(`cargo build --release -p hd_cli failed:\n${build.stderr}${build.stdout}`);
+      throw new Error(`cargo build --release -p hd_command failed:\n${build.stderr}${build.stdout}`);
     }
   }
   return HD;

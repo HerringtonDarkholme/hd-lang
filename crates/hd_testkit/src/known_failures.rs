@@ -1,7 +1,7 @@
 //! The root `KNOWN_FAILURES.tsv`: the conformance cases the Rust compiler
 //! may fail. Every indexed case of the driver tier
 //! (`hd_driver/tests/conformance.rs`) and the CLI tier
-//! (`hd_cli/tests/cli_conformance.rs`) must pass unless a row lists it,
+//! (`hd_command/tests/cli_conformance.rs`) must pass unless a row lists it,
 //! and a listed case that passes is an error too, so the list stays exact.
 //!
 //! The file is tab-separated with the columns `path`, `issue`, `engine`,

@@ -18,7 +18,7 @@ in each crate's `Cargo.toml`.
 | `hd_intern` | Interned strings and stable paths | [Interners](../docs/compiler/data-structures.md#33-interners) |
 | `hd_diag` | Diagnostic codes and records | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
 | `hd_syntax` | Lexer, layout, parser, green tree, and skeletons | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
-| `hd_fmt` | Green-tree formatter | [`hd fmt` and fixing](hd_cli/DESIGN.md) |
+| `hd_fmt` | Green-tree formatter | [`hd fmt` and fixing](hd_command/DESIGN.md) |
 | `hd_project` | Manifests, source discovery, modules, folders, package graph | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
 | `hd_types` | Type storage, inference primitives, rows, solver data | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md) |
 | `hd_host_abi` | Host import and ABI descriptions | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |
@@ -37,17 +37,18 @@ in each crate's `Cargo.toml`.
 | `hd_sched` | Serial, stepping, and threaded task executors; leaf crate | [Scheduler](hd_sched/DESIGN.md) |
 | `hd_driver` | The task graph of a run; assembles compiler outputs | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
 | `hd_lint` | Read-only advice over checked source facts; normal compiler clients do not depend on it | [`hd lint`](../spec/cli/command-line.md) |
-| `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_cli/DESIGN.md#77-hd-doc) |
+| `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_command/DESIGN.md#77-hd-doc) |
 | `hd_stdpack` | Build-time standard-library packer | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
 | `hd_web` | Playground compile session over an in-memory store | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_wat` | The playground's lazily loaded WAT printer; independent of the compiler | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader | [Testing the compiler](../docs/compiler/testing-the-compiler.md) |
-| `hd_cli` | The `hd` binary: commands, disk sources and cache, Node engine, REPL | [Command flows](hd_cli/DESIGN.md) |
+| `hd_command` | The `hd` command as a library and the developer `hd` binary: commands, disk sources and cache, Node engine, REPL | [Command flows](hd_command/DESIGN.md) |
+| `hd-lang` | The crate users install: the `hd` binary over `hd_command` with the shipped features | [Publishing](#publishing) |
 
 ## Build And Run
 
 ```sh
-cargo build -p hd_cli
+cargo build -p hd_command
 ./target/debug/hd examples/hello/hello.hd
 (cd examples/fib && ../../target/debug/hd run)
 (cd examples/fib && ../../target/debug/hd build)
@@ -62,7 +63,7 @@ whose shift counts are masked; `hd test --release` stays checked.
 ## Wasmtime Engine
 
 The shipped binary defaults to Wasmtime in process. Build it with
-`cargo build --profile dist -p hd_cli --features dist`; it is written to
+`cargo build --profile dist -p hd_command --features dist`; it is written to
 `target/dist/hd`. The `dist` feature enables the Wasmtime dependency and
 selects it as the optimized binary's default. Explicit `--engine node`
 still works. The measured macOS arm64 binary is 26,193,872 bytes
@@ -73,7 +74,7 @@ explicit `--engine` names an engine.
 Developer and test builds default to Node, including optimized builds
 with only the `wasmtime` feature and debug builds with all features.
 The optional in-process Wasmtime engine (`--engine wasmtime`,
-`HD_ENGINE=wasmtime`) is the `wasmtime` cargo feature of `hd_cli`, off by default, because wasmtime and cranelift are most of a
+`HD_ENGINE=wasmtime`) is the `wasmtime` cargo feature of `hd_command`, off by default, because wasmtime and cranelift are most of a
 cold build (a dev `hd` build is about 8 s without them and 27 s with them).
 `hd_run_wasmtime` is also outside the workspace's `default-members`, so plain
 `cargo build`, `cargo test` and `cargo clippy` never compile it.
@@ -95,7 +96,7 @@ tuned for wasmtime, which `hd --engine wasmtime FILE.wasm` runs. Every
 target's module runs on every engine; a mismatch costs only speed. The
 REPL builds for wasmtime and `hd_web` for the browser.
 
-The REPL (`hd` with no arguments on a terminal, `hd_cli/src/repl.rs`) runs on
+The REPL (`hd` with no arguments on a terminal, `hd_command/src/repl.rs`) runs on
 wasmtime only, so its line editor (`rustyline`) and Ctrl-C handler (`ctrlc`)
 come with the feature too. An `hd` without it says the REPL needs wasmtime
 and exits with status 101; piped standard input still runs as a program.
@@ -116,6 +117,53 @@ cargo test --features wasmtime             # default members plus wasmtime
 cargo test -p hd_run_wasmtime              # the wasmtime crate alone
 HD_CONFORMANCE_ENGINE=wasmtime cargo test --features wasmtime -p hd_driver --test conformance
 ```
+
+## Publishing
+
+`cargo install hd-lang` builds the `hd-lang` crate from crates.io. It is a
+`main` over `hd_command::main` and exists for its feature set:
+`cargo install` takes a crate's default features, and `hd-lang` turns on
+`hd_command`'s `dist`, while `hd_command`'s own defaults stay Wasmtime-free
+for developer builds. `hd-lang` is outside `default-members`, like
+`hd_run_wasmtime`.
+
+crates.io takes a dependency by name and version, so every crate `hd-lang`
+is built from is published too, as wasmtime-cli and typst-cli publish
+theirs. The others (`hd_web`, `hd_wat`, `hd_stdpack`, `hd_testkit`) say
+`publish = false`.
+
+| Rule | Where |
+| --- | --- |
+| One version for all published crates | `[workspace.package] version` in the root manifest |
+| Internal dependencies are exact (`=0.0.1`) | `[workspace.dependencies]` in the root manifest |
+| A dev-dependency names a path only, so cargo drops it from the published manifest | each crate's `[dev-dependencies]` |
+| A package holds `src/` and `build.rs`, not tests or baselines | `include` in the root manifest |
+
+A package cannot read outside its own directory, and two crates do in a
+checkout. `scripts/publish-crates.ts` stages a copy of the workspace under
+`target/publish/stage` and adds what they read:
+
+| Crate | Checkout | Package |
+| --- | --- | --- |
+| `hd_driver` | embeds `lib/std`; build id hashes every crate's sources | embeds its staged `std/`; build id is its version |
+| `hd_command` | runs Node to strip `host/*.ts` | embeds its staged `host/`, so the build needs no Node |
+
+```sh
+node scripts/publish-crates.ts             # stage, package, build each package, run the packaged hd
+node scripts/publish-crates.ts --publish   # the same, then upload to crates.io
+```
+
+The dry run builds each package against the other packages, never against
+workspace paths, then runs the packaged `hd` on Wasmtime with an empty
+`PATH`. `--publish` needs a clean tree and a crates.io token
+(`cargo login`). It uploads in dependency order and skips a version
+crates.io already has, so a stopped run resumes. crates.io limits new crate
+names to a burst of 5 and then one every 10 minutes; the script waits and
+retries.
+
+To release: set `[workspace.package] version` and the versions in
+`[workspace.dependencies]` to the new number, commit, and run the script
+with `--publish`.
 
 ## Inspection Examples
 
@@ -165,12 +213,12 @@ check keys, so it cannot reuse an unchecked result.
   `crates/hd_driver/tests/`. Golden TIR of a few std bodies is in
   `crates/hd_driver/tests/tir/`.
 - CLI compile/run samples are in `examples/` and exercised by
-  `crates/hd_cli/tests/all/run.rs`.
+  `crates/hd_command/tests/all/run.rs`.
 - The implementation-neutral suite is in `spec/conformance/`. Every
   indexed case must pass except a row of
   [`KNOWN_FAILURES.tsv`](../KNOWN_FAILURES.tsv) (`path`, `issue`,
   `engine`, `reason`), and a listed case that passes fails too. Both
-  tiers (`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`)
+  tiers (`hd_driver/tests/conformance.rs`, `hd_command/tests/cli_conformance.rs`)
   print their counts.
   Both build with the linear backend, the default.
   `HD_CONFORMANCE_CHECKED=1 cargo test -p hd_driver --test

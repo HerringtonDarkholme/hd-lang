@@ -7,10 +7,10 @@ interface are in [crates/hd_run_wasmtime/DESIGN.md](../../crates/hd_run_wasmtime
 
 ## 18. Execution Engines And Tiers
 
-Two engines run a built program: V8 through Node (`hd_cli::node`, the
+Two engines run a built program: V8 through Node (`hd_command::node`, the
 default) and wasmtime in-process (`hd_run_wasmtime`). `--engine NAME`, or
 else `HD_ENGINE`, picks one. wasmtime is the `wasmtime` cargo feature of
-`hd_cli`, off by default; the REPL runs on wasmtime only. Making wasmtime
+`hd_command`, off by default; the REPL runs on wasmtime only. Making wasmtime
 the default: not built yet; see #19.
 
 ### 18.1 wasmtime Configuration
@@ -214,7 +214,7 @@ The design record in #182 is closed; no implementation ticket is open.
    one module's worth of code, not the package's. A build error that only
    an unselected case reaches does not appear under that filter; a plain
    `hd test` still reports it. `--affected` selects whole modules' cases
-   the same way (crates/hd_cli/DESIGN.md §7.4).
+   the same way (crates/hd_command/DESIGN.md §7.4).
 
 The price of one program: every case's fresh instance pays for the
 whole program, not its own module. On Node, `WebAssembly.instantiate`

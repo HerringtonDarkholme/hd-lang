@@ -1026,7 +1026,7 @@ fn a_symlink_cycle_under_src_is_skipped() {
 }
 
 /// `hd check FILE` checks only FILE's module and the modules it uses,
-/// deeply (`crates/hd_cli/DESIGN.md` §7.2): a sibling it does not reach is
+/// deeply (`crates/hd_command/DESIGN.md` §7.2): a sibling it does not reach is
 /// not checked, and the output is as before.
 #[test]
 fn check_file_checks_only_the_modules_it_reaches() {

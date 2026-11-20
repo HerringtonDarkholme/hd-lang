@@ -1,6 +1,6 @@
 // The fixture guard: checks every hd program the metrics run or generate
 // with one hd, so a language change that breaks a fixture fails CI instead
-// of the next daily run (crates/hd_cli/tests/all/metrics_fixtures.rs runs
+// of the next daily run (crates/hd_command/tests/all/metrics_fixtures.rs runs
 // it against the hd it builds).
 //
 // - Each program package of lib/fixtures.ts PROGRAMS, with default params,

@@ -1,14 +1,17 @@
 [package]
 name = "hd_run"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Engine-neutral program loading and run outcomes (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_cache = { path = "../hd_cache" }
-hd_host_abi = { path = "../hd_host_abi" }
+hd_base = { workspace = true }
+hd_cache = { workspace = true }
+hd_host_abi = { workspace = true }
 
 [lints]
 workspace = true

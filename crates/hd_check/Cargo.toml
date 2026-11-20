@@ -1,20 +1,23 @@
 [package]
 name = "hd_check"
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+include.workspace = true
+description = "Body checking, trait solving, exhaustiveness, facts, coherence and initialization (hd compiler internals, no stable API; install `hd-lang`)"
 
 [dependencies]
-hd_base = { path = "../hd_base" }
-hd_diag = { path = "../hd_diag" }
-hd_intern = { path = "../hd_intern" }
-hd_project = { path = "../hd_project" }
-hd_resolve = { path = "../hd_resolve" }
-hd_structure = { path = "../hd_structure" }
-hd_syntax = { path = "../hd_syntax" }
-hd_tir = { path = "../hd_tir" }
-hd_types = { path = "../hd_types" }
+hd_base = { workspace = true }
+hd_diag = { workspace = true }
+hd_intern = { workspace = true }
+hd_project = { workspace = true }
+hd_resolve = { workspace = true }
+hd_structure = { workspace = true }
+hd_syntax = { workspace = true }
+hd_tir = { workspace = true }
+hd_types = { workspace = true }
 
 [dev-dependencies]
 hd_testkit = { path = "../hd_testkit" }
