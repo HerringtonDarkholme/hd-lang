@@ -97,7 +97,9 @@ function hdBinary(): string {
       encoding: "utf8",
     });
     if (build.status !== 0 || !existsSync(HD)) {
-      throw new Error(`cargo build --release -p hd_command failed:\n${build.stderr}${build.stdout}`);
+      throw new Error(
+        `cargo build --release -p hd_command failed:\n${build.stderr}${build.stdout}`,
+      );
     }
   }
   return HD;
