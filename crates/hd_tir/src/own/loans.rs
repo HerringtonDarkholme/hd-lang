@@ -179,7 +179,14 @@ pub(crate) fn share_counters(b: &mut Body, temporary: hd_base::Symbol) -> Result
         }
     }
     for (i, p) in begins {
-        b.data[i][1] |= (counter[p] + 1) << loan_word::COUNTER_SHIFT;
+        // ruled out: a counter local past 2^24 - 1 does not fit above the
+        // flags. Every TIR local lowers to at least one Wasm local, and V8
+        // caps a Wasm function at 50,000 locals (`kV8MaxWasmFunctionLocals
+        // = 50'000`, v8 `src/wasm/wasm-limits.h`), so no body reaches it;
+        // a checked conversion states it.
+        let word = u32::try_from((u64::from(counter[p]) + 1) << loan_word::COUNTER_SHIFT)
+            .map_err(|_| "an own-loan counter local past 2^24 - 1".to_string())?;
+        b.data[i][1] |= word;
     }
     // Each closure capturing a counted pointer takes its counter: its
     // captures move to the end of the list with the counters after them.

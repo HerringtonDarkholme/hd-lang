@@ -23,32 +23,6 @@ use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
 use crate::module::{Sym, Val};
 use crate::rt::Helper;
 
-/// The locals some closure of `b` shares through a cell. A cell is an
-/// object a closure reaches as a `*mut` does its pointee, so a reference
-/// into the variable takes a loan on it
-/// (`docs/compiler/ownership.md#the-mechanism-in-detail-formerly-e2`).
-pub(super) fn shared_locals(b: &Body) -> hd_base::HashSet<usize> {
-    let recursive = hd_tir::own::RecursiveBindings::new(b);
-    shared_locals_with(b, &recursive)
-}
-
-pub(super) fn shared_locals_with(
-    b: &Body,
-    recursive: &hd_tir::own::RecursiveBindings,
-) -> hd_base::HashSet<usize> {
-    crate::work::shared_census();
-    (0..b.len())
-        .filter(|&ci| b.tags[ci] == Tag::Closure)
-        .flat_map(|ci| hd_tir::own::closure_captures(b, ci, recursive))
-        .filter_map(|(l, shared)| shared.then_some(l))
-        .chain(
-            b.inlined_shared
-                .iter()
-                .map(|&(_, c)| b.cap_local[c as usize].idx()),
-        )
-        .collect()
-}
-
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
 /// generic local function, at type arguments `args`: the instruction,
 /// whether its function suspends, and its result type. A sub-body past
@@ -329,9 +303,7 @@ impl Em<'_, '_, '_> {
         let drops = self.cell_drop_calls(ty);
         let obj = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
         #[cfg(feature = "checked-report")]
-        if self.input.runtime.checked.is_some()
-            && self.m.loan_holders[self.inst.idx()].shared.contains(&l)
-        {
+        if self.input.runtime.checked.is_some() && self.cells.contains_key(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
         self.f.get(obj);

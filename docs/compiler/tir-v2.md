@@ -379,7 +379,9 @@ to 23 in `crates/hd_tir/DESIGN.md` §4.13.11's list:
    has mode `use` and there is no `Drop`, `IsUnique`, `Pin` or
    `exit_drops` row. The checker does write the run-time pointer loans,
    `LoanBegin` and `LoanClose` (`hd_tir::own::loans`), from its lifetime
-   regions; the passes copy them as any statement.
+   regions; the passes copy them as any statement, and the first one
+   names a counter local and adds its `OwnLoans` uses where a closure
+   shares a pointer's own loans (`own::loans::share_counters`).
 4. **After the passes, ownership balances** (checked in debug and
    checked builds): every owned value has exactly one consumer or one
    `Drop` on each path; no `Read` of a place follows its `move` on any

@@ -1,100 +1,58 @@
 //! Instance/layout facts for the link-time TIR pointer-loan analysis.
 //! This adapter never reads the emitter's loan-answer tables.
 
-use hd_base::{DefId, HashMap, HashSet, InstId};
+use hd_base::{DefId, HashMap, InstId};
 use hd_mono::{Sub, Target, TargetKind};
-use hd_tir::ir::{Body, Place, Proj, Tag};
+use hd_tir::ir::{Body, Proj, Tag};
 use hd_tir::own::pointer::{self, Call, Context, Conversion, Reference};
 use hd_types::{Ty, TyList};
 use std::sync::Arc;
 
-use super::borrow::{self, Roots};
-use super::excl;
+use super::{borrow, excl};
 use crate::Input;
 use crate::layout::{self, Kind};
 use crate::module::Module;
 
-/// Final holder facts retained from link analysis for emission.
-#[derive(Default)]
-pub(crate) struct HolderFacts {
-    pub(super) shared: Arc<HashSet<usize>>,
-    pub(super) pointers: Arc<HashSet<usize>>,
-    pub(super) storage: Arc<borrow::StorageRoots>,
-}
-
-struct PreparedBody {
-    rows: Vec<Arc<[usize]>>,
-    shared: Arc<HashSet<usize>>,
-    stores: Vec<Arc<[usize]>>,
-    storage: Arc<borrow::StorageRoots>,
-}
-
 struct Facts<'a, 'b> {
     input: &'a Input<'b>,
     module: &'a Module,
-    roots: HashMap<InstId, HolderFacts>,
     /// Each instance's body, by instance number, which every fact reads.
     bodies: Vec<Option<&'a Body>>,
     rows: Vec<Arc<[usize]>>,
 }
 
 pub(super) fn decide(input: &Input<'_>, module: &mut Module) -> pointer::Decisions {
-    let mut roots = HashMap::default();
     let mut bodies = vec![None; input.collected.table.item.len()];
     // The retained body references keep these identities live throughout
     // preparation; no pointer key survives in Module. A generic body's
     // instruction groups are built once, shared by all its instances.
-    let mut grouped: HashMap<*const Body, PreparedBody> = HashMap::default();
+    let mut grouped: HashMap<*const Body, Vec<Arc<[usize]>>> = HashMap::default();
     let mut rows: Vec<Arc<[usize]>> = vec![Arc::from([]); input.collected.table.item.len()];
     for &id in input.order {
         let Some(b) = (input.body)(id) else {
             continue;
         };
         bodies[id.idx()] = Some(b);
-        let groups = grouped
-            .entry(std::ptr::from_ref(b))
-            .or_insert_with(|| PreparedBody {
-                rows: {
-                    let mut rows = vec![Vec::new(); b.sub_root.len()];
-                    for (i, sub) in b.inst_subs().into_iter().enumerate() {
-                        rows[sub as usize].push(i);
-                    }
-                    crate::work::use_facts(b.len());
-                    rows.into_iter().map(Arc::from).collect()
-                },
-                shared: Arc::new(super::closure::shared_locals(b)),
-                stores: excl::binding_stores(b),
-                storage: Arc::new(borrow::StorageRoots::new(b)),
-            });
+        let groups = grouped.entry(std::ptr::from_ref(b)).or_insert_with(|| {
+            let mut rows = vec![Vec::new(); b.sub_root.len()];
+            for (i, sub) in b.inst_subs().into_iter().enumerate() {
+                rows[sub as usize].push(i);
+            }
+            crate::work::use_facts(b.len());
+            rows.into_iter().map(Arc::from).collect()
+        });
         let Sub::Body(scope) = input.collected.table.sub[id.idx()] else {
             continue;
         };
-        rows[id.idx()] = Arc::clone(&groups.rows[usize::from(scope)]);
-        let sites = Arc::clone(&groups.stores[usize::from(scope)]);
-        roots.insert(
-            id,
-            HolderFacts {
-                storage: Arc::clone(&groups.storage),
-                shared: Arc::clone(&groups.shared),
-                pointers: Arc::new(borrow::pointer_locals(input.pool, input.env, b, &sites)),
-            },
-        );
+        rows[id.idx()] = Arc::clone(&groups[usize::from(scope)]);
     }
     let facts = Facts {
         input,
         module,
-        roots,
         bodies,
         rows,
     };
-    let decisions = pointer::decide(&facts);
-    let empty = Arc::new(HolderFacts::default());
-    let mut retained = vec![empty; input.collected.table.item.len()];
-    for (id, holder) in facts.roots {
-        retained[id.idx()] = Arc::new(holder);
-    }
-    module.loan_holders = retained;
-    decisions
+    pointer::decide(&facts)
 }
 
 impl Facts<'_, '_> {
@@ -141,18 +99,12 @@ impl Context for Facts<'_, '_> {
         layout::strip_newtype(self.input.pool, self.input.env, ty)
     }
 
-    fn place_crossings(&self, id: InstId, p: &Place) -> Option<Vec<(usize, Ty)>> {
-        let b = self.body(id)?;
-        let root = borrow::root_ty(b, p.root)?;
-        let locals = &self.roots[&id];
-        let roots = Roots {
-            storage: &locals.storage,
-            shared: &locals.shared,
-            pointers: &locals.pointers,
-            objects: &self.module.objects,
-            env: self.input.env,
-        };
-        Some(borrow::place_crossings(self.input.pool, b, &roots, root, p))
+    fn shared_census(&self) {
+        crate::work::shared_census();
+    }
+
+    fn object(&self, def: DefId) -> bool {
+        self.module.objects.contains(&self.input.env.path_hash(def))
     }
 
     fn type_crossings(&self, root: Ty, steps: &[Proj]) -> Vec<(usize, Ty)> {

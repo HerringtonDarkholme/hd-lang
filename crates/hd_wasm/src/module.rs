@@ -1167,8 +1167,6 @@ pub struct Module {
     /// Each instance by its key, for a caller to read how its callee takes
     /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
-    /// Holder and carried-reference answers computed once at link time.
-    pub(crate) loan_holders: Vec<std::sync::Arc<crate::emit::HolderFacts>>,
     /// All count boundaries of an immutable body, shared by its instances
     /// and sub-bodies rather than rescanned for each parameter or closure.
     pub(crate) body_facts: Vec<Option<crate::emit::BodyFactCell>>,
@@ -1256,7 +1254,7 @@ pub struct Module {
     /// The objects each access crosses, by instance and instruction
     /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
     /// emitter checks.
-    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), Vec<(usize, hd_types::Ty)>>,
+    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), hd_tir::own::pointer::Crossed>,
     /// The types of the objects a trait value of each trait may hold:
     /// those the program converts to it or to a trait below it
     /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
@@ -1313,7 +1311,6 @@ impl Module {
             retained: Vec::default(),
             runtime: *runtime,
             inst_of: hd_base::HashMap::default(),
-            loan_holders: Vec::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
             release_plans: hd_base::HashMap::default(),

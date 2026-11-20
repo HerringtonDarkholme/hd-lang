@@ -55,6 +55,7 @@ use hd_base::{HashMap, SliceSort as _, StageResult};
 use hd_layout::field_ty;
 use hd_mono::{ProgramEnv, Target};
 use hd_tir::ir::{Body, PlaceRoot, Proj, Tag, loan_word};
+use hd_tir::own::pointer::{READ, ROOT, root_read, root_ty};
 use hd_types::{InternPool, Ty, TyData};
 use wasm_encoder::BlockType;
 
@@ -90,7 +91,6 @@ struct CaptureOrigins {
 mod capture_origin_tests {
     use super::*;
     use hd_base::{DefId, LocalId, SubId};
-    use hd_tir::ir::{TirBuilder, TirSink as _};
 
     #[test]
     fn pointer_key_interning_is_independent_of_other_keys() {
@@ -140,80 +140,6 @@ mod capture_origin_tests {
         assert_eq!(borrows.keys.len(), 1);
         assert_eq!(borrows.key_index.len(), 1);
         assert_eq!(borrows.keys[0].0.0, PlaceRoot::Local(LocalId::from_raw(0)));
-    }
-
-    fn storage_body(locals: usize) -> TirBuilder {
-        let mut builder = TirBuilder::new(DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
-        builder.body_mut().local_ty = vec![Ty::VOID; locals];
-        builder
-    }
-
-    fn storage_read(body: &mut TirBuilder, root: PlaceRoot) -> hd_tir::ir::Ref {
-        let word = body.place(&hd_tir::ir::Place { root, proj: vec![] });
-        body.emit(
-            Tag::Read,
-            word,
-            hd_tir::ir::ReadMode::Use as u32,
-            Ty::VOID,
-            hd_base::NodeIdx::NONE,
-        )
-    }
-
-    #[test]
-    fn storage_roots_follow_nested_reads_but_stop_at_named_copies() {
-        let mut body = storage_body(2);
-        let first = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(0)));
-        let nested = storage_read(&mut body, PlaceRoot::Value(first));
-        let copied = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(1)));
-        let copied_child = storage_read(&mut body, PlaceRoot::Value(copied));
-        let global = storage_read(&mut body, PlaceRoot::Global(DefId::from_raw(0), Ty::VOID));
-        let global_child = storage_read(&mut body, PlaceRoot::Value(global));
-        let roots = StorageRoots::new(body.body_mut());
-        let place = |value| hd_tir::ir::Place {
-            root: PlaceRoot::Value(value),
-            proj: vec![],
-        };
-        assert_eq!(
-            roots.binding(&place(nested)),
-            Some(PlaceRoot::Local(LocalId::from_raw(0)))
-        );
-        assert_eq!(
-            roots.binding(&place(copied_child)),
-            Some(PlaceRoot::Local(LocalId::from_raw(1)))
-        );
-        assert_eq!(
-            global_root(&roots, &place(global_child)),
-            Some((DefId::from_raw(0), Ty::VOID))
-        );
-    }
-
-    #[test]
-    fn storage_root_preparation_and_queries_have_bounded_work() {
-        for (width, depth) in [(100, 20), (1000, 20), (20, 1000)] {
-            let mut body = storage_body(1);
-            let first = storage_read(&mut body, PlaceRoot::Local(LocalId::from_raw(0)));
-            let mut previous = vec![first; width];
-            for _ in 0..depth {
-                for value in &mut previous {
-                    *value = storage_read(&mut body, PlaceRoot::Value(*value));
-                }
-            }
-            let mut work = 0;
-            let roots = StorageRoots::prepare(body.body_mut(), |n| work += n);
-            assert_eq!(work, 2 * body.body_mut().len());
-            for value in previous {
-                let place = hd_tir::ir::Place {
-                    root: PlaceRoot::Value(value),
-                    proj: vec![],
-                };
-                for _ in 0..10 {
-                    assert_eq!(
-                        roots.binding(&place),
-                        Some(PlaceRoot::Local(LocalId::from_raw(0)))
-                    );
-                }
-            }
-        }
     }
 
     fn body(locals: usize, edges: &[(u32, u32)]) -> Body {
@@ -448,7 +374,6 @@ impl BorrowFacts {
 #[derive(Default)]
 pub(super) struct Borrows {
     capture_origins: CaptureOrigins,
-    storage_roots: std::sync::Arc<StorageRoots>,
     /// The loan sites (`Ref`s, and `*T` reads a call lends), and the
     /// objects each one crossed, once emitted: the header address, the
     /// pointer's key, and whether elision keeps that loan
@@ -482,14 +407,8 @@ pub(super) struct Borrows {
     /// The first `loans` keys are those a loan is taken through, interned
     /// before emission.
     loans: usize,
-    /// The locals a closure shares: each lives in a cell, an object its
-    /// places cross at their root ([`ROOT`]).
-    shared: std::sync::Arc<hd_base::HashSet<usize>>,
     /// The inlined copy each instruction came from ([`frames_of`]).
     frames: std::sync::Arc<[u32]>,
-    /// The local references that hold only `*T` values
-    /// ([`pointer_locals`]).
-    pointers: std::sync::Arc<hd_base::HashSet<usize>>,
     /// The counter local of the own loans through each pointer local a
     /// closure shares (`hd_tir::own::loans::share_counters`), and where
     /// each counter is: a local, or a cell's address and the word's
@@ -593,222 +512,6 @@ pub(super) fn dyn_receiver(
     match pool.get(strip_newtype(pool, env, target)) {
         TyData::TraitValue { def, .. } => Some(def),
         _ => None,
-    }
-}
-
-/// The step index of a place's root object: a variable a closure shares
-/// (its cell) or a top-level binding that is an object, which the place
-/// crosses before its first step.
-pub(super) const ROOT: usize = u32::MAX as usize - 2;
-
-/// The terminal storage binding of each value-backed Read chain. This is
-/// prepared once per body, not by walking a chain at every loan/access.
-#[derive(Default)]
-pub(crate) struct StorageRoots {
-    reads: Vec<Option<PlaceRoot>>,
-}
-
-impl StorageRoots {
-    pub(crate) fn new(body: &Body) -> Self {
-        Self::prepare(body, |_| {})
-    }
-
-    fn prepare(body: &Body, mut measure: impl FnMut(usize)) -> Self {
-        let mut reads = vec![None; body.len()];
-        measure(body.len());
-        // The verifier orders a Read's value-root producer before that Read.
-        // Reading a named binding stops here: a stored counted copy does not
-        // inherit the original binding's loan identity.
-        for i in 0..body.len() {
-            measure(1);
-            if body.tags[i] != Tag::Read {
-                continue;
-            }
-            reads[i] = match body.view(body.data[i][0]).root {
-                hd_tir::ir::Root::Local(local) => {
-                    Some(PlaceRoot::Local(hd_base::LocalId::from_raw(local)))
-                }
-                hd_tir::ir::Root::Global(def, ty) => Some(PlaceRoot::Global(def, ty)),
-                hd_tir::ir::Root::Value(value) => reads.get(value as usize).copied().flatten(),
-                _ => None,
-            };
-        }
-        Self { reads }
-    }
-
-    fn binding(&self, place: &hd_tir::ir::Place) -> Option<PlaceRoot> {
-        match place.root {
-            root @ (PlaceRoot::Local(_) | PlaceRoot::Global(..)) => Some(root),
-            PlaceRoot::Value(value) => value
-                .as_inst()
-                .and_then(|value| self.reads.get(value.0 as usize).copied().flatten()),
-            _ => None,
-        }
-    }
-}
-
-/// The top-level binding place `p` starts from, through its Read roots.
-pub(crate) fn global_root(
-    roots: &StorageRoots,
-    p: &hd_tir::ir::Place,
-) -> Option<(hd_base::DefId, Ty)> {
-    match roots.binding(p)? {
-        PlaceRoot::Global(def, ty) => Some((def, ty)),
-        _ => None,
-    }
-}
-
-/// The objects a place may start at: the locals a closure shares, and the
-/// top-level bindings that are objects ([`Module::objects`]).
-pub(super) struct Roots<'a> {
-    pub(super) storage: &'a StorageRoots,
-    pub(super) shared: &'a hd_base::HashSet<usize>,
-    /// The local references that hold only `*T` values ([`pointer_locals`]):
-    /// a place through one crosses the object it points to.
-    pub(super) pointers: &'a hd_base::HashSet<usize>,
-    pub(super) objects: &'a hd_base::HashSet<hd_base::Hash128>,
-    pub(super) env: &'a dyn ProgramEnv,
-}
-
-impl Roots<'_> {
-    /// The object place `p` crosses at its root, as the root it is keyed
-    /// by, and its type before substitution.
-    pub(super) fn of(&self, b: &Body, p: &hd_tir::ir::Place) -> Option<(PlaceRoot, Ty)> {
-        match self.storage.binding(p)? {
-            PlaceRoot::Local(l) if self.shared.contains(&l.idx()) => {
-                Some((PlaceRoot::Local(l), b.local_ty[l.idx()]))
-            }
-            PlaceRoot::Global(def, ty) if self.objects.contains(&self.env.path_hash(def)) => {
-                Some((PlaceRoot::Global(def, ty), ty))
-            }
-            _ => None,
-        }
-    }
-}
-
-/// The step index of a dereference on the place of the read a place's
-/// root value is ([`root_read`]): `READ + k` for its step `k`.
-pub(super) const READ: usize = 1 << 30;
-
-/// The read whose value place `p` starts at, and that read's place, as a
-/// loop over `&mut p.items` makes: the read's dereferences are crossed
-/// too.
-pub(super) fn root_read(b: &Body, p: &hd_tir::ir::Place) -> Option<(u32, hd_tir::ir::Place)> {
-    let PlaceRoot::Value(r) = p.root else {
-        return None;
-    };
-    let r = r.as_inst()?.0;
-    if b.tags.get(r as usize) != Some(&Tag::Read) {
-        return None;
-    }
-    let q = b.decode_place(b.data[r as usize][0])?;
-    matches!(q.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)).then_some((r, q))
-}
-
-/// [`crossings`], led by the place's root object ([`Roots::of`]) and by
-/// the dereferences of the read its root value is ([`root_read`]).
-pub(super) fn place_crossings(
-    pool: &InternPool,
-    b: &Body,
-    roots: &Roots<'_>,
-    root: Ty,
-    p: &hd_tir::ir::Place,
-) -> Vec<(usize, Ty)> {
-    let mut out = Vec::new();
-    if let Some((_, t)) = roots.of(b, p) {
-        out.push((ROOT, t));
-    }
-    if let Some(t) = pointer_root(pool, roots.env, b, roots.pointers, p) {
-        out.push((0, t));
-    }
-    if let Some((_, q)) = root_read(b, p)
-        && let Some(qt) = root_ty(b, q.root)
-    {
-        out.extend(
-            (crossings(pool, roots.env, qt, &q.proj).into_iter()).map(|(k, t)| (READ + k, t)),
-        );
-    }
-    out.extend(crossings(pool, roots.env, root, &p.proj));
-    out
-}
-
-/// The local references of `b` that hold only whole `*T` values: every
-/// store of all of one stores a `*T` read (through a same-value coercion),
-/// as an inlined callee's `&T` parameter bound to a `*T` argument does.
-/// Such a reference is the address of the object, so a place through it
-/// crosses that object.
-pub(super) fn pointer_locals(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    stores: &[usize],
-) -> hd_base::HashSet<usize> {
-    let thin_local = |t: Ty| {
-        matches!(
-            kind(pool, env, t),
-            Kind::Ref {
-                whole: false,
-                fat: false,
-                ..
-            }
-        )
-    };
-    let whole_ptr = |t: Ty| {
-        matches!(
-            kind(pool, env, t),
-            Kind::Ref {
-                whole: true,
-                fat: false,
-                ..
-            }
-        )
-    };
-    let mut ok: HashMap<usize, bool> = HashMap::default();
-    for &i in stores {
-        let Some((l, true)) = b.stored_local(i) else {
-            continue;
-        };
-        let l = l.idx();
-        if !thin_local(b.local_ty[l]) {
-            continue;
-        }
-        let pointer = b
-            .direct_value(b.data[i][1])
-            .is_some_and(|v| whole_ptr(b.ty[v]));
-        let e = ok.entry(l).or_insert(true);
-        *e &= pointer;
-    }
-    ok.into_iter().filter(|(_, y)| *y).map(|(l, _)| l).collect()
-}
-
-/// The object a place starting `*$l` crosses when `l` holds only `*T`
-/// values ([`pointer_locals`]): the type the reference refers to.
-fn pointer_root(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    b: &Body,
-    pointers: &hd_base::HashSet<usize>,
-    p: &hd_tir::ir::Place,
-) -> Option<Ty> {
-    let PlaceRoot::Local(l) = p.root else {
-        return None;
-    };
-    if p.proj.first() != Some(&Proj::Deref) || !pointers.contains(&l.idx()) {
-        return None;
-    }
-    match kind(pool, env, b.local_ty[l.idx()]) {
-        Kind::Ref { target, .. } => Some(target),
-        _ => None,
-    }
-}
-
-/// The type of a place's root, `sub` giving a type at this instance.
-pub(super) fn root_ty(b: &Body, root: PlaceRoot) -> Option<Ty> {
-    match root {
-        PlaceRoot::Local(l) => Some(b.local_ty[l.idx()]),
-        PlaceRoot::Global(_, t) => Some(t),
-        PlaceRoot::Value(r) => r.as_inst().map(|v| b.ty[v.0 as usize]),
-        PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
     }
 }
 
@@ -925,18 +628,13 @@ impl Em<'_, '_, '_> {
         if self.m.lent.is_empty() {
             return;
         }
-        // collect_loans indexed every emitted instance's own sub-body.
-        let holder = std::sync::Arc::clone(&self.m.loan_holders[self.inst.idx()]);
         let facts = std::sync::Arc::clone(&self.borrow_facts);
         let immutable = facts.get_or_init(|| BorrowFacts::new(self.b));
         let mut st = Borrows {
             capture_origins: CaptureOrigins::new(self.b, &immutable.lent_params, |l| {
                 self.own_pointer(l)
             }),
-            storage_roots: std::sync::Arc::clone(&holder.storage),
-            shared: std::sync::Arc::clone(&holder.shared),
             frames: std::sync::Arc::clone(&immutable.frames),
-            pointers: std::sync::Arc::clone(&holder.pointers),
             ..Borrows::default()
         };
         // The counters of the own loans through the pointers a closure
@@ -1435,29 +1133,19 @@ impl Em<'_, '_, '_> {
         // The root object: a shared variable's cell, but not at the store
         // that makes it, as no reference reaches a cell before it exists;
         // or a top-level binding's slot.
-        let root_obj = if listed.first().is_some_and(|&(k, _)| k == ROOT) {
-            let st = &self.borrows;
-            Roots {
-                storage: &st.storage_roots,
-                shared: &st.shared,
-                pointers: &st.pointers,
-                objects: &self.m.objects,
-                env: self.env(),
-            }
-            .of(self.b, p)
+        let root_obj = listed
+            .root
+            .zip(listed.steps.first().filter(|s| s.0 == ROOT).map(|s| s.1))
             .filter(|(r, _)| match r {
                 PlaceRoot::Local(l) => {
                     self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
                 }
                 _ => true,
-            })
-        } else {
-            None
-        };
+            });
         // The dereferences of the read the place's root value is.
         let read = root_read(self.b, p);
-        let mut out = Vec::with_capacity(listed.len());
-        for (k, object) in listed {
+        let mut out = Vec::with_capacity(listed.steps.len());
+        for (k, object) in listed.steps {
             let key = match (k, root_obj) {
                 (ROOT, None) => continue,
                 (ROOT, Some((r, _))) => {

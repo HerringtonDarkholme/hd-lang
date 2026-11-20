@@ -9,7 +9,6 @@ use hd_tir::ir::{Body, Callee, Proj, Tag, Word, slots};
 
 use crate::Input;
 use crate::module::Module;
-use std::sync::Arc;
 
 /// The struct field indices `steps` name, when they are all fields.
 pub(super) fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
@@ -69,19 +68,6 @@ pub(super) fn call_info(
         Target::MapKey { .. } | Target::MapInline(_) => Some(Some(true)),
         _ => None,
     }
-}
-
-/// Whole-local stores grouped by their owning sub-body, in source order.
-/// Preparing this once per distinct checked body costs one topology pass
-/// and one instruction pass; instances then read only their own stores.
-pub(super) fn binding_stores(b: &Body) -> Vec<Arc<[usize]>> {
-    let mut stores = vec![Vec::new(); b.sub_root.len()];
-    for (i, sub) in b.inst_subs().into_iter().enumerate() {
-        if matches!(b.stored_local(i), Some((_, true))) {
-            stores[sub as usize].push(i);
-        }
-    }
-    stores.into_iter().map(Arc::from).collect()
 }
 
 /// Install the TIR link pass's pointer-loan tables for emission.

@@ -70,7 +70,25 @@ access in their statement range may meet. Two exceptions, owner
 call's argument loans end with the call that makes the task
 (`Gen::run_loans`, `task`); and an awaited call's arguments take no
 run-time loan (`Ck::lent_args` and `Gen::run_loans`, `awaited`; the gap
-is #2197). The emitter still decides parameter entry and exit counts,
+is #2197).
+Access checks are decided in the same link pass, per instance and access
+instruction: the objects the place crosses (its root object, a shared
+variable's cell or a top-level binding that is an object; a `*T`-only
+local reference's referent; each dereference of the read its root value
+is; each dereference of a thin counted pointer), with the root's binding,
+in a table (`Decisions::crossed`) the backend lowers to header checks.
+There is no `Access` statement: the crossings can only be decided on the
+final places, after inlining, which joins argument places onto a callee's
+and makes an inlined `&T` parameter bound to a `*T` argument cross that
+object, so a statement placed before it would carry stale steps, and one
+placed after it would repeat the table (about 100 more lines, no decision
+of its own). A check compares with the function's own loans through the
+same pointer; where a closure captures the pointer and its creator takes
+a loan through it, that count is a TIR counter local
+(`own::loans::share_counters`) the loan statements name, the closure
+captures shared, and `OwnLoans` statements use after each loan statement
+and access through the pointer, so liveness keeps it, in suspending
+frames too. The emitter still decides parameter entry and exit counts,
 cancelled-await releases and drop flags, and the peephole deletes
 releases by dataflow (#1420, #1781, #1792; docs/audit/review-2026-11-12.md
 §13).

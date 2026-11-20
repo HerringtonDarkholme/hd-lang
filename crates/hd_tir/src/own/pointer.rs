@@ -45,7 +45,11 @@ pub trait Context {
     fn source(&self, id: InstId) -> Option<(DefId, TyList, u16)>;
     fn reference(&self, ty: Ty) -> Option<Reference>;
     fn strip(&self, ty: Ty) -> Ty;
-    fn place_crossings(&self, id: InstId, place: &Place) -> Option<Vec<(usize, Ty)>>;
+    /// Whether top-level binding `def` is an object a place can cross at
+    /// its root.
+    fn object(&self, def: DefId) -> bool;
+    /// Counts one census of a body's shared locals (a work counter).
+    fn shared_census(&self) {}
     fn type_crossings(&self, root: Ty, steps: &[Proj]) -> Vec<(usize, Ty)>;
     fn call(&self, id: InstId, instruction: u32) -> Option<Call>;
     /// Only a `Call` or `CallValue` has call-loan arguments. Its access
@@ -63,9 +67,9 @@ pub trait Context {
 pub struct Decisions {
     pub kept: HashSet<LoanSite>,
     /// Per instance and access instruction, the objects its place crosses
-    /// (`Context::place_crossings`), where it crosses any: the accesses
-    /// the backend checks.
-    pub crossed: HashMap<(InstId, u32), Vec<(usize, Ty)>>,
+    /// ([`place_crossings`]), where it crosses any: the accesses the
+    /// backend checks, each with the binding its root object is.
+    pub crossed: HashMap<(InstId, u32), Crossed>,
     pub lent: HashMap<Ty, bool>,
     pub dyn_types: HashMap<DefId, Vec<Ty>>,
 }
@@ -77,7 +81,7 @@ struct Acc {
     r: Vec<Ty>,
     any: bool,
     callees: Vec<InstId>,
-    crossed: Vec<(usize, Ty)>,
+    crossed: Crossed,
 }
 
 /// What a range may access through a `*T`.
@@ -240,6 +244,7 @@ fn accesses(
     types: &HashMap<DefId, Vec<Ty>>,
     id: InstId,
     b: &Body,
+    roots: &Roots,
 ) -> HashMap<u32, Acc> {
     let mut out: HashMap<u32, Acc> = HashMap::default();
     for &i in cx.instructions(id) {
@@ -255,18 +260,16 @@ fn accesses(
                 ) {
                     continue;
                 }
-                let Some(crossed) = cx.place_crossings(id, &p) else {
-                    continue;
-                };
+                let crossed = place_crossings(cx, b, roots, &p);
                 let write = match b.tags[i] {
                     Tag::Store | Tag::IsUnique => true,
                     Tag::Ref => mutable(cx, b.ty[i]),
                     _ => false,
                 };
-                let last = crossed.len().wrapping_sub(1);
+                let last = crossed.steps.len().wrapping_sub(1);
                 let acc = out.entry(iu).or_default();
-                acc.crossed.clone_from(&crossed);
-                for (n, (_, object)) in crossed.into_iter().enumerate() {
+                acc.crossed = crossed.clone();
+                for (n, &(_, object)) in crossed.steps.iter().enumerate() {
                     if write && n == last {
                         acc.w.push(object);
                     } else {
@@ -341,6 +344,12 @@ pub fn decide(cx: &impl Context) -> Decisions {
     let mut seen: HashSet<(Ty, bool, Source)> = HashSet::default();
     let mut count_w: HashMap<Ty, u32> = HashMap::default();
     let mut count_r: HashMap<Ty, u32> = HashMap::default();
+    // Each instance's root facts, built once per distinct body.
+    let mut prepared: HashMap<
+        *const Body,
+        (std::sync::Arc<StorageRoots>, std::sync::Arc<HashSet<usize>>),
+    > = HashMap::default();
+    let mut roots: HashMap<InstId, std::sync::Arc<Roots>> = HashMap::default();
     for id in cx.order() {
         let Some(b) = cx.body(*id) else {
             continue;
@@ -348,13 +357,14 @@ pub fn decide(cx: &impl Context) -> Decisions {
         let Some((item, args, sub_body)) = cx.source(*id) else {
             continue;
         };
-        let a = accesses(cx, &out.dyn_types, *id, b);
+        let r = roots_of(cx, &mut prepared, &mut roots, *id, b);
+        let a = accesses(cx, &out.dyn_types, *id, b, &r);
         let mut at: Vec<u32> = a.keys().copied().collect();
         at.sort_stable();
         let mut rank: HashMap<hd_base::NodeIdx, u32> = HashMap::default();
         for j in at {
             let acc = &a[&j];
-            if !acc.crossed.is_empty() {
+            if !acc.crossed.steps.is_empty() {
                 out.crossed.insert((*id, j), acc.crossed.clone());
             }
             let node = b.syn[j as usize];
@@ -500,7 +510,8 @@ pub fn decide(cx: &impl Context) -> Decisions {
                 }
                 continue;
             }
-            ref_sites(cx, b, *id, v, |site, object, x| {
+            let r = roots_of(cx, &mut prepared, &mut roots, *id, b);
+            ref_sites(cx, b, *id, v, &r, |site, object, x| {
                 if program(object, x, own) && meets(lo, hi, &[v], object, x) {
                     kept.push((site, object, x));
                 }
@@ -610,17 +621,16 @@ fn ref_sites(
     b: &Body,
     id: InstId,
     v: u32,
+    roots: &Roots,
     mut f: impl FnMut(LoanSite, Ty, bool),
 ) {
     let Some(p) = b.decode_place(b.data[v as usize][0]) else {
         return;
     };
-    let Some(crossed) = cx.place_crossings(id, &p) else {
-        return;
-    };
+    let crossed = place_crossings(cx, b, roots, &p);
     let exclusive = b.tags[v as usize] == Tag::Ref && mutable(cx, b.ty[v as usize]);
-    let last = crossed.len().wrapping_sub(1);
-    for (n, (k, object)) in crossed.into_iter().enumerate() {
+    let last = crossed.steps.len().wrapping_sub(1);
+    for (n, (k, object)) in crossed.steps.into_iter().enumerate() {
         f(
             (id, v, u32::try_from(k).expect("steps")),
             object,
@@ -673,9 +683,301 @@ fn call_args(b: &Body, i: usize) -> Vec<u32> {
         .collect()
 }
 
+/// The objects an access's place crosses ([`place_crossings`]): each
+/// crossed step with the type of the object it reaches, and the binding
+/// whose object it crosses at its root ([`ROOT`]), when it does.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Crossed {
+    pub root: Option<PlaceRoot>,
+    pub steps: Vec<(usize, Ty)>,
+}
+
+/// The step index of a place's root object: a variable a closure shares
+/// (its cell) or a top-level binding that is an object, which the place
+/// crosses before its first step.
+pub const ROOT: usize = u32::MAX as usize - 2;
+
+/// The step index of a dereference on the place of the read a place's
+/// root value is ([`root_read`]): `READ + k` for its step `k`.
+pub const READ: usize = 1 << 30;
+
+/// The terminal storage binding of each value-backed `Read` chain,
+/// prepared once per body rather than walked at every access.
+#[derive(Default)]
+pub struct StorageRoots {
+    reads: Vec<Option<PlaceRoot>>,
+}
+
+impl StorageRoots {
+    #[must_use]
+    pub fn new(body: &Body) -> Self {
+        Self::prepare(body, |_| {})
+    }
+
+    fn prepare(body: &Body, mut measure: impl FnMut(usize)) -> Self {
+        let mut reads = vec![None; body.len()];
+        measure(body.len());
+        // The verifier orders a Read's value-root producer before that Read.
+        // Reading a named binding stops here: a stored counted copy does not
+        // inherit the original binding's loan identity.
+        for i in 0..body.len() {
+            measure(1);
+            if body.tags[i] != Tag::Read {
+                continue;
+            }
+            reads[i] = match body.view(body.data[i][0]).root {
+                crate::ir::Root::Local(local) => {
+                    Some(PlaceRoot::Local(hd_base::LocalId::from_raw(local)))
+                }
+                crate::ir::Root::Global(def, ty) => Some(PlaceRoot::Global(def, ty)),
+                crate::ir::Root::Value(value) => reads.get(value as usize).copied().flatten(),
+                _ => None,
+            };
+        }
+        Self { reads }
+    }
+
+    fn binding(&self, place: &Place) -> Option<PlaceRoot> {
+        match place.root {
+            root @ (PlaceRoot::Local(_) | PlaceRoot::Global(..)) => Some(root),
+            PlaceRoot::Value(value) => value
+                .as_inst()
+                .and_then(|value| self.reads.get(value.0 as usize).copied().flatten()),
+            _ => None,
+        }
+    }
+}
+
+/// The top-level binding place `p` starts from, through its Read roots.
+#[must_use]
+pub fn global_root(roots: &StorageRoots, p: &Place) -> Option<(DefId, Ty)> {
+    match roots.binding(p)? {
+        PlaceRoot::Global(def, ty) => Some((def, ty)),
+        _ => None,
+    }
+}
+
+/// The read whose value place `p` starts at, and that read's place, as a
+/// loop over `&mut p.items` makes: the read's dereferences are crossed
+/// too.
+#[must_use]
+pub fn root_read(b: &Body, p: &Place) -> Option<(u32, Place)> {
+    let PlaceRoot::Value(r) = p.root else {
+        return None;
+    };
+    let r = r.as_inst()?.0;
+    if b.tags.get(r as usize) != Some(&Tag::Read) {
+        return None;
+    }
+    let q = b.decode_place(b.data[r as usize][0])?;
+    matches!(q.root, PlaceRoot::Local(_) | PlaceRoot::Global(..)).then_some((r, q))
+}
+
+/// The type of a place's root.
+#[must_use]
+pub fn root_ty(b: &Body, root: PlaceRoot) -> Option<Ty> {
+    match root {
+        PlaceRoot::Local(l) => Some(b.local_ty[l.idx()]),
+        PlaceRoot::Global(_, t) => Some(t),
+        PlaceRoot::Value(r) => r.as_inst().map(|v| b.ty[v.0 as usize]),
+        PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
+    }
+}
+
+/// An instance's root facts: where each read's value is stored, the
+/// locals a closure shares (each in a cell, an object a place crosses at
+/// its root), and the local references that hold only whole `*T` values.
+struct Roots {
+    storage: std::sync::Arc<StorageRoots>,
+    shared: std::sync::Arc<HashSet<usize>>,
+    pointers: HashSet<usize>,
+}
+
+/// Instance `id`'s root facts, its body's shared parts built once.
+fn roots_of(
+    cx: &impl Context,
+    prepared: &mut HashMap<
+        *const Body,
+        (std::sync::Arc<StorageRoots>, std::sync::Arc<HashSet<usize>>),
+    >,
+    roots: &mut HashMap<InstId, std::sync::Arc<Roots>>,
+    id: InstId,
+    b: &Body,
+) -> std::sync::Arc<Roots> {
+    if let Some(r) = roots.get(&id) {
+        return std::sync::Arc::clone(r);
+    }
+    let (storage, shared) = prepared
+        .entry(std::ptr::from_ref(b))
+        .or_insert_with(|| {
+            cx.shared_census();
+            let recursive = super::RecursiveBindings::new(b);
+            let shared = (0..b.len())
+                .filter(|&ci| b.tags[ci] == Tag::Closure)
+                .flat_map(|ci| super::closure_captures(b, ci, &recursive))
+                .filter_map(|(l, shared)| shared.then_some(l))
+                .chain(
+                    b.inlined_shared
+                        .iter()
+                        .map(|&(_, c)| b.cap_local[c as usize].idx()),
+                )
+                .collect();
+            (
+                std::sync::Arc::new(StorageRoots::new(b)),
+                std::sync::Arc::new(shared),
+            )
+        })
+        .clone();
+    let r = std::sync::Arc::new(Roots {
+        storage,
+        shared,
+        pointers: pointer_locals(cx, b, cx.instructions(id)),
+    });
+    roots.insert(id, std::sync::Arc::clone(&r));
+    r
+}
+
+/// The local references of `b` that hold only whole `*T` values: every
+/// whole store of one, among `instructions`, stores a `*T` read, as an
+/// inlined callee's `&T` parameter bound to a `*T` argument does. Such a
+/// reference is the address of the object, so a place through it
+/// crosses that object.
+fn pointer_locals(cx: &impl Context, b: &Body, instructions: &[usize]) -> HashSet<usize> {
+    let thin_local = |t: Ty| cx.reference(t).is_some_and(|r| !r.whole && !r.fat);
+    let whole_ptr = |t: Ty| cx.reference(t).is_some_and(|r| r.whole && !r.fat);
+    let mut ok: HashMap<usize, bool> = HashMap::default();
+    for &i in instructions {
+        let Some((l, true)) = b.stored_local(i) else {
+            continue;
+        };
+        let l = l.idx();
+        if !thin_local(b.local_ty[l]) {
+            continue;
+        }
+        let pointer = b
+            .direct_value(b.data[i][1])
+            .is_some_and(|v| whole_ptr(b.ty[v]));
+        *ok.entry(l).or_insert(true) &= pointer;
+    }
+    ok.into_iter().filter(|(_, y)| *y).map(|(l, _)| l).collect()
+}
+
+/// The objects place `p` crosses: its root's (a shared variable's cell,
+/// or a top-level binding that is an object), a `*T`-only local
+/// reference's referent, each dereference of the read its root value is,
+/// and each dereference of its own (`Context::type_crossings`).
+fn place_crossings(cx: &impl Context, b: &Body, roots: &Roots, p: &Place) -> Crossed {
+    let mut out = Crossed::default();
+    let Some(root) = root_ty(b, p.root) else {
+        return out;
+    };
+    let binding = roots.storage.binding(p);
+    if let Some(PlaceRoot::Local(l)) = binding
+        && roots.shared.contains(&l.idx())
+    {
+        out.root = binding;
+        out.steps.push((ROOT, b.local_ty[l.idx()]));
+    } else if let Some(PlaceRoot::Global(def, ty)) = binding
+        && cx.object(def)
+    {
+        out.root = binding;
+        out.steps.push((ROOT, ty));
+    }
+    if let PlaceRoot::Local(l) = p.root
+        && p.proj.first() == Some(&Proj::Deref)
+        && roots.pointers.contains(&l.idx())
+        && let Some(r) = cx.reference(b.local_ty[l.idx()])
+    {
+        out.steps.push((0, r.target));
+    }
+    if let Some((_, q)) = root_read(b, p)
+        && let Some(qt) = root_ty(b, q.root)
+    {
+        let read = cx.type_crossings(qt, &q.proj).into_iter();
+        out.steps.extend(read.map(|(k, t)| (READ + k, t)));
+    }
+    out.steps.extend(cx.type_crossings(root, &p.proj));
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::TirSink as _;
+
+    fn storage_body(locals: usize) -> crate::ir::TirBuilder {
+        let mut builder = crate::ir::TirBuilder::new(DefId::from_raw(0), crate::ir::BodyKind::Fn);
+        builder.body_mut().local_ty = vec![Ty::VOID; locals];
+        builder
+    }
+
+    fn storage_read(body: &mut crate::ir::TirBuilder, root: PlaceRoot) -> crate::ir::Ref {
+        let word = body.place(&crate::ir::Place { root, proj: vec![] });
+        body.emit(
+            Tag::Read,
+            word,
+            crate::ir::ReadMode::Use as u32,
+            Ty::VOID,
+            NodeIdx::NONE,
+        )
+    }
+
+    #[test]
+    fn storage_roots_follow_nested_reads_but_stop_at_named_copies() {
+        let mut body = storage_body(2);
+        let first = storage_read(&mut body, PlaceRoot::Local(hd_base::LocalId::from_raw(0)));
+        let nested = storage_read(&mut body, PlaceRoot::Value(first));
+        let copied = storage_read(&mut body, PlaceRoot::Local(hd_base::LocalId::from_raw(1)));
+        let copied_child = storage_read(&mut body, PlaceRoot::Value(copied));
+        let global = storage_read(&mut body, PlaceRoot::Global(DefId::from_raw(0), Ty::VOID));
+        let global_child = storage_read(&mut body, PlaceRoot::Value(global));
+        let roots = StorageRoots::new(body.body_mut());
+        let place = |value| crate::ir::Place {
+            root: PlaceRoot::Value(value),
+            proj: vec![],
+        };
+        assert_eq!(
+            roots.binding(&place(nested)),
+            Some(PlaceRoot::Local(hd_base::LocalId::from_raw(0)))
+        );
+        assert_eq!(
+            roots.binding(&place(copied_child)),
+            Some(PlaceRoot::Local(hd_base::LocalId::from_raw(1)))
+        );
+        assert_eq!(
+            global_root(&roots, &place(global_child)),
+            Some((DefId::from_raw(0), Ty::VOID))
+        );
+    }
+
+    #[test]
+    fn storage_root_preparation_and_queries_have_bounded_work() {
+        for (width, depth) in [(100, 20), (1000, 20), (20, 1000)] {
+            let mut body = storage_body(1);
+            let first = storage_read(&mut body, PlaceRoot::Local(hd_base::LocalId::from_raw(0)));
+            let mut previous = vec![first; width];
+            for _ in 0..depth {
+                for value in &mut previous {
+                    *value = storage_read(&mut body, PlaceRoot::Value(*value));
+                }
+            }
+            let mut work = 0;
+            let roots = StorageRoots::prepare(body.body_mut(), |n| work += n);
+            assert_eq!(work, 2 * body.body_mut().len());
+            for value in previous {
+                let place = crate::ir::Place {
+                    root: PlaceRoot::Value(value),
+                    proj: vec![],
+                };
+                for _ in 0..10 {
+                    assert_eq!(
+                        roots.binding(&place),
+                        Some(PlaceRoot::Local(hd_base::LocalId::from_raw(0)))
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn effect_index_matches_a_scan_with_excluded_sources() {
