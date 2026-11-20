@@ -1,0 +1,8 @@
+# @dump: tree diagnostics fixed
+# A second mut in the type is removed without duplicating the mutable binding marker.
+fn binding():
+    let mut values: mut List[i32] = []
+
+fn parameter(mut values: mut List[i32]): pass
+
+fn after_mutable_type_recovery(): pass

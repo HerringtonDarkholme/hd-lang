@@ -1,0 +1,5 @@
+# @dump: tree diagnostics
+# An earlier bad parameter suppresses follow-on repairs, without attaching a stale fix.
+fn bad_parameters(missing i32, mut values: mut List[i32]): pass
+
+fn after_suppressed_type_repair(): pass

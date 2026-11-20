@@ -1,0 +1,9 @@
+# @dump: tree
+# Missing comprehension arrows/values do not absorb a following declaration.
+fn list_condition():
+    items := [for item in source if ]
+
+fn map_arrow():
+    entries := {for item in source item: item}
+
+fn after_comprehension_recovery(): pass

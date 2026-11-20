@@ -1287,3 +1287,5 @@ says that the check covered syntax only.
 
 | 2026-11-20 | #1442 row-type coverage | annotation | Empty `impl[T] Mark for T by Structure: pass` marker template | `` marker-template: a template must have a body that calls `walk`, `describe`, or `build` `` | yes; named the required protocol call | Use a Fields template whose method calls `T::describe` with a Describer | GPT-6 (Codex) |
 | 2026-11-20 | #1442 row-type coverage | semantic | Store the `callback: fn() -> i32 $ R` parameter in the opaque result's struct field | ``local-reference-escapes: `callback` is a function parameter, which may hold a closure that captures the caller's local references; it never escapes to a field or collection element`` | yes | Keep the row in the maker's generic identity and parameter type; return a concrete source that stores an integer, with no escaping callback | GPT-6 (Codex) |
+
+| 2026-11-20 | #1442 parser recovery fixtures | syntax | `fn choose(value):` in three pattern cases | `syntax-error: expected ':', found ')'` | yes | Annotate `value: i32` so the fixture diagnoses only its intended pattern error | GPT-6 (Codex) |

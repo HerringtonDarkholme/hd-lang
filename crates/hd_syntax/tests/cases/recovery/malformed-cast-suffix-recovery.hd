@@ -1,0 +1,9 @@
+# @dump: tree
+# Invalid old-style casts keep their delimiters local and retain following functions.
+fn empty_type():
+    result := (value: )
+
+fn unmatched_close():
+    result := (value: i32] )
+
+fn after_cast_recovery(): pass

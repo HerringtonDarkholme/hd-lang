@@ -1,0 +1,4 @@
+# @dump: tree
+# An unfinished comprehension reaches EOF without a delimiter or arrow.
+fn unfinished():
+    items := [for item in source

@@ -1,0 +1,8 @@
+# @dump: tree
+# A qualified variant needs a name after the generic path's dot.
+fn choose(value: i32):
+    match value:
+        Kind[i32]. => 1
+        _ => 2
+
+fn after_variant_recovery(): pass

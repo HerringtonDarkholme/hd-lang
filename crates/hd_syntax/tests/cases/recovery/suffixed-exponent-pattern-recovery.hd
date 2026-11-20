@@ -1,0 +1,10 @@
+# @dump: tree
+# Decimal exponents followed by suffixes remain local pattern errors.
+fn choose(value: i32):
+    match value:
+        1e+2px => 1
+        1e-2px => 2
+        1e => 3
+        _ => 4
+
+fn after_exponent_recovery(): pass

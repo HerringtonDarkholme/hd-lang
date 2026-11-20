@@ -578,3 +578,36 @@ fn a_name_missing_before_the_next_item_breaks_the_item_that_lacks_it() {
         1
     );
 }
+
+/// Recovery can revisit an exhausted token stream.
+/// Empty-token queries and suppressed diagnostic fixes must not mutate it.
+#[test]
+fn exhausted_parser_queries_and_suppressed_fixes_are_noops() {
+    let lexed = crate::lex(b"");
+    let mut parser = super::Parser::new("", &lexed.tokens, &lexed.diagnostics);
+    assert_eq!(parser.nth_text(0), "");
+    assert_eq!(parser.nth_text(1), "");
+    assert!(parser.current().is_none());
+    let events = parser.events.len();
+    parser.bump();
+    parser.bump();
+    parser.attach_docs();
+    parser.fix_error(0, "a suppressed diagnostic has no fix", &[]);
+    assert_eq!(parser.events.len(), events);
+    assert!(parser.errors.is_empty());
+    assert!(parser.attached.iter().all(|attached| !attached));
+}
+
+/// An exhausted stream terminates line/block recovery without consuming any
+/// token or manufacturing a diagnostic. These are internal cursor contracts.
+#[test]
+fn exhausted_parser_recovery_terminates_without_consuming_tokens() {
+    let lexed = crate::lex(b"");
+    let mut parser = super::Parser::new("", &lexed.tokens, &lexed.diagnostics);
+    parser.recover_line();
+    let events = parser.events.len();
+    parser.statements(false);
+    assert_eq!(parser.events.len(), events);
+    assert_eq!(parser.pos(), 0);
+    assert!(parser.errors.is_empty());
+}
