@@ -1,0 +1,35 @@
+# test: closures observe whole assignments to captured mutable parameters
+# Spec 07: fn.capture.cell, fn.capture.cell.writes, fn.capture.cell.closures.
+# expect: test
+use std.annotation.inline
+
+@inline(.Never)
+fn replace[T < 'static](mut value: T, next: T) -> (T, T):
+    first := fn() -> T: value
+    second := fn() -> T: value
+    value = next
+    (first(), second())
+
+struct Point:
+    x: usize
+
+enum Choice:
+    Before
+    After(usize)
+
+tests:
+    use std.testing.assert_equal
+
+    it("two readers see scalar parameter assignment"):
+        result := replace(3, 91)
+        assert_equal(result._0, 91, reason="the first closure shares the cell")
+        assert_equal(result._1, 91, reason="the second closure shares the cell")
+
+    it("generic struct parameters share assignments"):
+        assert_equal(replace(Point { x: 3 }, Point { x: 91 })._0.x, 91)
+
+    it("generic enum parameters share assignments"):
+        result := match replace(Choice.Before, Choice.After(91))._1:
+            .Before => 3
+            .After(value) => value
+        assert_equal(result, 91)

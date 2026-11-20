@@ -5120,6 +5120,10 @@ lang/traits/generic-bounds-and-static-dispatch/index-bound-remains-unsatisfied.h
 lang/control-flow/for-loops/capture-loop-fresh-binding.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.binding.fresh
 lang/functions/closures/capture-immutable-copied.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.using-split
 lang/functions/closures/capture-variable-cell.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell
+lang/functions/closures/mut-parameter-capture-reassignment.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.writes
+lang/functions/closures/mut-parameter-capture-fields.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.writes
+lang/functions/closures/mut-parameter-capture-collections.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.writes
+lang/functions/closures/mut-parameter-capture-wide.hd	runtime	accept	lang/07-functions.md#r-fn.capture.cell.writes
 lang/functions/closures/capture-closure-copies-share-cells.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copies
 lang/references/captured-references/capture-reference-write-through.hd	runtime	accept	lang/13-values-and-references.md#r-ref.capture.write-through
 lang/references/reading-through-a-reference/capture-closure-called-through-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.shallow

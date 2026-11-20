@@ -1,0 +1,35 @@
+# test: closures observe mutations of collection parameters
+# Spec 07: fn.capture.cell.writes.
+# expect: test
+use std.annotation.inline
+
+@inline(.Never)
+fn list_size(mut items: List[usize]) -> usize:
+    read := fn() -> usize: items.len()
+    items.push(91)
+    read()
+
+@inline(.Never)
+fn map_size(mut items: Map[string, usize]) -> usize:
+    read := fn() -> usize: items.len()
+    items["next"] = 91
+    read()
+
+fn immutable_snapshot(value: usize) -> fn() -> usize:
+    fn() -> usize: value
+
+tests:
+    use std.testing.assert_equal
+
+    it("a reader sees a parameter list push"):
+        assert_equal(list_size([3]), 2)
+
+    it("a reader sees a parameter map insert"):
+        assert_equal(map_size({ "first": 3 }), 2)
+
+    it("immutable parameters keep their copied values"):
+        let value = 3
+        read := immutable_snapshot(value)
+        value = 91
+        assert_equal(read(), 3)
+        assert_equal(value, 91)

@@ -1,0 +1,46 @@
+# test: a captured parameter with more than sixteen scalar fields shares reassignment
+# Spec 07: fn.capture.cell, fn.capture.cell.writes.
+# expect: test
+use std.annotation.inline
+
+struct Wide:
+    values: (
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+        usize,
+    )
+    text: string
+
+@inline(.Never)
+fn changed(mut value: Wide, next: Wide) -> usize:
+    read := fn() -> usize: value.values._0
+    value = next
+    read()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a wide mutable parameter shares its cell"):
+        before := Wide {
+            values: (3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            text: "before",
+        }
+        after := Wide {
+            values: (91, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            text: "after",
+        }
+        assert_equal(changed(before, after), 91)
