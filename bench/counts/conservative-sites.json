@@ -69,8 +69,7 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 463,
-      "explanation": "#2122 measured 463 static source-call sites across all 34 optimized-release runtime/study programs: app 0, std 85, runtime 378. The remaining +1 over 462 is structure_walk rt:release#0: a nullable string payload cleanup shared by Facts.find[Prefix], Facts.find[Contains] and Facts.find[Excludes]. Its body tests the payload pointer and calls release_ref once on Some; None has no count. The existing rt:release#1 instead releases Signup's three string fields unconditionally, so it cannot replace this walk. These are generated cleanup-code sites, not dynamic executions."
+      "sites": 460
     },
     {
       "reason": "conservative: unique",
