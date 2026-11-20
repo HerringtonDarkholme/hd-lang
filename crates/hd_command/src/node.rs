@@ -761,6 +761,150 @@ pub fn run_cases(
     run_host(wasm, env, cases, done, NODE_ENGINE)
 }
 
+/// One module and its isolated case environments in a Node command batch.
+pub(crate) struct BatchProgram<'a> {
+    pub program: usize,
+    pub wasm: &'a [u8],
+    pub env: TestEnv<'a>,
+    pub cases: &'a [HostCase],
+}
+
+/// One host process for the command; its workers share each compiled module.
+/// The package directory is common to integration/doc tests; unit tests have
+/// no host provider (`cli.test.env.cwd`). Each result lookup is a hash lookup,
+/// after indexing each case once, rather than scanning all tests per result.
+pub(crate) fn run_batch(
+    programs: &[BatchProgram<'_>],
+    jobs: usize,
+    cwd: &Path,
+    done: &mut dyn FnMut(usize, usize, CaseRun),
+) -> Result<(), String> {
+    let dir = Scratch::new(&[])?;
+    let mut manifest = format!(
+        "{{\"node\":{},\"jobs\":{},\"programs\":[",
+        quote(NODE_ENGINE),
+        jobs.max(1)
+    );
+    let mut tests = Vec::with_capacity(programs.len());
+    for (index, program) in programs.iter().enumerate() {
+        let wasm = dir.0.join(format!("program-{index}.wasm"));
+        let config = dir.0.join(format!("program-{index}.json"));
+        std::fs::write(&wasm, program.wasm)
+            .map_err(|error| format!("{}: {error}", wasm.display()))?;
+        std::fs::write(
+            &config,
+            host_config(&program.env, program.cases, NODE_ENGINE),
+        )
+        .map_err(|error| format!("{}: {error}", config.display()))?;
+        if index > 0 {
+            manifest.push(',');
+        }
+        let _ = write!(
+            manifest,
+            "{{\"wasm\":{},\"config\":{}}}",
+            quote(&wasm.to_string_lossy()),
+            quote(&config.to_string_lossy())
+        );
+        tests.push((
+            program.program,
+            program.cases.iter().map(|case| case.test).collect(),
+        ));
+    }
+    manifest.push_str("]}");
+    let config = dir.0.join("batch.json");
+    std::fs::write(&config, manifest).map_err(|error| format!("{}: {error}", config.display()))?;
+    // cost: one Node process per hd test command (see below).
+    let mut child = Command::new(node_program())
+        .arg(dir.0.join("test.js"))
+        .arg("--batch")
+        .arg(config)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        // cost: one Node process per hd test command, shared by all programs;
+        // compiled module storage is linear in the command's module bytes.
+        .spawn()
+        .map_err(|error| format!("node: {error}"))?;
+    let stdout = child.stdout.take().ok_or("node: no standard output")?;
+    let stderr = child.stderr.take().ok_or("node: no standard error")?;
+    std::thread::scope(|scope| {
+        // Drain diagnostics concurrently so a full stderr pipe cannot block
+        // the host before it closes stdout.
+        // cost: one drain thread per Node process, reading diagnostic bytes once.
+        let diagnostics = scope.spawn(move || std::io::read_to_string(stderr));
+        let read = read_batch_results(BufReader::new(stdout), &tests, done);
+        if read.is_err() {
+            let _ = child.kill();
+        }
+        let status = child.wait().map_err(|error| format!("node: {error}"))?;
+        let stderr = diagnostics
+            .join()
+            .map_err(|_| "node: diagnostic reader failed".to_owned())?
+            .map_err(|error| format!("node: {error}"))?;
+        if status.code() == Some(OLD_NODE) {
+            return Err(format!("node: {}", stderr.trim()));
+        }
+        let seen = read?;
+        let expected: usize = programs.iter().map(|program| program.cases.len()).sum();
+        if seen != expected {
+            let reason = if stderr.trim().is_empty() {
+                status.to_string()
+            } else {
+                stderr.trim().to_owned()
+            };
+            return Err(format!(
+                "node: the test host stopped after {seen} of {expected} cases: {reason}"
+            ));
+        }
+        Ok(())
+    })
+}
+
+/// Index once; one lookup and constant bookkeeping per result, including rows.
+fn read_batch_results(
+    input: impl BufRead,
+    tests: &[(usize, Vec<u32>)],
+    done: &mut dyn FnMut(usize, usize, CaseRun),
+) -> Result<usize, String> {
+    let mut index = hd_base::HashMap::default();
+    for (program, (_, cases)) in tests.iter().enumerate() {
+        for (position, &test) in cases.iter().enumerate() {
+            if index.insert((program, test), (position, false)).is_some() {
+                return Err("node: duplicate case in a test batch".to_owned());
+            }
+        }
+    }
+    let mut seen = 0;
+    for line in input.lines() {
+        let line = line.map_err(|error| format!("node: {error}"))?;
+        let (program, result) = line
+            .split_once('\t')
+            .ok_or_else(|| format!("node: unreadable batch result `{line}`"))?;
+        let program: usize = program
+            .parse()
+            .map_err(|_| format!("node: unreadable batch program `{program}`"))?;
+        let result =
+            parse_case(result).ok_or_else(|| format!("node: unreadable batch result `{line}`"))?;
+        let Some((position, ended)) = index.get_mut(&(program, result.test)) else {
+            return Err(format!(
+                "node: a result of a case the batch was not given `{line}`"
+            ));
+        };
+        if *ended {
+            return Err(format!(
+                "node: the batch reported a case again after it ended `{line}`"
+            ));
+        }
+        if result.last() {
+            *ended = true;
+            seen += 1;
+        }
+        done(tests[program].0, *position, result);
+    }
+    Ok(seen)
+}
+
 /// [`run_cases`] on a host that refuses a Node older than `node`.
 fn run_host(
     wasm: &[u8],
@@ -979,6 +1123,8 @@ pub(crate) fn json_str(s: &str) -> Option<(String, &str)> {
 
 #[cfg(test)]
 mod tests {
+    use super::read_batch_results;
+    use std::fmt::Write as _;
     use std::path::{Path, PathBuf};
 
     use hd_run::{Grants, Limit};
@@ -1043,6 +1189,61 @@ mod tests {
 
         let stranger = read_results(cut.as_bytes(), &[4], &mut |_| {});
         assert!(stranger.is_err());
+    }
+
+    #[test]
+    fn routes_batch_results_without_cross_program_case_collisions() {
+        let tests = [(4, vec![3, 5]), (9, vec![3])];
+        let row = |program, test, extra: &str| {
+            format!(
+                "{program}\t{{\"test\":{test},\"status\":0,\"trapped\":false,\"stdout\":\"\",\"stderr\":\"\",\"us\":1{extra}}}\n"
+            )
+        };
+        let input = [
+            row(1, 3, ""),
+            row(0, 5, ",\"row\":0,\"rows\":2"),
+            row(0, 3, ""),
+            row(0, 5, ",\"row\":1,\"rows\":2"),
+        ]
+        .concat();
+        let mut got = Vec::new();
+        let seen = read_batch_results(input.as_bytes(), &tests, &mut |program, position, case| {
+            got.push((program, position, case.test));
+        });
+        assert_eq!(seen, Ok(3));
+        assert_eq!(got, [(9, 0, 3), (4, 1, 5), (4, 0, 3), (4, 1, 5)]);
+        for invalid in [
+            row(2, 3, ""),
+            row(0, 7, ""),
+            [row(0, 3, ""), row(0, 3, "")].concat(),
+            "bad\n".to_owned(),
+        ] {
+            assert!(read_batch_results(invalid.as_bytes(), &tests, &mut |_, _, _| {}).is_err());
+        }
+        assert!(read_batch_results("".as_bytes(), &[(0, vec![3, 3])], &mut |_, _, _| {}).is_err());
+    }
+
+    #[test]
+    fn batch_results_index_cases_once_at_width_1000_and_10000() {
+        for count in [1000u32, 10000] {
+            let tests = [(7, (0..count).collect())];
+            let mut input = String::new();
+            for test in (0..count).rev() {
+                let _ = writeln!(
+                    input,
+                    "0\t{{\"test\":{test},\"status\":0,\"trapped\":false,\"stdout\":\"\",\"stderr\":\"\",\"us\":1}}"
+                );
+            }
+            let mut results = 0;
+            let seen =
+                read_batch_results(input.as_bytes(), &tests, &mut |program, position, case| {
+                    assert_eq!(program, 7);
+                    assert_eq!(position, case.test as usize);
+                    results += 1;
+                });
+            assert_eq!(seen, Ok(count as usize));
+            assert_eq!(results, count);
+        }
     }
 
     /// The host refuses a Node older than the one it names before it
