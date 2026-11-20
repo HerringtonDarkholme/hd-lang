@@ -277,14 +277,6 @@ impl Em<'_, '_, '_> {
         crate::layout::count_walk(self.pool(), self.env(), t)
     }
 
-    /// Whether the ownership passes track a value of `t` in a program
-    /// that counts ([`crate::layout::walk`]): one with a counted
-    /// reference, a thin local reference among them, though that counts
-    /// nothing ([`Em::counted`]).
-    pub(super) fn tracked(&self, t: Ty) -> bool {
-        crate::layout::walk(self.pool(), self.env(), t).is_some()
-    }
-
     /// Whether `t` is a thin local reference (`ref.count.local`) in a
     /// program that counts: a plain address, which counts nothing, though
     /// one may own the object it names ([`Em::owned_refs`]).
@@ -317,7 +309,7 @@ impl Em<'_, '_, '_> {
     /// ([`Em::owned_refs`]): a thin one's new object, or the data of the
     /// trait value a `&dyn` is.
     fn release_owned_ref(&mut self, ls: &[u32], t: Ty) -> StageResult<()> {
-        if let Some((target, true)) = self.ref_target(t) {
+        if let Some((target, true)) = self.cx().reference(t) {
             return self.release_locals(ls, target);
         }
         self.f.get(ls[0]);
@@ -331,7 +323,7 @@ impl Em<'_, '_, '_> {
     /// and releases an object it owns, so it has work too: this is the
     /// ownership passes' walk ([`crate::layout::walk`]), not the count's.
     pub(super) fn needs_drop(&self, t: Ty) -> bool {
-        self.tracked(t) || !self.drop_calls(t).is_empty()
+        self.cx().tracked(t) || !self.drop_calls(t).is_empty()
     }
 
     /// Whether a new object of type `t` (a self-recursive enum's cell, a
@@ -376,7 +368,7 @@ impl Em<'_, '_, '_> {
         let start = self.f.body.len();
         // A `*dyn`'s data count, through the page table, stands by
         // design; a `&dyn` counts nothing.
-        let reason = if self.ref_target(t).is_some_and(|(_, fat)| fat) {
+        let reason = if self.cx().reference(t).is_some_and(|(_, fat)| fat) {
             Some(Reason::ByDesign)
         } else {
             self.f.reason
@@ -418,7 +410,7 @@ impl Em<'_, '_, '_> {
             }
             Some(Reason::Cancelled) => self.susp.is_some(),
             Some(Reason::ByDesign) => {
-                self.ref_target(t).is_some_and(|(_, fat)| fat) || self.susp.is_some()
+                self.cx().reference(t).is_some_and(|(_, fat)| fat) || self.susp.is_some()
             }
             _ => true,
         };
@@ -596,7 +588,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn retain_ref(&mut self, r: u32) -> StageResult<Src> {
         if r == NONE
             || Ref(r).as_inst().is_none()
-            || !self.tracked(self.ty_of(r))
+            || !self.cx().tracked(self.ty_of(r))
             || self.short_holders.contains(&r)
         {
             return Ok(Src::Ref(r));
@@ -697,8 +689,15 @@ impl Em<'_, '_, '_> {
             }
             self.f.op(crate::op::Op::Else);
         }
+        // A value the TIR rows lend (`own::boundary`, `short`) lowers that
+        // fact; one only the emitter lends is its own decision.
+        #[cfg(feature = "ledger")]
+        let row = &self.boundary.subs[usize::from(self.sub_id)];
         ledger!(if self.owned_refs.contains(&x) => "drop-value/owned_refs"
-            else if self.loans.contains(&x) => "drop-value/skipped-loan" else "drop-value/release");
+            else if !self.loans.contains(&x) => "drop-value/release"
+            else if row.loans.contains(&x) || row.slice_loans.contains(&x)
+                || row.short.iter().any(|m| m.values.contains(&x)) => "drop-value/lent-row"
+            else "drop-value/skipped-loan");
         ledger!(if transferred.is_some() => "drop-value/input-transferred-flag");
         if self.owned_refs.contains(&x) {
             self.release_owned_ref(&ls, t)?;
@@ -991,7 +990,7 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(h);
         let start = self.f.body.len();
-        if self.is_map(t) {
+        if self.cx().is_map(t) {
             let (_, _, e) = self.entry(t)?;
             self.f.helper(Helper::MapUnique { entry: e });
         } else {

@@ -205,6 +205,8 @@ pub struct SubBoundary {
     pub slice_loans: Vec<u32>,
     /// Each promoted argument with the referent type it is read as.
     pub promoted: Vec<(u32, Ty)>,
+    /// The short loans the link decides (`short::mark_indexed`).
+    pub short: Vec<super::short::Mark>,
 }
 
 /// One instruction/place census and one visit per parameter/capture use.

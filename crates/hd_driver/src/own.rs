@@ -793,6 +793,29 @@ impl OwnCx for Env<'_> {
         matches!(self.intrinsic(*def).as_deref(), Some("ptr_ref" | "ptr_mut"))
     }
 
+    fn pointer_ref(&self, callee: &Callee) -> bool {
+        matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("ptr_ref"))
+    }
+
+    fn tracked(&self, ty: Ty) -> bool {
+        hd_layout::walk(&self.run.pool, self, ty).is_some()
+    }
+
+    fn mutable_ref(&self, ty: Ty) -> bool {
+        hd_layout::ref_mutable(&self.run.pool, self, ty)
+    }
+
+    fn is_map(&self, ty: Ty) -> bool {
+        hd_layout::coll_kind(&self.run.pool, self, ty) == Some(hd_mono::layout::StdKind::Map)
+    }
+
+    fn list_element(&self, ty: Ty) -> Option<Ty> {
+        let pool = &self.run.pool;
+        let (_, args) = pool.adt_parts(hd_layout::strip_newtype(pool, self, ty));
+        let item = *pool.list_items(args).first()?;
+        hd_layout::mem(pool, self, item).ok().map(|_| item)
+    }
+
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass {
         if self
             .returned_loan(callee)

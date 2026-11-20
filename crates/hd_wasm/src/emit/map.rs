@@ -7,7 +7,6 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
-use hd_mono::layout::StdKind;
 use hd_tir::ir::count::Part;
 use hd_tir::ir::{Callee, IntrinsicOp, NONE, PlaceRoot, Tag};
 use hd_types::Ty;
@@ -15,7 +14,7 @@ use wasm_encoder::BlockType;
 
 use super::value::{Dst, Src};
 use super::{Ctl, Em, MapProbe};
-use crate::layout::{coll_kind, payload_mem, strip_newtype};
+use crate::layout::{payload_mem, strip_newtype};
 use crate::map::{Entry, KeyOps, LIVE, USED, entry_address, hash_address};
 use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
@@ -42,11 +41,6 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Add);
         self.f.set(at);
         Ok((vt, at))
-    }
-
-    /// Whether `t` is a map type.
-    pub(super) fn is_map(&self, t: Ty) -> bool {
-        coll_kind(self.pool(), self.env(), t) == Some(StdKind::Map)
     }
 
     /// The key and value types of map type `t`, and its entry as the glue
@@ -640,7 +634,8 @@ impl Em<'_, '_, '_> {
     pub(super) fn map_probe(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
         // `Map.get_or_insert(&mut self, key, default)`.
         let (map, key, default) = (args[0], args[1], args[2]);
-        let (mt, _) = self.ref_target(self.ty_of(map)).expect("`&mut self`");
+        // ruled out: the probe's receiver is `&mut self` by its signature.
+        let (mt, _) = self.cx().reference(self.ty_of(map)).expect("`&mut self`");
         let (kt, vt, entry) = self.entry(mt)?;
         let ops = self.key_ops(i, &entry.key_vals());
         let at = self.f.local(Val::I32);

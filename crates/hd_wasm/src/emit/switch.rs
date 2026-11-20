@@ -290,7 +290,7 @@ impl Em<'_, '_, '_> {
             };
             let rt = self.ty(r);
             let mode = ReadMode::from_u32(self.b.data[r as usize][1]);
-            let uncounted = !self.tracked(rt) && self.drop_calls(rt).is_empty();
+            let uncounted = !self.cx().tracked(rt) && self.drop_calls(rt).is_empty();
             if !matches!(self.kind(rt), Kind::Value)
                 || mode == Some(ReadMode::Move)
                 || !(mode == Some(ReadMode::Borrow) || uncounted)

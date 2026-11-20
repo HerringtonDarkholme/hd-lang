@@ -354,6 +354,32 @@ pub trait OwnCx {
         let _ = ty;
         false
     }
+    /// Whether the backend tracks a value of `ty` (`hd_layout::walk`): one
+    /// with a counted reference, a thin local reference among them.
+    fn tracked(&self, ty: Ty) -> bool {
+        self.counted(ty)
+    }
+    /// A reference's target type, and whether it is a trait value (a fat
+    /// reference).
+    fn reference(&self, ty: Ty) -> Option<(Ty, bool)> {
+        self.reference_target(ty).map(|t| (t, self.trait_value(t)))
+    }
+    /// Whether `ty` is a mutable reference.
+    fn mutable_ref(&self, _ty: Ty) -> bool {
+        false
+    }
+    /// Whether `ty` is a map.
+    fn is_map(&self, _ty: Ty) -> bool {
+        false
+    }
+    /// The item type of list type `ty`, `None` for any other type.
+    fn list_element(&self, _ty: Ty) -> Option<Ty> {
+        None
+    }
+    /// Whether `callee` is a pointer's `as_ref` (`ptr_ref`).
+    fn pointer_ref(&self, _callee: &Callee) -> bool {
+        false
+    }
     /// Whether `callee`'s reference result is a plain address: a
     /// pointer's `as_ref` or `as_mut`. The default answers no.
     fn plain_result(&self, callee: &Callee) -> bool {

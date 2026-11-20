@@ -152,15 +152,6 @@ impl Em<'_, '_, '_> {
         Ok(ls)
     }
 
-    /// The type reference type `t` refers to, and whether the reference
-    /// is fat: a trait value.
-    pub(super) fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
-        match self.kind(t) {
-            Kind::Ref { target, fat, .. } => Some((target, fat)),
-            _ => None,
-        }
-    }
-
     /// The target and ABI width of a reference established by checked Deref.
     fn checked_ref_target(&self, t: Ty) -> Referent {
         let (pool, env) = (self.pool(), self.env());
@@ -522,7 +513,7 @@ impl Em<'_, '_, '_> {
             // ruled out: moves excludes frame locals; storage::slots requires
             // local frame references, whose local count cannot be taken.
             debug_assert!(!self.slots.contains_key(&x));
-            let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
+            let fat = self.cx().reference(self.ty(i)).is_some_and(|(_, f)| f);
             if self.is_cell(x) && !fat {
                 let at = self.cell_of(x)?;
                 self.f.get(at);
@@ -579,7 +570,7 @@ impl Em<'_, '_, '_> {
                     let (et, slot) = self.elem_slot(b, ty, ix.0)?;
                     (At::Mem(slot, LIST_ELEMS), et)
                 }
-                (Proj::Elem(ix), _) if self.is_map(ty) => {
+                (Proj::Elem(ix), _) if self.cx().is_map(ty) => {
                     let h = self.at_i32(&at);
                     let (vt, a) = self.map_value_at(h, ty, ix.0)?;
                     (At::Mem(a, 0), vt)
@@ -914,7 +905,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn lazy_borrow(&self, i: u32, target: Ty, ref_ty: Ty) -> bool {
         crate::work::use_facts(1);
         let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
-            && !self.tracked(target)
+            && !self.cx().tracked(target)
             && self.drop_calls(target).is_empty();
         self.susp.is_none()
             && (self.loans.contains(&i) || shared_copy)
@@ -1420,7 +1411,7 @@ impl Em<'_, '_, '_> {
                 continue;
             };
             // A map's value at entry `ix` (`ref.elem.map`).
-            if self.is_map(ty) {
+            if self.cx().is_map(ty) {
                 let h = self.at_i32(&at);
                 let (vt, a) = self.map_value_at(h, ty, ix.0)?;
                 at = At::Mem(a, 0);
@@ -1468,7 +1459,7 @@ impl Em<'_, '_, '_> {
         while let Some(&step) = steps.next() {
             match step {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
-                Proj::Elem(_) if self.is_map(ty) => ty = self.entry(ty)?.1,
+                Proj::Elem(_) if self.cx().is_map(ty) => ty = self.entry(ty)?.1,
                 Proj::Elem(_) => ty = self.elem(ty)?.0,
                 Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
@@ -1525,7 +1516,7 @@ impl Em<'_, '_, '_> {
             return Ok(Some((d, None)));
         }
         let ty = self.walk_ty(self.at_root_ty(p.root), &p.proj[..d])?;
-        Ok(Some((d, self.ref_target(ty))))
+        Ok(Some((d, self.cx().reference(ty))))
     }
 
     /// The type that the reference at step `d` of `p` refers to, as

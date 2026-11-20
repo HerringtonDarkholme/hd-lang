@@ -1,0 +1,30 @@
+# @dump: counts wat
+# expected: `lookup_direct` and `lookup_viewed` have one body.
+# `lookup_viewed` is emitted only as a cold function value, with no
+# collected instance of its own: the emitter's fallback boundary. That
+# boundary runs the same short-loan marking as `settled`
+# (`promote::short_loans`), so both show the same counts.
+use std.annotation.cold
+
+@cold
+fn lookup_direct!(values: *Map[string, string], key: string) -> usize:
+    match values.get(key):
+        .Some(value) => value.len()
+        .None => 0
+
+@cold
+fn lookup_viewed!(values: *Map[string, string], key: string) -> usize:
+    match values.get(key):
+        .Some(value) => value.len()
+        .None => 0
+
+@cold
+fn viewed() -> fn!(*Map[string, string], string) -> usize:
+    let source: (fn!(*Map[string, string], string) -> usize, usize) = (lookup_viewed, 1)
+    source._0
+
+pub fn main!() -> void:
+    values := box({ "key": "payload" })
+    _ := lookup_direct(values, "key")!()
+    f := viewed()
+    _ := f(values, "key")!()

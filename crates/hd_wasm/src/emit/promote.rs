@@ -154,13 +154,15 @@ pub fn settled(input: &Input<'_>) -> Settled {
                 | hd_mono::defaults::promoted_mask(&t.defaults[id.idx()])
         });
         let inputs = boundary_inputs(input, body, item, false, lends);
-        let boundary = std::sync::Arc::new(hd_tir::own::boundary::plan(
+        let mut boundary = hd_tir::own::boundary::plan(
             body,
             &topo,
             input.own_cx,
             &inputs,
             &mut crate::work::loan_queries,
-        ));
+        );
+        short_loans(input, body, &topo, &mut boundary);
+        let boundary = std::sync::Arc::new(boundary);
         for id in insts.into_iter().flatten() {
             out.boundaries.insert(id, std::sync::Arc::clone(&boundary));
             if let Some(body) = &changed {
@@ -169,6 +171,31 @@ pub fn settled(input: &Input<'_>) -> Settled {
         }
     }
     out
+}
+
+/// Each sub-body's short loans (`hd_tir::own::short`), in its rows: one use
+/// census for the body, one walk per sub.
+pub(super) fn short_loans(
+    input: &Input<'_>,
+    b: &Body,
+    topo: &hd_tir::ir::Topology,
+    boundary: &mut hd_tir::own::boundary::Boundary,
+) {
+    let uses = std::sync::OnceLock::new();
+    let mut rows = vec![Vec::new(); b.sub_root.len()];
+    for (i, &s) in topo.sub.iter().enumerate() {
+        rows[s as usize].push(i);
+    }
+    for (sub, row) in boundary.subs.iter_mut().enumerate() {
+        let cells = b.storage.iter().filter(|r| r.0.idx() == sub);
+        let facts = hd_tir::own::short::Facts {
+            cx: input.own_cx,
+            loans: row.loans.iter().chain(&row.slice_loans).copied().collect(),
+            cells: cells.map(|r| r.1.idx()).collect(),
+            retyped: row.promoted.iter().copied().collect(),
+        };
+        row.short = hd_tir::own::short::mark_indexed(b, topo, &facts, &rows[sub], &uses);
+    }
 }
 
 /// The parameters instance `key`, a promoted copy, takes by value: the

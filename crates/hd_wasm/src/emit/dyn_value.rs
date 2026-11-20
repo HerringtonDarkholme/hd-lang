@@ -40,7 +40,7 @@ impl Em<'_, '_, '_> {
         let mut ls = self.computed(value);
         let mut loaded = false;
         // Each thin reference is the address of the next one.
-        while let Some((next_ty, false)) = self.ref_target(ty) {
+        while let Some((next_ty, false)) = self.cx().reference(ty) {
             let m = mem_of(self.pool(), self.env(), next_ty)?;
             let next: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
             for (l, x) in m.leaves.iter().zip(&next) {
@@ -390,7 +390,7 @@ impl Em<'_, '_, '_> {
         let concrete = self.pool().list_items(targs)[0];
         let recv_t = self.ty_of(recv);
         // The receiver is a trait value or a reference to one.
-        let value_t = self.ref_target(recv_t).map_or(recv_t, |(t, _)| t);
+        let value_t = self.cx().reference(recv_t).map_or(recv_t, |(t, _)| t);
         if !self.is_dyn(value_t) {
             if hd_mono::type_name(self.pool(), self.env(), recv_t)
                 == hd_mono::type_name(self.pool(), self.env(), target)

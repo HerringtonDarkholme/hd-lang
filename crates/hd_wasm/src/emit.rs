@@ -166,13 +166,11 @@ fn body_func<'a>(
         .unwrap_or_default();
     let boundary = inst.and_then(|id| (input.boundary)(id)).unwrap_or_else(|| {
         let inputs = promote::boundary_inputs(input, b, item, own.cold.is_some(), own.lends);
-        std::sync::Arc::new(hd_tir::own::boundary::plan(
-            b,
-            &hd_tir::ir::Topology::new(b),
-            input.own_cx,
-            &inputs,
-            &mut crate::work::loan_queries,
-        ))
+        let topo = hd_tir::ir::Topology::new(b);
+        let work = &mut crate::work::loan_queries;
+        let mut boundary = hd_tir::own::boundary::plan(b, &topo, input.own_cx, &inputs, work);
+        promote::short_loans(input, b, &topo, &mut boundary);
+        std::sync::Arc::new(boundary)
     });
     let facts = body_cell.get_or_init(|| {
         body_facts::BodyFacts::new(
@@ -543,7 +541,7 @@ fn body_func<'a>(
                     );
                     // ruled out: own::parameter_copy states each tracked
                     // plain parameter's entry retain when its exit owns it.
-                    assert!(copy.is_some() || !em.tracked(t));
+                    assert!(copy.is_some() || !em.cx().tracked(t));
                     if let Some(reason) = copy {
                         em.because(reason, |em| em.count_locals(ls, t, true))?;
                     }
@@ -554,7 +552,7 @@ fn body_func<'a>(
                 let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
                 // ruled out: own::capture_entry states the shared/counted
                 // captures' entry retain. Read its actual reason below.
-                assert!(copy.is_some() || !(em.is_cell(*l) || em.tracked(b.local_ty[*l])));
+                assert!(copy.is_some() || !(em.is_cell(*l) || em.cx().tracked(b.local_ty[*l])));
                 if let Some(reason) = copy {
                     em.because(reason, |em| em.count_local(*l, ls, true))?;
                 }
@@ -616,11 +614,7 @@ fn body_func<'a>(
         em.open(Ctl::Exit);
     }
     em.prepare_own_loans()?;
-    {
-        let short_loans =
-            hd_tir::own::short::mark_indexed(b, &em.topo, &em, &em.rows, &facts.short_uses);
-        em.prepare_short_loans(short_loans);
-    }
+    em.prepare_short_loans(em.boundary.subs[usize::from(sub)].short.clone());
     let root = b.sub_root[sub as usize];
     em.place_result(em.live_tail(root))?;
     if !suspending {
@@ -1935,6 +1929,11 @@ impl Em<'_, '_, '_> {
         })
     }
 
+    /// The ownership context's layout facts, the ones the link's passes read.
+    pub(super) fn cx(&self) -> &dyn hd_tir::own::OwnCx {
+        self.input.own_cx
+    }
+
     /// Instruction `i`'s locals, made on first use.
     fn slot(&mut self, i: u32) -> StageResult<Vec<u32>> {
         if let Some(ls) = self.vals.get(&i) {
@@ -2995,7 +2994,7 @@ impl Em<'_, '_, '_> {
         child: Option<u32>,
     ) -> StageResult<()> {
         if transfers {
-            if self.take(r) || Ref(r).as_inst().is_none() || !self.tracked(self.ty_of(r)) {
+            if self.take(r) || Ref(r).as_inst().is_none() || !self.cx().tracked(self.ty_of(r)) {
                 self.push(r)?;
             } else {
                 // ruled out: ownership states a copy for every counted
@@ -4341,7 +4340,7 @@ impl Em<'_, '_, '_> {
             let Some(at) = Ref(a).as_inst().map(|x| x.0 as usize) else {
                 continue;
             };
-            let Some((target, false)) = self.ref_target(self.ty_of(a)) else {
+            let Some((target, false)) = self.cx().reference(self.ty_of(a)) else {
                 continue;
             };
             if saved.iter().any(|(b, ..)| *b == a) {

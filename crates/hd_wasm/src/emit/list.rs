@@ -358,7 +358,7 @@ impl Em<'_, '_, '_> {
     /// `MapEntry`'s number. Either address is `LIST_ELEMS` before the
     /// value.
     pub(super) fn elem_slot(&mut self, b: u32, t: Ty, ix: u32) -> StageResult<(Ty, u32)> {
-        if self.is_map(t) {
+        if self.cx().is_map(t) {
             // `LIST_ELEMS` before the value, as a list's slot is.
             let (vt, at) = self.map_value_at(b, t, ix)?;
             let x = self.f.local(Val::I32);
@@ -444,7 +444,8 @@ impl Em<'_, '_, '_> {
         // table (`hd_resolve::intrinsics`) gives each a `&mut` first, and
         // std declares it `items: &mut List[T]`.
         let (lt, _) = self
-            .ref_target(self.ty_of(args[0]))
+            .cx()
+            .reference(self.ty_of(args[0]))
             .expect("`&mut List[T]`");
         let (_, elem) = self.elem(lt)?;
         let helper = match key {

@@ -580,7 +580,7 @@ impl Em<'_, '_, '_> {
                         self.argument_pass(Some(lends), k, t),
                         crate::layout::Pass::Owned(_)
                     );
-                if mode == ReadMode::Move as u32 || !self.tracked(t) || owned_copy {
+                if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy {
                     out.push(r);
                 }
             }
@@ -667,7 +667,7 @@ impl Em<'_, '_, '_> {
             .map(|(&r, &t)| {
                 self.mem_vals.contains_key(&r)
                     && self.b.data[r as usize][1] == ReadMode::Copy as u32
-                    && self.tracked(t)
+                    && self.cx().tracked(t)
             })
             .collect();
         let mut size = 0u32;
@@ -699,7 +699,7 @@ impl Em<'_, '_, '_> {
                 (Some(mem), None, Some((base, _))) => {
                     // An owned counted argument moves in or takes counts
                     // of its own, as a leaf argument does (`Em::push_arg`).
-                    let src = if self.tracked(params[k]) {
+                    let src = if self.cx().tracked(params[k]) {
                         self.arg_src(i, k, r, params[k], Some(lends))?
                     } else {
                         None
@@ -974,7 +974,7 @@ impl Em<'_, '_, '_> {
             self.copy_in(base, 0, at, from, mem.size);
             return Ok(());
         }
-        let counted = self.counting && self.tracked(self.ty_of(r));
+        let counted = self.counting && self.cx().tracked(self.ty_of(r));
         let (src, moved) = match ret {
             _ if !counted => (super::value::Src::Ref(r), false),
             None => {
@@ -1368,7 +1368,7 @@ impl Em<'_, '_, '_> {
     /// drop ([`Em::mem_release`]): it holds a counted reference or a
     /// `Drop` hook.
     pub(super) fn released(&self, t: hd_types::Ty) -> bool {
-        self.tracked(t) || crate::layout::holds_drop(self.pool(), self.env(), t)
+        self.cx().tracked(t) || crate::layout::holds_drop(self.pool(), self.env(), t)
     }
 
     /// Whether a move of a field of type `field` out of a local of type
@@ -1377,7 +1377,7 @@ impl Em<'_, '_, '_> {
     /// whose run any moved field rules out for its enclosing values
     /// (`ref.move.field`, as the leaf path's drop-state flags).
     fn moved_field_flagged(&self, local: hd_types::Ty, field: hd_types::Ty) -> bool {
-        self.tracked(field) || crate::layout::holds_drop(self.pool(), self.env(), local)
+        self.cx().tracked(field) || crate::layout::holds_drop(self.pool(), self.env(), local)
     }
 
     /// The hook plan of `t`, a type kept by address ([`HookPlan`]), made

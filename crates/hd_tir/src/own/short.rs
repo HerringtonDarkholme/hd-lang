@@ -47,22 +47,15 @@ pub enum CallKind {
     Other,
 }
 
-/// Instance, signature and storage facts read by the late TIR pass.
-/// These queries make no decision about whether a loan is short.
-pub trait Context {
-    fn call_kind(&self, instruction: u32) -> CallKind;
-    fn value_type(&self, value: u32) -> Ty;
-    fn local_type(&self, local: u32) -> Ty;
-    fn mutable_ref(&self, ty: Ty) -> bool;
-    fn ref_target(&self, ty: Ty) -> Option<(Ty, bool)>;
-    fn is_map(&self, ty: Ty) -> bool;
-    fn element(&self, ty: Ty) -> Option<Ty>;
-    fn counted(&self, ty: Ty) -> bool;
-    fn needs_drop(&self, ty: Ty) -> bool;
-    fn indirect_local(&self, local: usize) -> bool;
-    fn promoted(&self, value: u32) -> bool;
-    fn loan_value(&self, value: u32) -> bool;
-    fn may_write(&self, callee: &Callee) -> bool;
+/// What the pass reads of one instance at link (`promote::settled`): the
+/// ownership context's layout and call facts, and the sub-body's lent
+/// values, storage cells and promoted arguments' referent types
+/// (`own::boundary`). These facts make no decision about a loan.
+pub struct Facts<'a> {
+    pub cx: &'a dyn super::OwnCx,
+    pub loans: HashSet<u32>,
+    pub cells: HashSet<usize>,
+    pub retyped: hd_base::HashMap<u32, Ty>,
 }
 
 /// A proven short loan. Its holders use their collection's count until
@@ -79,7 +72,7 @@ pub struct Mark {
 /// Decide every short loan, in origin order, from the owned TIR and the
 /// already resolved layout facts. This changes no read mode or drop.
 #[must_use]
-pub fn mark(b: &Body, topo: &Topology, cx: &dyn Context) -> Vec<Mark> {
+pub fn mark(b: &Body, topo: &Topology, cx: &Facts<'_>) -> Vec<Mark> {
     Pass {
         b,
         topo,
@@ -96,7 +89,7 @@ pub fn mark(b: &Body, topo: &Topology, cx: &dyn Context) -> Vec<Mark> {
 pub fn mark_indexed(
     b: &Body,
     topo: &Topology,
-    cx: &dyn Context,
+    cx: &Facts<'_>,
     rows: &[usize],
     uses: &std::sync::OnceLock<Uses>,
 ) -> Vec<Mark> {
@@ -112,7 +105,7 @@ pub fn mark_indexed(
 struct Pass<'a> {
     b: &'a Body,
     topo: &'a Topology,
-    cx: &'a dyn Context,
+    cx: &'a Facts<'a>,
     loans: HashSet<u32>,
 }
 
@@ -133,6 +126,29 @@ struct Found {
 }
 
 impl Pass<'_> {
+    /// A resolved call's lowering kind, from its callee.
+    fn call_kind(&self, x: u32) -> CallKind {
+        let callee = Callee::from_words(self.b.record(self.b.data[x as usize][0]));
+        match callee {
+            Some(c) if self.cx.cx.is_map_probe(&c) => CallKind::MapProbe,
+            Some(c) if self.cx.cx.pointer_ref(&c) => CallKind::PointerRef,
+            _ => CallKind::Other,
+        }
+    }
+
+    /// Value `v`'s type as the instance emits it: a promoted argument as
+    /// its referent.
+    fn value_type(&self, v: u32) -> Ty {
+        match crate::ir::Ref(v).as_inst() {
+            Some(i) => (self.cx.retyped.get(&i.0).copied()).unwrap_or(self.b.ty[i.0 as usize]),
+            None => self.b.consts[(v & !crate::ir::Ref::CONST_BIT) as usize].0,
+        }
+    }
+
+    fn needs_drop(&self, ty: Ty) -> bool {
+        self.cx.cx.tracked(ty) || self.cx.cx.holds_drop(ty) != super::Tri::No
+    }
+
     fn run(
         &mut self,
         rows: impl Iterator<Item = usize>,
@@ -167,13 +183,11 @@ impl Pass<'_> {
     fn loan_origin(&self, x: u32) -> Option<(u32, bool, Vec<u32>)> {
         let i = x as usize;
         match self.b.tags[i] {
-            Tag::Call if self.cx.call_kind(x) == CallKind::MapProbe => {
+            Tag::Call if self.call_kind(x) == CallKind::MapProbe => {
                 let args = self.b.call_args(i);
                 (args.len() == 3).then_some((x, true, Vec::new()))
             }
-            Tag::Call if self.cx.call_kind(x) == CallKind::PointerRef => {
-                Some((x, false, Vec::new()))
-            }
+            Tag::Call if self.call_kind(x) == CallKind::PointerRef => Some((x, false, Vec::new())),
             Tag::Ref => Some((x, false, self.shared_elem_ref(x)?)),
             Tag::Intrinsic
                 if IntrinsicOp::from_u32(self.b.data[i][0]) == Some(IntrinsicOp::MapGet) =>
@@ -191,7 +205,10 @@ impl Pass<'_> {
         let i = x as usize;
         let w = self.b.data[i][1];
         let marks = ref_word::MUT | ref_word::TAKES | ref_word::FRAME;
-        if w & marks != 0 || self.cx.promoted(x) || self.cx.mutable_ref(self.cx.value_type(x)) {
+        if w & marks != 0
+            || self.cx.retyped.contains_key(&x)
+            || self.cx.cx.mutable_ref(self.value_type(x))
+        {
             return None;
         }
         let p = self.b.view(self.b.data[i][0]);
@@ -203,15 +220,15 @@ impl Pass<'_> {
             _ => return None,
         };
         let steps: Vec<Proj> = p.steps(self.b).collect();
-        let lt = self.cx.local_type(l);
+        let lt = self.b.local_ty[l as usize];
         let list = match steps.as_slice() {
             [Proj::Elem(_)] => lt,
-            [Proj::Deref, Proj::Elem(_)] => self.cx.ref_target(lt).filter(|t| !t.1)?.0,
+            [Proj::Deref, Proj::Elem(_)] => self.cx.cx.reference(lt).filter(|t| !t.1)?.0,
             _ => return None,
         };
-        if self.cx.indirect_local(l as usize)
-            || self.cx.is_map(list)
-            || self.cx.element(list).is_none()
+        if self.cx.cells.contains(&(l as usize))
+            || self.cx.cx.is_map(list)
+            || self.cx.cx.list_element(list).is_none()
         {
             return None;
         }
@@ -458,7 +475,7 @@ impl Pass<'_> {
                 && let w = self.b.data[k][1]
                 && (self.b.loan_value(w).is_some()
                     || (crate::ir::Ref(w).as_inst().is_some()
-                        && (self.loans.contains(&w) || self.cx.loan_value(w))))
+                        && (self.loans.contains(&w) || self.cx.loans.contains(&w))))
             {
                 return false;
             }
@@ -497,7 +514,7 @@ impl Pass<'_> {
                 let parts = self.b.record(self.b.data[k][1]);
                 let alone = parts
                     .iter()
-                    .all(|&q| q == v || !self.cx.counted(self.cx.value_type(q)));
+                    .all(|&q| q == v || !self.cx.cx.tracked(self.value_type(q)));
                 if !alone {
                     return None;
                 }
@@ -532,7 +549,7 @@ impl Pass<'_> {
             Tag::Read | Tag::Store if p.root == Root::Value(v) => {
                 return self.through_holder(j, mutable, own);
             }
-            Tag::Call if dropped && !self.cx.counted(self.cx.value_type(j)) => Next::Lends,
+            Tag::Call if dropped && !self.cx.cx.tracked(self.value_type(j)) => Next::Lends,
             _ => return None,
         };
         if self.b.tags[k] != Tag::Call {
@@ -550,7 +567,7 @@ impl Pass<'_> {
         let deref = p.steps(self.b).any(|s| s == Proj::Deref);
         let next = match self.b.tags[k] {
             Tag::Read if deref && self.b.data[k][1] != ReadMode::Move as u32 => Next::Lends,
-            Tag::Read if !deref && self.cx.counted(self.cx.value_type(j)) => Next::Value(j),
+            Tag::Read if !deref && self.cx.cx.tracked(self.value_type(j)) => Next::Value(j),
             Tag::Read if !deref => Next::Lends,
             Tag::Store if deref && mutable => Next::Lends,
             _ => return None,
@@ -574,7 +591,7 @@ impl Pass<'_> {
         let alone = u.stores[l] == 1
             && !u.captured[l]
             && self.b.local_flags[l] & local_flags::PARAM == 0
-            && !self.cx.indirect_local(l)
+            && !self.cx.cells.contains(&l)
             && !self.b.exit_drops.iter().any(|&(_, x)| x.idx() == l);
         if !alone {
             return None;
@@ -722,7 +739,7 @@ impl Pass<'_> {
                 .get(self.b.data[k][0] as usize)
                 .is_some_and(|&t| t >= first && t <= end),
             Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
-                .is_some_and(|callee| !self.cx.may_write(&callee)),
+                .is_some_and(|callee| !self.cx.cx.may_write(&callee)),
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(self.b.data[k][0]),
                 Some(
@@ -741,7 +758,7 @@ impl Pass<'_> {
     /// counted leaf and no `std.rt.Drop`, as the `Ptr` a pointer
     /// reference's origin reads.
     fn drops_nothing(&self, root: Root) -> bool {
-        matches!(root, Root::Value(v) if !self.cx.needs_drop(self.cx.value_type(v)))
+        matches!(root, Root::Value(v) if !self.needs_drop(self.value_type(v)))
     }
 
     /// Whether dropping `root` leaves its referent's local holding it: a
@@ -830,56 +847,43 @@ mod tests {
     const REFERENCE: Ty = Ty(1_000_000);
     const LIST: Ty = Ty(1_000_001);
 
-    struct Facts<'a>(&'a Body);
+    struct TestCx;
 
-    impl Context for Facts<'_> {
-        fn call_kind(&self, instruction: u32) -> CallKind {
-            if self.0.tags[instruction as usize] == Tag::Call
-                && matches!(Callee::from_words(self.0.record(self.0.data[instruction as usize][0])), Some(Callee::Item { def, .. }) if def == DefId::from_raw(7))
-            {
-                CallKind::PointerRef
-            } else {
-                CallKind::Other
+    crate::own::test_cx::own_cx!(
+        TestCx,
+        [
+            temporary_owner_name,
+            parts,
+            pass,
+            pass_value,
+            received,
+            holds_coll
+        ],
+        {
+            fn pointer_ref(&self, callee: &Callee) -> bool {
+                matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(7))
+            }
+            fn counted(&self, ty: Ty) -> bool {
+                ty == REFERENCE || ty == LIST
+            }
+            fn holds_drop(&self, _: Ty) -> crate::own::Tri {
+                crate::own::Tri::No
+            }
+            fn list_element(&self, ty: Ty) -> Option<Ty> {
+                (ty == LIST).then_some(Ty::I32)
+            }
+            fn may_write(&self, callee: &Callee) -> bool {
+                matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(8))
             }
         }
-        fn value_type(&self, value: u32) -> Ty {
-            Ref(value).as_inst().map_or_else(
-                || self.0.consts[(value & !Ref::CONST_BIT) as usize].0,
-                |inst| self.0.ty[inst.0 as usize],
-            )
-        }
-        fn local_type(&self, local: u32) -> Ty {
-            self.0.local_ty[local as usize]
-        }
-        fn mutable_ref(&self, _: Ty) -> bool {
-            false
-        }
-        fn ref_target(&self, _: Ty) -> Option<(Ty, bool)> {
-            None
-        }
-        fn is_map(&self, _: Ty) -> bool {
-            false
-        }
-        fn element(&self, ty: Ty) -> Option<Ty> {
-            (ty == LIST).then_some(Ty::I32)
-        }
-        fn counted(&self, ty: Ty) -> bool {
-            ty == REFERENCE || ty == LIST
-        }
-        fn needs_drop(&self, ty: Ty) -> bool {
-            self.counted(ty)
-        }
-        fn indirect_local(&self, _: usize) -> bool {
-            false
-        }
-        fn promoted(&self, _: u32) -> bool {
-            false
-        }
-        fn loan_value(&self, _: u32) -> bool {
-            false
-        }
-        fn may_write(&self, callee: &Callee) -> bool {
-            matches!(callee, Callee::Item { def, .. } if *def == DefId::from_raw(8))
+    );
+
+    fn facts() -> Facts<'static> {
+        Facts {
+            cx: &TestCx,
+            loans: HashSet::default(),
+            cells: HashSet::default(),
+            retyped: hd_base::HashMap::default(),
         }
     }
 
@@ -929,7 +933,7 @@ mod tests {
     #[test]
     fn a_pointer_reference_with_a_quiet_lifetime_gets_a_mark() {
         let (body, origin, end) = pointer_loan(0);
-        let marks = mark(&body, &Topology::new(&body), &Facts(&body));
+        let marks = mark(&body, &Topology::new(&body), &facts());
         assert_eq!(
             marks,
             vec![Mark {
@@ -946,7 +950,7 @@ mod tests {
     fn a_possible_write_or_an_escaping_holder_prevents_a_mark() {
         for intervenes in [1, 2] {
             let (body, _, _) = pointer_loan(intervenes);
-            assert!(mark(&body, &Topology::new(&body), &Facts(&body)).is_empty());
+            assert!(mark(&body, &Topology::new(&body), &facts()).is_empty());
         }
     }
 
@@ -981,7 +985,7 @@ mod tests {
             let body = b
                 .finish_tolerating(root, &[], &[22])
                 .expect("owned TIR shape");
-            let marks = mark(&body, &Topology::new(&body), &Facts(&body));
+            let marks = mark(&body, &Topology::new(&body), &facts());
             if hoisted {
                 assert!(marks.is_empty());
             } else {
