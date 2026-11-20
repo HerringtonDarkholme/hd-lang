@@ -9,35 +9,38 @@
 fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string, string)):
 > app/main/generic
 >   local $0 captured: string [param read captured] value
->     uses $0: entry -> %2 consume, %8 consume, %12 consume, %14 consume last
->   local $1 value: i32 [param read] value
->     uses $1: entry -> %3 consume last
->   local $2 value: string [param read] value
->     uses $2: entry -> %9 consume last
->   %1 = Retain %17 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 consume, %3 consume last
+>   %0 = Retain %6 Entry local $0 #0 : ()
     fn pair[T](value: T) -> (string, T):
->   %0 = Retain %5 Entry captures #0 : ()
->   %5 = Block %4 : (string, i32)
->   %6 = Retain %11 Entry captures #0 : ()
->   %7 = Retain %11 Entry local $2 #0 : ()
->   %11 = Block %10 : (string, string)
->   %17 = Block %16 : (fn(i32) -> (string, i32), fn(string) -> (string, string))
+>   %6 = Block %5 : (fn(i32) -> (string, i32), fn(string) -> (string, string))
+>   %7 = Retain %9 Entry captures #0 : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+> app/main/generic#1
+>   local $0 captured: string [read captured] value
+>     uses $0: entry -> %1 consume, %5 consume last
+>   local $1 value: i32 [param read] value
+>     uses $1: entry -> %2 consume last
+>   %0 = Retain %4 Entry captures #0 : ()
+>   %4 = Block %3 : (string, i32)
+>   %5 = Closure #1 : fn(i32) -> (string, i32)
+>   %6 = Retain %5 Operation captures #0 : ()
+>   %7 = Drop [%5] : ()
+>   %8 = Block - : ()
         (captured, value)
->   %2 = Read move [$0] : string
->   %3 = Read copy [$1] : i32
->   %4 = NewTuple - [%2 %3] : (string, i32)
->   %8 = Read move [$0] : string
->   %9 = Read move [$2] : string
->   %10 = NewTuple - [%8 %9] : (string, string)
-    (pair::[i32], pair::[string])
->   %12 = Closure #1 : fn(i32) -> (string, i32)
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Closure #2 : fn(string) -> (string, string)
->   %15 = Retain %14 Operation captures #0 : ()
->   %16 = NewTuple - [%12 %14] : (fn(i32) -> (string, i32), fn(string) -> (string, string))
+>   %1 = Read move [$0] : string
+>   %2 = Read copy [$1] : i32
+>   %3 = NewTuple - [%1 %2] : (string, i32)
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
->   exit sub 2 drops [$0 $2]
+    (pair::[i32], pair::[string])
+>   %1 = Closure #1 : fn(i32) -> (string, i32)
+>   %2 = Retain %1 Operation captures #0 : ()
+>   %3 = Closure #1 : fn(string) -> (string, string)
+>   %4 = Retain %3 Operation captures #0 : ()
+>   %5 = NewTuple - [%1 %3] : (fn(i32) -> (string, i32), fn(string) -> (string, string))
+>   exit sub 0 drops [$0]
+>   exit sub 1 drops [$0]
 
 fn counter() -> (fn!() -> usize):
     let count: usize = 0

@@ -1,8 +1,8 @@
 //! The one body copy-with-remap (#2132). The inliner's copy of a callee,
-//! step 4's copy of a generic local function per instantiation
-//! (`local_fns`), a closure literal's sparse sub-body copy and the splice's
-//! renumbering all map a body's words here, each through the tables its
-//! call site passes ([`Remap`]).
+//! a closure literal's sparse sub-body copy, and the splice's and the
+//! generic local functions' lifting's (`lift`) renumbering all map a
+//! body's words here, each through the tables its call site passes
+//! ([`Remap`]).
 //!
 //! What a word names decides how it maps: an instruction or constant word
 //! by the operand schema ([`slots`]); a local (a bare place, a place
@@ -222,7 +222,15 @@ pub(crate) fn copy_rows(
                             },
                         );
                     }
-                    out.push_record(&[first, count])
+                    // An instantiation keeps the function's first
+                    // parameter index and its type arguments.
+                    match rec.get(2..4) {
+                        Some(&[own, targs]) if src.is_instantiation(i) => {
+                            let targs = map.list(TyList(targs)).0;
+                            out.push_record(&[first, count, own, targs])
+                        }
+                        _ => out.push_record(&[first, count]),
+                    }
                 }
                 Op::Record if tag == Tag::Block => {
                     let mut members = Vec::new();

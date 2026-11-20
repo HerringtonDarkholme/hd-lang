@@ -219,10 +219,22 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             );
         }
         for (f, kept) in &excerpts {
+            // A lifted generic local function (`name#k`) is its own body.
+            let sub = (f.name.rsplit_once('#'))
+                .map(|(_, k)| {
+                    k.chars()
+                        .take_while(char::is_ascii_digit)
+                        .collect::<String>()
+                })
+                .filter(|k| !k.is_empty());
             let tir = f
                 .item
                 .as_deref()
-                .and_then(|i| built.own_text.get(i))
+                .and_then(|i| {
+                    (sub.as_ref())
+                        .and_then(|k| built.own_text.get(&format!("{i}#{k}")))
+                        .or_else(|| built.own_text.get(i))
+                })
                 .map_or("", |own| own.text.as_str());
             let mut locals = Locals::new(f, tir);
             for t in kept.iter().flat_map(|(_, ts)| ts) {

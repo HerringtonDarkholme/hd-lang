@@ -15,7 +15,7 @@ use hd_base::{
 use hd_types::{Ty, TyList};
 
 mod copy;
-mod local_fns;
+mod lift;
 mod nest;
 mod owned;
 mod root;
@@ -25,7 +25,7 @@ mod view;
 pub(crate) use copy::{
     Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, renumber,
 };
-pub use local_fns::{LocalTypes, instantiate_local_functions};
+pub use lift::{Lifting, function_template, item_template, scopes as local_function_scopes};
 pub use nest::Nest;
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};

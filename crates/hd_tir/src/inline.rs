@@ -20,6 +20,7 @@ use crate::ir::{
 use crate::own::splice::permute_columns;
 
 mod closures;
+pub(crate) use closures::extract_subs;
 pub use closures::{called_parameters, inline_local_closures, literal_arguments};
 
 /// The statically known callee of call `i` when its requirement context

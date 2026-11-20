@@ -106,10 +106,6 @@ pub struct Counters {
     /// Generic instance bodies built (`hd_mono::instantiate`): one per
     /// distinct item and type arguments the run owns.
     pub instances_built: usize,
-    /// Sub-bodies made for generic local functions as a body is folded
-    /// (`hd_mono::instantiate_locals` in `Env::fold_and_inline`): one per
-    /// distinct function and type arguments in its declaring context.
-    pub local_instances_built: usize,
     /// How many folder interface item records were decoded from blobs:
     /// only the ones the run reads (#213).
     pub iface_records: usize,

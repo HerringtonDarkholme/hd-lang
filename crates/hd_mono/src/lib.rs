@@ -33,7 +33,11 @@ use hd_types::solver::{
 use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 mod type_depth;
-pub use instance::{close_body, instantiate, instantiate_locals, substitute_body};
+/// Per sub-body, the generic local functions' parameter ranges
+/// (`ProgramEnv::local_scopes`).
+type LocalScopes = Arc<Vec<Vec<(u32, u32)>>>;
+
+pub use instance::{close_body, instantiate, substitute_body};
 pub use type_depth::type_argument_depth;
 
 pub use crate::layout::Sub;
@@ -65,6 +69,12 @@ pub trait ProgramEnv: LayoutEnv {
     /// and in release its summary decides how the instance takes its
     /// parameters ([`ProgramEnv::lends`]). `None` keeps the ordinary body.
     fn instance_body(&self, _def: DefId, _args: TyList) -> StageResult<Option<Arc<Body>>>;
+    /// Per sub-body of `def`'s checked body, the type-parameter ranges of
+    /// the generic local functions it stands in
+    /// (`hd_tir::ir::local_function_scopes`); empty with no body.
+    fn local_scopes(&self, _def: DefId) -> Vec<Vec<(u32, u32)>> {
+        Vec::new()
+    }
     /// Release (#1118): the exclusive copy of `def`'s instance at `args`,
     /// which borrows through the parameters in its mask across calls that
     /// may write, and which a call may run where
@@ -1472,6 +1482,9 @@ struct Cx<'a> {
     /// (`ProgramEnv::instance_body`): an item's sub-body instances, a
     /// closure each, share it rather than each holding a copy.
     item_bodies: HashMap<(DefId, TyList), Option<Arc<Body>>>,
+    /// Each item's generic local functions' parameter ranges, once per
+    /// build (`ProgramEnv::local_scopes`).
+    local_scopes: HashMap<DefId, LocalScopes>,
     /// Each scanned body's instruction sub-bodies (`Body::inst_subs`), by
     /// the body's address and length: a body that holds many closures is
     /// scanned once per closure, and each scan reads them.
@@ -3537,28 +3550,87 @@ impl Cx<'_> {
                         _ => Vec::new(),
                     };
                     let defaults = self.out.table.defaults[id.idx()].clone();
+                    // A generic local function's code (`hd_tir::ir::lift`) is
+                    // its sub-body at the item's arguments followed by its
+                    // own, by parameter index; an unbound one between stays
+                    // itself. Its body is the item's instance at those.
+                    // It binds the item's parameters and those of the
+                    // functions around it, which every call site sees bound;
+                    // any other stays itself, so the instance owns the
+                    // function alone (`hd_tir::ir::lift`).
+                    let at = if body.is_instantiation(i) {
+                        let r = body.record(b);
+                        let own = pool.list_items(TyList(r[3]));
+                        let owner = env.generics_owner(item);
+                        let skip = env.parent(owner).map_or(0, |p| p.1);
+                        let fixed = env.generic_rows(owner).len();
+                        let scopes = self
+                            .local_scopes
+                            .entry(item)
+                            .or_insert_with(|| Arc::new(env.local_scopes(item)))
+                            .clone();
+                        let around = scopes
+                            .get(usize::from(sub_k))
+                            .map_or(&[][..], Vec::as_slice);
+                        let current = pool.list_items(args);
+                        let first = skip + r[2] as usize;
+                        let len = around
+                            .iter()
+                            .map(|&(f, n)| skip + (f + n) as usize)
+                            .chain([first + own.len(), fixed])
+                            .max()
+                            .unwrap_or(0);
+                        let all: Option<Vec<Ty>> = (0..len)
+                            .map(|p| {
+                                let index = p.checked_sub(skip).and_then(|x| u32::try_from(x).ok());
+                                let mine = index.is_some_and(|x| {
+                                    x >= r[2] && (x - r[2]) < u32::try_from(own.len()).unwrap_or(0)
+                                });
+                                let kept = p < fixed
+                                    || index.is_some_and(|x| {
+                                        around.iter().any(|&(f, n)| x >= f && x < f + n)
+                                    });
+                                if mine {
+                                    Some(s(own[p - first]))
+                                } else if kept && let Some(&t) = current.get(p) {
+                                    Some(t)
+                                } else {
+                                    let index = u16::try_from(index?).ok()?;
+                                    Some(pool.intern_ty(&TyData::Param(ParamRef { owner, index })))
+                                }
+                            })
+                            .collect();
+                        let Some(all) = all else {
+                            return err("a local function's parameter outside its owner's");
+                        };
+                        pool.list(&all)
+                    } else {
+                        args
+                    };
                     let key = self.push_specialized(
                         item,
                         Sub::Body(sub_k),
-                        args,
-                        args,
+                        at,
+                        at,
                         &carried,
                         &defaults,
                         id,
                     )?;
-                    if let Some(body) = &instance_body
+                    let shared = if at == args {
+                        instance_body.clone()
+                    } else {
+                        self.item_body(item, at)?
+                    };
+                    if let Some(body) = shared
                         && let Some(child) = self.out.table.get_with_defaults(
                             item,
                             Sub::Body(sub_k),
-                            args,
+                            at,
                             &carried,
                             &defaults,
                         )
                     {
-                        self.out
-                            .instance_bodies
-                            .entry(child)
-                            .or_insert_with(|| body.clone());
+                        self.out.instance_bodies.entry(child).or_insert(body);
                     }
                     calls.insert(ix, Target::Closure(key));
                 }
@@ -3963,6 +4035,7 @@ fn collect_roots(
         plans: HashMap::default(),
         spec_params: HashMap::default(),
         item_bodies: HashMap::default(),
+        local_scopes: HashMap::default(),
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),

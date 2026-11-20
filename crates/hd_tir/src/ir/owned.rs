@@ -513,8 +513,8 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
 /// form, since the emitter substitutes none. Rejected: a type naming a
 /// type parameter, a projection or an opaque result, in any column or
 /// record type word (`hd_mono::instantiate` and `close_body` close them);
-/// a generic local function (`hd_mono::instantiate_locals`, whose error
-/// `instantiate` leaves to this check); and a trait call chosen through
+/// a generic local function (`crate::ir::lift`, whose error the instance
+/// marking leaves to this check); and a trait call chosen through
 /// a bound at a receiver that is no trait value (`inline::rechoose`).
 /// Cost: one pass over the columns and records, an O(1) flag test a type.
 fn instance(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {

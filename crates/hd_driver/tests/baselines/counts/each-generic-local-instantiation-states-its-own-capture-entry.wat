@@ -290,6 +290,30 @@
     i32.store $heap offset=4
     local.get $t0
   )
+  (func $"generic#1[string]" (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t0 i32)
+    ;; 9 |     fn pair[T](value: T) -> (string, T):
+    local.get $env
+    i32.load $heap
+    local.tee $ctx
+    local.get $env
+    i32.load $heap offset=4
+    local.set $env
+    local.tee $t0
+    if
+      local.get $t0
+      call $retain
+    end
+    local.get $value.0
+    if
+      local.get $value.0
+      call $retain
+    end
+    ;; 10 |         (captured, value)
+    local.get $ctx
+    local.get $env
+    local.get $value.0
+    local.get $value.1
+  )
   (func $counter (result i32 i32) (local $count i32) (local $t0 i32)
     ;; 14 |     let count: usize = 0
     i32.const 4
@@ -324,24 +348,6 @@
     end
     ;; 15 |     fn!() -> usize:
     local.get $t0
-  )
-  (func $generic#1 (param $env i32) (param $value i32) (param $ctx i32) (result i32 i32 i32) (local $t0 i32)
-    ;; 9 |     fn pair[T](value: T) -> (string, T):
-    local.get $env
-    i32.load $heap
-    local.tee $ctx
-    local.get $env
-    i32.load $heap offset=4
-    local.set $env
-    local.tee $t0
-    if
-      local.get $t0
-      call $retain
-    end
-    ;; 10 |         (captured, value)
-    local.get $ctx
-    local.get $env
-    local.get $value
   )
   (func $framed#1 (param $env i32) (param $ctx i32) (result i32)
     ;; 21 |     next := fn() -> usize:
@@ -426,7 +432,7 @@
     i32.add
     global.set $stack
   )
-  (func $generic#2 (param $env i32) (param $value.0 i32) (param $value.1 i32) (param $ctx i32) (result i32 i32 i32 i32) (local $t0 i32)
+  (func $"generic#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32 i32 i32) (local $t0 i32)
     ;; 9 |     fn pair[T](value: T) -> (string, T):
     local.get $env
     i32.load $heap
@@ -439,15 +445,9 @@
       local.get $t0
       call $retain
     end
-    local.get $value.0
-    if
-      local.get $value.0
-      call $retain
-    end
     ;; 10 |         (captured, value)
     local.get $ctx
     local.get $env
-    local.get $value.0
-    local.get $value.1
+    local.get $value
   )
 )

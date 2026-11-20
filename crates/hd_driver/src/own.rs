@@ -2801,16 +2801,6 @@ impl Env<'_> {
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
     pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
-        // Generic local functions first (`hd_mono::instantiate_locals`,
-        // #2104), so no fold, inliner or pass sees one; a generic
-        // instance's were instantiated with it. A malformed body is left
-        // as it is, and the instance verifier rejects it
-        // (`Env::mark_instance`).
-        if let Ok(made) = hd_mono::instantiate_locals(&self.run.pool, self, body.item, body)
-            && made > 0
-        {
-            lock(&self.run.counters).local_instances_built += made;
-        }
         // A body with no type arguments gets no `hd_mono::instantiate`,
         // so its bound calls at a closed receiver are chosen here, as
         // collection selects them: at an opaque result's hidden type, or
@@ -2970,6 +2960,66 @@ impl Env<'_> {
     /// body after the folds and the inliner ([`Env::generic_inlined`]):
     /// they run once per generic body, so a trait call the instance
     /// chooses as an impl call stays a call.
+    /// The template of a lifted generic local function's instance at
+    /// `args` (`hd_tir::ir::lifted_target`): `generic` pruned to that
+    /// function, made once per item, function and pipeline; `None` for an
+    /// item's own instance.
+    fn lifted_template(
+        &self,
+        def: DefId,
+        args: TyList,
+        generic: &Body,
+        dev: bool,
+    ) -> Option<std::sync::Arc<Body>> {
+        let pool = &self.run.pool;
+        lock(&self.run.liftings)
+            .entry((def, dev))
+            .or_insert_with(|| std::sync::Arc::new(hd_tir::ir::Lifting::new(generic, pool)));
+        let ts = self.lifted_subs(def, args, dev);
+        let &first = ts.first()?;
+        let mut memo = lock(&self.run.lifted);
+        memo.entry((def, first, dev))
+            .or_insert_with(|| {
+                (hd_tir::ir::function_template(generic, &ts).ok()).map(std::sync::Arc::new)
+            })
+            .clone()
+    }
+
+    /// A lifted generic local function's own body shows as `path#k` in
+    /// the own and WAT views.
+    fn render_lifted(&self, (def, args): Node, owned: &Body) {
+        if self.run.host.render_tir.is_empty() {
+            return;
+        }
+        let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
+        for k in self.lifted_subs(def, args, dev) {
+            let k = u16::try_from(k).unwrap_or(u16::MAX);
+            self.run.render_own(self.p, def, k, owned, false);
+        }
+    }
+
+    /// The lifted generic local functions instance `(def, args)` is the
+    /// code of, once its template's shape is known (`hd_tir::ir::Lifting`).
+    fn lifted_subs(&self, def: DefId, args: TyList, dev: bool) -> Vec<usize> {
+        let pool = &self.run.pool;
+        let Some(lifting) = lock(&self.run.liftings).get(&(def, dev)).cloned() else {
+            return Vec::new();
+        };
+        let owner = ProgramEnv::generics_owner(self, def);
+        let skip = ProgramEnv::parent(self, owner).map_or(0, |p| p.1);
+        let items = pool.list_items(args);
+        let bound = |index: u32| {
+            let param = hd_types::ParamRef {
+                owner,
+                index: u16::try_from(index).unwrap_or(u16::MAX),
+            };
+            items
+                .get(skip + index as usize)
+                .is_some_and(|&t| pool.get(t) != TyData::Param(param))
+        };
+        lifting.targets(&bound)
+    }
+
     pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
         let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
         // A compiler-supplied method's or factory's instance runs its
@@ -2993,6 +3043,12 @@ impl Env<'_> {
             };
             (raw, *hash)
         };
+        // A lifted generic local function's instance starts from its own
+        // template, so it costs the function, not its item.
+        let lifted = (supplied.is_none() && args != TyList::EMPTY)
+            .then(|| self.lifted_template(def, args, generic, dev))
+            .flatten();
+        let generic = lifted.as_deref().unwrap_or(generic);
         let mut body = if args == TyList::EMPTY {
             generic.clone()
         } else {
@@ -3042,6 +3098,7 @@ impl Env<'_> {
             self.run.owned_bottom_up(self.p, node);
         }
         if let Some(owned) = lock(instances).get(&node).cloned().flatten() {
+            self.render_lifted(node, &owned);
             return Ok(Some(owned));
         }
         let supplied = self
@@ -3078,6 +3135,7 @@ impl Env<'_> {
         if self.run.summaries.is_none() {
             lock(instances).insert(node, Some(owned.clone()));
         }
+        self.render_lifted(node, &owned);
         Ok(Some(owned))
     }
 
@@ -3157,17 +3215,6 @@ impl Env<'_> {
             && !ProgramEnv::generic_rows(self, owner).is_empty()
             && !closed_fact()
         {
-            // ruled out: a generic item's own body had its local functions
-            // instantiated in its own parameters
-            // (`Env::fold_and_inline`), whose one failure is a closure word
-            // outside its context, which the checker never writes (tried:
-            // nested, recursive, capturing and twice-instantiated local
-            // functions, `hd_tir::ir::local_fns` tests).
-            assert!(
-                !(0..body.sub_root.len()).any(|s| body.sub_is_generic(s)),
-                "generic body `{}` serves its instances with a generic local function",
-                self.run.names().path(body.item)
-            );
             return;
         }
         // A generic instance's types were closed as they were substituted;
@@ -3179,6 +3226,13 @@ impl Env<'_> {
         // (`hd_mono::instantiate`).
         if hd_mono::close_body(&self.run.pool, self, body) {
             hd_tir::inline::rechoose(body, &|t, s, a| InlineEnv::select_choice(self, t, s, a));
+        }
+        // A body with generic local functions keeps its own part, each
+        // function being an instance of its own (`hd_tir::ir::lift`,
+        // #2180). A malformed body is left as it is, and the instance
+        // verifier rejects it.
+        if let Ok(Some(own)) = hd_tir::ir::item_template(body) {
+            *body = own;
         }
         body.phase = hd_tir::ir::Phase::Instance;
     }

@@ -158,7 +158,10 @@ records checked supertrait suppliers without changing row inference.
   (`sub_flags::GENERIC`), its defining `Closure` makes no value, and each
   use is a `Closure` that names its type arguments and takes the
   declaration's captures, which collection instantiates like any generic
-  item. A local `impl` emits no item and captures nothing
+  item (`ir/lift.rs`). Its instantiations share those captures, so their
+  convention is the generic sub-body's: each environment takes its own
+  copy, and none moves a capture (`own::values::capture_moves`), as
+  Swift's lifted function takes its captures by one convention. A local `impl` emits no item and captures nothing
   (`names.local-impl.static`, `names.local-impl.no-capture`). It extends
   the lexical impl-table overlay to the suite's end, so method and trait
   lookup inside find its methods (which must involve a visible local
@@ -1121,8 +1124,10 @@ The verifier checks each of these:
     `Impl` or `Builtin` call. The driver marks each body it owns for an
     instance before the ownership passes, and `verify_owned` checks the
     passes' output.
-    Since #2104 a generic local function is one plain sub-body per
-    distinct type arguments, so an instance body holds none.
+    Since #2180 a generic local function is lifted as Swift lifts it
+    (`ir/lift.rs`): its code is collection's closure instance at the
+    item's arguments followed by its own; an instance body makes a bound
+    one a plain sub-body and empties an open one, so it holds none.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the

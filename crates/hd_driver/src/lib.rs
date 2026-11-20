@@ -1607,6 +1607,10 @@ impl Drop for Owed<'_> {
     }
 }
 
+/// A lifted generic local function's template, or `None` where its copy
+/// failed (`hd_tir::ir::function_template`).
+type LiftedTemplate = Option<Arc<Body>>;
+
 struct Run<'a> {
     /// The attached analysis consumer, when a lint run asked for one.
     lint: Option<analysis::Lint<'a>>,
@@ -1705,6 +1709,13 @@ struct Run<'a> {
     /// that records its summary (`own::Run::owned_bottom_up`), in dev on
     /// first use; `None` where the passes refused it.
     instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
+    /// Each lifted generic local function's own template
+    /// (`hd_tir::ir::function_template`), once per item, function and
+    /// pipeline.
+    lifted: Mutex<HashMap<(DefId, usize, bool), LiftedTemplate>>,
+    /// Each template's generic local functions (`hd_tir::ir::Lifting`),
+    /// once per item and pipeline.
+    liftings: Mutex<HashMap<(DefId, bool), Arc<hd_tir::ir::Lifting>>>,
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
     entry_roots: OnceLock<hd_base::HashSet<DefId>>,
@@ -2753,6 +2764,8 @@ fn build_packages_inner(
             .contains(&"summaries")
             .then(own::Summaries::default),
         instances: Mutex::new(HashMap::default()),
+        lifted: Mutex::new(HashMap::default()),
+        liftings: Mutex::new(HashMap::default()),
         entry_roots: OnceLock::new(),
         inlined_reads: Mutex::new(HashMap::default()),
         program_api: OnceLock::new(),
@@ -9574,7 +9587,7 @@ impl Run<'_> {
             && let Some((body, _)) = out
             && b.rendered.set(()).is_ok()
         {
-            self.render_own(p, def, body, false);
+            self.render_own(p, def, 0, body, false);
         }
         out
     }
@@ -9628,9 +9641,19 @@ impl Run<'_> {
     /// The `own` fixture view's text of body `def` when `Host::render_tir`
     /// names it ([`Output::own_text`]), once: the body as collection reads
     /// it, after the ownership passes.
-    fn render_own(&self, p: &ProgramTables, def: DefId, body: &Body, settled: bool) {
-        let path = self.names().path(def);
-        if !self.renders_tir(&path) || !settled && lock(&self.own_text).contains_key(&path) {
+    /// A lifted generic local function's own body, sub-body `sub`
+    /// (`hd_tir::ir::lift`), renders as `path#sub`.
+    fn render_own(&self, p: &ProgramTables, def: DefId, sub: u16, body: &Body, settled: bool) {
+        let item = self.names().path(def);
+        if !self.renders_tir(&item) {
+            return;
+        }
+        let path = if sub == 0 {
+            item
+        } else {
+            format!("{item}#{sub}")
+        };
+        if !settled && lock(&self.own_text).contains_key(&path) {
             return;
         }
         let mut text = self.render_owned(p, body);
@@ -10448,8 +10471,8 @@ impl Run<'_> {
                         names.path(d)
                     ));
                 }
-                // A generic local function nothing instantiates gets no copy
-                // (`hd_mono::instantiate_locals`): its checker's body names it.
+                // A generic local function nothing instantiates has no
+                // instance (`hd_tir::ir::lift`): its checker's body names it.
                 // Cost: one pass over each definition's checker's body.
                 if let Some((body, _)) = self.lazy_body(p, d).and_then(|b| self.decode(b)) {
                     let mut instantiated = vec![false; body.sub_root.len()];
@@ -11554,7 +11577,7 @@ impl Run<'_> {
                 if !self.host.render_tir.is_empty()
                     && t.get(t.item[id.idx()], hd_mono::Sub::Body(0), TyList::EMPTY) == Some(*id)
                 {
-                    self.render_own(p, t.item[id.idx()], b, true);
+                    self.render_own(p, t.item[id.idx()], 0, b, true);
                 }
             }
             // A session's build always links: a REPL input over earlier
@@ -13095,6 +13118,15 @@ impl ProgramEnv for Env<'_> {
         want: (u64, u64),
     ) -> Option<(u64, Arc<Body>)> {
         self.promoted_copy(def, args, exclusive, want)
+    }
+    fn local_scopes(&self, def: DefId) -> Vec<Vec<(u32, u32)>> {
+        let body = self
+            .run
+            .lazy_body(self.p, def)
+            .and_then(|b| self.run.decode(b));
+        body.map_or_else(Vec::new, |(b, _)| {
+            hd_tir::ir::local_function_scopes(b, &self.run.pool)
+        })
     }
     fn instance_body(&self, def: DefId, args: TyList) -> StageResult<Option<Arc<Body>>> {
         // A non-generic item's own body is its one instance's.
@@ -15057,12 +15089,13 @@ mod instantiation_chain_tests {
         }
     }
 
-    /// A generic local function gets one sub-body per distinct type
-    /// arguments in its context (`hd_mono::instantiate_locals`, #2104):
-    /// `n` types, each instantiating it twice, make `n` sub-bodies, at n
-    /// and 10n, in dev and release.
+    /// A generic local function is lifted (`hd_tir::ir::lift`, #2180):
+    /// each distinct type arguments make one instance of its enclosing
+    /// item, which emits that sub-body. `n` types, each instantiating it
+    /// twice, build `n` more instances than one type does, at n and 10n,
+    /// in dev and release.
     #[test]
-    fn each_local_instantiation_is_one_sub_body() {
+    fn each_local_instantiation_is_one_instance() {
         use std::fmt::Write as _;
         for (name, packages) in [
             ("dev", Packages::default()),
@@ -15108,10 +15141,11 @@ mod instantiation_chain_tests {
                 );
                 assert!(!out.diags.has_errors(), "{}", out.render());
                 assert!(out.wasm.is_some());
-                out.counters.local_instances_built
+                out.counters.instances_built
             };
+            let base = made(1);
             for n in [10, 100] {
-                assert_eq!(made(n), n, "{name}, n = {n}");
+                assert_eq!(made(n) - base, n - 1, "{name}, n = {n}");
             }
         }
     }

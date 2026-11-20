@@ -1,0 +1,27 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A lifted generic local function (#2180) takes its captures by one
+# convention decided on its generic sub-body, which the body that makes
+# each closure shares: two instantiations made in one body each hold
+# their own copy of `captured`. The checked runs' exit audit fails on a
+# leak or a double free.
+fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string, string)):
+    fn pair[T](value: T) -> (string, T):
+        (captured, value)
+    (pair::[i32], pair::[string])
+
+fn counted(start: i32) -> (i32, string):
+    let mut count = start
+    fn bump[T](value: T) -> T:
+        count += 1
+        value
+    let n = bump(1)
+    let s = bump("s")
+    (n + count, s)
+
+pub fn main() -> void $ Console:
+    let (f, g) = generic("c")
+    let (a, n) = f(3)
+    let (b, s) = g("s")
+    let (k, t) = counted(10)
+    println("$a $n $b $s $k $t")

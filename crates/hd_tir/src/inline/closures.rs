@@ -224,6 +224,159 @@ impl Index {
     }
 }
 
+/// `body` with the sub-bodies `keep` marks alone, each under its own id: a
+/// lifted generic local function's own template (`crate::ir::lift`), or
+/// an item's instance without its generic local functions. A sub-body not
+/// kept is an empty root block, holding those of `defining` it held: a
+/// kept function's defining `Closure`, from which the backend reads its
+/// type and captures. The defining `Closure` of one not
+/// kept, which makes no value, goes. The kept rows and the records,
+/// locals, labels, constants, captures, side rows and inlined frames they
+/// name are copied once (`copy_rows`), as [`Index::extract`] copies one
+/// closure: O(the kept part), past one pass that groups the rows. With
+/// `all_locals`, every local keeps its number (the item's own instance,
+/// whose views name locals by the item's).
+///
+/// # Errors
+/// A kept row that names an instruction or label outside the kept part.
+pub(crate) fn extract_subs(
+    body: &Body,
+    keep: &[bool],
+    defining: &[u32],
+    all_locals: bool,
+) -> Result<Body, String> {
+    let subs = body.inst_subs();
+    let dropped = |i: usize| {
+        body.tags[i] == Tag::Closure
+            && !body.is_instantiation(i)
+            && keep.get(body.data[i][0] as usize) != Some(&true)
+    };
+    let kept = |i: usize| {
+        defining.contains(&u32_of(i)) || (keep.get(subs[i] as usize) == Some(&true) && !dropped(i))
+    };
+    let order: Vec<usize> = (0..body.len()).filter(|&i| kept(i)).collect();
+    let values: HashMap<u32, u32> = (order.iter().enumerate())
+        .map(|(new, &old)| (u32_of(old), u32_of(new)))
+        .collect();
+    let mut locals: HashSet<u32> = HashSet::default();
+    for s in (0..keep.len()).filter(|&s| keep[s]) {
+        let params = if s == 0 {
+            crate::own::params(body)
+        } else {
+            body.sub_param_locals(s).to_vec()
+        };
+        locals.extend(params);
+    }
+    // A local is a parameter only of a kept sub-body: the root's are read
+    // from the flags, so a dropped function's must not keep theirs.
+    let params = locals.clone();
+    for &old in &order {
+        local_words(body, old, &mut |l| {
+            locals.insert(l);
+        });
+    }
+    // With `all_locals`, one no kept row names keeps its number, typed
+    // `void`: it may be a dropped function's, of its open type.
+    let named = locals.clone();
+    if all_locals {
+        locals.extend(0..u32_of(body.local_ty.len()));
+    }
+    let mut locals: Vec<u32> = locals.into_iter().collect();
+    locals.sort_stable();
+    let local_map: HashMap<u32, u32> = (locals.iter().enumerate())
+        .map(|(new, &old)| (old, u32_of(new)))
+        .collect();
+    let mut out = Body::new(body.item, body.kind);
+    out.phase = body.phase;
+    out.label = body.label.clone();
+    for &l in &locals {
+        let l = l as usize;
+        out.local_ty.push(if named.contains(&u32_of(l)) {
+            body.local_ty[l]
+        } else {
+            hd_types::Ty::VOID
+        });
+        out.local_name.push(body.local_name[l]);
+        out.local_syn.push(body.local_syn[l]);
+        let param = if params.contains(&u32_of(l)) {
+            0
+        } else {
+            local_flags::PARAM
+        };
+        out.local_flags.push(body.local_flags[l] & !param);
+    }
+    let rows: Vec<(u32, u32)> = (order.iter().enumerate())
+        .map(|(new, &old)| (u32_of(old), u32_of(new)))
+        .collect();
+    grow(&mut out, rows.len());
+    // Declared in a kept block list but not copied: the roots of the
+    // sub-bodies not kept and the defining `Closure`s that go.
+    let roots = (body.sub_root.iter().copied())
+        .chain(
+            (0..body.len())
+                .filter(|&i| dropped(i) && !defining.contains(&u32_of(i)))
+                .map(u32_of),
+        )
+        .collect();
+    let mut map = Sparse {
+        body,
+        values: &values,
+        locals: &local_map,
+        roots: &roots,
+        labels: HashMap::default(),
+        consts: HashMap::default(),
+    };
+    copy_rows(body, &rows, &mut out, &mut map)?;
+    let side = SideRows::group(body, body.sub_root.len(), |i| subs[i as usize] as usize);
+    for (side, _) in side.iter().zip(keep).filter(|(_, k)| **k) {
+        side.copy(&mut out, &mut map)?;
+    }
+    // Each kept sub-body's root and parameters; an empty root for the rest.
+    let none = out.push_record(&[]);
+    for s in 0..body.sub_root.len() {
+        let root = if keep[s] {
+            values[&body.sub_root[s]]
+        } else {
+            let held: Vec<u32> = (defining.iter())
+                .filter(|&&d| subs[d as usize] as usize == s)
+                .map(|d| values[d])
+                .collect();
+            let members = if held.is_empty() {
+                none
+            } else {
+                out.push_record(&held)
+            };
+            out.tags.push(Tag::Block);
+            out.data.push([members, NONE]);
+            out.ty.push(hd_types::Ty::VOID);
+            out.syn.push(body.syn[body.sub_root[s] as usize]);
+            out.anchors.push(NONE);
+            u32_of(out.len() - 1)
+        };
+        out.sub_root.push(root);
+        let params: Vec<u32> = if keep[s] && s != 0 {
+            (body.sub_param_locals(s).iter())
+                .map(|l| local_map[l])
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let range = if params.is_empty() {
+            Range32::default()
+        } else {
+            Range32 {
+                start: out.push_record(&params),
+                len: u32_of(params.len()),
+            }
+        };
+        out.sub_params.push(range);
+        out.sub_parent.push(body.sub_parent[s]);
+        out.sub_flags.push(body.sub_flags[s]);
+    }
+    copy_frames(body, &mut out, usize::MAX).ok_or("an inlined frame outside the kept part")?;
+    Ok(out)
+}
+
 /// A sparse copy's tables: the sub-body's rows, its referenced locals, its
 /// labels and constants as first named, and the roots of other sub-bodies,
 /// which a block list declares but the copy does not run.

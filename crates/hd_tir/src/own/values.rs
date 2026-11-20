@@ -542,9 +542,13 @@ pub fn uses_line(l: u32, uses: &[ValueUse]) -> String {
 /// A closure's `Copy` capture of all of a value local the body owns, at the
 /// value's last use, becomes a `Move` when the local's `Drop` is the next
 /// thing to touch it in the closure's block: the environment takes the
-/// local's count, and the drop goes. Not a generic local function's, whose
-/// instantiations share their captures, nor a local that holds a borrow,
-/// which has no count to give.
+/// local's count, and the drop goes. Not a capture that more than one
+/// `Closure` reads: a lifted generic local function's instantiations and
+/// its defining `Closure` share its declaration's captures
+/// (`crate::ir::lift`), and the convention is the generic sub-body's, so
+/// each environment takes its own copy, as Swift's lifted function takes
+/// its captures by one convention whatever its type arguments. Nor a
+/// local that holds a borrow, which has no count to give.
 pub(crate) fn capture_moves(
     b: &mut Body,
     topo: &Topology,
@@ -555,6 +559,17 @@ pub(crate) fn capture_moves(
     use crate::ir::CaptureMode;
     if !b.cap_mode.contains(&CaptureMode::Copy) {
         return;
+    }
+    // How many `Closure`s read each capture range, by its start: two
+    // nonempty ranges never start together.
+    let mut readers = vec![0u32; b.cap_local.len()];
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Closure) {
+        if let [start, len, ..] = *b.record(b.data[i][1])
+            && len != 0
+            && let Some(r) = readers.get_mut(start as usize)
+        {
+            *r += 1;
+        }
     }
     classify(b, &mut t.classes);
     let mut found = Vec::new();
@@ -575,6 +590,9 @@ pub(crate) fn capture_moves(
         let [start, len] = b.record(w)[..2] else {
             continue;
         };
+        if readers.get(start as usize) != Some(&1) {
+            continue;
+        }
         let capture = (start..start + len).find(|&c| {
             let c = c as usize;
             b.cap_local[c].raw() == u.local && b.cap_mode[c] == CaptureMode::Copy

@@ -1,9 +1,9 @@
 # @dump: own wat stdout
 # fn.local.declare and fn.generic.call-list: a generic local function
-# instantiated at two types is two plain sub-bodies, each with its types
-# substituted (`hd_mono::instantiate_locals`, #2104).
-# expected: `pair` at i32 and at string are generic#1 and generic#2;
-# the second call at i32 reuses generic#1. `wrap` captures the item's `T`
+# instantiated at two types is lifted (#2180): two instances of its
+# sub-body, each at the item's arguments followed by its own.
+# expected: `pair` at i32 and at string are two instances of generic#1;
+# the second call at i32 reuses the first. `wrap` captures the item's `T`
 # and is substituted with the item's arguments first. A nested generic,
 # a recursive one, a bounded one and one in a trait default each run.
 fn generic(captured: string) -> (string, i32, string):

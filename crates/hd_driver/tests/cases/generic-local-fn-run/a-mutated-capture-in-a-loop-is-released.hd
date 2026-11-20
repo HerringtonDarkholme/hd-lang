@@ -1,0 +1,15 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A lifted generic local function (#2180) that mutates a capture, its
+# box, instantiated in a comprehension's loop: each round's environment
+# releases its count of the box. The checked runs' exit audit fails on a
+# leak or a double free.
+fn rows_of(rows: List[string]) -> string:
+    let count = +0
+    fn row[U < Display](item: string, note: U) -> string:
+        count = count + 1
+        "${count} ${item} ${note}"
+    [for item in rows => row(item, true)].join("; ")
+
+pub fn main() -> void $ Console:
+    println(rows_of(["ada", "bob"]))

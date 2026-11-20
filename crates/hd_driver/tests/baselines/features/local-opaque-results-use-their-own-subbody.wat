@@ -31,10 +31,6 @@
     ;; 11 |     local()
     call_indirect $table0 (param i32 i32) (result i32 i32)
   )
-  (func $generic#1 (param $env i32) (param $value i32) (param $ctx i32) (result i32)
-    ;; 22 |         value
-    local.get $value
-  )
   (func $number (result i32)
     ;; 6 |     local()
     i32.const 0
@@ -56,6 +52,10 @@
     i32.const 4
     ;; 18 |     outer()
     call_indirect $table0 (param i32 i32) (result i32)
+  )
+  (func $"generic#1[i32]" (param $env i32) (param $value i32) (param $ctx i32) (result i32)
+    ;; 22 |         value
+    local.get $value
   )
   (func $text#1 (param $env i32) (param $ctx i32) (result i32 i32)
     ;; 9 |     fn local() -> impl Display:
