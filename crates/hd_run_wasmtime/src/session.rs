@@ -157,7 +157,7 @@ struct Linked {
     restore_failed: Option<Vec<u8>>,
 }
 
-const MEMORIES: [&str; 3] = ["hd.x", "hd.session.heap", "hd.session.stack"];
+const MEMORIES: [&str; 2] = ["hd.x", "hd.session.heap"];
 
 fn session_import(module: &str) -> bool {
     module == "hd:session" || module.starts_with("hd:session:")

@@ -8,17 +8,18 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "all_list[string]" (func $"all_list[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 24 funcref))
   (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 11 |     key + "?"
@@ -213,35 +214,20 @@
   )
   (func $all'1 (param $frame i32) (param $keys i32) (result i32 i32) (local $results i32) (local $t6 i32) (local $t2 i32) (local $t3 i32) (local $t5 i32) (local $k.1 i32) (local $k.0 i32) (local $t4 i32) (local $t0 i32) (local $t1 i32)
     ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 8
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 8
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -313,7 +299,7 @@
             i32.load $heap offset=4
             i32.ge_u
             if
-              call $rt:panic
+              call $rt:panic'2
               unreachable
             end
             local.get $t4
@@ -482,7 +468,7 @@
             local.get $t0
             i32.const 8
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $keys
@@ -552,7 +538,7 @@
           local.get $t0
           i32.const 8
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $t3
@@ -597,7 +583,7 @@
           i32.load $heap offset=4
           i32.ge_u
           if
-            call $rt:panic
+            call $rt:panic'2
             unreachable
           end
           local.get $results
@@ -690,7 +676,7 @@
     local.get $t0
     i32.const 8
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $all.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]

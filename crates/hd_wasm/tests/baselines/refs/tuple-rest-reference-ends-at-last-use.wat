@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $probe (param $p i32) (param $alias i32) (result i32 i32)
     ;; ...
     ;; 14 |     alias.value = "changed"

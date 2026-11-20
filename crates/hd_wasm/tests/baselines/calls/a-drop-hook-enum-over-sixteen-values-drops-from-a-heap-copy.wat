@@ -3,9 +3,8 @@
   (import "fixture" "rt:heap_frame" (func $rt:heap_frame (param i32) (result i32)))
   (import "fixture" "rt:hooks_at" (func $rt:hooks_at (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $consume (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; 46 | fn consume(h: Holder) -> i32: 1
     i32.const 1
@@ -15,29 +14,29 @@
     local.tee $t1
     local.get $t2
     i32.const 80
-    memory.copy $heap $stack
+    memory.copy $heap $heap
     local.get $t1
     call $rt:hooks_at
     local.get $t2
     local.get $t1
     i32.const 80
-    memory.copy $stack $heap
-    global.get $locals
+    memory.copy $heap $heap
+    global.get $stack
     i32.const 88
     i32.add
-    global.set $locals
+    global.set $stack
     local.get $t2
-    i32.load $stack
+    i32.load $heap
     if
       local.get $t2
-      i32.load $stack
+      i32.load $heap
       local.tee $t1
       if
         local.get $t1
         call $rt:release_ref
       end
       local.get $t2
-      i32.load $stack offset=72
+      i32.load $heap offset=72
       local.tee $t1
       if
         local.get $t1
@@ -45,11 +44,11 @@
       end
     end
     local.get $t2
-    i32.load $stack
+    i32.load $heap
     i32.eqz
     if
       local.get $t2
-      i32.load $stack offset=4
+      i32.load $heap offset=4
       local.tee $t2
       if
         local.get $t2

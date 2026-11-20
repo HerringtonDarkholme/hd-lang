@@ -3160,7 +3160,7 @@ pub(crate) fn release_step(f: &mut Func, base: u32, off: u32, step: &crate::layo
             walk,
             &|f, k| {
                 f.get(base);
-                f.op(leaves[k as usize].load_in(crate::module::STACK, off));
+                f.op(leaves[k as usize].load_in(crate::module::HEAP, off));
             },
             &release_call,
         ),
@@ -3194,9 +3194,9 @@ fn retain_steps(m: &Module, f: &mut Func, base: u32, steps: &[crate::layout::Rel
                     let leaf = leaves[c as usize];
                     f.get(base);
                     f.get(base);
-                    f.op(leaf.load_in(crate::module::STACK, 0));
+                    f.op(leaf.load_in(crate::module::HEAP, 0));
                     f.helper(Helper::CollCopy);
-                    f.op(leaf.store_in(crate::module::STACK, 0));
+                    f.op(leaf.store_in(crate::module::HEAP, 0));
                 }
                 if let Some(w) = walk.without(colls) {
                     walk_code(
@@ -3204,7 +3204,7 @@ fn retain_steps(m: &Module, f: &mut Func, base: u32, steps: &[crate::layout::Rel
                         &w,
                         &|f, k| {
                             f.get(base);
-                            f.op(leaves[k as usize].load_in(crate::module::STACK, 0));
+                            f.op(leaves[k as usize].load_in(crate::module::HEAP, 0));
                         },
                         &on,
                     );

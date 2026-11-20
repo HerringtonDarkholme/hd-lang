@@ -675,7 +675,7 @@ fn body_func<'a>(
             crate::wide::locals_frame(&mut em.f, base, size);
         }
         if let Some((base, size)) = em.stack_frame {
-            indirect::stack_frame(&mut em.f, base, size);
+            crate::wide::locals_frame(&mut em.f, base, size);
         }
         return Ok(em.f);
     };
@@ -1379,7 +1379,7 @@ struct Em<'i, 'a, 'm> {
     mem_locals: HashMap<usize, (u32, u32, std::rc::Rc<crate::layout::Mem>)>,
     /// The frame block on the shadow stack holding the locals kept in
     /// memory: its address local and size. Reserved at entry and given
-    /// back at every exit ([`indirect::stack_frame`]).
+    /// back at every exit ([`crate::wide::locals_frame`]).
     stack_frame: Option<(u32, u32)>,
     /// Each value stored whole into such a local, a read of another value
     /// kept in memory when [`Em::forwarded`] lets it pass as an address:

@@ -2,12 +2,13 @@
 (module
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $by_mut (param $s i32) (local $t1 i32) (local $t0 i32)
     ;; 16 |     *s += "x"
     local.get $s
@@ -65,7 +66,7 @@
     local.tee $s
     i32.eqz
     if
-      call $rt:panic
+      call $rt:panic'1
       unreachable
     end
     local.get $s
@@ -94,7 +95,7 @@
     local.tee $s.0
     i32.eqz
     if
-      call $rt:panic
+      call $rt:panic'1
       unreachable
     end
     local.get $s.0
@@ -143,7 +144,7 @@
     local.tee $n
     i32.eqz
     if
-      call $rt:panic
+      call $rt:panic'1
       unreachable
     end
     local.get $n
@@ -151,35 +152,20 @@
   )
   (func $calls (param $s.0 i32) (param $s.1 i32) (param $n i32) (result i32) (local $t i32) (local $t0 i32)
     ;; 22 |     let mut t = s
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'2
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $s.0
     if
       local.get $s.0
@@ -240,7 +226,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $by_ref'2 (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 13 |     (s.len() + 1) * (s.len() + 2) * (s.len() + 3) * (s.len() + 4) / (s.len() + 5)
@@ -265,7 +251,7 @@
     local.tee $s.0
     i32.eqz
     if
-      call $rt:panic
+      call $rt:panic'1
       unreachable
     end
     local.get $s.0

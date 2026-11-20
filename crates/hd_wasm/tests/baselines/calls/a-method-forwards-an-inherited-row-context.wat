@@ -3,7 +3,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 10 funcref))
   (func $"impl[$ R] Holder[$ R].call[{open row}]" (param $self i32) (param $n i32) (param $ctx i32) (local $t0 i32)
     ;; 19 |         (self.job)(n)

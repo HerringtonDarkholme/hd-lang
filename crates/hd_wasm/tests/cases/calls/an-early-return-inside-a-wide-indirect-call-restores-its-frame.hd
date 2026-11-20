@@ -1,0 +1,18 @@
+# @dump: wat
+# A wide indirect callee restores its frame before the early return.
+type D0 = (i32, i32)
+type D1 = (D0, D0)
+type D2 = (D1, D1)
+type D3 = (D2, D2)
+type D4 = (D3, D3)
+type D5 = (D4, D4)
+type Wide = (D5, i32)
+
+fn choose(value: Wide) -> Wide:
+    if value._1 > 0:
+        return value
+    value
+
+fn invoke(callback: fn(Wide) -> Wide, value: Wide) -> i32:
+    result := callback(value)
+    result._1

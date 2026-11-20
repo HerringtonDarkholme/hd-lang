@@ -4,7 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $short (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 29 |     read()
     local.get $provider0
@@ -54,7 +54,7 @@
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $short (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 29 |     read()
     local.get $provider0

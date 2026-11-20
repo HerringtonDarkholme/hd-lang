@@ -4,11 +4,12 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[string]" (func $"impl[T] Iterator[T] for ListIter[T].next[string]" (param i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $doubled (param $values i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $v.1 i32) (local $v.0 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 9 |     let mut out = values
@@ -102,35 +103,20 @@
   )
   (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 15 |     let mut items = values
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $values
     ;; 16 |     let mut cursor = items.iter()
     call $rt:coll_copy
@@ -249,6 +235,6 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

@@ -2,40 +2,26 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $digest (param $value'2 i32) (result i64) (local $value'1 i32) (local $t0 i32) (local $value'3 i64) (local $high i64) (local $low i64) (local $accumulator i64) (local $ly i64) (local $total i32) (local $next i32) (local $lh i64) (local $ll i64)
     ;; 9 |     hash_of(value)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 56
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 56
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -87,7 +73,7 @@
     i64.const 4294967295
     i64.gt_u
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $ly
@@ -107,7 +93,7 @@
         i32.const 64
         i32.ge_u
         if
-          call $rt:panic'2
+          call $rt:panic'3
           unreachable
         end
         local.get $value'1
@@ -126,7 +112,7 @@
           i32.const 64
           i32.gt_u
           if
-            call $rt:panic'1
+            call $rt:panic'2
             unreachable
           end
           local.get $value'3
@@ -137,7 +123,7 @@
           i32.const 64
           i32.ge_u
           if
-            call $rt:panic'2
+            call $rt:panic'3
             unreachable
           end
           local.get $value'1
@@ -154,7 +140,7 @@
         i32.const 64
         i32.lt_u
         if
-          call $rt:panic'1
+          call $rt:panic'2
           unreachable
         end
         local.get $value'3
@@ -165,7 +151,7 @@
         i32.const 64
         i32.ge_u
         if
-          call $rt:panic'2
+          call $rt:panic'3
           unreachable
         end
         local.get $value'1
@@ -182,7 +168,7 @@
       i32.const 64
       i32.lt_u
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $value'3
@@ -193,7 +179,7 @@
       i32.const 64
       i32.ge_u
       if
-        call $rt:panic'2
+        call $rt:panic'3
         unreachable
       end
       local.get $next
@@ -257,7 +243,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $high
@@ -291,7 +277,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $accumulator
@@ -325,7 +311,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $accumulator
@@ -359,7 +345,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $high
@@ -387,7 +373,7 @@
       i32.const 128
       i32.lt_u
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $total
@@ -402,7 +388,7 @@
         i32.const 128
         i32.gt_u
         if
-          call $rt:panic'1
+          call $rt:panic'2
           unreachable
         end
         local.get $value'3
@@ -413,7 +399,7 @@
         i32.const 64
         i32.ge_u
         if
-          call $rt:panic'2
+          call $rt:panic'3
           unreachable
         end
         local.get $value'1
@@ -508,7 +494,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $low
@@ -542,7 +528,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $high
@@ -576,7 +562,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $high
@@ -610,7 +596,7 @@
         i64.ne
       end
       if
-        call $rt:panic'1
+        call $rt:panic'2
         unreachable
       end
       local.get $low
@@ -637,6 +623,6 @@
     local.get $t0
     i32.const 56
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

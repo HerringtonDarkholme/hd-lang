@@ -5214,3 +5214,73 @@ fn frame_cell_layout_probes_grow_linearly_with_locals() {
         );
     });
 }
+
+/// A borrowed aggregate's initializer writes directly into its frame slot:
+/// increasing its width cannot add a scalar load/store round trip.
+#[test]
+fn borrowed_memory_local_emission_is_constant_at_two_widths()
+-> Result<(), Box<dyn std::error::Error>> {
+    use wasmparser::{BinaryReader, Name, NameSectionReader, Parser, Payload, TypeRef};
+    let mut counts = Vec::new();
+    for width in [32, 320] {
+        let mut source = String::from("struct Big:\n");
+        for field in 0..width {
+            writeln!(source, "    f{field}: i32")?;
+        }
+        source.push_str("\nfn make(x: i32) -> Big:\n    Big { ");
+        for field in 0..width {
+            write!(source, "f{field}: x, ")?;
+        }
+        source.push_str("}\n\nfn borrowed(x: i32) -> string:\n    let value = make(x)\n    \"${value.f0}\"\n\npub fn main() -> void $ Console:\n    println(borrowed(+7))\n");
+        let output = compile(
+            &source,
+            &Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        assert!(!output.diags.has_errors(), "{}", output.render());
+        let wasm = output.wasm.as_deref().ok_or("missing program")?;
+        let mut imported = 0;
+        let mut bodies = Vec::new();
+        let mut target = None;
+        for payload in Parser::new(0).parse_all(wasm) {
+            match payload? {
+                Payload::ImportSection(section) => {
+                    for import in section.into_imports() {
+                        imported += usize::from(matches!(import?.ty, TypeRef::Func(_)));
+                    }
+                }
+                Payload::CodeSectionEntry(body) => bodies.push(body),
+                Payload::CustomSection(section) if section.name() == "name" => {
+                    for subsection in NameSectionReader::new(BinaryReader::new(
+                        section.data(),
+                        section.data_offset(),
+                    )) {
+                        if let Name::Function(map) = subsection? {
+                            for entry in map {
+                                let entry = entry?;
+                                if entry.name.ends_with("/borrowed#0") {
+                                    target = Some(entry.index as usize);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let target = target.ok_or("missing borrowed body")? - imported;
+        counts.push(
+            bodies[target]
+                .get_operators_reader()?
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?
+                .len(),
+        );
+    }
+    assert_eq!(
+        counts[0], counts[1],
+        "borrow width must not expand to leaves: {counts:?}"
+    );
+    Ok(())
+}

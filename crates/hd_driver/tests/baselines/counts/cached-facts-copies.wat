@@ -10,7 +10,7 @@
   (import "fixture" "impl HasFacts for Record by Structure.structure member facts 0 0#once.1" (global $"impl HasFacts for Record by Structure.structure member facts 0 0#once.1" (mut i32)))
   (import "fixture" "impl HasFacts for Record by Structure.structure member facts 0 0#once" (global $"impl HasFacts for Record by Structure.structure member facts 0 0#once" (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $"impl HasFacts for Record by Structure.structure member facts 0 0" (result i32) (local $t0 i32) (local $t1 i32)
     ;; 31 | struct Record:
     global.get $"impl HasFacts for Record by Structure.structure member facts 0 0#once.1"
@@ -59,7 +59,7 @@
     i32.store $heap offset=16
     local.get $t1
     ;; 35 |     name = [Mark { label: "mark" }]
-    i32.const 516 ;; &vtable[rt:type_id]
+    i32.const 548 ;; &vtable[rt:type_id]
     ;; 31 | struct Record:
     i32.store $heap offset=20
     local.get $t1

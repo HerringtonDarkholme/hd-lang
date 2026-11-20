@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t1 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t6 i32)
     ;; ...
     ;; 17 |     if facts.find::[EnumTagging]().is_some():

@@ -6,31 +6,30 @@
   (import "fixture" "impl Drop for Part.drop" (func $"impl Drop for Part.drop" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $moved (param $t1 i32) (result i32) (local $t0 i32) (local $p.id.1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; 68 |     keep(o.big.part) + o.v
     i32.const 1
     local.tee $t0
     local.get $t1
-    i32.load $stack offset=8
+    i32.load $heap offset=8
     local.get $t1
-    i32.load $stack offset=12
+    i32.load $heap offset=12
     local.tee $p.id.1
     local.set $t2
     local.get $p.id.1
     i32.const 1
     call $rt:drop_value
     local.get $t1
-    i32.load $stack offset=88
+    i32.load $heap offset=88
     local.set $p.id.1
     i32.const 104
     call $rt:heap_frame
     local.tee $t3
     local.get $t1
     i32.const 92
-    memory.copy $heap $stack
+    memory.copy $heap $heap
     i32.const 0
     i32.and
     if
@@ -44,15 +43,15 @@
     local.get $t1
     local.get $t3
     i32.const 92
-    memory.copy $stack $heap
-    global.get $locals
+    memory.copy $heap $heap
+    global.get $stack
     i32.const 104
     i32.add
-    global.set $locals
+    global.set $stack
     local.get $t0
     if
       local.get $t1
-      i32.load $stack
+      i32.load $heap
       local.tee $t0
       if
         local.get $t0
@@ -60,7 +59,7 @@
       end
     end
     local.get $t1
-    i32.load $stack offset=80
+    i32.load $heap offset=80
     local.tee $t1
     if
       local.get $t1

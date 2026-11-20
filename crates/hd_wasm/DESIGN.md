@@ -29,8 +29,9 @@ A runtime module's init is left out when its call does nothing: link reads
 a binding that only the init writes, with a constant, as that constant, so
 an init whose bindings no reached code writes ends empty (#1423).
 Tests export numbered entry points. REPL histories export `hd.init.N` and
-`hd.poll.N` for each input. Each module owns its two memories, a third for the shadow stack when
-a signature is wide (§23.29), and its globals.
+`hd.poll.N` for each input. Programs use two memories: the heap, including
+frame storage (§23.29), and the exchange buffer. Linked REPL modules share
+them and the frame-pointer globals.
 
 ### 15.5 Panic Sites And Backtraces
 
@@ -212,9 +213,8 @@ runtime can change its representation without breaking a program.
 
 | Memory | Holds | Exported as |
 | --- | --- | --- |
-| 0 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
+| 0 | static data, the frame region, the page table, every counted object | not exported: the host reads and writes only `hd.x` (§23.23) |
 | 1 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
-| 2 | the shadow stack: the frames of wide calls, declared only when a signature is wide (§23.29) | not exported |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
   host's results need, so it cannot share a memory with a heap that must
@@ -2224,11 +2224,13 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
 - **Counts.** The moves copy bits: a value's counts move through the
   frame as through Wasm values, and the frame is never allocated or
   counted, so a checked build audits the same counts.
-- **The stack** is memory 2, 16 pages that the module declares only when
-  some signature or body needs it. It grows down from its end; a frame below
-  address 0 wraps to an address past the end, so a too-deep chain of wide
-  calls traps on its first store. A trap skips its frames' release,
-  which only shrinks the room a later entry in the same instance has.
+- **The stack** is a downward region in memory 0 between static data and
+  the heap start. `Global::Stack` and `Global::StackLimit` delimit it;
+  the allocator cannot consume its pages. Its 16 pages retain the previous
+  1 MiB capacity, over nine times the measured 114,480-byte frame-case peak
+  (#2183). Every reservation compares its size against `top - limit`
+  before subtraction and reports `stack-exhausted` on failure. References,
+  value blocks, wide calls and local slots share this address space.
 - **Wide bodies** (#640) put their locals in a zeroed shadow frame after
   signature and call lowering. An emitted aggregate wider than 64 values,
   or a wide signature, marks the body. Narrow bodies keep Wasm locals.
@@ -2703,15 +2705,13 @@ frame on the **local stack** instead.
   its source (`hd_opt/src/inline.rs`, `takes_reference`). Its `self`
   binds a reference into the caller's slot, so `*user.age()` in a loop
   is a load through the slot's address.
-- **The local stack** grows down in memory 0, in pages the program grows
-  itself. The allocator marks those pages static, as it does every page
-  it did not grow (§23.5), so a count update through a slot's address,
-  as a callee's, does nothing. A function with slots reserves its frame
-  at entry and gives it back at every exit (`wide::locals_frame`). A
-  frame that does not fit in the newest segment grows memory 0 by a new
-  one. Each frame gives back its own top, so segments need no links. The
-  stack is never shrunk: its size is the deepest chain of such frames.
-  A module with no slot has none of it.
+- **The local stack** shares the checked frame region and pointer of
+  §23.29. A function reserves its slots at entry and restores the pointer
+  at every exit (`wide::locals_frame`). Slot headers have zero counts;
+  page-table classification keeps references to frame storage uncounted.
+  A single-use aggregate initializer can write directly into its slot
+  when the declaration does not release an older payload. A borrowed
+  descriptor retains its own layout and initialization path.
 - **Suspending roots** (issue #1707). A root with a suspension point
   keeps its locals in its frame object, which outlives each await, so a
   local whose every `Ref` is a local reference that one `Await` takes as

@@ -92,6 +92,7 @@ rt:panic#5
 rt:panic#6
 rt:panic#7
 rt:panic#8
+rt:panic#9
 rt:panic_str
 rt:panic_with
 rt:to_buf

@@ -4,7 +4,7 @@
   (import "fixture" "impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]" (func $"impl[T] FromIterator[T] for List[T].from_iter[usize, std.iter.MapIter[std.iter.ListIter[string], string, usize, fn(string) -> usize]]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $loud (param $xs i32) (result i32)
     ;; 12 |     xs.iter()
     local.get $xs

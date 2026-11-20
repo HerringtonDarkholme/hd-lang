@@ -4,7 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
@@ -56,7 +56,7 @@
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
@@ -119,7 +119,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1
@@ -171,7 +171,7 @@
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "read" (func $read (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $construct (param $provider0 i32) (param $provider0.vtable i32) (param $provider1 i32) (param $provider1.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     read()
     local.get $provider1

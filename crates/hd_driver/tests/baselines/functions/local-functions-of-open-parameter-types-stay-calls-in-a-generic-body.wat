@@ -14,9 +14,10 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 11 funcref))
   (func $"held[usize]" (param $x i32) (result i32)
     ;; 18 |     read(Hold { v: x }).v
@@ -494,35 +495,20 @@
   )
   (func $"borrowed[usize]" (param $t1 i32) (result i32) (local $x i32) (local $t0 i32)
     ;; 21 |     fn read(s: &T) -> i32:
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -541,7 +527,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $"plain[usize]" (param $x i32) (result i32)
     ;; 13 |     read(x)

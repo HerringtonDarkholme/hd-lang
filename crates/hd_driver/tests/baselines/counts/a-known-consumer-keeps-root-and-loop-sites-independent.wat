@@ -3,15 +3,16 @@
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 19 |     println(mixed(["a", "bb"])) # prints: 12
     i32.const 2
@@ -69,35 +70,20 @@
   )
   (func $mixed (param $xs i32) (result i32) (local $total i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32)
     ;; 12 |     let total: usize = 0
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -167,7 +153,7 @@
         i32.load $heap offset=4
         i32.ge_u
         if
-          call $rt:panic
+          call $rt:panic'2
           unreachable
         end
         local.get $xs
@@ -205,7 +191,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $"each[fn(string) -> ()]" (param $xs i32) (param $f.0 i32) (param $f.1 i32) (local $t0 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:

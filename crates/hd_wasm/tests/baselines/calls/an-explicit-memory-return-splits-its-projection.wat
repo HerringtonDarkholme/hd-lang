@@ -3,15 +3,14 @@
 (module
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_at" (func $rt:release_at (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
       local.get $t1
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -92,58 +91,58 @@
       call $rt:retain
       local.get $t17
       local.get $t16
-      i32.store $stack
+      i32.store $heap
       local.get $t17
       local.get $t15
-      i32.store $stack offset=4
+      i32.store $heap offset=4
       local.get $t17
       local.get $t14
-      i32.store $stack offset=8
+      i32.store $heap offset=8
       local.get $t17
       local.get $t13
-      i32.store $stack offset=12
+      i32.store $heap offset=12
       local.get $t17
       local.get $t12
-      i32.store $stack offset=16
+      i32.store $heap offset=16
       local.get $t17
       local.get $t11
-      i32.store $stack offset=20
+      i32.store $heap offset=20
       local.get $t17
       local.get $t10
-      i32.store $stack offset=24
+      i32.store $heap offset=24
       local.get $t17
       local.get $t9
-      i32.store $stack offset=28
+      i32.store $heap offset=28
       local.get $t17
       local.get $t8
-      i32.store $stack offset=32
+      i32.store $heap offset=32
       local.get $t17
       local.get $t7
-      i32.store $stack offset=36
+      i32.store $heap offset=36
       local.get $t17
       local.get $t6
-      i32.store $stack offset=40
+      i32.store $heap offset=40
       local.get $t17
       local.get $t5
-      i32.store $stack offset=44
+      i32.store $heap offset=44
       local.get $t17
       local.get $t4
-      i32.store $stack offset=48
+      i32.store $heap offset=48
       local.get $t17
       local.get $t3
-      i32.store $stack offset=52
+      i32.store $heap offset=52
       local.get $t17
       local.get $t2
-      i32.store $stack offset=56
+      i32.store $heap offset=56
       local.get $t17
       local.get $t1
-      i32.store $stack offset=60
+      i32.store $heap offset=60
       local.get $t17
       local.get $t0
-      i32.store $stack offset=64
+      i32.store $heap offset=64
       local.get $t17
       local.get $x
-      i32.store $stack offset=68
+      i32.store $heap offset=68
       return
     end
   )
@@ -157,7 +156,7 @@
       local.get $t1
       local.get $t0
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -166,7 +165,7 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
     return
   )
   (func $implicit (param $t1 i32) (param $t0 i32)
@@ -174,22 +173,21 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
   )
 )
 == @build: checked
 (module
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_at" (func $rt:release_at (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
       local.get $t1
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -270,58 +268,58 @@
       call $rt:retain
       local.get $t17
       local.get $t16
-      i32.store $stack
+      i32.store $heap
       local.get $t17
       local.get $t15
-      i32.store $stack offset=4
+      i32.store $heap offset=4
       local.get $t17
       local.get $t14
-      i32.store $stack offset=8
+      i32.store $heap offset=8
       local.get $t17
       local.get $t13
-      i32.store $stack offset=12
+      i32.store $heap offset=12
       local.get $t17
       local.get $t12
-      i32.store $stack offset=16
+      i32.store $heap offset=16
       local.get $t17
       local.get $t11
-      i32.store $stack offset=20
+      i32.store $heap offset=20
       local.get $t17
       local.get $t10
-      i32.store $stack offset=24
+      i32.store $heap offset=24
       local.get $t17
       local.get $t9
-      i32.store $stack offset=28
+      i32.store $heap offset=28
       local.get $t17
       local.get $t8
-      i32.store $stack offset=32
+      i32.store $heap offset=32
       local.get $t17
       local.get $t7
-      i32.store $stack offset=36
+      i32.store $heap offset=36
       local.get $t17
       local.get $t6
-      i32.store $stack offset=40
+      i32.store $heap offset=40
       local.get $t17
       local.get $t5
-      i32.store $stack offset=44
+      i32.store $heap offset=44
       local.get $t17
       local.get $t4
-      i32.store $stack offset=48
+      i32.store $heap offset=48
       local.get $t17
       local.get $t3
-      i32.store $stack offset=52
+      i32.store $heap offset=52
       local.get $t17
       local.get $t2
-      i32.store $stack offset=56
+      i32.store $heap offset=56
       local.get $t17
       local.get $t1
-      i32.store $stack offset=60
+      i32.store $heap offset=60
       local.get $t17
       local.get $t0
-      i32.store $stack offset=64
+      i32.store $heap offset=64
       local.get $t17
       local.get $x
-      i32.store $stack offset=68
+      i32.store $heap offset=68
       return
     end
   )
@@ -335,7 +333,7 @@
       local.get $t1
       local.get $t0
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -344,7 +342,7 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
     return
   )
   (func $implicit (param $t1 i32) (param $t0 i32)
@@ -352,22 +350,21 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
   )
 )
 == @build: release
 (module
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_at" (func $rt:release_at (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
       local.get $t1
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -448,58 +445,58 @@
       call $rt:retain
       local.get $t17
       local.get $t16
-      i32.store $stack
+      i32.store $heap
       local.get $t17
       local.get $t15
-      i32.store $stack offset=4
+      i32.store $heap offset=4
       local.get $t17
       local.get $t14
-      i32.store $stack offset=8
+      i32.store $heap offset=8
       local.get $t17
       local.get $t13
-      i32.store $stack offset=12
+      i32.store $heap offset=12
       local.get $t17
       local.get $t12
-      i32.store $stack offset=16
+      i32.store $heap offset=16
       local.get $t17
       local.get $t11
-      i32.store $stack offset=20
+      i32.store $heap offset=20
       local.get $t17
       local.get $t10
-      i32.store $stack offset=24
+      i32.store $heap offset=24
       local.get $t17
       local.get $t9
-      i32.store $stack offset=28
+      i32.store $heap offset=28
       local.get $t17
       local.get $t8
-      i32.store $stack offset=32
+      i32.store $heap offset=32
       local.get $t17
       local.get $t7
-      i32.store $stack offset=36
+      i32.store $heap offset=36
       local.get $t17
       local.get $t6
-      i32.store $stack offset=40
+      i32.store $heap offset=40
       local.get $t17
       local.get $t5
-      i32.store $stack offset=44
+      i32.store $heap offset=44
       local.get $t17
       local.get $t4
-      i32.store $stack offset=48
+      i32.store $heap offset=48
       local.get $t17
       local.get $t3
-      i32.store $stack offset=52
+      i32.store $heap offset=52
       local.get $t17
       local.get $t2
-      i32.store $stack offset=56
+      i32.store $heap offset=56
       local.get $t17
       local.get $t1
-      i32.store $stack offset=60
+      i32.store $heap offset=60
       local.get $t17
       local.get $t0
-      i32.store $stack offset=64
+      i32.store $heap offset=64
       local.get $t17
       local.get $x
-      i32.store $stack offset=68
+      i32.store $heap offset=68
       return
     end
   )
@@ -513,7 +510,7 @@
       local.get $t1
       local.get $t0
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -522,7 +519,7 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
     return
   )
   (func $implicit (param $t1 i32) (param $t0 i32)
@@ -530,22 +527,21 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
   )
 )
 == @build: release checked
 (module
   (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_at" (func $rt:release_at (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "stack" (memory $stack 16 16))
+  (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
       local.get $t1
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -626,58 +622,58 @@
       call $rt:retain
       local.get $t17
       local.get $t16
-      i32.store $stack
+      i32.store $heap
       local.get $t17
       local.get $t15
-      i32.store $stack offset=4
+      i32.store $heap offset=4
       local.get $t17
       local.get $t14
-      i32.store $stack offset=8
+      i32.store $heap offset=8
       local.get $t17
       local.get $t13
-      i32.store $stack offset=12
+      i32.store $heap offset=12
       local.get $t17
       local.get $t12
-      i32.store $stack offset=16
+      i32.store $heap offset=16
       local.get $t17
       local.get $t11
-      i32.store $stack offset=20
+      i32.store $heap offset=20
       local.get $t17
       local.get $t10
-      i32.store $stack offset=24
+      i32.store $heap offset=24
       local.get $t17
       local.get $t9
-      i32.store $stack offset=28
+      i32.store $heap offset=28
       local.get $t17
       local.get $t8
-      i32.store $stack offset=32
+      i32.store $heap offset=32
       local.get $t17
       local.get $t7
-      i32.store $stack offset=36
+      i32.store $heap offset=36
       local.get $t17
       local.get $t6
-      i32.store $stack offset=40
+      i32.store $heap offset=40
       local.get $t17
       local.get $t5
-      i32.store $stack offset=44
+      i32.store $heap offset=44
       local.get $t17
       local.get $t4
-      i32.store $stack offset=48
+      i32.store $heap offset=48
       local.get $t17
       local.get $t3
-      i32.store $stack offset=52
+      i32.store $heap offset=52
       local.get $t17
       local.get $t2
-      i32.store $stack offset=56
+      i32.store $heap offset=56
       local.get $t17
       local.get $t1
-      i32.store $stack offset=60
+      i32.store $heap offset=60
       local.get $t17
       local.get $t0
-      i32.store $stack offset=64
+      i32.store $heap offset=64
       local.get $t17
       local.get $x
-      i32.store $stack offset=68
+      i32.store $heap offset=68
       return
     end
   )
@@ -691,7 +687,7 @@
       local.get $t1
       local.get $t0
       i32.const 72
-      memory.copy $stack $stack
+      memory.copy $heap $heap
       return
     end
   )
@@ -700,7 +696,7 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
     return
   )
   (func $implicit (param $t1 i32) (param $t0 i32)
@@ -708,6 +704,6 @@
     local.get $t0
     local.get $t1
     i32.const 128
-    memory.copy $stack $stack
+    memory.copy $heap $heap
   )
 )

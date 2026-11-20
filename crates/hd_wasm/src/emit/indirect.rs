@@ -5,7 +5,7 @@
 //! A struct, tuple or enum of more than [`crate::layout::INDIRECT`] values
 //! ([`crate::layout::by_address`]) passes to an instance's
 //! *worker*, `Sym::Part(key, Part::Indirect)`, as one `i32`: the address of
-//! its bits in the shadow stack (memory [`STACK`]). The worker keeps the
+//! its bits in the shadow stack (memory [`HEAP`]). The worker keeps the
 //! parameter there, as rustc keeps an indirect argument as its place: a
 //! field read loads only the leaves it reads, and a field that is itself
 //! indirect and only passed on to another worker passes as the address
@@ -39,7 +39,7 @@
 //! A local of such a type kept in memory (step 3, rustc's
 //! `LocalRef::Place`) lives in a slot of one *frame block* on the shadow
 //! stack, reserved at the function's entry and given back at every exit
-//! ([`Em::frame_locals`], [`stack_frame`]). Its store writes a literal
+//! ([`Em::frame_locals`], [`crate::wide::locals_frame`]). Its store writes a literal
 //! or a worker's result in place, copies a value read from memory with
 //! one `memory.copy`, or stores leaves; a read of it, whole or of fields,
 //! is an address like a parameter's.
@@ -93,7 +93,7 @@ use super::drop_flags::path_flags;
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
 use crate::layout::{LeafOps as _, Mem, ReleasePlan, ReleaseStep, by_address};
-use crate::module::{Func, Global, Module, Part, STACK, Sym, Val};
+use crate::module::{Func, Global, HEAP, Module, Part, Sym, Val};
 use crate::op::Op as I;
 use crate::rt::{DropCall, HookPlan, HookStep};
 
@@ -413,7 +413,7 @@ pub(crate) fn wrapper(
             for (k, leaf) in mem.leaves.iter().enumerate() {
                 f.get(base);
                 f.get(at + u32_of(k));
-                f.op(leaf.store_in(STACK, off));
+                f.op(leaf.store_in(HEAP, off));
             }
         }
     }
@@ -438,7 +438,7 @@ pub(crate) fn wrapper(
 pub(crate) fn load_leaves(f: &mut Func, base: u32, off: u32, mem: &Mem) {
     for leaf in &mem.leaves {
         f.get(base);
-        f.op(leaf.load_in(STACK, off));
+        f.op(leaf.load_in(HEAP, off));
     }
 }
 
@@ -458,11 +458,10 @@ fn value_uses(b: &hd_tir::ir::Body) -> HashMap<u32, u32> {
 
 /// Reserves `size` bytes of the shadow stack, its address in `base`.
 pub(crate) fn reserve(f: &mut Func, base: u32, size: i32) {
-    f.global_get(Global::Stack);
-    f.op(I::I32Const(size));
-    f.op(I::I32Sub);
-    f.op(I::LocalTee(base));
-    f.global_set(Global::Stack);
+    let (code, _) = crate::wide::frame_enter(f, base, size.cast_unsigned());
+    for ins in code {
+        f.push(ins);
+    }
 }
 
 /// Gives back what [`reserve`] took.
@@ -631,7 +630,7 @@ impl Em<'_, '_, '_> {
         }
         for leaf in &mem.leaves[part.first..part.first + part.count] {
             self.f.get(at);
-            self.f.op(leaf.load_in(STACK, off));
+            self.f.op(leaf.load_in(HEAP, off));
         }
         self.store_as(i, moved)?;
         Ok(true)
@@ -701,7 +700,7 @@ impl Em<'_, '_, '_> {
                         None
                     };
                     let src = src.unwrap_or(super::value::Src::Ref(r));
-                    self.store_src(STACK, base, offs[k], &mem.leaves, &src)?;
+                    self.store_src(HEAP, base, offs[k], &mem.leaves, &src)?;
                     address(&mut self.f, base, offs[k]);
                 }
                 _ => self.push_arg(i, k, r, params[k], Some(lends))?,
@@ -871,7 +870,7 @@ impl Em<'_, '_, '_> {
                 } else {
                     self.retain_ref(r)?
                 };
-                self.store_src(STACK, base, off, &mem.leaves, &src)?;
+                self.store_src(HEAP, base, off, &mem.leaves, &src)?;
                 if moved {
                     self.settle_value(r);
                 }
@@ -931,7 +930,7 @@ impl Em<'_, '_, '_> {
             } else {
                 self.retain_src(&super::value::Src::Ref(r), ft)?
             };
-            self.store_src(STACK, base, off + part.offset, &mem.leaves, &src)?;
+            self.store_src(HEAP, base, off + part.offset, &mem.leaves, &src)?;
         }
         self.written.insert(i);
         Ok(())
@@ -946,7 +945,7 @@ impl Em<'_, '_, '_> {
             address(&mut self.f, base, off);
             self.f.static_addr(at);
             self.f.u32(layout.size);
-            self.f.push(crate::bulk::copy(crate::module::HEAP, STACK));
+            self.f.push(crate::bulk::copy(crate::module::HEAP, HEAP));
             self.written.insert(r);
             return Ok(true);
         }
@@ -1007,7 +1006,7 @@ impl Em<'_, '_, '_> {
                 (s, moved)
             }
         };
-        self.store_src(STACK, base, 0, &mem.leaves, &src)?;
+        self.store_src(HEAP, base, 0, &mem.leaves, &src)?;
         if moved {
             self.settle_value(r);
         }
@@ -1020,7 +1019,7 @@ impl Em<'_, '_, '_> {
         address(&mut self.f, base, off);
         address(&mut self.f, at, from);
         self.f.op(I::I32Const(size.cast_signed()));
-        self.f.push(crate::bulk::copy(STACK, STACK));
+        self.f.push(crate::bulk::copy(HEAP, HEAP));
     }
 
     /// The block call `i`'s result goes to: its place in this worker's
@@ -1137,48 +1136,6 @@ impl Em<'_, '_, '_> {
     }
 }
 
-/// Reserves the frame block of `size` bytes at the entry of `f`, its
-/// address in local `base`, and gives it back at every exit: a `return`
-/// and every branch out of the function's own label, as
-/// [`crate::wide::locals_frame`] does for the local stack. A `?` or an
-/// early `return` is such an exit, and a loop reuses the block each
-/// round, so no path leaves it reserved.
-pub(crate) fn stack_frame(f: &mut Func, base: u32, size: u32) {
-    use crate::module::Ins;
-    let size = size.cast_signed();
-    let selector = f.local(Val::I32);
-    let stack = f.intern_global(Global::Stack);
-    let mut out = vec![
-        Ins::GlobalGet(stack),
-        Ins::Op(I::I32Const(size)),
-        Ins::Op(I::I32Sub),
-        Ins::Op(I::LocalTee(base)),
-        Ins::GlobalSet(stack),
-    ];
-    let restore = |out: &mut Vec<Ins>| {
-        out.extend([
-            Ins::Op(I::LocalGet(base)),
-            Ins::Op(I::I32Const(size)),
-            Ins::Op(I::I32Add),
-            Ins::GlobalSet(stack),
-        ]);
-    };
-    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
-    origins.repeat(f.origin_root, out.len());
-    let body = std::mem::take(&mut f.body);
-    let mut depth = 0;
-    for (position, ins) in body.into_iter().enumerate() {
-        let start = out.len();
-        crate::wide::exit(f, ins, &mut depth, selector, &restore, &mut out);
-        origins.merged(position..position + 1, out.len() - start);
-    }
-    let start = out.len();
-    restore(&mut out);
-    origins.repeat(f.origin_root, out.len() - start);
-    f.body = out;
-    origins.finish(f);
-}
-
 impl Em<'_, '_, '_> {
     /// Plans the locals this function keeps in memory (step 3 of #2031,
     /// rustc's `LocalRef::Place` for a local whose layout is not an
@@ -1192,7 +1149,7 @@ impl Em<'_, '_, '_> {
     /// sets its flags; its `Drop` or exit release runs its type's release
     /// witness while its whole path's flag is set ([`Em::mem_release`]).
     /// Each gets
-    /// an 8-byte aligned slot in the frame block ([`stack_frame`]); its
+    /// an 8-byte aligned slot in the frame block ([`crate::wide::locals_frame`]); its
     /// stored value, when that store is its one use, is planned in place
     /// there ([`Em::plan_in_place`]). One stored value means no read of
     /// the local can see a later store before the use it passes on to,
@@ -1206,6 +1163,7 @@ impl Em<'_, '_, '_> {
         // Per local of this sub-body: its whole stores and the last value
         // stored, or none once a use other than a read by fields or whole
         // rules it out.
+        let uses = self.slot_uses();
         let mut seen: HashMap<usize, Option<(u32, u32)>> = HashMap::default();
         // Per local, what keeping a counted value in memory depends on: a
         // move not through fields passed by address (`far`, below) rules
@@ -1247,6 +1205,22 @@ impl Em<'_, '_, '_> {
                 Tag::Store if p.proj.is_empty() && b.data[i][1] != NONE => {
                     *stores += 1;
                     *value = b.data[i][1];
+                    if let Some(&off) = self.slots.get(&l.idx())
+                        && self.cells.get(&l.idx()) == Some(&u32_of(i))
+                        && uses.get(value) == Some(&1)
+                        && !self.store_releases(u32_of(i))
+                        && !self.loan_locals.contains_key(&l.idx())
+                        && Ref(*value).as_inst().is_some()
+                        && matches!(
+                            b.tags[*value as usize],
+                            Tag::Call | Tag::NewStruct | Tag::NewTuple | Tag::Scope
+                        )
+                        && by_address(self.pool(), self.env(), b.local_ty[l.idx()])?
+                        && let Some(base) = self.frame_base()
+                    {
+                        self.frame_copies.push(*value);
+                        self.plan_in_place(*value, base, off, &uses)?;
+                    }
                 }
                 Tag::Drop if p.proj.is_empty() => {
                     dropped.insert(l.idx());
@@ -1267,7 +1241,6 @@ impl Em<'_, '_, '_> {
                 far.insert(l);
             }
         }
-        let uses = self.slot_uses();
         // A whole read of a counted local that would load its leaves (one
         // not passed by address to a worker, at its one use) rules it out:
         // the slot would cost a load per leaf where locals cost none.
@@ -1396,7 +1369,7 @@ impl Em<'_, '_, '_> {
             self.copy_in(base, off, at, from, mem.size);
             return Ok(true);
         }
-        self.store_src(STACK, base, off, &mem.leaves, &super::value::Src::Ref(v))?;
+        self.store_src(HEAP, base, off, &mem.leaves, &super::value::Src::Ref(v))?;
         Ok(true)
     }
 }
@@ -1546,7 +1519,7 @@ impl Em<'_, '_, '_> {
         self.f.get(h);
         address(&mut self.f, at, off);
         self.f.op(I::I32Const(size.cast_signed()));
-        self.f.push(crate::bulk::copy(STACK, crate::module::HEAP));
+        self.f.push(crate::bulk::copy(HEAP, crate::module::HEAP));
         let mut todo = Vec::new();
         if path_flags(paths, &[]).1.is_empty() {
             self.f.get(h);
@@ -1610,11 +1583,11 @@ impl Em<'_, '_, '_> {
         address(&mut self.f, at, off);
         self.f.get(h);
         self.f.op(I::I32Const(size.cast_signed()));
-        self.f.push(crate::bulk::copy(crate::module::HEAP, STACK));
-        self.f.global_get(crate::module::Global::Locals);
+        self.f.push(crate::bulk::copy(crate::module::HEAP, HEAP));
+        self.f.global_get(crate::module::Global::Stack);
         self.f.op(I::I32Const(frame.cast_signed()));
         self.f.op(I::I32Add);
-        self.f.global_set(crate::module::Global::Locals);
+        self.f.global_set(crate::module::Global::Stack);
         Ok(())
     }
 

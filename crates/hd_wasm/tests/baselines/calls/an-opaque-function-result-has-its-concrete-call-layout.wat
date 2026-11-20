@@ -5,7 +5,7 @@
   (import "fixture" "impl Display for i64.write" (func $"impl Display for i64.write" (param i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $show (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 i32)
     ;; ...

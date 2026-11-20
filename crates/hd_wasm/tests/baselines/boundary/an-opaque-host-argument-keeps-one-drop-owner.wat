@@ -4,11 +4,12 @@
   (import "fixture" "rt:leb_put" (func $rt:leb_put (param i32 i64) (result i32)))
   (import "fixture" "rt:fit" (func $rt:fit (param i32)))
   (import "fixture" "rt:memory_copy/0/1" (func $rt:memory_copy/0/1 (param i32 i32 i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "package_encode[&Payload]" (func $"package_encode[&Payload]" (param i32) (result i32 i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 32 funcref))
   (func $begin (param $sink.0 i32) (param $sink.1 i32) (param $value.values i32) (param $value.owner.buffer.address i32) (param $value.owner.buffer.capacity i32) (param $value.owner.len i32) (result i32)
     ;; 25 |     sink.keep(value)
@@ -48,35 +49,20 @@
   )
   (func $rt:enc'2 (param $t6 i32) (param $t2 i32) (param $t3 i32) (param $t4 i32) (param $t5 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -109,6 +95,6 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

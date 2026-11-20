@@ -9,11 +9,12 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 12 funcref))
   (func $ordinary (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 17 |     forward(callback)
@@ -257,35 +258,20 @@
   )
   (func $awaited'1 (param $frame i32) (param $callback.0 i32) (param $callback.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 23 |     later!(callback)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -486,7 +472,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $callback.1
@@ -556,7 +542,7 @@
           local.get $t0
           i32.const 24
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $t5
@@ -628,7 +614,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $awaited.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 23 |     later!(callback)

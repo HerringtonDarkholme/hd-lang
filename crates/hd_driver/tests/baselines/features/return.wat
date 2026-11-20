@@ -4,10 +4,11 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $ret_field (param $r.name.0 i32) (param $r.name.1 i32) (result i32 i32)
     ;; 13 |     r.name
     local.get $r.name.0
@@ -66,35 +67,20 @@
   )
   (func $use_rets (param $t1 i32) (param $t2 i32) (result i32) (local $r i32) (local $t0 i32)
     ;; 22 |     ret_param(r.name).len() + ret_field(r).len() + ret_ref_field(&r).len()
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -128,6 +114,6 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

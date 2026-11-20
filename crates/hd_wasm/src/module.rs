@@ -29,12 +29,8 @@ pub const BUF: u32 = 1;
 /// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2).
 pub const HEAP: u32 = 0;
 
-/// The shadow stack's memory (`crates/hd_wasm/DESIGN.md` §23.29),
-/// declared only when a signature or a wide body needs it.
-pub const STACK: u32 = 2;
-
-/// The shadow stack's pages: it grows down from their end, and a frame
-/// below 0 wraps to an address past it, which traps.
+/// The shared frame region: 1 MiB, over nine times the measured 114,480-byte
+/// peak of the wide dev frame case, preserving the previous stack capacity.
 pub const STACK_PAGES: u32 = 16;
 
 /// The first address of static data: addresses below it are never used,
@@ -407,13 +403,8 @@ pub enum Global {
     /// The shadow stack pointer: the lowest address of the newest frame
     /// (§23.29).
     Stack,
-    /// The local stack pointer: the lowest address of the newest frame of
-    /// locals that only local references lend (§23.38), 0 before the
-    /// first frame.
-    Locals,
-    /// The lowest address of the local stack's newest segment: a frame
-    /// that does not fit above it starts a new one.
-    LocalsBase,
+    /// Lower boundary of the shared frame region in heap memory.
+    StackLimit,
     /// This extension's allocated static segment (an immutable host import).
     SessionData,
     /// Stable storage address for a REPL top-level binding.
@@ -454,8 +445,7 @@ impl Global {
             | Global::Releasing
             | Global::Tracing
             | Global::Stack
-            | Global::Locals
-            | Global::LocalsBase
+            | Global::StackLimit
             | Global::SessionData
             | Global::Binding(_) => Val::I32,
             Global::HashSeed | Global::MapSeedCounter => Val::I64,
@@ -2203,7 +2193,7 @@ impl Module {
                 }
             });
         }
-        let stack = crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)? || session;
+        crate::wide::lower(&mut self.funcs, &self.exports, &self.symbols)?;
         // Wide storage introduces a frame fill after the ordinary lowering.
         // Its only new scalar scratch is bounded; all earlier scratch locals
         // participate in wide lowering with the body's other locals.
@@ -2286,8 +2276,9 @@ impl Module {
             }
         }
         if session {
-            globals.insert(Global::Stack);
+            globals.extend([Global::Stack, Global::StackLimit]);
         }
+        let stack = globals.contains(&Global::Stack);
         let imports = hd_base::btree_set(imports);
         let mut index = Numbers::new();
         let mut next = 0u32;
@@ -2476,7 +2467,8 @@ impl Module {
             }
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
-        let heap_base = static_end.next_multiple_of(8);
+        let stack_base = static_end.next_multiple_of(8);
+        let heap_base = stack_base.saturating_add(if stack { STACK_PAGES << 16 } else { 0 }) & !7;
         if previous.is_some() {
             globals.insert(Global::SessionData);
         }
@@ -2539,21 +2531,13 @@ impl Module {
                     }),
                 );
             }
-            for (name, maximum) in [
-                ("hd.session.heap", None),
-                ("hd.x", None),
-                ("hd.session.stack", Some(u64::from(STACK_PAGES))),
-            ] {
+            for name in ["hd.session.heap", "hd.x"] {
                 import_sec.import(
                     "hd:session:0",
                     name,
                     EntityType::Memory(MemoryType {
-                        minimum: if maximum.is_some() {
-                            u64::from(STACK_PAGES)
-                        } else {
-                            1
-                        },
-                        maximum,
+                        minimum: 1,
+                        maximum: None,
                         memory64: false,
                         shared: false,
                         page_size_log2: None,
@@ -2850,17 +2834,6 @@ impl Module {
             shared: false,
             page_size_log2: None,
         });
-        // Memory 2: the shadow stack, when a wide signature or an address
-        // argument's block (`emit/indirect.rs`) uses it.
-        if stack {
-            memories.memory(MemoryType {
-                minimum: u64::from(STACK_PAGES),
-                maximum: Some(u64::from(STACK_PAGES)),
-                memory64: false,
-                shared: false,
-                page_size_log2: None,
-            });
-        }
         let mut global_sec = GlobalSection::new();
         for g in globals.iter().filter(|g| !imported_global(g)) {
             let v = g.val();
@@ -2879,7 +2852,8 @@ impl Module {
                 }
                 (Global::HeapTop, _) => ConstExpr::i32_const(heap_base.cast_signed()),
                 (Global::HeapEnd, _) => ConstExpr::i32_const((heap_pages << 16).cast_signed()),
-                (Global::Stack, _) => ConstExpr::i32_const((STACK_PAGES << 16).cast_signed()),
+                (Global::Stack, _) => ConstExpr::i32_const(heap_base.cast_signed()),
+                (Global::StackLimit, _) => ConstExpr::i32_const(stack_base.cast_signed()),
                 (_, Val::I32) => ConstExpr::i32_const(0),
                 (_, Val::I64) => ConstExpr::i64_const(0),
                 (_, Val::F32) => ConstExpr::f32_const(wasm_encoder::Ieee32::from(0.0)),
@@ -2919,7 +2893,6 @@ impl Module {
         }
         if session {
             exports.export("hd.session.heap", ExportKind::Memory, HEAP);
-            exports.export("hd.session.stack", ExportKind::Memory, STACK);
             exports.export("hd.session.table", ExportKind::Table, 0);
             for (s, f) in &defined {
                 let name = format!("hd.session.f.{}", index[s]);

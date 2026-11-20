@@ -3,9 +3,10 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $"impl Step for Erased.step'1" (param $self i32) (result i32 i64) (local $t0 i32)
     ;; 32 |         self.source.step()
@@ -78,40 +79,25 @@
     local.get $n
     i64.store $heap offset=8
     local.get $t0
-    i32.const 192 ;; &vtable[rt:dyn_slot]
+    i32.const 228 ;; &vtable[rt:dyn_slot]
     call $total
   )
   (func $total (param $items.source.0 i32) (param $items.source.1 i32) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $x i64)
     ;; 35 |     let mut cursor = items
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -175,6 +161,6 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

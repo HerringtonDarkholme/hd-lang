@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i64]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i64]" (param i32 i32)))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $grow (param $n i32) (result i64) (local $size i32) (local $xs i32) (local $sum i64) (local $t0 i32)
     ;; ...

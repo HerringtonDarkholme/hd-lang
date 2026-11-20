@@ -5,8 +5,8 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $relay (param $frame i32) (param $text.0 i32) (param $text.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t4 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32)
     ;; ...
@@ -155,7 +155,7 @@
             local.get $t3
             i32.const 32
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $text.1
@@ -228,7 +228,7 @@
           local.get $t3
           i32.const 32
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $provider0

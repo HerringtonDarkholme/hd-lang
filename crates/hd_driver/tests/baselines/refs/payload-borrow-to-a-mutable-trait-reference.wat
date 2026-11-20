@@ -2,7 +2,7 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 2 funcref))
   (func $touch (param $slot i32) (local $t0 i32)
     ;; 13 |     match slot:

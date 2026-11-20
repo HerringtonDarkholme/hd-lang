@@ -2,9 +2,10 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "rt:panic'3" (func $rt:panic'3))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $same_place (param $a i32) (param $b i32) (result i32)
     ;; 18 |     a is b
     local.get $a
@@ -18,35 +19,20 @@
   )
   (func $use_all (result i32) (local $p i32) (local $t0 i32) (local $n i32)
     ;; 21 |     let p = Point { x: +1, y: +2 }
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -82,7 +68,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $norm (param $p i32) (result i32) (local $t0 i64)
     ;; 12 |     (p.x + 1) * (p.y + 2) * (p.x + 3) * (p.y + 4) * (p.x + 5) / (p.y + 6)
@@ -121,7 +107,7 @@
     local.tee $t0
     i64.eqz
     if
-      call $rt:panic'1
+      call $rt:panic'2
       unreachable
     end
     local.get $t0
@@ -134,7 +120,7 @@
     i64.lt_s
     i32.or
     if
-      call $rt:panic'2
+      call $rt:panic'3
       unreachable
     end
     local.get $t0

@@ -4,6 +4,7 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
@@ -17,10 +18,10 @@
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 26 funcref))
   (func $"same[i32]" (param $t0 i32) (result i32)
     ;; 20 |     value
@@ -77,35 +78,20 @@
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $items i32) (local $t1 i32) (local $size i32) (local $t2 i32) (local $t0 i32)
     ;; 39 |     original := word(7)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 80
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 80
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     i32.const 7
     i32.const 6
     call_indirect $table0 (param i32) (result i32 i32)
@@ -540,7 +526,7 @@
     local.get $t0
     i32.const 80
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $unique (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
     ;; 36 |     value

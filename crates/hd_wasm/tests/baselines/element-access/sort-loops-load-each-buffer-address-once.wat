@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "impl[T < Ord] List[T].sort[u32]" (func $"impl[T < Ord] List[T].sort[u32]" (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $"drift_merge[u32, std.collections.DriftByOrd]" (param $t2 i32) (param $t4 i32) (param $t0 i32) (param $t1 i32) (param $t3 i32) (param $t6 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32)
     ;; (no span)
     local.get $t0

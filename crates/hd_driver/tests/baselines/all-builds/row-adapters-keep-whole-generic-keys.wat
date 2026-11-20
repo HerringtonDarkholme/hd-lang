@@ -2,7 +2,7 @@
 == @build: dev
 (module
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
     i32.const 8
@@ -49,7 +49,7 @@
 == @build: checked
 (module
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $"adapt[i32]" (param $callback.0 i32) (param $callback.1 i32) (result i32 i32) (local $t0 i32)
     ;; 33 |     callback
     i32.const 8

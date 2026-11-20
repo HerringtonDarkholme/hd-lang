@@ -4,10 +4,11 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $through_mut (param $g.0 i32) (param $g.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32)
     ;; 30 |     g.rename(n)
@@ -80,39 +81,24 @@
     local.get $u.name.1
     i32.store $heap offset=4
     local.get $t0
-    i32.const 196 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
+    i32.const 228 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
   )
   (func $local_mut (param $u.name.0 i32) (param $u.name.1 i32) (param $n.0 i32) (param $n.1 i32) (result i32) (local $v i32) (local $t0 i32)
     ;; 34 |     let mut v = u
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -127,7 +113,7 @@
     i32.store $heap offset=4
     ;; 35 |     through_mut(&mut v, n)
     local.get $v
-    i32.const 196 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
+    i32.const 228 ;; &vtable[rt:dyn_slot, rt:dyn_slot]
     local.get $n.0
     local.get $n.1
     call $through_mut
@@ -147,7 +133,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $"impl Greet for User.rename" (param $self i32) (param $n.0 i32) (param $n.1 i32)
     ;; 24 |         self.name = n

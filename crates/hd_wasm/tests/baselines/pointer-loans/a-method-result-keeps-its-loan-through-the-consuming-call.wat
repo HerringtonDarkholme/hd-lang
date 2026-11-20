@@ -7,7 +7,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "observe" (func $observe (param i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $probe (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 24 |     observe(p.items.at(0), alias)
     local.get $p

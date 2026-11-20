@@ -2,12 +2,13 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32 i32) (result i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $"Describe.headline[Logger]'1" (param $self i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 12 |         "* " + self.describe()
     local.get $self
@@ -56,35 +57,20 @@
   )
   (func $qualified (param $t1 i32) (param $t2 i32) (result i32) (local $l i32) (local $t0 i32) (local $t3 i32) (local $t4 i32)
     ;; 31 |     Describe::headline(&l).len()
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16 ;; &"* "
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16 ;; &"* "
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16 ;; &"* "
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -127,7 +113,7 @@
     local.get $t0
     i32.const 16 ;; &"* "
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $direct (param $l.name.0 i32) (param $l.name.1 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 22 |     l.headline().len()

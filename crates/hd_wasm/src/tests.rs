@@ -54,7 +54,7 @@ fn an_empty_entry_links_two_memories_and_the_entry_exports() {
 /// A function of more parameters and results than `wide::WIDTH`, called
 /// directly and through the table, early return included, lowers to frames
 /// on the shadow stack: the module validates, no function type is wider
-/// than the bound, and the stack is a third memory.
+/// than the bound, and stack frames share the heap memory.
 #[test]
 fn wide_signatures_pass_through_the_shadow_stack() {
     use crate::op::Op as I;
@@ -110,7 +110,7 @@ fn wide_signatures_pass_through_the_shadow_stack() {
             _ => {}
         }
     }
-    assert_eq!(memories, 3);
+    assert_eq!(memories, 2);
 }
 
 /// Static data is placed once per content, aligned, from `STATIC_BASE`,
@@ -723,13 +723,12 @@ fn session_base_exports_shared_storage_and_keeps_its_table_growable() {
             _ => {}
         }
     }
-    assert_eq!(memories, 3);
-    assert_eq!(globals, 2); // counter storage and the shared stack pointer
+    assert_eq!(memories, 2);
+    assert_eq!(globals, 3); // counter, shared stack pointer and lower boundary
     assert_eq!(exported_globals, globals);
     for name in [
         "hd.x",
         "hd.session.heap",
-        "hd.session.stack",
         "hd.session.table",
         "hd.session.f.0",
     ] {
@@ -1033,8 +1032,10 @@ fn session_extension_reuses_a_lowered_wide_function() {
     validate(&extension.wasm);
     let script = format!(
         r"
-const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?}))).exports;
+const runtime = {{panic() {{ throw Error('unexpected frame overflow'); }}, stderr() {{}}}};
+const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?})), {{'hd:rt': runtime}}).exports;
 const extension = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({extension:?})), {{
+    'hd:rt': runtime,
     'hd:session:0': base,
     'hd:session': {{data: new WebAssembly.Global({{value:'i32', mutable:false}}, 0)}},
 }}).exports;
@@ -1098,9 +1099,11 @@ fn session_extension_imports_export_only_and_vtable_only_functions() {
     validate(&extension.wasm);
     let script = format!(
         r"
-const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?}))).exports;
+const runtime = {{panic() {{ throw Error('unexpected frame overflow'); }}, stderr() {{}}}};
+const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?})), {{'hd:rt': runtime}}).exports;
 base['hd.session.table'].grow(1);
 const extension = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({extension:?})), {{
+    'hd:rt': runtime,
     'hd:session:0': base,
     'hd:session': {{data: new WebAssembly.Global({{value:'i32', mutable:false}}, 4096)}},
 }}).exports;
@@ -1838,7 +1841,8 @@ fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(),
     );
     let script = format!(
         r"
-const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?}))).exports;
+const runtime = {{panic() {{ throw Error('unexpected frame overflow'); }}, stderr() {{}}}};
+const base = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({base:?})), {{'hd:rt': runtime}}).exports;
 base['hd.init']();
 if (base.read() !== 1102) throw Error('base init order or forbid flag');
 const reuse = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array({reuse:?})), {{

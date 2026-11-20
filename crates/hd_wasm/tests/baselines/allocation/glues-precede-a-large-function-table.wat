@@ -11,7 +11,7 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 3))
+  (import "fixture" "heap" (memory $heap 19))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $out i32) (local $sum i32) (local $t5 i32) (local $t0 i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; ...
     ;; 197 |     if sum > 0:

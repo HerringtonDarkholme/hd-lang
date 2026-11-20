@@ -471,7 +471,7 @@ class ReplSession {
 
   captureLinked = (): Dynamic => {
     const base = this.linked.instances[0].exports;
-    const memories = ["hd.x", "hd.session.heap", "hd.session.stack"].map((name) => [
+    const memories = ["hd.x", "hd.session.heap"].map((name) => [
       name,
       new Uint8Array(base[name].buffer).slice(),
     ]);

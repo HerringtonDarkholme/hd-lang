@@ -10,6 +10,7 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
@@ -18,9 +19,9 @@
   (import "fixture" "rt:frame'5" (func $rt:frame'5 (result i32)))
   (import "fixture" "rt:frame'6" (func $rt:frame'6 (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 22 funcref))
   (func $construct (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 11 |     _ := fetch(key)
@@ -241,35 +242,20 @@
   )
   (func $closure_bang#1'1 (param $frame i32) (param $env i32) (param $ctx i32) (result i32 i32 i32) (local $t4 i32) (local $t6 i32) (local $t2 i32) (local $t5 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 19 |         fetch!(key)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -465,7 +451,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $ctx
@@ -536,7 +522,7 @@
           local.get $t0
           i32.const 24
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $t5
@@ -604,7 +590,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $closure_bang#1.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 19 |         fetch!(key)
@@ -770,35 +756,20 @@
   )
   (func $closure_bang'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 18 |     run_twice!():
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -969,7 +940,7 @@
             local.get $t0
             i32.const 16
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $key.0
@@ -1039,7 +1010,7 @@
           local.get $t0
           i32.const 16
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $t5
@@ -1103,7 +1074,7 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $closure_bang.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 18 |     run_twice!():
@@ -1230,35 +1201,20 @@
   )
   (func $run_twice'1 (param $frame i32) (param $body.0 i32) (param $body.1 i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t2 i32) (local $t5 i32) (local $t7 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 15 |     body!().len() + body!().len()
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -1450,7 +1406,7 @@
               local.get $t0
               i32.const 24
               i32.add
-              global.set $locals
+              global.set $stack
               return
             end
             local.get $body.0
@@ -1525,7 +1481,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $t6
@@ -1731,7 +1687,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $body.1
@@ -1804,7 +1760,7 @@
           local.get $t0
           i32.const 24
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $body.0
@@ -1982,7 +1938,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $run_twice.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 15 |     body!().len() + body!().len()
@@ -2117,35 +2073,20 @@
   )
   (func $stored'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32) (local $t4 i32) (local $t6 i32) (local $t2 i32) (local $loader.1 i32) (local $t5 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -2336,7 +2277,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $key.0
@@ -2409,7 +2350,7 @@
           local.get $t0
           i32.const 24
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $loader.1
@@ -2597,7 +2538,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $stored.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
     ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
@@ -2724,35 +2665,20 @@
   )
   (func $stored#1'2 (param $frame i32) (param $env i32) (param $k.0 i32) (param $k.1 i32) (param $ctx i32) (result i32 i32 i32) (local $t4 i32) (local $t5 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32)
     ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $frame
     if
       local.get $frame
@@ -2936,7 +2862,7 @@
             local.get $t0
             i32.const 24
             i32.add
-            global.set $locals
+            global.set $stack
             return
           end
           local.get $k.0
@@ -3007,7 +2933,7 @@
           local.get $t0
           i32.const 24
           i32.add
-          global.set $locals
+          global.set $stack
           return
         end
         local.get $k.1
@@ -3077,7 +3003,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $stored#1.poll (param $t0 i32) (result i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32)
     ;; 22 |     loader := fn!(k: string) -> string: fetch!(k)

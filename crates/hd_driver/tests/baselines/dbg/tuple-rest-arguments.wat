@@ -4,7 +4,7 @@
   (import "fixture" "dbg[(List[string]...)]" (func $"dbg[(List[string]...)]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 18 funcref))
   (func $function_value#1 (param $env i32) (param $t0 i32) (param $ctx i32)
     ;; 8 |     let show: fn((List[string]...,)) -> void = dbg

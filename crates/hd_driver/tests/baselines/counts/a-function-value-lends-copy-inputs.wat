@@ -3,7 +3,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $retaining#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i32)
     ;; 21 |     fn() -> string: value

@@ -12,7 +12,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "check_equal[string]" (func $"check_equal[string]" (param i32 i32 i32 i32 i32 i32)))
   (import "fixture" "rt:test_init" (func $rt:test_init (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $init.init
     ;; 14 | record("main")
     i32.const 123 ;; &"main"

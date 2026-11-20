@@ -2,13 +2,14 @@
 (module
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $"impl Disposable for Res.dispose" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 16 |         self.log.push(self.name)
@@ -66,35 +67,20 @@
   )
   (func $two (param $log i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $first i32) (local $t0 i32)
     ;; 19 |     using first = Res { name: a, log: log }
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 48
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 48
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $log
     if
       local.get $log
@@ -201,7 +187,7 @@
     local.get $t0
     i32.const 48
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $by_ref (param $r i32) (result i32) (local $self.1 i32)
     ;; 29 |     using held = r
@@ -230,35 +216,20 @@
   )
   (func $per_round (param $log i32) (param $xs i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32) (local $x.0 i32) (local $r i32) (local $t0 i32)
     ;; 24 |     for x in xs:
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $xs
     i32.load $heap offset=4
     local.set $t1
@@ -358,6 +329,6 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

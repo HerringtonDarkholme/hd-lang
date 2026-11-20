@@ -39,6 +39,7 @@ rt:panic#2
 rt:panic#3
 rt:panic#4
 rt:panic#5
+rt:panic#6
 rt:panic_str
 rt:panic_with
 rt:to_buf

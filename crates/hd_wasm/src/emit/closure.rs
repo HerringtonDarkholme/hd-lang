@@ -240,7 +240,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The local holding the address of the function's frame of slots.
-    fn frame_base(&mut self) -> Option<u32> {
+    pub(super) fn frame_base(&mut self) -> Option<u32> {
         if self.susp_slots != 0 {
             self.own_frame();
             return Some(super::susp::FRAME);
@@ -430,6 +430,15 @@ impl Em<'_, '_, '_> {
     /// the new value before it releases the old. `NONE` stores zeros: a recursive local function's
     /// name, declared before its closure exists.
     pub(super) fn cell_set(&mut self, i: u32, l: usize, v: u32) -> StageResult<()> {
+        // The one-use initializer plan already wrote this destination;
+        // its Box still controls the slot's lifetime.
+        if self.placed.contains_key(&v) && self.written.contains(&v) {
+            let at = self.cell_of(l)?;
+            let root = super::drop_flags::Root::Local(l);
+            let init = (!self.tir_flags().contains_key(&root)).then_some(true);
+            self.init_cell_drop(at, self.b.local_ty[l], init);
+            return Ok(());
+        }
         // The value in the cell's layout, with the count the cell takes.
         let src = if v == NONE {
             self.zero_src(l)?

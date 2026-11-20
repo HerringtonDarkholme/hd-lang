@@ -13,7 +13,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "heap" (memory $heap 17))
   (func $probe (param $p i32) (param $alias i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; 26 |     for round in 0..2:
     i32.const 2

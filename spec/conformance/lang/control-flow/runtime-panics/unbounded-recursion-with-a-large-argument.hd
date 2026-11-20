@@ -1,6 +1,5 @@
 # test: recursion whose argument is a struct of 80 values exhausts the stack as a stack-exhausted panic
-# Spec 06 Runtime Panics: flow.panic.stack-exhausted. Known failure #2183: today the frame
-# block's separate stack memory wraps and traps as an internal error.
+# Spec 06 Runtime Panics: flow.panic.stack-exhausted.
 
 struct Big:
     f0: i32

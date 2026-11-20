@@ -1,8 +1,7 @@
 # @dump: wat
 # expected: `v` stays one frame block, and the interpolation borrows its
 # field at the block's address plus the field's offset, as rustc's
-# `PlaceRef` does. Today a borrow cannot point into the STACK memory, so
-# `v` is kept as 32 scalar locals (#2183).
+# `PlaceRef` does in the shared HEAP frame region.
 type D0 = (i32, i32)
 type D1 = (D0, D0)
 type D2 = (D1, D1)

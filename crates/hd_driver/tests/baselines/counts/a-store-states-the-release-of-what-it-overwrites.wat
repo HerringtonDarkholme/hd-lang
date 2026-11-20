@@ -2,17 +2,18 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (func $eat (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; 20 |     s.len()
     local.get $s.1
@@ -71,7 +72,7 @@
     i32.load $heap offset=4
     i32.ge_u
     if
-      call $rt:panic
+      call $rt:panic'1
       unreachable
     end
     local.get $t1
@@ -165,35 +166,20 @@
   )
   (func $declared (param $c i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $u i32) (local $t0 i32)
     ;; 39 |     u := fresh()
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 40
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'2
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 40
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     block
       call $fresh
       local.set $t1
@@ -257,6 +243,6 @@
     local.get $t0
     i32.const 40
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )

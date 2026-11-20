@@ -2,13 +2,14 @@
 (module
   (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "locals" (global $locals (mut i32)))
-  (import "fixture" "locals_base" (global $locals_base (mut i32)))
-  (import "fixture" "heap" (memory $heap 1))
+  (import "fixture" "stack" (global $stack (mut i32)))
+  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $consume (param $held i32) (result i32)
     ;; 32 |     held.id
@@ -60,35 +61,20 @@
   )
   (func $kept (param $n i32) (result i32) (local $held i32) (local $t0 i32)
     ;; 73 |     let mut held = Held { id: n }
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -121,39 +107,24 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $counted (param $n i32) (result i32) (local $total i32) (local $t1 i32) (local $t2 i32) (local $xs i32) (local $t0 i32) (local $t3 i64)
     ;; 58 |     let mut total = 0
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 16
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 16
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     ;; 59 |     for i in 0..n:
     block
       loop
@@ -167,7 +138,7 @@
         i32.const -2
         i32.gt_u
         if
-          call $rt:panic
+          call $rt:panic'2
           unreachable
         end
         local.get $t1
@@ -222,7 +193,7 @@
           i64.const 4294967295
           i64.gt_u
           if
-            call $rt:panic
+            call $rt:panic'2
             unreachable
           end
           local.get $t3
@@ -256,39 +227,24 @@
     local.get $t0
     i32.const 16
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $moved_each_round (param $n i32) (result i32) (local $total i32) (local $t1 i32) (local $i i32) (local $held i32) (local $t0 i32) (local $t2 i32) (local $t3 i64)
     ;; 39 |     let mut total = 0
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     ;; 40 |     for i in 0..n:
     block
       loop
@@ -303,7 +259,7 @@
         i32.const -2
         i32.gt_u
         if
-          call $rt:panic
+          call $rt:panic'2
           unreachable
         end
         local.get $t1
@@ -356,7 +312,7 @@
           i64.const 4294967295
           i64.gt_u
           if
-            call $rt:panic
+            call $rt:panic'2
             unreachable
           end
           local.get $t3
@@ -379,7 +335,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $"impl Drop for Held.drop" (param $self i32)
     ;; 22 |         self.id = 0
@@ -395,7 +351,7 @@
     i32.const -2
     i32.gt_u
     if
-      call $rt:panic
+      call $rt:panic'2
       unreachable
     end
     local.get $held
@@ -406,35 +362,20 @@
   )
   (func $moved_then_stored (param $n i32) (result i32) (local $held i32) (local $t0 i32) (local $t1 i32) (local $total i32) (local $t2 i32) (local $i i32) (local $t3 i32) (local $t4 i64)
     ;; 48 |     let mut held = Held { id: 0 }
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -466,7 +407,7 @@
         i32.const -2
         i32.gt_u
         if
-          call $rt:panic
+          call $rt:panic'2
           unreachable
         end
         local.get $t2
@@ -500,7 +441,7 @@
           i64.const 4294967295
           i64.gt_u
           if
-            call $rt:panic
+            call $rt:panic'2
             unreachable
           end
           local.get $t4
@@ -549,7 +490,7 @@
     i64.const 4294967295
     i64.gt_u
     if
-      call $rt:panic
+      call $rt:panic'2
       unreachable
     end
     local.get $t4
@@ -558,7 +499,7 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
   (func $eat (param $xs i32) (result i32) (local $t0 i32)
     ;; 36 |     xs.len()
@@ -580,35 +521,20 @@
   )
   (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $held i32) (local $t0 i32)
     ;; 67 |     bump(&mut held)
-    global.get $locals
-    global.get $locals_base
+    global.get $stack
+    global.get $stack_limit
     i32.sub
     i32.const 24
     i32.lt_u
     if
-      i32.const 1
-      memory.grow $heap
-      local.tee $t0
-      i32.const -1
-      i32.eq
-      if
-        unreachable
-      end
-      local.get $t0
-      i32.const 16
-      i32.shl
-      local.tee $t0
-      global.set $locals_base
-      local.get $t0
-      i32.const 65536
-      i32.add
-      global.set $locals
+      call $rt:panic'1
+      unreachable
     end
-    global.get $locals
+    global.get $stack
     i32.const 24
     i32.sub
     local.tee $t0
-    global.set $locals
+    global.set $stack
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -673,6 +599,6 @@
     local.get $t0
     i32.const 24
     i32.add
-    global.set $locals
+    global.set $stack
   )
 )
