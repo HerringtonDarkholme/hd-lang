@@ -410,6 +410,7 @@ pub fn decide(cx: &impl Context) -> Decisions {
         w > 0 || (excl && r > 0)
     };
     let mut kept: Vec<(LoanSite, Ty, bool)> = Vec::new();
+    let mut topos: HashMap<*const Body, Box<crate::ir::Topology>> = HashMap::default();
     for id in &ids {
         let b = cx.body(*id).expect("body");
         let n = u32::try_from(b.tags.len()).expect("insts");
@@ -423,7 +424,18 @@ pub fn decide(cx: &impl Context) -> Decisions {
         // whose next round it may outlive (a close past the loop), to its
         // last `LoanClose`, or the body's end with none. Cost: one pass over
         // the instance's instructions, then each begin's loops.
-        let topo = crate::ir::Topology::new(b);
+        // An instance with no loan needs no structure: a closure's sub-body
+        // instance reads the whole body's, built once per body.
+        if !cx
+            .instructions(*id)
+            .iter()
+            .any(|&i| b.tags[i] == Tag::LoanBegin)
+        {
+            continue;
+        }
+        let topo = &**topos
+            .entry(std::ptr::from_ref(b))
+            .or_insert_with(|| Box::new(crate::ir::Topology::new(b)));
         let mut last_close: HashMap<u32, u32> = HashMap::default();
         // A two-phase site's loan becomes exclusive at its call.
         let mut activated: HashSet<u32> = HashSet::default();

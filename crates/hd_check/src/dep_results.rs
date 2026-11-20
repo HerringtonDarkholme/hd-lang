@@ -2072,51 +2072,47 @@ pub(crate) type RunLoans = (
     Vec<(hd_tir::own::loans::Holder, u32)>,
 );
 
-/// Whether instruction `i` may take a run-time loan
+/// Per instruction, whether it may take a run-time loan
 /// (`ref.excl.alias.loan`): a `Ref`, or a `Read` of a pointer or through
 /// one, whose place may cross an object a pointer, a shared variable's cell
-/// or a top-level binding's slot holds. Its place, and the reads its root
-/// value comes from, are followed down to a local or a global: a
-/// dereference, a global root or a captured local's root crosses. The
-/// backend takes the loans of the crossings that hold a counted object.
-pub(crate) fn runtime_site(b: &Body, pool: Types<'_>, i: u32) -> bool {
-    // A same-value coercion lends what it coerces (`*mut T` as `*T`).
-    let Some(i) = b.direct_value(i).and_then(|v| u32::try_from(v).ok()) else {
-        return false;
-    };
-    let tag = b.tags.get(i as usize);
-    if !matches!(tag, Some(Tag::Ref | Tag::Read)) {
-        return false;
+/// or a top-level binding's slot holds: a dereference on its path or on the
+/// path of the read its root value is, a global root, or a captured local's
+/// root. The backend takes the loans of the crossings that hold a counted
+/// object. Cost: one pass in instruction order, as a root comes before the
+/// place on it.
+pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
+    let mut captured = vec![false; b.local_ty.len()];
+    for l in &b.cap_local {
+        captured[l.idx()] = true;
     }
-    if tag == Some(&Tag::Read)
-        && matches!(
-            pool.get(b.ty[i as usize]),
-            TyData::Ref { counted: true, .. }
-        )
-    {
-        return true;
-    }
-    let mut at = i as usize;
-    // Each step goes to an earlier instruction, so the walk ends.
-    loop {
-        let Some(p) = b.decode_place(b.data[at][0]) else {
-            return false;
-        };
-        if p.proj.iter().any(|s| matches!(s, Proj::Deref)) {
-            return true;
+    let mut crosses = vec![false; b.len()];
+    let mut sites = vec![false; b.len()];
+    for i in 0..b.len() {
+        if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
+            continue;
         }
-        match p.root {
-            PlaceRoot::Global(..) => return true,
-            PlaceRoot::Local(l) => return b.cap_local.contains(&l),
-            PlaceRoot::Value(r) => match r.as_inst() {
-                Some(r) if (r.0 as usize) < at && b.tags[r.0 as usize] == Tag::Read => {
-                    at = r.0 as usize;
+        let p = b.view(b.data[i][0]);
+        crosses[i] = p.steps(b).any(|s| matches!(s, Proj::Deref))
+            || match p.root {
+                hd_tir::ir::Root::Global(..) => true,
+                hd_tir::ir::Root::Local(l) => captured[l as usize],
+                hd_tir::ir::Root::Value(r) => {
+                    (r as usize) < i && b.tags[r as usize] == Tag::Read && crosses[r as usize]
                 }
-                _ => return false,
-            },
-            _ => return false,
-        }
+                _ => false,
+            };
+        sites[i] = crosses[i]
+            || b.tags[i] == Tag::Read
+                && matches!(pool.get(b.ty[i]), TyData::Ref { counted: true, .. });
     }
+    sites
+}
+
+/// Whether instruction `i`, through same-value coercions (`*mut T` as
+/// `*T`), is a run-time loan site of `sites` ([`runtime_sites`]).
+pub(crate) fn runtime_site(b: &Body, sites: &[bool], i: u32) -> bool {
+    b.direct_value(i)
+        .is_some_and(|v| sites.get(v).copied().unwrap_or(false))
 }
 
 /// A storage root a local reference may point into (`ref.dep.origin.set`).
@@ -2203,6 +2199,9 @@ struct Inputs<'a> {
     /// as `&mut`, and the call when it is a `&mut self` receiver, shared
     /// until the call starts ([`Ck::lent_args`]).
     lent: Vec<(u32, bool, u32)>,
+    /// Per instruction, whether it may take a run-time loan
+    /// ([`runtime_sites`]).
+    runtime: Vec<bool>,
 }
 
 impl Inputs<'_> {
@@ -4351,10 +4350,14 @@ impl Ck<'_, '_> {
         });
         // A place through a pointer may take a run-time loan, whose holders
         // the regions give.
-        let lends = {
-            let b = self.b.body();
-            (0..b.len()).any(|i| runtime_site(b, pool, w(i)))
-        };
+        // A run-time loan needs the solve only where one may begin: a `Ref`
+        // site, or a `*T` a call lends; a read of a captured local alone
+        // takes none.
+        let runtime = runtime_sites(self.b.body(), pool);
+        let lent = self.lent_args(self.b.body(), &runtime);
+        let lends = !lent.is_empty()
+            || (runtime.iter().enumerate())
+                .any(|(i, &site)| site && self.b.body().tags[i] == Tag::Ref);
         if own.is_none() && !through && !lends && closures.is_empty() {
             return;
         }
@@ -4380,7 +4383,8 @@ impl Ck<'_, '_> {
             paths: &paths,
             annotated: self.annotated_params(ls),
             statics: &self.static_values,
-            lent: self.lent_args(body),
+            lent,
+            runtime,
         };
         let slots = own
             .as_ref()
@@ -4418,7 +4422,7 @@ impl Ck<'_, '_> {
     /// a run-time loan for the call, whether or not its result holds it.
     /// Cost: one pass over the calls, each callee's signature read once
     /// per call.
-    fn lent_args(&self, b: &Body) -> Vec<(u32, bool, u32)> {
+    fn lent_args(&self, b: &Body, sites: &[bool]) -> Vec<(u32, bool, u32)> {
         let pool = self.pool();
         let mut out = Vec::new();
         for i in 0..b.len() {
@@ -4457,7 +4461,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 if let Some(a) = source_arg(b, i, p)
-                    && runtime_site(b, pool, a)
+                    && runtime_site(b, sites, a)
                 {
                     let excl = constraints::is_mut(pool, t);
                     // A `&mut self` receiver is shared until its call

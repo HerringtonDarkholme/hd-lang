@@ -125,7 +125,7 @@ mod capture_origin_tests {
     fn pointer_keys_normalize_capture_origins_before_interning() {
         let body = body(3, &[(1, 0), (2, 1)]);
         let mut borrows = Borrows {
-            capture_origins: CaptureOrigins::new(&body, |_| true),
+            capture_origins: CaptureOrigins::new(&body, &[], |_| true),
             ..Borrows::default()
         };
         for local in [2, 0, 1] {
@@ -236,7 +236,7 @@ mod capture_origin_tests {
     #[test]
     fn only_whole_pointer_capture_keys_inherit_creator_context() {
         let b = body(5, &[(1, 0), (2, 1), (3, 0)]);
-        let origins = CaptureOrigins::new(&b, |l| l.raw() != 3);
+        let origins = CaptureOrigins::new(&b, &[], |l| l.raw() != 3);
         let root = PlaceRoot::Local(LocalId::from_raw(2));
         assert_eq!(
             origins.key((root, vec![], ANY_FRAME)).0,
@@ -254,7 +254,7 @@ mod capture_origin_tests {
     fn loaded_capture_cells_route_creator_and_snapshot_lookups() {
         let body = body(4, &[(1, 0), (2, 1)]);
         let mut borrows = Borrows {
-            capture_origins: CaptureOrigins::new(&body, |_| true),
+            capture_origins: CaptureOrigins::new(&body, &[], |_| true),
             ..Borrows::default()
         };
         // An ordinary capture has no source routing entry.
@@ -294,7 +294,7 @@ mod capture_origin_tests {
             }
             let n = 1 + (width * depth) as usize;
             let b = body(n, &edges);
-            let origins = CaptureOrigins::new(&b, |_| true);
+            let origins = CaptureOrigins::new(&b, &[], |_| true);
             assert_eq!(origins.work, 2 * n + edges.len());
             for l in 0..n {
                 assert_eq!(origins.local(l), 0);
@@ -303,46 +303,60 @@ mod capture_origin_tests {
     }
 }
 
-impl CaptureOrigins {
-    fn new(b: &Body, eligible: impl Fn(hd_base::LocalId) -> bool) -> Self {
-        // An inlined parameter that receives a lent `*T` argument (the
-        // `Read` a `LoanBegin` names) reaches the object through that
-        // pointer: its accesses are the loan's own. One whole store each.
-        // Cost: two passes over the body.
-        let mut sites = vec![false; b.len()];
-        let mut stores = vec![0u8; b.local_ty.len()];
-        for i in 0..b.len() {
-            match b.tags[i] {
-                Tag::LoanBegin => sites[b.data[i][0] as usize] = true,
-                Tag::Store => {
-                    if let Some((l, true)) = b.stored_local(i) {
-                        stores[l.idx()] = stores[l.idx()].saturating_add(1);
-                    }
+/// The inlined parameters that receive a lent `*T` argument (the `Read` a
+/// `LoanBegin` names), each with the pointer local it was read from: they
+/// reach the object through that pointer, so their accesses are the loan's
+/// own. One whole store each. Cost: two passes over the body, once per body
+/// ([`BorrowFacts`]).
+fn lent_params(b: &Body) -> Vec<(u32, u32)> {
+    let mut sites = vec![false; b.len()];
+    let mut stores = vec![0u8; b.local_ty.len()];
+    for i in 0..b.len() {
+        match b.tags[i] {
+            Tag::LoanBegin => sites[b.data[i][0] as usize] = true,
+            Tag::Store => {
+                if let Some((l, true)) = b.stored_local(i) {
+                    stores[l.idx()] = stores[l.idx()].saturating_add(1);
                 }
-                _ => {}
             }
+            _ => {}
         }
+    }
+    let mut out = Vec::new();
+    for i in 0..b.len() {
+        let Some((l, true)) = (b.tags[i] == Tag::Store)
+            .then(|| b.stored_local(i))
+            .flatten()
+        else {
+            continue;
+        };
+        let Some(v) = b
+            .direct_value(b.data[i][1])
+            .filter(|&v| sites[v] && b.tags[v] == Tag::Read)
+        else {
+            continue;
+        };
+        let place = b.view(b.data[v][0]);
+        if let Some(p) = place.local().filter(|_| place.whole())
+            && stores[l.idx()] == 1
+        {
+            out.push((l.raw(), p));
+        }
+    }
+    out
+}
+
+impl CaptureOrigins {
+    fn new(
+        b: &Body,
+        lent_params: &[(u32, u32)],
+        eligible: impl Fn(hd_base::LocalId) -> bool,
+    ) -> Self {
         let mut lent: Vec<Option<hd_base::LocalId>> = Vec::new();
-        for i in 0..b.len() {
-            let Some((l, true)) = (b.tags[i] == Tag::Store)
-                .then(|| b.stored_local(i))
-                .flatten()
-            else {
-                continue;
-            };
-            let Some(v) = b
-                .direct_value(b.data[i][1])
-                .filter(|&v| sites[v] && b.tags[v] == Tag::Read)
-            else {
-                continue;
-            };
-            let place = b.view(b.data[v][0]);
-            if let Some(p) = place.local().filter(|_| place.whole())
-                && stores[l.idx()] == 1
-                && eligible(l)
-            {
+        for &(l, p) in lent_params {
+            if eligible(hd_base::LocalId::from_raw(l)) {
                 lent.resize(b.local_ty.len(), None);
-                lent[l.idx()] = Some(hd_base::LocalId::from_raw(p));
+                lent[l as usize] = Some(hd_base::LocalId::from_raw(p));
             }
         }
         if b.inlined_capture_origins.is_empty() && lent.is_empty() {
@@ -447,6 +461,7 @@ fn frames_of(b: &Body) -> Vec<u32> {
 /// Immutable frame and lifetime facts shared by sibling emitters.
 pub(super) struct BorrowFacts {
     frames: std::sync::Arc<[u32]>,
+    lent_params: Vec<(u32, u32)>,
 }
 
 impl BorrowFacts {
@@ -454,6 +469,7 @@ impl BorrowFacts {
         crate::work::use_facts(b.len());
         Self {
             frames: frames_of(b).into(),
+            lent_params: lent_params(b),
         }
     }
 }
@@ -966,7 +982,9 @@ impl Em<'_, '_, '_> {
         let facts = std::sync::Arc::clone(&self.borrow_facts);
         let immutable = facts.get_or_init(|| BorrowFacts::new(self.b));
         let mut st = Borrows {
-            capture_origins: CaptureOrigins::new(self.b, |l| self.own_pointer(l)),
+            capture_origins: CaptureOrigins::new(self.b, &immutable.lent_params, |l| {
+                self.own_pointer(l)
+            }),
             storage_roots: std::sync::Arc::clone(&holder.storage),
             shared: std::sync::Arc::clone(&holder.shared),
             frames: std::sync::Arc::clone(&immutable.frames),

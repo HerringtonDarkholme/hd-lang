@@ -460,7 +460,7 @@ pub(super) fn call_site(s: &Inputs<'_>, v: u32) -> bool {
 /// `Read` of a pointer. The backend takes the loans of the crossings that
 /// hold a counted object; one with none takes nothing.
 pub(super) fn runtime_site(s: &Inputs<'_>, i: u32) -> bool {
-    crate::dep_results::runtime_site(s.b, s.pool, i)
+    crate::dep_results::runtime_site(s.b, &s.runtime, i)
 }
 
 /// Whether argument `u` passes local `root` itself as a counted pointer,
