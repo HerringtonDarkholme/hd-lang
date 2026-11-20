@@ -173,12 +173,17 @@ export function browserSend({
 }
 
 const webLayer: Dynamic = {
-  providers: ({ env }: { env: CoreEnv }) => ({
+  providers: ({ env, st }: { env: CoreEnv; st: Dynamic }) => ({
     traits: {
       "hd:Http": httpProvider(browserSend),
       // The temp directory of a case, a path in the run's in-memory files
       // (`memoryFiles`); the core has the other hooks.
-      "hd:TestRunner": { temp_dir: () => env.tempDir ?? "/tmp" },
+      "hd:TestRunner": {
+        temp_dir: () => {
+          st.tempMade = true;
+          return env.tempDir ?? "/tmp";
+        },
+      },
     },
   }),
 };
