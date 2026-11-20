@@ -1,0 +1,9 @@
+# @dump: tree
+# Recover at the next comma inside each collection, then retain a following declaration.
+fn list_elements():
+    items := [1 2, 3]
+
+fn map_entries():
+    entries := {1 2, 3: 4}
+
+fn after_collection_recovery(): pass

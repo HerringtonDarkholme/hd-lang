@@ -1,0 +1,21 @@
+# @dump: tree
+# Lookahead rejects malformed inline branch headers without consuming the next function.
+fn no_colon():
+    if true: 1
+    else 2
+
+fn unmatched_header():
+    if true: 1
+    elif other): 2
+
+fn later_line():
+    if true: 1
+    elif other
+    next := 2
+
+fn nested_branch():
+    if true:
+        if false: 1
+    elif other: 2
+
+fn after_branch_recovery(): pass

@@ -1,0 +1,5 @@
+# @dump: tree
+# A malformed tests header does not absorb the next top-level function.
+tests
+
+fn after_tests_header(): pass

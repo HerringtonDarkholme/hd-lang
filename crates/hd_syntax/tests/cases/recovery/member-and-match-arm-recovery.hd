@@ -1,0 +1,16 @@
+# @dump: tree
+# Invalid members and arms recover to subsequent members and module declarations.
+struct Record:
+    broken
+    value: i32
+
+trait Reader:
+    unexpected
+    fn read(&self) -> i32
+
+fn choose(value: i32):
+    match value:
+        => 1
+        _ => 2
+
+fn after_member_recovery(): pass

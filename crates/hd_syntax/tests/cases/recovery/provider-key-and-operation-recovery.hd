@@ -1,0 +1,15 @@
+# @dump: tree
+# Malformed provider operations and mismatched key brackets retain following functions.
+fn missing_arguments():
+    $.use Console
+
+fn mismatched_key():
+    $.context(pkg.Service[fn() -> i32) = provider)
+
+fn nested_key():
+    $.context(Outer.Inner[fn() -> i32, (i32, string)] = provider)
+
+fn missing_key_segment():
+    $.context(Outer.[i32] = provider)
+
+fn after_provider_recovery(): pass

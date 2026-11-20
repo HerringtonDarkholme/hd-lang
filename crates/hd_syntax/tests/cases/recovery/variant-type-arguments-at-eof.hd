@@ -1,0 +1,5 @@
+# @dump: tree
+# An unfinished generic pattern reaches EOF without a closing bracket.
+fn choose(value: i32):
+    match value:
+        Kind[i32
