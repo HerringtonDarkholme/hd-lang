@@ -63,21 +63,54 @@ export class Enc {
     this.buf = next;
   }
   leb(value: Integer): this {
-    let bigInt = BigInt(value);
-    this.room(10);
+    // Number arithmetic is exact through its safe-integer range. Wider
+    // integers keep the BigInt path, including all 64-bit endpoints.
+    const numeric = typeof value === "number" || typeof value === "bigint" ? Number(value) : NaN;
+    if (numeric >= 0 && Number.isSafeInteger(numeric)) {
+      let remaining = numeric;
+      this.room(10);
+      do {
+        let byte = remaining % 128;
+        remaining = Math.floor(remaining / 128);
+        if (remaining !== 0) {
+          byte |= 0x80;
+        }
+        this.buf[this.len++] = byte;
+      } while (remaining !== 0);
+      return this;
+    }
+    return this.lebBigInt(BigInt(value));
+  }
+  private lebBigInt(bigInt: bigint): this {
+    // Emit 28-bit limbs: four LEB groups fit exactly in one JS integer.
     do {
-      let number = Number(bigInt & 0x7fn);
-      bigInt >>= 7n;
-      if (bigInt) {
-        number |= 0x80;
+      let limb = Number(bigInt & 0xfffffffn);
+      bigInt >>= 28n;
+      const more = bigInt !== 0n;
+      this.room(4);
+      for (let group = 0; group < 4; group++) {
+        let byte = limb & 0x7f;
+        limb >>>= 7;
+        const continued = limb !== 0 || more;
+        if (continued) {
+          byte |= 0x80;
+        }
+        this.buf[this.len++] = byte;
+        if (!continued) {
+          break;
+        }
       }
-      this.buf[this.len++] = number;
-    } while (bigInt);
+    } while (bigInt !== 0n);
     return this;
   }
   zz(value: Integer): this {
+    const numeric = typeof value === "number" || typeof value === "bigint" ? Number(value) : NaN;
+    const encoded = numeric >= 0 ? numeric * 2 : -numeric * 2 - 1;
+    if (Number.isSafeInteger(numeric) && Number.isSafeInteger(encoded)) {
+      return this.leb(encoded);
+    }
     const bigInt = BigInt(value);
-    return this.leb(bigInt >= 0n ? bigInt << 1n : (-bigInt << 1n) - 1n);
+    return this.lebBigInt(bigInt >= 0n ? bigInt << 1n : (-bigInt << 1n) - 1n);
   }
   bytes(u8: Uint8Array): this {
     this.leb(u8.length);
