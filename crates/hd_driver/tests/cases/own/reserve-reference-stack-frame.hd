@@ -1,0 +1,21 @@
+# @build: release
+# @dump: wat
+# expected: #2217: reservation should keep the fresh list in a value local,
+# like the unreserved control. Today reserved adds a 16-byte stack frame
+# and stores rt:list_reserve's result back through the list address.
+
+use std.annotation.inline
+
+@inline(.Never)
+fn unreserved(count: usize, transform: fn(usize) -> usize) -> List[usize]:
+    let mut output: List[usize] = []
+    for index in 0..count:
+        output.push(transform(index))
+    output
+
+@inline(.Never)
+fn reserved(count: usize, transform: fn(usize) -> usize) -> List[usize]:
+    let mut output = List::[usize].with_capacity(count)
+    for index in 0..count:
+        output.push(transform(index))
+    output
