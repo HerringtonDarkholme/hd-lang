@@ -1,0 +1,9 @@
+# expect: reject 1
+body 1 Fn
+local 4 0 - 0
+labels
+caps
+modes
+extra
+%0 = Poison - - : 4 @-
+%1 = LoanClose 0 - : 0 @-
