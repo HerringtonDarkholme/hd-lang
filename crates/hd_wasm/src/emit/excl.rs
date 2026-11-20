@@ -93,6 +93,7 @@ pub(crate) fn collect_loans(input: &Input<'_>, m: &mut Module) {
         .map(|&(id, site, _)| (id, site))
         .collect();
     m.kept = decisions.kept;
+    m.crossed = decisions.crossed;
     m.lent = decisions.lent;
     m.dyn_types = decisions.dyn_types;
 }

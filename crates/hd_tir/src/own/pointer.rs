@@ -62,6 +62,10 @@ pub trait Context {
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct Decisions {
     pub kept: HashSet<LoanSite>,
+    /// Per instance and access instruction, the objects its place crosses
+    /// (`Context::place_crossings`), where it crosses any: the accesses
+    /// the backend checks.
+    pub crossed: HashMap<(InstId, u32), Vec<(usize, Ty)>>,
     pub lent: HashMap<Ty, bool>,
     pub dyn_types: HashMap<DefId, Vec<Ty>>,
 }
@@ -73,6 +77,7 @@ struct Acc {
     r: Vec<Ty>,
     any: bool,
     callees: Vec<InstId>,
+    crossed: Vec<(usize, Ty)>,
 }
 
 /// What a range may access through a `*T`.
@@ -260,6 +265,7 @@ fn accesses(
                 };
                 let last = crossed.len().wrapping_sub(1);
                 let acc = out.entry(iu).or_default();
+                acc.crossed.clone_from(&crossed);
                 for (n, (_, object)) in crossed.into_iter().enumerate() {
                     if write && n == last {
                         acc.w.push(object);
@@ -348,6 +354,9 @@ pub fn decide(cx: &impl Context) -> Decisions {
         let mut rank: HashMap<hd_base::NodeIdx, u32> = HashMap::default();
         for j in at {
             let acc = &a[&j];
+            if !acc.crossed.is_empty() {
+                out.crossed.insert((*id, j), acc.crossed.clone());
+            }
             let node = b.syn[j as usize];
             let k = rank.entry(node).or_default();
             let source = (item, args, sub_body, node, *k);

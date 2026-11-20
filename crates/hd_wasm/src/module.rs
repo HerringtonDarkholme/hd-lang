@@ -1253,6 +1253,10 @@ pub struct Module {
     /// The sites of [`Module::kept`], by instance: a `LoanBegin` whose
     /// site keeps no loan lowers to nothing.
     pub kept_sites: hd_base::HashSet<(hd_base::InstId, u32)>,
+    /// The objects each access crosses, by instance and instruction
+    /// (`hd_tir::own::pointer::Decisions::crossed`): the accesses the
+    /// emitter checks.
+    pub crossed: hd_base::HashMap<(hd_base::InstId, u32), Vec<(usize, hd_types::Ty)>>,
     /// The types of the objects a trait value of each trait may hold:
     /// those the program converts to it or to a trait below it
     /// (`hd_tir::own::pointer`), so a loan on a `*mut dyn` receiver's object
@@ -1335,6 +1339,7 @@ impl Module {
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
             kept_sites: hd_base::HashSet::default(),
+            crossed: hd_base::HashMap::default(),
             dyn_types: hd_base::HashMap::default(),
             cancellable: Default::default(),
             static_labels: hd_base::HashMap::default(),

@@ -1686,63 +1686,42 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let lends = self.borrows.refs.contains_key(&i);
-        // Each dereference of a `*T`, with the type of the object it reaches.
-        let root = self.at_root_ty(p.root);
-        let mut crossed = Vec::new();
+        // The objects the place crosses, decided at link
+        // (`hd_tir::own::pointer::Decisions::crossed`); an access that
+        // crosses none has no entry.
+        let listed = self
+            .m
+            .crossed
+            .get(&(self.inst, i))
+            .cloned()
+            .unwrap_or_default();
         // The root object: a shared variable's cell, but not at the store
         // that makes it, as no reference reaches a cell before it exists;
         // or a top-level binding's slot.
-        let shared = std::mem::take(&mut self.borrows.shared);
-        let pointers = std::mem::take(&mut self.borrows.pointers);
-        let root_obj = self
-            .roots(&shared, &pointers, &self.borrows.storage_roots)
-            .of(self.b, &p)
-            .filter(|(r, _)| match r {
-                PlaceRoot::Local(l) => {
-                    self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
-                }
-                _ => true,
-            });
-        let ptr_root = { pointer_root(self.pool(), self.env(), self.b, &pointers, &p) };
-        self.borrows.shared = shared;
-        self.borrows.pointers = pointers;
-        if let Some((_, t)) = root_obj {
-            crossed.push((ROOT, t));
-        }
+        let root_obj = if listed.first().is_some_and(|&(k, _)| k == ROOT) {
+            let shared = std::mem::take(&mut self.borrows.shared);
+            let pointers = std::mem::take(&mut self.borrows.pointers);
+            let root_obj = self
+                .roots(&shared, &pointers, &self.borrows.storage_roots)
+                .of(self.b, &p)
+                .filter(|(r, _)| match r {
+                    PlaceRoot::Local(l) => {
+                        self.is_cell(l.idx()) && self.cells.get(&l.idx()) != Some(&i)
+                    }
+                    _ => true,
+                });
+            self.borrows.shared = shared;
+            self.borrows.pointers = pointers;
+            root_obj
+        } else {
+            None
+        };
+        let crossed: Vec<(usize, Ty)> = listed
+            .into_iter()
+            .filter(|&(k, _)| k != ROOT || root_obj.is_some())
+            .collect();
         // The dereferences of the read the place's root value is.
         let read = root_read(self.b, &p);
-        if let Some((_, q)) = &read {
-            let qt = self.at_root_ty(q.root);
-            for (k, step) in q.proj.iter().enumerate() {
-                if *step != Proj::Deref {
-                    continue;
-                }
-                if let Kind::Ref {
-                    target,
-                    fat: false,
-                    whole: true,
-                } = self.kind(self.walk_ty(qt, &q.proj[..k])?)
-                {
-                    crossed.push((READ + k, target));
-                }
-            }
-        }
-        if let Some(t) = ptr_root {
-            crossed.push((0, t));
-        }
-        for (k, step) in p.proj.iter().enumerate() {
-            if *step != Proj::Deref {
-                continue;
-            }
-            if let Kind::Ref {
-                target,
-                fat: false,
-                whole: true,
-            } = self.kind(self.walk_ty(root, &p.proj[..k])?)
-            {
-                crossed.push((k, target));
-            }
-        }
         let last = crossed.len().wrapping_sub(1);
         let mut taken = Vec::new();
         // A top-level binding root's slot: `Roots::of` returns a global
