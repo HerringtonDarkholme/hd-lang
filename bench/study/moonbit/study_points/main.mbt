@@ -11,7 +11,7 @@ struct Point {
 
 ///|
 fn main {
-  let mut points : Array[Point] = []
+  let mut points : Array[Point] = Array(capacity=n)
   for i in 0..<n {
     points.push({ x: i.to_int64(), y: (i * 7 % 1000).to_int64(), })
   }
