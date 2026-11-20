@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# trait.overlap.unify and req.row.param.data-substitute: distinct closed
+# row arguments keep otherwise identical implementation heads disjoint.
+
+trait First:
+    pass
+
+trait Second:
+    pass
+
+struct OnExit[$ R]:
+    run: fn() -> void $ R
+
+trait Mark:
+    pass
+
+impl Mark for OnExit[$ First]:
+    pass
+
+impl Mark for OnExit[$ Second]:
+    pass

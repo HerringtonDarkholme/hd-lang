@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# trait.target.trait-value.argument.reference-values and trait.overlap.error:
+# trait values inside a constructor participate in generic overlap checks.
+
+trait View[T]:
+    pass
+
+trait Other:
+    pass
+
+trait Mark:
+    pass
+
+impl[T] Mark for List[*dyn View[T]]:
+    pass
+
+impl Mark for List[*dyn View[i32]]:
+    pass
+
+# A different trait value is disjoint even under the same List constructor.
+impl Mark for List[*dyn Other]:
+    pass

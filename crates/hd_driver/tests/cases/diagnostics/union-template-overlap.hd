@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @build: std
+# trait.target.union.conditional and trait.overlap.error: the std union Eq
+# implementation already covers unions whose members implement Eq.
+
+impl Eq for (i32 | string):
+    fn eq(&self, other: &Self) -> bool:
+        false
+
+impl Eq for (i64 | bool):
+    fn eq(&self, other: &Self) -> bool:
+        false
