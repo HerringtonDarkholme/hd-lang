@@ -21,7 +21,7 @@ impl Iterator[string] for Words:
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Prim Ge [%0 %2] : bool
 >   %7 = If %3 [%6 -] : ()
->   %15 = Block %14 : string?
+>   %16 = Block %15 : string?
             return .None
 >   %4 = NewVariant #0 [] : string?
 >   %5 = Return %4 : never
@@ -34,7 +34,8 @@ impl Iterator[string] for Words:
 >   %11 = Read copy [*$0 .at] : usize
 >   %12 = Prim Sub [%11 1:usize] : usize
 >   %13 = Read copy [*$0 .items [%12]] : string
->   %14 = NewVariant #1 [%13] : string?
+>   %14 = Retain %13 Value #0 : ()
+>   %15 = NewVariant #1 [%13] : string?
 >   summary kept [$0] writes
 
 fn user_cursor(words: Words) -> usize:
@@ -89,90 +90,91 @@ fn user_cursor(words: Words) -> usize:
 fn twice(xs: List[string]) -> usize:
 > app/main/twice
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %2 consume, %38 consume last
+>     uses $0: entry -> %2 consume, %39 consume last
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $3 $iter: &mut ListIter[string] [assigned] value
->     uses $3: %10 -> %11 lend
+>     uses $3: %11 -> %12 lend
 >   local $4 x: string [read assigned] value
->     uses $4: %25 -> %14 lend last
+>     uses $4: %26 -> %15 lend last
 >   local $5 $ref: ListIter[string] [read assigned captured captured-assigned] place
 >   local $6 $iter: &mut ListIter[string] [assigned] value
->     uses $6: %46 -> %47 lend
+>     uses $6: %47 -> %48 lend
 >   local $7 x: string [read assigned] value
->     uses $7: %61 -> %50 lend last
->   %0 = Retain %75 Entry local $0 #0 : ()
+>     uses $7: %62 -> %51 lend last
+>   %0 = Retain %76 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %7 = Box #2 #0 : ()
->   %43 = Box #5 #0 : ()
->   %75 = Block %74 : usize
+>   %8 = Box #2 #0 : ()
+>   %44 = Box #5 #0 : ()
+>   %76 = Block %75 : usize
     for x in xs.iter():
 >   %2 = Read copy [$0] : List[string]
->   %3 = NewStruct [%2 0:usize] : ListIter[string]
->   %4 = Break L5 %3 : never
->   %5 = Block - : ListIter[string]
->   %6 = Scope %5 [] : ListIter[string]
->   %8 = Store [$2] %6 : ()
->   %9 = Ref mut local frame [$2] : &mut ListIter[string]
->   %10 = Store [$3] %9 : ()
->   %11 = Read borrow [$3] : &mut ListIter[string]
->   %12 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%11) : string?
->   %21 = Block - : ()
->   %22 = Break L0 - : never
->   %23 = Block - : ()
->   %24 = Read borrow [%12 as #1 .0] : string
->   %25 = Store [$4] %24 : ()
->   %31 = Block - : never
->   %32 = Match %12 [%31 %21 %23] : ()
->   %33 = Drop [%12] : ()
->   %34 = Block - : ()
->   %35 = Loop %34 - : ()
->   %36 = LoanEnd [$3] : ()
->   %37 = Drop [$2] : ()
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = NewStruct [%2 0:usize] : ListIter[string]
+>   %5 = Break L5 %4 : never
+>   %6 = Block - : ListIter[string]
+>   %7 = Scope %6 [] : ListIter[string]
+>   %9 = Store [$2] %7 : ()
+>   %10 = Ref mut local frame [$2] : &mut ListIter[string]
+>   %11 = Store [$3] %10 : ()
+>   %12 = Read borrow [$3] : &mut ListIter[string]
+>   %13 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%12) : string?
+>   %22 = Block - : ()
+>   %23 = Break L0 - : never
+>   %24 = Block - : ()
+>   %25 = Read borrow [%13 as #1 .0] : string
+>   %26 = Store [$4] %25 : ()
+>   %32 = Block - : never
+>   %33 = Match %13 [%32 %22 %24] : ()
+>   %34 = Drop [%13] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
+>   %37 = LoanEnd [$3] : ()
+>   %38 = Drop [$2] : ()
         n += x.len()
->   %13 = Read copy [$1] : usize
->   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L4 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Prim Add [%13 %18] : usize
->   %20 = Store [$1] %19 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Read borrow [$4] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L4 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Prim Add [%14 %19] : usize
+>   %21 = Store [$1] %20 : ()
     for x in xs.iter():
->   %38 = Read move [$0] : List[string]
->   %39 = NewStruct [%38 0:usize] : ListIter[string]
->   %40 = Break L3 %39 : never
->   %41 = Block - : ListIter[string]
->   %42 = Scope %41 [] : ListIter[string]
->   %44 = Store [$5] %42 : ()
->   %45 = Ref mut local frame [$5] : &mut ListIter[string]
->   %46 = Store [$6] %45 : ()
->   %47 = Read borrow [$6] : &mut ListIter[string]
->   %48 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%47) : string?
->   %57 = Block - : ()
->   %58 = Break L1 - : never
->   %59 = Block - : ()
->   %60 = Read borrow [%48 as #1 .0] : string
->   %61 = Store [$7] %60 : ()
->   %67 = Block - : never
->   %68 = Match %48 [%67 %57 %59] : ()
->   %69 = Drop [%48] : ()
->   %70 = Block - : ()
->   %71 = Loop %70 - : ()
->   %72 = LoanEnd [$6] : ()
->   %73 = Drop [$5] : ()
+>   %39 = Read move [$0] : List[string]
+>   %40 = NewStruct [%39 0:usize] : ListIter[string]
+>   %41 = Break L3 %40 : never
+>   %42 = Block - : ListIter[string]
+>   %43 = Scope %42 [] : ListIter[string]
+>   %45 = Store [$5] %43 : ()
+>   %46 = Ref mut local frame [$5] : &mut ListIter[string]
+>   %47 = Store [$6] %46 : ()
+>   %48 = Read borrow [$6] : &mut ListIter[string]
+>   %49 = Call std/iter/Iterator.next for ListIter[string] [string] via Impl (%48) : string?
+>   %58 = Block - : ()
+>   %59 = Break L1 - : never
+>   %60 = Block - : ()
+>   %61 = Read borrow [%49 as #1 .0] : string
+>   %62 = Store [$7] %61 : ()
+>   %68 = Block - : never
+>   %69 = Match %49 [%68 %58 %60] : ()
+>   %70 = Drop [%49] : ()
+>   %71 = Block - : ()
+>   %72 = Loop %71 - : ()
+>   %73 = LoanEnd [$6] : ()
+>   %74 = Drop [$5] : ()
         n += x.len()
->   %49 = Read copy [$1] : usize
->   %50 = Read borrow [$7] : string
->   %51 = Call std/rt.bytes/bytes_len[] (%50) : usize
->   %52 = Break L2 %51 : never
->   %53 = Block - : usize
->   %54 = Scope %53 [] : usize
->   %55 = Prim Add [%49 %54] : usize
->   %56 = Store [$1] %55 : ()
+>   %50 = Read copy [$1] : usize
+>   %51 = Read borrow [$7] : string
+>   %52 = Call std/rt.bytes/bytes_len[] (%51) : usize
+>   %53 = Break L2 %52 : never
+>   %54 = Block - : usize
+>   %55 = Scope %54 [] : usize
+>   %56 = Prim Add [%50 %55] : usize
+>   %57 = Store [$1] %56 : ()
     n
->   %74 = Read copy [$1] : usize
+>   %75 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot, $5 slot
 >   summary kept [$0]

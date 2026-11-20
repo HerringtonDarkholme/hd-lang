@@ -59,26 +59,27 @@ fn or_default(o: string?) -> string:
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $2 fallback: string [read] value
->     uses $2: %1 -> %5 consume last
+>     uses $2: %1 -> %6 consume last
 >   local $3 value: string [read assigned] value
->     uses $3: %8 -> %3 consume last
->   %0 = Release %20 Exit local $0 #2 : ()
+>     uses $3: %9 -> %3 consume last
+>   %0 = Release %21 Exit local $0 #2 : ()
     o.unwrap_or("none")
 >   %1 = Store [$2] "none" : ()
 >   %2 = Read borrow [$0] : string?
 >   %3 = Read copy [$3] : string
->   %4 = Block %3 : string
->   %5 = Read move [$2] : string
->   %6 = Block %5 : string
->   %7 = Read borrow [%2 as #1 .0] : string
->   %8 = Store [$3] %7 : ()
->   %10 = Block - : never
->   %13 = SwitchTag %2 [#1 %10 %12] : never
->   %14 = Block - : never
->   %15 = Match %2 [%14 %4 %6] : string
->   %16 = Break L0 %15 : never
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Drop [$2] : ()
->   %20 = Block %18 : string
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Block %3 : string
+>   %6 = Read move [$2] : string
+>   %7 = Block %6 : string
+>   %8 = Read borrow [%2 as #1 .0] : string
+>   %9 = Store [$3] %8 : ()
+>   %11 = Block - : never
+>   %14 = SwitchTag %2 [#1 %11 %13] : never
+>   %15 = Block - : never
+>   %16 = Match %2 [%15 %5 %7] : string
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Drop [$2] : ()
+>   %21 = Block %19 : string
 >   summary kept [] borrows [$0]

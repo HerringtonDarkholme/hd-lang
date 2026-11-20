@@ -21,5 +21,5 @@ fn keys(m: Map[string, string]) -> List[string]:
     for (k, _) in m:
         out.push(*k)
 > app/main/keys
->   retain counted reference (stored)
+>   retain string (stored)
     out

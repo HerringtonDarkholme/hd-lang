@@ -34,10 +34,10 @@ fn demo(s: string) -> i32:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
 >   local $2 origin: *mut Point [:= read assigned] value
->     uses $2: %6 -> %7 consume, %15 lend last
+>     uses $2: %6 -> %7 consume, %16 lend last
 >   local $3 step: fn() -> () [:= read assigned] value
->     uses $3: %9 -> %10 lend, %12 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>     uses $3: %10 -> %11 lend, %13 lend last
+>   %0 = Retain %18 Entry local $0 #0 : ()
     origin := box(Point { name: s, x: 0 })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
@@ -45,21 +45,22 @@ fn demo(s: string) -> i32:
 >   %4 = Store [$1] %2 : ()
 >   %5 = Ref take mut [$1] : *mut Point
 >   %6 = Store [$2] %5 : ()
->   %17 = Block %15 : i32
+>   %18 = Block %16 : i32
     step := bump(origin)
 >   %7 = Read copy [$2] : *mut Point
->   %8 = Call app/main/bump[] (%7) : fn() -> ()
->   %9 = Store [$3] %8 : ()
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Call app/main/bump[] (%7) : fn() -> ()
+>   %10 = Store [$3] %9 : ()
     step()
->   %10 = Read borrow [$3] : fn() -> ()
->   %11 = CallValue %10 [] : ()
+>   %11 = Read borrow [$3] : fn() -> ()
+>   %12 = CallValue %11 [] : ()
     step()
->   %12 = Read move [$3] : fn() -> ()
->   %13 = CallValue %12 [] : ()
->   %14 = Drop [%12] : ()
+>   %13 = Read move [$3] : fn() -> ()
+>   %14 = CallValue %13 [] : ()
+>   %15 = Drop [%13] : ()
     origin.x
->   %15 = Read copy [*$2 .x] : i32
->   %16 = Drop [$2] : ()
+>   %16 = Read copy [*$2 .x] : i32
+>   %17 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes

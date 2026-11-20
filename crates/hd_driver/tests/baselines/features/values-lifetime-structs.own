@@ -19,8 +19,9 @@ fn parser['a](src: &'a string) -> Parser[string, 'a]:
 >   local $0 src: &string [param read] value
 >     uses $0: entry -> %0 consume last
 >   %0 = Read copy [$0] : &string
->   %1 = NewStruct [%0 0:usize] : Parser[string]
->   %2 = Block %1 : Parser[string]
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = NewStruct [%0 0:usize] : Parser[string]
+>   %3 = Block %2 : Parser[string]
 >   summary kept [$0]
 
 fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
@@ -28,25 +29,27 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >   local $0 t: Token[string] [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 fallback: &string [param read] value
->     uses $1: entry -> %4 consume last
+>     uses $1: entry -> %5 consume last
 >   local $2 w: &string [read assigned] value
->     uses $2: %7 -> %2 consume last
->   %0 = Release %15 Exit local $0 #2 : ()
+>     uses $2: %9 -> %2 consume last
+>   %0 = Release %17 Exit local $0 #2 : ()
     match t:
 >   %1 = Read borrow [$0] : Token[string]
->   %13 = Block - : never
->   %14 = Match %1 [%13 %3 %5] : &string
->   %15 = Block %14 : &string
+>   %15 = Block - : never
+>   %16 = Match %1 [%15 %4 %7] : &string
+>   %17 = Block %16 : &string
         Token.Word(w) => w
 >   %2 = Read copy [$2] : &string
->   %3 = Block %2 : &string
->   %6 = Read borrow [%1 as #0 .0] : &string
->   %7 = Store [$2] %6 : ()
->   %9 = Block - : never
->   %12 = SwitchTag %1 [#0 %9 %11] : never
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Block %2 : &string
+>   %8 = Read borrow [%1 as #0 .0] : &string
+>   %9 = Store [$2] %8 : ()
+>   %11 = Block - : never
+>   %14 = SwitchTag %1 [#0 %11 %13] : never
         Token.End => fallback
->   %4 = Read copy [$1] : &string
->   %5 = Block %4 : &string
+>   %5 = Read copy [$1] : &string
+>   %6 = Retain %5 Value #0 : ()
+>   %7 = Block %5 : &string
 >   summary kept [$1] borrows [$0]
 
 fn length(text: string) -> usize:
@@ -84,11 +87,11 @@ fn token(text: string, other: string) -> usize:
 >   local $2 t: Token[string] [read] value
 >     uses $2: %7 -> %9 lend last
 >   local $3 fallback: &string [read] value
->     uses $3: %8 -> %12 consume last
+>     uses $3: %8 -> %13 consume last
 >   local $4 w: &string [read assigned] value
->     uses $4: %15 -> %10 consume last
->   %0 = Release %30 Exit local $0 #2 : ()
->   %1 = Release %30 Exit local $1 #2 : ()
+>     uses $4: %16 -> %10 consume last
+>   %0 = Release %31 Exit local $0 #2 : ()
+>   %1 = Release %31 Exit local $1 #2 : ()
     word(Token.Word(&text), &other).len()
 >   %2 = Box #0 #0 : ()
 >   %3 = Box #1 #0 : ()
@@ -99,22 +102,23 @@ fn token(text: string, other: string) -> usize:
 >   %8 = Store [$3] %6 : ()
 >   %9 = Read borrow [$2] : Token[string]
 >   %10 = Read copy [$4] : &string
->   %11 = Block %10 : &string
->   %12 = Read move [$3] : &string
->   %13 = Block %12 : &string
->   %14 = Read borrow [%9 as #0 .0] : &string
->   %15 = Store [$4] %14 : ()
->   %17 = Block - : never
->   %20 = SwitchTag %9 [#0 %17 %19] : never
->   %21 = Block - : never
->   %22 = Match %9 [%21 %11 %13] : &string
->   %23 = Break L0 %22 : never
->   %24 = Block - : &string
->   %25 = Scope %24 [] : &string
->   %26 = LoanEnd [$3] : ()
->   %27 = LoanEnd [$2] : ()
->   %28 = Call std/text/impl string.len[] (%25) : usize
->   %29 = Drop [%25] : ()
->   %30 = Block %28 : usize
+>   %11 = Retain %10 Value #0 : ()
+>   %12 = Block %10 : &string
+>   %13 = Read move [$3] : &string
+>   %14 = Block %13 : &string
+>   %15 = Read borrow [%9 as #0 .0] : &string
+>   %16 = Store [$4] %15 : ()
+>   %18 = Block - : never
+>   %21 = SwitchTag %9 [#0 %18 %20] : never
+>   %22 = Block - : never
+>   %23 = Match %9 [%22 %12 %14] : &string
+>   %24 = Break L0 %23 : never
+>   %25 = Block - : &string
+>   %26 = Scope %25 [] : &string
+>   %27 = LoanEnd [$3] : ()
+>   %28 = LoanEnd [$2] : ()
+>   %29 = Call std/text/impl string.len[] (%26) : usize
+>   %30 = Drop [%26] : ()
+>   %31 = Block %29 : usize
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

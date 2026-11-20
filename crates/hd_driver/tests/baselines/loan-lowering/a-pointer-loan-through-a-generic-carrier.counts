@@ -37,7 +37,7 @@ fn carried(p: *mut Slots, alias: *mut Slots) -> string:
 >   release *mut app.main.Slots (last use)
     maybe_change(alias, false)
     *held.value
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["held"] })
@@ -85,7 +85,7 @@ fn carried(p: *mut Slots, alias: *mut Slots) -> string:
     maybe_change(alias, false)
     *held.value
 > app/main/carried
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["held"] })

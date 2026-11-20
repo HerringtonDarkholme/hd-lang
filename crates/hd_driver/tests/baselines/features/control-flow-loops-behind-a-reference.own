@@ -101,7 +101,7 @@ impl Parser:
         let mut last: List[usize] = []
 > app/main/impl Parser.snapshot
 >   local $0 self: &mut Parser [param read] value
->     uses $0: entry -> %18 lend, %22 lend, %24 lend
+>     uses $0: entry -> %18 lend, %23 lend, %25 lend
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 last: List[usize] [read assigned mutated] place
@@ -111,10 +111,10 @@ impl Parser:
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 i: usize [read assigned] value
->     uses $6: %14 -> %21 lend last
+>     uses $6: %14 -> %22 lend last
 >   %0 = NewList - [] : List[usize]
 >   %1 = Store [$2] %0 : ()
->   %34 = Block %32 : usize
+>   %35 = Block %33 : usize
         for i in 0..n:
 >   %2 = Read copy [$1] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
@@ -132,25 +132,26 @@ impl Parser:
 >   %15 = Read copy [$3] : usize
 >   %16 = Prim Add [%15 1:usize] : usize
 >   %17 = Store [$3] %16 : ()
->   %25 = Block - : ()
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If %12 [%25 %27] : ()
->   %29 = Block - : ()
->   %30 = Loop %29 - : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %12 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
             last = self.index
 >   %18 = Read copy [*$0 .index] : List[usize]
->   %19 = Store [$2] %18 : ()
->   %20 = Release %19 Operation #3 : ()
+>   %19 = Retain %18 Value #0 : ()
+>   %20 = Store [$2] %18 : ()
+>   %21 = Release %20 Operation #3 : ()
             self.index[i] = self.held
->   %21 = Read copy [$6] : usize
->   %22 = Read copy [*$0 .held] : usize
->   %23 = IsUnique [*$0 .index] : ()
->   %24 = Store [*$0 .index [%21]] %22 : ()
+>   %22 = Read copy [$6] : usize
+>   %23 = Read copy [*$0 .held] : usize
+>   %24 = IsUnique [*$0 .index] : ()
+>   %25 = Store [*$0 .index [%22]] %23 : ()
         last.len()
->   %31 = Read move [$2] : List[usize]
->   %32 = Intrinsic ListLen [%31] : usize
->   %33 = Drop [%31] : ()
+>   %32 = Read move [$2] : List[usize]
+>   %33 = Intrinsic ListLen [%32] : usize
+>   %34 = Drop [%32] : ()
 >   summary kept [$0] writes
 
 pub fn main() -> void $ Console:

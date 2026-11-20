@@ -15,12 +15,13 @@ impl Disposable for Guard:
         self.log.push(self.label)
 > app/main/impl Disposable for Guard.dispose
 >   local $0 self: &mut Guard [param read] value
->     uses $0: entry -> %0 lend, %2 lend last
+>     uses $0: entry -> %0 lend, %3 lend last
 >   %0 = Read copy [*$0 .label] : string
->   %1 = IsUnique [*$0 .log *] : ()
->   %2 = Read borrow [*$0 .log *] : List[string]
->   %3 = Intrinsic ListPush [%2 %0] : ()
->   %4 = Block - : ()
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = IsUnique [*$0 .log *] : ()
+>   %3 = Read borrow [*$0 .log *] : List[string]
+>   %4 = Intrinsic ListPush [%3 %0] : ()
+>   %5 = Block - : ()
 >   summary kept [$0] writes
 
 impl AutoClosing for Guard:
@@ -46,32 +47,33 @@ fn guard(log: *mut List[string], label: string) -> Guard:
 fn work(log: *mut List[string], label: string) -> void:
 > app/main/work
 >   local $0 log: *mut List[string] [param read] value
->     uses $0: entry -> %2 consume, %13 lend last
+>     uses $0: entry -> %2 consume, %14 lend last
 >   local $1 label: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %4 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
->   %0 = Retain %19 Entry local $0 #0 : ()
->   %1 = Retain %19 Entry local $1 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
+>   %1 = Retain %20 Entry local $1 #0 : ()
     guard(log, label)
 >   %2 = Read copy [$0] : *mut List[string]
->   %3 = Read move [$1] : string
->   %4 = Call app/main/guard[] (%2, %3) : Guard
->   %5 = Box #2 #0 : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Ref mut local frame [$2] : &mut Guard
->   %8 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%7) : ()
->   %9 = LoanEnd [%7] : ()
->   %10 = Block - : ()
->   %11 = Defer #10 : ()
->   %15 = Block - : ()
->   %16 = Scope %15 [%10] : ()
->   %17 = Drop [$2] : ()
->   %18 = Drop [$0] : ()
->   %19 = Block - : ()
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Read move [$1] : string
+>   %5 = Call app/main/guard[] (%2, %4) : Guard
+>   %6 = Box #2 #0 : ()
+>   %7 = Store [$2] %5 : ()
+>   %8 = Ref mut local frame [$2] : &mut Guard
+>   %9 = Call std/ops/Disposable.dispose for Guard [$()] via Impl (%8) : ()
+>   %10 = LoanEnd [%8] : ()
+>   %11 = Block - : ()
+>   %12 = Defer #11 : ()
+>   %16 = Block - : ()
+>   %17 = Scope %16 [%11] : ()
+>   %18 = Drop [$2] : ()
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
     log.push("work")
->   %12 = IsUnique [*$0] : ()
->   %13 = Read borrow [*$0] : List[string]
->   %14 = Intrinsic ListPush [%13 "work"] : ()
+>   %13 = IsUnique [*$0] : ()
+>   %14 = Read borrow [*$0] : List[string]
+>   %15 = Intrinsic ListPush [%14 "work"] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

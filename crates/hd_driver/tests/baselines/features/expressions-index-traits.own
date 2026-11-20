@@ -100,7 +100,7 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 > app/main/first
 >   local $0 items: C [param read captured] place
->   %0 = Retain %10 Entry local $0 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
     items[0]
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &C
@@ -109,9 +109,10 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 >   %5 = Release %3 Operation dynamic receiver #2 : ()
 >   %6 = Drop [%2] : ()
 >   %7 = Read copy [*%3] : T
->   %8 = Drop [%3] : ()
->   %9 = Drop [$0] : ()
->   %10 = Block %7 : T
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Drop [%3] : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %7 : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

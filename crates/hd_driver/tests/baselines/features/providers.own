@@ -18,7 +18,8 @@ impl Namer for Fixed:
 >   local $0 self: &Fixed [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .n] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept [$0]
 
 fn ask() -> usize $ Namer:

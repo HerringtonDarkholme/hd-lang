@@ -473,9 +473,9 @@ impl Em<'_, '_, '_> {
         if self.newtype(t) {
             // A newtype is constructed from its one base value.
             let r = fields[0];
-            let moved = self.take(r);
+            self.take(r);
             self.push(r)?;
-            return self.store_as(i, moved);
+            return self.store(i);
         }
         // A struct literal names a struct, whose values are in locals.
         let tys = self.struct_fields(t);
@@ -491,7 +491,7 @@ impl Em<'_, '_, '_> {
             }
         }
         // The parts' counts are the new value's.
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// The parts `srcs`, of types `tys`, of a new value, each moved in or a
@@ -679,7 +679,7 @@ impl Em<'_, '_, '_> {
                 }
             }
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// A field read: field `idx` of `a`, picked from a struct's values.
@@ -898,14 +898,14 @@ impl Em<'_, '_, '_> {
                 }
             }
             self.f.get(cell);
-            return self.store_owned(i);
+            return self.store(i);
         }
         let values = variant_steps(&flat, v);
         for (c, steps) in values.iter().enumerate() {
             let steps = crate::layout::value_or_zero(&m.leaves, c, steps.as_ref());
             self.run_steps(&steps, &mut leaf)?;
         }
-        self.store_owned(i)
+        self.store(i)
     }
 }
 

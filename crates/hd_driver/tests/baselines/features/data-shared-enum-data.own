@@ -43,25 +43,28 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   local $0 s: HttpStatus [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %10 -> %11 lend last
+>     uses $1: %13 -> %14 lend last
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
->   %2 = Block %1 : string
->   %3 = Read copy [@app/main/HttpStatus.NotFound.phrase] : string
->   %4 = Block %3 : string
->   %5 = Read copy [@app/main/HttpStatus.Busy.phrase] : string
->   %6 = Block %5 : string
->   %7 = SwitchTag %0 [#1 %4 %6] : string
->   %8 = Block %7 : string
->   %9 = SwitchTag %0 [#0 %2 %8] : string
->   %10 = Store [$1] %9 : ()
->   %11 = Read borrow [$1] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L0 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Drop [$1] : ()
->   %17 = Block %15 : usize
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Block %1 : string
+>   %4 = Read copy [@app/main/HttpStatus.NotFound.phrase] : string
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Block %4 : string
+>   %7 = Read copy [@app/main/HttpStatus.Busy.phrase] : string
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Block %7 : string
+>   %10 = SwitchTag %0 [#1 %6 %9] : string
+>   %11 = Block %10 : string
+>   %12 = SwitchTag %0 [#0 %3 %11] : string
+>   %13 = Store [$1] %12 : ()
+>   %14 = Read borrow [$1] : string
+>   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = Drop [$1] : ()
+>   %20 = Block %18 : usize
 >   summary kept []
 
 fn phrase_of(s: HttpStatus) -> string:
@@ -71,13 +74,16 @@ fn phrase_of(s: HttpStatus) -> string:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [$0] : HttpStatus
 >   %1 = Read copy [@app/main/HttpStatus.Ok.phrase] : string
->   %2 = Block %1 : string
->   %3 = Read copy [@app/main/HttpStatus.NotFound.phrase] : string
->   %4 = Block %3 : string
->   %5 = Read copy [@app/main/HttpStatus.Busy.phrase] : string
->   %6 = Block %5 : string
->   %7 = SwitchTag %0 [#1 %4 %6] : string
->   %8 = Block %7 : string
->   %9 = SwitchTag %0 [#0 %2 %8] : string
->   %10 = Block %9 : string
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Block %1 : string
+>   %4 = Read copy [@app/main/HttpStatus.NotFound.phrase] : string
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Block %4 : string
+>   %7 = Read copy [@app/main/HttpStatus.Busy.phrase] : string
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Block %7 : string
+>   %10 = SwitchTag %0 [#1 %6 %9] : string
+>   %11 = Block %10 : string
+>   %12 = SwitchTag %0 [#0 %3 %11] : string
+>   %13 = Block %12 : string
 >   summary kept []

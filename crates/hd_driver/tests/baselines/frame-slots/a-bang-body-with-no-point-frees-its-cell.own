@@ -16,7 +16,8 @@ app/main/helper
   %10 = Scope %9 [] : ()
   %11 = LoanEnd [%3] : ()
   %12 = Read copy [$0 .text] : string
-  %13 = Drop [$0] : ()
-  %14 = Block %12 : string
+  %13 = Retain %12 Value #0 : ()
+  %14 = Drop [$0] : ()
+  %15 = Block %12 : string
   storage sub 0: $0 cell
   summary none

@@ -134,41 +134,47 @@
       call $rt:release_ref
     end
   )
-  (func $dup'2 (param $p i32) (result i32 i32 i32 i32 i32 i32 i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $dup'2 (param $p i32) (result i32 i32 i32 i32 i32 i32 i32 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32)
     ;; 14 |     (*p, *p)
     local.get $p
     i32.load $heap
-    local.tee $t0
     local.get $p
     i32.load $heap offset=4
-    local.tee $t1
     local.get $p
     i32.load $heap offset=8
-    local.tee $t2
     local.get $p
     i32.load $heap offset=12
+    local.set $t0
+    local.set $t1
+    local.set $t2
     local.tee $t3
+    local.get $t2
+    local.get $t1
+    local.get $t0
     call $rt:retain
     local.get $p
     i32.load $heap
-    local.tee $t4
     local.get $p
     i32.load $heap offset=4
-    local.tee $t5
     local.get $p
     i32.load $heap offset=8
-    local.tee $t6
     local.get $p
     i32.load $heap offset=12
-    local.tee $p
-    call $rt:retain
-    local.get $t0
-    local.get $t1
-    local.get $t2
-    local.get $t3
-    local.get $t4
+    local.set $p
+    local.set $t4
+    local.set $t5
+    local.tee $t6
     local.get $t5
+    local.get $t4
+    local.get $p
+    call $rt:retain
+    local.get $t3
+    local.get $t2
+    local.get $t1
+    local.get $t0
     local.get $t6
+    local.get $t5
+    local.get $t4
     local.get $p
   )
   (func $dup'1 (param $p.a.0 i32) (param $p.a.1 i32) (param $p.b.0 i32) (param $p.b.1 i32) (result i32 i32 i32 i32 i32 i32 i32 i32)

@@ -1963,7 +1963,7 @@ impl Em<'_, '_, '_> {
             && self.take(a)
         {
             self.push(a)?;
-            self.store_owned(i)?;
+            self.store(i)?;
             if self.b.tags.get(a as usize) == Some(&Tag::Read) {
                 // A borrow took no count to give up.
                 if !self.loans.contains(&a)
@@ -2000,13 +2000,7 @@ impl Em<'_, '_, '_> {
             self.owned_refs.insert(i);
         }
         self.push(a)?;
-        self.store_as(i, moved)
-    }
-
-    /// Stores the values on the stack as instruction `i`'s, a copy that
-    /// takes a count of its own ([`Em::store_as`]).
-    fn store(&mut self, i: u32) -> StageResult<()> {
-        self.store_as(i, false)
+        self.store(i)
     }
 
     /// TIR local `l`'s locals, made on first use.
@@ -2281,7 +2275,7 @@ impl Em<'_, '_, '_> {
                     for l in &ls {
                         self.f.get(*l);
                     }
-                    self.store_owned(d)?;
+                    self.store(d)?;
                     self.settle_value(blk);
                 }
             }
@@ -2306,16 +2300,15 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         // A break's value moves at its only use; a block's tail, used
-        // only as the block's value, moves into it: the passes said which.
+        // only as the block's value, moves into it. Any other tail's count
+        // is its stated `Retain` (`hd_tir::own::retains`).
         let moved = self.take_from(r, user);
         self.push(r)?;
+        self.store(dest)?;
         if moved {
-            self.store_owned(dest)?;
             self.settle_value(r);
-            Ok(())
-        } else {
-            self.because(Reason::Conservative("block tail"), |em| em.store(dest))
         }
+        Ok(())
     }
 
     /// Emits instruction `i`; the operands whose counts it took are zeroed
@@ -2356,10 +2349,15 @@ impl Em<'_, '_, '_> {
         // A count statement's reason, or the site of this instruction's glue.
         let was = self.f.reason;
         if self.f.names_counts {
+            // A copy's stated `Retain` gives its read's reason.
+            let copied = match self.b.tags[i as usize] {
+                Tag::Retain => self.b.data[i as usize][0],
+                _ => i,
+            };
             self.f.reason = self
                 .uses
                 .copy_reasons
-                .get(i as usize)
+                .get(copied as usize)
                 .copied()
                 .flatten()
                 .or_else(|| hd_tir::own::reason(self.b, i as usize))
@@ -2466,7 +2464,7 @@ impl Em<'_, '_, '_> {
                     && let Some(r) = self.b.value_read(i as usize) =>
             {
                 self.push(r)?;
-                self.store_owned(i)?;
+                self.store(i)?;
                 if self.needs_drop(self.ty_of(r)) {
                     self.settle_value(r);
                 }
@@ -2620,7 +2618,7 @@ impl Em<'_, '_, '_> {
                 {
                     self.loans.insert(i);
                 }
-                self.store_owned(i)?;
+                self.store(i)?;
             }
             Tag::If => self.control(control::Task::If(i))?,
             Tag::Loop => {
@@ -2804,7 +2802,7 @@ impl Em<'_, '_, '_> {
                         self.src(s, k)?;
                     }
                 }
-                self.store_owned(i)?;
+                self.store(i)?;
             }
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,
@@ -2816,7 +2814,7 @@ impl Em<'_, '_, '_> {
                 };
                 self.f.table_slot(Sym::Inst(key));
                 self.f.i32(0);
-                self.store_owned(i)?;
+                self.store(i)?;
             }
             Tag::CallValue => {
                 let args = self.b.call_args(i as usize).to_vec();
@@ -3246,7 +3244,7 @@ impl Em<'_, '_, '_> {
         {
             self.owned_refs.insert(i);
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Call `i` of instance `ct` at `args`.
@@ -3409,7 +3407,7 @@ impl Em<'_, '_, '_> {
                 complete: false,
             },
         );
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// A known cold call driven immediately starts with the body's fresh
@@ -3473,7 +3471,7 @@ impl Em<'_, '_, '_> {
             },
         );
         self.f.get(frame);
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Reserve a leaf in the running Wasm invocation's shadow frame. A synchronous
@@ -3794,25 +3792,25 @@ impl Em<'_, '_, '_> {
             "task_cleanup_frame" => {
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::CleanupCold);
-                self.store_owned(i)
+                self.store(i)
             }
             // A suspension that never completes, for std's `timeout!`.
             "task_pending_frame" => {
                 let results = self.vals(self.susp_inner(self.ty_of(i)))?;
                 self.f.helper(Helper::PendingCold { results });
-                self.store_owned(i)
+                self.store(i)
             }
             // A wait cell for std's channels (§14.4, "Wait cells"): a
             // new cell, a frame that waits for its next signal, and the
             // signal, which hd code sends.
             "task_wait_cell" => {
                 self.f.helper(Helper::WaitCell);
-                self.store_owned(i)
+                self.store(i)
             }
             "task_wait_frame" => {
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::WaitCold);
-                self.store_owned(i)
+                self.store(i)
             }
             // Installs the hook that the drivers run when every task
             // waits (§14.4, "Idle hook"), for std's `ManualClock`.
@@ -3838,7 +3836,7 @@ impl Em<'_, '_, '_> {
                     results,
                     walk,
                 });
-                self.store_owned(i)
+                self.store(i)
             }
             "task_all_frame" => self.all_frame(i, args),
             // `Suspend[T].abandon`: the task's own cancel with the
@@ -3980,7 +3978,7 @@ impl Em<'_, '_, '_> {
                 self.push(args[1])?;
                 self.f.op(I::I32Add);
                 self.push(args[2])?;
-                self.store_owned(i)
+                self.store(i)
             }
             "string_from_bytes" if args.len() == 2 => {
                 // Rooms already belong to the allocation ledger in checked
@@ -3988,7 +3986,7 @@ impl Em<'_, '_, '_> {
                 self.take(args[0]);
                 self.comp(args[0], 0)?;
                 self.push(args[1])?;
-                self.store_owned(i)
+                self.store(i)
             }
             "string_from_bytes" => {
                 let moved = self.take(args[0]);
@@ -3998,7 +3996,7 @@ impl Em<'_, '_, '_> {
                     self.f.helper(Helper::RetainKnown);
                 }
                 self.f.helper(Helper::StrFromBytes);
-                self.store_owned(i)
+                self.store(i)
             }
             // The bytes of a string as a new list: one sized buffer, one copy.
             "string_to_bytes" => {
@@ -4006,7 +4004,7 @@ impl Em<'_, '_, '_> {
                 self.comp(args[0], 0)?;
                 self.comp(args[0], 1)?;
                 self.f.helper(Helper::StrToBytes { elem });
-                self.store_owned(i)
+                self.store(i)
             }
             // The bit casts keep every bit, a NaN's sign and payload too.
             "f64_to_bits" | "f64_from_bits" | "f32_to_bits" | "f32_from_bits" => {
@@ -4073,7 +4071,7 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::End);
                 self.f.get(s);
                 self.push(args[0])?;
-                return self.store_owned(i);
+                return self.store(i);
             }
             "mem_pages" => I::MemorySize(HEAP),
             "mem_grow" => {
@@ -4151,7 +4149,7 @@ impl Em<'_, '_, '_> {
         self.f.set(at);
         if !store {
             self.f.push_leaves(at, &m.leaves);
-            return self.store_as(i, w == hd_tir::ir::ReadMode::Move as u32);
+            return self.store(i);
         }
         let s = self.retain_src(&value::Src::Ref(w), t)?;
         self.write_new(value::Dst::Mem(at, 0, &m.leaves), &s)

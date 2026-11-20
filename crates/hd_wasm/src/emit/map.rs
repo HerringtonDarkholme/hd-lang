@@ -183,7 +183,7 @@ impl Em<'_, '_, '_> {
         self.f.set(m);
         if items.is_empty() {
             self.f.get(m);
-            return self.store_owned(i);
+            return self.store(i);
         }
         let ops = self.key_ops(i, &e.key_vals());
         for pair in items.chunks(2) {
@@ -198,7 +198,7 @@ impl Em<'_, '_, '_> {
             self.map_put_taking_key(m, vt, (&e, &ops), (&kl, h, probe), &Src::Ref(pair[1]))?;
         }
         self.f.get(m);
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Pushes field `at` of the table of the map value `r`.
@@ -250,7 +250,7 @@ impl Em<'_, '_, '_> {
             self.f.u32(part.offset);
             self.f.op(I::I32Add);
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Whether two TIR values are the same map or key value for this
@@ -296,6 +296,7 @@ impl Em<'_, '_, '_> {
             | Tag::Read
             | Tag::Drop
             | Tag::LoanEnd
+            | Tag::Retain
             | Tag::Release
             | Tag::IsUnique => true,
             Tag::Call => Callee::from_words(self.b.record(self.b.data[k][0]))
@@ -663,7 +664,7 @@ impl Em<'_, '_, '_> {
         self.map_probe_store(at, m);
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![found]))?;
         self.f.get(value_at);
-        self.store_owned(i)?;
+        self.store(i)?;
 
         self.f.op(I::Else);
         let inserted = self.f.local(Val::I32);
@@ -688,7 +689,7 @@ impl Em<'_, '_, '_> {
         self.map_probe_store(at, m);
         let (_, value_at) = self.map_value_from(m, mt, &Src::Locals(vec![inserted]))?;
         self.f.get(value_at);
-        self.store_owned(i)?;
+        self.store(i)?;
         self.close();
         Ok(())
     }

@@ -44,14 +44,14 @@ pub fn main!() -> void $ Console:
 > app/main/main
 >   local $0 $ref: Cell [read assigned captured captured-assigned] place
 >   local $1 p: *mut Cell [:= read assigned captured] value
->     uses $1: %12 -> %13 lend, %19 lend, %25 consume, %33 lend, %39 consume, %50 lend last
+>     uses $1: %12 -> %13 lend, %19 lend, %25 consume, %33 lend, %39 consume, %51 lend last
 >   local $2 r: &string [:= read assigned] value
 >     uses $2: %17 -> %43 lend last
 >   local $3 $temporary_owner: i32 [read assigned captured captured-assigned] place
->   %0 = Retain %62 Cold row #0 : ()
->   %1 = Retain %62 Materialize row #0 : ()
->   %2 = Release %62 FrameDrop row #2 : ()
->   %3 = Release %62 FrameDrop child #2 : ()
+>   %0 = Retain %63 Cold row #0 : ()
+>   %1 = Retain %63 Materialize row #0 : ()
+>   %2 = Release %63 FrameDrop row #2 : ()
+>   %3 = Release %63 FrameDrop child #2 : ()
 >   %4 = Box #3 #1 : ()
 >   %5 = Store [$3] 0:i32 : ()
 >   %6 = NewStruct ["a" "o"] : Cell
@@ -61,7 +61,7 @@ pub fn main!() -> void $ Console:
 >   %10 = Retain %9 Value #0 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Store [$1] %9 : ()
->   %62 = Block - : ()
+>   %63 = Block - : ()
     r := &p.other
 >   %13 = Ref local [*$1 .other] : &string
 >   %14 = OwnLoans [$3] : ()
@@ -100,26 +100,27 @@ pub fn main!() -> void $ Console:
     )
     if *r != "o" || p.value != "c":
 >   %43 = Read copy [*$2] : string
->   %44 = LoanClose %15 : ()
->   %45 = OwnLoans [$3] : ()
->   %46 = Drop [$2] : ()
->   %47 = Intrinsic StrEq [%43 "o"] : bool
->   %48 = Drop [%43] : ()
->   %49 = Prim Not [%47] : bool
->   %50 = Read borrow [*$1 .value] : string
->   %51 = OwnLoans [$3] : ()
->   %52 = Intrinsic StrEq [%50 "c"] : bool
->   %53 = Prim Not [%52] : bool
->   %54 = Block %53 : bool
->   %55 = Or %49 %54 : bool
->   %56 = Drop [$1] : ()
->   %57 = Drop [$3] : ()
->   %60 = If %55 [%59 -] : ()
+>   %44 = Retain %43 Value #0 : ()
+>   %45 = LoanClose %15 : ()
+>   %46 = OwnLoans [$3] : ()
+>   %47 = Drop [$2] : ()
+>   %48 = Intrinsic StrEq [%43 "o"] : bool
+>   %49 = Drop [%43] : ()
+>   %50 = Prim Not [%48] : bool
+>   %51 = Read borrow [*$1 .value] : string
+>   %52 = OwnLoans [$3] : ()
+>   %53 = Intrinsic StrEq [%51 "c"] : bool
+>   %54 = Prim Not [%53] : bool
+>   %55 = Block %54 : bool
+>   %56 = Or %50 %55 : bool
+>   %57 = Drop [$1] : ()
+>   %58 = Drop [$3] : ()
+>   %61 = If %56 [%60 -] : ()
         panic("the writes disagree")
->   %58 = Call std/core/panic[] ("the writes disagree") : never
->   %59 = Block - : never
+>   %59 = Call std/core/panic[] ("the writes disagree") : never
+>   %60 = Block - : never
     println("ok")
->   %61 = Call std/console/println[string] ("ok") : ()
+>   %62 = Call std/console/println[string] ("ok") : ()
 >   exit sub 0 drops [$1 $2 $3]
 >   exit sub 1 drops [$1 $3]
 >   exit sub 2 drops [$1 $3]
@@ -173,15 +174,15 @@ pub fn main!() -> void $ Console:
 > app/main/main
 >   local $0 $ref: Cell [read assigned mutated] place
 >   local $1 p: *mut Cell [:= read assigned captured] value
->     uses $1: %12 -> %13 lend, %20 consume, %38 lend, %44 consume, %55 lend last
+>     uses $1: %12 -> %13 lend, %20 consume, %38 lend, %44 consume, %56 lend last
 >   local $2 r: &string [:= read assigned] value
 >     uses $2: %17 -> %48 lend last
 >   local $4 p: *mut Cell [read assigned] place
 >   local $6 $temporary_owner: i32 [read assigned captured captured-assigned] place
->   %0 = Retain %67 Cold row #0 : ()
->   %1 = Retain %67 Materialize row #0 : ()
->   %2 = Release %67 FrameDrop row #2 : ()
->   %3 = Release %67 FrameDrop child #2 : ()
+>   %0 = Retain %68 Cold row #0 : ()
+>   %1 = Retain %68 Materialize row #0 : ()
+>   %2 = Release %68 FrameDrop row #2 : ()
+>   %3 = Release %68 FrameDrop child #2 : ()
 >   %4 = Box #6 #1 : ()
 >   %5 = Store [$6] 0:i32 : ()
 >   %6 = NewStruct ["a" "o"] : Cell
@@ -191,7 +192,7 @@ pub fn main!() -> void $ Console:
 >   %10 = Retain %9 Value #0 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Store [$1] %9 : ()
->   %67 = Block - : ()
+>   %68 = Block - : ()
     r := &p.other
 >   %13 = Ref local [*$1 .other] : &string
 >   %14 = OwnLoans [$6] : ()
@@ -234,26 +235,27 @@ pub fn main!() -> void $ Console:
     )
     if *r != "o" || p.value != "c":
 >   %48 = Read copy [*$2] : string
->   %49 = LoanClose %15 : ()
->   %50 = OwnLoans [$6] : ()
->   %51 = Drop [$2] : ()
->   %52 = Intrinsic StrEq [%48 "o"] : bool
->   %53 = Drop [%48] : ()
->   %54 = Prim Not [%52] : bool
->   %55 = Read borrow [*$1 .value] : string
->   %56 = OwnLoans [$6] : ()
->   %57 = Intrinsic StrEq [%55 "c"] : bool
->   %58 = Prim Not [%57] : bool
->   %59 = Block %58 : bool
->   %60 = Or %54 %59 : bool
->   %61 = Drop [$1] : ()
->   %62 = Drop [$6] : ()
->   %65 = If %60 [%64 -] : ()
+>   %49 = Retain %48 Value #0 : ()
+>   %50 = LoanClose %15 : ()
+>   %51 = OwnLoans [$6] : ()
+>   %52 = Drop [$2] : ()
+>   %53 = Intrinsic StrEq [%48 "o"] : bool
+>   %54 = Drop [%48] : ()
+>   %55 = Prim Not [%53] : bool
+>   %56 = Read borrow [*$1 .value] : string
+>   %57 = OwnLoans [$6] : ()
+>   %58 = Intrinsic StrEq [%56 "c"] : bool
+>   %59 = Prim Not [%58] : bool
+>   %60 = Block %59 : bool
+>   %61 = Or %55 %60 : bool
+>   %62 = Drop [$1] : ()
+>   %63 = Drop [$6] : ()
+>   %66 = If %61 [%65 -] : ()
         panic("the writes disagree")
->   %63 = Call std/core/panic[] ("the writes disagree") : never
->   %64 = Block - : never
+>   %64 = Call std/core/panic[] ("the writes disagree") : never
+>   %65 = Block - : never
     println("ok")
->   %66 = Call std/console/println[string] ("ok") : ()
+>   %67 = Call std/console/println[string] ("ok") : ()
 >   exit sub 0 drops [$1 $2 $6]
 >   exit sub 2 drops [$1 $6]
 >   storage sub 0: $0 cell, $6 cell

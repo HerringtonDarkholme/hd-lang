@@ -50,43 +50,46 @@ fn shared_list(s: string) -> usize:
 >   local $1 xs: List[string] [read assigned captured] place
 >     frame cell [$1]
 >   local $2 s: string [read assigned] place
->   %0 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %34 Entry local $0 #0 : ()
     let mut xs: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %31 = Block %29 : usize
+>   %34 = Block %32 : usize
     add := fn() -> void: xs.push(s)
 >   %4 = Read move [$0] : string
 >   %5 = Store [$2] %4 : ()
     add()
 >   %6 = Read copy [$2] : string
->   %7 = IsUnique [$1] : ()
->   %8 = Read borrow [$1] : List[string]
->   %9 = Intrinsic ListPush [%8 %6] : ()
->   %10 = Read borrow [$2] : string
->   %11 = Read borrow [$1] : List[string]
->   %12 = Block - : ()
->   %13 = Break L0 - : never
->   %14 = Block - : ()
->   %15 = Scope %14 [%12] : ()
+>   %7 = Retain %6 Value #0 : ()
+>   %8 = IsUnique [$1] : ()
+>   %9 = Read borrow [$1] : List[string]
+>   %10 = Intrinsic ListPush [%9 %6] : ()
+>   %11 = Read borrow [$2] : string
+>   %12 = Read borrow [$1] : List[string]
+>   %13 = Block - : ()
+>   %14 = Break L0 - : never
+>   %15 = Block - : ()
+>   %16 = Scope %15 [%13] : ()
     add()
->   %16 = Read copy [$2] : string
->   %17 = IsUnique [$1] : ()
->   %18 = Read borrow [$1] : List[string]
->   %19 = Intrinsic ListPush [%18 %16] : ()
->   %20 = Read borrow [$2] : string
->   %21 = Read borrow [$1] : List[string]
->   %22 = Block - : ()
->   %23 = Break L1 - : never
+>   %17 = Read copy [$2] : string
+>   %18 = Retain %17 Value #0 : ()
+>   %19 = IsUnique [$1] : ()
+>   %20 = Read borrow [$1] : List[string]
+>   %21 = Intrinsic ListPush [%20 %17] : ()
+>   %22 = Read borrow [$2] : string
+>   %23 = Read borrow [$1] : List[string]
 >   %24 = Block - : ()
->   %25 = Scope %24 [%22] : ()
->   %26 = Drop [$2] : ()
+>   %25 = Break L1 - : never
+>   %26 = Block - : ()
+>   %27 = Scope %26 [%24] : ()
+>   %28 = Drop [$2] : ()
     xs.len()
->   %27 = Read copy [$1] : List[string]
->   %28 = Drop [$1] : ()
->   %29 = Intrinsic ListLen [%27] : usize
->   %30 = Drop [%27] : ()
+>   %29 = Read copy [$1] : List[string]
+>   %30 = Retain %29 Value #0 : ()
+>   %31 = Drop [$1] : ()
+>   %32 = Intrinsic ListLen [%29] : usize
+>   %33 = Drop [%29] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 slot
 >   summary kept [$0]

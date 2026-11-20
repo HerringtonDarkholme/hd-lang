@@ -145,80 +145,89 @@ pub fn main() -> void $ Console:
     original := word(7)
 > app/main/main
 >   local $0 original: string [:= read assigned] value
->     uses $0: %1 -> %2 consume, %13 consume, %18 consume, %33 consume, %54 lend last
+>     uses $0: %1 -> %2 consume, %14 consume, %20 consume, %38 consume, %63 lend last
 >   local $1 $ref: Named [read assigned captured captured-assigned] place
 >   local $2 shared: *mut Named [:= read assigned] value
->     uses $2: %23 -> %24 consume, %49 lend last
+>     uses $2: %26 -> %27 consume, %57 lend last
 >   local $3 items: List[string] [:= read assigned] value
->     uses $3: %36 -> %37 consume, %44 lend last
+>     uses $3: %42 -> %43 consume, %51 lend last
 >   %0 = Call app/main/word[] (7:i32) : string
 >   %1 = Store [$0] %0 : ()
->   %20 = Box #1 #1 : ()
->   %58 = Block - : ()
+>   %23 = Box #1 #1 : ()
+>   %67 = Block - : ()
     println(keep(original)())
 >   %2 = Read copy [$0] : string
->   %3 = Call app/main/keep[string] (%2) : fn() -> string
->   %4 = CallValue %3 [] : string
->   %5 = Drop [%3] : ()
->   %6 = Call std/console/println[string] (%4) : ()
->   %7 = Retain %6 Operation operand 0 #0 : ()
->   %8 = Drop [%4] : ()
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Call app/main/keep[string] (%2) : fn() -> string
+>   %5 = CallValue %4 [] : string
+>   %6 = Drop [%4] : ()
+>   %7 = Call std/console/println[string] (%5) : ()
+>   %8 = Retain %7 Operation operand 0 #0 : ()
+>   %9 = Drop [%5] : ()
     println(keep(+7)())
->   %9 = Call app/main/keep[i32] (7:i32) : fn() -> i32
->   %10 = CallValue %9 [] : i32
->   %11 = Drop [%9] : ()
->   %12 = Call std/console/println[i32] (%10) : ()
+>   %10 = Call app/main/keep[i32] (7:i32) : fn() -> i32
+>   %11 = CallValue %10 [] : i32
+>   %12 = Drop [%10] : ()
+>   %13 = Call std/console/println[i32] (%11) : ()
     println(lend(original)())
->   %13 = Read copy [$0] : string
->   %14 = Call app/main/lend[] (%13) : fn() -> usize
->   %15 = CallValue %14 [] : usize
->   %16 = Drop [%14] : ()
->   %17 = Call std/console/println[usize] (%15) : ()
+>   %14 = Read copy [$0] : string
+>   %15 = Retain %14 Value #0 : ()
+>   %16 = Call app/main/lend[] (%14) : fn() -> usize
+>   %17 = CallValue %16 [] : usize
+>   %18 = Drop [%16] : ()
+>   %19 = Call std/console/println[usize] (%17) : ()
     shared := box(Named { text: original })
->   %18 = Read copy [$0] : string
->   %19 = NewStruct [%18] : Named
->   %21 = Store [$1] %19 : ()
->   %22 = Ref take mut [$1] : *mut Named
->   %23 = Store [$2] %22 : ()
+>   %20 = Read copy [$0] : string
+>   %21 = Retain %20 Value #0 : ()
+>   %22 = NewStruct [%20] : Named
+>   %24 = Store [$1] %22 : ()
+>   %25 = Ref take mut [$1] : *mut Named
+>   %26 = Store [$2] %25 : ()
     println(keep(shared)().text)
->   %24 = Read copy [$2] : *mut Named
->   %25 = Call app/main/keep[*mut Named] (%24) : fn() -> *mut Named
->   %26 = CallValue %25 [] : *mut Named
->   %27 = Drop [%25] : ()
->   %28 = Read copy [*%26 .text] : string
->   %29 = Drop [%26] : ()
->   %30 = Call std/console/println[string] (%28) : ()
->   %31 = Retain %30 Operation operand 0 #0 : ()
->   %32 = Drop [%28] : ()
+>   %27 = Read copy [$2] : *mut Named
+>   %28 = Retain %27 Value #0 : ()
+>   %29 = Call app/main/keep[*mut Named] (%27) : fn() -> *mut Named
+>   %30 = CallValue %29 [] : *mut Named
+>   %31 = Drop [%29] : ()
+>   %32 = Read copy [*%30 .text] : string
+>   %33 = Retain %32 Value #0 : ()
+>   %34 = Drop [%30] : ()
+>   %35 = Call std/console/println[string] (%32) : ()
+>   %36 = Retain %35 Operation operand 0 #0 : ()
+>   %37 = Drop [%32] : ()
     items := [original]
->   %33 = Read copy [$0] : string
->   %34 = Coerce %33 [Identity -] : string
->   %35 = NewList - [%34] : List[string]
->   %36 = Store [$3] %35 : ()
+>   %38 = Read copy [$0] : string
+>   %39 = Retain %38 Value #0 : ()
+>   %40 = Coerce %38 [Identity -] : string
+>   %41 = NewList - [%40] : List[string]
+>   %42 = Store [$3] %41 : ()
     println(keep(items)().len())
->   %37 = Read copy [$3] : List[string]
->   %38 = Call app/main/keep[List[string]] (%37) : fn() -> List[string]
->   %39 = CallValue %38 [] : List[string]
->   %40 = Drop [%38] : ()
->   %41 = Intrinsic ListLen [%39] : usize
->   %42 = Drop [%39] : ()
->   %43 = Call std/console/println[usize] (%41) : ()
+>   %43 = Read copy [$3] : List[string]
+>   %44 = Retain %43 Value #0 : ()
+>   %45 = Call app/main/keep[List[string]] (%43) : fn() -> List[string]
+>   %46 = CallValue %45 [] : List[string]
+>   %47 = Drop [%45] : ()
+>   %48 = Intrinsic ListLen [%46] : usize
+>   %49 = Drop [%46] : ()
+>   %50 = Call std/console/println[usize] (%48) : ()
     println(items[0])
->   %44 = Read copy [$3 [0:usize]] : string
->   %45 = Drop [$3] : ()
->   %46 = Call std/console/println[string] (%44) : ()
->   %47 = Retain %46 Operation operand 0 #0 : ()
->   %48 = Drop [%44] : ()
+>   %51 = Read copy [$3 [0:usize]] : string
+>   %52 = Retain %51 Value #0 : ()
+>   %53 = Drop [$3] : ()
+>   %54 = Call std/console/println[string] (%51) : ()
+>   %55 = Retain %54 Operation operand 0 #0 : ()
+>   %56 = Drop [%51] : ()
     println(shared.text)
->   %49 = Read copy [*$2 .text] : string
->   %50 = Call std/console/println[string] (%49) : ()
->   %51 = Retain %50 Operation operand 0 #0 : ()
->   %52 = Drop [%49] : ()
->   %53 = Drop [$2] : ()
+>   %57 = Read copy [*$2 .text] : string
+>   %58 = Retain %57 Value #0 : ()
+>   %59 = Call std/console/println[string] (%57) : ()
+>   %60 = Retain %59 Operation operand 0 #0 : ()
+>   %61 = Drop [%57] : ()
+>   %62 = Drop [$2] : ()
     println(original)
->   %54 = Read move [$0] : string
->   %55 = Call std/console/println[string] (%54) : ()
->   %56 = Retain %55 Operation operand 0 #0 : ()
->   %57 = Drop [%54] : ()
+>   %63 = Read move [$0] : string
+>   %64 = Call std/console/println[string] (%63) : ()
+>   %65 = Retain %64 Operation operand 0 #0 : ()
+>   %66 = Drop [%63] : ()
 >   storage sub 0: $1 cell
 >   summary kept [] writes

@@ -81,7 +81,7 @@ fn element() -> string:
 >   %4 = NewList - [%3] : List[*mut P]
 >   %5 = Box #1 #1 : ()
 >   %6 = Store [$1] %4 : ()
->   %34 = Block %29 : string
+>   %35 = Block %29 : string
     change := fn() -> void: ps[0] = box(P { name: "b" })
 >   %7 = Retain %16 Entry captures #0 : ()
 >   %8 = NewStruct ["b"] : P
@@ -110,10 +110,11 @@ fn element() -> string:
 >   %28 keeps %27
     *d
 >   %29 = Read copy [*$4] : string
->   %30 = LoanClose %22 : ()
->   %31 = LoanClose %25 : ()
->   %32 = Drop [$4] : ()
->   %33 = Drop [$1] : ()
+>   %30 = Retain %29 Value #0 : ()
+>   %31 = LoanClose %22 : ()
+>   %32 = LoanClose %25 : ()
+>   %33 = Drop [$4] : ()
+>   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell
@@ -137,7 +138,7 @@ fn field() -> string:
 >   %5 = NewStruct [%4] : Holder
 >   %6 = Box #1 #1 : ()
 >   %7 = Store [$1] %5 : ()
->   %34 = Block %29 : string
+>   %35 = Block %29 : string
     change := fn() -> void: h.p = box(P { name: "f" })
 >   %8 = Retain %17 Entry captures #0 : ()
 >   %9 = NewStruct ["f"] : P
@@ -165,10 +166,11 @@ fn field() -> string:
 >   %28 keeps %27
     *d
 >   %29 = Read copy [*$4] : string
->   %30 = LoanClose %22 : ()
->   %31 = LoanClose %25 : ()
->   %32 = Drop [$4] : ()
->   %33 = Drop [$1] : ()
+>   %30 = Retain %29 Value #0 : ()
+>   %31 = LoanClose %22 : ()
+>   %32 = LoanClose %25 : ()
+>   %33 = Drop [$4] : ()
+>   %34 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell

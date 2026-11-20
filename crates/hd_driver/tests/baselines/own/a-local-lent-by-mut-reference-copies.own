@@ -2,12 +2,14 @@
 app/main/lent
   local $1 xs: List[string] [read assigned captured captured-assigned] place
   local $2 s: string [:= read assigned] value
-    uses $2: %9 -> %10 lend last
+    uses $2: %11 -> %12 lend last
   %3 = Read copy [$1] : List[string]
-  %4 = Ref mut local frame [$1] : &mut List[string]
-  %5 = Call app/main/pick[] (%4) : usize
-  %6 = LoanEnd [%4] : ()
-  %7 = Read copy [%3 [%5]] : string
-  %8 = Drop [%3] : ()
-  %9 = Store [$2] %7 : ()
+  %4 = Retain %3 Value #0 : ()
+  %5 = Ref mut local frame [$1] : &mut List[string]
+  %6 = Call app/main/pick[] (%5) : usize
+  %7 = LoanEnd [%5] : ()
+  %8 = Read copy [%3 [%6]] : string
+  %9 = Retain %8 Value #0 : ()
+  %10 = Drop [%3] : ()
+  %11 = Store [$2] %8 : ()
   storage sub 0: $1 slot

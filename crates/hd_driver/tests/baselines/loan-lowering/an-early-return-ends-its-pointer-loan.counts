@@ -31,9 +31,9 @@ fn read(p: *mut Slots, alias: *mut Slots, early: bool) -> string:
     maybe_change(alias, false)
     if early:
         return *value
->   retain counted reference (stored)
+>   retain string (stored)
     *value
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["held"] })
@@ -80,9 +80,9 @@ fn read(p: *mut Slots, alias: *mut Slots, early: bool) -> string:
     if early:
         return *value
 > app/main/read
->   retain counted reference (stored)
+>   retain string (stored)
     *value
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["held"] })

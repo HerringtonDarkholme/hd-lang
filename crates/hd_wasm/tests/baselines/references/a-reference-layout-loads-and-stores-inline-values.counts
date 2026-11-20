@@ -10,8 +10,7 @@ struct Record:
 fn copy(source: &Record) -> Record:
     *source
 > app/main/copy
->   copy counted reference (stored)
->   retain counted reference (stored)
+>   copy app.main.Record [label.0, tags] (stored)
 
 fn store(target: &mut Record, replacement: Record) -> void:
     *target = replacement

@@ -47,7 +47,7 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
     *value
->   retain counted reference (stored)
+>   retain string (stored)
 
 fn quick!() -> string $ Clock:
     sleep!(Duration::milliseconds(20))

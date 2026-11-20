@@ -463,7 +463,7 @@ impl Em<'_, '_, '_> {
             }
         }
         self.f.get(c);
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Reads entry `at` of `$.Context` value `v` into locals `ls`.

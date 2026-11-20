@@ -88,7 +88,7 @@ impl Em<'_, '_, '_> {
             if borrowed {
                 self.loans.insert(i);
             }
-            return self.store_as(i, borrowed || self.has_stated_retain(i));
+            return self.store(i);
         }
         let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
@@ -107,7 +107,7 @@ impl Em<'_, '_, '_> {
         self.f.get(at);
         self.f.push(Ins::VTable(vt));
         // A new box arrives with its count.
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Emit each reached DAG node once per link/payload representation.
@@ -330,7 +330,7 @@ impl Em<'_, '_, '_> {
 
     pub(super) fn ref_as_provider(&mut self, i: u32, a: u32) -> StageResult<()> {
         self.push(a)?;
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// The canonical descriptor for `t`, addressed by the one-word `TypeId`
@@ -502,11 +502,7 @@ impl Em<'_, '_, '_> {
         if borrowed {
             self.loans.insert(i);
         }
-        if read.as_ref().is_some_and(|r| r.2) || borrowed {
-            self.store_owned(i)
-        } else {
-            self.store_as(i, self.has_stated_retain(i))
-        }
+        self.store(i)
     }
 
     /// The loads from the vtable of a receiver of type `recv` to that of

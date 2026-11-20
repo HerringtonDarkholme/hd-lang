@@ -7,7 +7,7 @@ app/main/count
   local $5 $end: usize [assigned] value
     uses $5: %4 -> %7 lend
   local $6 word: string [read assigned] value
-    uses $6: %32 -> %16 lend last
+    uses $6: %33 -> %16 lend last
   %2 = Read borrow [$0] : List[string]
   %3 = Intrinsic ListLen [%2] : usize
   %4 = Store [$5] %3 : ()
@@ -36,15 +36,16 @@ app/main/count
   %29 = Match %16 [%28 %20 %21] : ()
   %30 = Block - : ()
   %31 = Read copy [%10] : string
-  %32 = Store [$6] %31 : ()
-  %33 = Release %32 Operation #3 : ()
-  %35 = Block - : never
-  %36 = Match %10 [%35 %30] : ()
-  %37 = Drop [$6] : ()
-  %38 = Block - : ()
-  %39 = Break L0 - : never
-  %40 = Block - : ()
-  %41 = If %8 [%38 %40] : ()
-  %42 = Block - : ()
-  %43 = Loop %42 - : ()
-  loop %43 keeps len [$0] (-..-)
+  %32 = Retain %31 Value #0 : ()
+  %33 = Store [$6] %31 : ()
+  %34 = Release %33 Operation #3 : ()
+  %36 = Block - : never
+  %37 = Match %10 [%36 %30] : ()
+  %38 = Drop [$6] : ()
+  %39 = Block - : ()
+  %40 = Break L0 - : never
+  %41 = Block - : ()
+  %42 = If %8 [%39 %41] : ()
+  %43 = Block - : ()
+  %44 = Loop %43 - : ()
+  loop %44 keeps len [$0] (-..-)

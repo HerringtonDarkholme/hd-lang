@@ -7,15 +7,16 @@ app/main/list_size
   %3 = Read borrow [$0] : List[usize]
   %4 = Intrinsic ListPush [%3 91:usize] : ()
   %5 = Read copy [$0] : List[usize]
-  %6 = Intrinsic ListLen [%5] : usize
-  %7 = Read borrow [$0] : List[usize]
-  %8 = Block - : ()
-  %9 = Drop [%5] : ()
-  %10 = Break L0 %6 : never
-  %11 = Block - : usize
-  %12 = Scope %11 [%8] : usize
-  %13 = Drop [$0] : ()
-  %14 = Block %12 : usize
+  %6 = Retain %5 Value #0 : ()
+  %7 = Intrinsic ListLen [%5] : usize
+  %8 = Read borrow [$0] : List[usize]
+  %9 = Block - : ()
+  %10 = Drop [%5] : ()
+  %11 = Break L0 %7 : never
+  %12 = Block - : usize
+  %13 = Scope %12 [%9] : usize
+  %14 = Drop [$0] : ()
+  %15 = Block %13 : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot
   summary kept [$0]

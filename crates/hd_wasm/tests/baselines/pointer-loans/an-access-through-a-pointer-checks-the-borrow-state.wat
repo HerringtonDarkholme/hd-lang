@@ -8,7 +8,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $lend_lead (param $t i32) (param $other i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -323,13 +323,16 @@
     local.get $t1
     ;; 22 |     *held
     i32.load $heap
-    local.tee $t2
     ;; 20 |     held := &t.lead.name
     local.get $t1
     ;; 22 |     *held
     i32.load $heap offset=4
-    local.tee $t1
-    call $rt:retain
+    local.set $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

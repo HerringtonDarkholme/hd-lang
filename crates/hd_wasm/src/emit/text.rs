@@ -44,7 +44,7 @@ impl Em<'_, '_, '_> {
                     self.f.get(local);
                 }
                 self.f.helper(Helper::StrAppend);
-                return self.store_owned(i);
+                return self.store(i);
             }
             let moved = if self.take(*left) {
                 Some(Vec::new())
@@ -62,7 +62,7 @@ impl Em<'_, '_, '_> {
                 for local in locals {
                     self.f.zero(local);
                 }
-                return self.store_owned(i);
+                return self.store(i);
             }
         }
         let (len, at, to) = (
@@ -100,7 +100,7 @@ impl Em<'_, '_, '_> {
         self.f.get(at);
         self.f.get(len);
         // A new buffer arrives with its count.
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Transfer the destination's count for a read/append/store of the
@@ -148,6 +148,8 @@ impl Em<'_, '_, '_> {
                             .is_none_or(|l| self.is_cell(l.idx()) || p.root == PlaceRoot::Local(l))
                     }
                     Tag::Read | Tag::Coerce | Tag::Prim => false,
+                    // The read's own stated count.
+                    Tag::Retain => self.b.data[s as usize][0] as usize != read,
                     _ => true,
                 })
             || statements[b + 1..c].iter().any(|&s| {
@@ -291,7 +293,7 @@ impl Em<'_, '_, '_> {
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
-        self.str_slice_offsets(i, text, lo, hi, false, true)
+        self.str_slice_offsets(i, text, lo, hi, false)
     }
 
     /// A `string.slice` whose only consumer is string equality: the public
@@ -314,7 +316,7 @@ impl Em<'_, '_, '_> {
         self.f.set(lo);
         self.comp(end, 0)?;
         self.f.set(hi);
-        self.str_slice_offsets(i, text, lo, hi, true, !borrowed)
+        self.str_slice_offsets(i, text, lo, hi, true)
     }
 
     fn str_slice_offsets(
@@ -324,7 +326,6 @@ impl Em<'_, '_, '_> {
         lo: u32,
         hi: u32,
         scalar_boundaries: bool,
-        owned: bool,
     ) -> StageResult<()> {
         self.f.get(lo);
         self.f.get(hi);
@@ -375,11 +376,7 @@ impl Em<'_, '_, '_> {
         self.f.get(hi);
         self.f.get(lo);
         self.f.op(I::I32Sub);
-        if owned {
-            self.store_owned(i)
-        } else {
-            self.store(i)
-        }
+        self.store(i)
     }
 
     /// Equality of two byte ranges, with no whole-string helper call.
@@ -469,6 +466,6 @@ impl Em<'_, '_, '_> {
             args: kinds,
             result,
         });
-        self.store_owned(i)
+        self.store(i)
     }
 }

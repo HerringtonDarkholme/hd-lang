@@ -30,7 +30,7 @@ fn replace(text: &mut string) -> string:
 fn rhs_writes(text: &mut string) -> void:
     *text += replace(text)
 > app/main/rhs_writes
->   retain counted reference (second owner)
+>   retain string (second owner)
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (overwritten)

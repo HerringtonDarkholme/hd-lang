@@ -2341,9 +2341,9 @@ pub(crate) mod tests {
         // Cold/Entry contracts precede the unchanged read/move graph.
         assert_eq!(
             text,
-            "%0 Retain\n%1 Retain\n%2 Call\n%3 Store [$1] %2\n%4 Read copy [$1]\n%5 Call %4\n\
-             %6 Read move [$1]\n%7 Read move [$0]\n%8 Call %6 %7\n%9 Drop [%7]\n\
-             %10 Drop [%6]\n%11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\nexit 0 $0\n"
+            "%0 Retain\n%1 Retain\n%2 Call\n%3 Store [$1] %2\n%4 Read copy [$1]\n%5 Retain\n\
+             %6 Call %4\n%7 Read move [$1]\n%8 Read move [$0]\n%9 Call %7 %8\n%10 Drop [%8]\n\
+             %11 Drop [%7]\n%12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\nexit 0 $0\n"
         );
     }
 
@@ -2383,11 +2383,11 @@ pub(crate) mod tests {
             found,
             [
                 ("%2 Read copy [$0]".to_owned(), Tri::No),
-                ("%8 Read copy [$1]".to_owned(), Tri::Maybe)
+                ("%9 Read copy [$1]".to_owned(), Tri::Maybe)
             ],
             "{text}"
         );
-        assert!(text.contains("%4 Read move [$0]"), "{text}");
+        assert!(text.contains("%5 Read move [$0]"), "{text}");
     }
 
     /// A value made before a loop and consumed inside it: the consumer
@@ -2414,9 +2414,9 @@ pub(crate) mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Read copy [%0]\n%2 Call %1\n%3 Call\n%4 Drop [%3]\n%5 Break\n\
-             %6 Call %3\n%7 Drop [%3]\n%8 Block [%1 %2 %3 %4 %5 %6 %7]\n%9 Loop\n%10 Drop [%0]\n\
-             %11 Block [%0 %8 %9 %10]\n"
+            "%0 Call\n%1 Read copy [%0]\n%2 Retain\n%3 Call %1\n%4 Call\n%5 Drop [%4]\n\
+             %6 Break\n%7 Call %4\n%8 Drop [%4]\n%9 Block [%1 %2 %3 %4 %5 %6 %7 %8]\n%10 Loop\n\
+             %11 Drop [%0]\n%12 Block [%0 %9 %10 %11]\n"
         );
     }
 

@@ -144,7 +144,7 @@ impl Em<'_, '_, '_> {
             // accesses root at (`hd_opt::prove`); the place keeps its count.
             if self.b.ty[i as usize] != Ty::VOID {
                 self.f.get(h);
-                self.store_owned(i)?;
+                self.store(i)?;
             }
         }
         self.f.reason = was;
@@ -340,7 +340,7 @@ impl Em<'_, '_, '_> {
             }
             self.f.get(b);
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// `ListLen`.

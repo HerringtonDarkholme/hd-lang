@@ -36,7 +36,7 @@ fn element() -> string:
 >   unique List[*mut app.main.P] (may be shared)
     repeat(0, change)
     *d
->   retain counted reference (stored)
+>   retain string (stored)
 
 fn field() -> string:
     let mut h = Holder { p: box(P { name: "e" }) }
@@ -49,7 +49,7 @@ fn field() -> string:
     d := name_of(h.p)
     repeat(0, change)
     *d
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main() -> void $ Console:
     println(element())

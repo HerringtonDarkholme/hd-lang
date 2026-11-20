@@ -8,7 +8,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -176,11 +176,14 @@
     ;; 16 |     *d
     local.get $d
     i32.load $heap
-    local.tee $t3
     local.get $d
     i32.load $heap offset=4
-    local.tee $d
-    call $rt:retain
+    local.set $d
+    local.tee $t3
+    if
+      local.get $t3
+      call $retain
+    end
     local.get $t2
     if
       local.get $t2

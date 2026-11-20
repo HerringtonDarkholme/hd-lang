@@ -3,7 +3,7 @@ app/main/twice
   local $0 text: string [param read] value
     uses $0: entry -> %1 consume last
   local $1 word: string [:= read assigned] value
-    uses $1: %10 -> %11 lend, %12 lend last
+    uses $1: %10 -> %11 lend, %13 lend last
   %1 = Read move [$0] : string
   %2 = Call app/main/parse[] (%1) : Result[string, string]
   %3 = Read move [%2 as #0 .0] : string

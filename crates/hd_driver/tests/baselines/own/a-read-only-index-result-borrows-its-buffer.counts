@@ -25,10 +25,10 @@ fn view(value: &Wrapped) -> View:
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
->   retain counted reference (stored)
+>   retain string (stored)
 >   release List[string] (last use)
 > app/main/first
->   retain counted reference (stored)
+>   retain (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) [0.0] (stored)
 >   release List[(string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)] (last use)
 
 fn first_len(items: List[string]) -> usize:
@@ -50,7 +50,7 @@ fn wide_len(items: List[Wide]) -> usize:
 fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     seen := view(&Wrapped { values: *source, n: 1 })
 > app/main/after_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release *mut app.main.Names (last use)
     alias.second = "fresh"
@@ -93,10 +93,10 @@ fn view(value: &Wrapped) -> View:
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
->   retain counted reference (stored)
+>   retain string (stored)
 >   release List[string] (last use)
 > app/main/first
->   retain counted reference (stored)
+>   retain (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) [0.0] (stored)
 >   release List[(string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)] (last use)
 
 fn first_len(items: List[string]) -> usize:
@@ -118,7 +118,7 @@ fn wide_len(items: List[Wide]) -> usize:
 fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     seen := view(&Wrapped { values: *source, n: 1 })
 > app/main/after_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release *mut app.main.Names (last use)
     alias.second = "fresh"
@@ -161,9 +161,9 @@ fn view(value: &Wrapped) -> View:
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
     items[0]
 > app/main/first
->   retain counted reference (stored)
+>   retain string (stored)
 > app/main/first
->   retain counted reference (stored)
+>   retain (string, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64) [0.0] (stored)
 
 fn first_len(items: List[string]) -> usize:
     first(items).len()
@@ -180,7 +180,7 @@ fn wide_len(items: List[Wide]) -> usize:
 fn after_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     seen := view(&Wrapped { values: *source, n: 1 })
 > app/main/after_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
     alias.second = "fresh"
 >   release counted reference (overwritten)

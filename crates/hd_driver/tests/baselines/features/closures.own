@@ -93,28 +93,30 @@ fn shared(s: string) -> string:
 >     uses $0: entry -> %1 consume last
 >   local $1 t: string [read assigned captured captured-assigned] place
 >     frame cell [$1]
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     let mut t = s
 >   %1 = Read move [$0] : string
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %17 = Block %15 : string
+>   %19 = Block %16 : string
     add := fn() -> void: t += "x"
     add()
 >   %4 = Read copy [$1] : string
->   %5 = Intrinsic StrConcat [%4 "x"] : string
->   %6 = Release %5 Operation operand 0 #2 : ()
->   %7 = Drop [%4] : ()
->   %8 = Store [$1] %5 : ()
->   %9 = Read borrow [$1] : string
->   %10 = Block - : ()
->   %11 = Release %8 Operation #3 : ()
->   %12 = Break L0 - : never
->   %13 = Block - : ()
->   %14 = Scope %13 [%10] : ()
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Intrinsic StrConcat [%4 "x"] : string
+>   %7 = Release %6 Operation operand 0 #2 : ()
+>   %8 = Drop [%4] : ()
+>   %9 = Store [$1] %6 : ()
+>   %10 = Read borrow [$1] : string
+>   %11 = Block - : ()
+>   %12 = Release %9 Operation #3 : ()
+>   %13 = Break L0 - : never
+>   %14 = Block - : ()
+>   %15 = Scope %14 [%11] : ()
     t
->   %15 = Read copy [$1] : string
->   %16 = Drop [$1] : ()
+>   %16 = Read copy [$1] : string
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $1 slot
 >   summary kept [$0]

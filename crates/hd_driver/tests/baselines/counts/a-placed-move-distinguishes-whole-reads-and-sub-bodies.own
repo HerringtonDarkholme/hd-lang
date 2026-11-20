@@ -38,7 +38,7 @@ fn keep(value: string) -> string:
 @cold
 > std/rt_tests.stage_case/copied
 >   local $0 value: string [param read captured] place
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
 fn copied(value: string) -> (string, string):
     _ := same(&value, &value)
 >   %1 = Box #0 #0 : ()
@@ -48,13 +48,14 @@ fn copied(value: string) -> (string, string):
 >   %5 = Call std/rt_tests.stage_case/same[string] (%3, %4) : bool
 >   %6 = LoanEnd [%4] : ()
 >   %7 = LoanEnd [%3] : ()
->   %12 = Block %11 : (string, string)
+>   %13 = Block %12 : (string, string)
     first := keep(value)
 >   %8 = Read copy [$0] : string
->   %9 = Call std/rt_tests.stage_case/keep[] (%8) : string
+>   %9 = Retain %8 Value #0 : ()
+>   %10 = Call std/rt_tests.stage_case/keep[] (%8) : string
     (first, value)
->   %10 = Read move [$0] : string
->   %11 = NewTuple - [%9 %10] : (string, string)
+>   %11 = Read move [$0] : string
+>   %12 = NewTuple - [%10 %11] : (string, string)
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 

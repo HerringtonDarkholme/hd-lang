@@ -5,7 +5,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -154,20 +153,23 @@
     i32.const 76 ;; &"!"
     i32.const 1
   )
-  (func $changed_rhs (param $text i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
+  (func $changed_rhs (param $text i32) (local $t1 i32) (local $t0 i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 24 |     *text += replace(text)
     local.get $text
     i32.load $heap
-    local.tee $t0
     local.get $text
     i32.load $heap offset=4
+    local.set $t0
     local.tee $t1
-    call $rt:retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $text
     call $replace
     local.set $t2
     local.set $t3
-    local.get $t1
+    local.get $t0
     local.get $t2
     i32.add
     local.tee $t4
@@ -180,11 +182,11 @@
     end
     local.tee $t5
     local.tee $t6
-    local.get $t0
     local.get $t1
+    local.get $t0
     call $rt:memory_copy/0/0
     local.get $t6
-    local.get $t1
+    local.get $t0
     i32.add
     local.get $t3
     local.get $t2
@@ -194,9 +196,9 @@
       local.get $t3
       call $rt:release_ref
     end
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       call $rt:release_ref
     end
     local.get $text

@@ -62,14 +62,15 @@ fn map_of(k: string, v: string) -> Map[string, string]:
 >   local $0 k: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 v: string [param read] value
->     uses $1: entry -> %3 consume, %4 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
->   %1 = Retain %6 Entry local $1 #0 : ()
+>     uses $1: entry -> %3 consume, %5 consume last
+>   %0 = Retain %7 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
     { k: v, "fixed": v }
 >   %2 = Read move [$0] : string
 >   %3 = Read copy [$1] : string
->   %4 = Read move [$1] : string
->   %5 = NewMap [%2 %4 "fixed" %3] : Map[string, string]
->   %6 = Block %5 : Map[string, string]
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Read move [$1] : string
+>   %6 = NewMap [%2 %5 "fixed" %3] : Map[string, string]
+>   %7 = Block %6 : Map[string, string]
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]

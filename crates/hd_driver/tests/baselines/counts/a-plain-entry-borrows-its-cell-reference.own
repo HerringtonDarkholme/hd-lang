@@ -29,36 +29,38 @@ fn helper!() -> string:
 >   %0 = NewStruct [""] : Sink
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
->   %8 = Block %6 : string
+>   %9 = Block %6 : string
     sink() = "helper"
 >   %3 = Ref mut local [$0] : &mut Sink
 >   %4 = Call std/ops/Update.update for Sink [string] via Impl (%3, "helper") : ()
 >   %5 = LoanEnd [%3] : ()
     sink.text
 >   %6 = Read copy [$0 .text] : string
->   %7 = Drop [$0] : ()
+>   %7 = Retain %6 Value #0 : ()
+>   %8 = Drop [$0] : ()
 >   storage sub 0: $0 cell
 
 pub fn main!() -> void $ Console:
     let mut sink = Sink { text: "" }
 > app/main/main
 >   local $0 sink: Sink [read assigned captured captured-assigned] place
->   %0 = Retain %14 Cold row #0 : ()
->   %1 = Retain %14 Materialize row #0 : ()
->   %2 = Release %14 FrameDrop row #2 : ()
+>   %0 = Retain %15 Cold row #0 : ()
+>   %1 = Retain %15 Materialize row #0 : ()
+>   %2 = Release %15 FrameDrop row #2 : ()
 >   %3 = NewStruct [""] : Sink
 >   %4 = Box #0 #1 : ()
 >   %5 = Store [$0] %3 : ()
->   %14 = Block - : ()
+>   %15 = Block - : ()
     sink() = "kept"
 >   %6 = Ref mut local [$0] : &mut Sink
 >   %7 = Call std/ops/Update.update for Sink [string] via Impl (%6, "kept") : ()
 >   %8 = LoanEnd [%6] : ()
     println(sink.text)
 >   %9 = Read copy [$0 .text] : string
->   %10 = Drop [$0] : ()
->   %11 = Call std/console/println[string] (%9) : ()
+>   %10 = Retain %9 Value #0 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Call std/console/println[string] (%9) : ()
     _ := helper()
->   %12 = Call app/main/helper[] () : Suspend[string]
->   %13 = Drop [%12] : ()
+>   %13 = Call app/main/helper[] () : Suspend[string]
+>   %14 = Drop [%13] : ()
 >   storage sub 0: $0 cell

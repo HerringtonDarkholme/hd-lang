@@ -3,10 +3,11 @@ app/main/impl Mapper.apply
   local $0 self: &Mapper [param read] value
     uses $0: entry -> %0 lend last
   local $1 x: i32 [param read] value
-    uses $1: entry -> %1 lend last
+    uses $1: entry -> %2 lend last
   %0 = Read copy [*$0 .transform] : fn(i32) -> i32
-  %1 = Read copy [$1] : i32
-  %2 = CallValue %0 [%1] : i32
-  %3 = Drop [%0] : ()
-  %4 = Block %2 : i32
+  %1 = Retain %0 Value #0 : ()
+  %2 = Read copy [$1] : i32
+  %3 = CallValue %0 [%2] : i32
+  %4 = Drop [%0] : ()
+  %5 = Block %3 : i32
   summary kept [] writes relies [$0]

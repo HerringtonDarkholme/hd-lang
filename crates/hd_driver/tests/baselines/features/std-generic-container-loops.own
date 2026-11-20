@@ -39,7 +39,7 @@ impl[T < Ord] Queue[T]:
     pub fn settle(&mut self, start: usize, value: T) -> void:
 > app/main/impl[T < Ord] Queue[T].settle
 >   local $0 self: &mut Queue[T] [param read] value
->     uses $0: entry -> %3 lend, %24 lend, %29 lend, %53 lend, %71 lend, %73 lend, %87 lend last
+>     uses $0: entry -> %3 lend, %24 lend, %29 lend, %53 lend, %71 lend, %74 lend, %88 lend last
 >   local $1 start: usize [param read] value
 >     uses $1: entry -> %6 consume last
 >   local $2 value: T [param read captured] place
@@ -49,14 +49,14 @@ impl[T < Ord] Queue[T]:
 >   local $5 left: usize [:= read assigned] value
 >     uses $5: %15 -> %16 consume, %18 lend, %22 lend, %26 lend, %36 lend last
 >   local $6 larger: usize [read assigned mutated] place
->   %1 = Retain %89 Entry local $2 #0 : ()
+>   %1 = Retain %90 Entry local $2 #0 : ()
         size := self.items.len()
 >   %0 = FlagSet [$2] #7 : ()
 >   %2 = Box #2 #0 : ()
 >   %3 = Read borrow [*$0 .items] : List[T]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Store [$3] %4 : ()
->   %89 = Block - : ()
+>   %90 = Block - : ()
         let parent = start
 >   %6 = Read copy [$1] : usize
 >   %7 = Store [$4] %6 : ()
@@ -65,17 +65,17 @@ impl[T < Ord] Queue[T]:
 >   %9 = Read copy [$3] : usize
 >   %10 = Prim Div [%9 2:usize] : usize
 >   %11 = Prim Lt [%8 %10] : bool
->   %78 = Break L0 - : never
->   %79 = Block - : ()
->   %80 = If %11 [%77 %79] : ()
->   %81 = Block - : ()
->   %82 = Loop %81 - : ()
+>   %79 = Break L0 - : never
+>   %80 = Block - : ()
+>   %81 = If %11 [%78 %80] : ()
+>   %82 = Block - : ()
+>   %83 = Loop %82 - : ()
             left := 2 * parent + 1
 >   %12 = Read copy [$4] : usize
 >   %13 = Prim Mul [2:usize %12] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$5] %14 : ()
->   %77 = Block - : ()
+>   %78 = Block - : ()
             let larger = left
 >   %16 = Read copy [$5] : usize
 >   %17 = Store [$6] %16 : ()
@@ -135,19 +135,20 @@ impl[T < Ord] Queue[T]:
 >   %69 = Read copy [$4] : usize
 >   %70 = Read copy [$6] : usize
 >   %71 = Read copy [*$0 .items [%70]] : T
->   %72 = IsUnique [*$0 .items] : ()
->   %73 = Store [*$0 .items [%69]] %71 : ()
->   %74 = Release %73 Operation #3 : ()
+>   %72 = Retain %71 Value #0 : ()
+>   %73 = IsUnique [*$0 .items] : ()
+>   %74 = Store [*$0 .items [%69]] %71 : ()
+>   %75 = Release %74 Operation #3 : ()
             parent = larger
->   %75 = Read copy [$6] : usize
->   %76 = Store [$4] %75 : ()
+>   %76 = Read copy [$6] : usize
+>   %77 = Store [$4] %76 : ()
         self.items[parent] = value
->   %83 = Read copy [$4] : usize
->   %84 = FlagClear [$2] #7 : ()
->   %85 = Read move [$2] : T
->   %86 = IsUnique [*$0 .items] : ()
->   %87 = Store [*$0 .items [%83]] %85 : ()
->   %88 = Release %87 Operation #3 : ()
+>   %84 = Read copy [$4] : usize
+>   %85 = FlagClear [$2] #7 : ()
+>   %86 = Read move [$2] : T
+>   %87 = IsUnique [*$0 .items] : ()
+>   %88 = Store [*$0 .items [%84]] %86 : ()
+>   %89 = Release %88 Operation #3 : ()
 >   exit sub 0 drops [$2]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $2] writes
@@ -160,10 +161,10 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   local $1 b: i64 [param read] value
 >     uses $1: entry -> %12 lend last
 >   local $2 c: i64 [param read] value
->     uses $2: entry -> %16 lend, %22 lend last
+>     uses $2: entry -> %16 lend, %23 lend last
 >   local $3 q: Queue[i64] [read assigned captured captured-assigned] place
 >   local $4 saved: Queue[i64] [:= read assigned] value
->     uses $4: %20 -> %27 lend last
+>     uses $4: %21 -> %28 lend last
 >   %0 = NewList - [] : List[i64]
 >   %1 = NewStruct [%0] : Queue[i64]
 >   %2 = Break L0 %1 : never
@@ -171,7 +172,7 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %4 = Scope %3 [] : Queue[i64]
 >   %5 = Box #3 #0 : ()
 >   %6 = Store [$3] %4 : ()
->   %30 = Block %29 : i64
+>   %31 = Block %30 : i64
     q.add(a)
 >   %7 = Ref mut local frame [$3] : &mut Queue[i64]
 >   %8 = Read copy [$0] : i64
@@ -189,18 +190,19 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
 >   %18 = LoanEnd [%15] : ()
     saved := q
 >   %19 = Read copy [$3] : Queue[i64]
->   %20 = Store [$4] %19 : ()
+>   %20 = Retain %19 Value #0 : ()
+>   %21 = Store [$4] %19 : ()
     q.settle(0, c)
->   %21 = Ref mut local frame [$3] : &mut Queue[i64]
->   %22 = Read copy [$2] : i64
->   %23 = Call app/main/impl[T < Ord] Queue[T].settle[i64] (%21, 0:usize, %22) : ()
->   %24 = LoanEnd [%21] : ()
+>   %22 = Ref mut local frame [$3] : &mut Queue[i64]
+>   %23 = Read copy [$2] : i64
+>   %24 = Call app/main/impl[T < Ord] Queue[T].settle[i64] (%22, 0:usize, %23) : ()
+>   %25 = LoanEnd [%22] : ()
     q.items[0] + saved.items[0]
->   %25 = Read copy [$3 .items [0:usize]] : i64
->   %26 = Drop [$3] : ()
->   %27 = Read copy [$4 .items [0:usize]] : i64
->   %28 = Drop [$4] : ()
->   %29 = Prim Add [%25 %27] : i64
+>   %26 = Read copy [$3 .items [0:usize]] : i64
+>   %27 = Drop [$3] : ()
+>   %28 = Read copy [$4 .items [0:usize]] : i64
+>   %29 = Drop [$4] : ()
+>   %30 = Prim Add [%26 %28] : i64
 >   storage sub 0: $3 slot
 >   summary kept [] writes
 
@@ -212,13 +214,13 @@ pub fn names(a: string, b: string) -> usize:
 >     uses $1: entry -> %14 consume last
 >   local $2 q: Queue[string] [read assigned captured captured-assigned] place
 >   local $3 saved: Queue[string] [:= read assigned] value
->     uses $3: %18 -> %31 lend last
+>     uses $3: %19 -> %33 lend last
 >   local $4 self: string [read] value
->     uses $4: %33 -> %34 lend last
+>     uses $4: %36 -> %37 lend last
 >   local $5 self: string [read] value
->     uses $5: %24 -> %25 lend last
->   %0 = Retain %41 Entry local $0 #0 : ()
->   %1 = Retain %41 Entry local $1 #0 : ()
+>     uses $5: %26 -> %27 lend last
+>   %0 = Retain %44 Entry local $0 #0 : ()
+>   %1 = Retain %44 Entry local $1 #0 : ()
     let mut q = Queue::[string].new()
 >   %2 = NewList - [] : List[string]
 >   %3 = NewStruct [%2] : Queue[string]
@@ -227,7 +229,7 @@ pub fn names(a: string, b: string) -> usize:
 >   %6 = Scope %5 [] : Queue[string]
 >   %7 = Box #2 #0 : ()
 >   %8 = Store [$2] %6 : ()
->   %41 = Block %40 : usize
+>   %44 = Block %43 : usize
     q.add(a)
 >   %9 = Ref mut local frame [$2] : &mut Queue[string]
 >   %10 = Read move [$0] : string
@@ -240,31 +242,34 @@ pub fn names(a: string, b: string) -> usize:
 >   %16 = LoanEnd [%13] : ()
     saved := q
 >   %17 = Read copy [$2] : Queue[string]
->   %18 = Store [$3] %17 : ()
+>   %18 = Retain %17 Value #0 : ()
+>   %19 = Store [$3] %17 : ()
     q.settle(0, "z")
->   %19 = Ref mut local frame [$2] : &mut Queue[string]
->   %20 = Call app/main/impl[T < Ord] Queue[T].settle[string] (%19, 0:usize, "z") : ()
->   %21 = LoanEnd [%19] : ()
+>   %20 = Ref mut local frame [$2] : &mut Queue[string]
+>   %21 = Call app/main/impl[T < Ord] Queue[T].settle[string] (%20, 0:usize, "z") : ()
+>   %22 = LoanEnd [%20] : ()
     q.items[0].len() + saved.items[0].len()
->   %22 = Read copy [$2 .items [0:usize]] : string
->   %23 = Drop [$2] : ()
->   %24 = Store [$5] %22 : ()
->   %25 = Read borrow [$5] : string
->   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
->   %27 = Break L1 %26 : never
->   %28 = Block - : usize
->   %29 = Scope %28 [] : usize
->   %30 = Drop [$5] : ()
->   %31 = Read copy [$3 .items [0:usize]] : string
->   %32 = Drop [$3] : ()
->   %33 = Store [$4] %31 : ()
->   %34 = Read borrow [$4] : string
->   %35 = Call std/rt.bytes/bytes_len[] (%34) : usize
->   %36 = Break L0 %35 : never
->   %37 = Block - : usize
->   %38 = Scope %37 [] : usize
->   %39 = Drop [$4] : ()
->   %40 = Prim Add [%29 %38] : usize
+>   %23 = Read copy [$2 .items [0:usize]] : string
+>   %24 = Retain %23 Value #0 : ()
+>   %25 = Drop [$2] : ()
+>   %26 = Store [$5] %23 : ()
+>   %27 = Read borrow [$5] : string
+>   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %29 = Break L1 %28 : never
+>   %30 = Block - : usize
+>   %31 = Scope %30 [] : usize
+>   %32 = Drop [$5] : ()
+>   %33 = Read copy [$3 .items [0:usize]] : string
+>   %34 = Retain %33 Value #0 : ()
+>   %35 = Drop [$3] : ()
+>   %36 = Store [$4] %33 : ()
+>   %37 = Read borrow [$4] : string
+>   %38 = Call std/rt.bytes/bytes_len[] (%37) : usize
+>   %39 = Break L0 %38 : never
+>   %40 = Block - : usize
+>   %41 = Scope %40 [] : usize
+>   %42 = Drop [$4] : ()
+>   %43 = Prim Add [%31 %41] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes
@@ -273,12 +278,12 @@ pub fn pairs(a: i64, b: i64) -> i64:
     let mut q = Queue::[(i64, usize)].new()
 > app/main/pairs
 >   local $0 a: i64 [param read] value
->     uses $0: entry -> %8 consume, %20 consume last
+>     uses $0: entry -> %8 consume, %21 consume last
 >   local $1 b: i64 [param read] value
 >     uses $1: entry -> %13 consume last
 >   local $2 q: Queue[(i64, usize)] [read assigned captured captured-assigned] place
 >   local $3 saved: Queue[(i64, usize)] [:= read assigned] value
->     uses $3: %18 -> %26 lend last
+>     uses $3: %19 -> %27 lend last
 >   %0 = NewList - [] : List[(i64, usize)]
 >   %1 = NewStruct [%0] : Queue[(i64, usize)]
 >   %2 = Break L0 %1 : never
@@ -286,7 +291,7 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %4 = Scope %3 [] : Queue[(i64, usize)]
 >   %5 = Box #2 #0 : ()
 >   %6 = Store [$2] %4 : ()
->   %29 = Block %28 : i64
+>   %30 = Block %29 : i64
     q.add((a, 0))
 >   %7 = Ref mut local frame [$2] : &mut Queue[(i64, usize)]
 >   %8 = Read copy [$0] : i64
@@ -301,18 +306,19 @@ pub fn pairs(a: i64, b: i64) -> i64:
 >   %16 = LoanEnd [%12] : ()
     saved := q
 >   %17 = Read copy [$2] : Queue[(i64, usize)]
->   %18 = Store [$3] %17 : ()
+>   %18 = Retain %17 Value #0 : ()
+>   %19 = Store [$3] %17 : ()
     q.settle(0, (a, 2))
->   %19 = Ref mut local frame [$2] : &mut Queue[(i64, usize)]
->   %20 = Read copy [$0] : i64
->   %21 = NewTuple - [%20 2:usize] : (i64, usize)
->   %22 = Call app/main/impl[T < Ord] Queue[T].settle[(i64, usize)] (%19, 0:usize, %21) : ()
->   %23 = LoanEnd [%19] : ()
+>   %20 = Ref mut local frame [$2] : &mut Queue[(i64, usize)]
+>   %21 = Read copy [$0] : i64
+>   %22 = NewTuple - [%21 2:usize] : (i64, usize)
+>   %23 = Call app/main/impl[T < Ord] Queue[T].settle[(i64, usize)] (%20, 0:usize, %22) : ()
+>   %24 = LoanEnd [%20] : ()
     q.items[0]._0 + saved.items[0]._0
->   %24 = Read copy [$2 .items [0:usize] .0] : i64
->   %25 = Drop [$2] : ()
->   %26 = Read copy [$3 .items [0:usize] .0] : i64
->   %27 = Drop [$3] : ()
->   %28 = Prim Add [%24 %26] : i64
+>   %25 = Read copy [$2 .items [0:usize] .0] : i64
+>   %26 = Drop [$2] : ()
+>   %27 = Read copy [$3 .items [0:usize] .0] : i64
+>   %28 = Drop [$3] : ()
+>   %29 = Prim Add [%25 %27] : i64
 >   storage sub 0: $2 slot
 >   summary kept [] writes

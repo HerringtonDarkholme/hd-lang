@@ -132,73 +132,76 @@ fn trapping(c: bool, a: string) -> usize:
 fn connected(c: bool, a: string, b: string, d: string) -> usize:
 > app/main/connected
 >   local $0 c: bool [param read] value
->     uses $0: entry -> %3 lend, %12 lend last
+>     uses $0: entry -> %3 lend, %13 lend last
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %4 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %7 consume, %13 consume last
+>     uses $2: entry -> %7 consume, %14 consume last
 >   local $3 d: string [param read] value
->     uses $3: entry -> %16 consume, %21 consume last
+>     uses $3: entry -> %17 consume, %23 consume last
 >   local $4 x: string [:= read assigned] value
->     uses $4: %11 -> %24 lend last
+>     uses $4: %12 -> %26 lend last
 >   local $5 y: string [:= read assigned] value
->     uses $5: %20 -> %30 lend last
+>     uses $5: %22 -> %32 lend last
 >   local $6 kept: List[string] [:= read assigned] value
->     uses $6: %23 -> %37 lend last
+>     uses $6: %25 -> %39 lend last
 >   local $7 self: string [read] value
->     uses $7: %39 -> %40 lend last
->   %0 = Retain %47 Entry local $1 #0 : ()
->   %1 = Retain %47 Entry local $2 #0 : ()
->   %2 = Retain %47 Entry local $3 #0 : ()
+>     uses $7: %42 -> %43 lend last
+>   %0 = Retain %50 Entry local $1 #0 : ()
+>   %1 = Retain %50 Entry local $2 #0 : ()
+>   %2 = Retain %50 Entry local $3 #0 : ()
     x := if c: a else: b
 >   %3 = Read copy [$0] : bool
 >   %4 = Read move [$1] : string
 >   %5 = Coerce %4 [Identity -] : string
 >   %6 = Block %5 : string
 >   %7 = Read copy [$2] : string
->   %8 = Drop [$1] : ()
->   %9 = Block %7 : string
->   %10 = If %3 [%6 %9] : string
->   %11 = Store [$4] %10 : ()
->   %47 = Block %46 : usize
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Drop [$1] : ()
+>   %10 = Block %7 : string
+>   %11 = If %3 [%6 %10] : string
+>   %12 = Store [$4] %11 : ()
+>   %50 = Block %49 : usize
     y := if c: b else: d
->   %12 = Read copy [$0] : bool
->   %13 = Read move [$2] : string
->   %14 = Coerce %13 [Identity -] : string
->   %15 = Block %14 : string
->   %16 = Read copy [$3] : string
->   %17 = Drop [$2] : ()
->   %18 = Block %16 : string
->   %19 = If %12 [%15 %18] : string
->   %20 = Store [$5] %19 : ()
+>   %13 = Read copy [$0] : bool
+>   %14 = Read move [$2] : string
+>   %15 = Coerce %14 [Identity -] : string
+>   %16 = Block %15 : string
+>   %17 = Read copy [$3] : string
+>   %18 = Retain %17 Value #0 : ()
+>   %19 = Drop [$2] : ()
+>   %20 = Block %17 : string
+>   %21 = If %13 [%16 %20] : string
+>   %22 = Store [$5] %21 : ()
     kept := keep(d)
->   %21 = Read move [$3] : string
->   %22 = Call app/main/keep[] (%21) : List[string]
->   %23 = Store [$6] %22 : ()
+>   %23 = Read move [$3] : string
+>   %24 = Call app/main/keep[] (%23) : List[string]
+>   %25 = Store [$6] %24 : ()
     x.len() + y.len() + kept[0].len()
->   %24 = Read borrow [$4] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
->   %26 = Break L2 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   %29 = Drop [$4] : ()
->   %30 = Read borrow [$5] : string
->   %31 = Call std/rt.bytes/bytes_len[] (%30) : usize
->   %32 = Break L1 %31 : never
->   %33 = Block - : usize
->   %34 = Scope %33 [] : usize
->   %35 = Drop [$5] : ()
->   %36 = Prim Add [%28 %34] : usize
->   %37 = Read copy [$6 [0:usize]] : string
->   %38 = Drop [$6] : ()
->   %39 = Store [$7] %37 : ()
->   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
->   %42 = Break L0 %41 : never
->   %43 = Block - : usize
->   %44 = Scope %43 [] : usize
->   %45 = Drop [$7] : ()
->   %46 = Prim Add [%36 %44] : usize
+>   %26 = Read borrow [$4] : string
+>   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
+>   %28 = Break L2 %27 : never
+>   %29 = Block - : usize
+>   %30 = Scope %29 [] : usize
+>   %31 = Drop [$4] : ()
+>   %32 = Read borrow [$5] : string
+>   %33 = Call std/rt.bytes/bytes_len[] (%32) : usize
+>   %34 = Break L1 %33 : never
+>   %35 = Block - : usize
+>   %36 = Scope %35 [] : usize
+>   %37 = Drop [$5] : ()
+>   %38 = Prim Add [%30 %36] : usize
+>   %39 = Read copy [$6 [0:usize]] : string
+>   %40 = Retain %39 Value #0 : ()
+>   %41 = Drop [$6] : ()
+>   %42 = Store [$7] %39 : ()
+>   %43 = Read borrow [$7] : string
+>   %44 = Call std/rt.bytes/bytes_len[] (%43) : usize
+>   %45 = Break L0 %44 : never
+>   %46 = Block - : usize
+>   %47 = Scope %46 [] : usize
+>   %48 = Drop [$7] : ()
+>   %49 = Prim Add [%38 %47] : usize
 >   exit sub 0 drops [$1 $2 $3]
 >   summary kept [$1 $2 $3]
 

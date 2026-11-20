@@ -22,7 +22,6 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -1130,8 +1129,12 @@
       local.tee $provider0.vtable
       local.get $provider0
       i32.load $heap offset=4
-      local.tee $t3
-      call $rt:retain
+      local.set $t3
+      local.tee $provider0
+      if
+        local.get $provider0
+        call $retain
+      end
       local.get $t2
       i32.load $heap offset=16
       if
@@ -1535,7 +1538,6 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -2649,8 +2651,12 @@
       local.tee $provider0.vtable
       local.get $provider0
       i32.load $heap offset=4
-      local.tee $t3
-      call $rt:retain
+      local.set $t3
+      local.tee $provider0
+      if
+        local.get $provider0
+        call $retain
+      end
       local.get $t2
       i32.load $heap offset=16
       if

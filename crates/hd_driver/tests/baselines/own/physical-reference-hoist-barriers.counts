@@ -9,7 +9,7 @@ app/main/impl Probes.alias_write
 app/main/impl Probes.clean
   unique List[usize] (may be shared)
 app/main/impl Probes.header_copy
-  copy counted reference (second owner)
+  copy List[usize] (second owner)
   unique List[usize] (may be shared)
   release List[usize] (last use)
 app/main/impl Probes.replace

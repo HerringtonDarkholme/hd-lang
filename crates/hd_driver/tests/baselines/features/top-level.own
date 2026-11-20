@@ -170,5 +170,6 @@ fn copy_top() -> string:
     greeting
 > app/main/copy_top
 >   %0 = Read copy [@app/main/greeting] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept []

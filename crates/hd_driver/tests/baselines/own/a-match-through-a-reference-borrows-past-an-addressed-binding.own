@@ -20,13 +20,14 @@ app/main/holds
   %14 = Read borrow [*%5] : Slot[K, V]
   %16 = Block - : never
   %17 = Read copy [%14 as #1 .0] : K
-  %18 = Store [$2] %17 : ()
-  %21 = SwitchTag %14 [#0 %16 %20] : never
-  %22 = Block - : never
-  %23 = Match %5 [%22 %7 %13] : bool
-  %24 = Drop [$2] : ()
-  %25 = Drop [%5] : ()
-  %26 = Drop [$1] : ()
-  %27 = Block %23 : bool
+  %18 = Retain %17 Value #0 : ()
+  %19 = Store [$2] %17 : ()
+  %22 = SwitchTag %14 [#0 %16 %21] : never
+  %23 = Block - : never
+  %24 = Match %5 [%23 %7 %13] : bool
+  %25 = Drop [$2] : ()
+  %26 = Drop [%5] : ()
+  %27 = Drop [$1] : ()
+  %28 = Block %24 : bool
   exit sub 0 drops [$1]
   storage sub 0: $1 slot, $2 slot

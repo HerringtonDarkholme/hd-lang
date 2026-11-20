@@ -4,7 +4,7 @@
   (import "fixture" "block_of" (func $block_of (param i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"impl Outer.slot" (param $self i32) (result i32)
@@ -75,13 +75,16 @@
     local.get $t0
     ;; 19 |     *r
     i32.load $heap
-    local.tee $t2
     ;; 17 |     r := p.slot()
     local.get $t0
     ;; 19 |     *r
     i32.load $heap offset=4
-    local.tee $t0
-    call $rt:retain
+    local.set $t0
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
     local.get $t1
     if
       local.get $t1

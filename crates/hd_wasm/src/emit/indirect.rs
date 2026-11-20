@@ -619,8 +619,6 @@ impl Em<'_, '_, '_> {
         };
         let declared = self.b.local_ty[l];
         let (_, part) = self.fold_path(declared, &fields)?;
-        // A move's flag is TIR's (`FlagClear` after it, [`Em::mem_release`]).
-        let moved = self.b.data[i as usize][1] == ReadMode::Move as u32;
         if self.forward.contains(&i) {
             self.mem_vals.insert(i, (at, off + part.offset));
             return Ok(true);
@@ -629,7 +627,23 @@ impl Em<'_, '_, '_> {
             self.f.get(at);
             self.f.op(leaf.load_in(HEAP, off));
         }
-        self.store_as(i, moved)?;
+        self.store(i)?;
+        Ok(true)
+    }
+
+    /// The stated `Retain` of copy read `value` that only passes its
+    /// address on ([`Em::forwarded`]): one count more on each counted
+    /// reference at that address, as Swift lowers `copy_addr`. Whether
+    /// `value` is one.
+    pub(super) fn mem_retain(&mut self, value: u32) -> hd_base::StageResult<bool> {
+        let Some(&(at, off)) = self.mem_vals.get(&value) else {
+            return Ok(false);
+        };
+        let (pool, env, t) = (self.input.pool, self.input.env, self.ty_of(value));
+        if let Some(plan) = release_plan(pool, env, &mut self.m.release_plans, t)? {
+            address(&mut self.f, at, off);
+            self.f.helper(crate::rt::Helper::RetainAt(plan));
+        }
         Ok(true)
     }
 
@@ -676,15 +690,9 @@ impl Em<'_, '_, '_> {
             // An argument that spills has a nonempty block: a struct of
             // more than 16 values has a nonzero size.
             match (w, self.mem_vals.get(&r).copied(), block) {
+                // The copy's count is its stated `Retain` (`Em::own_retain`).
                 (Some(mem), Some((at, off)), Some((base, _))) if copies[k] => {
                     self.copy_in(base, offs[k], at, off, mem.size);
-                    let (pool, env) = (self.input.pool, self.input.env);
-                    if let Some(plan) =
-                        release_plan(pool, env, &mut self.m.release_plans, params[k])?
-                    {
-                        address(&mut self.f, base, offs[k]);
-                        self.f.helper(crate::rt::Helper::RetainAt(plan));
-                    }
                     address(&mut self.f, base, offs[k]);
                 }
                 (Some(_), Some((at, off)), _) => address(&mut self.f, at, off),
@@ -861,13 +869,9 @@ impl Em<'_, '_, '_> {
             if let Some(&(at, from)) = self.mem_vals.get(&r) {
                 self.copy_in(base, off, at, from, mem.size);
             } else {
+                // A tail that is not moved has its stated `Retain`.
                 let moved = self.take_from(r, user);
-                let src = if moved {
-                    super::value::Src::Ref(r)
-                } else {
-                    self.retain_ref(r)?
-                };
-                self.store_src(HEAP, base, off, &mem.leaves, &src)?;
+                self.store_src(HEAP, base, off, &mem.leaves, &super::value::Src::Ref(r))?;
                 if moved {
                     self.settle_value(r);
                 }
@@ -965,25 +969,9 @@ impl Em<'_, '_, '_> {
         if self.written.contains(&r) || self.write_constant(r, base, 0)? {
             return Ok(());
         }
+        // A copy's count is its stated `Retain` (`Em::own_retain`).
         if let Some(&(at, from)) = self.mem_vals.get(&r) {
             self.copy_in(base, 0, at, from, mem.size);
-            // Address reads have no scalar temporaries for `take` to test.
-            // Match worker arguments: only an owned copy takes counts.
-            let ty = self.ty_of(r);
-            if self.counting
-                && ret == Some(false)
-                && self.b.data[r as usize][1] == ReadMode::Copy as u32
-                && self.tracked(ty)
-                && let Some(plan) = release_plan(
-                    self.input.pool,
-                    self.input.env,
-                    &mut self.m.release_plans,
-                    ty,
-                )?
-            {
-                address(&mut self.f, base, 0);
-                self.f.helper(crate::rt::Helper::RetainAt(plan));
-            }
             return Ok(());
         }
         let counted = self.counting && self.tracked(self.ty_of(r));

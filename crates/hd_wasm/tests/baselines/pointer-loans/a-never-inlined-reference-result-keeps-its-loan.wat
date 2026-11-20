@@ -14,7 +14,7 @@
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -295,13 +295,16 @@
     call $"impl Slots.push"
     ;; 33 |     *r
     i32.load $heap
-    local.tee $message.1
     ;; 31 |     r := fwd(p.get_ref().expect("slot"))
     local.get $value
     ;; 33 |     *r
     i32.load $heap offset=4
+    local.set $message.1
     local.tee $message.0
-    call $rt:retain
+    if
+      local.get $message.0
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -345,8 +348,8 @@
         call $rt:release_ref'2
       end
     end
-    local.get $message.1
     local.get $message.0
+    local.get $message.1
   )
   (func $through_call (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $message.1 i32) (local $message.0 i32) (local $value i32)
     ;; 26 |     r := keep(p.get_ref().expect("slot"))
@@ -420,11 +423,14 @@
     ;; 28 |     *r
     local.tee $message.1
     i32.load $heap
-    local.tee $message.0
     local.get $message.1
     i32.load $heap offset=4
-    local.tee $message.1
-    call $rt:retain
+    local.set $message.1
+    local.tee $message.0
+    if
+      local.get $message.0
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

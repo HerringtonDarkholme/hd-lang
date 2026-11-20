@@ -87,9 +87,9 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   local $6 $end: usize [assigned] value
 >     uses $6: %10 -> %13 lend
 >   local $7 item: T [read assigned] value
->     uses $7: %29 -> %22 consume last
->   %2 = Release %42 Exit local $0 #2 : ()
->   %3 = Retain %42 Entry local $1 #0 : ()
+>     uses $7: %30 -> %22 consume last
+>   %2 = Release %43 Exit local $0 #2 : ()
+>   %3 = Retain %43 Entry local $1 #0 : ()
     let total = zero
 >   %0 = FlagSet [$0] #10 : ()
 >   %1 = FlagSet [$1] #8 : ()
@@ -97,7 +97,7 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %5 = FlagClear [$1] #8 : ()
 >   %6 = Store [$2] %4 : ()
 >   %7 = FlagSet [$2] #9 : ()
->   %42 = Block %40 : T
+>   %43 = Block %41 : T
     for item in items:
 >   %8 = Read borrow [$0] : List[T]
 >   %9 = Intrinsic ListLen [%8] : usize
@@ -111,32 +111,33 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %17 = Read copy [$5] : usize
 >   %18 = Prim Add [%17 1:usize] : usize
 >   %19 = Store [$5] %18 : ()
->   %27 = Block - : ()
->   %28 = Read borrow [%16] : T
->   %29 = Store [$7] %28 : ()
->   %30 = FlagSet [$7] #11 : ()
->   %32 = Block - : never
->   %33 = Match %16 [%32 %27] : ()
->   %34 = Block - : ()
->   %35 = Break L0 - : never
->   %36 = Block - : ()
->   %37 = If %14 [%34 %36] : ()
->   %38 = Block - : ()
->   %39 = Loop %38 - : ()
+>   %28 = Block - : ()
+>   %29 = Read borrow [%16] : T
+>   %30 = Store [$7] %29 : ()
+>   %31 = FlagSet [$7] #11 : ()
+>   %33 = Block - : never
+>   %34 = Match %16 [%33 %28] : ()
+>   %35 = Block - : ()
+>   %36 = Break L0 - : never
+>   %37 = Block - : ()
+>   %38 = If %14 [%35 %37] : ()
+>   %39 = Block - : ()
+>   %40 = Loop %39 - : ()
         total = total + item
 >   %20 = Read move [$2] : T
 >   %21 = FlagClear [$2] #9 : ()
 >   %22 = Read copy [$7] : T
->   %23 = Call std/ops/Add.add for T [T] via Bound (%20, %22) : T
->   %24 = Store [$2] %23 : ()
->   %25 = Release %24 Operation #3 : ()
->   %26 = FlagSet [$2] #9 : ()
+>   %23 = Retain %22 Value #0 : ()
+>   %24 = Call std/ops/Add.add for T [T] via Bound (%20, %22) : T
+>   %25 = Store [$2] %24 : ()
+>   %26 = Release %25 Operation #3 : ()
+>   %27 = FlagSet [$2] #9 : ()
     total
->   %40 = Read move [$2] : T
->   %41 = FlagClear [$2] #9 : ()
+>   %41 = Read move [$2] : T
+>   %42 = FlagClear [$2] #9 : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
->   loop %39 keeps len [$0] (-..-)
+>   loop %40 keeps len [$0] (-..-)
 
 fn sum_strings(xs: List[string]) -> string:
 > app/main/sum_strings

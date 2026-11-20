@@ -103,5 +103,6 @@ fn stamp_of(p: &Post) -> Stamp:
 >   local $0 p: &Post [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .Stamp] : Stamp
->   %1 = Block %0 : Stamp
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : Stamp
 >   summary kept [$0]

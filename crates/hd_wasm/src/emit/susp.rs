@@ -226,7 +226,7 @@ impl Em<'_, '_, '_> {
         let (_, elem) = self.elem(inner)?;
         self.comp(tasks, 0)?;
         self.f.helper(Helper::All { part: 0, elem });
-        self.store_owned(i)
+        self.store(i)
     }
 
     pub(super) fn range(&self, x: u32) -> Option<(u32, u32)> {
@@ -776,7 +776,7 @@ impl Em<'_, '_, '_> {
         if self.fat_local_ref(self.ty(i)) {
             self.owned_refs.insert(i);
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// One count less on the child frame in local `c`, which the frame
@@ -1142,7 +1142,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(*l);
             }
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// Opens a shielded point's block (`crates/hd_wasm/DESIGN.md` §14.6,

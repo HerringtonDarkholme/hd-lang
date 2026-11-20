@@ -12,7 +12,7 @@
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -281,11 +281,14 @@
     ;; 28 |     *d
     local.tee $change.1
     i32.load $heap
-    local.tee $change.0
     local.get $change.1
     i32.load $heap offset=4
-    local.tee $change.1
-    call $rt:retain
+    local.set $change.1
+    local.tee $change.0
+    if
+      local.get $change.0
+      call $retain
+    end
     local.get $t2
     if
       local.get $t2
@@ -385,11 +388,14 @@
     ;; 35 |     *d
     local.tee $t0
     i32.load $heap
-    local.tee $change.0
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t0
-    call $rt:retain
+    local.set $t0
+    local.tee $change.0
+    if
+      local.get $change.0
+      call $retain
+    end
     local.get $t2
     if
       local.get $t2

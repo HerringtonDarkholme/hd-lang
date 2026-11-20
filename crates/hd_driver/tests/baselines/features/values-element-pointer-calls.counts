@@ -43,7 +43,7 @@ fn save(node: &Node, k: &mut Keeper) -> void:
 >   copy List[*app.main.Node] (second owner)
 >   release List[*app.main.Node] (last use)
         keep(*e, k)
->   retain counted reference (stored)
+>   retain *app.main.Node (stored)
 
 pub fn run(root: *Node) -> i64:
     let mut total = Total { sum: 0 }

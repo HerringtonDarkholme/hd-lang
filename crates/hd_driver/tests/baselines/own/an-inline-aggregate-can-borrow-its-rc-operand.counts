@@ -95,7 +95,7 @@ fn replaced_optional(input: Names) -> usize:
 fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
     holder := Wrapped { values: *p, n: 1 }
 > app/main/behind_pointer
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
     alias.second = "fresh"
 >   release counted reference (overwritten)
@@ -312,7 +312,7 @@ fn replaced_optional(input: Names) -> usize:
 fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
     holder := Wrapped { values: *p, n: 1 }
 > app/main/behind_pointer
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
     alias.second = "fresh"
 >   release counted reference (overwritten)
@@ -525,7 +525,7 @@ fn replaced_optional(input: Names) -> usize:
 fn behind_pointer(p: *mut Names, alias: *mut Names) -> usize:
     holder := Wrapped { values: *p, n: 1 }
 > app/main/behind_pointer
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
     alias.second = "fresh"
 >   release counted reference (overwritten)
     churn := p.first + "!"

@@ -22,7 +22,8 @@ impl Supplier for Constant:
 >   local $0 self: &Constant [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .value] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept [$0]
 
 fn first[T < Supplier](source: T) -> T::Item:
@@ -92,21 +93,22 @@ fn read_const(c: Constant) -> usize:
 >   local $0 c: Constant [param read captured] place
 >   local $1 $ref: &Constant [read assigned captured] value
 >     uses $1: %3 -> %4 lend last
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     read(&c)
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Constant
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read copy [$1] : &Constant
->   %5 = Coerce %4 [RefToTraitValue -] : Supplier
->   %6 = LoanEnd [%4] : ()
->   %7 = Block %5 : Supplier
->   %8 = RefDyn %7 : &dyn Supplier
->   %9 = Call app/main/read[] (%8) : usize
->   %10 = Drop [%8] : ()
->   %11 = LoanEnd [$1] : ()
->   %12 = Drop [$0] : ()
->   %13 = Block %9 : usize
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Coerce %4 [RefToTraitValue -] : Supplier
+>   %7 = LoanEnd [%4] : ()
+>   %8 = Block %6 : Supplier
+>   %9 = RefDyn %8 : &dyn Supplier
+>   %10 = Call app/main/read[] (%9) : usize
+>   %11 = Drop [%9] : ()
+>   %12 = LoanEnd [$1] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

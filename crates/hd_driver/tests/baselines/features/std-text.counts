@@ -12,7 +12,7 @@ fn build(parts: &List[string]) -> string:
 > app/main/build
 >   release *mut std.text.StringBuilder (last use)
     for p in parts:
->   copy counted reference (second owner)
+>   copy List[string] (second owner)
 >   release List[string] (last use)
         sb.push(p)
         sb.push(",")

@@ -18,5 +18,5 @@ fn probe() -> (string, string):
     run_plain(fn() -> void: p.value = "b")
 >   release counted reference (overwritten)
     (*r, p.value)
->   retain counted reference (stored)
+>   retain string (stored)
 >   retain string (stored)

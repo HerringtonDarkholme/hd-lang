@@ -22,7 +22,8 @@ impl Animal for Pup:
 >   local $0 self: &Pup [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept [$0]
 
 impl Dog for Pup:
@@ -131,25 +132,26 @@ fn use_pup(p: Pup) -> usize:
 >   local $0 p: Pup [param read captured] place
 >   local $1 $ref: &Pup [read assigned captured] value
 >     uses $1: %3 -> %4 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %18 Entry local $0 #0 : ()
     widen(&p) + loud(p)
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Pup
 >   %3 = Store [$1] %2 : ()
 >   %4 = Read copy [$1] : &Pup
->   %5 = Coerce %4 [RefToTraitValue -] : Dog
->   %6 = LoanEnd [%4] : ()
->   %7 = Block %5 : Dog
->   %8 = RefDyn %7 : &dyn Dog
->   %9 = Call app/main/widen[] (%8) : usize
->   %10 = Drop [%8] : ()
->   %11 = LoanEnd [$1] : ()
->   %12 = Read move [$0] : Pup
->   %13 = Call app/main/loud[Pup] (%12) : usize
->   %14 = Retain %13 Operation operand 0 #0 : ()
->   %15 = Drop [%12] : ()
->   %16 = Prim Add [%9 %13] : usize
->   %17 = Block %16 : usize
+>   %5 = Retain %4 Value #0 : ()
+>   %6 = Coerce %4 [RefToTraitValue -] : Dog
+>   %7 = LoanEnd [%4] : ()
+>   %8 = Block %6 : Dog
+>   %9 = RefDyn %8 : &dyn Dog
+>   %10 = Call app/main/widen[] (%9) : usize
+>   %11 = Drop [%9] : ()
+>   %12 = LoanEnd [$1] : ()
+>   %13 = Read move [$0] : Pup
+>   %14 = Call app/main/loud[Pup] (%13) : usize
+>   %15 = Retain %14 Operation operand 0 #0 : ()
+>   %16 = Drop [%13] : ()
+>   %17 = Prim Add [%10 %14] : usize
+>   %18 = Block %17 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

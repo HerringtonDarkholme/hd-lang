@@ -107,23 +107,12 @@ pub(super) fn bare_local(b: &hd_tir::ir::Body, word: u32) -> usize {
 }
 
 /// Pushes a reference to a memory-backed representation. A fat reference
-/// reads the stored data/vtable pair; its permission decides whether this
-/// operation borrows the pair or takes an independent count. Keep this
-/// representation operation separate from place discovery and result storage.
-fn project_reference(
-    function: &mut crate::module::Func,
-    at: u32,
-    value: &RefLayout,
-    fat: bool,
-    counted: bool,
-) {
+/// reads the stored data/vtable pair, lent: a counted one's count is its
+/// stated `Retain` (`hd_tir::own::retains`). Keep this representation
+/// operation separate from place discovery and result storage.
+fn project_reference(function: &mut crate::module::Func, at: u32, value: &RefLayout, fat: bool) {
     if fat {
-        let locals = if counted {
-            rt::ref_load(function, at, value)
-        } else {
-            rt::ref_lend(function, at, value)
-        };
-        for local in locals {
+        for local in rt::ref_lend(function, at, value) {
             function.get(local);
         }
     } else {
@@ -303,7 +292,7 @@ impl Em<'_, '_, '_> {
         for &k in &part.slots {
             self.f.get(ls[k]);
         }
-        self.store_owned(i)?;
+        self.store(i)?;
         if let Some((zeroed, repairs)) = empty {
             for k in zeroed {
                 self.f.zero(ls[k]);
@@ -537,7 +526,7 @@ impl Em<'_, '_, '_> {
             if self.is_cell(x) && !fat {
                 let at = self.cell_of(x)?;
                 self.f.get(at);
-                self.store_owned(i)?;
+                self.store(i)?;
                 self.f.zero(at);
                 return Ok(());
             }
@@ -685,7 +674,7 @@ impl Em<'_, '_, '_> {
         }
         let at = self.m.static_record(&bytes, m.align, &pointers);
         self.f.static_addr(at);
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// The rest of `Ref` `i` when `steps` go through a variant's payload
@@ -726,7 +715,7 @@ impl Em<'_, '_, '_> {
             self.f.u32(offset);
             self.f.op(I::I32Add);
         }
-        self.store_owned(i)?;
+        self.store(i)?;
         Ok(())
     }
 
@@ -742,9 +731,8 @@ impl Em<'_, '_, '_> {
         fat: bool,
     ) -> StageResult<()> {
         let at = self.offset_local(at, off);
-        let counted = fat && self.counted(self.ty(i)).is_some();
-        project_reference(&mut self.f, at, field, fat, counted);
-        self.store_owned(i)?;
+        project_reference(&mut self.f, at, field, fat);
+        self.store(i)?;
         Ok(())
     }
 
@@ -782,8 +770,8 @@ impl Em<'_, '_, '_> {
         match value {
             ValueAt::Mem(at, _) if fat => {
                 let value = self.ref_layout(ty)?;
-                self.fat_ref_through(i, at, &value);
-                self.store_owned(i)?;
+                project_reference(&mut self.f, at, &value, true);
+                self.store(i)?;
                 return Ok(());
             }
             ValueAt::Mem(at, _) => {
@@ -828,7 +816,7 @@ impl Em<'_, '_, '_> {
                 if self.local_ref(self.ty(i)) {
                     self.owned_refs.insert(i);
                 }
-                return self.store_owned(i);
+                return self.store(i);
             }
         }
         self.store(i)
@@ -887,14 +875,11 @@ impl Em<'_, '_, '_> {
                     );
                     return Ok(());
                 }
-                if self.loans.contains(&i) {
-                    for l in rt::ref_lend(&mut self.f, r, &value) {
-                        self.f.get(l);
-                    }
-                } else {
-                    self.load_through(r, &value);
+                // A copy's count is its stated `Retain` (`Em::own_retain`).
+                for l in rt::ref_lend(&mut self.f, r, &value) {
+                    self.f.get(l);
                 }
-                self.store_owned(i)?;
+                self.store(i)?;
             } else if let Some(fields) = fields {
                 let declared = self.declared_referent(&p, d)?;
                 let (_, part) = self.fold_path(declared, &fields)?;
@@ -962,7 +947,7 @@ impl Em<'_, '_, '_> {
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
         let c = self.cell_of(l)?;
         self.f.push_leaves(c, &leaves);
-        self.store_owned(i)?;
+        self.store(i)?;
         if self.needs_drop(pt) {
             for leaf in &leaves {
                 self.f.get(c);
@@ -980,22 +965,6 @@ impl Em<'_, '_, '_> {
         self.f
             .push_leaves(at, &value.leaves[part.first..part.first + part.count]);
         self.store(dest)
-    }
-
-    /// Pushes fat `Ref` `i`, the trait value that the reference in local
-    /// `at` names: lent when `i` is a `&dyn`, a local reference, which
-    /// counts nothing (`ref.count.local`), else with counts of its own.
-    fn fat_ref_through(&mut self, i: u32, at: u32, value: &RefLayout) {
-        let counted = self.counted(self.ty(i)).is_some();
-        project_reference(&mut self.f, at, value, true, counted);
-    }
-
-    /// Pushes the value that the reference in local `at` names, with
-    /// counts of its own ([`rt::ref_load`]).
-    fn load_through(&mut self, at: u32, value: &RefLayout) {
-        for l in rt::ref_load(&mut self.f, at, value) {
-            self.f.get(l);
-        }
     }
 
     /// `Store` `i`: replaces the value at its place ([`Em::replace`]),
@@ -1610,11 +1579,11 @@ mod tests {
     use hd_tir::ir::{BodyKind, Place, PlaceRoot, Proj, Ref, TirBuilder, place};
 
     #[test]
-    fn memory_trait_value_projection_loads_both_leaves_and_counts_only_copies() {
+    fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
         use crate::layout::{Leaf, Walk};
-        use crate::module::{Func, Ins, Sym, Val};
+        use crate::module::{Func, Ins, Val};
         use crate::op::Op;
-        use crate::rt::{Helper, RefLayout};
+        use crate::rt::RefLayout;
 
         // A legal backend representation: two i32 leaves in memory,
         // data first and vtable second, with a count on the data address.
@@ -1634,10 +1603,10 @@ mod tests {
             drops: Box::default(),
             colls: Box::default(),
         };
-        for (fat, counted) in [(false, false), (true, false), (true, true)] {
+        for fat in [false, true] {
             let mut function = Func::default();
             let address = function.local(Val::I32);
-            super::project_reference(&mut function, address, &value, fat, counted);
+            super::project_reference(&mut function, address, &value, fat);
             let loads: Vec<_> = function
                 .body
                 .iter()
@@ -1661,17 +1630,8 @@ mod tests {
                     }
                 })
                 .collect();
-            if counted {
-                assert_eq!(
-                    calls,
-                    vec![Sym::Helper(Helper::Retain {
-                        vals: vec![Val::I32, Val::I32],
-                        walk: Walk::Ref(0),
-                    })]
-                );
-            } else {
-                assert!(calls.is_empty(), "a loan must not acquire a count");
-            }
+            // A counted reference's count is its stated `Retain`.
+            assert!(calls.is_empty(), "a projection must not acquire a count");
             let results = if fat { 2 } else { 1 };
             assert!(
                 function

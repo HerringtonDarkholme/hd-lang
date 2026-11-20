@@ -18,7 +18,8 @@ impl Describe for Logger:
 >   local $0 self: &Logger [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept [$0]
 
 struct Service:
@@ -35,11 +36,12 @@ impl Describe for Service by Logger
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$1] %0 : ()
 >   %3 = Read copy [$1 .name] : string
->   %4 = Break L0 %3 : never
->   %5 = Block - : string
->   %6 = Scope %5 [] : string
->   %7 = LoanClose %1 : ()
->   %8 = Block %6 : string
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Break L0 %3 : never
+>   %6 = Block - : string
+>   %7 = Scope %6 [] : string
+>   %8 = LoanClose %1 : ()
+>   %9 = Block %7 : string
 >   summary kept []
 
 fn delegated(s: Service) -> usize:

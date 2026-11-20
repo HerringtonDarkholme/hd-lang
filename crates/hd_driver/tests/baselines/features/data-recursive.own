@@ -38,33 +38,33 @@ fn total(head: *Chain?) -> usize:
 >   local $1 n: usize [read assigned mutated] place
 >   local $2 cur: *Chain? [read assigned mutated] place
 >   local $3 c: *Chain [read assigned] value
->     uses $3: %24 -> %6 lend, %17 lend last
+>     uses $3: %25 -> %6 lend, %17 lend last
 >   local $4 self: string [read] value
 >     uses $4: %8 -> %9 lend last
->   %0 = Retain %40 Entry local $0 #0 : ()
+>   %0 = Retain %41 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %40 = Block %39 : usize
+>   %41 = Block %40 : usize
     let cur = head
 >   %2 = Read move [$0] : *Chain?
 >   %3 = Store [$2] %2 : ()
     while true:
->   %33 = Break L0 - : never
->   %34 = Block - : ()
->   %35 = If 1:bool [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Drop [$2] : ()
+>   %34 = Break L0 - : never
+>   %35 = Block - : ()
+>   %36 = If 1:bool [%33 %35] : ()
+>   %37 = Block - : ()
+>   %38 = Loop %37 - : ()
+>   %39 = Drop [$2] : ()
         match cur:
 >   %4 = Read borrow [$2] : *Chain?
->   %30 = Block - : never
->   %31 = Match %4 [%30 %20 %22] : ()
->   %32 = Block - : ()
+>   %31 = Block - : never
+>   %32 = Match %4 [%31 %21 %23] : ()
+>   %33 = Block - : ()
             .Some(c) =>
->   %23 = Read borrow [%4 as #1 .0] : *Chain
->   %24 = Store [$3] %23 : ()
->   %26 = Block - : never
->   %29 = SwitchTag %4 [#1 %26 %28] : never
+>   %24 = Read borrow [%4 as #1 .0] : *Chain
+>   %25 = Store [$3] %24 : ()
+>   %27 = Block - : never
+>   %30 = SwitchTag %4 [#1 %27 %29] : never
                 n += c.name.len()
 >   %5 = Read copy [$1] : usize
 >   %6 = Read borrow [*$3 .name] : string
@@ -78,15 +78,16 @@ fn total(head: *Chain?) -> usize:
 >   %14 = LoanClose %7 : ()
 >   %15 = Prim Add [%5 %13] : usize
 >   %16 = Store [$1] %15 : ()
->   %20 = Block - : ()
+>   %21 = Block - : ()
                 cur = c.next
 >   %17 = Read copy [*$3 .next] : *Chain?
->   %18 = Store [$2] %17 : ()
->   %19 = Release %18 Operation #3 : ()
+>   %18 = Retain %17 Value #0 : ()
+>   %19 = Store [$2] %17 : ()
+>   %20 = Release %19 Operation #3 : ()
             .None => break
->   %21 = Break L0 - : never
->   %22 = Block - : never
+>   %22 = Break L0 - : never
+>   %23 = Block - : never
     n
->   %39 = Read copy [$1] : usize
+>   %40 = Read copy [$1] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

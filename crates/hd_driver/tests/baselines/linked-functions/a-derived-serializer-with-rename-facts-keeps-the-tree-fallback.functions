@@ -185,7 +185,6 @@ rt:retain#0
 rt:retain#1
 rt:retain#2
 rt:retain#3
-rt:retain#4
 rt:release#0
 rt:release#1
 rt:release#2

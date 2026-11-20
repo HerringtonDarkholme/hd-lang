@@ -36,6 +36,8 @@
     local.get $t0
     call $mk
     ;; 64 |     let n = take(a)
+    local.get $t0
+    call $rt:retain_at
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -54,8 +56,6 @@
     local.get $t0
     i32.const 88
     memory.copy $heap $heap
-    local.get $x
-    call $rt:retain_at
     local.get $x
     call $take
     local.get $x
@@ -533,6 +533,8 @@
     local.get $t0
     call $mk
     ;; 47 |     let n = take(b)
+    local.get $t0
+    call $rt:retain_at
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -551,8 +553,6 @@
     local.get $t0
     i32.const 88
     memory.copy $heap $heap
-    local.get $x
-    call $rt:retain_at
     local.get $x
     call $take
     local.get $x

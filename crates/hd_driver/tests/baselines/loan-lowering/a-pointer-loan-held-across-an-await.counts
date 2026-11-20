@@ -48,7 +48,7 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
     *value
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main!() -> void $ Console + Clock:
     p := box(Slots { items: ["held"] })
@@ -124,7 +124,7 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
     *value
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn main!() -> void $ Console + Clock:
     p := box(Slots { items: ["held"] })

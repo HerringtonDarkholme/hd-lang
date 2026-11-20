@@ -164,17 +164,17 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %3 lend, %11 lend
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %2 -> %17 lend, %31 consume last
+>     uses $1: %2 -> %18 lend, %32 consume last
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
 >     uses $5: %5 -> %8 lend
 >   local $6 x: string [read assigned] value
->     uses $6: %21 -> %15 consume last
->   %0 = Release %32 Exit local $0 #2 : ()
+>     uses $6: %22 -> %15 consume last
+>   %0 = Release %33 Exit local $0 #2 : ()
     let mut out: List[string] = []
 >   %1 = NewList - [] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %32 = Block %31 : List[string]
+>   %33 = Block %32 : List[string]
     for x in xs:
 >   %3 = Read borrow [$0] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -188,26 +188,27 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %12 = Read copy [$4] : usize
 >   %13 = Prim Add [%12 1:usize] : usize
 >   %14 = Store [$4] %13 : ()
->   %19 = Block - : ()
->   %20 = Read borrow [%11] : string
->   %21 = Store [$6] %20 : ()
->   %23 = Block - : never
->   %24 = Match %11 [%23 %19] : ()
->   %25 = Block - : ()
->   %26 = Break L0 - : never
->   %27 = Block - : ()
->   %28 = If %9 [%25 %27] : ()
->   %29 = Block - : ()
->   %30 = Loop %29 - : ()
+>   %20 = Block - : ()
+>   %21 = Read borrow [%11] : string
+>   %22 = Store [$6] %21 : ()
+>   %24 = Block - : never
+>   %25 = Match %11 [%24 %20] : ()
+>   %26 = Block - : ()
+>   %27 = Break L0 - : never
+>   %28 = Block - : ()
+>   %29 = If %9 [%26 %28] : ()
+>   %30 = Block - : ()
+>   %31 = Loop %30 - : ()
         out.push(x)
 >   %15 = Read copy [$6] : string
->   %16 = IsUnique fresh [$1] : ()
->   %17 = Read borrow [$1] : List[string]
->   %18 = Intrinsic ListPush [%17 %15] : ()
+>   %16 = Retain %15 Value #0 : ()
+>   %17 = IsUnique fresh [$1] : ()
+>   %18 = Read borrow [$1] : List[string]
+>   %19 = Intrinsic ListPush [%18 %15] : ()
     out
->   %31 = Read move [$1] : List[string]
+>   %32 = Read move [$1] : List[string]
 >   summary kept [] borrows [$0]
->   loop %30 keeps len [$0] (-..-)
+>   loop %31 keeps len [$0] (-..-)
 
 fn comprehension(xs: List[string]) -> List[usize]:
 > app/main/comprehension

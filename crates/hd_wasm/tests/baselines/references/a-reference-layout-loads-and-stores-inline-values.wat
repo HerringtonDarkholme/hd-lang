@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i64 f64)))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32 i32 i64 f64)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $store (param $target i32) (param $replacement.label.0 i32) (param $replacement.label.1 i32) (param $replacement.tags i32) (param $replacement.id i64) (param $replacement.weight f64)
     ;; 13 |     *target = replacement
@@ -33,30 +33,34 @@
     f64.store $heap offset=16
     call $rt:release
   )
-  (func $copy (param $source i32) (result i32 i32 i32 i64 f64) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 f64)
+  (func $copy (param $source i32) (result i32 i32 i32 i64 f64) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 f64) (local $t4 i32)
     ;; 10 |     *source
     local.get $source
     i32.load $heap
-    local.tee $t0
     local.get $source
     i32.load $heap offset=4
-    local.tee $t1
+    local.set $t0
     local.get $source
     i32.load $heap offset=24
+    local.set $t1
     local.get $source
     i64.load $heap offset=8
     local.set $t2
     local.get $source
     f64.load $heap offset=16
     local.set $t3
-    call $rt:coll_copy
     local.tee $source
-    local.get $t2
-    local.get $t3
-    call $rt:retain
+    local.get $t1
+    call $rt:coll_copy
+    local.set $t1
+    local.tee $t4
+    if
+      local.get $t4
+      call $retain
+    end
+    local.get $source
     local.get $t0
     local.get $t1
-    local.get $source
     local.get $t2
     local.get $t3
   )

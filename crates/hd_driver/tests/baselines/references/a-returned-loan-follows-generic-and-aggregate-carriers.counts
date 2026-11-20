@@ -39,7 +39,7 @@ pub fn through_generic(p: *mut Slots, alias: *mut Slots) -> string:
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held._1
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
@@ -50,7 +50,7 @@ pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> stri
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
@@ -60,7 +60,7 @@ pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held
->   retain counted reference (stored)
+>   retain string (stored)
 == @build: release
 # @dump: wat counts
 # @build: dev | release
@@ -100,7 +100,7 @@ pub fn through_generic(p: *mut Slots, alias: *mut Slots) -> string:
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held._1
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> string:
     held := optional(.Some(p.get_ref().expect("slot")), q.get_ref().expect("slot"))
@@ -110,7 +110,7 @@ pub fn through_optional(p: *mut Slots, q: *mut Slots, alias: *mut Slots) -> stri
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held
->   retain counted reference (stored)
+>   retain string (stored)
 
 pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
     held := unwrap(Carrier { padding: 42, value: p.get_ref().expect("slot") })
@@ -119,4 +119,4 @@ pub fn through_struct(p: *mut Slots, alias: *mut Slots) -> string:
     alias.items.push("grown")
 >   unique List[string] (may be shared)
     *held
->   retain counted reference (stored)
+>   retain string (stored)

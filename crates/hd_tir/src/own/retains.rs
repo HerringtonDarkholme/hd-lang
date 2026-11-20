@@ -18,15 +18,23 @@ pub(super) fn plan(
 ) -> Result<(), String> {
     let results = results(b, cx, topo);
     let returned = returned_ends(b, cx, topo, Tag::Drop);
+    let mut consumers = Vec::new();
+    super::consumers(b, topo, cx, &mut consumers);
+    let record = Info::new(At::Value, Part::Result, 0).write(b);
     for (i, &retained) in results.iter().enumerate() {
-        if !retained {
+        if !retained && !copied(b, cx, &consumers, i) {
+            if let Some((blk, at, v)) = tail_copy(b, cx, topo, &consumers, i) {
+                edits.insert(blk, at, Tag::Retain, [v, record], Ty::VOID, b.syn[i]);
+            }
             continue;
         }
         let block = topo.blk[i];
         if block == NONE {
             return Err("a retained borrowed result outside a block".into());
         }
-        if let Some(drop) = returned[i].or_else(|| handed(b, cx, topo, &results, i, Tag::Drop)) {
+        if retained
+            && let Some(drop) = returned[i].or_else(|| handed(b, cx, topo, &results, i, Tag::Drop))
+        {
             b.tags[drop as usize] = Tag::LoanEnd;
             continue;
         }
@@ -39,7 +47,6 @@ pub(super) fn plan(
         }
         // Stored: the result keeps a reference to the borrowed source.
         // A string slice's empty form points at static storage.
-        let record = Info::new(At::Value, Part::Result, 0).write(b);
         edits.insert(
             block,
             position,
@@ -50,6 +57,54 @@ pub(super) fn plan(
         );
     }
     Ok(())
+}
+
+/// Whether value `i` is a copy whose count is stated after it, as Swift's
+/// `OwnershipModelEliminator` splits `load [copy]` into `load` and
+/// `strong_retain`: a `copy` read, a trait value reference to a place
+/// that keeps its own count, or a coercion that keeps its operand's
+/// value without taking it ([`super::consumers`]).
+fn copied(b: &Body, cx: &dyn OwnCx, consumers: &[u32], i: usize) -> bool {
+    let [a, w] = b.data[i];
+    let copy = match b.tags[i] {
+        Tag::Read => w == ReadMode::Copy as u32,
+        Tag::Ref => matches!(cx.reference_target(b.ty[i]), Some(t) if cx.trait_value(t)),
+        Tag::Coerce => b.same_value_coercion(i) && consumers.get(a as usize) != Some(&u32_of(i)),
+        _ => false,
+    };
+    copy && super::tracked(b, cx, i)
+}
+
+/// The `Retain` of a block's tail, or a `Break`'s value, that its block
+/// does not take (the tail has another consumer): at the block's end, or
+/// right before the `Break`, as (block, position, value). `None` for any
+/// other instruction, a sub-body's root, and a borrowed block value.
+fn tail_copy(
+    b: &Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    consumers: &[u32],
+    i: usize,
+) -> Option<(u32, u32, u32)> {
+    let (value, block, position, target) = match b.tags[i] {
+        Tag::Block if !topo.is_root[i] => {
+            let n = b.record(b.data[i][0]).len();
+            (b.data[i][1], u32_of(i), u32_of(n), topo.owner[i])
+        }
+        Tag::Break => {
+            let target = *b.label_inst.get(b.data[i][0] as usize)?;
+            (b.data[i][1], topo.blk[i], topo.pos[i], target)
+        }
+        _ => return None,
+    };
+    let v = Ref(value).as_inst()?.0 as usize;
+    let user = u32_of(i);
+    (block != NONE
+        && consumers.get(v) != Some(&user)
+        && super::tracked(b, cx, v)
+        && !b.is_borrowed_coercion(user)
+        && (target == NONE || !b.is_borrowed_coercion(target)))
+    .then_some((block, position, u32_of(v)))
 }
 
 #[cfg(test)]

@@ -89,21 +89,22 @@ fn copied(n: usize) -> List[i32]:
 > app/main/copied
 >   local $1 items: List[i32] [read assigned] place
 >   local $2 other: List[i32] [:= read assigned] value
->     uses $2: %3 -> %7 lend last
+>     uses $2: %4 -> %8 lend last
 >   %0 = NewList - [1:i32] : List[i32]
 >   %1 = Store [$1] %0 : ()
->   %12 = Block %11 : List[i32]
+>   %13 = Block %12 : List[i32]
     other := items
 >   %2 = Read copy [$1] : List[i32]
->   %3 = Store [$2] %2 : ()
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Store [$2] %2 : ()
     items.push(+2)
->   %4 = IsUnique [$1] : ()
->   %5 = Read borrow [$1] : List[i32]
->   %6 = Intrinsic ListPush [%5 2:i32] : ()
+>   %5 = IsUnique [$1] : ()
+>   %6 = Read borrow [$1] : List[i32]
+>   %7 = Intrinsic ListPush [%6 2:i32] : ()
     items[0] = other[0]
->   %7 = Read copy [$2 [0:usize]] : i32
->   %8 = Drop [$2] : ()
->   %9 = IsUnique [$1] : ()
->   %10 = Store [$1 [0:usize]] %7 : ()
+>   %8 = Read copy [$2 [0:usize]] : i32
+>   %9 = Drop [$2] : ()
+>   %10 = IsUnique [$1] : ()
+>   %11 = Store [$1 [0:usize]] %8 : ()
     items
->   %11 = Read move [$1] : List[i32]
+>   %12 = Read move [$1] : List[i32]

@@ -35,14 +35,15 @@ impl[T] Members[T]:
 >     uses $0: entry -> %3 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 lend last
->   %1 = Retain %6 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $0 #0 : ()
         self.infos[i].name
 >   %0 = FlagSet [$0] #2 : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = Read copy [$0 .infos [%2] .name] : string
->   %4 = Drop [$0] : ()
->   %5 = FlagClear [$0] #2 : ()
->   %6 = Block %3 : string
+>   %4 = Retain %3 Value #0 : ()
+>   %5 = Drop [$0] : ()
+>   %6 = FlagClear [$0] #2 : ()
+>   %7 = Block %3 : string
 >   exit sub 0 drops [$0]
 
     fn y_at(self, i: usize) -> i64:
@@ -75,11 +76,12 @@ fn name_at(infos: List[Info], i: usize) -> string:
 >     uses $0: entry -> %2 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
+>   %0 = Release %4 Exit local $0 #2 : ()
     infos[i].name
 >   %1 = Read copy [$1] : usize
 >   %2 = Read copy [$0 [%1] .name] : string
->   %3 = Block %2 : string
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Block %2 : string
 
 fn y_at(points: List[Point], i: usize) -> i64:
 > app/main/y_at
@@ -112,44 +114,46 @@ fn n_at[T](xs: List[Wrap[T]], i: usize) -> usize:
 fn use_generic(m: Members[i32], xs: List[Wrap[string]], i: usize) -> i64:
 > app/main/use_generic
 >   local $0 m: Members[i32] [param read] value
->     uses $0: entry -> %2 consume, %6 consume, %21 consume last
+>     uses $0: entry -> %2 consume, %7 consume, %23 consume last
 >   local $1 xs: List[Wrap[string]] [param read] value
->     uses $1: entry -> %9 consume last
+>     uses $1: entry -> %11 consume last
 >   local $2 i: usize [param read] value
->     uses $2: entry -> %3 lend, %7 lend, %10 lend, %22 lend last
+>     uses $2: entry -> %4 lend, %9 lend, %12 lend, %24 lend last
 >   local $3 name: string [:= read assigned] value
->     uses $3: %5 -> %13 lend last
->   %0 = Retain %28 Entry local $0 #0 : ()
->   %1 = Retain %28 Entry local $1 #0 : ()
+>     uses $3: %6 -> %15 lend last
+>   %0 = Retain %30 Entry local $0 #0 : ()
+>   %1 = Retain %30 Entry local $1 #0 : ()
     name := m.name_at(i)
 >   %2 = Read copy [$0] : Members[i32]
->   %3 = Read copy [$2] : usize
->   %4 = Call app/main/impl[T] Members[T].name_at[i32] (%2, %3) : string
->   %5 = Store [$3] %4 : ()
->   %28 = Block 0:i64 : i64
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Read copy [$2] : usize
+>   %5 = Call app/main/impl[T] Members[T].name_at[i32] (%2, %4) : string
+>   %6 = Store [$3] %5 : ()
+>   %30 = Block 0:i64 : i64
     if m.position_at(i) + n_at(xs, i) + name.len() > 0:
->   %6 = Read copy [$0] : Members[i32]
->   %7 = Read copy [$2] : usize
->   %8 = Call app/main/impl[T] Members[T].position_at[i32] (%6, %7) : usize
->   %9 = Read move [$1] : List[Wrap[string]]
->   %10 = Read copy [$2] : usize
->   %11 = Call app/main/n_at[string] (%9, %10) : usize
->   %12 = Prim Add [%8 %11] : usize
->   %13 = Read borrow [$3] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
->   %15 = Break L0 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Drop [$3] : ()
->   %19 = Prim Add [%12 %17] : usize
->   %20 = Prim Gt [%19 0:usize] : bool
->   %26 = If %20 [%25 -] : ()
->   %27 = Drop [$0] : ()
+>   %7 = Read copy [$0] : Members[i32]
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Read copy [$2] : usize
+>   %10 = Call app/main/impl[T] Members[T].position_at[i32] (%7, %9) : usize
+>   %11 = Read move [$1] : List[Wrap[string]]
+>   %12 = Read copy [$2] : usize
+>   %13 = Call app/main/n_at[string] (%11, %12) : usize
+>   %14 = Prim Add [%10 %13] : usize
+>   %15 = Read borrow [$3] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   %20 = Drop [$3] : ()
+>   %21 = Prim Add [%14 %19] : usize
+>   %22 = Prim Gt [%21 0:usize] : bool
+>   %28 = If %22 [%27 -] : ()
+>   %29 = Drop [$0] : ()
         return m.y_at(i)
->   %21 = Read move [$0] : Members[i32]
->   %22 = Read copy [$2] : usize
->   %23 = Call app/main/impl[T] Members[T].y_at[i32] (%21, %22) : i64
->   %24 = Return %23 : never
->   %25 = Block - : never
+>   %23 = Read move [$0] : Members[i32]
+>   %24 = Read copy [$2] : usize
+>   %25 = Call app/main/impl[T] Members[T].y_at[i32] (%23, %24) : i64
+>   %26 = Return %25 : never
+>   %27 = Block - : never
 >   exit sub 0 drops [$0 $1]
     0

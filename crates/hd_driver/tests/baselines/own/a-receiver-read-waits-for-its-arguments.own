@@ -106,19 +106,20 @@ fn changed_by_argument(items: List[Info]) -> usize:
 >   local $0 items: List[Info] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 m: Members [read assigned captured captured-assigned] place
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     let mut m = Members { infos: items }
 >   %1 = Read move [$0] : List[Info]
 >   %2 = NewStruct [%1] : Members
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()
->   %11 = Block %10 : usize
+>   %12 = Block %11 : usize
     m.at(m.pop())
 >   %5 = Read copy [$1] : Members
->   %6 = Ref mut local frame [$1] : &mut Members
->   %7 = Call app/main/impl Members.pop[] (%6) : usize
->   %8 = LoanEnd [%6] : ()
->   %9 = Drop [$1] : ()
->   %10 = Call app/main/impl Members.at[] (%5, %7) : usize
+>   %6 = Retain %5 Value #0 : ()
+>   %7 = Ref mut local frame [$1] : &mut Members
+>   %8 = Call app/main/impl Members.pop[] (%7) : usize
+>   %9 = LoanEnd [%7] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Call app/main/impl Members.at[] (%5, %8) : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot

@@ -113,31 +113,32 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %13 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: &mut User [read assigned captured] value
 >     uses $3: %6 -> %7 lend last
->   %0 = Release %18 Exit local $1 #2 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Release %19 Exit local $1 #2 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
     let mut v = u
 >   %2 = Read move [$0] : User
 >   %3 = Box #2 #0 : ()
 >   %4 = Store [$2] %2 : ()
->   %18 = Block %13 : usize
+>   %19 = Block %14 : usize
     through_mut(&mut v, n)
 >   %5 = Ref mut local frame [$2] : &mut User
 >   %6 = Store [$3] %5 : ()
 >   %7 = Read copy [$3] : &mut User
->   %8 = Coerce %7 [RefToTraitValue -] : Greet
->   %9 = LoanEnd [%7] : ()
->   %10 = Block %8 : Greet
->   %11 = RefDyn %10 : &mut dyn Greet
->   %12 = Read borrow [$1] : string
->   %13 = Call app/main/through_mut[] (%11, %12) : usize
->   %14 = Retain %13 Operation operand 1 #0 : ()
->   %15 = Drop [%11] : ()
->   %16 = LoanEnd [$3] : ()
->   %17 = Drop [$2] : ()
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Coerce %7 [RefToTraitValue -] : Greet
+>   %10 = LoanEnd [%7] : ()
+>   %11 = Block %9 : Greet
+>   %12 = RefDyn %11 : &mut dyn Greet
+>   %13 = Read borrow [$1] : string
+>   %14 = Call app/main/through_mut[] (%12, %13) : usize
+>   %15 = Retain %14 Operation operand 1 #0 : ()
+>   %16 = Drop [%12] : ()
+>   %17 = LoanEnd [$3] : ()
+>   %18 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 >   summary kept [$0] borrows [$1] writes

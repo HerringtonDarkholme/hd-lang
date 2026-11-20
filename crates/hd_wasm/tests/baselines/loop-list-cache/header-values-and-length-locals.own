@@ -413,9 +413,9 @@ pub fn main() -> void $ Console:
 >   %0 = NewList - [1:i64 2:i64 3:i64] : List[i64]
 >   %1 = Box #0 #0 : ()
 >   %2 = Store [$0] %0 : ()
->   %20 = Box #1 #0 : ()
->   %32 = Box #2 #0 : ()
->   %39 = Block - : ()
+>   %21 = Box #1 #0 : ()
+>   %34 = Box #2 #0 : ()
+>   %41 = Block - : ()
     println(twice(&mut xs))
 >   %3 = Ref mut local frame [$0] : &mut List[i64]
 >   %4 = Call app/main/twice[] (%3) : i64
@@ -437,27 +437,29 @@ pub fn main() -> void $ Console:
 >   %17 = Call std/console/println[i64] (%14) : ()
     let mut ns = ["a", "b"]
 >   %18 = Coerce "a" [Identity -] : string
->   %19 = NewList - [%18 "b"] : List[string]
->   %21 = Store [$1] %19 : ()
+>   %19 = Retain %18 Value #0 : ()
+>   %20 = NewList - [%18 "b"] : List[string]
+>   %22 = Store [$1] %20 : ()
     names(&mut ns)
->   %22 = Ref mut local frame [$1] : &mut List[string]
->   %23 = Call app/main/names[] (%22) : ()
->   %24 = LoanEnd [%22] : ()
+>   %23 = Ref mut local frame [$1] : &mut List[string]
+>   %24 = Call app/main/names[] (%23) : ()
+>   %25 = LoanEnd [%23] : ()
     println(ns[0])
->   %25 = Read copy [$1 [0:usize]] : string
->   %26 = Drop [$1] : ()
->   %27 = Call std/console/println[string] (%25) : ()
->   %28 = Retain %27 Operation operand 0 #0 : ()
->   %29 = Drop [%25] : ()
+>   %26 = Read copy [$1 [0:usize]] : string
+>   %27 = Retain %26 Value #0 : ()
+>   %28 = Drop [$1] : ()
+>   %29 = Call std/console/println[string] (%26) : ()
+>   %30 = Retain %29 Operation operand 0 #0 : ()
+>   %31 = Drop [%26] : ()
     h := Holder { xs: [4, 5] }
->   %30 = NewList - [4:i32 5:i32] : List[i32]
->   %31 = NewStruct [%30] : Holder
->   %33 = Store [$2] %31 : ()
+>   %32 = NewList - [4:i32 5:i32] : List[i32]
+>   %33 = NewStruct [%32] : Holder
+>   %35 = Store [$2] %33 : ()
     println(field(&h))
->   %34 = Ref local frame [$2] : &Holder
->   %35 = Call app/main/field[] (%34) : i32
->   %36 = LoanEnd [%34] : ()
->   %37 = Drop [$2] : ()
->   %38 = Call std/console/println[i32] (%35) : ()
+>   %36 = Ref local frame [$2] : &Holder
+>   %37 = Call app/main/field[] (%36) : i32
+>   %38 = LoanEnd [%36] : ()
+>   %39 = Drop [$2] : ()
+>   %40 = Call std/console/println[i32] (%37) : ()
 >   storage sub 0: $0 slot, $1 slot, $2 slot
 >   summary kept [] writes

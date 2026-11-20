@@ -79,7 +79,6 @@ rt:alloc_class/1
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:retain
 rt:release_ref
 rt:release_drain
 rt:list_buf

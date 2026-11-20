@@ -67,12 +67,13 @@ fn write_ptr(p: *mut Node, n: string) -> void:
 fn share(p: *Node) -> (*Node, *Node):
 > app/main/share
 >   local $0 p: *Node [param read] value
->     uses $0: entry -> %1 consume, %2 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 consume, %3 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
     (p, p)
 >   %1 = Read copy [$0] : *Node
->   %2 = Read move [$0] : *Node
->   %3 = NewTuple - [%2 %1] : (*Node, *Node)
->   %4 = Block %3 : (*Node, *Node)
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Read move [$0] : *Node
+>   %4 = NewTuple - [%3 %1] : (*Node, *Node)
+>   %5 = Block %4 : (*Node, *Node)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

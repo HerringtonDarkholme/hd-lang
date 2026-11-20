@@ -11,7 +11,7 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 17))
@@ -328,11 +328,14 @@
     ;; 26 |         return *value
         local.get $value
         i32.load $heap
-        local.tee $alias
         local.get $value
         i32.load $heap offset=4
+        local.set $alias
         local.tee $early
-        call $rt:retain
+        if
+          local.get $early
+          call $retain
+        end
         local.get $t0
         if
           local.get $t0
@@ -359,11 +362,14 @@
     ;; 27 |     *value
       local.get $value
       i32.load $heap
-      local.tee $alias
       local.get $value
       i32.load $heap offset=4
+      local.set $alias
       local.tee $early
-      call $rt:retain
+      if
+        local.get $early
+        call $retain
+      end
       local.get $t0
       if
         local.get $t0
@@ -397,8 +403,8 @@
         call $rt:release_ref
       end
     end
-    local.get $alias
     local.get $early
+    local.get $alias
   )
   (func $"impl Slots.first" (param $self i32) (result i32)
     ;; 11 |         &self.items[0]
@@ -430,7 +436,7 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "heap" (memory $heap 1))
@@ -704,11 +710,14 @@
     ;; 26 |         return *value
       local.get $p
       i32.load $heap
-      local.tee $alias
       local.get $p
       i32.load $heap offset=4
-      local.tee $p
-      call $rt:retain
+      local.set $p
+      local.tee $alias
+      if
+        local.get $alias
+        call $retain
+      end
       local.get $t0
       if
         local.get $t0
@@ -737,11 +746,14 @@
     ;; 27 |     *value
     local.get $p
     i32.load $heap
-    local.tee $alias
     local.get $p
     i32.load $heap offset=4
-    local.tee $p
-    call $rt:retain
+    local.set $p
+    local.tee $alias
+    if
+      local.get $alias
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

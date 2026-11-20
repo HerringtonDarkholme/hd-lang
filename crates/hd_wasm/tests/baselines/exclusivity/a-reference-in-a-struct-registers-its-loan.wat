@@ -3,7 +3,7 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -58,13 +58,16 @@
     call $rt:release
     ;; 15 |     *held.name
     i32.load $heap
-    local.tee $t1
     ;; 13 |     held := Held { name: &t.lead.name }
     local.get $t
     ;; 15 |     *held.name
     i32.load $heap offset=4
-    local.tee $t
-    call $rt:retain
+    local.set $t
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -187,16 +190,19 @@
     ;; 26 |         .Some(name) => *name
         local.get $t
         i32.load $heap
-        local.tee $t1
         local.get $t
         i32.load $heap offset=4
-        local.tee $t2
-        call $rt:retain
+        local.set $t2
+        local.tee $t
+        if
+          local.get $t
+          call $retain
+        end
         local.get $t0
         if
           local.get $t0
           i32.load $heap
-          local.tee $t
+          local.tee $t1
           i32.const 2031616
           i32.and
           i32.const 2031616
@@ -206,7 +212,7 @@
             call $rt:loan_unshare
           else
             local.get $t0
-            local.get $t
+            local.get $t1
             i32.const 65536
             i32.sub
             i32.store $heap
@@ -221,7 +227,7 @@
       if
         local.get $t0
         i32.load $heap
-        local.tee $t1
+        local.tee $t
         i32.const 2031616
         i32.and
         i32.const 2031616
@@ -231,7 +237,7 @@
           call $rt:loan_unshare
         else
           local.get $t0
-          local.get $t1
+          local.get $t
           i32.const 65536
           i32.sub
           i32.store $heap
@@ -240,13 +246,13 @@
         local.set $t0
       end
       i32.const 16 ;; &"heap-exhausted"
-      local.set $t1
+      local.set $t
     end
     local.get $t0
     if
       local.get $t0
       i32.load $heap
-      local.tee $t
+      local.tee $t1
       i32.const 2031616
       i32.and
       i32.const 2031616
@@ -256,7 +262,7 @@
         call $rt:loan_unshare
       else
         local.get $t0
-        local.get $t
+        local.get $t1
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -274,7 +280,7 @@
         call $rt:release_ref
       end
     end
-    local.get $t1
+    local.get $t
     local.get $t2
   )
   (func $in_tuple (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
@@ -328,13 +334,16 @@
     call $rt:release
     ;; 20 |     *held._0
     i32.load $heap
-    local.tee $t1
     ;; 18 |     held := (&t.lead.name, +1)
     local.get $t
     ;; 20 |     *held._0
     i32.load $heap offset=4
-    local.tee $t
-    call $rt:retain
+    local.set $t
+    local.tee $t1
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

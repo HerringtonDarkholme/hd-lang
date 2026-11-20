@@ -116,7 +116,6 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:retain
 rt:release#0
 rt:release#1
 rt:release_ref#0

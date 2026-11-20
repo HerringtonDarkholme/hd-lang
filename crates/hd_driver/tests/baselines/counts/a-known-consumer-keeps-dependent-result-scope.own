@@ -19,12 +19,12 @@ fn through[F < Fn() -> void](text: &string, f: F) -> &string:
 >     uses $4: %10 -> %14 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
->   %1 = Release %29 Exit local $1 #2 : ()
+>   %1 = Release %30 Exit local $1 #2 : ()
     f()
 >   %0 = FlagSet [$1] #6 : ()
 >   %2 = Read borrow [$1] : F
 >   %3 = CallValue %2 [] : ()
->   %29 = Block %28 : &string
+>   %30 = Block %28 : &string
     let picked = text
 >   %4 = Read borrow [$0] : &string
 >   %5 = Store [$2] %4 : ()
@@ -54,6 +54,7 @@ fn through[F < Fn() -> void](text: &string, f: F) -> &string:
 >   %21 = CallValue %20 [] : ()
     picked
 >   %28 = Read copy [$2] : &string
+>   %29 = Retain %28 Value #0 : ()
 >   summary kept [] borrows [$1] writes
 
 fn kept(text: &string) -> &string:

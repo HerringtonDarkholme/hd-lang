@@ -87,6 +87,6 @@ impl Em<'_, '_, '_> {
         self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
         // The new environment arrives with its count.
-        self.store_owned(i)
+        self.store(i)
     }
 }

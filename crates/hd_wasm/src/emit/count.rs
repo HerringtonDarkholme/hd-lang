@@ -97,7 +97,11 @@ impl Em<'_, '_, '_> {
 
     /// A TIR-stated count of an already constructed borrowed result.
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
-        if self.retained_before_result.remove(&value) {
+        // A lent value (`Em::prepare_own_loans`) takes no count.
+        if self.retained_before_result.remove(&value)
+            || self.loans.contains(&value)
+            || self.mem_retain(value)?
+        {
             return Ok(());
         }
         // ruled out: the retains pass (`hd_tir::own::retains`) splices a
@@ -109,13 +113,6 @@ impl Em<'_, '_, '_> {
         );
         let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))
-    }
-
-    /// Read the explicit result count, without deciding one from its layout:
-    /// a stated retain, or the source's count taken over.
-    pub(super) fn has_stated_retain(&self, value: u32) -> bool {
-        self.has_result_retain(value)
-            || hd_tir::own::took_source(self.b, &self.topo, value as usize)
     }
 
     /// Whether the passes state a `Retain` of `value`'s result right after
@@ -651,11 +648,10 @@ impl Em<'_, '_, '_> {
         self.retain_ref(r)
     }
 
-    /// Stores the values on the stack as instruction `i`'s. Unless `owned`
-    /// (a call's result, a new object), the value is a copy and its place
-    /// takes a count of its own. The value is consumed or dropped, and
-    /// zeroed, before its instruction runs again.
-    pub(super) fn store_as(&mut self, i: u32, owned: bool) -> StageResult<()> {
+    /// Stores the values on the stack as instruction `i`'s. A copy's
+    /// count is its stated `Retain` (`Em::own_retain`). The value is
+    /// consumed or dropped, and zeroed, before its instruction runs again.
+    pub(super) fn store(&mut self, i: u32) -> StageResult<()> {
         let ls = self.slot(i)?;
         for l in ls.iter().rev() {
             self.f.set(*l);
@@ -663,21 +659,7 @@ impl Em<'_, '_, '_> {
         if let Some(&(flag, _)) = self.input_transferred.get(&i) {
             self.f.zero(flag);
         }
-        let t = self.ty(i);
-        // A stated reference copy lowers at its `Retain` (`Em::own_retain`).
-        let stated = self.b.tags[i as usize] == Tag::Ref
-            && hd_tir::ir::count::following(self.b, &self.topo, i, Tag::Retain)
-                == Some(Info::new(At::Value, Part::Result, 0));
-        if !stated && !owned && self.tracked(t) && !self.loans.contains(&i) {
-            ledger!("store_as/implicit-retain/{:?}", self.b.tags[i as usize]);
-            self.retain_locals(&ls, t)?;
-        }
         Ok(())
-    }
-
-    /// Stores a value that arrives with its own count as instruction `i`'s.
-    pub(super) fn store_owned(&mut self, i: u32) -> StageResult<()> {
-        self.store_as(i, true)
     }
 
     /// Whether operand `r` moves its count into the instruction being
@@ -1157,7 +1139,7 @@ impl Em<'_, '_, '_> {
         }
         match mode {
             Some(ReadMode::Move) => {
-                self.store_owned(i)?;
+                self.store(i)?;
                 if self.needs_drop(self.ty(i)) {
                     for x in ls {
                         self.f.zero(x);

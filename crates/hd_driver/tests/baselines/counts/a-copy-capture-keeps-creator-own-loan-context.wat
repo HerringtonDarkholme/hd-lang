@@ -4,9 +4,8 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
-  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
@@ -90,13 +89,16 @@
     call $rt:release
     ;; 16 |     (*r, p.value)
     i32.load $heap
-    local.tee $t4
     ;; 14 |     r := &p.other
     local.get $t1
     ;; 16 |     (*r, p.value)
     i32.load $heap offset=4
+    local.set $t4
     local.tee $t1
-    call $rt:retain
+    if
+      local.get $t1
+      call $retain
+    end
     local.get $t2
     if
       local.get $t2
@@ -140,8 +142,8 @@
       end
     end
     ;; 16 |     (*r, p.value)
-    local.get $t4
     local.get $t1
+    local.get $t4
     local.get $t3
     local.get $t2
   )

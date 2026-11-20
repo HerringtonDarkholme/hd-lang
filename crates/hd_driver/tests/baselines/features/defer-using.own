@@ -17,12 +17,13 @@ impl Disposable for Res:
         self.log.push(self.name)
 > app/main/impl Disposable for Res.dispose
 >   local $0 self: &mut Res [param read] value
->     uses $0: entry -> %0 lend, %2 lend last
+>     uses $0: entry -> %0 lend, %3 lend last
 >   %0 = Read copy [*$0 .name] : string
->   %1 = IsUnique [*$0 .log *] : ()
->   %2 = Read borrow [*$0 .log *] : List[string]
->   %3 = Intrinsic ListPush [%2 %0] : ()
->   %4 = Block - : ()
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = IsUnique [*$0 .log *] : ()
+>   %3 = Read borrow [*$0 .log *] : List[string]
+>   %4 = Intrinsic ListPush [%3 %0] : ()
+>   %5 = Block - : ()
 >   summary kept [$0] writes
 
 fn with_defer(log: *mut List[string], s: string) -> usize:

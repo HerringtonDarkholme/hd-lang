@@ -21,24 +21,25 @@ fn snapshot(xs: &mut List[string]) -> usize:
 >     uses $0: entry -> %0 consume last
 >   local $1 xs: &mut List[string] [read assigned] place
 >   local $2 before: List[string] [:= read assigned] value
->     uses $2: %3 -> %7 lend last
+>     uses $2: %4 -> %8 lend last
 >   %2 = Read copy [*$1] : List[string]
->   %3 = Store [$2] %2 : ()
->   %4 = IsUnique [*$1] : ()
->   %5 = Read borrow [*$1] : List[string]
->   %6 = Intrinsic ListPush [%5 "later"] : ()
->   %7 = Read move [$2] : List[string]
->   %8 = Intrinsic ListLen [%7] : usize
->   %9 = Read borrow [$1] : &mut List[string]
->   %10 = Block - : ()
->   %11 = Drop [%7] : ()
->   %12 = Break L0 %8 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [%10] : usize
->   %15 = Break L1 %14 : never
->   %16 = Block - : usize
->   %17 = Scope %16 [] : usize
->   %18 = Block %17 : usize
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Store [$2] %2 : ()
+>   %5 = IsUnique [*$1] : ()
+>   %6 = Read borrow [*$1] : List[string]
+>   %7 = Intrinsic ListPush [%6 "later"] : ()
+>   %8 = Read move [$2] : List[string]
+>   %9 = Intrinsic ListLen [%8] : usize
+>   %10 = Read borrow [$1] : &mut List[string]
+>   %11 = Block - : ()
+>   %12 = Drop [%8] : ()
+>   %13 = Break L0 %9 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [%11] : usize
+>   %16 = Break L1 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = Block %18 : usize
         before := *xs
 >   %0 = Read borrow [$0] : &mut List[string]
 >   %1 = Store [$1] %0 : ()

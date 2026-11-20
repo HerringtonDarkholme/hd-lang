@@ -79,66 +79,67 @@ impl Shelf:
 fn use_methods(s: Shelf, b: string) -> usize:
 > app/main/use_methods
 >   local $0 s: Shelf [param read] value
->     uses $0: entry -> %2 consume, %9 lend, %12 lend, %16 lend, %24 lend, %27 lend, %31 lend last
+>     uses $0: entry -> %2 consume, %10 lend, %13 lend, %17 lend, %25 lend, %28 lend, %32 lend last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %6 consume last
+>     uses $1: entry -> %7 consume last
 >   local $2 t: Shelf [read assigned captured captured-assigned] place
 >   local $3 self: Shelf [read] value
->     uses $3: %42 -> %43 consume last
->   %0 = Retain %50 Entry local $0 #0 : ()
->   %1 = Retain %50 Entry local $1 #0 : ()
+>     uses $3: %43 -> %44 consume last
+>   %0 = Retain %51 Entry local $0 #0 : ()
+>   %1 = Retain %51 Entry local $1 #0 : ()
     let mut t = s
 >   %2 = Read copy [$0] : Shelf
->   %3 = Box #2 #0 : ()
->   %4 = Store [$2] %2 : ()
->   %50 = Block %49 : usize
+>   %3 = Retain %2 Value #0 : ()
+>   %4 = Box #2 #0 : ()
+>   %5 = Store [$2] %2 : ()
+>   %51 = Block %50 : usize
     t.by_mut(b)
->   %5 = Ref mut local frame [$2] : &mut Shelf
->   %6 = Read move [$1] : string
->   %7 = Call app/main/impl Shelf.by_mut[] (%5, %6) : ()
->   %8 = LoanEnd [%5] : ()
+>   %6 = Ref mut local frame [$2] : &mut Shelf
+>   %7 = Read move [$1] : string
+>   %8 = Call app/main/impl Shelf.by_mut[] (%6, %7) : ()
+>   %9 = LoanEnd [%6] : ()
     s.by_self() + s.by_ref() + t.consume().len()
->   %9 = Read borrow [$0 .books] : List[string]
->   %10 = Intrinsic ListLen [%9] : usize
->   %11 = Prim Add [%10 1:usize] : usize
->   %12 = Read borrow [$0 .books] : List[string]
->   %13 = Intrinsic ListLen [%12] : usize
->   %14 = Prim Add [%13 2:usize] : usize
->   %15 = Prim Mul [%11 %14] : usize
->   %16 = Read borrow [$0 .books] : List[string]
->   %17 = Intrinsic ListLen [%16] : usize
->   %18 = Prim Add [%17 3:usize] : usize
->   %19 = Prim Mul [%15 %18] : usize
->   %20 = Prim Div [%19 7:usize] : usize
->   %21 = Break L2 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = Read borrow [$0 .books] : List[string]
->   %25 = Intrinsic ListLen [%24] : usize
->   %26 = Prim Add [%25 1:usize] : usize
->   %27 = Read borrow [$0 .books] : List[string]
->   %28 = Intrinsic ListLen [%27] : usize
->   %29 = Prim Add [%28 2:usize] : usize
->   %30 = Prim Mul [%26 %29] : usize
->   %31 = Read borrow [$0 .books] : List[string]
->   %32 = Intrinsic ListLen [%31] : usize
->   %33 = Prim Add [%32 3:usize] : usize
->   %34 = Prim Mul [%30 %33] : usize
->   %35 = Prim Div [%34 7:usize] : usize
->   %36 = Break L1 %35 : never
->   %37 = Block - : usize
->   %38 = Scope %37 [] : usize
->   %39 = Drop [$0] : ()
->   %40 = Prim Add [%23 %38] : usize
->   %41 = Read move [$2] : Shelf
->   %42 = Store [$3] %41 : ()
->   %43 = Read move [$3 .books] : List[string]
->   %44 = Break L0 %43 : never
->   %45 = Block - : List[string]
->   %46 = Scope %45 [] : List[string]
->   %47 = Intrinsic ListLen [%46] : usize
->   %48 = Drop [%46] : ()
->   %49 = Prim Add [%40 %47] : usize
+>   %10 = Read borrow [$0 .books] : List[string]
+>   %11 = Intrinsic ListLen [%10] : usize
+>   %12 = Prim Add [%11 1:usize] : usize
+>   %13 = Read borrow [$0 .books] : List[string]
+>   %14 = Intrinsic ListLen [%13] : usize
+>   %15 = Prim Add [%14 2:usize] : usize
+>   %16 = Prim Mul [%12 %15] : usize
+>   %17 = Read borrow [$0 .books] : List[string]
+>   %18 = Intrinsic ListLen [%17] : usize
+>   %19 = Prim Add [%18 3:usize] : usize
+>   %20 = Prim Mul [%16 %19] : usize
+>   %21 = Prim Div [%20 7:usize] : usize
+>   %22 = Break L2 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Read borrow [$0 .books] : List[string]
+>   %26 = Intrinsic ListLen [%25] : usize
+>   %27 = Prim Add [%26 1:usize] : usize
+>   %28 = Read borrow [$0 .books] : List[string]
+>   %29 = Intrinsic ListLen [%28] : usize
+>   %30 = Prim Add [%29 2:usize] : usize
+>   %31 = Prim Mul [%27 %30] : usize
+>   %32 = Read borrow [$0 .books] : List[string]
+>   %33 = Intrinsic ListLen [%32] : usize
+>   %34 = Prim Add [%33 3:usize] : usize
+>   %35 = Prim Mul [%31 %34] : usize
+>   %36 = Prim Div [%35 7:usize] : usize
+>   %37 = Break L1 %36 : never
+>   %38 = Block - : usize
+>   %39 = Scope %38 [] : usize
+>   %40 = Drop [$0] : ()
+>   %41 = Prim Add [%24 %39] : usize
+>   %42 = Read move [$2] : Shelf
+>   %43 = Store [$3] %42 : ()
+>   %44 = Read move [$3 .books] : List[string]
+>   %45 = Break L0 %44 : never
+>   %46 = Block - : List[string]
+>   %47 = Scope %46 [] : List[string]
+>   %48 = Intrinsic ListLen [%47] : usize
+>   %49 = Drop [%47] : ()
+>   %50 = Prim Add [%41 %48] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

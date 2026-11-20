@@ -5,7 +5,7 @@
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
@@ -121,11 +121,14 @@
     ;; 45 |     *held
     local.get $message.1
     i32.load $heap
-    local.tee $message.0
     local.get $message.1
     i32.load $heap offset=4
-    local.tee $message.1
-    call $rt:retain
+    local.set $message.1
+    local.tee $message.0
+    if
+      local.get $message.0
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -338,11 +341,14 @@
     ;; 40 |     *held
     local.get $message.0'1
     i32.load $heap
-    local.tee $value'1
     local.get $message.0'1
     i32.load $heap offset=4
-    local.tee $message.0'1
-    call $rt:retain
+    local.set $message.0'1
+    local.tee $value'1
+    if
+      local.get $value'1
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -550,11 +556,14 @@
     ;; 35 |     *held._1
     local.get $message.1
     i32.load $heap
-    local.tee $message.0
     local.get $message.1
     i32.load $heap offset=4
-    local.tee $message.1
-    call $rt:retain
+    local.set $message.1
+    local.tee $message.0
+    if
+      local.get $message.0
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -638,7 +647,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
@@ -796,11 +805,14 @@
     ;; 45 |     *held
     local.get $p
     i32.load $heap
-    local.tee $alias
     local.get $p
     i32.load $heap offset=4
-    local.tee $p
-    call $rt:retain
+    local.set $p
+    local.tee $alias
+    if
+      local.get $alias
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -1079,11 +1091,14 @@
     ;; 40 |     *held
     local.get $q
     i32.load $heap
-    local.tee $alias
     local.get $q
     i32.load $heap offset=4
-    local.tee $q
-    call $rt:retain
+    local.set $q
+    local.tee $alias
+    if
+      local.get $alias
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0
@@ -1302,11 +1317,14 @@
     ;; 35 |     *held._1
     local.get $p
     i32.load $heap
-    local.tee $alias
     local.get $p
     i32.load $heap offset=4
-    local.tee $p
-    call $rt:retain
+    local.set $p
+    local.tee $alias
+    if
+      local.get $alias
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

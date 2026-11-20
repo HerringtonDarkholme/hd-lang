@@ -114,6 +114,6 @@ impl Em<'_, '_, '_> {
         };
         self.f.table_slot(Sym::Helper(helper));
         self.f.get(environment);
-        self.store_owned(i)
+        self.store(i)
     }
 }

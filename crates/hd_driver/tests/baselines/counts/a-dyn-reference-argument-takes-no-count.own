@@ -43,17 +43,18 @@ fn caller(n: i64) -> i64:
 >   %1 = NewStruct [%0] : Square
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %15 = Block %11 : i64
+>   %16 = Block %12 : i64
     measure(&q)
 >   %4 = Ref local frame [$1] : &Square
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read copy [$2] : &Square
->   %7 = Coerce %6 [RefToTraitValue -] : Shape
->   %8 = LoanEnd [%6] : ()
->   %9 = Block %7 : Shape
->   %10 = RefDyn %9 : &dyn Shape
->   %11 = Call app/main/measure[] (%10) : i64
->   %12 = Drop [%10] : ()
->   %13 = LoanEnd [$2] : ()
->   %14 = Drop [$1] : ()
+>   %7 = Retain %6 Value #0 : ()
+>   %8 = Coerce %6 [RefToTraitValue -] : Shape
+>   %9 = LoanEnd [%6] : ()
+>   %10 = Block %8 : Shape
+>   %11 = RefDyn %10 : &dyn Shape
+>   %12 = Call app/main/measure[] (%11) : i64
+>   %13 = Drop [%11] : ()
+>   %14 = LoanEnd [$2] : ()
+>   %15 = Drop [$1] : ()
 >   storage sub 0: $1 slot

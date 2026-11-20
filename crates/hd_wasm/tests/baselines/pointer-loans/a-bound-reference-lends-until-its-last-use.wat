@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
@@ -64,11 +64,14 @@
     ;; 13 |     seen := *r
     local.tee $t1
     i32.load $heap
-    local.tee $t2
     local.get $t1
     i32.load $heap offset=4
-    local.tee $t1
-    call $rt:retain
+    local.set $t1
+    local.tee $t2
+    if
+      local.get $t2
+      call $retain
+    end
     local.get $t0
     if
       local.get $t0

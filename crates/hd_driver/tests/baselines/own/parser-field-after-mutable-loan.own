@@ -204,12 +204,12 @@ fn length_across_write(text: string) -> usize:
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 parser: Parser [read assigned] value
->     uses $1: %13 -> %14 consume, %17 lend last
+>     uses $1: %13 -> %14 consume, %18 lend last
 >   local $2 chars: List[char] [:= read assigned] value
->     uses $2: %15 -> %20 lend last
+>     uses $2: %16 -> %21 lend last
 >   local $3 self: Chars [read] value
 >     uses $3: %6 -> %7 consume last
->   %0 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Retain %24 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:usize] : Chars
@@ -224,18 +224,19 @@ fn length_across_write(text: string) -> usize:
 >   %11 = Scope %10 [] : List[char]
 >   %12 = NewStruct [%11 0:usize] : Parser
 >   %13 = Store [$1] %12 : ()
->   %23 = Block %21 : usize
+>   %24 = Block %22 : usize
     chars := parser.chars
 >   %14 = Read copy [$1 .chars] : List[char]
->   %15 = Store [$2] %14 : ()
+>   %15 = Retain %14 Value #0 : ()
+>   %16 = Store [$2] %14 : ()
     parser.chars.push('x')
->   %16 = IsUnique [$1 .chars] : ()
->   %17 = Read borrow [$1 .chars] : List[char]
->   %18 = Intrinsic ListPush [%17 120:char] : ()
->   %19 = Drop [$1] : ()
+>   %17 = IsUnique [$1 .chars] : ()
+>   %18 = Read borrow [$1 .chars] : List[char]
+>   %19 = Intrinsic ListPush [%18 120:char] : ()
+>   %20 = Drop [$1] : ()
     chars.len()
->   %20 = Read move [$2] : List[char]
->   %21 = Intrinsic ListLen [%20] : usize
->   %22 = Drop [%20] : ()
+>   %21 = Read move [$2] : List[char]
+>   %22 = Intrinsic ListLen [%21] : usize
+>   %23 = Drop [%21] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

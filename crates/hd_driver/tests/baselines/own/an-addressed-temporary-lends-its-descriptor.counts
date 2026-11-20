@@ -59,7 +59,7 @@ fn replace_pointer(source: *mut Names) -> usize:
 fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     observe(&Wrapped { values: *source, n: 1 }, replace_pointer(alias))
 > app/main/through_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
 
@@ -139,7 +139,7 @@ fn replace_pointer(source: *mut Names) -> usize:
 fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     observe(&Wrapped { values: *source, n: 1 }, replace_pointer(alias))
 > app/main/through_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
 
@@ -213,7 +213,7 @@ fn replace_pointer(source: *mut Names) -> usize:
 fn through_alias(source: *mut Names, alias: *mut Names) -> usize $ Console:
     observe(&Wrapped { values: *source, n: 1 }, replace_pointer(alias))
 > app/main/through_alias
->   retain counted reference (stored)
+>   retain app.main.Names [first.0, second.0] (stored)
 >   release *mut app.main.Names (last use)
 >   release app.main.Wrapped [values.first.0, values.second.0] (last use)
 

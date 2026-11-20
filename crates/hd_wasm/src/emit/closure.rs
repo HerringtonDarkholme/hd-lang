@@ -391,7 +391,7 @@ impl Em<'_, '_, '_> {
         for x in held {
             self.f.get(x);
         }
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// A `Store` into the whole of a cell's local. Its declaration fills
@@ -473,7 +473,7 @@ impl Em<'_, '_, '_> {
         self.f.table_slot(Sym::Inst(key));
         if caps.is_empty() {
             self.f.i32(0);
-            return self.store_owned(i);
+            return self.store(i);
         }
         let (m, parts, walk) = self.env_layout(i as usize, &caps)?;
         let mut srcs = Vec::new();
@@ -541,7 +541,7 @@ impl Em<'_, '_, '_> {
             }
         }
         self.f.get(at);
-        self.store_owned(i)
+        self.store(i)
     }
 
     /// The prologue of closure `ci`'s code instance: each capture loaded

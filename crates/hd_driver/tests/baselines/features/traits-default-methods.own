@@ -34,7 +34,8 @@ impl Describe for Logger:
 >   local $0 self: &Logger [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read copy [*$0 .name] : string
->   %1 = Block %0 : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Block %0 : string
 >   summary kept [$0]
 
 fn direct(l: Logger) -> usize:

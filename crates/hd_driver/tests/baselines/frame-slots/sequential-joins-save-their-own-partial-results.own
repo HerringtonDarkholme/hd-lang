@@ -24,17 +24,17 @@ fn sequential!(left: string, right: string) -> string:
 >   local $1 right: string [param read] value
 >     uses $1: entry -> %6 consume last
 >   local $2 a: string [read assigned] value
->     uses $2: %16 -> %21 consume, %38 lend last
+>     uses $2: %16 -> %21 consume, %39 lend last
 >   local $3 b: string [read assigned] value
->     uses $3: %17 -> %23 consume last
+>     uses $3: %17 -> %24 consume last
 >   local $4 c: string [read assigned] value
->     uses $4: %33 -> %39 lend last
+>     uses $4: %34 -> %40 lend last
 >   local $5 d: string [read assigned] value
->     uses $5: %34 -> %43 lend last
->   %0 = Retain %47 Cold local $0 #0 : ()
->   %1 = Retain %47 Entry local $0 #0 : ()
->   %2 = Retain %47 Cold local $1 #0 : ()
->   %3 = Retain %47 Entry local $1 #0 : ()
+>     uses $5: %35 -> %44 lend last
+>   %0 = Retain %48 Cold local $0 #0 : ()
+>   %1 = Retain %48 Entry local $0 #0 : ()
+>   %2 = Retain %48 Cold local $1 #0 : ()
+>   %3 = Retain %48 Entry local $1 #0 : ()
     let (a, b) = join!(ready(left), ready(right))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/ready[] (%4) : Suspend[string]
@@ -52,35 +52,36 @@ fn sequential!(left: string, right: string) -> string:
 >   %17 = Store [$3] %15 : ()
 >   %19 = Block - : never
 >   %20 = Match %8 [%19 %13] : ()
->   %47 = Block %44 : string
+>   %48 = Block %45 : string
     let (c, d) = join!(ready(a), ready(b))
 >   %21 = Read copy [$2] : string
->   %22 = Call app/main/ready[] (%21) : Suspend[string]
->   %23 = Read move [$3] : string
->   %24 = Call app/main/ready[] (%23) : Suspend[string]
->   %25 = AwaitAll [%22 %24] : (string, string)
->   %26 = Release %25 Operation results #2 : ()
->   %27 = Release %25 Operation waker #2 : ()
->   %28 = Drop [%24] : ()
->   %29 = Drop [%22] : ()
->   %30 = Block - : ()
->   %31 = Read move [%25 .0] : string
->   %32 = Read move [%25 .1] : string
->   %33 = Store [$4] %31 : ()
->   %34 = Store [$5] %32 : ()
->   %36 = Block - : never
->   %37 = Match %25 [%36 %30] : ()
+>   %22 = Retain %21 Value #0 : ()
+>   %23 = Call app/main/ready[] (%21) : Suspend[string]
+>   %24 = Read move [$3] : string
+>   %25 = Call app/main/ready[] (%24) : Suspend[string]
+>   %26 = AwaitAll [%23 %25] : (string, string)
+>   %27 = Release %26 Operation results #2 : ()
+>   %28 = Release %26 Operation waker #2 : ()
+>   %29 = Drop [%25] : ()
+>   %30 = Drop [%23] : ()
+>   %31 = Block - : ()
+>   %32 = Read move [%26 .0] : string
+>   %33 = Read move [%26 .1] : string
+>   %34 = Store [$4] %32 : ()
+>   %35 = Store [$5] %33 : ()
+>   %37 = Block - : never
+>   %38 = Match %26 [%37 %31] : ()
     a + c + d
->   %38 = Read move [$2] : string
->   %39 = Read move [$4] : string
->   %40 = Intrinsic StrConcat [%38 %39] : string
->   %41 = Drop [%39] : ()
->   %42 = Drop [%38] : ()
->   %43 = Read move [$5] : string
->   %44 = Intrinsic StrConcat [%40 %43] : string
->   %45 = Drop [%43] : ()
->   %46 = Drop [%40] : ()
+>   %39 = Read move [$2] : string
+>   %40 = Read move [$4] : string
+>   %41 = Intrinsic StrConcat [%39 %40] : string
+>   %42 = Drop [%40] : ()
+>   %43 = Drop [%39] : ()
+>   %44 = Read move [$5] : string
+>   %45 = Intrinsic StrConcat [%41 %44] : string
+>   %46 = Drop [%44] : ()
+>   %47 = Drop [%41] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   summary none
 >   cancel %8 releases [%5 %7]
->   cancel %25 releases [%22 %24]
+>   cancel %26 releases [%23 %25]

@@ -11,32 +11,33 @@ fn fill(frame: &mut Frame) -> void:
     let index: usize = 0
 > app/main/fill
 >   local $0 frame: &mut Frame [param read] value
->     uses $0: entry -> %3 lend, %7 lend, %9 lend
+>     uses $0: entry -> %3 lend, %7 lend, %10 lend
 >   local $1 index: usize [read assigned mutated] place
 >   %0 = Store [$1] 0:usize : ()
->   %22 = Block - : ()
+>   %23 = Block - : ()
     while index < frame.keys.len():
 >   %1 = IsUnique hoisted [*$0 .entries] : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = Read borrow [*$0 .keys] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Prim Lt [%2 %4] : bool
->   %17 = Break L0 - : never
->   %18 = Block - : ()
->   %19 = If %5 [%16 %18] : ()
->   %20 = Block - : ()
->   %21 = Loop %20 - : ()
+>   %18 = Break L0 - : never
+>   %19 = Block - : ()
+>   %20 = If %5 [%17 %19] : ()
+>   %21 = Block - : ()
+>   %22 = Loop %21 - : ()
         frame.entries[frame.keys[index]] = index
 >   %6 = Read copy [$1] : usize
 >   %7 = Read copy [*$0 .keys [%6]] : string
->   %8 = Read copy [$1] : usize
->   %9 = Read borrow [*$0 .entries] : Map[string, usize]
->   %10 = Intrinsic MapSet [%9 %7 %8] : ()
->   %11 = Retain %10 Operation operand 1 #0 : ()
->   %12 = Drop [%7] : ()
->   %16 = Block - : ()
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Read copy [$1] : usize
+>   %10 = Read borrow [*$0 .entries] : Map[string, usize]
+>   %11 = Intrinsic MapSet [%10 %7 %9] : ()
+>   %12 = Retain %11 Operation operand 1 #0 : ()
+>   %13 = Drop [%7] : ()
+>   %17 = Block - : ()
         index += 1
->   %13 = Read copy [$1] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$1] %14 : ()
+>   %14 = Read copy [$1] : usize
+>   %15 = Prim Add [%14 1:usize] : usize
+>   %16 = Store [$1] %15 : ()
 >   summary kept [] writes

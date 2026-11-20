@@ -25,7 +25,9 @@
     i32.load $heap
     local.get $t0
     i32.load $heap offset=4
-    local.tee $t0
+    local.set $t0
+    local.set $t1
+    local.get $t0
     if
       local.get $t0
       i32.const 8
@@ -36,7 +38,6 @@
         call $rt:retain_known
       end
     end
-    local.set $t1
     local.get $t0
     local.get $t2
     i32.const 1
