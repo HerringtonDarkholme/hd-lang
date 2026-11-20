@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: release
+# @helpers: std/text/ascii_case
+# Module bytes (hd build --release, package app, default V8): 5603 before, 6250 after.
+# Base 3150a0dc4; ASCII implementation a2fa7be3a; delta +647 bytes.
+# expected: lower and upper call one shared ascii_case helper.
+
+pub fn main() -> void $ Console:
+    text := "AbC_09"
+    println(text.lower())
+    println(text.upper())
