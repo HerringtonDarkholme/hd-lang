@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# Closed const operations enforce the ordinary operand rules, including
+# unsigned shift/power counts and matching operands for string addition.
+
+struct Integer[Value < const i32]:
+    value: i32
+
+struct Text[Value < const string]:
+    value: i32
+
+fn signed_exponent() -> void:
+    let _bad = Integer::[2 ** 3i32] { value: +0 }
+
+fn signed_shift_count() -> void:
+    let _bad = Integer::[1 << 1i32] { value: +0 }
+
+fn mixed_string_addition() -> void:
+    let _bad = Text::["a" + true] { value: +0 }
