@@ -594,25 +594,120 @@ mod tests {
         }
     }
 
-    fn linear(branchy: bool) {
-        let (_, small) = placed(100, branchy);
-        let (_, large) = placed(1000, branchy);
-        assert!(
-            large <= 12 * small,
-            "branchy {branchy}: {small} at 100 sites, {large} at 1000"
-        );
+    /// `loans` references through `$0`, each in a local of its own; then
+    /// `ifs` branches, each reading one of those locals in its arm; then a
+    /// loop with `breaks` exits, each `if c: break` past a read of one;
+    /// then a read of every local: the sites and their holder rows.
+    fn shape(loans: u32, ifs: u32, breaks: u32) -> (Body, Vec<Site>, Vec<(Holder, u32)>) {
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let syn = NodeIdx::from_raw(1);
+        let root = b.open_block();
+        let p = b.local(Ty::I32, Symbol::from_raw(0), local_flags::PARAM, syn);
+        let c = b.local(Ty::BOOL, Symbol::from_raw(0), local_flags::PARAM, syn);
+        let deref = b.place(&Place {
+            root: PlaceRoot::Local(p),
+            proj: vec![Proj::Deref],
+        });
+        let (mut sites, mut rows, mut holders) = (Vec::new(), Vec::new(), Vec::new());
+        for k in 0..loans {
+            let l = b.local(Ty::I32, Symbol::from_raw(0), 0, syn);
+            let r = b.emit(Tag::Ref, deref, 0, Ty::I32, syn);
+            b.set(l, r, syn);
+            sites.push(Site {
+                at: r.0,
+                word: 0,
+                activate: NONE,
+            });
+            rows.push((Holder::Value(r.0), k));
+            rows.push((Holder::Local(l.raw()), k));
+            holders.push(l);
+        }
+        let read = |b: &mut TirBuilder, k: u32| {
+            let l = holders[(k % loans) as usize];
+            b.emit(
+                Tag::Read,
+                pw::BARE_LOCAL | l.raw(),
+                ReadMode::Use as u32,
+                Ty::I32,
+                syn,
+            );
+        };
+        for k in 0..ifs {
+            let arm = b.open_block();
+            read(&mut b, k);
+            let then = b.close_block(arm, None, Ty::VOID, syn);
+            let cond = b.get(c, Ty::BOOL, syn);
+            let arms = b.refs_record(&[then, crate::ir::Ref(NONE)]);
+            b.emit(Tag::If, cond.0, arms, Ty::VOID, syn);
+        }
+        if breaks > 0 {
+            let lp = b.open_loop();
+            let body = b.open_block();
+            for k in 0..breaks {
+                read(&mut b, k);
+                let exit = b.open_block();
+                b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, syn);
+                let exit = b.close_block(exit, None, Ty::NEVER, syn);
+                let cond = b.get(c, Ty::BOOL, syn);
+                let arms = b.refs_record(&[exit, crate::ir::Ref(NONE)]);
+                b.emit(Tag::If, cond.0, arms, Ty::VOID, syn);
+            }
+            b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, syn);
+            let body = b.close_block(body, None, Ty::NEVER, syn);
+            b.close_loop(lp, body, Ty::VOID, syn);
+        }
+        for k in 0..loans {
+            read(&mut b, k);
+        }
+        let root = b.close_block(root, None, Ty::VOID, syn);
+        let body = b.finish_tolerating(root, &[], &[22]).expect("TIR shape");
+        (body, sites, rows)
+    }
+
+    fn work(loans: u32, ifs: u32, breaks: u32) -> usize {
+        let (mut b, sites, rows) = shape(loans, ifs, breaks);
+        let ((), work) = work::measure(|| place(&mut b, &sites, &rows).expect("placed"));
+        // Every loan begins, and every close names a begin.
+        assert_eq!(count(&b, Tag::LoanBegin), loans as usize);
+        for i in 0..b.len() {
+            if b.tags[i] == Tag::LoanClose {
+                assert_eq!(b.tags[b.data[i][0] as usize], Tag::LoanBegin);
+            }
+        }
+        work
+    }
+
+    // Cost: the backward flow's, one state of `holders / 64` words per
+    // control group, as the move pass's last uses (`moves::last_uses`):
+    // linear in the loans at a fixed number of branches, and in the
+    // branches and jumps at a fixed number of loans.
+    #[test]
+    fn placement_work_is_linear_in_the_loans() {
+        let (small, large) = (work(100, 0, 0), work(1000, 0, 0));
+        assert!(large <= 12 * small, "straight line: {small} -> {large}");
+        let (small, large) = (work(100, 10, 10), work(1000, 10, 10));
+        assert!(large <= 12 * small, "with branches: {small} -> {large}");
     }
 
     #[test]
-    fn straight_line_placement_work_is_linear_in_sites_and_holders() {
-        linear(false);
+    fn placement_work_is_linear_in_the_branches() {
+        let (small, large) = (work(10, 100, 0), work(10, 1000, 0));
+        assert!(large <= 12 * small, "{small} -> {large}");
     }
 
-    // Known failure: each branch stores a state of `holders / 64` words, so n
-    // branches with n live holders cost n²/64 (45x at 10x today).
+    #[test]
+    fn placement_work_is_linear_in_the_breaks_out_of_one_loop() {
+        let (small, large) = (work(10, 0, 100), work(10, 0, 1000));
+        assert!(large <= 12 * small, "{small} -> {large}");
+    }
+
+    // Known failure: loans and branches growing together cost one state of
+    // `holders / 64` words per branch, n²/64 (41.8x at 10x); the move pass's
+    // last uses share the cost model (94.9x on its loop shape).
     #[test]
     #[ignore = "finding: /tmp/lt235/loan-placement-states-per-branch.md"]
-    fn branchy_placement_work_is_linear_in_sites_and_holders() {
-        linear(true);
+    fn placement_work_is_linear_in_loans_and_branches_together() {
+        let (small, large) = (work(100, 100, 0), work(1000, 1000, 0));
+        assert!(large <= 12 * small, "{small} -> {large}");
     }
 }
