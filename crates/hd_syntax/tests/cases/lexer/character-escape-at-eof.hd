@@ -1,0 +1,3 @@
+# @dump: tokens
+# expected: preserve the unfinished character token at EOF.
+value := '\

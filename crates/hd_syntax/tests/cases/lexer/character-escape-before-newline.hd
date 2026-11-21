@@ -1,0 +1,4 @@
+# @dump: tokens
+# expected: recover after the unfinished character and preserve the next declaration.
+value := '\
+fn kept() -> void: pass
