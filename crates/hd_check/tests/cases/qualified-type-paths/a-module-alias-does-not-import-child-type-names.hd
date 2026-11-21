@@ -1,0 +1,8 @@
+# @dump: diagnostics
+use pkg.models
+fn take(value: models.types.Token) -> void:
+    pass
+# @file: models/mod.hd
+pub struct Marker: pass
+# @file: models/types.hd
+pub struct Token: pass

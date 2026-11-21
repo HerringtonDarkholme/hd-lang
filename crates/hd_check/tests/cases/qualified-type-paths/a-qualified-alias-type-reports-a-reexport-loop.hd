@@ -1,0 +1,9 @@
+# @dump: diagnostics
+use pkg.a
+type Alias = a.Token
+fn take(value: Alias) -> void:
+    pass
+# @file: a.hd
+pub use pkg.b.{Token}
+# @file: b.hd
+pub use pkg.a.{Token}

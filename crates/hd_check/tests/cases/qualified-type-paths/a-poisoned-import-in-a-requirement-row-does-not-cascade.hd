@@ -1,0 +1,4 @@
+# @dump: diagnostics
+use pkg.absent.{Broken}
+fn take() -> void $ Broken:
+    pass

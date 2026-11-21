@@ -1,0 +1,8 @@
+# @dump: diagnostics
+use pkg.a
+trait Child < a.Bound:
+    pass
+# @file: a.hd
+pub use pkg.b.{Bound}
+# @file: b.hd
+pub use pkg.a.{Bound}
