@@ -13,7 +13,9 @@ use hd_base::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use crate::dep_results::RunLoans;
-use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
+use hd_base::{
+    DefId, Fuel, InferVar, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol,
+};
 use hd_diag::{Code, DiagBuf};
 use hd_resolve::{FnSig, Item, ItemData, Lookup, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -146,6 +148,37 @@ const OUT_OF_FUEL: &str = "the body's fuel ran out";
 
 pub(crate) fn out_of_fuel<T>() -> StageResult<T> {
     Err(NotImplemented::out_of_fuel(Stage::Body, OUT_OF_FUEL))
+}
+
+/// The outcomes immediate and delayed `Implements` proofs consume.
+/// Candidate lists are not proofs; fuel exhaustion remains a stage error.
+#[derive(Debug)]
+enum ProofAnswer {
+    Holds {
+        evidence: Evidence,
+        learned: Vec<(InferVar, Ty)>,
+    },
+    Fails,
+    Stalled,
+    Overflow,
+}
+
+impl TryFrom<Answer> for ProofAnswer {
+    type Error = NotImplemented;
+
+    fn try_from(answer: Answer) -> StageResult<Self> {
+        match answer {
+            Answer::Holds { evidence, learned } => Ok(Self::Holds { evidence, learned }),
+            Answer::Fails(_) => Ok(Self::Fails),
+            Answer::Stalled { .. } => Ok(Self::Stalled),
+            Answer::Overflow => Ok(Self::Overflow),
+            Answer::OutOfFuel => out_of_fuel(),
+            Answer::Candidates(_) => Err(NotImplemented::bug(
+                Stage::Body,
+                "Implements proof requires a proof outcome, not candidates",
+            )),
+        }
+    }
 }
 
 /// Whether a check stopped because its body's fuel ran out.
@@ -3372,15 +3405,15 @@ impl Ck<'_, '_> {
         if let Some(evidence) = self.function_evidence(tref) {
             return Ok(Some(evidence));
         }
-        match self.solve(tref)? {
-            Answer::Holds { evidence, learned } => {
+        match ProofAnswer::try_from(self.solve(tref)?)? {
+            ProofAnswer::Holds { evidence, learned } => {
                 for (v, t) in learned {
                     let var = pool.intern_ty(&TyData::Infer(v));
                     let _ = self.infer.unify(pool, var, t);
                 }
                 Ok(Some(evidence))
             }
-            Answer::Fails(_) => {
+            ProofAnswer::Fails => {
                 // A trait argument in error, as a projection whose proof is
                 // past its depth leaves, was reported where it failed.
                 if self.has_poisoned_impl(tref.self_ty)
@@ -3411,7 +3444,7 @@ impl Ck<'_, '_> {
                 }
                 Ok(None)
             }
-            Answer::Stalled { .. } => {
+            ProofAnswer::Stalled => {
                 self.pending.push(PendingGoal {
                     tref,
                     at: at.index(),
@@ -3419,11 +3452,10 @@ impl Ck<'_, '_> {
                 });
                 Ok(None)
             }
-            Answer::Overflow => {
+            ProofAnswer::Overflow => {
                 self.bound_depth_error(tref, at);
                 Ok(None)
             }
-            other => unreachable!("solve asks Implements; solve_goal handles fuel: {other:?}"),
         }
     }
 
@@ -4077,8 +4109,8 @@ impl Ck<'_, '_> {
         if self.function_evidence(tref).is_some() {
             return Ok(true);
         }
-        match self.solve(tref)? {
-            Answer::Holds { learned, .. } => {
+        match ProofAnswer::try_from(self.solve(tref)?)? {
+            ProofAnswer::Holds { learned, .. } => {
                 if matches!(g.kind, Waiting::Bound { .. }) {
                     return Ok(true);
                 }
@@ -4122,7 +4154,7 @@ impl Ck<'_, '_> {
                 }
                 Ok(true)
             }
-            Answer::Fails(_) => {
+            ProofAnswer::Fails => {
                 if self.has_poisoned_impl(tref.self_ty) {
                     return Ok(true);
                 }
@@ -4137,14 +4169,13 @@ impl Ck<'_, '_> {
                 }
                 Ok(true)
             }
-            Answer::Stalled { .. } => Ok(false),
-            Answer::Overflow => {
+            ProofAnswer::Stalled => Ok(false),
+            ProofAnswer::Overflow => {
                 if report {
                     self.bound_depth_error(tref, node);
                 }
                 Ok(true)
             }
-            other => unreachable!("solve asks Implements; solve_goal handles fuel: {other:?}"),
         }
     }
 
@@ -5911,5 +5942,92 @@ mod source_function_tests {
             .expect("bodyless selection");
         assert_eq!(error.stage, Stage::Body);
         assert!(error.bug);
+    }
+}
+
+#[cfg(test)]
+mod proof_answer_tests {
+    use super::{ProofAnswer, is_out_of_fuel};
+    use hd_base::{DefId, InferVar, Stage};
+    use hd_types::solver::{Answer, CanonGoal, Evidence, FailInfo, FailReason, GoalKind};
+    use hd_types::{Ty, TyList};
+
+    #[test]
+    fn proof_success_moves_its_exact_evidence_and_learned_buffer() {
+        for evidence in [
+            Evidence::Poison,
+            Evidence::TraitValue {
+                trait_: DefId::from_raw(1),
+            },
+        ] {
+            let expected = evidence.clone();
+            let learned = vec![
+                (InferVar::from_raw(7), Ty::I32),
+                (InferVar::from_raw(11), Ty::STRING),
+            ];
+            let ptr = learned.as_ptr();
+            let capacity = learned.capacity();
+            let proof = ProofAnswer::try_from(Answer::Holds { evidence, learned }).expect("proof");
+            let ProofAnswer::Holds { evidence, learned } = proof else {
+                panic!("successful proof lost its outcome");
+            };
+            assert_eq!(evidence, expected);
+            assert_eq!(learned.as_ptr(), ptr);
+            assert_eq!(learned.capacity(), capacity);
+            assert_eq!(
+                learned,
+                [
+                    (InferVar::from_raw(7), Ty::I32),
+                    (InferVar::from_raw(11), Ty::STRING)
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn failure_stall_and_overflow_keep_their_proof_outcomes() {
+        let failure = Answer::Fails(Box::new(FailInfo {
+            leaf: CanonGoal {
+                kind: GoalKind::Implements,
+                mut_: false,
+                n_vars: 0,
+                trait_: DefId::from_raw(1),
+                self_ty: Ty::I32,
+                args: TyList::EMPTY,
+                extra: 0,
+            },
+            chain: Vec::new(),
+            reason: FailReason::NoImpl,
+            near: Vec::new(),
+        }));
+        assert!(matches!(
+            ProofAnswer::try_from(failure),
+            Ok(ProofAnswer::Fails)
+        ));
+        assert!(matches!(
+            ProofAnswer::try_from(Answer::Stalled {
+                on: vec![InferVar::from_raw(3), InferVar::from_raw(5)],
+            }),
+            Ok(ProofAnswer::Stalled)
+        ));
+        assert!(matches!(
+            ProofAnswer::try_from(Answer::Overflow),
+            Ok(ProofAnswer::Overflow)
+        ));
+    }
+
+    #[test]
+    fn fuel_exhaustion_and_wrong_goal_answers_are_distinct_errors() {
+        let fuel = ProofAnswer::try_from(Answer::OutOfFuel).expect_err("fuel exhaustion");
+        assert!(is_out_of_fuel(&fuel));
+        assert!(!fuel.bug);
+        let error = ProofAnswer::try_from(Answer::Candidates(Vec::new())).expect_err("not a proof");
+        assert_eq!(error.stage, Stage::Body);
+        assert!(error.bug);
+        assert!(!error.out_of_fuel);
+        assert_eq!(
+            error.what,
+            "Implements proof requires a proof outcome, not candidates"
+        );
     }
 }
