@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+# expected: the default discharges the impl's outlives sub-obligation
+fn inspect[T < Saved = Wrapped[&'static i32]](value: T) -> void:
+    pass

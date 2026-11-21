@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    pass
+
+trait Need[A]:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[U < 'static] Need[U] for i32:
+    pass
+
+impl['b, T < Need[&'b i32]] Saved[&'b i32] for Wrapped[T]:
+    pass
+
+fn inspect['a, T < Saved[&'a i32]](value: T, marker: &'a i32) -> void:
+    pass
+
+# expected: a bound through a trait argument accepts the static marker
+fn probe(value: Wrapped[i32], marker: &'static i32) -> void:
+    inspect(value, marker)

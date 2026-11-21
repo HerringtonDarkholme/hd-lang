@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: a static second field does not satisfy the first field outlives requirement
+trait Saved:
+    fn number(&self) -> i32
+
+struct Pair[A, B]:
+    first: A
+    second: B
+
+impl[A < 'static, B] Saved for Pair[A, B]:
+    fn number(&self) -> i32:
+        +7
+
+fn saved[T < Saved](value: T) -> i32:
+    value.number()
+
+fn rejected['a](value: Pair[&'a i32, &'static i32]) -> i32:
+    saved(value)

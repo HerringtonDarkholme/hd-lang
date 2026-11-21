@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Pair[A, B]:
+    first: A
+    second: B
+
+impl[A < 'static, B] Saved for Pair[A, B]:
+    pass
+
+trait Shelf:
+    type Item < Saved
+
+impl['a] Shelf for Pair[&'static i32, &'a i32]:
+    type Item = Pair[&'static i32, &'a i32]

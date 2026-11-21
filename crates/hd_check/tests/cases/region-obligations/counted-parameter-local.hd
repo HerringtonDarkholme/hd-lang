@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+struct Wrapped[T]:
+    value: T
+
+fn require_static[T < 'static](value: *mut Wrapped[T]) -> void:
+    pass
+
+# expected: the structured parameter rejects local-reference-escapes for the local slot
+fn inspect['a](value: *mut Wrapped[&'a i32]) -> void:
+    require_static(value)

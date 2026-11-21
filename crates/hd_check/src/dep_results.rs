@@ -39,7 +39,8 @@ use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
 };
-use hd_types::{Ty, TyData, Types};
+use hd_types::solver::{PlanStep, TraitRef};
+use hd_types::{ParamRef, Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
 use crate::call::subst_owner;
@@ -405,7 +406,7 @@ impl DepSig {
         // parameters' own ones, but the trait's `Self` that of the target.
         let own = ANON + w(self.params.iter().map(|(_, ids)| ids.len()).sum());
         let mut fresh: Vec<Key> = Vec::new();
-        let is_self = |p: hd_types::ParamRef| p.owner == trait_ && p.index == 0;
+        let is_self = |p: ParamRef| p.owner == trait_ && p.index == 0;
         let filled = |k: Key| match k {
             Key::AllOf(p, _) => is_self(p),
             Key::Param(p, _) => p.owner == trait_ && p.index > 0,
@@ -417,7 +418,7 @@ impl DepSig {
                          ids: &[Option<u32>],
                          outs: Option<&[Option<u32>]>|
          -> Option<Vec<Option<u32>>> {
-            let target = |p: hd_types::ParamRef, s: usize| {
+            let target = |p: ParamRef, s: usize| {
                 let l = match usize::from(p.index).checked_sub(1) {
                     _ if p.owner != trait_ => return None,
                     None => u32::from(*self_lifetimes.get(s)?),
@@ -430,7 +431,7 @@ impl DepSig {
             let held = |t: Ty, id: u32| {
                 (arg_lifetimes.iter().enumerate()).any(|(k, lts)| {
                     let index = u16::try_from(k + 1).unwrap_or(u16::MAX);
-                    let p = hd_types::ParamRef {
+                    let p = ParamRef {
                         owner: trait_,
                         index,
                     };
@@ -644,7 +645,7 @@ fn wholes(ls: &Layouts<'_>, t: Ty) -> (Vec<Ty>, bool) {
 /// projection holds ([`proj_holds`]), and a trait value's and an opaque
 /// type's arguments are no part of what they hold (`trait.dyn.ref.convert`,
 /// `types.opaque.borrows`).
-fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<hd_types::ParamRef>, bool) {
+fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<ParamRef>, bool) {
     let (mut out, mut other) = (Vec::new(), false);
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![t];
@@ -670,7 +671,7 @@ fn bare_parts(pool: Types<'_>, t: Ty) -> (Vec<hd_types::ParamRef>, bool) {
 /// arguments, as Rust's projection outlives rule has it. A trait's own
 /// `Self::Item` lists no arguments, and holds each of the trait's
 /// parameters.
-fn proj_holds(pool: Types<'_>, proj: Ty, p: hd_types::ParamRef) -> bool {
+fn proj_holds(pool: Types<'_>, proj: Ty, p: ParamRef) -> bool {
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut stack = vec![proj];
     while let Some(t) = stack.pop() {
@@ -685,7 +686,7 @@ fn proj_holds(pool: Types<'_>, proj: Ty, p: hd_types::ParamRef) -> bool {
                 trait_, self_ty, ..
             } if p.owner == trait_
                 && pool.get(self_ty)
-                    == TyData::Param(hd_types::ParamRef {
+                    == TyData::Param(ParamRef {
                         owner: trait_,
                         index: 0,
                     }) =>
@@ -737,12 +738,12 @@ enum Key {
     /// Slot `s` of what type parameter `p` stands for, a function type's
     /// capture slot included; slot 0 also for the whole of one with no
     /// slot of its own, as [`Ck::call_sig`] passes it.
-    Param(hd_types::ParamRef, usize),
+    Param(ParamRef, usize),
     /// A slot of projection `t` of type parameter `p`, as `P::Out`: any
     /// slot of what `p` or a type parameter in its trait's arguments
     /// stands for ([`proj_holds`]), and any lifetime the projection's
     /// bounds write ([`line_up_call`] only).
-    AllOf(hd_types::ParamRef, Ty),
+    AllOf(ParamRef, Ty),
     /// A slot of an opaque type that does not borrow.
     None,
 }
@@ -919,7 +920,22 @@ fn line_up_with(
                 stack.push(Step::Pair(a, b, d1));
                 true
             }
-            (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
+            (
+                TyData::Ref {
+                    counted: true,
+                    inner: a,
+                    ..
+                },
+                TyData::Ref {
+                    counted: true,
+                    inner: b,
+                    ..
+                },
+            ) => {
+                stack.push(Step::Pair(a, b, d1));
+                true
+            }
+            (TyData::Union(a), TyData::Union(b)) => list(stack, a, b),
             // A rest that does not line up fails the whole walk, so it
             // fails before the elements are entered.
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
@@ -1104,13 +1120,14 @@ impl Layout {
                     let parts = pool.list_items(elems).iter().chain(rest.iter());
                     stack.extend(parts.map(|&e| (e, top, d, None)));
                 }
-                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                TyData::Adt { args, .. }
+                | TyData::TraitValue { args, .. }
+                | TyData::Union(args) => {
                     stack.extend(pool.list_items(args).iter().map(|&a| (a, top, d, None)));
                 }
                 TyData::Prim(_)
                 | TyData::Never
                 | TyData::Poison
-                | TyData::Union(_)
                 | TyData::Opaque { borrows: false, .. }
                 | TyData::Param(_)
                 | TyData::Const(_)
@@ -1176,7 +1193,7 @@ impl SlotCounts {
                 out.extend(pool.list_items(args));
                 u32::from(def == self.suspend)
             }
-            TyData::TraitValue { args, .. } => {
+            TyData::TraitValue { args, .. } | TyData::Union(args) => {
                 out.extend(pool.list_items(args));
                 0
             }
@@ -1475,7 +1492,7 @@ fn own_proj(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
             TyData::Assoc {
                 trait_, self_ty, ..
             } if pool.get(self_ty)
-                == TyData::Param(hd_types::ParamRef {
+                == TyData::Param(ParamRef {
                     owner: trait_,
                     index: 0,
                 })
@@ -1533,7 +1550,7 @@ impl Layouts<'_> {
                 TyData::Assoc {
                     trait_, self_ty, ..
                 } if pool.get(self_ty)
-                    == TyData::Param(hd_types::ParamRef {
+                    == TyData::Param(ParamRef {
                         owner: trait_,
                         index: 0,
                     })
@@ -1587,6 +1604,7 @@ fn is_dyn(pool: Types<'_>, t: Ty) -> bool {
 const CAPTURED: &str = "a local reference captured by this function value";
 const BOX_MSG: &str = "a local reference captured by this function value never escapes to a box";
 const STORE_FN_MSG: &str = "a local reference captured by this function value never escapes to a field, a top-level binding, or a place the caller owns";
+const PROOF_MSG: &str = "a reference does not outlive the lifetime required by its trait bound";
 const STATIC_MSG: &str = "a local reference captured by this function value never escapes to a type parameter bounded by `'static`";
 const FN_PARAM_MSG: &str =
     "a local reference captured by this function value may be passed only to a `fn(...)` parameter";
@@ -1607,7 +1625,7 @@ const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the c
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Var {
     Life(u32),
-    Param(hd_types::ParamRef, usize),
+    Param(ParamRef, usize),
     Held,
     /// The calling body's own lifetime, as a bound writes it for a trait
     /// argument (`ref.lifetime.trait.bound-argument`): what flows in must
@@ -2014,11 +2032,22 @@ struct CallSig {
     by_value: bool,
 }
 
+type ProofSlots = Rc<Vec<Vec<Var>>>;
+type ProofBindings = Rc<HashMap<ParamRef, ProofSlots>>;
+
+type StaticProofCache =
+    HashMap<(Vec<(usize, ParamRef, usize, TraitRef)>, Vec<(Key, Var)>), HashSet<Var>>;
+
 impl CallSig {
     /// Whether the call passes an argument at a parameter slot written
     /// `&'static T`, which is checked at the call (`ref.static.source.error`).
     fn passes_static(&self) -> bool {
-        (self.params.iter()).any(|p| p.1.iter().any(|x| x.0 == Var::Life(STATIC)))
+        (self.params.iter()).any(|p| {
+            p.1.iter().any(|x| {
+                x.0 == Var::Life(STATIC)
+                    || matches!(x.1, Some(Category::StaticParam | Category::StaticProof))
+            })
+        })
     }
 
     /// Whether the call passes an argument at one of the body's own
@@ -2414,6 +2443,190 @@ impl Ck<'_, '_> {
         .to_fn(ls, 0)
     }
 
+    /// Lower proof requirements to existing call variables. This emits no
+    /// graph: call's ordinary `StaticParam` edges go to `regions.rs` unchanged.
+    fn proof_statics(
+        &self,
+        ls: &Layouts<'_>,
+        uses: &[crate::body::RegionUse],
+        took: &[(Key, Var)],
+        cache: &mut StaticProofCache,
+    ) -> hd_base::StageResult<HashSet<Var>> {
+        if uses.is_empty() {
+            return Ok(HashSet::default());
+        }
+        let bug = |message| hd_base::NotImplemented::bug(hd_base::Stage::Body, message);
+        let pool = ls.pool;
+        // Inference stays fixed during this pass; original goal IDs and
+        // the call variables determine the resolved correspondence.
+        let key = (
+            uses.iter().map(|u| (u.4.key(), u.1, u.2, u.3)).collect(),
+            took.to_vec(),
+        );
+        if let Some(statics) = cache.get(&key) {
+            return Ok(statics.clone());
+        }
+        let mut parameters = HashMap::<ParamRef, Vec<Vec<Var>>>::default();
+        for &(key, var) in took {
+            if let Key::Param(p, slot) = key {
+                let slots = parameters.entry(p).or_default();
+                slots.resize_with(slots.len().max(slot + 1), Vec::new);
+                if !slots[slot].contains(&var) {
+                    slots[slot].push(var);
+                }
+            }
+        }
+        let parameters: HashMap<_, ProofSlots> = parameters
+            .into_iter()
+            .map(|(p, s)| (p, Rc::new(s)))
+            .collect();
+        let mut heads = HashMap::<(Ty, Ty, usize), ProofBindings>::default();
+        let mut identity = HashMap::<Ty, Option<ParamRef>>::default();
+        let mut counts = SlotCounts::new(ls.suspend);
+        let slot_type = pool.intern_ty(&TyData::Ref {
+            inner: Ty::VOID,
+            mutable: false,
+            counted: false,
+        });
+        let mut canonical = HashMap::default();
+        let mut statics = HashSet::default();
+        // Retain origin vectors while their pointer identities key queries.
+        let mut seen = HashMap::default();
+        for &(_, param, _, tref, ref proof) in uses {
+            let origins = parameters.get(&param).cloned().unwrap_or_default();
+            let mut work = vec![(proof, self.infer.resolve(pool, tref.self_ty), origins)];
+            while let Some((proof, actual, origins)) = work.pop() {
+                crate::work::scan_work(1);
+                if seen
+                    .insert(
+                        (proof.key(), actual, Rc::as_ptr(&origins) as usize),
+                        Rc::clone(&origins),
+                    )
+                    .is_some()
+                {
+                    continue;
+                }
+                let Some((row, args, steps)) = proof.parts() else {
+                    continue;
+                };
+                let Some(row) = row else {
+                    for &slot in &ls.of(actual).tops {
+                        statics.extend(origins.get(slot).into_iter().flatten().copied());
+                    }
+                    continue;
+                };
+                let table = self
+                    .cx
+                    .impl_table(row.module)
+                    .ok_or_else(|| bug("an outlives proof lost its selected impl table"))?;
+                let r = row.row as usize;
+                let owner = table.def[r];
+                let declaration = self
+                    .cx
+                    .lookup
+                    .item(owner)
+                    .ok_or_else(|| bug("an outlives proof lost its impl declaration"))?;
+                let is_type = |index: u16| {
+                    declaration
+                        .generics
+                        .get(usize::from(index))
+                        .is_some_and(|g| !g.row && !g.lifetime && g.const_type.is_none())
+                };
+                let pattern = *canonical.entry(table.head_self[r]).or_insert_with(|| {
+                    pool.subst(table.head_self[r], &|p: ParamRef| {
+                        (p.owner == owner).then(|| {
+                            if declaration
+                                .generics
+                                .get(usize::from(p.index))
+                                .is_some_and(|g| g.row)
+                            {
+                                let row = pool.row(&hd_types::RowData {
+                                    keys: Vec::new(),
+                                    params: vec![hd_types::RowParamRef {
+                                        owner: DefId::NONE,
+                                        index: p.index,
+                                    }],
+                                });
+                                pool.intern_ty(&TyData::Row(row))
+                            } else {
+                                pool.intern_ty(&TyData::Param(ParamRef {
+                                    owner: DefId::NONE,
+                                    ..p
+                                }))
+                            }
+                        })
+                    })
+                });
+                let key = (pattern, actual, Rc::as_ptr(&origins) as usize);
+                let bindings = if let Some(bindings) = heads.get(&key) {
+                    Rc::clone(bindings)
+                } else {
+                    let mut bindings = HashMap::<ParamRef, ProofSlots>::default();
+                    // A sole parameter occurrence with no own slots maps
+                    // its input vector identically, even under many wrappers.
+                    let direct = *identity.entry(pattern).or_insert_with(|| {
+                        if counts.count(pool, pattern) != 0 {
+                            return None;
+                        }
+                        let marked = pool.subst(pattern, &|p: ParamRef| {
+                            (p.owner == DefId::NONE && is_type(p.index)).then_some(slot_type)
+                        });
+                        if counts.count(pool, marked) != 1 {
+                            return None;
+                        }
+                        match line_up(ls, pattern, marked)?.as_slice() {
+                            [Key::Param(p, 0)] => Some(*p),
+                            _ => None,
+                        }
+                    });
+                    if let Some(p) = direct {
+                        bindings.insert(p, Rc::clone(&origins));
+                    } else {
+                        let keys = line_up(ls, pattern, actual)
+                            .ok_or_else(|| bug("an outlives impl lost its positional bindings"))?;
+                        crate::work::scan_work(keys.len());
+                        for (key, from) in keys.into_iter().zip(origins.iter()) {
+                            if let Key::Param(p, slot) = key {
+                                let into = Rc::make_mut(bindings.entry(p).or_default());
+                                into.resize_with(into.len().max(slot + 1), Vec::new);
+                                for &v in from {
+                                    if !into[slot].contains(&v) {
+                                        into[slot].push(v);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let bindings = Rc::new(bindings);
+                    heads.insert(key, Rc::clone(&bindings));
+                    bindings
+                };
+                for (step, child) in steps {
+                    let Some(PlanStep::Bound { param, .. }) = table.plan[r].get(usize::from(*step))
+                    else {
+                        return Err(bug("an outlives proof lost its bound plan step"));
+                    };
+                    let actual = *pool
+                        .list_items(args)
+                        .get(usize::from(*param))
+                        .ok_or_else(|| bug("an outlives bound lost its type argument"))?;
+                    // Trait-argument origins have their own deferred source
+                    // (#2267); this adapter translates the bound's subject.
+                    let origins = bindings
+                        .get(&ParamRef {
+                            owner: DefId::NONE,
+                            index: u16::from(*param),
+                        })
+                        .cloned()
+                        .unwrap_or_default();
+                    work.push((child, self.infer.resolve(pool, actual), origins));
+                }
+            }
+        }
+        cache.insert(key, statics.clone());
+        Ok(statics)
+    }
+
     /// The map of call `i` of `b` when it passes or returns a value that
     /// may hold origins ([`CallSig`]): from its callee's signature, a trait
     /// method's from the trait's (`ref.dep.trait`), or the map a function
@@ -2428,7 +2641,7 @@ impl Ck<'_, '_> {
         b: &Body,
         i: usize,
         values: &FnValues<'_>,
-    ) -> Option<CallSig> {
+    ) -> Option<(CallSig, Vec<(Key, Var)>)> {
         let (pool, tag, names) = (ls.pool, b.tags[i], &self.cx.names);
         let (mut holds, mut held) = (ls.holds(b.ty[i]), false);
         let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
@@ -2502,19 +2715,18 @@ impl Ck<'_, '_> {
             Some(sig) => self.with_wholes(ls, self.call_dep(ls, sig)),
             None => DepSig::of_fn(ls, *b.ty.get(b.data[i][0] as usize)?)?,
         };
-        let is_trait_self =
-            |p: hd_types::ParamRef| trait_.is_some_and(|tr| p.owner == tr && p.index == 0);
+        let is_trait_self = |p: ParamRef| trait_.is_some_and(|tr| p.owner == tr && p.index == 0);
         // A slot of the trait's `Self` that the implementation target's
         // lifetime fills (`ref.lifetime.trait`).
         // A slot of a trait argument whose bound writes the caller's
         // lifetime (`ref.lifetime.trait.bound-argument`).
-        let own = |p: hd_types::ParamRef, s: usize| {
+        let own = |p: ParamRef, s: usize| {
             let k = usize::from(p.index).checked_sub(1)?;
             let at = bound_ids.get(k)?.get(s).copied();
             at.filter(|&l| l != 0 && trait_ == Some(p.owner))
                 .map(Var::Own)
         };
-        let target = |p: hd_types::ParamRef, s: usize| {
+        let target = |p: ParamRef, s: usize| {
             let k = usize::from(p.index);
             (trait_ == Some(p.owner))
                 .then(|| self_slots.get(k)?.get(s).copied().flatten())
@@ -2523,7 +2735,7 @@ impl Ck<'_, '_> {
         // Where a capture slot a type parameter adds is kept.
         let declared = def.and_then(|d| Some((d, self.cx.lookup.item(d)?.sig()?)));
         let static_bound = names.known.static_bound;
-        let dest = |p: hd_types::ParamRef| {
+        let dest = |p: ParamRef| {
             let (def, declared) = declared?;
             let generics = if p.owner == def {
                 Some(&declared.generics)
@@ -2656,7 +2868,7 @@ impl Ck<'_, '_> {
         // result of that parameter takes them: `good(ident, p)` with
         // `f: fn(&'a Point) -> T` returns what `p` holds
         // (`fn.type.lifetime.result.param`).
-        let mut fn_held: Vec<(hd_types::ParamRef, u32)> = Vec::new();
+        let mut fn_held: Vec<(ParamRef, u32)> = Vec::new();
         if let Some(sig) = &sig {
             let n = sig.params.len();
             for (p, lts) in sig.fn_lifetimes.iter().take(n).enumerate() {
@@ -2673,7 +2885,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        let held_by = |q: hd_types::ParamRef| {
+        let held_by = |q: ParamRef| {
             (fn_held.iter())
                 .filter(move |x| x.0 == q)
                 .map(|x| Var::Life(x.1))
@@ -2876,18 +3088,21 @@ impl Ck<'_, '_> {
         } else {
             (Vec::new(), Vec::new())
         };
-        Some(CallSig {
-            links,
-            by_value,
-            paths,
-            store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
-            result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
-            bare,
-            params,
-            outs,
-            held: held_args,
-            loan_slots,
-        })
+        Some((
+            CallSig {
+                links,
+                by_value,
+                paths,
+                store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
+                result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
+                bare,
+                params,
+                outs,
+                held: held_args,
+                loan_slots,
+            },
+            took,
+        ))
     }
 
     fn call_loan_slots(
@@ -3637,12 +3852,7 @@ impl Ck<'_, '_> {
     }
 
     /// [`Ck::bound_ids`] of type parameter `p`.
-    fn param_bound_ids(
-        &self,
-        ls: &Layouts<'_>,
-        p: hd_types::ParamRef,
-        trait_: DefId,
-    ) -> Vec<Vec<u32>> {
+    fn param_bound_ids(&self, ls: &Layouts<'_>, p: ParamRef, trait_: DefId) -> Vec<Vec<u32>> {
         let Some(it) = self.cx.lookup.item(p.owner) else {
             return Vec::new();
         };
@@ -3702,7 +3912,7 @@ impl Ck<'_, '_> {
                 ids.push(vec![n]);
             } else {
                 let index = u16::try_from(k + 1).unwrap_or(u16::MAX);
-                let t = pool.intern_ty(&TyData::Param(hd_types::ParamRef {
+                let t = pool.intern_ty(&TyData::Param(ParamRef {
                     owner: tr.def,
                     index,
                 }));
@@ -3830,7 +4040,7 @@ impl Ck<'_, '_> {
         };
         // The bound's argument over `def`'s arguments.
         let inst = |t: Ty| {
-            pool.subst(t, &|p: hd_types::ParamRef| {
+            pool.subst(t, &|p: ParamRef| {
                 let k = usize::from(p.index).checked_sub(1)?;
                 (p.owner == def).then(|| args.get(k).copied()).flatten()
             })
@@ -3930,7 +4140,7 @@ impl Ck<'_, '_> {
             let (Some(&t), Ok(index)) = (targs.get(k), u16::try_from(k)) else {
                 continue;
             };
-            let q = hd_types::ParamRef { owner, index };
+            let q = ParamRef { owner, index };
             let mut written: Vec<u32> = (g.bound_lifetimes.iter().flatten())
                 .filter(|&&l| l != 0)
                 .map(|&l| u32::from(l))
@@ -4056,7 +4266,7 @@ impl Ck<'_, '_> {
                     continue;
                 }
                 let v = Var::Param(
-                    hd_types::ParamRef {
+                    ParamRef {
                         owner: *trait_,
                         index,
                     },
@@ -4101,7 +4311,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
         facts: &crate::moves::MoveFacts,
-    ) {
+    ) -> hd_base::StageResult<()> {
         let pool = self.pool();
         let lifetimed = lifetimed(self.cx.lookup);
         let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
@@ -4159,6 +4369,13 @@ impl Ck<'_, '_> {
         });
         let values = FnValues::new(body, mine.as_ref());
         self.input_fits(ls, body, &values, (root.0, fun), &mut errs);
+        // Own the shared handles: hashbrown's destructor keeps borrowed
+        // entries live past the mutable diagnostic calls below.
+        let mut proofs = HashMap::<hd_base::NodeIdx, Vec<crate::body::RegionUse>>::default();
+        for proof in &self.region_uses {
+            proofs.entry(proof.0).or_default().push(proof.clone());
+        }
+        let mut static_proofs = StaticProofCache::default();
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = !self.static_values.is_empty()
@@ -4170,8 +4387,21 @@ impl Ck<'_, '_> {
             if matches!(
                 body.tags[i],
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-            ) && let Some(sig) = self.call_sig(ls, body, i, &values)
+            ) && let Some((mut sig, took)) = self.call_sig(ls, body, i, &values)
             {
+                let statics = self.proof_statics(
+                    ls,
+                    proofs.get(&body.syn[i]).map_or(&[], Vec::as_slice),
+                    &took,
+                    &mut static_proofs,
+                )?;
+                for (_, slots) in &mut sig.params {
+                    for (var, category) in slots {
+                        if statics.contains(var) && *category != Some(Category::StaticParam) {
+                            *category = Some(Category::StaticProof);
+                        }
+                    }
+                }
                 // A suspension that holds an argument may be kept
                 // (`ref.dep.suspension.local`).
                 let held = sig.result && ls.of(body.ty[i]).slots.iter().any(|s| s.hold);
@@ -4398,7 +4628,7 @@ impl Ck<'_, '_> {
             || (runtime.iter().enumerate())
                 .any(|(i, &site)| site && self.b.body().tags[i] == Tag::Ref);
         if own.is_none() && !through && !lends && closures.is_empty() {
-            return;
+            return Ok(());
         }
         let body = self.b.body();
         let params: Vec<Ty> = (0..body.local_ty.len())
@@ -4453,6 +4683,7 @@ impl Ck<'_, '_> {
         if !run_loans.0.is_empty() {
             self.run_loans = Some(run_loans);
         }
+        Ok(())
     }
 
     /// Each argument a call lends to a local-reference parameter of its
@@ -4687,7 +4918,13 @@ impl Ck<'_, '_> {
             }
         }
         for (at, o, msg) in v.capture {
-            push(at, &|| capture_message(body, self.cx, o, msg));
+            push(at, &|| {
+                if msg == PROOF_MSG {
+                    msg.to_owned()
+                } else {
+                    capture_message(body, self.cx, o, msg)
+                }
+            });
         }
         if let Some(own) = own {
             for (at, o, id) in v.results {

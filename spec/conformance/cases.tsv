@@ -7126,6 +7126,7 @@ lang/annotations/error-derivation/generic-kinds/a-generated-error-enum-preserves
 lang/annotations/error-derivation/generic-kinds/a-generated-error-implementation-preserves-const-and-row-kinds.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.carried
 lang/annotations/typed-derivation/derived-bounds/generic-kinds/all-scalar-const-kinds-remain-values-in-derived-headers.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.params
 lang/annotations/error-derivation/generic-kinds/generated-error-from-and-source-headers-preserve-const-kinds.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.carried
+typing/invalid/static-bound-through-an-impl-rejects-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.impl
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

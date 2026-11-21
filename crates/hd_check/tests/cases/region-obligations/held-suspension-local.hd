@@ -1,0 +1,20 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+
+fn hold!(value: &i32) -> i32:
+    *value
+
+# expected: a suspension holding a local source fails the impl bound
+fn inspect(value: &i32) -> void:
+    require_saved(Wrapped { value: hold(value) })

@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn touch(self) -> void
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    fn touch(self) -> void:
+        pass
+
+type Fixed = Wrapped[&'static i32]
+
+struct Holder[T]:
+    Wrapped[T]
+
+impl Saved for Holder[Fixed] by Wrapped

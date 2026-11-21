@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+trait Child < Saved:
+    pass
+
+impl Child for Wrapped[&'static i32]:
+    pass

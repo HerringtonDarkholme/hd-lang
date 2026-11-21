@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: a static reference satisfies the deferred outlives requirement
+fn inspect[T < 'static](value: T) -> void:
+    pass
+
+fn allowed(value: &'static i32) -> void:
+    inspect(value)
