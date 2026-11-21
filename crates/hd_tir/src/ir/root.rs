@@ -1,11 +1,10 @@
-//! Places rooted at the local (`docs/compiler/tir-v2.md`, "Places", and
-//! stage 2 commit 12a): the checker's TIR names each place from the local it starts at, `bodies[i].x` through
+//! Places rooted at the local (`docs/compiler/tir-v2.md`, "Places"): the checker's TIR names each place from the local it starts at, `bodies[i].x` through
 //! `&mut List[Body]` as one `Read [*$0 [%5] .x]`, `xs[i] = v` as
 //! `Store [$0 [%1]] v`, the payload of a matched local's value as
 //! `Read [$0 as .1 .0]`. The checker builds each place one step at a time,
 //! a read of the base and then a projection rooted at that read's value
 //! (`%h = Read [$0]`, `Read [%h [%i]]`), since its own walkers (the
-//! writable check, `mark_write_path`) step back through those values while
+//! writable check, `Ck::place_writable`) step back through those values while
 //! it checks. [`root_places`] then folds every such chain into one place
 //! when the body is finished.
 //!

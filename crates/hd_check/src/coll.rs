@@ -1,8 +1,8 @@
 //! Collection values (spec 04 "Collection Values", the tier-1 design `58c3d470f:docs/future-work/OBJECT_MODEL_TIER1.md`
 //! §6.2): `List[T]` and `Map[K, V]` are values with copy-on-write. The
 //! checker places no copies: every count of a collection the backend takes
-//! runs its copy glue (`docs/compiler/tir-v2.md`, "List and Map buffers",
-//! 3g).
+//! runs its copy glue (`docs/compiler/tir-v2.md`, "List and Map
+//! buffers").
 //!
 //! Changing a collection needs a writable place, as changing a struct's
 //! field does.

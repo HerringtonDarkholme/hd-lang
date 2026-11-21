@@ -78,7 +78,7 @@ pub struct Finding {
 }
 
 /// Stage B over a folder's interface items that `HeaderCheck(F)` covers
-/// ([`in_interface_check`]), in item order: bounds of written header types
+/// ([`InterfaceCheck::checks`]), in item order: bounds of written header types
 /// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
 pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<Finding>> {
@@ -87,7 +87,7 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<
 }
 
 /// Stage B over the items of one module that `HeaderCheck` leaves out
-/// ([`in_interface_check`]): its private items, and its impls that name
+/// ([`InterfaceCheck::checks`]): its private items, and its impls that name
 /// one. `cx`'s lookup holds the module's own items, private ones included:
 /// a body check's view, not an interface's.
 pub fn private_items(cx: &HeaderCx<'_>, items: &[Item]) -> StageResult<Vec<Finding>> {

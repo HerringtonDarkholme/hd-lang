@@ -1,7 +1,7 @@
 # @dump: stdout
 # @build: checked
-# Collection copies (`docs/compiler/tir-v2.md`, "List and Map buffers",
-# 3g): a match binding of a map's list keeps its value when the map's
+# Collection copies (`docs/compiler/tir-v2.md`, "List and Map buffers"):
+# a match binding of a map's list keeps its value when the map's
 # list changes in place afterwards, since its count makes the map's
 # buffer shared and the change copies it first. The checked runtime's
 # exit audit fails on a leak or a double free.

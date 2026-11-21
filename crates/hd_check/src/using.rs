@@ -3,8 +3,8 @@
 //! as a `let`, with no reassignment. `using` registers a synchronous
 //! `std.ops.Disposable.dispose(&mut self)` call; `using!` registers a
 //! suspending `std.ops.AsyncDisposable.dispose!(&mut self)` call. The
-//! scope's exit ladder runs either in one last-in, first-out order with
-//! its other suites. The call takes the binding's own place, or passes the
+//! scope's ways out run either in one last-in, first-out order with its
+//! other suites (`hd_tir::own::scopes`). The call takes the binding's own place, or passes the
 //! reference the binding holds. The selected implementation supplies the
 //! disposal method's requirement row, checked at the binding.
 

@@ -854,7 +854,7 @@ impl OwnCx for Env<'_> {
         // A call through a trait value lends its receiver to its slot, which
         // takes any count its concrete target owns. It lends an argument
         // too, unless the call takes
-        // it (`Em::push_dyn`): an open value (`Em::dyn_takes`), whose type is
+        // it (`Em::push_dyn`): an open value, whose type is
         // open in a generic method's slot or at the caller's instance, or a
         // value holding a `Drop` hook, which moves.
         // A cold method's explicit arguments use the selected mode above.
@@ -2962,14 +2962,8 @@ impl Env<'_> {
         Some(self.node(def, args))
     }
 
-    /// Instance `node`'s body before the passes: an item's own body, or a
-    /// generic item's at its type arguments (`hd_mono::instantiate`: its
-    /// types substituted, its bound calls chosen as impl or builtin
-    /// calls); then folded and inlined
-    /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
-    /// one instance's. Dev and release run these stages in one order.
     /// The template of a lifted generic local function's instance at
-    /// `args` (`hd_tir::ir::lifted_target`): `generic` pruned to that
+    /// `args` ([`Self::lifted_subs`]): `generic` pruned to that
     /// function, made once per item and function; `None` for an item's
     /// own instance.
     fn lifted_template(
@@ -3034,6 +3028,12 @@ impl Env<'_> {
         lifting.targets(&bound)
     }
 
+    /// Instance `node`'s body before the passes: an item's own body, or a
+    /// generic item's at its type arguments (`hd_mono::instantiate`: its
+    /// types substituted, its bound calls chosen as impl or builtin
+    /// calls); then folded and inlined
+    /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
+    /// one instance's. Dev and release run these stages in one order.
     pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with

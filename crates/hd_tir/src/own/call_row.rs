@@ -55,7 +55,8 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32
         }
     }
     for (scope, operand, call) in candidates {
-        // Suspended scopes retain their ordinary owners for unwind ladders.
+        // Suspended scopes retain their ordinary owners for their cancel
+        // blocks.
         if cold[topo.sub[scope as usize] as usize] {
             continue;
         }

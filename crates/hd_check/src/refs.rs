@@ -48,8 +48,9 @@ pub(crate) enum Root {
     /// map's key (`ref.elem.map`): the collection as the source read it,
     /// the index or key value, and the collection's value type. The place
     /// is `[%xs [%i]]`, or `[%m [%e]]` at the number `%e` of the key's
-    /// entry ([`Ck::elem_index`]); insertion pins the collection
-    /// (`docs/compiler/tir-v2.md`, stage 2 commit 12b).
+    /// entry ([`Ck::elem_index`]); insertion makes the collection unique
+    /// before a reference to it (`docs/compiler/tir-v2.md`, "Insertion"
+    /// rule 6).
     Elem(Ref, Ref, Ty),
     /// A list element or a map value that a write names, `xs[i]` or
     /// `m[k]`, which no reference pins: the collection value, the index or

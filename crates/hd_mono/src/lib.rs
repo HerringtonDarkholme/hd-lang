@@ -82,11 +82,11 @@ pub trait ProgramEnv: LayoutEnv {
     fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)>;
     /// Release (#1151): `def`'s promoted copy at `args`, which takes the
     /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
-    /// which a call may run where `hd_tir::own::promote::promoted_call`
+    /// which a call may run where `hd_tir::own::promote::promoted_call_in`
     /// holds.
     /// With `exclusive`, the promoted copy of `def`'s exclusive copy
     /// ([`ProgramEnv::exclusive_body`]). Only the parameters in `want.0`
-    /// may be taken by value (`promotable_args`), and one whose referent
+    /// may be taken by value (`hd_tir::own::promote::promotable_args_in`), and one whose referent
     /// is counted only in `want.1` (`held_args`).
     fn promoted_body(
         &self,

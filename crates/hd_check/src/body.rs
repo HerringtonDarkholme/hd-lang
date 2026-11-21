@@ -60,7 +60,7 @@ pub struct BodyCx<'a> {
     pub locals: &'a hd_resolve::Locals,
     /// The module's declarations' parameter names by the bytes they
     /// enclose, made on the first name that reaches nothing
-    /// ([`Self::enclosing_params`]).
+    /// ([`Self::is_enclosing_parameter`]).
     pub enclosing: std::cell::OnceCell<hd_resolve::EnclosingParams>,
     /// A closed receiver's candidates of a trait under this context's
     /// impl view, indexed by their trait arguments' heads, made on the

@@ -49,7 +49,7 @@ impl ValueFlow {
             .collect();
         let subs = body.inst_subs();
         // A sub's parent is the sub holding its defining closure, opened
-        // before it, so it has the smaller number (as in `hidden_insts`).
+        // before it, so it has the smaller number.
         let n = body.sub_root.len();
         let mut parent = vec![0u32; n];
         for (i, &s) in subs.iter().enumerate() {

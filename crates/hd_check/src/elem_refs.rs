@@ -7,11 +7,10 @@
 //! reference. `for p in &xs` and `for p in &mut xs` bind an element
 //! reference per step. An element reference is a `Ref` of the element
 //! place and nothing else: the ownership passes make the collection unique
-//! and pin it before the reference, and the reference's drop at its last
-//! use ends the pin (`docs/compiler/tir-v2.md`, stage 2 commit 12b). The
-//! pin only keeps the buffer the list's own while references count it; a
-//! change of the collection's length while one lives is a compile-time
-//! conflict, or a pointer-loan one behind a `*T` or a shared variable.
+//! before the reference (`docs/compiler/tir-v2.md`, "Insertion" rule 6),
+//! and the reference counts nothing. A change of the collection's length
+//! while one lives is a compile-time conflict, or a pointer-loan one
+//! behind a `*T` or a shared variable.
 
 use hd_base::{NodeIdx, StageResult};
 use hd_syntax::{NodeRef, SyntaxKind};

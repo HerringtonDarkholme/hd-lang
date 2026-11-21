@@ -47,8 +47,8 @@ pub enum Word {
     /// `own::operands` gives constructor entries argument roles; calls
     /// and lexical scopes borrow their providers.
     Provider,
-    /// A call's checked `(key type, borrowed FnDyn)` supplier. It lends
-    /// the callable; unlike `ContextNew` providers it never transfers a count.
+    /// The provider of one of a call's `(key, provider)` pairs
+    /// (`Providers::Pairs`). It lends the callable; unlike `ContextNew` providers it never transfers a count.
     ProviderRef,
     /// A block the instruction runs.
     Block,

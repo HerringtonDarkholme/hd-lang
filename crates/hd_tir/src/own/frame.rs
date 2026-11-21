@@ -49,7 +49,7 @@
 //!    move pass reads them through [`roots`]). A value such a coercion
 //!    lends stays undropped until the reference's last use (insertion,
 //!    rule 2).
-//! 6. **Frame cells** ([`frame_cells`]). A local a closure of the root
+//! 6. **Frame cells** ([`plan_cells`]). A local a closure of the root
 //!    shares, whose closure never leaves the frame, could live in a frame
 //!    slot: the closure value points into it, and rule 3's escapes apply,
 //!    with a call that may keep its argument, a compiler-supplied call,
@@ -116,7 +116,7 @@ pub(crate) struct Tables {
     roots: bool,
     /// Unbounded whole-local liveness has no projected-field mask.
     whole: bool,
-    /// Frame cells ([`frame_cells`]): a closure points into the locals it
+    /// Frame cells ([`plan_cells`]): a closure points into the locals it
     /// shares, and a call that may keep an argument, an instruction the
     /// compiler supplies, or another closure's capture lets it escape.
     cells: bool,

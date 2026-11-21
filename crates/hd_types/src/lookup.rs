@@ -49,7 +49,7 @@ impl OwnerMap {
 
     /// The folder that owns a type's outer constructor: a declared type or
     /// a trait value's trait. Built-in heads, parameters and variables own
-    /// nothing (§3.2 `owner_modules`).
+    /// nothing.
     #[must_use]
     pub fn owner_of_ty(&self, paths: &PathTable, pool: Types<'_>, t: Ty) -> Option<FolderId> {
         match pool.get(t) {

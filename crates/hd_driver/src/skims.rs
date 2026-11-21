@@ -63,7 +63,7 @@ pub(crate) struct FileSkim {
     /// a derivation template (`Run::template_sources`).
     pub(crate) derives: bool,
     /// Whether the text holds a fence (`` ``` ``), so it may hold a doc
-    /// test (`doc_test_files`).
+    /// test.
     pub(crate) fences: bool,
     /// The header span of a top-level `pub fn main` or `main!`, which
     /// `cli.exe.unselected-main` is about.

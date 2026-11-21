@@ -8,7 +8,7 @@
 //! at the ends of branches and arms, and a loop's head runs to a fixed
 //! point.
 //!
-//! The plan's rules 1 and 3, and the unwind set:
+//! The plan's rules 1 and 3, and the cancel blocks' releases:
 //!
 //! - **Rule 1, drops.** A `Drop` whose place's root is empty on every
 //!   path that reaches it goes: a local moved, dropped or never stored, as
@@ -17,8 +17,8 @@
 //!   the single normal arm that can still hold its count.
 //! - **Rule 3, the exit set.** A local empty at every way out of its
 //!   sub-body leaves the exit set: each `Return`, the end of its root
-//!   block, and each suspension point, whose cancellation leaves through
-//!   the exit, which releases the exit set. A parameter and a capture keep
+//!   block, and each suspension point, whose cancel block ends in a
+//!   cancelled `Return`. A parameter and a capture keep
 //!   their rows: the backend reads one outside the exit set as unowned.
 //! - **Boxes.** A local in a heap cell (`Storage::Cell`) holds a box
 //!   whose life is not its value's, as Swift's `alloc_box` and
@@ -27,21 +27,20 @@
 //!   `Drop` ends it, and a `Ref` that takes its count hands it to the
 //!   reference. A slot or a static cell needs no end of its own: a move
 //!   empties its value as any local's, and its address stays.
-//! - **The unwind set.** Each suspension point gets a row per owned value
-//!   that may hold a count there (`Body::unwind_drops`): its cancellation
-//!   is a way out that no TIR jump spells, so the backend releases those
-//!   values there, and the locals at the exit.
+//! - **Cancel blocks.** Each suspension point's cancel block
+//!   (`Body::cancel`, which `own::scopes` gives every point) starts with a
+//!   `Release` of each owned value that may hold a count there, before
+//!   the cleanup suites and the cancelled `Return`.
 //!
-//! The plan's rules 2 and 4 (a store into an empty place, a move with no
-//! zeroing) are not built here (`docs/compiler/tir-v2.md`, stage 2's
-//! commit 10).
+//! The plan's rule 2 (a store into an empty place) is
+//! `own::overwrites`; rule 4 (a move with no zeroing) is not built
+//! (`docs/compiler/tir-v2.md`, "Known-null").
 //!
-//! A place a cleanup suite touches is never empty to the walk (its local
-//! keeps every drop and its exit row, its value stays in every later
-//! unwind row): a suite runs at its scope's exits, which the walk does
-//! not follow.
+//! An owned body has no cleanup suites: `own::scopes` copied each one to
+//! the ways out of its scope, where the walk sees it as any code, so the
+//! walk's suite rows stay empty.
 //!
-//! Why it is sound: a drop, an exit row or an unwind row goes only where
+//! Why it is sound: a drop, an exit row or a cancel release goes only where
 //! no path reaches it with a count in its place; any other state keeps
 //! it, and a place that is empty there holds zero, which releases as
 //! nothing. A rule 5 row stands only where every path that reaches it

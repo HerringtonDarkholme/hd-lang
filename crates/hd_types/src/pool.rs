@@ -207,7 +207,7 @@ pub struct RowParamRef {
 }
 
 /// A row: sorted keys and declared row parameters. Pending private rows
-/// (`PendingPart`) live only in the body and module tiers, never here.
+/// live only in the body and module tiers, never here.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct RowData {
     pub keys: Vec<Ty>,
@@ -287,7 +287,7 @@ impl Inputs {
     }
 }
 
-/// The decoded view of one type (§3.4 `TyView`), owned for simplicity.
+/// The decoded view of one type (`docs/compiler/data-structures.md` §3.4), owned for simplicity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TyData {
     /// A primitive: an integer, a float, `bool`, `char` or `string`
@@ -1855,7 +1855,7 @@ impl<'a> Types<'a> {
         (DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1]))
     }
 
-    /// Decodes a type (§3.4 `TyView`).
+    /// Decodes a type (`docs/compiler/data-structures.md` §3.4).
     #[must_use]
     pub fn get(self, t: Ty) -> TyData {
         let (c, i) = self.at(t.0);

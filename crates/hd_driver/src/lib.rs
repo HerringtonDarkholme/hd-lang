@@ -901,7 +901,7 @@ struct EntryCx {
 /// std's modules in this program. A program reaches a small part of std, so a module's
 /// items and bodies are indexed when something first asks for one of them. Every item
 /// and body of a std module has a path under that module, and its impls are in the
-/// folder interface (`Run::check_std_paths`), so a lookup needs only its own module.
+/// folder interface, so a lookup needs only its own module.
 #[derive(Default)]
 struct StdModules {
     cx: Option<EntryCx>,
@@ -9997,9 +9997,8 @@ impl Run<'_> {
             return;
         }
         self.with_env(p, |env| {
-            // An earlier REPL input's init ran in its own build: collection
-            // would leave it out (`Session::inits_run`), so it is left out
-            // here, before its bodies are decoded.
+            // An earlier REPL input's init ran in its own build, so it is
+            // left out here (`Run::is_kept`), before its bodies are decoded.
             let kept_module = |m: &str| self.table.module(m).is_some_and(|k| self.is_kept(k.idx()));
             let has_init = |m: &str| {
                 !kept_module(m) && self.entry_has_init(m) && self.body_of(p, init_of(m)).is_some()
@@ -10102,7 +10101,7 @@ impl Run<'_> {
             };
             // Extra roots: the other cases, then each distinct report function.
             // `extra` keeps the order collection reports their instances in;
-            // `extra_at` maps each root to its position, so adding a root and
+            // `ExtraRoots::at` maps each root to its position, so adding a root and
             // finding its instance are one probe each, not a scan of the roots.
             let mut extra = ExtraRoots::default();
             for (d, _) in &roots[1..] {
