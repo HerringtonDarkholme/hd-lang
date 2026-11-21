@@ -34,7 +34,8 @@ impl HttpServer for Scripted:
         .Ok(())
 
     fn cancelled!(&mut self, _id: RequestId) -> CancelReason:
-        self.clock.sleep!(s(60))
+        $.with(Clock=self.clock):
+            sleep!(s(60))
         .Stopping
 
     fn client(&mut self, _id: RequestId) -> *mut dyn Http:
@@ -142,7 +143,8 @@ impl HttpServer for Leases:
         self.replies.push((id.sequence, value))
         .Ok(())
     fn cancelled!(&mut self, id: RequestId) -> CancelReason:
-        self.clock.sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
+        $.with(Clock=self.clock):
+            sleep!(ms(if id.sequence == 1: self.cancel_after else: 60000))
         .Disconnected
     fn client(&mut self, _id: RequestId) -> *mut dyn Http:
         self.http
@@ -284,10 +286,12 @@ impl Clock for DeadlineClock:
         if amount == 100:
             self.cleanup_seen = true
         if amount == 20000 || amount == 100:
-            self.base.sleep!(ms(1))
+            $.with(Clock=self.base):
+                sleep!(ms(1))
             self.tick += amount
         else:
-            self.base.sleep!(duration)
+            $.with(Clock=self.base):
+                sleep!(duration)
 
 it("the handler deadline returns 504 after bounded abandoned cleanup"):
     clock := box(DeadlineClock { base: $.use(Clock), tick: 0 })
