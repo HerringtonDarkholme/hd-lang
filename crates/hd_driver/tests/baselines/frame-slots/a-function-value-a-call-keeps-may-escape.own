@@ -68,105 +68,109 @@ fn keep(f: fn() -> void) -> fn() -> void:
 fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 > app/main/run
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %8 lend, %16 lend
+>     uses $0: entry -> %9 lend, %17 lend
 >   local $1 g: fn(fn() -> ()) -> () [param read] value
->     uses $1: entry -> %65 lend last
+>     uses $1: entry -> %67 lend last
 >   local $2 n: usize [read assigned captured captured-assigned] place
 >   local $3 x: string [param read] value
 >     uses $3: none
 >   local $4 later: fn() -> () [:= read assigned] value
->     uses $4: %61 -> %62 lend last
+>     uses $4: %63 -> %64 lend last
 >   local $9 $pos: usize [assigned] place
 >   local $10 $end: usize [assigned] value
->     uses $10: %10 -> %13 lend
+>     uses $10: %11 -> %14 lend
 >   local $11 x: string [read assigned] value
->     uses $11: %37 -> %21 lend last
->   %0 = Release %79 Exit local $0 #2 : ()
->   %1 = Release %79 Exit local $1 #2 : ()
+>     uses $11: %38 -> %22 lend last
+>   %0 = Release %83 Exit local $0 #2 : ()
+>   %1 = Release %83 Exit local $1 #2 : ()
     let n: usize = 0
 >   %2 = Box #2 #1 : ()
 >   %3 = Store [$2] 0:usize : ()
->   %79 = Block %77 : usize
+>   %82 = Drop [$2] : ()
+>   %83 = Block %80 : usize
     each(xs, fn(x: string) -> void: n += x.len())
->   %4 = Retain %7 Entry local $3 #0 : ()
+>   %4 = Retain %8 Entry local $3 #0 : ()
 >   %5 = Drop [$3] : ()
 >   %6 = Unreachable  : never
->   %7 = Block %6 : never
->   %8 = Read borrow [$0] : List[string]
->   %9 = Intrinsic ListLen [%8] : usize
->   %10 = Store [$10] %9 : ()
->   %11 = Store [$9] 0:usize : ()
->   %12 = Read copy [$9] : usize
->   %13 = Read copy [$10] : usize
->   %14 = Prim Lt [%12 %13] : bool
->   %15 = Read copy [$9] : usize
->   %16 = Read borrow [$0 [%15]] : string
->   %17 = Read copy [$9] : usize
->   %18 = Prim Add [%17 1:usize] : usize
->   %19 = Store [$9] %18 : ()
->   %20 = Read copy [$2] : usize
->   %21 = Read borrow [$11] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
->   %23 = Break L2 %22 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = Prim Add [%20 %25] : usize
->   %27 = Store [$2] %26 : ()
->   %28 = Release %27 Operation #3 : ()
->   %29 = Read borrow [$2] : usize
->   %30 = Block - : ()
->   %31 = Scope %30 [] : ()
->   %32 = Break L3 - : never
->   %33 = Block - : ()
->   %34 = Scope %33 [] : ()
->   %35 = Block - : ()
->   %36 = Read borrow [%16] : string
->   %37 = Store [$11] %36 : ()
->   %39 = Block - : never
->   %40 = Match %16 [%39 %35] : ()
->   %41 = Block - : ()
->   %42 = Break L0 - : never
->   %43 = Block - : ()
->   %44 = If %14 [%41 %43] : ()
->   %45 = Block - : ()
->   %46 = Loop %45 - : ()
->   %47 = Break L1 - : never
->   %48 = Block - : ()
->   %49 = Scope %48 [] : ()
+>   %7 = Drop [$3] : ()
+>   %8 = Block %6 : never
+>   %9 = Read borrow [$0] : List[string]
+>   %10 = Intrinsic ListLen [%9] : usize
+>   %11 = Store [$10] %10 : ()
+>   %12 = Store [$9] 0:usize : ()
+>   %13 = Read copy [$9] : usize
+>   %14 = Read copy [$10] : usize
+>   %15 = Prim Lt [%13 %14] : bool
+>   %16 = Read copy [$9] : usize
+>   %17 = Read borrow [$0 [%16]] : string
+>   %18 = Read copy [$9] : usize
+>   %19 = Prim Add [%18 1:usize] : usize
+>   %20 = Store [$9] %19 : ()
+>   %21 = Read copy [$2] : usize
+>   %22 = Read borrow [$11] : string
+>   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %24 = Break L2 %23 : never
+>   %25 = Block - : usize
+>   %26 = Scope %25 [] : usize
+>   %27 = Prim Add [%21 %26] : usize
+>   %28 = Store [$2] %27 : ()
+>   %29 = Release %28 Operation #3 : ()
+>   %30 = Read borrow [$2] : usize
+>   %31 = Block - : ()
+>   %32 = Scope %31 [] : ()
+>   %33 = Break L3 - : never
+>   %34 = Block - : ()
+>   %35 = Scope %34 [] : ()
+>   %36 = Block - : ()
+>   %37 = Read borrow [%17] : string
+>   %38 = Store [$11] %37 : ()
+>   %40 = Block - : never
+>   %41 = Match %17 [%40 %36] : ()
+>   %42 = Block - : ()
+>   %43 = Break L0 - : never
+>   %44 = Block - : ()
+>   %45 = If %15 [%42 %44] : ()
+>   %46 = Block - : ()
+>   %47 = Loop %46 - : ()
+>   %48 = Break L1 - : never
+>   %49 = Block - : ()
+>   %50 = Scope %49 [] : ()
     later := keep(fn() -> void: n += 1)
->   %50 = Retain %56 Entry captures #0 : ()
->   %51 = Read copy [$2] : usize
->   %52 = Prim Add [%51 1:usize] : usize
->   %53 = Store [$2] %52 : ()
->   %54 = Release %53 Operation #3 : ()
->   %55 = Drop [$2] : ()
->   %56 = Block - : ()
->   %57 = Closure #2 : fn() -> ()
->   %58 = Retain %57 Operation captures #0 : ()
->   %59 = Call app/main/keep[] (%57) : fn() -> ()
->   %60 = LoanEnd [%57] : ()
->   %61 = Store [$4] %59 : ()
+>   %51 = Retain %58 Entry captures #0 : ()
+>   %52 = Read copy [$2] : usize
+>   %53 = Prim Add [%52 1:usize] : usize
+>   %54 = Store [$2] %53 : ()
+>   %55 = Release %54 Operation #3 : ()
+>   %56 = Drop [$2] : ()
+>   %57 = Drop [$2] : ()
+>   %58 = Block - : ()
+>   %59 = Closure #2 : fn() -> ()
+>   %60 = Retain %59 Operation captures #0 : ()
+>   %61 = Call app/main/keep[] (%59) : fn() -> ()
+>   %62 = LoanEnd [%59] : ()
+>   %63 = Store [$4] %61 : ()
     later()
->   %62 = Read move [$4] : fn() -> ()
->   %63 = CallValue %62 [] : ()
->   %64 = Drop [%62] : ()
+>   %64 = Read move [$4] : fn() -> ()
+>   %65 = CallValue %64 [] : ()
+>   %66 = Drop [%64] : ()
     g(fn() -> void: n += 2)
->   %65 = Read borrow [$1] : fn(fn() -> ()) -> ()
->   %66 = Retain %72 Entry captures #0 : ()
->   %67 = Read copy [$2] : usize
->   %68 = Prim Add [%67 2:usize] : usize
->   %69 = Store [$2] %68 : ()
->   %70 = Release %69 Operation #3 : ()
->   %71 = Drop [$2] : ()
->   %72 = Block - : ()
->   %73 = Closure #3 : fn() -> ()
->   %74 = Retain %73 Operation captures #0 : ()
->   %75 = CallValue %65 [%73] : ()
->   %75 keeps %73
->   %76 = Drop [%73] : ()
+>   %67 = Read borrow [$1] : fn(fn() -> ()) -> ()
+>   %68 = Retain %75 Entry captures #0 : ()
+>   %69 = Read copy [$2] : usize
+>   %70 = Prim Add [%69 2:usize] : usize
+>   %71 = Store [$2] %70 : ()
+>   %72 = Release %71 Operation #3 : ()
+>   %73 = Drop [$2] : ()
+>   %74 = Drop [$2] : ()
+>   %75 = Block - : ()
+>   %76 = Closure #3 : fn() -> ()
+>   %77 = Retain %76 Operation captures #0 : ()
+>   %78 = CallValue %67 [%76] : ()
+>   %78 keeps %76
+>   %79 = Drop [%76] : ()
     n
->   %77 = Read copy [$2] : usize
->   %78 = Drop [$2] : ()
+>   %80 = Read copy [$2] : usize
+>   %81 = Drop [$2] : ()
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$3]
 >   exit sub 2 drops [$2]
@@ -176,4 +180,4 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   storage sub 2: $2 cell
 >   storage sub 3: $2 cell
 >   summary kept [] borrows [$0 $1] writes
->   loop %46 keeps [$0] (-..-)
+>   loop %47 keeps [$0] (-..-)

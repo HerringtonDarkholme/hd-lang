@@ -30,6 +30,8 @@ fn make(value: string) -> fn!(usize) -> string:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
+>   release string (last use)
+>   release fn!(usize) -> string (last use)
 >   release Suspend[string] (last use)
 >   release string (last use)
     read
@@ -55,6 +57,7 @@ fn generic[T < 'static](value: T) -> fn!() -> T:
 pub fn main!() -> void $ Console:
     read := make("kept")
 > app/main/main
+>   release fn!() -> i32 (last use)
 >   release fn!() -> i32 (last use)
 > app/main/main
 >   release counted reference (last use)

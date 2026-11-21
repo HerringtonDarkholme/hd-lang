@@ -41,6 +41,7 @@ app/main/bump_all
   %32 = Block - : ()
   %33 = Loop %32 - : ()
   %34 = Drop [$0] : ()
-  %35 = Block - : ()
+  %35 = Drop [$0] : ()
+  %36 = Block - : ()
   exit sub 0 drops [$0]
   loop %33 keeps len [$0] (-..%34)

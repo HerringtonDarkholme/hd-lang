@@ -14,8 +14,8 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >     uses $1: entry -> %2 lend, %8 lend, %15 lend last
 >   local $2 n: i64 [param read] value
 >     uses $2: entry -> %9 consume last
->   %0 = Release %24 Exit local $1 #2 : ()
->   %1 = Retain %24 Entry local $0 #0 : ()
+>   %0 = Release %25 Exit local $1 #2 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
     m[k] = []
 >   %2 = Read borrow [$1] : string
 >   %3 = NewList - [] : List[i64]
@@ -23,7 +23,8 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >   %5 = Read borrow [$0] : Map[string, List[i64]]
 >   %6 = Intrinsic MapSet [%5 %2 %3] : ()
 >   %7 = Retain %6 Operation operand 1 #0 : ()
->   %24 = Block %23 : Map[string, List[i64]]
+>   %24 = Drop [$0] : ()
+>   %25 = Block %23 : Map[string, List[i64]]
     m[k] = [n]
 >   %8 = Read borrow [$1] : string
 >   %9 = Read copy [$2] : i64
@@ -51,8 +52,8 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
 >     uses $0: entry -> %2 lend, %9 lend, %12 consume last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Release %13 Exit local $1 #2 : ()
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Release %14 Exit local $1 #2 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
     counts[k] += 1
 >   %2 = Read borrow [$0] : Map[string, i64]
 >   %3 = Read borrow [$1] : string
@@ -64,7 +65,8 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
 >   %9 = Read borrow [$0] : Map[string, i64]
 >   %10 = Intrinsic MapSet [%9 %3 %7] : ()
 >   %11 = Retain %10 Operation operand 1 #0 : ()
->   %13 = Block %12 : Map[string, i64]
+>   %13 = Drop [$0] : ()
+>   %14 = Block %12 : Map[string, i64]
     counts
 >   %12 = Read move [$0] : Map[string, i64]
 >   exit sub 0 drops [$0]

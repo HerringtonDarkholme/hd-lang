@@ -26,17 +26,18 @@ fn total!(c: bool) -> i64 $ Clock:
 >     uses $7: %40 -> %45 lend last
 >   local $8 count: i64 [read] value
 >     uses $8: %19 -> %20 lend last
->   %0 = Retain %57 Cold row #0 : ()
->   %1 = Retain %57 Materialize row #0 : ()
->   %2 = Release %57 FrameDrop row #2 : ()
->   %3 = Release %57 FrameDrop child #2 : ()
+>   %0 = Retain %58 Cold row #0 : ()
+>   %1 = Retain %58 Materialize row #0 : ()
+>   %2 = Release %58 FrameDrop row #2 : ()
+>   %3 = Release %58 FrameDrop child #2 : ()
 >   %4 = Coerce 1:i64 [Identity -] : i64
 >   %5 = Coerce 2:i64 [Identity -] : i64
 >   %6 = Coerce 3:i64 [Identity -] : i64
 >   %7 = Coerce 4:i64 [Identity -] : i64
 >   %8 = NewList - [%4 %5 %6 %7] : List[i64]
 >   %9 = Store [$1] %8 : ()
->   %57 = Block %56 : i64
+>   %57 = Drop [$1] : ()
+>   %58 = Block %56 : i64
     if c:
 >   %10 = Read copy [$0] : bool
 >   %15 = If %10 [%14 -] : ()
@@ -58,7 +59,7 @@ fn total!(c: bool) -> i64 $ Clock:
 >   %24 = Scope %23 [] : Duration
 >   %25 = Await std/time/sleep[] (%24) : ()
 >   %26 = Release %25 Operation child #2 : ()
->   %58 = Return - #2 : never
+>   %59 = Return - #2 : never
     let s = 0i64
 >   %27 = Store [$3] 0:i64 : ()
     for i in 0..n:
@@ -95,7 +96,7 @@ fn total!(c: bool) -> i64 $ Clock:
 >   %56 = Read copy [$3] : i64
 >   exit sub 0 drops [$1]
 >   summary none
->   cancel %25 releases [%4294967295]
+>   cancel %25 releases [%2147483649 %4294967295]
 >   loop %54 keeps [$1] (%25..%55)
 
 pub fn main!() -> void $ Console + Clock:

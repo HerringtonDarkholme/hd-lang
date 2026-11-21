@@ -33,14 +33,16 @@ impl AutoClosing for Guard:
 >     uses $0: entry -> %2 consume last
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
 fn guard(log: *mut List[string], label: string) -> Guard:
     Guard { log: log, label: label }
 >   %2 = Read move [$0] : *mut List[string]
 >   %3 = Read move [$1] : string
 >   %4 = NewStruct [%2 %3] : Guard
->   %5 = Block %4 : Guard
+>   %5 = Drop [$0] : ()
+>   %6 = Drop [$1] : ()
+>   %7 = Block %4 : Guard
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -51,8 +53,8 @@ fn work(log: *mut List[string], label: string) -> void:
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %4 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
->   %0 = Release %19 Exit local $0 #2 : ()
->   %1 = Retain %19 Entry local $1 #0 : ()
+>   %0 = Release %20 Exit local $0 #2 : ()
+>   %1 = Retain %20 Entry local $1 #0 : ()
     guard(log, label)
 >   %2 = Read copy [$0] : *mut List[string]
 >   %3 = Retain %2 Value #0 : ()
@@ -68,7 +70,8 @@ fn work(log: *mut List[string], label: string) -> void:
 >   %16 = Drop [$2] : ()
 >   %17 = Block - : ()
 >   %18 = Scope %17 [] : ()
->   %19 = Block - : ()
+>   %19 = Drop [$1] : ()
+>   %20 = Block - : ()
     log.push("work")
 >   %8 = IsUnique [*$0] : ()
 >   %9 = Read borrow [*$0] : List[string]

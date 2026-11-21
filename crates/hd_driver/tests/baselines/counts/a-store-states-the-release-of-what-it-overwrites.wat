@@ -222,6 +222,11 @@
         local.get $u
         i32.load $heap offset=8
         local.set $t4
+        local.get $u
+        if
+          local.get $u
+          call $rt:drop
+        end
         br 1
     ;; 40 |     if c:
       end
@@ -231,13 +236,6 @@
         local.get $u
         call $rt:drop
       end
-      i32.const 0
-      local.set $u
-    end
-    local.get $u
-    if
-      local.get $u
-      call $rt:drop
     end
     local.get $t4
     local.get $t0

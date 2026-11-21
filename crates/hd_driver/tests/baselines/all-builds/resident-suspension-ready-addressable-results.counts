@@ -41,6 +41,8 @@ pub fn main!() -> void $ Console:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
+>   release counted reference (last use)
+>   release string (last use)
 > app/main/main
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -103,6 +105,8 @@ pub fn main!() -> void $ Console:
 > app/main/main
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release string (last use)
 >   release counted reference (last use)
 >   release string (last use)
 > app/main/main
@@ -170,6 +174,8 @@ pub fn main!() -> void $ Console:
 >   release string (last use)
 >   release counted reference (last use)
 >   release string (last use)
+>   release counted reference (last use)
+>   release string (last use)
 > app/main/main
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -231,6 +237,8 @@ pub fn main!() -> void $ Console:
     let (a, first) = ready!(true)
 > app/main/main
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release string (last use)
 >   release counted reference (last use)
 >   release string (last use)
 >   release counted reference (last use)

@@ -48,6 +48,7 @@ fn later!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
+>   release counted reference (last use)
 
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -67,6 +68,8 @@ fn both!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
 >   release Suspend[usize] (cancelled)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release Suspend[usize] (last use)
 >   release Suspend[usize] (last use)
 >   release counted reference (last use)

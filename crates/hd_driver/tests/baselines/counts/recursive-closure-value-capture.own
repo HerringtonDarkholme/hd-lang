@@ -7,19 +7,21 @@ fn sum_to(limit: i32, seed: i32) -> i32:
     sum := fn(n: i32) -> i32:
 > app/main/sum_to
 >   local $0 limit: i32 [param read] value
->     uses $0: entry -> %22 lend last
+>     uses $0: entry -> %23 lend last
 >   local $1 seed: i32 [param read captured] value
->     uses $1: entry -> %3 consume, %16 consume last
+>     uses $1: entry -> %3 consume, %17 consume last
 >   local $2 n: i32 [param read] value
 >     uses $2: entry -> %1 lend, %5 lend, %7 lend last
 >   local $3 sum: fn(i32) -> i32 [:= read assigned captured captured-assigned] place
->   %0 = Retain %14 Entry captures #0 : ()
->   %14 = Block %12 : i32
->   %15 = Store [$3] - : ()
->   %16 = Closure #1 : fn(i32) -> i32
->   %17 = Store [$3] %16 : ()
->   %18 = Release %17 Operation #3 : ()
->   %25 = Block %23 : i32
+>   %0 = Retain %15 Entry captures #0 : ()
+>   %14 = Drop [$3] : ()
+>   %15 = Block %12 : i32
+>   %16 = Store [$3] - : ()
+>   %17 = Closure #1 : fn(i32) -> i32
+>   %18 = Store [$3] %17 : ()
+>   %19 = Release %18 Operation #3 : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Block %24 : i32
         if n == 0: seed
 >   %1 = Read copy [$2] : i32
 >   %2 = Prim Eq [%1 0:i32] : bool
@@ -36,12 +38,12 @@ fn sum_to(limit: i32, seed: i32) -> i32:
 >   %10 = Prim Add [%5 %9] : i32
 >   %11 = Block %10 : i32
     sum(limit)
->   %19 = Read copy [$3] : fn(i32) -> i32
->   %20 = Retain %19 Value #0 : ()
->   %21 = Drop [$3] : ()
->   %22 = Read copy [$0] : i32
->   %23 = CallValue %19 [%22] : i32
->   %24 = Drop [%19] : ()
+>   %20 = Read copy [$3] : fn(i32) -> i32
+>   %21 = Retain %20 Value #0 : ()
+>   %22 = Drop [$3] : ()
+>   %23 = Read copy [$0] : i32
+>   %24 = CallValue %20 [%23] : i32
+>   %25 = Drop [%20] : ()
 >   exit sub 0 drops [$3]
 >   exit sub 1 drops [$3]
 >   summary kept [] writes

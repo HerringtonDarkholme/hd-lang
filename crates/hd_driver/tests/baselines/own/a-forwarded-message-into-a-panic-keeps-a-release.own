@@ -71,9 +71,9 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >     uses $30: %27 -> %28 lend last
 >   local $31 value: string [read] value
 >     uses $31: %17 -> %18 lend last
->   %2 = Release %220 Exit local $2 #2 : ()
->   %3 = Retain %220 Entry local $0 #0 : ()
->   %4 = Retain %220 Entry local $1 #0 : ()
+>   %2 = Release %222 Exit local $2 #2 : ()
+>   %3 = Retain %222 Entry local $0 #0 : ()
+>   %4 = Retain %222 Entry local $1 #0 : ()
     if actual != expected:
 >   %0 = FlagSet [$0] #32 : ()
 >   %1 = FlagSet [$1] #33 : ()
@@ -88,7 +88,9 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   %217 = If %12 [%216 -] : ()
 >   %218 = Drop [$0] : ()
 >   %219 = Drop [$1] : ()
->   %220 = Block - : ()
+>   %220 = Drop [$0] : ()
+>   %221 = Drop [$1] : ()
+>   %222 = Block - : ()
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
 >   %13 = FlagClear [$0] #32 : ()
 >   %14 = Read move [$0] : T

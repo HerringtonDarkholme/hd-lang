@@ -25,8 +25,8 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   local $0 shelves: Map[string, Stock] [param read] place
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %3 lend, %10 lend last
->   %0 = Release %15 Exit local $1 #2 : ()
->   %1 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Release %16 Exit local $1 #2 : ()
+>   %1 = Retain %16 Entry local $0 #0 : ()
     add(&mut shelves[name], 1)
 >   %2 = Read borrow [$0] : Map[string, Stock]
 >   %3 = Read borrow [$1] : string
@@ -35,7 +35,8 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   %6 = Ref mut local [$0 [%4]] : &mut Stock
 >   %7 = Call app/main/add[] (%6, 1:i32) : ()
 >   %8 = LoanEnd [%6] : ()
->   %15 = Block %14 : Map[string, Stock]
+>   %15 = Drop [$0] : ()
+>   %16 = Block %14 : Map[string, Stock]
     shelves[name].count = 5
 >   %9 = Read borrow [$0] : Map[string, Stock]
 >   %10 = Read borrow [$1] : string

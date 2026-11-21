@@ -29,7 +29,7 @@ impl Supplier for Constant:
 fn first[T < Supplier](source: T) -> T::Item:
 > app/main/first
 >   local $0 source: T [param read captured] place
->   %0 = Retain %8 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
     source.get()
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &T
@@ -38,7 +38,8 @@ fn first[T < Supplier](source: T) -> T::Item:
 >   %5 = Release %3 Operation dynamic receiver #2 : ()
 >   %6 = Drop [%2] : ()
 >   %7 = Drop [$0] : ()
->   %8 = Block %3 : T::Item
+>   %8 = Drop [$0] : ()
+>   %9 = Block %3 : T::Item
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes
@@ -93,7 +94,7 @@ fn read_const(c: Constant) -> usize:
 >   local $0 c: Constant [param read captured] place
 >   local $1 $ref: &Constant [read assigned captured] value
 >     uses $1: %3 -> %4 lend last
->   %0 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     read(&c)
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Constant
@@ -108,7 +109,8 @@ fn read_const(c: Constant) -> usize:
 >   %11 = Drop [%9] : ()
 >   %12 = LoanEnd [$1] : ()
 >   %13 = Drop [$0] : ()
->   %14 = Block %10 : usize
+>   %14 = Drop [$0] : ()
+>   %15 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

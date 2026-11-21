@@ -8,16 +8,17 @@ fn ready![T < 'static](value: T) -> T:
 > app/main/ready
 >   local $0 value: T [param read] value
 >     uses $0: entry -> %6 consume last
->   %1 = Retain %8 Cold local $0 #0 : ()
->   %2 = Retain %8 Entry local $0 #0 : ()
->   %3 = Retain %8 Cold referent $0 #8 : ()
->   %4 = Release %8 FrameDrop referent $0 #2 : ()
->   %5 = Release %8 Exit referent $0 #8 : ()
+>   %1 = Retain %9 Cold local $0 #0 : ()
+>   %2 = Retain %9 Entry local $0 #0 : ()
+>   %3 = Retain %9 Cold referent $0 #8 : ()
+>   %4 = Release %9 FrameDrop referent $0 #2 : ()
+>   %5 = Release %9 Exit referent $0 #8 : ()
     value
 >   %0 = FlagSet [$0] #1 : ()
 >   %6 = Read move [$0] : T
 >   %7 = FlagClear [$0] #1 : ()
->   %8 = Block %6 : T
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : T
 >   exit sub 0 drops [$0]
 >   summary none
 
@@ -27,16 +28,16 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >     uses $0: entry -> %12 consume last
 >   local $1 b: T [param read] value
 >     uses $1: entry -> %16 consume last
->   %2 = Retain %27 Cold local $0 #0 : ()
->   %3 = Retain %27 Entry local $0 #0 : ()
->   %4 = Retain %27 Cold local $1 #0 : ()
->   %5 = Retain %27 Entry local $1 #0 : ()
->   %6 = Retain %27 Cold referent $0 #8 : ()
->   %7 = Release %27 FrameDrop referent $0 #2 : ()
->   %8 = Release %27 Exit referent $0 #8 : ()
->   %9 = Retain %27 Cold referent $1 #8 : ()
->   %10 = Release %27 FrameDrop referent $1 #2 : ()
->   %11 = Release %27 Exit referent $1 #8 : ()
+>   %2 = Retain %29 Cold local $0 #0 : ()
+>   %3 = Retain %29 Entry local $0 #0 : ()
+>   %4 = Retain %29 Cold local $1 #0 : ()
+>   %5 = Retain %29 Entry local $1 #0 : ()
+>   %6 = Retain %29 Cold referent $0 #8 : ()
+>   %7 = Release %29 FrameDrop referent $0 #2 : ()
+>   %8 = Release %29 Exit referent $0 #8 : ()
+>   %9 = Retain %29 Cold referent $1 #8 : ()
+>   %10 = Release %29 FrameDrop referent $1 #2 : ()
+>   %11 = Release %29 Exit referent $1 #8 : ()
     join!(ready(a), ready(b))
 >   %0 = FlagSet [$0] #2 : ()
 >   %1 = FlagSet [$1] #3 : ()
@@ -55,11 +56,13 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >   %24 = FlagClear [%13] #4 : ()
 >   %25 = Drop [%14] : ()
 >   %26 = FlagClear [%11] #5 : ()
->   %27 = Block %20 : (T, T)
->   %30 = Return - #2 : never
+>   %27 = Drop [$0] : ()
+>   %28 = Drop [$1] : ()
+>   %29 = Block %20 : (T, T)
+>   %32 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %20 releases [%14 %18 %4294967295]
+>   cancel %20 releases [%14 %18 %2147483648 %2147483649 %4294967295]
 
 fn text!(a: string, b: string) -> (string, string):
 > app/main/text
@@ -67,21 +70,23 @@ fn text!(a: string, b: string) -> (string, string):
 >     uses $0: entry -> %5 consume last
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %6 consume last
->   %0 = Retain %9 Cold local $0 #0 : ()
->   %1 = Retain %9 Entry local $0 #0 : ()
->   %2 = Retain %9 Cold local $1 #0 : ()
->   %3 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
+>   %2 = Retain %11 Cold local $1 #0 : ()
+>   %3 = Retain %11 Entry local $1 #0 : ()
     generic!(a, b)
->   %4 = Release %9 FrameDrop child #2 : ()
+>   %4 = Release %11 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
 >   %6 = Read move [$1] : string
 >   %7 = Await app/main/generic[string] (%5, %6) : (string, string)
 >   %8 = Release %7 Operation child #2 : ()
->   %9 = Block %7 : (string, string)
->   %10 = Return - #2 : never
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %7 : (string, string)
+>   %12 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %7 releases [%4294967295]
+>   cancel %7 releases [%2147483648 %2147483649 %4294967295]
 
 fn scalar!(a: i32, b: i32) -> (i32, i32):
     join!(ready(a), ready(b))
@@ -111,10 +116,10 @@ fn sequential!(a: string, b: string) -> (string, string):
 >     uses $1: entry -> %6 consume last
 >   local $2 pair: (string, string) [:= read assigned] value
 >     uses $2: %13 -> %14 consume, %16 consume last
->   %0 = Retain %23 Cold local $0 #0 : ()
->   %1 = Retain %23 Entry local $0 #0 : ()
->   %2 = Retain %23 Cold local $1 #0 : ()
->   %3 = Retain %23 Entry local $1 #0 : ()
+>   %0 = Retain %33 Cold local $0 #0 : ()
+>   %1 = Retain %33 Entry local $0 #0 : ()
+>   %2 = Retain %33 Cold local $1 #0 : ()
+>   %3 = Retain %33 Entry local $1 #0 : ()
     pair := join!(ready(a), ready(b))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/ready[string] (%4) : Suspend[string]
@@ -126,7 +131,17 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %11 = Drop [%7] : ()
 >   %12 = Drop [%5] : ()
 >   %13 = Store [$2] %8 : ()
->   %23 = Block %18 : (string, string)
+>   %23 = Drop [$0] : ()
+>   %24 = Drop [$1] : ()
+>   %25 = Break L1 %18 : never
+>   %26 = Block - : ()
+>   %27 = Scope %26 [] : ()
+>   %28 = Drop [$0] : ()
+>   %29 = Drop [$1] : ()
+>   %30 = Return - #2 : never
+>   %31 = Block - : (string, string)
+>   %32 = Scope %31 [] : (string, string)
+>   %33 = Block %32 : (string, string)
     join!(ready(pair._0), ready(pair._1))
 >   %14 = Read move [$2 .0] : string
 >   %15 = Call app/main/ready[string] (%14) : Suspend[string]
@@ -137,8 +152,8 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %20 = Release %18 Operation waker #2 : ()
 >   %21 = Drop [%17] : ()
 >   %22 = Drop [%15] : ()
->   %30 = Return - #2 : never
+>   %40 = Break L0 - : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %8 releases [%5 %7 %4294967295]
->   cancel %18 releases [%15 %17 %4294967295]
+>   cancel %8 releases [%5 %7 %0]
+>   cancel %18 releases [%15 %17 %0]

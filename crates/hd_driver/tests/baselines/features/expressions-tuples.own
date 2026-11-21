@@ -49,11 +49,12 @@ fn take_first(t: (string, List[string])) -> string:
 > app/main/take_first
 >   local $0 t: (string, List[string]) [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     t._0
 >   %1 = Read move [$0 .0] : string
 >   %2 = Drop [$0] : ()
->   %3 = Block %1 : string
+>   %3 = Drop [$0] : ()
+>   %4 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -65,16 +66,19 @@ fn rest_collect(a: string, b: string, c: string) -> (string, List[string]...):
 >     uses $1: entry -> %4 consume last
 >   local $2 c: string [param read] value
 >     uses $2: entry -> %5 consume last
->   %0 = Retain %8 Entry local $0 #0 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
->   %2 = Retain %8 Entry local $2 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
+>   %2 = Retain %11 Entry local $2 #0 : ()
     (a, b, c)
 >   %3 = Read move [$0] : string
 >   %4 = Read move [$1] : string
 >   %5 = Read move [$2] : string
 >   %6 = NewList - [%4 %5] : List[string]
 >   %7 = NewTuple %6 [%3] : (string, List[string]...)
->   %8 = Block %7 : (string, List[string]...)
+>   %8 = Drop [$0] : ()
+>   %9 = Drop [$1] : ()
+>   %10 = Drop [$2] : ()
+>   %11 = Block %7 : (string, List[string]...)
 >   exit sub 0 drops [$0 $1 $2]
 >   summary kept [$0 $1 $2]
 
@@ -84,12 +88,14 @@ fn rest_spread(a: string, xs: List[string]) -> (string, List[string]...):
 >     uses $0: entry -> %2 consume last
 >   local $1 xs: List[string] [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
     (a, xs...)
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : List[string]
 >   %4 = NewTuple %3 [%2] : (string, List[string]...)
->   %5 = Block %4 : (string, List[string]...)
+>   %5 = Drop [$0] : ()
+>   %6 = Drop [$1] : ()
+>   %7 = Block %4 : (string, List[string]...)
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]

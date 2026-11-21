@@ -19,13 +19,14 @@ fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
 >     uses $4: %19 -> %23 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
->   %0 = Release %52 Exit local $1 #2 : ()
->   %1 = Retain %52 Entry local $0 #0 : ()
+>   %0 = Release %53 Exit local $1 #2 : ()
+>   %1 = Retain %53 Entry local $0 #0 : ()
     match other.label:
 >   %2 = Read borrow [$1 .label] : string
 >   %11 = Block - : never
 >   %12 = Match %2 [%11 %3 %4] : ()
->   %52 = Block %50 : usize
+>   %52 = Drop [$0] : ()
+>   %53 = Block %50 : usize
         "first" => pass
 >   %3 = Block - : ()
 >   %5 = Intrinsic StrEq [%2 "first"] : bool

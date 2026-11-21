@@ -20,6 +20,8 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
 >   release Suspend[string] (cancelled)
+>   release string (last use)
+>   release string (last use)
 >   release Suspend[string] (last use)
 >   release Suspend[string] (last use)
 >   release string (last use)
@@ -36,6 +38,8 @@ fn text!(a: string, b: string) -> (string, string):
 > app/main/text
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release string (last use)
+>   release string (last use)
 >   release string (last use)
 >   release string (last use)
 > app/main/text
@@ -69,6 +73,8 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   release Suspend[string] (last use)
 >   release Suspend[string] (last use)
 >   release Suspend[string] (last use)
+>   release string (last use)
+>   release string (last use)
 >   release string (last use)
 >   release string (last use)
 >   release counted reference (last use)

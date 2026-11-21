@@ -142,6 +142,7 @@ app/main/replaced
   %109 = Scope %108 [] : usize
   %110 = Drop [$5] : ()
   %111 = Prim Add [%104 %109] : usize
-  %112 = Block %111 : usize
+  %112 = Drop [$0] : ()
+  %113 = Block %111 : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot, $1 slot, $2 slot

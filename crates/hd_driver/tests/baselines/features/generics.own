@@ -9,12 +9,13 @@ fn ident[T](x: T) -> T:
 > app/main/ident
 >   local $0 x: T [param read] value
 >     uses $0: entry -> %2 consume last
->   %1 = Retain %4 Entry local $0 #0 : ()
+>   %1 = Retain %5 Entry local $0 #0 : ()
     x
 >   %0 = FlagSet [$0] #1 : ()
 >   %2 = Read move [$0] : T
 >   %3 = FlagClear [$0] #1 : ()
->   %4 = Block %2 : T
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
@@ -22,7 +23,7 @@ fn first[T](xs: List[T]) -> T?:
 > app/main/first
 >   local $0 xs: List[T] [param read] value
 >     uses $0: entry -> %2 lend, %5 lend last
->   %1 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
     if xs.len() > 0: .Some(xs[0]) else: .None
 >   %0 = FlagSet [$0] #1 : ()
 >   %2 = Read borrow [$0] : List[T]
@@ -37,7 +38,8 @@ fn first[T](xs: List[T]) -> T?:
 >   %11 = If %4 [%8 %10] : T?
 >   %12 = Drop [$0] : ()
 >   %13 = FlagClear [$0] #1 : ()
->   %14 = Block %11 : T?
+>   %14 = Drop [$0] : ()
+>   %15 = Block %11 : T?
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -57,13 +59,14 @@ fn keep[T](x: T) -> List[T]:
 >     uses $0: entry -> %5 consume last
 >   local $1 out: List[T] [read assigned] value
 >     uses $1: %3 -> %8 lend, %10 consume last
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
     let mut out: List[T] = []
 >   %0 = FlagSet [$0] #3 : ()
 >   %2 = NewList - [] : List[T]
 >   %3 = Store [$1] %2 : ()
 >   %4 = FlagSet [$1] #2 : ()
->   %12 = Block %10 : List[T]
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : List[T]
     out.push(x)
 >   %5 = Read move [$0] : T
 >   %6 = FlagClear [$0] #3 : ()
@@ -95,8 +98,8 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >     uses $10: %24 -> %25 lend, %28 lend last
 >   local $11 xs: &List[string] [read] value
 >     uses $11: %15 -> %16 lend last
->   %0 = Retain %78 Entry local $0 #0 : ()
->   %1 = Retain %78 Entry local $1 #0 : ()
+>   %0 = Retain %80 Entry local $0 #0 : ()
+>   %1 = Retain %80 Entry local $1 #0 : ()
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 >   %2 = Box #1 #0 : ()
 >   %3 = Read borrow [$0] : string
@@ -171,7 +174,9 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %75 = Intrinsic ListLen [%74] : usize
 >   %76 = Drop [%74] : ()
 >   %77 = Prim Add [%64 %75] : usize
->   %78 = Block %77 : usize
+>   %78 = Drop [$0] : ()
+>   %79 = Drop [$1] : ()
+>   %80 = Block %77 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $1 slot
 >   summary kept [$0 $1]

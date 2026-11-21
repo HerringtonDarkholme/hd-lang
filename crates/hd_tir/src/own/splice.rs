@@ -89,7 +89,8 @@ pub(crate) struct Tables {
     blocks: Vec<u32>,
     anchor: Vec<(u32, u32)>,
     order: Vec<u32>,
-    new_of: Vec<u32>,
+    /// Each old row's number after [`apply`], when it moved any.
+    pub(crate) new_of: Vec<u32>,
     per_block: Vec<(u32, u32, u32)>,
     /// The first anchor of each source position in each inlined frame
     /// ([`frame`]), for the new instructions' anchors.

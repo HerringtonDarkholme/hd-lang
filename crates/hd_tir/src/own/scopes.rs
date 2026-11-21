@@ -21,11 +21,11 @@ use hd_base::NodeIdx;
 use hd_base::{HashMap, SliceSort as _};
 use hd_types::Ty;
 
-use super::splice::permute_columns;
+use super::splice::{Tables, permute_columns};
 
 use crate::ir::{
     Body, NONE, Ref, Remap, SideRows, Tag, Through, Topology, copy_rows, for_blocks, grow, inside,
-    is_suspension, renumber, return_word, u32_of,
+    is_suspension, local_flags, place, renumber, return_word, u32_of,
 };
 
 /// One open cleanup scope: its suites, and how many its body registered.
@@ -552,7 +552,22 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
     }
     // The copies' rows go before their anchors, the cancel blocks at the
     // end, as `known::cancel_blocks` appends them; one permutation.
-    let mut spans = std::mem::take(&mut cx.spans);
+    b.cancel = std::mem::take(&mut cx.cancel);
+    place(b, n, std::mem::take(&mut cx.spans), &gone)?;
+    b.cancel.sort_stable();
+    Ok(())
+}
+
+/// Puts the rows past the first `n` in their places: each span
+/// (anchor, first, end) before its anchor, one with no anchor (`NONE`)
+/// at the end, and leaves out the old rows `gone` marks; then one
+/// permutation and one renumbering.
+fn place(
+    b: &mut Body,
+    n: usize,
+    mut spans: Vec<(u32, u32, u32)>,
+    gone: &[bool],
+) -> Result<(), String> {
     spans.sort_stable_by_key(|s| s.0);
     let mut order = Vec::with_capacity(b.len());
     let mut k = 0;
@@ -573,16 +588,172 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
         new_of[o as usize] = u32_of(k);
     }
     permute_columns(b, &order);
-    b.cancel = std::mem::take(&mut cx.cancel);
     renumber(
         b,
         &mut Through {
             new_of: &new_of,
             konst: 0,
         },
-    )?;
-    b.cancel.sort_stable();
-    Ok(())
+    )
+}
+
+/// Appends instruction `tag` `data` of type `ty` to `b`, to go before
+/// `anchor` ([`place`]), at its position.
+fn add(
+    b: &mut Body,
+    spans: &mut Vec<(u32, u32, u32)>,
+    anchor: u32,
+    tag: Tag,
+    data: [u32; 2],
+    ty: Ty,
+) -> u32 {
+    let r = u32_of(b.len());
+    grow(b, r as usize + 1);
+    b.tags[r as usize] = tag;
+    b.data[r as usize] = data;
+    b.ty[r as usize] = ty;
+    b.syn[r as usize] = b.syn[anchor as usize];
+    spans.push((anchor, r, r + 1));
+    r
+}
+
+/// The exit set as statements (step 7c): a sub-body's exit `Drop`s
+/// ([`Body::exit_drops`]) run before each `return` and each cancel exit
+/// and at the root's end, after what the passes put there; the backend's
+/// epilogue releases the parameters it owns. A `return` takes its own
+/// copy: [`lower`]'s chains wrap a body in blocks (bench +1.8%). A value
+/// a `return` does not consume takes the caller's count first, a stated
+/// `Retain`. Runs after the passes' verifier, as rustc elaborates drops
+/// after borrow checking. Cost: one walk, a consumer census, a splice and
+/// a renumbering, O(instructions + returns x exit set).
+///
+/// # Errors
+/// The splice refuses a row.
+pub fn exits(b: &mut Body, cx: &dyn super::OwnCx) -> Result<(), String> {
+    use crate::ir::count::{At, Info, Part};
+    let topo = Topology::new(b);
+    let mut stated = vec![Vec::new(); b.sub_root.len()];
+    for &(s, l) in &b.exit_drops {
+        let word = [l.raw() | place::BARE_LOCAL, super::reason::EXIT_DROP];
+        stated[s.idx()].push((Tag::Drop, word));
+    }
+    let mut edits = Tables::default();
+    let mut consumers = Vec::new();
+    super::consumers(b, &topo, cx, &mut consumers);
+    let put = |b: &Body, blk: u32, pos: u32, s: usize, edits: &mut Tables| {
+        for &(tag, data) in &stated[s] {
+            edits.insert(blk, pos, tag, data, Ty::VOID, b.syn[blk as usize]);
+        }
+    };
+    for i in 0..b.len() {
+        // A return's word: `NONE`, or one of [`return_word`]'s.
+        let [value, word] = b.data[i];
+        if b.tags[i] != Tag::Return || topo.blk[i] == NONE || word == return_word::CANCELLED {
+            continue;
+        }
+        let (blk, pos) = (topo.blk[i], topo.pos[i]);
+        if word != return_word::BORROWED
+            && Ref(value).as_inst().is_some()
+            && consumers.get(value as usize) != Some(&u32_of(i))
+            && super::tracked(b, cx, value as usize)
+        {
+            let data = [value, Info::new(At::Value, Part::Result, 0).write(b)];
+            edits.insert(blk, pos, Tag::Retain, data, Ty::VOID, b.syn[i]);
+        }
+        put(b, blk, pos, topo.sub[i] as usize, &mut edits);
+    }
+    for (s, &root) in b.sub_root.iter().enumerate().filter(|r| *r.1 != NONE) {
+        let list = b.record(b.data[root as usize][0]);
+        if list
+            .last()
+            .is_none_or(|&m| b.tags[m as usize] != Tag::Return)
+        {
+            put(b, root, u32_of(list.len()), s, &mut edits);
+        }
+    }
+    super::splice::apply(b, &topo, &mut edits)?;
+    // Each cancel exit, its block in no list: a copy before it, or with
+    // several in a sub-body, one shared chain.
+    let topo = Topology::new(b);
+    let mut cancels = vec![Vec::new(); b.sub_root.len()];
+    for &(p, blk) in &b.cancel {
+        if let Some(&r) = b.record(b.data[blk as usize][0]).last()
+            && b.tags[r as usize] == Tag::Return
+        {
+            cancels[topo.sub[p as usize] as usize].push((blk, r));
+        }
+    }
+    let (n, mut spans) = (b.len(), Vec::new());
+    for (s, exits) in cancels
+        .iter()
+        .enumerate()
+        .filter(|c| !stated[c.0].is_empty())
+    {
+        if exits.len() > 1 {
+            cancel_chain(b, s, &stated[s], exits, &mut spans);
+            continue;
+        }
+        for &(blk, r) in exits {
+            let mut list = b.record(b.data[blk as usize][0]).to_vec();
+            list.pop();
+            for &(tag, data) in &stated[s] {
+                list.push(add(b, &mut spans, blk, tag, data, Ty::VOID));
+            }
+            list.push(r);
+            b.data[blk as usize][0] = b.push_record(&list);
+        }
+    }
+    place(b, n, spans, &vec![false; n])
+}
+
+/// Sub-body `s`'s cancel exits break to one chain, its exit statements
+/// then out as cancelled, as rustc's drop tree gives a target one chain:
+/// the root's members move into a block the chain follows.
+fn cancel_chain(
+    b: &mut Body,
+    s: usize,
+    stated: &[(Tag, [u32; 2])],
+    cancels: &[(u32, u32)],
+    spans: &mut Vec<(u32, u32, u32)>,
+) {
+    let root = b.sub_root[s];
+    let [rec, tail] = b.data[root as usize];
+    let ty = b.ty[root as usize];
+    // A parameter's `Box` and the root's count facts stay at the root.
+    let (mut list, mut body): (Vec<u32>, Vec<u32>) = b.record(rec).iter().partition(|&&m| {
+        let i = m as usize;
+        b.tags[i] == Tag::Box && b.local_flags[b.data[i][0] as usize] & local_flags::PARAM != 0
+            || b.data[i][0] == root && crate::ir::count::Info::read(b, i).is_some()
+    });
+    let (chain, out) = (u32_of(b.label_inst.len()), u32_of(b.label_inst.len() + 1));
+    b.label_inst.extend([NONE, NONE]);
+    body.push(add(b, spans, root, Tag::Break, [out, tail], Ty::NEVER));
+    let rec = b.push_record(&body);
+    let inner = add(b, spans, root, Tag::Block, [rec, NONE], Ty::VOID);
+    let empty = b.push_record(&[]);
+    let mut exit = vec![
+        inner,
+        add(b, spans, root, Tag::Scope, [inner, empty], Ty::VOID),
+    ];
+    for &(tag, data) in stated {
+        exit.push(add(b, spans, root, tag, data, Ty::VOID));
+    }
+    let data = [NONE, return_word::CANCELLED];
+    exit.push(add(b, spans, root, Tag::Return, data, Ty::NEVER));
+    let rec = b.push_record(&exit);
+    let outer = add(b, spans, root, Tag::Block, [rec, NONE], ty);
+    let scope = add(b, spans, root, Tag::Scope, [outer, empty], ty);
+    b.label_inst[chain as usize] = inner;
+    b.label_inst[out as usize] = outer;
+    list.extend([outer, scope]);
+    b.data[root as usize] = [
+        b.push_record(&list),
+        if tail == NONE { NONE } else { scope },
+    ];
+    for &(_, c) in cancels {
+        b.tags[c as usize] = Tag::Break;
+        b.data[c as usize] = [chain, NONE];
+    }
 }
 
 /// Whether `i` is a cleanup scope: a `Scope` with suites.

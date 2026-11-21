@@ -25,12 +25,12 @@ std/rt_tests.stage_case/wait
   local $11 size: usize [:= read assigned] value
     uses $11: %23 -> %29 lend, %32 lend, %39 lend, %47 lend last
   %0 = FlagSet [$0] #14 : ()
-  %1 = Retain %116 Cold local $1 #0 : ()
-  %2 = Retain %116 Entry local $1 #0 : ()
-  %3 = Retain %116 Cold row #0 : ()
-  %4 = Retain %116 Materialize row #0 : ()
-  %5 = Release %116 FrameDrop row #2 : ()
-  %6 = Release %116 FrameDrop child #2 : ()
+  %1 = Retain %118 Cold local $1 #0 : ()
+  %2 = Retain %118 Entry local $1 #0 : ()
+  %3 = Retain %118 Cold row #0 : ()
+  %4 = Retain %118 Materialize row #0 : ()
+  %5 = Release %118 FrameDrop row #2 : ()
+  %6 = Release %118 FrameDrop child #2 : ()
   %7 = Read copy [$2] : bool
   %8 = NewStruct ["x"] : Item
   %9 = Store [$4] %8 : ()
@@ -140,7 +140,9 @@ std/rt_tests.stage_case/wait
   %113 = Drop [$0] : ()
   %114 = FlagClear [$0] #14 : ()
   %115 = Drop [$1] : ()
-  %116 = Block - : ()
-  %117 = Return - #2 : never
+  %116 = Drop [$0] : ()
+  %117 = Drop [$1] : ()
+  %118 = Block - : ()
+  %119 = Return - #2 : never
   exit sub 0 drops [$0 $1]
-  cancel %66 releases [%4294967295]
+  cancel %66 releases [%2147483648 %2147483649 %4294967295]

@@ -438,6 +438,13 @@
                 call $rt:release_ref'1
               end
             end
+            local.get $t1
+            i32.load $heap
+            local.tee $key.1
+            if
+              local.get $key.1
+              call $rt:release_ref'1
+            end
             i32.const 0
             local.set $key.1
             i32.const 1
@@ -463,13 +470,13 @@
             local.set $key.1
           end
     ;; 13 |     let mut job = fetch(key)
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
           local.get $t1
-          call $rt:release_ref'1
+          i32.load $heap
+          local.tee $t1
+          if
+            local.get $t1
+            call $rt:release_ref'1
+          end
         end
         local.get $key.1
         local.get $frame

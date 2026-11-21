@@ -39,6 +39,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   release fn!() -> string (last use)
 >   release counted reference (last use)
 >   release fn!() -> string (last use)
+>   release fn!() -> string (last use)
 > app/main/run_twice
 >   release fn!() -> string (cancelled)
 >   release counted reference (last use)
@@ -49,6 +50,7 @@ fn closure_bang!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
+>   release string (last use)
 > app/main/closure_bang
 >   release string (cancelled)
 >   release counted reference (last use)
@@ -57,6 +59,7 @@ fn closure_bang!(key: string) -> usize:
 >   retain string (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release string (last use)
 >   release string (last use)
 > app/main/closure_bang
 >   release string (cancelled)
@@ -83,6 +86,7 @@ fn stored!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release string (last use)
+>   release string (last use)
 > app/main/stored
 >   release string (cancelled)
 > app/main/stored
@@ -101,6 +105,7 @@ fn stored!(key: string) -> usize:
 >   release fn!(string) -> string (cancelled)
 >   release string (cancelled)
 >   release Suspend[string] (cancelled)
+>   release string (last use)
 >   release Suspend[string] (last use)
 >   release string (last use)
 >   release fn!(string) -> string (last use)

@@ -49,6 +49,7 @@ pub fn main!() -> void:
 >   release *Map[string, string] (last use)
 >   release fn!(*Map[string, string], string) -> usize (last use)
 >   release *mut Map[string, string] (last use)
+>   release *mut Map[string, string] (last use)
 > app/main/main
 >   release counted reference (last use)
     _ := lookup_direct(values, "key")!()

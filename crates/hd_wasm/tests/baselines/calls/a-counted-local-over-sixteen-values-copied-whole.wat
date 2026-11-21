@@ -637,10 +637,37 @@
       local.get $x
       i32.const 5
       i32.gt_s
-      br_if 0
+      if
+    ;; 58 |         return 0
+        local.get $t1
+        if
+          local.get $t0
+          call $rt:release_at
+          local.get $t0
+          i32.load $heap offset=76
+          local.tee $x
+          if
+            local.get $x
+            call $rt:release_ref'2
+          end
+          local.get $t0
+          i32.load $heap offset=84
+          local.tee $x
+          if
+            local.get $x
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            if
+              local.get $x
+              call $rt:release_ref'1
+            end
+          end
+        end
+        br 1
+    ;; 57 |     if x > 5:
+      end
     ;; 59 |     take(a) + 1
-      i32.const 0
-      local.set $t1
       local.get $t0
       call $take
       local.tee $t2
@@ -655,31 +682,6 @@
       i32.add
     ;; 56 |     let a = mk(x)
       local.set $t2
-    end
-    local.get $t1
-    if
-      local.get $t0
-      call $rt:release_at
-      local.get $t0
-      i32.load $heap offset=76
-      local.tee $x
-      if
-        local.get $x
-        call $rt:release_ref'2
-      end
-      local.get $t0
-      i32.load $heap offset=84
-      local.tee $x
-      if
-        local.get $x
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $x
-          call $rt:release_ref'1
-        end
-      end
     end
     local.get $t2
     local.get $t0

@@ -102,19 +102,21 @@ fn word(i: i32) -> string:
 @cold
 > app/main/keep
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %3 consume, %6 consume last
->   %2 = Retain %9 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume, %7 consume last
+>   %2 = Retain %11 Entry local $0 #0 : ()
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
->   %0 = Retain %5 Entry captures #0 : ()
+>   %0 = Retain %6 Entry captures #0 : ()
 >   %1 = FlagSet [$0] #1 : ()
 >   %3 = Read move [$0] : T
 >   %4 = FlagClear [$0] #1 : ()
->   %5 = Block %3 : T
->   %6 = Closure #1 : fn() -> T
->   %7 = Retain %6 Operation captures #0 : ()
->   %8 = FlagClear [$0] #1 : ()
->   %9 = Block %6 : fn() -> T
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : T
+>   %7 = Closure #1 : fn() -> T
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = FlagClear [$0] #1 : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %7 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -122,21 +124,23 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 @cold
 > app/main/lend
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %2 lend, %9 consume last
->   %1 = Retain %11 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 lend, %10 consume last
+>   %1 = Retain %13 Entry local $0 #0 : ()
 fn lend(value: string) -> fn() -> usize:
     fn() -> usize: value.len()
->   %0 = Retain %8 Entry captures #0 : ()
+>   %0 = Retain %9 Entry captures #0 : ()
 >   %2 = Read borrow [$0] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
 >   %7 = Drop [$0] : ()
->   %8 = Block %6 : usize
->   %9 = Closure #1 : fn() -> usize
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Block %9 : fn() -> usize
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : usize
+>   %10 = Closure #1 : fn() -> usize
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

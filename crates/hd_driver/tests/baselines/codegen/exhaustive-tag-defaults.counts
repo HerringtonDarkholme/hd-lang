@@ -65,6 +65,9 @@ fn paused!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/paused
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -178,6 +181,9 @@ fn paused!(n: usize) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/paused
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -275,6 +281,9 @@ fn returned(n: usize) -> string:
 fn paused!(n: usize) -> usize $ Clock:
     match make(n):
 > app/main/paused
+>   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)

@@ -17,15 +17,17 @@ type View[T](T)
 @cold
 > app/main/capture
 >   local $0 value: *mut Point [param read captured] value
->     uses $0: entry -> %2 lend, %4 lend, %5 lend, %8 consume last
->   %1 = Retain %10 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 lend, %4 lend, %5 lend, %9 consume last
+>   %1 = Retain %12 Entry local $0 #0 : ()
 fn capture(value: *mut Point) -> fn() -> i32:
     fn() -> i32:
->   %0 = Retain %7 Entry captures #0 : ()
->   %7 = Block %5 : i32
->   %8 = Closure #1 : fn() -> i32
->   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Block %8 : fn() -> i32
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : i32
+>   %9 = Closure #1 : fn() -> i32
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block %9 : fn() -> i32
         value.x += 1
 >   %2 = Read copy [*$0 .x] : i32
 >   %3 = Prim Add [%2 1:i32] : i32
@@ -40,16 +42,18 @@ fn capture(value: *mut Point) -> fn() -> i32:
 @cold
 > app/main/handle
 >   local $0 value: Handle [param read captured] value
->     uses $0: entry -> %2 consume, %4 consume last
->   %1 = Retain %6 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume, %5 consume last
+>   %1 = Retain %8 Entry local $0 #0 : ()
 fn handle(value: Handle) -> fn() -> Handle:
     fn() -> Handle: value
->   %0 = Retain %3 Entry captures #0 : ()
+>   %0 = Retain %4 Entry captures #0 : ()
 >   %2 = Read move [$0] : Handle
->   %3 = Block %2 : Handle
->   %4 = Closure #1 : fn() -> Handle
->   %5 = Retain %4 Operation captures #0 : ()
->   %6 = Block %4 : fn() -> Handle
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : Handle
+>   %5 = Closure #1 : fn() -> Handle
+>   %6 = Retain %5 Operation captures #0 : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : fn() -> Handle
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -57,19 +61,21 @@ fn handle(value: Handle) -> fn() -> Handle:
 @cold
 > app/main/later
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %3 consume, %6 consume last
->   %2 = Retain %9 Entry local $0 #0 : ()
+>     uses $0: entry -> %3 consume, %7 consume last
+>   %2 = Retain %11 Entry local $0 #0 : ()
 fn later[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
->   %0 = Retain %5 Entry captures #0 : ()
+>   %0 = Retain %6 Entry captures #0 : ()
 >   %1 = FlagSet [$0] #1 : ()
 >   %3 = Read move [$0] : T
 >   %4 = FlagClear [$0] #1 : ()
->   %5 = Block %3 : T
->   %6 = Closure #1 : fn() -> T
->   %7 = Retain %6 Operation captures #0 : ()
->   %8 = FlagClear [$0] #1 : ()
->   %9 = Block %6 : fn() -> T
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : T
+>   %7 = Closure #1 : fn() -> T
+>   %8 = Retain %7 Operation captures #0 : ()
+>   %9 = FlagClear [$0] #1 : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %7 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -89,7 +95,7 @@ fn fresh(name: string) -> fn() -> i32:
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     capture(box(Point { name: name, x: 0 }))
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
@@ -97,7 +103,8 @@ fn fresh(name: string) -> fn() -> i32:
 >   %4 = Store [$1] %2 : ()
 >   %5 = Ref take mut [$1] : *mut Point
 >   %6 = Call app/main/capture[] (%5) : fn() -> i32
->   %7 = Block %6 : fn() -> i32
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : fn() -> i32
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes
@@ -150,10 +157,11 @@ fn generic(value: *mut Point) -> fn() -> *mut Point:
 > app/main/generic
 >   local $0 value: *mut Point [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     later(value)
 >   %1 = Read move [$0] : *mut Point
 >   %2 = Call app/main/later[*mut Point] (%1) : fn() -> *mut Point
->   %3 = Block %2 : fn() -> *mut Point
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : fn() -> *mut Point
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

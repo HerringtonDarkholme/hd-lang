@@ -39,7 +39,7 @@ fn change_then_read(name: string) -> usize:
 >     uses $4: %8 -> %12 lend last
 >   local $5 i: usize [read] value
 >     uses $5: %9 -> %10 lend last
->   %0 = Retain %34 Entry local $0 #0 : ()
+>   %0 = Retain %35 Entry local $0 #0 : ()
     let mut b = Bag { label: name, items: [Item { qty: +1 }] }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [1:i32] : Item
@@ -47,7 +47,8 @@ fn change_then_read(name: string) -> usize:
 >   %4 = NewStruct [%1 %3] : Bag
 >   %5 = Box #1 #0 : ()
 >   %6 = Store [$1] %4 : ()
->   %34 = Block %33 : usize
+>   %34 = Drop [$0] : ()
+>   %35 = Block %33 : usize
     b.item_mut(0).qty = +7
 >   %7 = Ref mut local frame [$1] : &mut Bag
 >   %8 = Store [$4] %7 : ()

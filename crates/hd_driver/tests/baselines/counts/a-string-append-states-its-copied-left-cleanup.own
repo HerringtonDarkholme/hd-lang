@@ -10,13 +10,15 @@ fn captured(text: string, suffix: string) -> string:
 >     uses $1: entry -> %7 lend, %13 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Release %23 Exit local $1 #2 : ()
->   %1 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Release %25 Exit local $1 #2 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
     let current = text
 >   %2 = Read move [$0] : string
 >   %3 = Box #2 #0 : ()
 >   %4 = Store [$2] %2 : ()
->   %23 = Block %20 : string
+>   %23 = Drop [$0] : ()
+>   %24 = Drop [$2] : ()
+>   %25 = Block %20 : string
     append := fn() -> void: current += suffix
     append()
 >   %5 = Read copy [$2] : string
@@ -50,13 +52,15 @@ fn dynamic(text: string, suffix: string) -> string:
 >     uses $1: entry -> %7 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Release %22 Exit local $1 #2 : ()
->   %1 = Retain %22 Entry local $0 #0 : ()
+>   %0 = Release %24 Exit local $1 #2 : ()
+>   %1 = Retain %24 Entry local $0 #0 : ()
     let current = text
 >   %2 = Read move [$0] : string
 >   %3 = Box #2 #0 : ()
 >   %4 = Store [$2] %2 : ()
->   %22 = Block %19 : string
+>   %22 = Drop [$0] : ()
+>   %23 = Drop [$2] : ()
+>   %24 = Block %19 : string
     append := fn(suffix: string) -> void: current += suffix
     append(suffix)
 >   %5 = Read copy [$2] : string
