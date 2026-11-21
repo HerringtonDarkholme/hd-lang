@@ -1,0 +1,8 @@
+# @dump: diagnostics
+trait Broken[T = Missing]:
+    pass
+struct User: pass
+impl Broken for User:
+    pass
+fn bounded[T < Broken](value: T) -> void:
+    pass

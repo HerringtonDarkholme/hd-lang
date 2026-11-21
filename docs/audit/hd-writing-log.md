@@ -1304,3 +1304,7 @@ says that the check covered syntax only.
 
 | 2026-11-21 | #2249 raw local target declaration | syntax | `struct r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``struct `type`:`` | GPT-6 (Codex) |
 | 2026-11-21 | #2249 raw local impl target | syntax | `impl r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``impl `type`:`` | GPT-6 (Codex) |
+
+| 2026-11-21 | resolver interface stages | semantic | `method := user.label` | ``error: main.hd:11:15: unknown-field: no field `label` on User`` | yes; dot selection reads a field | `let method: fn(User) -> i32 = User::label` | GPT-6 (Codex) |
+| 2026-11-21 | resolver interface stages | syntax | `trait Broken[T = Missing]: pass` | `error: main.hd:2:28: syntax-error: expected a line ending after the trait header, found 'pass'` | yes | put `pass` on an indented next line | GPT-6 (Codex) |
+| 2026-11-21 | resolver interface stages | syntax | `impl Broken for User: pass` | `error: main.hd:4:23: syntax-error: expected a line ending after ':', found 'pass'` | yes | put `pass` on an indented next line | GPT-6 (Codex) |

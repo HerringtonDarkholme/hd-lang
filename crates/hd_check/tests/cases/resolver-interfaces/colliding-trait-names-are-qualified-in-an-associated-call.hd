@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# @file: main.hd
+use pkg.left.Label as Left
+use pkg.right.Label as Right
+struct User: pass
+impl Left for User:
+    fn label() -> i32:
+        +1
+impl Right for User:
+    fn label() -> i32:
+        +2
+fn pick(user: User) -> i32:
+    User::label()
+# @file: left.hd
+pub trait Label:
+    fn label() -> i32
+# @file: right.hd
+pub trait Label:
+    fn label() -> i32
