@@ -8,7 +8,14 @@ use std.debug.Location
 use std.function.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{string_from_bytes, string_prefix, char_scalar, TextSink}
+use std.rt.bytes.{
+    string_from_bytes,
+    string_prefix,
+    char_scalar,
+    TextSink,
+    bytes_index_set,
+    bytes_at,
+}
 use std.rt.memory.{Ptr, new_string, string_bytes}
 use std.text.StringBuilder
 
@@ -653,7 +660,7 @@ impl Debug for bool:
 # Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for char:
     fn debug(&self, out: *mut DebugWriter) -> void:
-        out.write("'" + escape_char(*self, '\'') + "'")
+        out.write("'" + escape_scalar(char_scalar(*self), '\'') + "'")
 
 # Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for string:
@@ -662,39 +669,50 @@ impl Debug for string:
 
 # Preserve runs of ordinary string text as slices; allocate fragments only
 # for source escapes (r-std-format.debug.source.string). Character literals
-# use escape_char directly with their own quote delimiter.
+# use escape_scalar directly with their own quote delimiter.
 fn escape_text(text: string) -> string:
     let mut pieces: List[string] = []
     let start: usize = 0
-    for (at, each) in text.char_indices():
-        scalar := char_scalar(each)
-        if each == '"' || each == '\\' || each == '$' || scalar < 32 || scalar == 127:
-            if start < at:
-                pieces.push(text.slice(start, at))
-            pieces.push(escape_char(each, '"'))
-            # Every escaped character above is one ASCII byte.
-            start = at + 1
+    # Controls, quote and dollar in word 0; backslash and DEL in word 1.
+    let at = bytes_index_set(text, 0, 0x0000_0014_FFFF_FFFF, 0x8000_0000_1000_0000, 0, 0)
+    while at < text.len():
+        if start < at:
+            pieces.push(text.slice(start, at))
+        pieces.push(escape_scalar(u32(bytes_at(text, at)), '"'))
+        start = at + 1
+        at = start
+        if at < text.len():
+            byte := bytes_at(text, at)
+            # Consume an escape run directly; search only across ordinary text.
+            if byte >= 32 && byte != 34 && byte != 36 && byte != 92 && byte != 127:
+                at = bytes_index_set(
+                    text,
+                    at + 1,
+                    0x0000_0014_FFFF_FFFF,
+                    0x8000_0000_1000_0000,
+                    0,
+                    0,
+                )
     if start == 0:
         return text
     if start < text.len():
         pieces.push(text.slice(start, text.len()))
     pieces.join("")
 
-fn escape_char(each: char, quote: char) -> string:
-    let scalar = char_scalar(each)
-    if each == quote:
+fn escape_scalar(scalar: u32, quote: char) -> string:
+    if scalar == char_scalar(quote):
         return "\\" + scalar_text(i32(scalar))
-    if each == '\\':
+    if scalar == char_scalar('\\'):
         return "\\\\"
-    if each == '\n':
+    if scalar == char_scalar('\n'):
         return "\\n"
-    if each == '\r':
+    if scalar == char_scalar('\r'):
         return "\\r"
-    if each == '\t':
+    if scalar == char_scalar('\t'):
         return "\\t"
-    if each == '\0':
+    if scalar == char_scalar('\0'):
         return "\\0"
-    if each == '$' && quote == '"':
+    if scalar == char_scalar('$') && quote == '"':
         return "\\$"
     if scalar < 32 || scalar == 127:
         return "\\u{" + format_int(scalar / 16) + hex_digit(scalar % 16) + "}"
