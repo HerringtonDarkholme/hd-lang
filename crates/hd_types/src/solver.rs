@@ -7208,4 +7208,267 @@ mod tests {
         assert_eq!(p.list_items(goals[0].1.args), [Ty::I32, union]);
         assert_eq!(goals[1].1.self_ty, Ty::STRING);
     }
+
+    #[test]
+    fn answer_boundary_warm_proof_dags_obey_the_cold_fuel_cutoff() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (table, [show, _, boxed, _]) = show_table(p);
+        let goal = implements(TraitRef {
+            trait_: show,
+            self_ty: boxes(p, boxed, 2),
+            args: TyList::EMPTY,
+        });
+        let env = ParamEnv::default();
+        let warm = GlobalMemo::default();
+        let mut seed_fuel = Fuel::new(100);
+        let mut seed_body = BodyMemo::default();
+        assert!(matches!(
+            solve_body(
+                p,
+                &table,
+                &env,
+                (&warm, &mut seed_body, &mut seed_fuel),
+                &goal
+            ),
+            Answer::Holds { .. }
+        ));
+        let needed = seed_fuel.spent();
+        for budget in 0..=needed {
+            let cold = GlobalMemo::default();
+            let mut cold_body = BodyMemo::default();
+            let mut warm_body = BodyMemo::default();
+            let mut cold_fuel = Fuel::new(budget);
+            let mut warm_fuel = Fuel::new(budget);
+            let a = solve_body(
+                p,
+                &table,
+                &env,
+                (&cold, &mut cold_body, &mut cold_fuel),
+                &goal,
+            );
+            let b = solve_body(
+                p,
+                &table,
+                &env,
+                (&warm, &mut warm_body, &mut warm_fuel),
+                &goal,
+            );
+            assert_eq!(a, b, "budget {budget}: memoization changes no answer");
+            assert_eq!(
+                cold_fuel.spent(),
+                warm_fuel.spent(),
+                "budget {budget}: memoization changes no charge"
+            );
+            if budget < needed {
+                assert_eq!(a, Answer::OutOfFuel);
+            } else {
+                assert!(matches!(a, Answer::Holds { .. }));
+            }
+        }
+    }
+
+    #[test]
+    fn answer_boundary_exhausted_instantiations_do_not_poison_the_next_body() {
+        use super::Answer;
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (table, [pick, _, _, family, ..]) = pick_table(p);
+        let goal = Goal::Instantiations {
+            self_ty: adt(p, family, &[]),
+            trait_: pick,
+            mut_: false,
+        };
+        let (global, env) = (GlobalMemo::default(), ParamEnv::default());
+        let exhausted = solve_body(
+            p,
+            &table,
+            &env,
+            (&global, &mut BodyMemo::default(), &mut Fuel::new(0)),
+            &goal,
+        );
+        assert_eq!(exhausted, Answer::OutOfFuel);
+        let fresh = solve_body(
+            p,
+            &table,
+            &env,
+            (&global, &mut BodyMemo::default(), &mut Fuel::new(100)),
+            &goal,
+        );
+        assert_eq!(fresh, ask(p, &table, &goal));
+        assert!(matches!(fresh, Answer::Candidates(ref candidates) if candidates.len() == 2));
+    }
+
+    #[test]
+    fn answer_boundary_poison_propagates_through_instantiations_and_methods() {
+        use super::{Answer, Evidence};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let (table, [pick, show, ..]) = pick_table(p);
+        let expected = Answer::Holds {
+            evidence: Evidence::Poison,
+            learned: vec![],
+        };
+        assert_eq!(
+            ask(
+                p,
+                &table,
+                &Goal::Instantiations {
+                    self_ty: Ty::POISON,
+                    trait_: pick,
+                    mut_: false
+                }
+            ),
+            expected
+        );
+        assert_eq!(
+            ask(
+                p,
+                &table,
+                &Goal::Methods {
+                    receiver: Ty::POISON,
+                    name: hd_base::Symbol::from_raw(0),
+                    traits: vec![pick, show]
+                }
+            ),
+            expected
+        );
+    }
+
+    #[test]
+    fn answer_boundary_methods_keep_the_receivers_stalled_variable() {
+        use super::Answer;
+        let (gp, local) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &local);
+        let (table, [pick, show, ..]) = pick_table(p);
+        let variable = InferTable::default().fresh(p, VarKind::General);
+        let direct = ask(
+            p,
+            &table,
+            &Goal::Instantiations {
+                self_ty: variable,
+                trait_: pick,
+                mut_: false,
+            },
+        );
+        let methods = ask(
+            p,
+            &table,
+            &Goal::Methods {
+                receiver: variable,
+                name: hd_base::Symbol::from_raw(0),
+                traits: vec![pick, show],
+            },
+        );
+        assert_eq!(methods, direct);
+        assert!(matches!(methods, Answer::Stalled { ref on } if on.len() == 1));
+    }
+
+    #[test]
+    fn answer_boundary_function_traits_reject_mismatched_input_result_and_row() {
+        use super::{Answer, FailReason};
+        let gp = InternPool::new();
+        let p = gp.types();
+        let f = p.intern_ty(&TyData::Fn {
+            params: p.list(&[Ty::I32]),
+            result: Ty::BOOL,
+            row: crate::RowId::EMPTY,
+            suspends: false,
+            inputs: crate::Inputs::Fixed,
+            deps: crate::FnDeps::NONE,
+        });
+        let input = tuple(p, &[Ty::I32], None);
+        let empty_row = p.intern_ty(&TyData::Row(crate::RowId::EMPTY));
+        let wrong_row = p.intern_ty(&TyData::Row(p.row(&RowData {
+            keys: vec![p.intern_ty(&TyData::TraitValue {
+                def: DefId::from_raw(103),
+                args: TyList::EMPTY,
+                bindings: vec![],
+            })],
+            params: vec![],
+        })));
+        let decls = TestDecls {
+            sealed: super::SealedTraits {
+                fn_trait: DefId::from_raw(101),
+                fn_mut_trait: DefId::from_raw(102),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let table = ImplTable::default();
+        let folder = TestFolder::new(p, Some(&table));
+        let folders = [(0, &folder.impls)];
+        let view = folder.view(&folders);
+        let (env, global, mut body) = (
+            ParamEnv::default(),
+            GlobalMemo::default(),
+            BodyMemo::default(),
+        );
+        let mut cx = SolveCx {
+            pool: p,
+            env: &env,
+            universe: view.universe,
+            impls: super::Impls::Owned(&view),
+            decls: &decls,
+            body_memo: &mut body,
+            global: &global,
+        };
+        for trait_ in [decls.sealed.fn_trait, decls.sealed.fn_mut_trait] {
+            let solve = |cx: &mut SolveCx<'_>, args: &[Ty]| {
+                TableSolver
+                    .solve(
+                        cx,
+                        &implements(TraitRef {
+                            trait_,
+                            self_ty: f,
+                            args: p.list(args),
+                        }),
+                        &mut Fuel::new(100),
+                    )
+                    .expect("function trait query")
+            };
+            assert!(matches!(
+                solve(&mut cx, &[input, Ty::BOOL, empty_row]),
+                Answer::Holds { .. }
+            ));
+            for args in [
+                [tuple(p, &[Ty::STRING], None), Ty::BOOL, empty_row],
+                [input, Ty::STRING, empty_row],
+                [input, Ty::BOOL, wrong_row],
+            ] {
+                assert!(
+                    matches!(solve(&mut cx, &args), Answer::Fails(ref info) if info.reason == FailReason::NoImpl)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn answer_boundary_missing_supertrait_binding_returns_no_supplier_group() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let global = GlobalMemo::default();
+        let instance = (DefId::from_raw(200), TyList::EMPTY);
+        let binding = (DefId::from_raw(201), Ty::I32);
+        let missing = (DefId::from_raw(202), Ty::STRING);
+        let key = p.intern_ty(&TyData::TraitValue {
+            def: instance.0,
+            args: instance.1,
+            bindings: vec![binding],
+        });
+        global.supertrait_key_index(key, p, || [(instance, vec![key])].into_iter().collect());
+        global.with_supertrait_key_suppliers(instance, &[binding], |groups| {
+            assert_eq!(groups.len(), 1);
+        });
+        for bindings in [
+            vec![missing],
+            vec![binding, missing],
+            vec![missing, binding],
+        ] {
+            global.with_supertrait_key_suppliers(instance, &bindings, |groups| {
+                assert!(groups.is_empty());
+            });
+        }
+    }
 }
