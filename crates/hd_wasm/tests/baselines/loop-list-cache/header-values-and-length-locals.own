@@ -210,56 +210,60 @@ fn addressed(n: usize) -> usize:
 >   loop %34 keeps [$1] (%6..%35)
 
 fn by_value(xs: List[i64]) -> i64:
+    let s: i64 = 0
 > app/main/by_value
 >   local $0 xs: List[i64] [param read] value
->     uses $0: entry -> %2 lend, %6 lend last
+>     uses $0: entry -> %1 lend, %5 lend last
 >   local $1 s: i64 [read assigned mutated] place
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %4 -> %10 lend
+>     uses $5: %3 -> %9 lend
 >   local $6 v: i64 [read assigned] value
->     uses $6: %22 -> %18 lend last
+>     uses $6: %21 -> %17 lend last
 >   local $7 $len: usize [read assigned] value
 >     uses $7: none
->   %0 = Release %33 Exit local $0 #2 : ()
-    let s: i64 = 0
->   %1 = Store [$1] 0:i64 : ()
->   %33 = Block %32 : i64
+>   %0 = Store [$1] 0:i64 : ()
+>   %32 = Intrinsic ParamOwned [0:i32] : bool
+>   %33 = Drop [$0] : ()
+>   %34 = Block - : ()
+>   %35 = If %32 [%34 -] : ()
+>   %36 = Release %37 Exit local $0 #2 : ()
+>   %37 = Block %31 : i64
     for v in xs:
->   %2 = Read borrow [$0] : List[i64]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Store [$5] %3 : ()
->   %5 = Store [$4] 0:usize : ()
->   %6 = Read borrow [$0] : List[i64]
->   %7 = Intrinsic ListLen [%6] : usize
->   %8 = Store [$7] %7 : ()
->   %9 = Read copy [$4] : usize
->   %10 = Read copy [$5] : usize
->   %11 = Prim Lt [%9 %10] : bool
->   %12 = Read copy [$4] : usize
->   %13 = Read copy [%6 [%12]] : i64
->   %14 = Read copy [$4] : usize
->   %15 = Prim Add [%14 1:usize] : usize
->   %16 = Store [$4] %15 : ()
->   %21 = Block - : ()
->   %22 = Store [$6] %13 : ()
->   %24 = Block - : never
->   %25 = Match %13 [%24 %21] : ()
->   %26 = Block - : ()
->   %27 = Break L0 - : never
->   %28 = Block - : ()
->   %29 = If %11 [%26 %28] : ()
->   %30 = Block - : ()
->   %31 = Loop %30 - : ()
+>   %1 = Read borrow [$0] : List[i64]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Store [$5] %2 : ()
+>   %4 = Store [$4] 0:usize : ()
+>   %5 = Read borrow [$0] : List[i64]
+>   %6 = Intrinsic ListLen [%5] : usize
+>   %7 = Store [$7] %6 : ()
+>   %8 = Read copy [$4] : usize
+>   %9 = Read copy [$5] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$4] : usize
+>   %12 = Read copy [%5 [%11]] : i64
+>   %13 = Read copy [$4] : usize
+>   %14 = Prim Add [%13 1:usize] : usize
+>   %15 = Store [$4] %14 : ()
+>   %20 = Block - : ()
+>   %21 = Store [$6] %12 : ()
+>   %23 = Block - : never
+>   %24 = Match %12 [%23 %20] : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %10 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         s = s + v
->   %17 = Read copy [$1] : i64
->   %18 = Read copy [$6] : i64
->   %19 = Prim Add [%17 %18] : i64
->   %20 = Store [$1] %19 : ()
+>   %16 = Read copy [$1] : i64
+>   %17 = Read copy [$6] : i64
+>   %18 = Prim Add [%16 %17] : i64
+>   %19 = Store [$1] %18 : ()
     s
->   %32 = Read copy [$1] : i64
+>   %31 = Read copy [$1] : i64
 >   summary kept [] borrows [$0]
->   loop %31 keeps [$0] (-..-)
+>   loop %30 keeps [$0] (-..-)
 
 fn bump(xs: &mut List[i64]) -> void:
     for x in &mut xs:

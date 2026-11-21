@@ -20,18 +20,18 @@ impl Measure for Reader:
 >     uses $1: entry -> %20 lend last
 >   local $2 count: i64 [read] value
 >     uses $2: %12 -> %13 lend last
->   %0 = Retain %23 Cold local $0 #0 : ()
->   %1 = Retain %23 Entry local $0 #0 : ()
->   %2 = Retain %23 Cold local $1 #0 : ()
->   %3 = Retain %23 Entry local $1 #0 : ()
->   %7 = Retain %23 Cold referent $0 #8 : ()
->   %8 = Release %23 FrameDrop referent $0 #2 : ()
->   %9 = Release %23 Exit referent $0 #8 : ()
+>   %0 = Retain %25 Cold local $0 #0 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
+>   %2 = Retain %25 Cold local $1 #0 : ()
+>   %3 = Retain %25 Entry local $1 #0 : ()
+>   %7 = Retain %25 Cold referent $0 #8 : ()
+>   %8 = Release %25 FrameDrop referent $0 #2 : ()
+>   %9 = Release %25 Exit referent $0 #8 : ()
         sleep!(ms(1))
->   %4 = Retain %23 Cold row #0 : ()
->   %5 = Retain %23 Materialize row #0 : ()
->   %6 = Release %23 FrameDrop row #2 : ()
->   %10 = Release %23 FrameDrop child #2 : ()
+>   %4 = Retain %25 Cold row #0 : ()
+>   %5 = Retain %25 Materialize row #0 : ()
+>   %6 = Release %25 FrameDrop row #2 : ()
+>   %10 = Release %25 FrameDrop child #2 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Store [$2] 1:i64 : ()
 >   %13 = Read copy [$2] : i64
@@ -41,15 +41,26 @@ impl Measure for Reader:
 >   %17 = Scope %16 [] : Duration
 >   %18 = Await std/time/sleep[] (%17) : ()
 >   %19 = Release %18 Operation child #2 : ()
->   %23 = Block %21 : usize
->   %24 = Return - #2 : never
+>   %23 = Drop [$0] : ()
+>   %24 = Drop [$1] : ()
+>   %25 = Block %21 : usize
+>   %30 = Intrinsic ParamOwned [0:i32] : bool
+>   %31 = Drop [$0] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Intrinsic ParamOwned [1:i32] : bool
+>   %35 = Drop [$1] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Block - : ()
         values.len()
 >   %20 = Read move [$1] : List[string]
 >   %21 = Intrinsic ListLen [%20] : usize
 >   %22 = Drop [%20] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %18 releases [%4294967295]
+>   cancel %18 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %25 releases [%16 %30 %16 %34]
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known
@@ -57,28 +68,39 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >     uses $0: entry -> %11 lend last
 >   local $1 values: List[string] [param read] value
 >     uses $1: entry -> %12 consume last
->   %0 = Retain %16 Cold local $0 #0 : ()
->   %1 = Retain %16 Entry local $0 #0 : ()
->   %2 = Retain %16 Cold local $1 #0 : ()
->   %3 = Retain %16 Entry local $1 #0 : ()
->   %7 = Retain %16 Cold referent $0 #8 : ()
->   %8 = Release %16 FrameDrop referent $0 #2 : ()
->   %9 = Release %16 Exit referent $0 #8 : ()
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
+>   %2 = Retain %18 Cold local $1 #0 : ()
+>   %3 = Retain %18 Entry local $1 #0 : ()
+>   %7 = Retain %18 Cold referent $0 #8 : ()
+>   %8 = Release %18 FrameDrop referent $0 #2 : ()
+>   %9 = Release %18 Exit referent $0 #8 : ()
     reader.measure!(values)
->   %4 = Retain %16 Cold row #0 : ()
->   %5 = Retain %16 Materialize row #0 : ()
->   %6 = Release %16 FrameDrop row #2 : ()
->   %10 = Release %16 FrameDrop child #2 : ()
+>   %4 = Retain %18 Cold row #0 : ()
+>   %5 = Retain %18 Materialize row #0 : ()
+>   %6 = Release %18 FrameDrop row #2 : ()
+>   %10 = Release %18 FrameDrop child #2 : ()
 >   %11 = Read move [$0] : &Reader
 >   %12 = Read move [$1] : List[string]
 >   %13 = Await app/main/Measure.measure for Reader [] via Impl (%11, %12) : usize
 >   %14 = Release %13 Operation child #2 : ()
 >   %15 = Drop [%11] : ()
->   %16 = Block %13 : usize
->   %18 = Return - #2 : never
+>   %16 = Drop [$0] : ()
+>   %17 = Drop [$1] : ()
+>   %18 = Block %13 : usize
+>   %24 = Intrinsic ParamOwned [0:i32] : bool
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Intrinsic ParamOwned [1:i32] : bool
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %13 releases [%11 %4294967295]
+>   cancel %13 releases [%11 %2147483648 %2147483649 %4294967295]
+>   cancel %18 releases [%16 %24 %16 %28]
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic
@@ -86,15 +108,15 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >     uses $0: entry -> %8 lend last
 >   local $1 values: List[string] [param read] value
 >     uses $1: entry -> %10 consume last
->   %0 = Retain %17 Cold local $0 #0 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
->   %2 = Retain %17 Cold local $1 #0 : ()
->   %3 = Retain %17 Entry local $1 #0 : ()
+>   %0 = Retain %19 Cold local $0 #0 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
+>   %2 = Retain %19 Cold local $1 #0 : ()
+>   %3 = Retain %19 Entry local $1 #0 : ()
     reader.measure!(values)
->   %4 = Retain %17 Cold row #0 : ()
->   %5 = Retain %17 Materialize row #0 : ()
->   %6 = Release %17 FrameDrop row #2 : ()
->   %7 = Release %17 FrameDrop child #2 : ()
+>   %4 = Retain %19 Cold row #0 : ()
+>   %5 = Retain %19 Materialize row #0 : ()
+>   %6 = Release %19 FrameDrop row #2 : ()
+>   %7 = Release %19 FrameDrop child #2 : ()
 >   %8 = Read borrow [*$0] : Measure
 >   %9 = LoanBegin %8 #0 : ()
 >   %10 = Read move [$1] : List[string]
@@ -104,11 +126,22 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   %14 = Release %11 Operation child #2 : ()
 >   %15 = LoanClose %9 : ()
 >   %16 = Drop [$0] : ()
->   %17 = Block %11 : usize
->   %18 = Return - #2 : never
+>   %17 = Drop [$0] : ()
+>   %18 = Drop [$1] : ()
+>   %19 = Block %11 : usize
+>   %24 = Intrinsic ParamOwned [0:i32] : bool
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Intrinsic ParamOwned [1:i32] : bool
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %11 releases [%4294967295]
+>   cancel %11 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %19 releases [%16 %24 %16 %28]
 
 pub fn main() -> void $ Clock:
     reader := Reader { padding: 0 }

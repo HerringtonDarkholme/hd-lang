@@ -7,9 +7,9 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
 > app/main/nested_sum
 >   local $0 seed: i32 [param read captured] value
->     uses $0: entry -> %3 consume, %29 consume last
+>     uses $0: entry -> %3 consume, %30 consume last
 >   local $1 limit: i32 [param read] value
->     uses $1: entry -> %35 lend last
+>     uses $1: entry -> %36 lend last
 >   local $2 n: i32 [param read] value
 >     uses $2: entry -> %1 lend, %9 consume, %11 lend last
 >   local $3 sum: fn(i32) -> i32 [:= read assigned captured captured-assigned] place
@@ -17,13 +17,15 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 >     uses $5: %8 -> %12 lend, %17 lend last
 >   local $6 n: i32 [read assigned] value
 >     uses $6: %10 -> %13 lend, %16 lend last
->   %0 = Retain %27 Entry captures #0 : ()
->   %27 = Block %25 : i32
->   %28 = Store [$3] - : ()
->   %29 = Closure #1 : fn(i32) -> i32
->   %30 = Store [$3] %29 : ()
->   %31 = Release %30 Operation #3 : ()
->   %38 = Block %36 : i32
+>   %0 = Retain %28 Entry captures #0 : ()
+>   %27 = Drop [$3] : ()
+>   %28 = Block %25 : i32
+>   %29 = Store [$3] - : ()
+>   %30 = Closure #1 : fn(i32) -> i32
+>   %31 = Store [$3] %30 : ()
+>   %32 = Release %31 Operation #3 : ()
+>   %39 = Drop [$3] : ()
+>   %40 = Block %37 : i32
         if n == 0:
 >   %1 = Read copy [$2] : i32
 >   %2 = Prim Eq [%1 0:i32] : bool
@@ -56,12 +58,12 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 >   %22 = Scope %21 [] : i32
 >   %23 = Prim Add [%11 %22] : i32
     sum(limit)
->   %32 = Read copy [$3] : fn(i32) -> i32
->   %33 = Retain %32 Value #0 : ()
->   %34 = Drop [$3] : ()
->   %35 = Read copy [$1] : i32
->   %36 = CallValue %32 [%35] : i32
->   %37 = Drop [%32] : ()
+>   %33 = Read copy [$3] : fn(i32) -> i32
+>   %34 = Retain %33 Value #0 : ()
+>   %35 = Drop [$3] : ()
+>   %36 = Read copy [$1] : i32
+>   %37 = CallValue %33 [%36] : i32
+>   %38 = Drop [%33] : ()
 >   exit sub 0 drops [$3]
 >   exit sub 1 drops [$3]
 >   summary kept [] writes

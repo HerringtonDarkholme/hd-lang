@@ -18,7 +18,8 @@ app/main/list_size
   %13 = Block - : usize
   %14 = Scope %13 [] : usize
   %15 = Drop [$0] : ()
-  %16 = Block %14 : usize
+  %16 = Drop [$0] : ()
+  %17 = Block %14 : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot
   summary kept [$0]

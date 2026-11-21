@@ -4,7 +4,7 @@
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl Display for i64.write" (func $"impl Display for i64.write" (param i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
-  (import "fixture" "rt:cell_drop" (func $rt:cell_drop (param i32)))
+  (import "fixture" "release_value[std.text.StringBuilder]" (func $"release_value[std.text.StringBuilder]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $show (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i64) (local $t3 i32)
@@ -72,7 +72,7 @@
     local.get $t3
     if
       local.get $t3
-      call $rt:cell_drop
+      call $"release_value[std.text.StringBuilder]"
     end
     ;; ...
   )

@@ -1,0 +1,31 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A `return` inside a `using!` scope of a suspending body leaves through
+# the scope's dispose and then the body's exit set: the owned `kept`
+# string is released once on each way out, before or after the point.
+# The checked runs' exit audit fails on a leak or a double free.
+use std.ops.AsyncDisposable
+use std.time.{Clock, ms, sleep}
+
+struct R:
+    n: i32
+    log: *mut List[string]
+
+impl AsyncDisposable[$ Clock] for R:
+    fn dispose!(&mut self) -> void $ Clock:
+        sleep!(ms(1))
+        self.log.push("dispose ${self.n}")
+
+fn early!(log: *mut List[string], stop: bool, tag: string) -> usize $ Clock:
+    let mut a = R { n: 1, log: log }
+    using! first = &mut a
+    kept := tag + "-kept"
+    if stop:
+        return kept.len()
+    sleep!(ms(1))
+    kept.len() + 100
+
+pub fn main!() -> void $ Console + Clock:
+    let log: *mut List[string] = box([])
+    println("${early!(log, true, "a")} ${early!(log, false, "bb")}")
+    println(log.join(", "))

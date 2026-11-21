@@ -11578,7 +11578,9 @@ impl Run<'_> {
                 }
                 let item = match kind {
                     hd_layout::shims::Shim::Retain => self.known.retain_value,
-                    hd_layout::shims::Shim::Release => self.known.release_value,
+                    hd_layout::shims::Shim::Release | hd_layout::shims::Shim::CellDrop => {
+                        self.known.release_value
+                    }
                 };
                 let b = hd_layout::shims::shim(
                     &self.pool, env, counts, &hooks, item, t, kind, by_value,

@@ -17,15 +17,14 @@ impl[T < ?Copy] !Copy for Outer[T]
 fn label[T < ?Copy](value: Outer[T]) -> string:
 > app/main/label
 >   local $0 value: Outer[T] [param read] value
->     uses $0: entry -> %2 consume last
->   %1 = Retain %6 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %5 Entry local $0 #0 : ()
     value.inner.label
->   %0 = FlagSet [$0] #1 : ()
->   %2 = Read copy [$0 .inner .label] : string
->   %3 = Retain %2 Value #0 : ()
+>   %1 = Read copy [$0 .inner .label] : string
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Drop [$0] : ()
 >   %4 = Drop [$0] : ()
->   %5 = FlagClear [$0] #1 : ()
->   %6 = Block %2 : string
+>   %5 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -36,26 +35,29 @@ enum Choice[T < ?Copy]:
 impl[T < ?Copy] !Copy for Choice[T]
 
 fn enum_label[T < ?Copy](value: Choice[T]) -> string:
+    match value:
 > app/main/enum_label
 >   local $0 value: Choice[T] [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 label: string [read assigned] value
->     uses $1: %8 -> %3 consume last
->   %1 = Release %16 Exit local $0 #2 : ()
-    match value:
->   %0 = FlagSet [$0] #2 : ()
->   %2 = Read borrow [$0] : Choice[T]
->   %14 = Block - : never
->   %15 = Match %2 [%14 %5 %6] : string
->   %16 = Block %15 : string
+>     uses $1: %6 -> %1 consume last
+>   %0 = Read borrow [$0] : Choice[T]
+>   %12 = Block - : never
+>   %13 = Match %0 [%12 %3 %4] : string
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %19 Exit local $0 #2 : ()
+>   %19 = Block %13 : string
         .Payload(_, label) => label
->   %3 = Read copy [$1] : string
->   %4 = Retain %3 Value #0 : ()
->   %5 = Block %3 : string
->   %7 = Read borrow [%2 as #0 .1] : string
->   %8 = Store [$1] %7 : ()
->   %10 = Block - : never
->   %13 = SwitchTag %2 [#0 %10 %12] : never
+>   %1 = Read copy [$1] : string
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Block %1 : string
+>   %5 = Read borrow [%0 as #0 .1] : string
+>   %6 = Store [$1] %5 : ()
+>   %8 = Block - : never
+>   %11 = SwitchTag %0 [#0 %8 %10] : never
         .Empty => "empty"
->   %6 = Block "empty" : string
+>   %4 = Block "empty" : string
 >   summary kept [] borrows [$0]

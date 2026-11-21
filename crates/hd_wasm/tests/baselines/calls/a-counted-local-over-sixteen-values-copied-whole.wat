@@ -10,13 +10,13 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "release_value[Outer]" (func $"release_value[Outer]" (param i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $copy_kept (param $x i32) (result i32) (local $t0 i32) (local $t1 i64) (local $self.0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
+  (func $copy_kept (param $x i32) (result i32) (local $t0 i32) (local $t1 i64) (local $self.0 i32) (local $t2 i32) (local $t3 i32)
     ;; 62 |     let a = mk(x)
     global.get $stack
     global.get $stack_limit
@@ -90,27 +90,28 @@
     i32.load $heap offset=80
     local.set $t2
     local.set $self.0
+    ;; 62 |     let a = mk(x)
     local.get $t0
     i32.load $heap
     local.tee $t3
-    local.get $t0
-    i32.load $heap offset=84
-    local.set $t4
     if
       local.get $t3
       call $rt:release_ref'1
     end
-    local.get $t4
+    local.get $t0
+    i32.load $heap offset=84
+    local.tee $t3
     if
-      local.get $t4
+      local.get $t3
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t4
+        local.get $t3
         call $rt:release_ref'2
       end
     end
+    ;; 65 |     n + b.inner.f3 + i32(b.tag.len())
     local.get $self.0
     if
       local.get $self.0
@@ -519,7 +520,7 @@
     local.get $provider0.vtable
     call $"println[string]"
   )
-  (func $copied (param $x i32) (result i32) (local $t0 i32) (local $self.0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+  (func $copied (param $x i32) (result i32) (local $t0 i32) (local $self.0 i32) (local $t1 i32) (local $t3 i64) (local $t2 i32)
     ;; 45 |     let a = mk(x)
     global.get $stack
     global.get $stack_limit
@@ -573,27 +574,28 @@
     i32.load $heap offset=80
     local.set $t1
     local.set $self.0
+    ;; 45 |     let a = mk(x)
     local.get $t0
     i32.load $heap
     local.tee $t2
-    local.get $t0
-    i32.load $heap offset=84
-    local.set $t3
     if
       local.get $t2
       call $rt:release_ref'1
     end
-    local.get $t3
+    local.get $t0
+    i32.load $heap offset=84
+    local.tee $t2
     if
-      local.get $t3
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t3
+        local.get $t2
         call $rt:release_ref'2
       end
     end
+    ;; 48 |     n + i32(a.tag.len())
     local.get $self.0
     if
       local.get $self.0
@@ -604,10 +606,10 @@
     local.get $t1
     i64.extend_i32_s
     i64.add
-    local.tee $t4
+    local.tee $t3
     i64.const 2147483647
     i64.gt_s
-    local.get $t4
+    local.get $t3
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -615,7 +617,7 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t4
+    local.get $t3
     i32.wrap_i64
     ;; 45 |     let a = mk(x)
     local.get $t0
@@ -649,10 +651,17 @@
       local.get $x
       i32.const 5
       i32.gt_s
-      br_if 0
+      if
+        local.get $t1
+        if
+          local.get $t0
+          call $rt:drop
+        end
+    ;; 58 |         return 0
+        br 1
+    ;; 57 |     if x > 5:
+      end
     ;; 59 |     take(a) + 1
-      i32.const 0
-      local.set $t1
       local.get $t0
       call $take
       local.tee $t2
@@ -667,11 +676,6 @@
       i32.add
     ;; 56 |     let a = mk(x)
       local.set $t2
-    end
-    local.get $t1
-    if
-      local.get $t0
-      call $"release_value[Outer]"
     end
     local.get $t2
     local.get $t0
@@ -1011,7 +1015,7 @@
     local.get $t2
     i32.wrap_i64
     local.get $t0
-    call $"release_value[Outer]"
+    call $rt:drop
   )
   (func $field_kept (param $t0 i32) (result i32) (local $self.0 i32) (local $t1 i32) (local $b.f3 i32) (local $t2 i64)
     ;; 68 |     let b = o.inner
@@ -1124,7 +1128,7 @@
     local.get $t2
     i32.wrap_i64
   )
-  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $self.0 i32) (local $t1 i32) (local $t2 i32)
+  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $self.0 i32) (local $t1 i32)
     ;; 51 |     let a = mk(x)
     global.get $stack
     global.get $stack_limit
@@ -1150,27 +1154,28 @@
     i32.load $heap offset=80
     local.set $x
     local.set $self.0
+    ;; 51 |     let a = mk(x)
     local.get $t0
     i32.load $heap
     local.tee $t1
-    local.get $t0
-    i32.load $heap offset=84
-    local.set $t2
     if
       local.get $t1
       call $rt:release_ref'1
     end
-    local.get $t2
+    local.get $t0
+    i32.load $heap offset=84
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $t1
         call $rt:release_ref'2
       end
     end
+    ;; 53 |     i32(b.tag.len())
     local.get $self.0
     if
       local.get $self.0

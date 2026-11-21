@@ -28,7 +28,6 @@ pub(crate) struct BodyFacts {
     pub(super) storage: Vec<Vec<(hd_base::LocalId, hd_tir::ir::Storage)>>,
     pub(super) cell_stores: Arc<[u32]>,
     pub(super) closures: Vec<Option<usize>>,
-    pub(super) root_params: Arc<[usize]>,
     pub(super) transfers: Arc<HashMap<(u32, u32), u32>>,
 }
 
@@ -82,7 +81,6 @@ impl BodyFacts {
             closures,
             storage,
             cell_stores,
-            root_params: super::param_locals(b).into(),
             transfers: Arc::new(transfers),
             recursive,
             uses: Arc::new(UseFacts::new(

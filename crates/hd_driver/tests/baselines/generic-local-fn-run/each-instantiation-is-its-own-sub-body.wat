@@ -1035,7 +1035,7 @@
     local.get $t.1
     local.get $u
   )
-  (func $"outer[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32 i32) (local $t.0 i32) (local $t.1 i32) (local $t1 i32) (local $k i32) (local $t0 i32)
+  (func $"outer[string]" (param $x.0 i32) (param $x.1 i32) (result i32 i32 i32) (local $t.0 i32) (local $t.1 i32) (local $k i32) (local $t0 i32) (local $t1 i32)
     ;; 20 |     let (t, k) = wrap(4, x)
     i32.const 0
     i32.const 4
@@ -1083,6 +1083,7 @@
       local.get $x.0
       call $rt:release_ref'2
     end
+    ;; 22 |     (t, if b: k else: 0)
     local.get $t.0
     local.get $t.1
     local.get $t1

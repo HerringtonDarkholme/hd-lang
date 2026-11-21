@@ -5,63 +5,76 @@
 # expected: `.Ok(())` reads the tag only; `report` returns the error
 # message moved out of the result with no extra count.
 fn save(s: string) -> Result[void, string]:
+    if s.len() > 0:
 > app/main/save
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %11 lend last
->   %0 = Release %14 Exit local $0 #2 : ()
-    if s.len() > 0:
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Prim Gt [%5 0:usize] : bool
->   %10 = If %6 [%9 -] : ()
->   %14 = Block %13 : Result[(), string]
+>     uses $0: entry -> %0 lend, %15 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Prim Gt [%4 0:usize] : bool
+>   %14 = If %5 [%13 -] : ()
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block %17 : Result[(), string]
         return .Ok(())
->   %7 = NewVariant #0 [-] : Result[(), string]
->   %8 = Return %7 : never
->   %9 = Block - : never
+>   %6 = NewVariant #0 [-] : Result[(), string]
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %23 Exit local $0 #2 : ()
+>   %12 = Return %6 : never
+>   %13 = Block - : never
     .Err(s + "?")
->   %11 = Read borrow [$0] : string
->   %12 = Intrinsic StrConcat [%11 "?"] : string
->   %13 = NewVariant #1 [%12] : Result[(), string]
+>   %15 = Read borrow [$0] : string
+>   %16 = Intrinsic StrConcat [%15 "?"] : string
+>   %17 = NewVariant #1 [%16] : Result[(), string]
 >   summary kept [] borrows [$0]
 
 fn report(s: string) -> string:
+    match save(s):
 > app/main/report
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %11 lend last
+>     uses $0: entry -> %0 lend, %10 lend last
 >   local $1 message: string [read assigned] value
->     uses $1: %23 -> %18 consume last
->   %0 = Release %29 Exit local $0 #2 : ()
-    match save(s):
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Prim Gt [%5 0:usize] : bool
->   %7 = NewVariant #0 [-] : Result[(), string]
->   %8 = Break L1 %7 : never
->   %9 = Block - : never
->   %10 = If %6 [%9 -] : ()
->   %11 = Read borrow [$0] : string
->   %12 = Intrinsic StrConcat [%11 "?"] : string
->   %13 = NewVariant #1 [%12] : Result[(), string]
->   %14 = Break L1 %13 : never
->   %15 = Block - : Result[(), string]
->   %16 = Scope %15 [] : Result[(), string]
->   %27 = Block - : never
->   %28 = Match %16 [%27 %17 %19] : string
->   %29 = Block %28 : string
+>     uses $1: %22 -> %17 consume last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Prim Gt [%4 0:usize] : bool
+>   %6 = NewVariant #0 [-] : Result[(), string]
+>   %7 = Break L1 %6 : never
+>   %8 = Block - : never
+>   %9 = If %5 [%8 -] : ()
+>   %10 = Read borrow [$0] : string
+>   %11 = Intrinsic StrConcat [%10 "?"] : string
+>   %12 = NewVariant #1 [%11] : Result[(), string]
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : Result[(), string]
+>   %15 = Scope %14 [] : Result[(), string]
+>   %26 = Block - : never
+>   %27 = Match %15 [%26 %16 %18] : string
+>   %28 = Intrinsic ParamOwned [0:i32] : bool
+>   %29 = Drop [$0] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Release %33 Exit local $0 #2 : ()
+>   %33 = Block %27 : string
         .Ok(()) => "saved"
->   %17 = Block "saved" : string
->   %21 = Block - : never
->   %26 = SwitchTag %16 [#0 %21 %25] : never
+>   %16 = Block "saved" : string
+>   %20 = Block - : never
+>   %25 = SwitchTag %15 [#0 %20 %24] : never
         .Err(message) => message
->   %18 = Read move [$1] : string
->   %19 = Block %18 : string
->   %22 = Read move [%16 as #1 .0] : string
->   %23 = Store [$1] %22 : ()
+>   %17 = Read move [$1] : string
+>   %18 = Block %17 : string
+>   %21 = Read move [%15 as #1 .0] : string
+>   %22 = Store [$1] %21 : ()
 >   summary kept [] borrows [$0]

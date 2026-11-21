@@ -5,70 +5,74 @@
 # expected: no count for a key or a value that is only read, by value or
 # through `&`; `keys` retains each key it pushes.
 fn by_value(m: Map[string, string]) -> usize:
+    let n: usize = 0
 > app/main/by_value
 >   local $0 m: Map[string, string] [param read] value
->     uses $0: entry -> %2 lend, %5 lend, %9 lend, %17 lend
+>     uses $0: entry -> %1 lend, %4 lend, %8 lend, %16 lend
 >   local $1 n: usize [read assigned mutated] place
 >   local $3 $len: usize [assigned] value
 >     uses $3: none
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %7 -> %11 lend, %15 lend
+>     uses $5: %6 -> %10 lend, %14 lend
 >   local $6 k: &string [read assigned] value
->     uses $6: %34 -> %24 lend last
+>     uses $6: %33 -> %23 lend last
 >   local $7 v: &string [read assigned] value
->     uses $7: %35 -> %26 lend last
->   %0 = Release %47 Exit local $0 #2 : ()
-    let n: usize = 0
->   %1 = Store [$1] 0:usize : ()
->   %47 = Block %46 : usize
+>     uses $7: %34 -> %25 lend last
+>   %0 = Store [$1] 0:usize : ()
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $0 #2 : ()
+>   %51 = Block %45 : usize
     for (k, v) in m:
->   %2 = Read borrow [$0] : Map[string, string]
->   %3 = Intrinsic MapLen [%2] : usize
->   %4 = Store [$3] %3 : ()
->   %5 = Read borrow [$0] : Map[string, string]
->   %6 = Intrinsic MapSlots [%5] : usize
->   %7 = Store [$5] %6 : ()
->   %8 = Store [$4] 0:usize : ()
->   %9 = Read borrow [$0] : Map[string, string]
->   %10 = Read copy [$4] : usize
->   %11 = Read copy [$5] : usize
->   %12 = Intrinsic MapSlotNext [%9 %10 %11] : usize
->   %13 = Store [$4] %12 : ()
->   %14 = Read copy [$4] : usize
->   %15 = Read copy [$5] : usize
->   %16 = Prim Lt [%14 %15] : bool
->   %17 = Read borrow [$0] : Map[string, string]
->   %18 = Read copy [$4] : usize
->   %19 = Intrinsic MapSlotEntry [%17 %18] : (&string, &string)
->   %20 = Read copy [$4] : usize
->   %21 = Prim Add [%20 1:usize] : usize
->   %22 = Store [$4] %21 : ()
->   %31 = Block - : ()
->   %32 = Read borrow [%19 .0] : &string
->   %33 = Read borrow [%19 .1] : &string
->   %34 = Store [$6] %32 : ()
->   %35 = Store [$7] %33 : ()
->   %37 = Block - : never
->   %38 = Match %19 [%37 %31] : ()
->   %39 = Drop [%19] : ()
->   %40 = Block - : ()
->   %41 = Break L0 - : never
->   %42 = Block - : ()
->   %43 = If %16 [%40 %42] : ()
->   %44 = Block - : ()
->   %45 = Loop %44 - : ()
+>   %1 = Read borrow [$0] : Map[string, string]
+>   %2 = Intrinsic MapLen [%1] : usize
+>   %3 = Store [$3] %2 : ()
+>   %4 = Read borrow [$0] : Map[string, string]
+>   %5 = Intrinsic MapSlots [%4] : usize
+>   %6 = Store [$5] %5 : ()
+>   %7 = Store [$4] 0:usize : ()
+>   %8 = Read borrow [$0] : Map[string, string]
+>   %9 = Read copy [$4] : usize
+>   %10 = Read copy [$5] : usize
+>   %11 = Intrinsic MapSlotNext [%8 %9 %10] : usize
+>   %12 = Store [$4] %11 : ()
+>   %13 = Read copy [$4] : usize
+>   %14 = Read copy [$5] : usize
+>   %15 = Prim Lt [%13 %14] : bool
+>   %16 = Read borrow [$0] : Map[string, string]
+>   %17 = Read copy [$4] : usize
+>   %18 = Intrinsic MapSlotEntry [%16 %17] : (&string, &string)
+>   %19 = Read copy [$4] : usize
+>   %20 = Prim Add [%19 1:usize] : usize
+>   %21 = Store [$4] %20 : ()
+>   %30 = Block - : ()
+>   %31 = Read borrow [%18 .0] : &string
+>   %32 = Read borrow [%18 .1] : &string
+>   %33 = Store [$6] %31 : ()
+>   %34 = Store [$7] %32 : ()
+>   %36 = Block - : never
+>   %37 = Match %18 [%36 %30] : ()
+>   %38 = Drop [%18] : ()
+>   %39 = Block - : ()
+>   %40 = Break L0 - : never
+>   %41 = Block - : ()
+>   %42 = If %15 [%39 %41] : ()
+>   %43 = Block - : ()
+>   %44 = Loop %43 - : ()
         n += k.len() + v.len()
->   %23 = Read copy [$1] : usize
->   %24 = Read borrow [$6] : &string
->   %25 = Call std/text/impl string.len[] (%24) : usize
->   %26 = Read borrow [$7] : &string
->   %27 = Call std/text/impl string.len[] (%26) : usize
->   %28 = Prim Add [%25 %27] : usize
->   %29 = Prim Add [%23 %28] : usize
->   %30 = Store [$1] %29 : ()
+>   %22 = Read copy [$1] : usize
+>   %23 = Read borrow [$6] : &string
+>   %24 = Call std/text/impl string.len[] (%23) : usize
+>   %25 = Read borrow [$7] : &string
+>   %26 = Call std/text/impl string.len[] (%25) : usize
+>   %27 = Prim Add [%24 %26] : usize
+>   %28 = Prim Add [%22 %27] : usize
+>   %29 = Store [$1] %28 : ()
     n
->   %46 = Read copy [$1] : usize
+>   %45 = Read copy [$1] : usize
 >   summary kept [] borrows [$0]
 
 fn by_ref(m: &Map[string, string]) -> usize:
@@ -135,65 +139,69 @@ fn by_ref(m: &Map[string, string]) -> usize:
 >   summary kept []
 
 fn keys(m: Map[string, string]) -> List[string]:
+    let mut out: List[string] = []
 > app/main/keys
 >   local $0 m: Map[string, string] [param read] value
->     uses $0: entry -> %3 lend, %6 lend, %10 lend, %18 lend
+>     uses $0: entry -> %2 lend, %5 lend, %9 lend, %17 lend
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %2 -> %27 lend, %44 consume last
+>     uses $1: %1 -> %26 lend, %43 consume last
 >   local $3 $len: usize [assigned] value
 >     uses $3: none
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %8 -> %12 lend, %16 lend
+>     uses $5: %7 -> %11 lend, %15 lend
 >   local $6 k: &string [read assigned] value
->     uses $6: %31 -> %24 lend last
->   %0 = Release %45 Exit local $0 #2 : ()
-    let mut out: List[string] = []
->   %1 = NewList - [] : List[string]
->   %2 = Store [$1] %1 : ()
->   %45 = Block %44 : List[string]
+>     uses $6: %30 -> %23 lend last
+>   %0 = NewList - [] : List[string]
+>   %1 = Store [$1] %0 : ()
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Release %49 Exit local $0 #2 : ()
+>   %49 = Block %43 : List[string]
     for (k, _) in m:
->   %3 = Read borrow [$0] : Map[string, string]
->   %4 = Intrinsic MapLen [%3] : usize
->   %5 = Store [$3] %4 : ()
->   %6 = Read borrow [$0] : Map[string, string]
->   %7 = Intrinsic MapSlots [%6] : usize
->   %8 = Store [$5] %7 : ()
->   %9 = Store [$4] 0:usize : ()
->   %10 = Read borrow [$0] : Map[string, string]
->   %11 = Read copy [$4] : usize
->   %12 = Read copy [$5] : usize
->   %13 = Intrinsic MapSlotNext [%10 %11 %12] : usize
->   %14 = Store [$4] %13 : ()
->   %15 = Read copy [$4] : usize
->   %16 = Read copy [$5] : usize
->   %17 = Prim Lt [%15 %16] : bool
->   %18 = Read borrow [$0] : Map[string, string]
->   %19 = Read copy [$4] : usize
->   %20 = Intrinsic MapSlotEntry [%18 %19] : (&string, &string)
->   %21 = Read copy [$4] : usize
->   %22 = Prim Add [%21 1:usize] : usize
->   %23 = Store [$4] %22 : ()
->   %29 = Block - : ()
->   %30 = Read move [%20 .0] : &string
->   %31 = Store [$6] %30 : ()
->   %32 = Release %31 Operation #3 : ()
->   %34 = Block - : never
->   %35 = Match %20 [%34 %29] : ()
->   %36 = Drop [$6] : ()
->   %37 = Drop [%20] : ()
->   %38 = Block - : ()
->   %39 = Break L0 - : never
->   %40 = Block - : ()
->   %41 = If %17 [%38 %40] : ()
->   %42 = Block - : ()
->   %43 = Loop %42 - : ()
+>   %2 = Read borrow [$0] : Map[string, string]
+>   %3 = Intrinsic MapLen [%2] : usize
+>   %4 = Store [$3] %3 : ()
+>   %5 = Read borrow [$0] : Map[string, string]
+>   %6 = Intrinsic MapSlots [%5] : usize
+>   %7 = Store [$5] %6 : ()
+>   %8 = Store [$4] 0:usize : ()
+>   %9 = Read borrow [$0] : Map[string, string]
+>   %10 = Read copy [$4] : usize
+>   %11 = Read copy [$5] : usize
+>   %12 = Intrinsic MapSlotNext [%9 %10 %11] : usize
+>   %13 = Store [$4] %12 : ()
+>   %14 = Read copy [$4] : usize
+>   %15 = Read copy [$5] : usize
+>   %16 = Prim Lt [%14 %15] : bool
+>   %17 = Read borrow [$0] : Map[string, string]
+>   %18 = Read copy [$4] : usize
+>   %19 = Intrinsic MapSlotEntry [%17 %18] : (&string, &string)
+>   %20 = Read copy [$4] : usize
+>   %21 = Prim Add [%20 1:usize] : usize
+>   %22 = Store [$4] %21 : ()
+>   %28 = Block - : ()
+>   %29 = Read move [%19 .0] : &string
+>   %30 = Store [$6] %29 : ()
+>   %31 = Release %30 Operation #3 : ()
+>   %33 = Block - : never
+>   %34 = Match %19 [%33 %28] : ()
+>   %35 = Drop [$6] : ()
+>   %36 = Drop [%19] : ()
+>   %37 = Block - : ()
+>   %38 = Break L0 - : never
+>   %39 = Block - : ()
+>   %40 = If %16 [%37 %39] : ()
+>   %41 = Block - : ()
+>   %42 = Loop %41 - : ()
         out.push(*k)
->   %24 = Read copy [*$6] : string
->   %25 = Retain %24 Value #0 : ()
->   %26 = IsUnique fresh [$1] : ()
->   %27 = Read borrow [$1] : List[string]
->   %28 = Intrinsic ListPush [%27 %24] : ()
+>   %23 = Read copy [*$6] : string
+>   %24 = Retain %23 Value #0 : ()
+>   %25 = IsUnique fresh [$1] : ()
+>   %26 = Read borrow [$1] : List[string]
+>   %27 = Intrinsic ListPush [%26 %23] : ()
     out
->   %44 = Read move [$1] : List[string]
+>   %43 = Read move [$1] : List[string]
 >   summary kept [] borrows [$0]

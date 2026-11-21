@@ -660,22 +660,36 @@
               i32.store $heap offset=16
               local.get $t1
               i32.load $heap offset=20
-              local.tee $d.0
+              local.tee $c.0
               if
-                local.get $d.0
+                local.get $c.0
                 i32.const 8
                 i32.sub
                 i32.load $heap
                 global.get $tracing
                 i32.or
                 if
-                  local.get $d.0
+                  local.get $c.0
                   call $rt:release_ref'2
                 end
               end
               local.get $t1
               local.get $right.0
               i32.store $heap offset=20
+              local.get $t1
+              i32.load $heap
+              local.tee $c.0
+              if
+                local.get $c.0
+                call $rt:release_ref'1
+              end
+              local.get $t1
+              i32.load $heap offset=8
+              local.tee $t3
+              if
+                local.get $t3
+                call $rt:release_ref'1
+              end
               i32.const 0
               local.set $left.1
               i32.const 1
@@ -1125,6 +1139,27 @@
             local.get $t1
             local.get $right.0
             i32.store $heap offset=64
+            local.get $t1
+            i32.load $heap
+            local.tee $c.0
+            if
+              local.get $c.0
+              call $rt:release_ref'1
+            end
+            local.get $t1
+            i32.load $heap offset=8
+            local.tee $c.0
+            if
+              local.get $c.0
+              call $rt:release_ref'1
+            end
+            local.get $t1
+            i32.load $heap offset=52
+            local.tee $t4
+            if
+              local.get $t4
+              call $rt:release_ref'1
+            end
             i32.const 0
             local.set $left.1
             i32.const 1
@@ -1269,31 +1304,31 @@
             local.get $c.0
             call $rt:release_ref'1
           end
+          local.get $t1
+          i32.load $heap
+          local.tee $left.0
+          if
+            local.get $left.0
+            call $rt:release_ref'1
+          end
+          local.get $t1
+          i32.load $heap offset=8
+          local.tee $left.0
+          if
+            local.get $left.0
+            call $rt:release_ref'1
+          end
+          local.get $t1
+          i32.load $heap offset=52
+          local.tee $left.0
+          if
+            local.get $left.0
+            call $rt:release_ref'1
+          end
           local.get $d.0
           local.get $t3
           local.set $left.0
           local.set $left.1
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $right.0
-        if
-          local.get $right.0
-          call $rt:release_ref'1
-        end
-        local.get $t1
-        i32.load $heap offset=8
-        local.tee $right.0
-        if
-          local.get $right.0
-          call $rt:release_ref'1
-        end
-        local.get $t1
-        i32.load $heap offset=52
-        local.tee $right.0
-        if
-          local.get $right.0
-          call $rt:release_ref'1
         end
         local.get $t1
         i32.load $heap offset=44
@@ -1536,14 +1571,15 @@
     if
       local.get $t0
       i32.load $heap offset=24
+      local.get $t0
+      i32.load $heap offset=32
+      local.set $t0
       local.tee $t1
       if
         local.get $t1
         call $rt:release_ref'1
       end
       local.get $t0
-      i32.load $heap offset=32
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'1

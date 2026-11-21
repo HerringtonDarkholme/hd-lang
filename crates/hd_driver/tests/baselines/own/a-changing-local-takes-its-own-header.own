@@ -15,8 +15,9 @@ app/main/grow
   %9 = Read borrow [$1] : List[i64]
   %10 = Intrinsic ListPush [%9 %7] : ()
   %11 = Read move [$1] : List[i64]
-  %12 = Return %11 : never
-  %13 = Block - : never
-  %14 = If %3 [%13 -] : ()
-  %15 = Drop [$0] : ()
+  %12 = Drop [$0] : ()
+  %13 = Return %11 : never
+  %14 = Block - : never
+  %15 = If %3 [%14 -] : ()
+  %16 = Drop [$0] : ()
   exit sub 0 drops [$0]
