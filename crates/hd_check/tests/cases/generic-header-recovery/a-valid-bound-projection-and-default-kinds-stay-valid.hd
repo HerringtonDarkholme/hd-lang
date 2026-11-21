@@ -1,0 +1,10 @@
+# @dump: diagnostics tir
+trait Source:
+    type Item
+    fn item(self) -> Self::Item
+fn project[T < Source](value: T) -> T::Item:
+    value.item()
+struct Defaults[T = i32, $ R = $()]:
+    value: T
+fn identity(value: Defaults) -> Defaults:
+    value
