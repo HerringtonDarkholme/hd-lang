@@ -1,0 +1,24 @@
+# @dump: diagnostics tir
+struct Key[N < const i32]:
+    value: i32
+
+struct Flag[N < const bool]:
+    value: i32
+
+struct Scalar[N < const char]:
+    value: i32
+
+struct Text[N < const string]:
+    value: i32
+
+fn integer(value: Key[1 + 2]) -> Key[3]:
+    value
+
+fn boolean(value: Flag[true || (1i32 / 0i32 == 0i32)]) -> Flag[true]:
+    value
+
+fn character(value: Scalar['a']) -> Scalar['a']:
+    value
+
+fn text(value: Text["ab" + "cd"]) -> Text["abcd"]:
+    value

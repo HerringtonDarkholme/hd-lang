@@ -1,0 +1,9 @@
+# test: a no op is not an integer operand
+# Spec: expr.literal.pass; types.generic.const.closed; types.generic.const.nonconstant.
+UNIT := pass
+
+struct Key[N < const i32]:
+    value: i32
+
+fn reject(value: Key[UNIT + 1]) -> void: # diagnostic: nonconstant-generic-argument
+    pass

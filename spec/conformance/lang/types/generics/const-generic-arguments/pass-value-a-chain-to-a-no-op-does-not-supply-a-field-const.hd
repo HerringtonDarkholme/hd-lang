@@ -1,0 +1,11 @@
+# test: a chain to a no op does not supply a field const
+# Spec: expr.literal.pass; types.generic.const.closed; types.generic.const.nonconstant.
+UNIT := pass
+
+struct Key[N < const i32]:
+    value: i32
+
+NEXT := UNIT
+
+struct Holder:
+    value: Key[NEXT] # diagnostic: nonconstant-generic-argument

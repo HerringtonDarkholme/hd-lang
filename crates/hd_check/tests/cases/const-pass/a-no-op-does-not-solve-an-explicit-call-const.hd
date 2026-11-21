@@ -1,0 +1,8 @@
+# @dump: diagnostics
+UNIT := pass
+
+fn accept[N < const i32]() -> void:
+    pass
+
+fn reject() -> void:
+    accept::[UNIT]()

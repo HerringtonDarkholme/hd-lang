@@ -1,0 +1,10 @@
+# @dump: diagnostics
+UNIT := pass
+
+struct Key[N < const i32]:
+    value: i32
+
+NEXT := UNIT
+
+struct Holder:
+    value: Key[NEXT]

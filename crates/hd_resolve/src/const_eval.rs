@@ -648,6 +648,7 @@ fn literal(src: &Src<'_>, n: NodeRef<'_>, want: Option<Prim>, negated: bool) -> 
     match src.tkind(t) {
         Some(TokenKind::KwTrue) => Ok(V::Bool(true)),
         Some(TokenKind::KwFalse) => Ok(V::Bool(false)),
+        Some(TokenKind::KwPass) => Err(nonconstant("a no-op is not a scalar const value")),
         Some(TokenKind::Char) => {
             let raw = src.text(t);
             let inner = raw.strip_prefix('\'').unwrap_or(raw);
