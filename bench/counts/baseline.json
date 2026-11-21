@@ -194,8 +194,7 @@
       "released": "300033",
       "uniques": "0",
       "total": "300033",
-      "noOpsAndSkipped": "200800014",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "121200018"
     },
     {
       "program": "bench/study/fannkuch_redux.hd",
