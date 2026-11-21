@@ -4,14 +4,14 @@
 //! choice of a method call among the candidates of an `Instantiations`
 //! goal, and call inference through a bound.
 
-use hd_base::{DefId, HashSet, LocalId, StageResult};
+use hd_base::{DefId, HashSet, LocalId, NotImplemented, Stage, StageResult};
 use hd_diag::{Code, DiagMark};
 use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
 use hd_types::solver::{
-    Answer, Candidate, Goal, ImplOrigin, Impls, Instantiations, TraitRef, plan_goals, tuple_goals,
-    union_goals,
+    Answer, Candidate, Goal, ImplOrigin, ImplTable, Impls, Instantiations, TraitRef, plan_goals,
+    tuple_goals, union_goals,
 };
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
@@ -703,11 +703,8 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let table = self
-            .cx
-            .impl_table(c.row.module)
-            .expect("solver candidate table");
         let row = c.row.row as usize;
+        let table = candidate_table(self.cx.impl_table(c.row.module), row)?;
         let impl_def = table.def[row];
         let n_params = pool.list_items(c.impl_args).len();
         let vars: Vec<Ty> = (0..n_params)
@@ -1369,5 +1366,123 @@ fn needs_expected(e: NodeRef<'_>) -> bool {
         }
         SyntaxKind::TupleExpr | SyntaxKind::ParenExpr => e.children().any(needs_expected),
         _ => false,
+    }
+}
+
+/// The candidate row's declaration, bound plan and origin must all exist.
+fn candidate_table(table: Option<&ImplTable>, row: usize) -> StageResult<&ImplTable> {
+    let table = table.ok_or_else(|| invalid_candidate_metadata("registered impl table"))?;
+    if row < table.def.len() && row < table.plan.len() && row < table.origin.len() {
+        Ok(table)
+    } else {
+        Err(invalid_candidate_metadata("complete impl row"))
+    }
+}
+
+#[cold]
+fn invalid_candidate_metadata(needed: &str) -> NotImplemented {
+    NotImplemented::bug(Stage::Body, format!("solver candidate requires {needed}"))
+}
+
+#[cfg(test)]
+mod candidate_metadata_tests {
+    use super::candidate_table;
+    use hd_base::{DefId, ModuleId, Stage};
+    use hd_types::solver::{Candidate, ImplOrigin, ImplRef, ImplTable};
+    use hd_types::{Ty, TyList};
+
+    fn table() -> ImplTable {
+        ImplTable {
+            def: vec![DefId::from_raw(3), DefId::from_raw(7)],
+            plan: vec![Vec::new(), Vec::new()],
+            origin: vec![ImplOrigin::Written, ImplOrigin::UnionTemplate],
+            ..ImplTable::default()
+        }
+    }
+
+    #[test]
+    fn candidate_rows_borrow_the_exact_table() {
+        let table = table();
+        for row in 0..2 {
+            let selected = candidate_table(Some(&table), row).expect("complete row");
+            assert!(std::ptr::eq(selected, &raw const table));
+            assert_eq!(selected.def[row], table.def[row]);
+            assert_eq!(selected.origin[row], table.origin[row]);
+        }
+    }
+
+    #[test]
+    fn missing_tables_and_incomplete_candidate_columns_are_fallible() {
+        let mut missing_def = table();
+        missing_def.def.pop();
+        let mut missing_plan = table();
+        missing_plan.plan.pop();
+        let mut missing_origin = table();
+        missing_origin.origin.pop();
+        let empty = ImplTable::default();
+        let full = table();
+        for (selected, row, needed) in [
+            (None, 0, "registered impl table"),
+            (Some(&empty), 0, "complete impl row"),
+            (Some(&full), 2, "complete impl row"),
+            (Some(&full), usize::MAX, "complete impl row"),
+            (Some(&missing_def), 1, "complete impl row"),
+            (Some(&missing_plan), 1, "complete impl row"),
+            (Some(&missing_origin), 1, "complete impl row"),
+        ] {
+            let error = candidate_table(selected, row).expect_err("missing metadata");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert_eq!(error.what, format!("solver candidate requires {needed}"));
+        }
+    }
+
+    #[test]
+    fn a_missing_candidate_table_propagates_before_call_emission() {
+        crate::body::with_checker(|ck| {
+            let node = ck.cx.src.parse.tree.root();
+            let candidate = Candidate {
+                row: ImplRef {
+                    module: ModuleId::from_raw(0),
+                    row: 0,
+                },
+                n_fresh: 1,
+                impl_args: ck.pool().list(&[Ty::I32]),
+                args: TyList::EMPTY,
+                residual: Vec::new(),
+            };
+            let vars_before = ck.infer.var_count();
+            let before = (
+                ck.b.body().len(),
+                ck.b.body().extra.len(),
+                ck.b.body().local_ty.len(),
+            );
+            let error = ck
+                .call_candidate(
+                    (DefId::from_raw(1), DefId::from_raw(2), Ty::I32),
+                    &candidate,
+                    None,
+                    &crate::call::Args::empty(),
+                    (node, false),
+                    None,
+                )
+                .expect_err("missing module table");
+            assert_eq!(ck.infer.var_count(), vars_before);
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert_eq!(
+                error.what,
+                "solver candidate requires registered impl table"
+            );
+            assert_eq!(
+                (
+                    ck.b.body().len(),
+                    ck.b.body().extra.len(),
+                    ck.b.body().local_ty.len()
+                ),
+                before
+            );
+        });
     }
 }
