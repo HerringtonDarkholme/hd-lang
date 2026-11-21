@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# expected: an associated-type binding under a stored trait reference is invariant.
+trait Source:
+    type Item
+    fn get(&self) -> Self::Item
+
+struct Bound[+T]:
+    source: *dyn Source[Item = T]

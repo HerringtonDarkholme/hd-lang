@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# expected: a method's opaque result retains its invariant captured type identity.
+struct Hidden[+T]:
+    value: T
+
+impl[T < Display] Hidden[T]:
+    fn reveal(self) -> impl Display:
+        self.value
