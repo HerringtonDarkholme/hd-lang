@@ -410,7 +410,7 @@ and [Loops](#loops); there is no separate runtime pipe object.
 
 Propagation tests an option or result, converts an error when required,
 and takes the appropriate exit through cleanup. See
-[scope.rs](../../crates/hd_wasm/src/emit/scope.rs)
+[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
 and [scalar emission](../../crates/hd_wasm/DESIGN.md#2311-scalar-instruction-emission).
 It uses scalar tags or addresses, not reference-typed branches.
 
@@ -451,7 +451,7 @@ pins, rather than allocating an object and closures for every element.
 
 These use structured branches and result locals, with scope cleanup on
 exits that need it. See
-[scope.rs](../../crates/hd_wasm/src/emit/scope.rs)
+[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
 and [lowering rules](../../crates/hd_mono/DESIGN.md#122-lowering-rules).
 
 ### Comprehensions
@@ -524,14 +524,14 @@ for child polling, cancellation and entry drivers.
 
 Deferred suites run through scope cleanup on the exits that require them;
 cancellation uses frame cleanup. See
-[scope.rs](../../crates/hd_wasm/src/emit/scope.rs) and
+[scopes.rs](../../crates/hd_tir/src/own/scopes.rs) and
 [cancellation and defer](../../crates/hd_wasm/DESIGN.md#146-cancellation-and-defer).
 
 ### Let Patterns And Let-Else
 
 Pattern tests and extraction use scalar values and structured branches;
 a diverging else takes the scope's exit. See
-[scope.rs](../../crates/hd_wasm/src/emit/scope.rs)
+[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
 and [aggregate values](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts).
 Tuple destructuring does not itself allocate a wrapper.
 
