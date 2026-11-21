@@ -15,11 +15,10 @@
     {
       "program": "bench/runtime/progs/expr-eval.hd",
       "retained": "0",
-      "released": "3650727",
+      "released": "3650726",
       "uniques": "0",
-      "total": "3650727",
-      "noOpsAndSkipped": "5166006",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "total": "3650726",
+      "noOpsAndSkipped": "5166006"
     },
     {
       "program": "bench/runtime/progs/int-loop.hd",
@@ -33,11 +32,10 @@
     {
       "program": "bench/runtime/progs/inventory.hd",
       "retained": "0",
-      "released": "522",
+      "released": "521",
       "uniques": "6400002",
-      "total": "6400524",
-      "noOpsAndSkipped": "6401029",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "total": "6400523",
+      "noOpsAndSkipped": "6401029"
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
@@ -210,11 +208,10 @@
     {
       "program": "bench/study/function-value-inputs.hd",
       "retained": "0",
-      "released": "5",
+      "released": "4",
       "uniques": "0",
-      "total": "5",
-      "noOpsAndSkipped": "4",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "total": "4",
+      "noOpsAndSkipped": "4"
     },
     {
       "program": "bench/study/json.hd",
@@ -297,11 +294,10 @@
     {
       "program": "bench/study/structure_walk.hd",
       "retained": "3150040",
-      "released": "3500061",
+      "released": "3500060",
       "uniques": "0",
-      "total": "6650101",
-      "noOpsAndSkipped": "13125181",
-      "reason": "#2173 (4b): a body now releases a T? held in locals (Facts.find, a decoded optional) with the inline address count, whose call-site null test skips .None and counts the skip. Before 4b the body called the out-of-line walk helper, whose variant switch skipped .None uncounted. The real call became an inline test: less work, no call added; no-op calls are unchanged."
+      "total": "6650100",
+      "noOpsAndSkipped": "13125181"
     }
   ]
 }
