@@ -14,12 +14,12 @@ interfaces and does not reach around them:
 | Interface | From | What the back half gets |
 | --- | --- | --- |
 | TIR per body (crates/hd_tir/DESIGN.md §4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `check` entry |
-| `ModuleResult` | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
+| the module's check result | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
 | folder interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
 | types and rows | `hd_types` | the intern pool, stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per module cycle |
 | test plan | `hd_driver` | test programs and their statically registered cases |
-| cache | `hd_cache` | `CacheStore`, the key rules of crates/hd_cache/DESIGN.md §5.3, entry framing, eviction; the back half writes `link` and, for std bodies in a dev build, `owned` (`code` entries are planned, #49) |
+| cache | `hd_cache` | `CacheStore`, the key rules of crates/hd_cache/DESIGN.md §5.3, entry framing, eviction; the back half writes `link` and, in a dev build, `owned` for std bodies, package bodies and generic instances (`code` entries are planned, #49) |
 | scheduler | `hd_sched` | `TaskKind::Ext` tasks with dependencies on frontend tasks |
 | diagnostics | `hd_diag` | the `Diagnostic` record for the back half's own errors, such as instantiation depth |
 | determinism | | content order, local counters, no IDs in output or keys |
@@ -42,7 +42,7 @@ interfaces and does not reach around them:
                                   │
             ┌─────────────────────┴──────────────────────────┐
             ▼ native (hd_run_wasmtime)                        ▼ browser (hd_web + generated JS glue)
-   Precompile(P, pipe) ═► [cwasm entry]             program worker: WebAssembly.compile
+   in-process module cache, clpack entries          program worker: WebAssembly.compile
    InstancePre + pooling allocator                  imports from the JS host
    Store per run / per test case                    poll/wake loop on the worker's event loop
    poll/wake driver + host reactor                  JSPI or sync XHR for block_on
@@ -66,7 +66,7 @@ below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
 | --- | --- | --- | --- | --- | --- | --- |
 | Collect | program roots, TIR of reachable modules, impl tables | the instance set, the import set, the type set | program | serial per program | inside `link` | none |
 | Link | the instance set and its owned bodies | one Wasm module with its custom sections | program | serial | `link` | §13.10 |
-| Precompile | Wasm bytes, engine config | wasmtime's serialized module | program and pipeline | Cranelift compiles functions in parallel | `cwasm` | `H("cwasm", hash of the Wasm, wasmtime version, config hash, target)` |
+| Compile (outside the task graph) | Wasm bytes, engine config | wasmtime's module | program and pipeline | no: one thread per module | Cranelift's code per function, in `clpack` entries (docs/compiler/engines-and-test-runner.md §18.2) | the module bytes and wasmtime's compatibility hash |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
 Planned, not built (#49, point 4): an `Emit` stage per folder group (the
@@ -141,11 +141,12 @@ TIR lives in `hd_tir`; there is no MIR crate.
 | Crate | Holds |
 | --- | --- |
 | `hd_mono` | collection, substitution, instance keys (`layout`), the depth limit, row parameters (`rows`), the plan types (`plan`) |
+| `hd_layout` | target-independent layouts and the type facts the ownership passes and the backend read |
 | `hd_opt` | the pass manager and the body passes (crates/hd_opt/DESIGN.md) |
 | `hd_host_abi` | the host ABI description: traits, methods, codecs, wait flags, host primitive imports |
-| `hd_wasm` | Wasm layouts, emission with `wasm-encoder`, the code entry format, runtime helpers, the linker |
+| `hd_wasm` | linear-memory emission with `wasm-encoder`, runtime helpers, the linker |
 | `hd_run` | engine-independent runtime pieces: panic frames, import checks |
-| `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, limits, the `cwasm` cache |
+| `hd_run_wasmtime` | the wasmtime engine, providers of the default profile, the in-process module cache and the `clpack` code cache |
 | `hd_web` | the compiler in the playground's worker |
 
 The JS host's codecs and method descriptors (`host/gen/abi.ts`) are
@@ -154,95 +155,38 @@ its providers and driver (`host/core.ts`) are written by hand.
 
 ## 12. Emitting From TIR
 
-### 12.1 Analysis, Then One Emission Walk
+### 12.1 Owned Bodies, Then One Emission Walk
 
-`Emit(inst)` reads the instance's TIR from its module's `check` entry. It
-may first run **bounded analysis passes** over the generic TIR under the
-substitution, then it writes Wasm in one walk. Some choices need facts about later instructions: whether a value
-escapes in a later branch or through an inlined callback, which values
-are live across a loop's back edge, which are live at a suspension
-point. Deciding those during emission alone could be wrong.
+`Link` emits each instance from its owned body. The driver instantiates
+the instance from its item's checked body, runs the structure folds and
+the inliner at its type arguments, then the ownership passes, on that
+copy (`hd_driver/src/own.rs`; docs/compiler/tiering.md §2.2). Facts that
+need later instructions (last uses, which values are live across a loop
+or a suspension point, where counts go) are decided over that body
+before emission. `hd_wasm` then writes Wasm in one walk over it.
 
-- **Analyses.** Use counts, escape bits per allocation, and live sets
-  per block are side tables in the worker's arena, indexed by `Inst`.
-  Liveness is one backward dataflow over the structured blocks, iterated
-  to a fixed point on loops. It is not a scan per suspension point
-  (§14.2). Inlining decisions and the inlined callees' instructions join
-  the analysed region before any choice is made.
-- **Bounds.** Each pass is linear in the instance's instructions times
-  the loop nesting depth. Analyses are passes in a pipeline (§12.6,
-  [docs/compiler/tiering.md §6](../../docs/compiler/tiering.md#6-a-pass-manager-for-hd)), each gated by the
-  instance's summary bits: an allocation, a closure, a loop with a
-  candidate, or a suspension point. A trivial instance skips them.
-  Implementation differs: no instance pass runs in any pipeline,
-  suspension liveness included (crates/hd_opt/DESIGN.md §1.3); see
-  crates/hd_wasm/DESIGN.md §14.2.
-- **What this is not.** The fixed decision forbids a monomorphized copy
-  of the IR. Side tables and repeated reads of TIR are allowed.
-
-The emission walk then walks the root block's list in order, with a
-stack of open blocks. For each instruction it:
-
-1. substitutes the instance's type arguments into the instruction's type
-   (memoized per instance: each distinct generic type is substituted and
-   laid out once);
-2. picks the layout of the result (§15.1) and assigns Wasm locals;
-3. writes Wasm with `wasm-encoder`, recording relocations (§13.8);
-4. for a call, records the callee instance for collection's check
-   (§13.2) and, when the callee is inlined, walks the callee's TIR in
-   place with a remapping of its operands (§12.5).
-
-Nothing is written back to TIR, and no instance IR exists. Per-instance
-state is the substitution memo, the value-to-local map, the open-block
-stack and the output buffer, all in the worker's arena, reset per
-instance.
+The one instance pass, `liveness`, which suspension lowering owns, is
+gated to bodies that suspend (`hd_opt::passes`).
 
 ### 12.2 Lowering Rules
 
-| TIR | Wasm |
-| --- | --- |
-| a value instruction | a Wasm local (or several, for a `multi` layout, §15.1) when used more than once or across a block; otherwise left on the operand stack |
-| `Read [$l]` and a `Store` of a whole local | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
-| `Block`, `If`, `Loop` | `block`, `if`, `loop`; `Break` and `Continue` become `br` |
-| `Scope` with `Defer` | the exit ladder below |
-| `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then the viewed bytes for strings; each arm once, in nested blocks that leaves branch to |
-| `Call` with an `Item` callee | `call`, relocated to the callee instance |
-| `Call` with a `TraitMethod` callee | an `Impl` choice: a direct `call` of that impl's method. A `Bound` choice: the impl that `select` picks at the instance's types (§13.2); a direct `call`. A `TraitValue` choice: as `CallDyn`. A `Builtin` choice: the generated body (§13.6) |
-| `Prim` | one `prim_value` lowering, shared with the intrinsic std operator and comparison methods (`add`..`rem`, `neg`, bitwise, `not`, `shl`, `shr`, `eq` map to their `PrimOp`): overflow checks, division rules and panics have one source. `cmp` and `partial_cmp` build the `Ordering` tag as 1 + (a > b) − (a < b); float `partial_cmp` answers `.None` on NaN. A shift count keeps its own width and is extended or wrapped to the value's width |
-| `CallDyn` | `struct.get` of the vtable slot, then `call_ref`. When the vtable is a known constant global after inlining, a direct `call` of the slot's function, which the inliner may then inline (§12.6) |
-| `CallValue` | `struct.get` of the closure's code, then `call_ref` with the closure as the first argument |
-| `MapIter` | §13.12's iterator: a `Closure` struct `{code, map, pos}`, built like `ListIter`'s `{code, list, index}` |
-| `MapRemove` | §13.12's removal: probe to the entry, write the tombstone, return the old value as an `Option` |
-| `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
-| `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
-| `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `CopyStruct` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
-| `NewList` with spreads | a builder seeded with the fixed-element count: evaluate each element and spread operand once, in order, appending values and `array.copy`ing spread lists; one exact-size array at the end, then the `{len, data}` struct |
-| `NewTuple` with a rest operand | the fixed elements as usual, plus the rest-list operand as the tuple's rest field |
-| `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); reference weakening, variance and exact-key row subsumption: nothing (§12.4); `RowAdapt`: a function wrapper applying the checked `(required key, whole supplier)` recipe to the invocation context, forwarding residual row-tail entries |
-| a string literal | a view over its pooled array (crates/hd_wasm/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm/DESIGN.md §15.4). Implementation differs: a `call` of the literal's own getter, and no fast path or short-literal globals (crates/hd_wasm/DESIGN.md §15.4) |
-| an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (crates/hd_wasm/DESIGN.md §15.5) |
-| `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
-| `Loop` | the checker has expanded counted loops into ordinary control flow (§12.5) |
-| `Await*` | the state machine (§14) |
-| `Hook` | nothing, except in hook builds (§14.7) |
+The lowering of each TIR form to linear-memory Wasm is
+[docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md),
+with the layouts and the runtime in crates/hd_wasm/DESIGN.md §23.
 
-**The exit ladder.** Each `Scope` with a `Defer` gets one:
+**Cleanup scopes** are lowered in TIR before the backend sees them, by
+the first ownership pass (`hd_tir/src/own/scopes.rs`). A `Scope` with
+suites becomes a plain wrapper: its body's end runs a copy of each suite
+registered so far, last in, first out, and each way out of it (`Break`,
+`Continue`, `Return`, a failing `?` leaf) breaks to a chain shared per
+target and registered count, a labelled block whose end runs the suites
+and takes the jump, as rustc's drop tree shares a drop chain per target.
+A `Defer` registers its suite where it stands, so no flag local is
+needed. Each suspension point gets a cancel block (`Body::cancel`): the
+suites around it, then a cancelled `Return`.
 
-1. Every suite gets a "registered" flag local, set at its `Defer`.
-   Suites registered unconditionally at the scope's top need no flag.
-2. Every exit that leaves the scope (fall-through, `Break`, `Continue`,
-   `Return`, a failing `?` leaf) stores its value and an exit code in
-   locals, then branches to one cleanup block at the scope's end
-   ([`flow.cleanup.result-saved`](../../spec/lang/06-control-flow.md#r-flow.cleanup.result-saved)).
-3. The cleanup block runs the flagged suites, last in, first out, then
-   dispatches on the exit code with a `br_table` to the real target.
-4. A scope with one exit runs its suites there directly (the common case).
-
-Panics skip the ladder: a panic is a trap and runs no suite
+Panics run no suite: a panic is a trap
 ([`flow.cleanup.panic`](../../spec/lang/06-control-flow.md#r-flow.cleanup.panic)).
-Cancellation runs the same suites of the same scopes through the frame's
-cancel function (§14.6).
 
 ### 12.3 Facts, Defaults, Derives And Tests
 
@@ -313,7 +257,7 @@ cancel function (§14.6).
   edit reuses the declaration's body. `VariantInfo.shared` reads the
   variant's shared-data globals. The bodies are in the module's TIR, so
   a field edit changes the module's content hash, the program key and
-  the generated instances' code keys (`hd_driver/tests/structure_run.rs`).
+  the generated instances' code keys (`hd_driver/tests/all/structure_run.rs`).
   Not carried yet, each a structured "not implemented" that stops a call
   at collection: a typed fact (`annot.typed-fact.check` needs the fact
   type's pattern), a member line whose list is not a list literal (a
@@ -344,33 +288,19 @@ Requirement rows never become type arguments
   never relies on that order. TIR stores a call's providers as
   `(key, provider)` pairs (crates/hd_tir/DESIGN.md, callee records), and
   emission sorts the pairs by this comparator once per call site.
-- **A concrete row** (`$ Console + Clock`) adds one parameter per key,
-  in that key order. Each is a trait value of the
-  key's trait (§15.2). A call passes the providers TIR names for it, so a
-  provider costs one Wasm argument per key and no allocation.
-- **A row parameter** (`$R`) adds one **context** parameter. A
-  context is an immutable linked list of `(key id, provider)` nodes. A
-  key id is the first 64 bits of `H(canon(K))`, an `i64`, so adding a key
-  elsewhere changes no context-using body. Link checks the
-  program's key ids for collisions and, on one, rehashes every id with
-  the next fixed salt. Looking up a key
-  walks the list and takes the first match, which is how an inner
-  `$.with` shadows an outer one.
-- **Extension** (`$.with(Logger=...)` around a call that needs `R +
-  Logger`) pushes one node: one allocation per call into row-polymorphic
-  code.
-- **One callable ABI for function values.** Every
-  closure's code has the signature `(env, args..., ctx: (ref null
-  $Ctx)) -> results`, whatever its row; an empty row ignores `ctx`, and
-  a caller with nothing to pass passes null. A function value's caller
-  may not know the value's row, and a context is looked up by key id,
-  so any context that holds `R1`'s keys serves a function of row `R1`.
-  Row subsumption `fn $ R1` to `fn $ R2` is therefore no instruction,
-  and the closure reference types of both are the same `$Fn_sig`, where
-  the signature leaves the row out. A named function used as a value
-  gets one generated adapter that reads its keys from `ctx` and calls
-  the function's direct entry, which takes one parameter per key. TIR's
-  `ContextFor` builds the context once per calling body.
+- **A concrete row** (`$ Console + Clock`) adds one provider per key,
+  in that key order. Each is a trait value of the key's trait. A call
+  passes the providers TIR names for it, so a provider costs no
+  allocation.
+- **A row parameter** (`$R`) adds one **context** parameter: a list of
+  `(key id, provider)` entries, looked up by key id, first match wins,
+  which is how an inner `$.with` shadows an outer one. A key id is the
+  first 64 bits of the key's content hash, so adding a key elsewhere
+  changes no context-using body. Every instance of an item takes the
+  open row as the argument of each of its own and inherited row
+  parameters (`hd_mono::rowless`), so one instance serves every row
+  (`req.poly.one-body`). Trait-owner arguments, including `Self`, stay
+  in instance keys because they select the implementation.
 - **Own providers.** A provider pair whose provider is `NONE` passes the
   enclosing sub-body's own provider for that key, exactly as
   `ProviderGet` would. The checker writes such pairs for calls to private
@@ -378,54 +308,9 @@ Requirement rows never become type arguments
   callee records).
 - **Cold suspensions** capture their providers in the frame at
   construction ([`req.bind.construction`](../../spec/lang/11-requirements-and-suspension.md#r-req.bind.construction)).
-- **Context values.** A value of `$.Context[$ R]` holds one
-  provider per key of `R`. Its row is concrete
-  (`req.row.param.context`), so its key order is known statically and
-  the value needs no key ids. It is one `(ref $CtxProvs)`, the
-  providers array of the function-value context (`array eqref`): for
-  key number `i` in key order, the provider's payload at `2i` and its
-  vtable at `2i + 1`. `$.Context[$()]` is an empty array. Contexts
-  have no subsumption, so a context's array always matches its type.
-  `ContextNew` builds the array once: for each key of its type, the
-  last pair that binds it supplies the provider, as a trait value
-  checking already converted, or as two `array.get`s from a spread
-  context (`req.context.order`). A `$.with` pair pushes provider locals
-  as before, with no conversion of its own, since checking already
-  made each value a trait value of its key. A spread pair reads each
-  key of the spread context's row into a payload local and a vtable
-  local (`ref.cast` to the key's vtable) and pushes them. The pairs
-  are pushed left to right and lookup takes the innermost, so a later
-  entry wins. Building costs one allocation of `2n` slots; installing
-  costs `2n` reads and casts, and no allocation.
-- **As built.** The context of a row parameter is the function-value
-  context, two arrays (`ctx_keys: array i64`, `ctx_provs: array
-  eqref`), not a linked list. Every instance of an item takes the
-  placeholder `Canon(0xF1)`, the open row, as the argument of each of
-  its own and inherited implementation row parameters
-  (`hd_mono::rowless`), so one instance serves
-  every row (`req.poly.one-body`). The instance takes one provider per
-  key its row lists itself (`declared_row_keys`), then the context
-  last. Trait-owner arguments, including `Self`, stay in instance keys
-  because they select the implementation; inherited row arguments still
-  contribute providers to the context.
-- A caller passes, in the context, the keys of the row arguments that
-  the callee's row has (`row_param_keys`). When an argument lists the
-  caller's own open row, those keys go in front of the caller's
-  context, and with no key and no open `$.with` scope the caller passes
-  its context unchanged, so forwarding `R` allocates nothing. A `$.with`
-  key goes in front too, so the nearer provider wins
-  (`req.with.nearest.row-parameter`). Extending a context copies both
-  arrays, one allocation each.
-- A closure whose row lists the open row reads those keys from its own
-  call's context, which a suspending closure keeps in its frame. A
-  function reference's adapter passes its context on to the instance.
 
-- Value providers copied behind references use the existing generic
-  `std.rt.host_provider` constructor for their concrete object and GC
-  descriptor wrapper. Their reference identity fields still come from
-  the concrete object. Getter/setter code belongs to shared constructor
-  instances, rather than four fresh closure sub-bodies per provider site;
-  the address backend strips the GC wrapper form as usual.
+The linear backend's contexts, the one callable ABI of function values,
+`$.Context` values and their counts are crates/hd_wasm/DESIGN.md §23.26.
 
 ### 12.5 Counted Loops And Checks
 
@@ -529,7 +414,7 @@ unbuilt proposal is separate from A2. The closed
 is not an implementation record for this schedule.
 
 An iterator adapter stores its closure in a field of a mutable `Iterator`
-struct. Inlining alone never reveals the `call_ref` target.
+struct. Inlining alone never reveals the `call_indirect` target.
 Specialization is a schedule of the
 named single passes of
 [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#optimization-passes), one round
@@ -540,7 +425,7 @@ per stage of a chain:
 2. **`escape`, then `scalar-replace`** the `Iterator`: it does not
    escape, so its `step` field becomes a local holding a known closure
    literal.
-3. **`devirt-closure`:** a `call_ref` whose target is a known closure
+3. **`devirt-closure`:** a `call_indirect` whose target is a known closure
    literal becomes a direct call of that body, with the environment
    fields as locals; **`devirt-vtable`** does the same for a `CallDyn` on
    a known vtable.
@@ -620,12 +505,11 @@ in §12.6; it does not configure A2.
 | trivial inlining | a call per small callee | none or negative | callee at most 8 TIR instructions, no loop |
 | bounded inlining | a call, plus later folding | callee size per site | callee at most 40 TIR instructions inside a loop, 15 outside; the caller grows at most 2x or 2 KB, whichever is smaller; an absolute caller cap set by S6 below the size where Cranelift's time per byte doubles |
 | A2 closure copies (implemented) | direct calls of known closure parameters | specialized callee instances | `max_insts=64` TIR instructions, sub-bodies included; `max_depth=2` specialized-instance levels |
-| iterator-chain schedule (proposed) | 1 to 5 `call_ref`s per element on wasmtime | 50 to 150 bytes per stage | proposed: at most 4 rounds; at most 512 bytes of growth per chain site |
-| known-vtable devirtualization | one `call_ref` | none; enables inlining | always |
+| iterator-chain schedule (proposed) | 1 to 5 `call_indirect`s per element on wasmtime | 50 to 150 bytes per stage | proposed: at most 4 rounds; at most 512 bytes of growth per chain site |
+| known-vtable devirtualization | one `call_indirect` | none; enables inlining | always |
 | scalar replacement | an allocation | usually smaller | always, when the value does not escape |
 | A1, erased reference storage | a cast per element read lost | negative: one instance per class | always, unless E1 rejects it |
 | parallel arrays for value-layout elements | an allocation per element | about 25 bytes per slot per list method | up to the bound (E2) |
-| literal pool | none | negative above about 5 bytes per literal | always above the `array.new_fixed` threshold (E10) |
 
 E8 keeps these budgets unless the next level up buys 5 percent speed on
 the runtime suite for under 10 percent size on the `dead-code` packages;
@@ -646,7 +530,7 @@ time.
 
 | Target | Without these rules | With them |
 | --- | --- | --- |
-| `runtime` (geomean at most 1.5x Node, no case over 3x) | `map` above 3x on wasmtime from the hash protocol; chains slow from `call_ref` | `map` near 2x on wasmtime; chains near 1x; the heap pathology removed |
+| `runtime` (geomean at most 1.5x Node, no case over 3x) | `map` above 3x on wasmtime from the hash protocol; chains slow from `call_indirect` | `map` near 2x on wasmtime; chains near 1x; the heap pathology removed |
 | `allocations` (0 per counted loop, at most 1 per chain) | 3 to 5 per map lookup | 0 for both |
 | `size-startup-heap` (tiny at most 2 KB) | short literals at 3 bytes per byte | the pool; hello world needs none |
 | `dead-code` | list code per reference type | folded by A1; the target is re-based after spike S7 |
@@ -665,7 +549,7 @@ trait values (§13.5).
 | --- | --- |
 | executable or task (`hd run`, `hd build`) | the entry wrapper of `main` or `main!` (§16.2), and the init function of every group the entry module reaches |
 | `hd build FILE` | the same, for FILE's module |
-| script: an entry module with top-level statements and no `main` | the module init (`Roots::Script`); its entry row (`module.init.script-profile`) is inferred from the init's direct item calls, and `hd_wasm::script_entry` emits it |
+| script: an entry module with top-level statements and no `main` | the module init (`Roots::Script`); its entry row (`module.init.script-profile`) is inferred from the init's direct item calls, and `hd_wasm` emits it as an `Entry::Script` |
 | unit test program (one per package) | one `TestCase` body per registration and per doc test, in every module of the package, and one init export per module with tests, which runs that module's reachable init groups |
 | integration test program (one file) | its `TestCase` bodies, and its reachable init groups |
 | REPL input | the input's top-level statements as an init body |
@@ -861,35 +745,28 @@ growing type) has no finite instance set.
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 
 - **Vtables follow the trait record's shape** (crates/hd_check/DESIGN.md (trait solver) §9.2).
-  The shape is computed once per trait at interface time:
-  one slot per method of the trait itself, in declaration order; one
-  immutable reference per direct supertrait, in declared order, to that
-  supertrait's own vtable at the same type; and a type id when the trait
-  is `Inspectable` or extends it. Supertrait slots are never copied, so
-  a diamond such as `Error < Display & Inspectable` shares one `Display`
-  vtable, and the `Supertrait` coercion is one `struct.get`. Each vtable
-  is a global with a constant initializer, built once per `(type, trait
-  reference)` pair, so a coercion to a trait value never allocates a
-  vtable.
-- Implementation differs: the emitter builds a vtable with `struct.new`
-  at every trait-value coercion (`Em::vtable_value`): its own method
-  slots and its direct-supertrait fields, a diamond's shared supertrait
-  built once per coercion. So every coercion allocates a vtable tree.
-- **Trait values** are pairs: the value as `eqref` and its vtable
-  (§15.2). A call through a trait value is one `struct.get` and one
-  `call_ref`.
+  A vtable is static data: one function-table slot per method of the
+  trait itself, in declaration order, then the address of each direct
+  supertrait's own vtable at the same type, in declared order
+  (`hd_wasm/src/emit/dyn_value.rs`; crates/hd_wasm/DESIGN.md §23.8).
+  Supertrait slots are never copied, so a diamond such as
+  `Error < Display & Inspectable` shares one `Display` vtable. A
+  coercion to a trait value never allocates a vtable.
+- **Trait values** are `(data, vtable)` pairs (crates/hd_wasm/DESIGN.md
+  §23.19). A call through a trait value loads the slot from the vtable
+  and makes one `call_indirect`.
 - **Bindings live in the vtable key.** A `dyn Tr[A,
   Item = T]` type keeps its bindings in the pool (`TraitValue.bindings`,
   interned in sorted order, so binding order never makes two types,
   `trait.dyn.binding.identity`). Emission lays a vtable out per *key*:
   the trait, its arguments, and the binding of every associated type the
-  trait reaches (`Lay::dyn_key`). The value's own bindings join those its
+  trait reaches. The value's own bindings join those its
   supertrait list fixes (`trait C < S[Out = U]`), so the key is the same
   however the bindings were spelled. A slot's signature substitutes the
   class `REF` for `Self` and then reads each projection of `REF`
   (`Self::Item`) from the key's bindings
   (`trait.dyn.binding.signatures`), so the slot of `get` in `dyn
-  Supplier[Item = i32]` is `(eqref) -> i32`, and `dyn Supplier[Item =
+  Supplier[Item = i32]` returns an `i32`, and `dyn Supplier[Item =
   string]` gets a vtable of its own. A parent field's key is the
   supertrait with its supertrait-list bindings plus those of the child's
   bindings it reaches (`trait.dyn.binding.widen.reference-values`), so widening still
@@ -1078,7 +955,7 @@ panic's site is its stub caller's `lines` row (crates/hd_wasm/DESIGN.md
 §15.9).
 
 **Recursive descriptors.** A type naming a recursion group
-([crates/hd_wasm/DESIGN.md §15.3](../hd_wasm/DESIGN.md#153-the-type-section)) is
+([crates/hd_wasm/DESIGN.md §15.3](../hd_wasm/DESIGN.md#153-recursive-types)) is
 the group and a member index. The entry's bytes start with its type
 table: each distinct descriptor and group the entry names, directly or inside another, once
 and after the ones it names. A row names the descriptors it holds, and a
@@ -1122,7 +999,7 @@ printed:
   `link` entry to `build/`, it resolves every anchor to a file, line and
   column in the written sections: one pass over about 5,000 rows at 10k
   lines, plus one map of each reachable module's `check` entry, a few ms
-  per build. The cached `link` and `cwasm` entries stay anchored.
+  per build. The cached `link` entry stays anchored.
   Implementation differs: the written rows stay anchored, and an
   added `hd.positions` section holds each row's line and each
   function's file and printed name, with no column
@@ -1213,7 +1090,7 @@ Any new read that emission adds must join this list in the same change.
 | Cost | Control |
 | --- | --- |
 | number of instances | reachability; folding; rows are not type arguments |
-| emission time | one walk of the generic TIR per instance; cached by `code_key` |
+| emission time | one walk of each instance's owned body; cached only as the program's `link` entry |
 | type section size | structural canonicalization and dedup at link (§15.3) |
 | Cranelift time | wasmtime's per-function cache |
 
@@ -1233,77 +1110,34 @@ numbering, packs and filtered test programs are the largest for latency.
 
 ### 13.10 The Link Step
 
-`Link(P)`:
+`Link(P)` emits every instance of the program in one task, on one
+thread (`hd_wasm::build`), and links them into one module. Code entries
+and code packs are planned, not built (#49), so every miss of the `link`
+entry emits the whole program again.
 
-0. **Read the code entries in one batch.** The worktree's last-run record, or else the
-   program's `packhint`, names the **code packs** of the program's last
-   link: one per folder group, each holding the code entries of that
-   group with an index by code key (crates/hd_cache/DESIGN.md §5.4). Link maps those
-   packs once and takes every unchanged code key from them; `Emit` runs
-   only for keys no pack holds. It then writes a new pack for each group
-   whose members changed. Reading 4,800 separate files would cost 0.3 to
-   0.6 s on the Mac; about 30 mapped packs cost 2 to 4 ms.
-   Implementation differs: `Collect`, not Link, reads the packs, and
-   the hint is the package's, not the program's. A group's pack is
-   keyed by its code keys, so an unchanged group is one exact lookup;
-   only a changed group reads the packs its folder's hint lists. Packs
-   are read whole, not mapped.
-1. **Drop and fold.** An instance that no relocation names, because every
-   caller inlined it, is dropped. Then the rest fold (§13.7).
-2. **Order functions.** Imports first, sorted by module and name. Then
-   the generated runtime helpers, sorted by name. Then the module
-   literal getters and span functions, by module path, and the fact
-   getters, by content. Then the
-   representatives in instance-key order. This order is deterministic,
-   but it does not keep indices stable: inserting a function with a
-   smaller key renumbers every later one. That is
-   harmless for `call`, which wasmtime's per-function cache abstracts. No
-   persistent index allocation is kept, since it would make bytes depend
-   on build history (crates/hd_wasm/DESIGN.md §15.8). If the `ref.func`
-   case misses wasmtime's cache too often, closure construction reads one
-   immutable `funcref` global per closure code instead.
-3. **Types.** The canonical types the functions, globals and exports name
-   (§15.3).
-4. **Globals.** First the fixed globals: the runtime's globals. Then
-   one literal table per module that has pooled literals, by module path.
-   Then the immutable constants (vtables, closures without
-   captures, payloadless variant singletons, member handles,
-   `TypeId` values, literals of at most 4 bytes), by kind and content
-   key. Then module storage, by module path and binding index. Then fact
-   storage, which only getters name (§15.4).
-5. **Data.** One passive segment holding every pooled literal once,
-   deduplicated by content, in content order, then each module's index
-   area of `(offset, length)` pairs. Only the literal getters, span
-   functions and the fill helper name it. Key ids and type ids are checked for 64-bit
-   collisions here (§12.4).
-6. **Elements.** One declarative segment for every function used with
-   `ref.func`. The reserved hot-reload table stays empty (§18.5).
-7. **Exports**: `hd.init`, `hd.poll`, `hd.wake`, the exchange buffer, and test entries (§14.4, §15.4, §19.2).
-   A package's unit-test program exports one init function per module
-   with tests instead of one `hd.init`; each runs exactly the init groups
-   its module reaches, in `InitOrder`'s order (docs/compiler/engines-and-test-runner.md §19.1).
-8. **Code.** Copy each representative's body and patch its relocations in
-   place. In the optimized pipeline, re-encode the padded LEBs at minimal
-   width; the dev pipeline keeps them, since
-   size does not matter there. Planned, not built: no build compacts LEBs.
-   Re-encoding moves every later byte, so the encoder builds an
-   old-to-new offset map per body as it goes (a sorted list of
-   `(old offset, bytes removed so far)`, one row per shrunk immediate)
-   and rewrites the offsets of `sites`, `lines` and the source map
-   through it before writing `hd.lines`. A test panics after a shrunk immediate in the optimized
-   pipeline and checks the reported site against the dev pipeline.
-9. **Custom sections**: `hd.lines`, then the compact `hd.names` in a
-   release build, so release omits the standard `name` section, or
-   `name` otherwise (crates/hd_wasm/DESIGN.md §15.9). Planned, not
-   built: `hd.runtime` and `hd.folds`.
+- **Order.** Instances, runtime helpers, imports and static data are
+  numbered in content order, so the bytes do not depend on threads or
+  task order (crates/hd_wasm/DESIGN.md §15.8). The order does not keep
+  indices stable: inserting a function with a smaller key renumbers every
+  later one, which wasmtime's per-function cache abstracts for `call`.
+- **Function table.** One active element segment fills the table with
+  every function a closure value or a vtable slot names; `call_indirect`
+  calls through it. A REPL session's table may grow; a program's has a
+  fixed size.
+- **Cleanup.** The link-time Wasm cleanup runs over every function
+  (`Module::finish_link`; docs/compiler/tiering.md §2.2).
+- **Exports**: `hd.init`, `hd.poll`, `hd.wake`, the exchange buffer, and
+  test entries (crates/hd_wasm/DESIGN.md §15.4). A package's unit-test
+  program exports one init function per module with tests instead of one
+  `hd.init`; each runs exactly the init groups its module reaches, in
+  `InitOrder`'s order (docs/compiler/engines-and-test-runner.md §19.1).
+- **Custom sections**: `hd.lines`, then the compact `hd.names` in a
+  release build, so release omits the standard `name` section, or `name`
+  otherwise (crates/hd_wasm/DESIGN.md §15.9). Planned, not built:
+  `hd.runtime` and `hd.folds`.
 
-```text
-link_key = prog_key (§11.3), and on a prog_key miss
-           H("link", toolchain_key, pipeline_hash, profile, root description, sorted code keys)
-```
-
-A program is written under both keys, so the next warm run hits the
-cheap one. Link is serial per program and linear in output size.
+The `link` entry is keyed by `prog_key` (§11.3). Link is serial per
+program and linear in output size.
 
 ### 13.11 Function References Become Adapters
 
@@ -1311,7 +1145,7 @@ Check builds an `ItemRef` node for a function used as a value
 (`hd_check/src/call.rs`, `item_value`: the item plus its instantiated
 type arguments). Emission turns every `ItemRef` into a value by
 generating one adapter per instance, reusing the closure representation
-(§12.2); no new runtime form.
+(crates/hd_wasm/DESIGN.md §23.19); no new runtime form.
 
 For each reference kind of spec 07 (`fn.ref.*`, generic function
 values):
@@ -1340,12 +1174,11 @@ method at a trait-value `Self`) is called from a body collection builds
 `Call`, returning its result. The driver runs the ownership passes over
 it (`ProgramEnv::own_generated`), and it is the adapter's instance body.
 
-Wasm shape: the reference value is a `Closure` struct whose code field
-is the adapter and whose env holds the bound receiver, if any. Every
-capture-free adapter is a constant global, exactly like a capture-free
-closure (§12.2); calls use `CallValue` (`struct.get` of the code, then
-`call_ref` with the closure first). The adapter code has the closure
-ABI `(env, args…, ctx)` (§12.4).
+Wasm shape: the reference value is a function value `(code,
+environment)` whose code is the adapter's function-table slot and whose
+environment holds the bound receiver, if any, or is 0. A call is one
+`call_indirect`, or a direct call when collection knows the target
+(crates/hd_wasm/DESIGN.md §23.19).
 
 Footprint per adapter: one Wasm function (a forwarder, tens of bytes;
 its type section entry dedups at link) plus, for bound references, the
@@ -1549,11 +1382,11 @@ the special cases and is a port of fdlibm's `pow` otherwise, within
 
 As built: floats use the instructions of their own width, so
 `f32` `+ - * /`, negation and the comparisons round once to `f32` and
-follow IEEE 754 for NaN, infinities and signed zeros. Floating `%` is
-the generated `RemF64` helper (`rem.rs`, `(f64, f64) -> f64`), C `fmod`:
+follow IEEE 754 for NaN, infinities and signed zeros. Floating `%` is a
+call of std's private `float_rem_f64` (`lib/std/num.hd`), C `fmod`:
 exact, with the dividend's sign, and NaN for a zero divisor, an infinite
 dividend or a NaN operand. A floating-point quotient does not give the
-remainder (`a - b * trunc(a / b)` rounds twice), so the helper works on
+remainder (`a - b * trunc(a / b)` rounds twice), so the function works on
 integers. It splits both operands into a 53-bit significand and an
 exponent (subnormals normalized with `clz`), then subtracts the divisor's
 significand from the dividend's where it fits, doubling once per step of
@@ -1564,7 +1397,7 @@ remainder of two `f32` values is an `f32` value, so the narrowing is
 exact. Casts are one `convert` lowering: `f32` to `f64` is `promote`,
 `f64` to `f32` is `demote`, integer to float is the `convert` instruction
 (one rounding, ties to even, also at `i64`/`u64` to `f32`), and float to
-integer is `trunc_sat`, which gives the bound for an overflow or an
+integer is `trunc_sat` (`i32.trunc_sat_f64_s` and kin), which gives the bound for an overflow or an
 infinity and 0 for NaN. The 8- and 16-bit targets saturate to `i32`
 first and clamp to the type's range, which agrees with saturating
 directly because the clamp is monotone.
@@ -1580,13 +1413,13 @@ A child vtable holds its own methods' slots plus one vtable field
 per direct supertrait (the `Supertrait` coercion already reads "the
 parent's vtable field from the child's vtable"). A supertrait method
 call through a `dyn Sub` value is two loads — parent vtable, then
-slot — and one `call_ref`, reusing the `CallDyn` shape. No flattening: parent
+slot — and one `call_indirect`, reusing the `CallDyn` shape. No flattening: parent
 method code is referenced once per (type, declaring trait), not once
 per child trait.
 
 Widening `dyn Sub` to `dyn Super` allocates nothing: it keeps the
-payload and reads the parent's vtable field from the child's vtable,
-one `struct.get` per level (the `Coerce` row's `Supertrait` case).
+payload and reads the parent's vtable address from the child's vtable,
+one load per level (`Supertrait` coercion; `dyn_value.rs`, `widen`).
 Reusing the child vtable as-is would need its method slots to match
 the parent's layout, and this design does not flatten. Child-only
 methods become unreachable (`trait.dyn.widen` drops them,
@@ -1646,7 +1479,7 @@ the full key:
   instance keys carrying the type arguments. A type parameter named by
   a requirement key (the item's own row, a function type's row, a
   `$.with` key) is exact under A1 (§13.2), or the key would be erased.
-- **Emit**: the provider list and `push_providers` key by full key,
+- **Emit**: the provider list keys by full key,
   so `ProviderGet` for `Repo[User]` never matches `Repo[Post]`.
 - **Host**: host capabilities are never generic — a generic key
   cannot come from the host (`nonhost-entry-requirement`) — so the

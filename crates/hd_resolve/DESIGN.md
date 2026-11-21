@@ -432,8 +432,8 @@ diags       stage-A header diagnostics, spans relative to their declaration (out
   checking bounds and alignment once per section.
 - `private_names` and `anchors` are outside `api_hash`, `deep_hash` and
   `heads_hash`. They affect diagnostics only.
-- **Lazy decode.** `IfaceReader::item(name)` binary-searches the export
-  index and decodes one record. A run that names 5 items of a 200-item
+- **Lazy decode.** `decode_lazy` reads a blob's tables, item index and
+  exports, and leaves each item record to decode on first use (`Items`). A run that names 5 items of a 200-item
   std folder decodes 5 items.
 - **Canonical bytes.** Records are ordered by stable content: module path,
   source order, sorted names. Never by run IDs or hash-map order. Two runs

@@ -22,7 +22,7 @@ build.
 | `Map` | hd in `lib/std`: a compact insertion-ordered table | Implementation differs: `Map`'s table is runtime helpers the emitter writes (`hd_wasm/src/map.rs`), which is worse: library code in the compiler. It stays in Rust for now (#180 closed 2026-10-26) |
 | `Choices`, shrink-free generators, structured assert diffs | hd in `lib/std` (`std.testing`) | the runner shrinks on the host side |
 | `block_on`, `join!`, `race!`'s frame, `Waker` | compiler intrinsics | the spec names them so ([Standard Combinators](../../spec/lang/11-requirements-and-suspension.md#standard-combinators)); `race!` itself is hd in `std.task` |
-| default-profile provider types (`HostConsole`, `HostFs`, ...) | hd declarations in `lib/std` whose method bodies are intrinsic | an intrinsic body maps to a host import by the ABI table (§17.1); the signature is plain hd |
+| the default profile's providers of std's capability traits (`Console`, `Args`, ...) | provider stubs `hd_wasm` generates from the ABI table (§17.1) | each method is a host import; the trait is plain hd in `lib/std` |
 | frames, `join!` and `race!` frames, vtables, closure environments, entry wrappers, init sequencing, panic stubs, check sequences | generated | §12 to §15 |
 | boundary encoders and decoders | generated per boundary type | like a derive, from the type's structure (§17.4) |
 | `Array[T]` operations, string byte access, `dbg`, panics | intrinsics (`hd_resolve::intrinsics::INTRINSICS`) | a few Wasm instructions each |
@@ -79,8 +79,8 @@ module `hd:<Key>`, with `Key` as in the grant table (`hd:Console`,
 
 Planned, not built: an `hd.runtime` custom section (format, compiler
 build id, entry kind, the test list, the exchange export), with a module
-lacking it also treated as not built by `hd`. `hd_wasm/src/meta.rs`
-defines `RuntimeMeta` and its codec; link does not write it.
+lacking it also treated as not built by `hd`. No code defines or writes
+it.
 
 ## 17. Host Interface And Embedding
 
@@ -380,7 +380,8 @@ the variant index and the path.
 
 ### 17.5 Host Calls On wasmtime
 
-- Host methods are plain synchronous Rust functions (`Linker::func_wrap`).
+- Host methods are plain synchronous Rust functions, defined per import
+  with `Linker::func_new` (`host/link.rs`).
   wasmtime's async support is off: with start-and-poll, no Wasm call ever
   waits inside the engine, so no fiber stacks are needed, and each call
   stays a plain native call.

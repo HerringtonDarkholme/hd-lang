@@ -102,10 +102,10 @@ conflicting-access paths). `finish_with` then roots every such chain at its
 local before the verifier runs (`hd_tir::ir::root_places`;
 crates/hd_tir/DESIGN.md, "Places rooted at the local"), so the ownership
 passes and the backend see `Read [*$0 [%i] .x]`. The checker leaves the
-ownership statements to the passes (docs/compiler/tir-v2.md, stage 2
-commits 12b and 13a): an element reference is a `Ref` of the element
-place and nothing else, and a `for` over element references holds no pin
-of its own (`elem_refs.rs`); a map value is a place too, `[%m [%e]]` at
+ownership statements to the passes (docs/compiler/tir-v2.md,
+"Insertion"): an element reference is a `Ref` of the element place and
+nothing else, and a `for` over element references holds no pin of its
+own (`elem_refs.rs`); a map value is a place too, `[%m [%e]]` at
 the entry `MapEntry` finds just before each read, store or reference
 (`Ck::elem_index`), so a change through `m[k]` reaches the map as one
 through `xs[i]` reaches the list; and the checker writes
@@ -373,9 +373,10 @@ module uses one thread.
 in M1 for its result type is not checked again: `Body(m)` takes its
 result (`results::take`). Rows never cause a recheck. Literal widths
 never cause a statement recheck (section 3.6). The repeated work is a
-speculative trial (section 3.5), which is rolled back, and a generic
-local function used from a closure inside its own body before its
-captures were known, which is checked again once (`generic_recheck`).
+speculative trial (section 3.5), which is rolled back. A generic local
+function's closure is checked once (`generic_closure`); local omitted
+rows are solved as one constraint group before the group's bodies are
+checked.
 
 **A body result is a function of the body and the module's frozen
 inputs.** A body reads only its own syntax, the module scope, the private
@@ -1062,7 +1063,7 @@ reported (`ambiguous-row-pattern`).
 - A plain call of a suspending callee has type `Suspend[T]`, a
   must-use type.
 - `join!` and `race!` are intrinsics typed by
-  [Typing `join!`](../../spec/lang/11-requirements-and-suspension.md#typing-all).
+  [Typing `join!`](../../spec/lang/11-requirements-and-suspension.md#typing-join).
   Each argument must be a cold `Suspend[T]`.
 - Each bang call, `s!()`, `join!` and `race!` is emitted as `Await`,
   `AwaitValue`, `AwaitAll` or `AwaitRace`. Frames, polling and
@@ -1651,7 +1652,7 @@ Each spec section maps to one checker module:
 | driver tests (`crates/hd_driver/tests/all`) | one file per feature: diagnostics, and run results for programs that build |
 | unit tests | `hd_types` unifier, pool and solver tests |
 | determinism (`hd_testkit`, `generics_determinism`) | equal output across thread counts and orders |
-| TIR verifier | `TirBuilder::finish` verifies every body |
+| TIR verifier | `TirBuilder::finish` verifies every body when verification is on: debug compilers, count-audit builds and `HD_VERIFY=1` (crates/hd_tir/DESIGN.md, invariants) |
 
 Planned, not built: a rollback verifier that hashes body state at each
 checkpoint and compares it at rollback (TC-5); an exactly-once counter

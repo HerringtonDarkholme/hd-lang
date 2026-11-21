@@ -138,8 +138,8 @@ the frame compares.
 
 **Idle hook.** std's `ManualClock` moves its virtual time only when every
 task waits (`std-time.manual.sleep.idle`). `task_idle_hook(hook)` installs
-one std function value, `fn() -> void`, in the `idle_hook` and `idle_env`
-globals; std passes a top-level function, so they own no count. Where a
+one std function value, `fn() -> void`, in the `Global::IdleHook` and
+`Global::IdleEnv` globals; std passes a top-level function, so they own no count. Where a
 driver would wait for the host, it runs the hook through `IdleWake`: the
 root driver when its root is Pending with no `Rewake`, and `block_on`
 through `IdleBlock`, which replaces its call of the host's `block`. The
@@ -158,7 +158,9 @@ Generated task frames own their children and retain the results they need.
 
 ### 14.6 Cancellation And `defer`
 
-Cancellation runs cleanup ladders and releases owned frame values.
+Cancellation runs each point's cancel block, which the ownership passes
+write in TIR (`hd_tir/src/own/scopes.rs`): the releases the point needs,
+the cleanup suites around it, then a cancelled return.
 
 ### 14.7 Hook Points
 
@@ -200,7 +202,7 @@ what the spec names as intrinsic or what only it can build.
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the buffer, its copy and release glue and the change that makes a buffer a list's own (§23.17) |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) |
-| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' buffer paths (§23.20) |
+| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, the ownership passes' `Drop`s for each value's and local's last use, `emit/list.rs` for element references' buffer paths (§23.20) |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) |
 | checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) |
 | iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`; the outer release hands its block to `rt:release_drain`, which runs it and then the queue. The drain calls the glue of up to eight recursive types (those allocated with `CYCLIC`; `Module::drain_glues`) directly when a block's descriptor names it, so V8 can inline it, and any other glue through the table |
@@ -288,7 +290,7 @@ explicit references; no enum value is boxed implicitly (`data.enum.recursive`,
   enum's payload whose zeros would read as another variant writes its
   niche cell back to a value of the variant it left: the static empty
   buffer's address for a counted cell, which no count changes, else the
-  last value of the valid range (`Em::niche_repairs`).
+  last value of the valid range (`hd_layout::PlacePart::empty_pattern`).
 - **Type-only.** Every rule reads the type's definition and the
   definitions its fields name, never a use, so a laid-out instance is
   valid in every program that reaches it.
@@ -435,7 +437,7 @@ The value is the buffer's address, not a header's, because every change
 that may replace the buffer (an `IsUnique` that copies it, a `push` that
 grows it, a put that grows a table, `list_truncate`) names the place it
 changes, and the emitter stores the new address there
-(`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). The ownership
+(`docs/compiler/tir-v2.md`, "List and Map buffers"). The ownership
 passes keep the list's holder alive and the checker forbids changing it
 while an element reference is live (`ref.elem.access.*`), so the buffer
 cannot move under one.
@@ -514,7 +516,7 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   emitter as a `Read` and a `Store` of the place `[ptr %p]`
   (`Em::ptr_place`): a read loads the leaves, and a `move` keeps the
   count they held; a store writes its value as an element store does
-  (`slot_src`, `retain_src`) and releases nothing. `as_ref` and
+  (`store_src`, `retain_src`) and releases nothing. `as_ref` and
   `as_mut` are the pointer's address (`Em::ptr_ref`), a short loan's
   origin when its holders allow (§23.20). A `Buffer[T]` is an ordinary
   struct of an address and a capacity, hd over these (`std.rt.memory`):
@@ -528,14 +530,14 @@ issue-backed exceptions; there is no per-backend rollout pass list.
   Reference dependencies keep the owner live (§23.20).
   A string's bytes are its address, and a new string is a `Str` block,
   or the static empty string for no bytes.
-- **Release glue only.** A type whose values hold no counted address but
-  implement `std.rt.Drop` (a `UniqList` of scalars) has the walk
-  `Walk::Glue`, so the ownership passes and the parameter convention
-  treat it as owned and released, and its release runs the drop
-  (`Em::drop_inline`; through a reference, `rt::drop_value`, from
-  `RefLayout::drops`). A walk with a counted address leaves `Glue` out.
-  A reference to such a value is never promoted to its value
-  (`layout::holds_drop`, §23.40), since that would bind it twice.
+- **Hooks only.** A type whose values hold no counted address but
+  implement `std.rt.Drop` (a `UniqList` of scalars) is still counted
+  (`hd_layout::counted`), so the ownership passes and the parameter
+  convention treat it as owned and released, and its release shim runs
+  the hook in place, where the value lives (`hd_layout::shims::in_place`,
+  as Rust's `drop_in_place`). A reference to such a value is never
+  promoted to its value (`layout::holds_drop`, §23.40), since that would
+  bind it twice.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
@@ -663,19 +665,17 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   string's bytes are a string buffer, `rt:str`: an 8-byte header, which
   reference counting uses, then the bytes; the view's address is the
   payload's. A string made from an unshared `List[u8]` views that list's
-  buffer from its payload offset 16 instead (§23.17), as a
-  `StringBuilder`'s string does; `bytes_append` copies a view's bytes
-  onto a byte list and `list_reserve` makes room on one ahead
-  (`StringBuilder.reserve`), both through `rt:list_reserve` (§23.17). Every empty string is the one static empty value, address
+  buffer from its payload offset 16 instead (§23.17). Every empty string is the one static empty value, address
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
   give it, so no empty buffer is ever allocated.
-- **Kernels.** A concatenation (`+` and `rt:concat_all`) sums its parts'
-  lengths, allocates once and copies each part with `memory.copy`; one
+- **Kernels.** A concatenation (`+` and an interpolation, the emitter's
+  `concat` in `emit/text.rs`) sums its parts' lengths, allocates once and copies each part with `memory.copy`; one
   part is itself. `s[i]` and `bytes_at` check the index and load a byte.
   `bytes_slice` checks `start <= end <= len` and makes a view of the same
   bytes, with no copy (`module.string.slice.shared`). `cmp`, `partial_cmp`
-  and `<` compare bytes in order, a prefix first (`rt:str_cmp`). Integer
+  and `<` compare bytes in order, a prefix first (std's `string_order`,
+  `lib/std/cmp.hd`). Integer
   text is written backward into a 20-byte string buffer and is its tail.
   `char_scalar`, `char_from_scalar` and the float bit casts are inline.
 - **Scans.** `bytes_index_set` calls `rt:bytes_index_set` (`scan.rs`,
@@ -692,8 +692,8 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   bytes from each view, compares them with `i8x16.eq` and takes the
   bitmask of the lanes that differ, over the shorter length; the views may
   start at different alignments. `rt:str_eq` (equal lengths, then no
-  mismatch before the end) and `rt:str_cmp` (the bytes at the mismatch
-  decide, else the lengths) call it. `utf8_valid_len`
+  mismatch before the end) and std's `string_order` (the bytes at the
+  mismatch decide, else the lengths) call it. `utf8_valid_len`
   (`rt:utf8_valid_len`) takes the list and passes ASCII 64 bytes per step
   (four loads or-ed, one bitmask), then 16; in a block with a byte of 128
   or more it jumps to that byte (`i32.ctz`) and decodes scalars one by one,
@@ -713,9 +713,14 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 
 ### 23.16 Counted Values And Cleanup
 
-The ownership passes (`hd_tir::own`, docs/compiler/tir-v2.md, "Stage 2")
-decide every count of a body; `emit/count.rs` lowers their decisions to
-count glue, with release glue in `rt.rs`, and decides none itself.
+The ownership passes (`hd_tir::own`, docs/compiler/tir-v2.md, "The
+ownership passes") decide every count of a body; `emit/count.rs` lowers
+their decisions and decides none itself. A count of one address is a
+count call; any other count calls its type's retain or release shim, a
+lowered TIR body per type (`hd_layout::shims`, as rustc's
+`drop_glue::<T>`), which counts the type's own fields and calls the
+shims of the parts that have their own. A heap object's release glue
+(`rt.rs`) releases its payload the same way.
 
 - **Runtime roots.** The driver collects the runtime functions and runs
   their initializers before allocation. Linking retains only reachable
@@ -731,10 +736,11 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   precedes every page the allocator takes) returns before the lookup.
   `release` hands back the block at its last count; `rt:release_ref` then
   calls the descriptor's glue on the payload and frees the block.
-- **Which values count.** A type's `layout::walk` identifies counted
-  addresses through inline structs, tuples and enum payloads. Glue
-  retains or releases those fields. Closure environments, owning trait
-  values and suspension frames follow the same ownership model.
+- **Which values count.** `hd_layout::counted` says whether counting a
+  value of a type does anything: a counted address in it, through inline
+  structs, tuples and enum payloads, or a `Drop` hook. Its shims retain
+  or release those parts. Closure environments, owning trait values and
+  suspension frames follow the same ownership model.
 - **Every body is the passes' output.** The driver runs the passes over
   each body, the ones collection generates included (a function
   reference's call body, `hd_mono::adapter_call_body`, among them); the
@@ -766,9 +772,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   owned (a type parameter's) releases it by its stated exit `Release`
   (`hd_tir::own::abi`); and a cancelled suspension point, an edge the
   TIR does not have, runs its cancel block (`Body::cancel`: the
-  `Release` of each value it holds) in its cancellation branch, before
-  the cleanup scopes' ladders, and then leaves through the exit, whose
-  exit set holds every local that may hold a value at a suspension point.
+  `Release` of each value it holds, then the cleanup suites around the
+  point and a cancelled `Return`) in its cancellation branch.
 - **Uniqueness checks.** `IsUnique` lowers to `rt:list_unique` or
   `rt:map_unique` of the header at its place: a local's or a value's,
   then struct fields, elements, bounds-checked, and dereferences
@@ -796,13 +801,14 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   its check leaves there, for the loop's element accesses. The checker
   writes element
   references as plain `Ref`s, and element reads as
-  plain `Read`s (docs/compiler/tir-v2.md, stage 2 commit 12b); TIR has
+  plain `Read`s (docs/compiler/tir-v2.md, "What the checker emits"); TIR has
   no pin or element-write intrinsic, and no copy: every count of a
   collection runs the copy glue (§23.17).
 - **Moves of parts, taking references, borrows.** A `move` read of a
   part takes the part laid out in its root's locals (`Em::part_slots`:
   struct, tuple and newtype fields and enum payload fields), whose locals
-  a `Drop` of that part releases and zeroes too (`Em::own_drop_part`). A
+  a `Drop` of that part releases and zeroes too (`Em::own_drop`,
+  `Em::own_drop_rest`). A
   part at no such place at this instance, such as an open value's part,
   is read as a copy; the move pass then keeps the
   root's whole `Drop`, which releases it. A `Ref` that takes its local's
@@ -814,9 +820,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   read would. A local
   a borrow is stored into (a binding local) holds no count
   (`Em::loan_locals`): its stores count and release nothing.
-- **What an instance decides** (docs/compiler/tir-v2.md,
-  stage 2 commit 13b). The passes decide per generic body; three choices
-  are left to the instance, where the layout is known.
+- **What the emitter still decides.** Three choices read the instance's
+  layout in the emitter:
   - *A type parameter's value parameter* is owned by the passes
     (`OwnCx::pass`): an instance that makes it a value moves the argument
     in at its last use; a direct call to one that makes it a reference
@@ -827,7 +832,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
     instance of the method's own parameters, so a call there at an open
     receiver keeps its count, and no instance of that method lends that
     parameter (`ProgramEnv::lends`).
-    `Em::instance_loans` takes back what that costs where it can: a
+    The boundary rows take back what that costs where they can
+    (`hd_tir::own::boundary::plan`, after collection): a
     function parameter an instance receives borrowed, which the body never
     stores, addresses or captures, and whose every read of all of it lends
     or is an argument a direct callee borrows at this instance too, takes
@@ -845,8 +851,8 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   - *A lent reference* (`ref_word::LENT`, `[*$p .f]` into what a lent
     parameter refers to) joins `Em::loans`: it takes no count where the
     referent is physical.
-- **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
-  12a). The checker names a place from its local through every step
+- **Places rooted at the local** (docs/compiler/tir-v2.md, "Places";
+  crates/hd_tir/DESIGN.md, "Places rooted at the local"). The checker names a place from its local through every step
   (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`, `Read [*$0 .grid [%1] [%2]]`),
   not each base read into a value first. A place rooted at a local with
   an element or a variant
@@ -901,7 +907,7 @@ changes preserve collection value semantics (§23.7).
   (`layout::coll_leaves`, after `hd_mono::holds_coll`). The count glue
   does it for a value in locals (`Em::count_locals`, `Em::copy_locals`
   for a value another place keeps), a new object's payload
-  (`Em::retain_fields`), a value read through a reference (`rt:ref_load`)
+  (`Em::retain_fields`), a value read through a reference (`rt::ref_load`, inline)
   and a frame's arguments and captures.
 - **Changes.** The passes' `IsUnique` before a `push` or an element
   store makes the buffer the list's own (`rt:list_unique`). A shared
@@ -943,15 +949,9 @@ changes preserve collection value semantics (§23.7).
   `other`'s elements, which take their own counts (`rt:copy_elems`).
   `other` is lent, so it may be the list's own buffer itself
   (`items.extend(items)`): the copy then reads from wherever the reserve
-  put that buffer, up to the length read first. std's
-  `bytes_append(bytes: &mut List[u8], text)` (`StringBuilder.push`) is
-  the same through the reference, with the source the string's view
-  (`rt:bytes_append`): a buffer the list owns alone, with room for the
-  bytes, takes them inline with one `memory.copy`; any
-  other goes through `rt:list_reserve` first.
-  std's `list_reserve(items: &mut List[T], count)`
-  (`StringBuilder.reserve`) is that routine itself through the
-  reference, behind the same inline `count != 0` test, so a count of 0
+  put that buffer, up to the length read first.
+  std's `list_reserve(items: &mut List[T], count)` is that routine
+  itself through the reference, behind the same inline `count != 0` test, so a count of 0
   does not copy. After it the list has room for
   `count` more elements with no further growth: a shared buffer, or one
   short of room, becomes one new buffer as above; a buffer the list owns
@@ -981,11 +981,10 @@ changes preserve collection value semantics (§23.7).
   the count. A view into a former list buffer is released as any
   interior view is: the page table finds the block, and a `List[u8]`
   buffer has no release glue, so its last release
-  frees it as it frees a `rt:str` buffer. `StringBuilder` is one such
-  `List[u8]`: `push` appends a string's bytes (`bytes_append`, above) and
-  `build` moves the list out of the builder into `string_from_bytes`, so
-  the string takes the buffer over. `concat_all` copies its
-  strings' bytes into one new string buffer. `string_to_bytes` is the
+  frees it as it frees a `rt:str` buffer. `StringBuilder` is hd in std
+  over a `UniqList[u8]` (`lib/std/text.hd`): `push` copies a string's
+  bytes into the list's spare room (`append_text`), and `build` takes the
+  room over as the string (`take_text`). `string_to_bytes` is the
   other way: one list buffer of exactly the string's length and one
   `memory.copy`.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/list_tests.hd`
@@ -1248,8 +1247,8 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
 - **References count nothing** (model A,
   [docs/compiler/ownership.md](../../docs/compiler/ownership.md#references-count-nothing-formerly-phase-10), spec
   `ref.count.pointer`, `ref.count.local`, `ref.count.new-object`). A
-  thin local reference is a plain address, which counts nothing: its
-  count walk is none: every enum payload sits at one offset, so a
+  thin local reference is a plain address, which counts nothing: every
+  enum payload sits at one offset, so a
   field or payload step only adds its offset (#1422, #1448). One that owns a
   new object (`ref.expr.allocate`, a lent counted reference) releases
   that object at its end (`Em::owned_refs`). The ownership
@@ -1273,8 +1272,8 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   into a cell because the passes keep a cell local alive over every use of
   what may point into it (`hd_tir/src/own/frame.rs`, the origin rule, and
   in a suspending body the frame holding the cell). Such a reference is a
-  local reference (`&T`), whose count walk is
-  none; a count of a slot's address does nothing, as its count word
+  local reference (`&T`), which counts nothing; a count of a slot's
+  address does nothing, as its count word
   is zero. A reference through a parameter's referent keeps the lent
   rule (`ref_word::LENT`): the caller keeps that referent alive for the
   call, and a result that holds one is counted where it is returned.
@@ -1309,14 +1308,14 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   `&x.field`, the cell's address plus the field's offset. `&Node { ... }`, which the checker binds to a hidden local, makes
   its node with no count change (`allocation/new-reference`);
   `hd_driver/tests/cases/counts/reference-*` hold the boundaries.
-- **Cleanup scopes.** A `Scope` with `defer` suites uses an
-  exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
-  §12.2): each suite has a flag that its `Defer` sets; a `break`,
-  `continue` or `return` that leaves the body stores its exit's code and
-  branches to the scope's end, which runs the registered suites last in,
-  first out, as a forbidden context, then takes the exit again through
-  the next scope out. A suite that suspends (`using!`'s `dispose!`) uses the
-  cleanup state machine (§23.21).
+- **Cleanup scopes** reach the emitter already lowered: the first
+  ownership pass (`hd_tir/src/own/scopes.rs`) turns a `Scope` with
+  suites into blocks. Its body's end runs a copy of each suite registered
+  so far, last in, first out, and each way out breaks to a chain shared
+  per target and registered count, whose end runs the suites and takes
+  the jump. Each suite's copies are named in `Body::suites`: the emitter
+  runs one that does not suspend as a forbidden context, and shields the
+  suspension points of one that does (`using!`'s `dispose!`, §23.21).
 - **Releases at last use.** A reference is released after its last use,
   not at the end of its block (§6.3 rule 5), so a counted value never
   waits for the function's exit (§23.16). Insertion places the `Drop`s
@@ -1408,8 +1407,11 @@ TIR has no `Pin` instruction; collection buffers' reserved word stays 0.
   loans in its descriptor. A binding no reference reaches stays a Wasm
   global and costs nothing.
   A closure checks an access through a `*T` it captured against its
-  creator's own loans through it (E.2): its environment holds the
-  address of a 4-byte cell the creator keeps them in (`Em::own_caps`).
+  creator's own loans through it (E.2): a TIR pass gives each pointer
+  local that a closure captures, and that its creator takes a loan
+  through, an `i32` counter local (`hd_tir::own::loans::share_counters`);
+  each capturing closure captures it shared, so it lives in a cell, and
+  the loan statements name it.
   A `*dyn` or `*mut dyn` receiver lends the object at the pointer's data
   address; its loan is decided per type over the types the program
   converts to the trait (`Module::dyn_types`, class-hierarchy analysis).
@@ -1510,8 +1512,8 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   convention preserves input variance through nested containers without
   wrapping their elements. Thin-reference counts held by value in a tuple,
   struct or optional member remain borrowed, since variance may make that
-  member counted on one side and local on the other (`layout::function_pass`,
-  #1693). A noncopy aggregate still transfers its native ownership and other
+  member counted on one side and local on the other (TIR's
+  `FunctionInput` record, `ProgramEnv::function_input`, #1693). A noncopy aggregate still transfers its native ownership and other
   owned counts; `layout::function_input` separates those from the borrowed
   count carrier. Other inputs keep type-selected ownership.
   A cold constructor or fresh entry acquires borrowed inputs'
@@ -1554,20 +1556,21 @@ counted frames in memory 0 (`emit/susp.rs`, `task.rs`).
   context selected from the callee type's row (`ctx::push_fn_ctx`). An
   open row forwards the caller's context with nearer `$.with` providers
   in front, as crates/hd_mono/DESIGN.md §12.4 describes.
-- **Cancellation.** Each point's cancellation branch cancels the child,
-  waits while the child unwinds, then leaves through the cleanup scopes'
-  exit ladders by `Exit::Cancel` (§23.20). A counting body takes its one
-  exit with a `cancelled` flag. The frame's cancel marks a cold frame,
+- **Cancellation.** Each point's cancellation branch cancels the child
+  (`rt:cancel_child`), waits while the child unwinds, then runs the
+  point's cancel block (`Body::cancel`: its releases, the cleanup suites
+  around it and a cancelled `Return`, written in TIR by
+  `hd_tir::own::scopes`). A cancelled body leaves by one shared exit. The frame's cancel marks a cold frame,
   or steps a started one with `UNWINDING` set. `CancelEnter` and
   `CancelLeave` bracket a cancel for `req.abandon.carry`.
   `task_cleanup_frame`, `task_pending_frame` and `task_abandon` are
   runtime helpers, as in §14.6.
-- **Waiting suites.** A `using!` binding's `dispose!` that suspends is a
-  rung a resume can enter. Its points are shielded: they have no
-  cancellation branch. Under `abandon()`, or when the awaited child was
-  cancelled elsewhere, they kill the child instead of waiting. A frame
-  cancelled while such a suite waited leaves by `Cancel` once the ladder
-  has run.
+- **Waiting suites.** A point in a `using!` binding's `dispose!` copy
+  is shielded: it has no cancellation branch. Under `abandon()`, or when
+  the awaited child was cancelled elsewhere, it kills the child instead
+  of waiting. A frame cancelled while such a suite waited takes the
+  scope's cancel exit once the suite completes
+  (`flow.using.async.cancel.shielded`).
 - **`join!` and `race!`.** `join!` keeps a done mask, each child's result
   and a counted waker node in the save area. Its first poll visits every
   child; later polls visit only unfinished children whose ready bit is
@@ -1855,9 +1858,8 @@ is unchanged.
 ### 23.25 Count Elision
 
 The ownership passes decide which counts a body elides
-(docs/compiler/tir-v2.md, "What each emitter rule becomes", maps each
-rule to its pass); the emitter lowers their decisions and decides none
-(§23.16). The backend keeps the parameter convention, which `OwnCx::pass`
+(docs/compiler/tir-v2.md, "The ownership passes"); the emitter lowers
+their decisions and decides none (§23.16). The backend keeps the parameter convention, which `OwnCx::pass`
 reads, and the counts of the code it generates.
 
 - **Parameters by their type** (`layout::Pass`). A plain function, one
@@ -1877,8 +1879,8 @@ reads, and the counts of the code it generates.
 - **Function-value inputs.** Copy values and references arrive borrowed;
   noncopy values transfer their native ownership, retaining a borrowed
   thin-reference count carrier when reference variance requires one.
-  `ProgramEnv::function_value_transfers`
-  shares the driver's cached Copy classification with `function_pass`.
+  `ProgramEnv::function_input` answers both from TIR's one
+  `FunctionInput` record per type, which the passes and the emitter read.
   An owning declaration adapter or closure entry acquires its own count.
   Unknown calls retain their conservative write and frame-escape effects.
   This uses the same lifetime distinction as [Swift SIL's guaranteed
@@ -2064,7 +2066,8 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   releases its references through `rt:release_ref` and does nothing else.
   Outside a collection a release reads the global and never calls
   `visit`. Frame glue walks the saved ownership slots:
-  moved and dead places are zeroed before `SaveAll`, and each `join!`
+  moved and dead places are zeroed before a point saves its locals to the
+  frame's save area (`susp::save_area`), and each `join!`
   result is guarded by its done bit. `EXITED` skips released body slots;
   providers and the child retain their separate ownership. The suspension
   plan selects the resume state; these saved zeros encode that state's
@@ -2263,20 +2266,20 @@ references, and open values.
   header copies inherit their original cycle eligibility. The emitter uses
   this path for cells, nominal heap objects, closure environments,
   suspension and collection headers, and collection buffers.
-- **Known leaves in walks.** A value's walk (`layout::Walk`) marks each
-  counted leaf whose type proves a payload start as `Walk::Known`, so aggregate glue counts those leaves through the
-  known path: the retain and release helpers of struct and enum values,
-  list element and map entry glue. A
-  string's bytes, a local reference and an open value stay `Walk::Ref`,
-  counted through the page table. On json at 6,000 records this moved 846,000 of
+- **Known leaves in shims.** A count shim marks each counted address
+  whose type proves a payload start as known
+  (`hd_layout::shims::Count::Address { known }`), so the shims of struct
+  and enum values, list element and map entry glue count those leaves
+  through the known path. A string's bytes, a local reference and an open
+  value stay unknown, counted through the page table. On json at 6,000 records this moved 846,000 of
   3,450,000 page-table counts to the known path, with the count total
   unchanged.
 - **Counted references** (#988, #1444). Every counted reference refers
   to a whole object (`ref.box.object`), and each reference type keeps its
   kind, `TyData::Ref { counted, .. }`, through every stage to this
   backend, whose `layout::kind` reads it as `Kind::Ref { whole }`. A thin
-  counted reference is null or a payload start in every build: its walk
-  is `Walk::Known` (`layout::ref_walk`). A local reference may point
+  counted reference is null or a payload start in every build, so it
+  counts through the known path. A local reference may point
   inside an object (a field, an element), so a local `&T` value keeps
   the page-table path. The checker keeps a counted reference whole
   (`hd_check`'s `lower_body_refs`):
@@ -2632,11 +2635,6 @@ one changed after its check, a pop in the loop and an aliased pop. Checked runti
 those panics, an addressable induction variable, empty and
 nested loops, continue and full-width inclusive endpoints.
 
-Issues #1689 and #1706 once proved inlined std `Index` guards false and
-loaded unchanged header fields once before a loop (`emit/guards.rs`).
-#2175 step 6 deleted that pass: with lists indexed by element places it
-proved no guard in the 33 bench modules, and its 194 header reads now load
-where they are written (+99 bytes over those modules).
 
 A masked index is the third shape, for `List`, in release builds only (#1713): `xs[y & (n - 1)]`, the `&`'s operands in
 either order and `n - 1` possibly `n.wrapping_sub(1)`, where `n` is the
@@ -2831,8 +2829,9 @@ dev builds keep the address at a call; the inliner's by-value binding
   by the mark `defaults::promoted(mask)`), when the target is the plain
   instance and each promoted argument is a read-only `Ref` of a part of a
   local no closure captures, used only by the call and its `Drop`s
-  (`promoted_call`). Only the parameters whose arguments are such
-  `Ref`s are candidates (`promotable_args`), so one argument passed on
+  (`hd_tir::own::promote::promoted_call_in`). Only the parameters whose
+  arguments are such `Ref`s are candidates
+  (`hd_tir::own::promote::promotable_args_in`), so one argument passed on
   from a reference keeps the others promoted. A call that may also run
   the callee's exclusive copy (stage 8, #1118) runs the promoted copy of
   that one, which borrows across calls what the plain body counts. The
@@ -2865,7 +2864,7 @@ dev builds keep the address at a call; the inliner's by-value binding
   references when each referent is one a promoted copy takes
   (`lent_referent`, counted parts allowed) and the copy only reads
   through it (`hd_opt/src/inline.rs`, `by_value`), at a call whose
-  argument for each is a `Ref` as above (`promoted_call`). The copy is
+  argument for each is a `Ref` as above (`promoted_call_in`). The copy is
   promoted, and the caller's `Ref` becomes a `Read` of its place
   (`hd_tir::inline::Site::by_value`), so the copy's parameter binds the
   value: no reference lives in a local, which keeps the reason such

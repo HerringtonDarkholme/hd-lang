@@ -208,9 +208,10 @@ design:
   final value plus `return` operands of a closure or result-inferred
   function (`req.row.union.literal`, `req.row.union.sites`) all take the
   union of their rows. Each site joins into a *join variable*
-  (`Ck::join_target`). A function value coerced into a join variable
-  already solved to a function type widens that type's row to the union,
-  by an undoable `rebind` (`Ck::join_row`, `req.row.union.sites.type`).
+  (`Ck::join_target`, `hd_check/src/join.rs`). Each later value meets
+  the type so far, and at the site's top level two function types meet
+  at the union of their rows (`Ck::lct_meet`,
+  `types.lct.row-union-every-site`).
   Nested sites that share the variable (an `else if` chain, an `if`
   inside a list) widen the same one. Anything holding function values
   (rather than being one) keeps its own type
@@ -720,7 +721,7 @@ plus the canonical self type in its instance key. **Arguments** are
 listed in parameter order; their instructions appear earlier in the
 enclosing block's list in source order, which is how named arguments
 keep their evaluation order. **Providers** (`Providers`, 3 words) are
-`None`, `(required key, borrowed FnDyn)` pairs, or one context `Ref`.
+`None`, `(required key, borrowed provider)` pairs, or one context `Ref`.
 `Call`, `CallValue`, `DefaultCall`, `Await` and `AwaitValue` share that
 footer; a stored suspension has an empty argument prefix. Identity keys
 keep exact signature-row lookup. Projected keys carry checked borrowed
@@ -736,7 +737,7 @@ ownership analysis or caching. `Pending` cannot escape that boundary.
 | `AwaitValue` | a: a `Suspend[T]` value, b: `[arguments, providers]` | `T`. `s!()` on a stored suspension: a suspension point |
 | `AwaitAll` | b: `[children]`, each `Suspend[X_i]` | `(X_1, ..., X_n)`. `join!`: one suspension point |
 | `AwaitRace` | a: a `List[Suspend[T]]` | `T`. `race!`: one suspension point |
-| `Hook` | a: `HookKind`, b: the instruction it observes | `void`; normal emission drops it |
+| `Hook` | a: the hook's kind, b: the instruction it observes | `void`; normal emission drops it |
 
 Every suspension point has a side record (`SuspRow`): the `Scope`s
 enclosing it from the innermost out, which are the scopes whose suites
@@ -789,10 +790,10 @@ writes a whole local
 place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
 
-**Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
-12a). The checker builds a place one step at a time, a read of the base
-and a projection rooted at that read's value, since its own walkers (the
-writable check, `mark_write_path`) step back through those values. It
+**Places rooted at the local** (docs/compiler/tir-v2.md, "Places"). The
+checker builds a place one step at a time, a read of the base and a
+projection rooted at that read's value, since its own walkers (the
+writable check, `Ck::place_writable`) step back through those values. It
 then roots every such chain at its local when it finishes a body
 (`ir::root_places`, `src/ir/root.rs`): `bodies[i].x` through `&mut List[Body]` is one
 `Read [*$0 [%5] .x]`, `xs[i] = v` is `Store [$0 [%1]] v`, `self.x` is
@@ -820,13 +821,14 @@ path's TIR keeps the base reads.
 | `Store` | a: place, b: value | `void`; replaces the value at the place. The place is writable (invariant 21) |
 | `Ref` | a: place, b: `0` shared or `1` mutable (`ref_word::MUT`), plus `8` (`ref_word::LOCAL`) for a local reference, `&T` or `&mut T`, which the checker sets as it erases the kind, `2` (`ref_word::TAKES`) after the move pass, and `16` (`ref_word::FRAME`) after insertion for a frame local's (`own/frame.rs`) | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21). A taking one, of a whole local in a cell at its last access, takes the local's count of the cell and leaves the local empty. A frame one's local lives until the last use of every value that may point into it, so the backend may keep it in a frame slot |
 
-`value_operands` of these, and of `IsUnique` and `Pin`, is the place's
+`value_operands` of these, and of `IsUnique`, is the place's
 value root and element indices (then a `Store`'s value); a local or
 global root is no value.
 
 **Ownership** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#ownership-statements)).
 The ownership passes write these after decoding; the checker never does
-(invariant 22), and the wire refuses them. Each has a place in a and
+(invariant 22), and only an owned body's wire form carries them (the
+owned section, below). Each has a place in a and
 nothing in b but `IsUnique`. Its b is 0 for a plain check,
 `unique_word::HOISTED` before a loop, `DEFERRED_INIT` for a loop decision
 initialized without copying, `DEFERRED_CACHE` for an initialized decision
@@ -837,7 +839,6 @@ or `REPEAT` when an existing fact already proves uniqueness. The type is `void`.
 | --- | --- |
 | `Drop` | releases the value at the place and leaves it empty; a drop of an empty place does nothing |
 | `IsUnique` | makes the buffer of the list or map at the place its own, copying it when another holder shares it |
-| `Pin` | after an `IsUnique` of the same list place, marks its header as its buffer's one owner while element references hold counts of the buffer |
 | `FlagSet`, `FlagClear` | set and clear the drop flag of a move path (`own/drop_flags.rs`): a is the path, a part of a local or a value in place, and b its `bool` flag local; the statement uses no value. A hook at node P runs when its nearest flagged path and every flagged path under P hold. On a cell or a frame slot the backend writes the flag slots of its layout instead of b, and a cell's clear for a whole move stands before the move, which may free the cell |
 
 A body's one exit per sub-body drops the locals of its exit set,
@@ -845,11 +846,10 @@ A body's one exit per sub-body drops the locals of its exit set,
 write. A suspension point's cancellation, a way out no TIR jump spells,
 runs its cancel block, as rustc's `yield` names its `drop` target:
 `cancel` rows of a point and a `Block` that no list holds, sorted, one per
-point, which `own::known::cancel_blocks` makes empty and the known-null
-pass fills with a `Release` (at `Value`, reason `cancelled`) of each value
-that may hold a count there. The cancellation then leaves through the
-exit, so the exit set holds every local that may hold a value at a
-suspension point. `stable_lists`, which
+point, which `own::scopes` makes (the cleanup suites around the point,
+then a cancelled `Return`) and the known-null pass starts with a
+`Release` (at `Value`, reason `cancelled`) of each value that may hold a
+count there. `stable_lists`, which
 the hoisting pass writes, holds rows of a loop and a place of a list
 whose header and buffer nothing in the loop replaces, sorted; the
 backend keeps the buffer's address and length in locals for that loop.
@@ -1103,7 +1103,7 @@ The verifier checks each of these:
     projections (an element is a slot of the buffer a list header names).
     A value root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
-    no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
+    no `Ref` takes a count, and there is no `Drop`, `IsUnique`,
     `FlagSet` or `FlagClear`, no `exit_drops`, `cancel`
     or `stable_lists` row.
 23. **After the ownership passes, ownership balances**: every owned
@@ -1166,7 +1166,7 @@ Those test-only queries do not require a second checker-facing fact API.
   - 12: only that the row exists.
   - 15: only the operands, for a `DefaultCall` passed to a `Call` or
     `Await`.
-  - 23 (`src/ir/owned.rs`): a `Read` or `IsUnique` or `Pin` after a
+  - 23 (`src/ir/owned.rs`): a `Read` or `IsUnique` after a
     `move` read or a `Drop` of an overlapping place, joined over every
     path and to a fixed point around loops, with a `Store` that covers
     the place refilling it; a `borrow` value live (a backward liveness
@@ -1212,19 +1212,11 @@ Those test-only queries do not require a second checker-facing fact API.
     other hoisted ones), names a place of an unaddressed local with one
     leading dereference at most and fields, and in that loop nothing
     copies it (a read of it, or of a place holding it, whose value a use
-    keeps), references, writes, pins or suspends over it, and no call
+    keeps), references, writes or suspends over it, and no call
     may write unless it is a whole local no closure captures; the stable
     list rows name loops and such places, in order. Deferred initializer
     ranges for one canonical place are disjoint; every covered check
-    stands inside its initializer's loop. A header that may
-    change in place is held by one place (insertion's rule 7): with a
-    local changing when an `IsUnique` or a `Pin` names a place rooted
-    at it, or a value read from one, or a `&mut` reference takes its
-    storage or a place in its list, a value that may hold a list or a
-    map stored into a whole changing local is fresh (a copy included) or
-    a map value read for a change. A changing parameter that owns its
-    collection value is first read to be copied and stored back; a
-    receiver borrowing collection storage changes that storage directly.
+    stands inside its initializer's loop.
 - **8.** The verifier rejects pending provider packets, malformed pair
   ranges and providers of the wrong reference kind. Explicit pairs may
   cover only projected keys: remaining keys retain exact lookup.
@@ -1244,7 +1236,9 @@ Those test-only queries do not require a second checker-facing fact API.
   evidence..., arguments, providers]`. The evidence count must be the
   method's number of method-level bounds. No checker code emits
   `CallDyn`.
-- **Cost.** It runs on every `finish`, not only in debug builds. The
+- **Cost.** It runs on every `finish` of a builder that verifies: the
+  checker turns it on in debug compilers, count-audit builds and under
+  `HD_VERIFY=1`, and a direct builder client verifies by default. The
   context checks read one item per call, switch or dynamic call.
 
 ##### Lifetime And The `tir` Entry
@@ -1262,37 +1256,24 @@ Those test-only queries do not require a second checker-facing fact API.
   only the bodies it reaches. The module's **TIR content hash** combines
   each body's item path hash and TIR hash with the init summary's hash;
   `prog_key` reads it.
-- Types stay generic (`Param`). D2 never materializes an instance as TIR.
+- The `check` entry's types stay generic (`Param`). The driver makes an
+  instance body (`Phase::Instance`, invariant 24) from an item's checked
+  body for each generic instance, before the ownership passes.
 - **The ownership passes** (`src/own.rs`, docs/compiler/tir-v2.md "The
-  ownership passes") run on every decoded body, once per body, before
-  collection reads it; their output never reaches the entry. They read
+  ownership passes") run on every body the program reaches, once per
+  instance, after the folds and the inliner; their output never reaches
+  the `check` entry (a dev build stores some owned bodies in `owned`
+  entries, docs/compiler/tir-v2.md "Where and when the passes run"). They read
   places the checker roots at their local (above). Built so far:
   insertion (`own/insert.rs`): copies, drops and
   the exit set, an `IsUnique` before each change of a collection place
   (an element store, a push, a map store or removal, a write through a
   map value) and before each read such a change
-  goes through, of every list on that read's path, and an `IsUnique` and
-  a `Pin` of each list on an element reference's path (the checker
-  writes no pin of its own). A copy of a list or a map is a count of its
-  buffer, which the backend takes through the copy glue (stage 3, 3g:
-  the former header copies, `own/copies.rs`, went with their
-  `ValueCopy`); the passes keep a parameter that a change reaches in
-  place owned, and a local a `Pin` names unmoved. Before 3g the header
-  copies went where a
-  header that may change in place would otherwise be held by two places:
-  a store into a whole local that a change reaches in place (a changing
-  local), or of a value whose source is not a read of a local no change
-  reaches (a changing local's, a global's, a dereference's, a block's),
-  but a header that moves out of a dying local that held it alone, and a
-  binding stored once and read, in its store's block, only before
-  anything can change its source in place (a read of it then stands for
-  its source); the function's result, but its own local's that holds no
-  shared header; a store through a dereference and a struct update's
-  source; a value argument whose source may change while the callee runs (an
-  aliased local, a dereference, a global, a local a later argument
-  changes), copied right after it; a changing parameter on entry; a
-  local a closure captures by value that may share its header;
-  then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
+  goes through, of every list on that read's path, and an `IsUnique` of
+  each list on an element reference's path. A copy of a list or a map is
+  a count of its buffer, which the backend takes through the copy glue;
+  the passes keep a parameter that a change reaches in place owned; then
+  borrow (`own/derive.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or
   suspension point crosses, becomes a `borrow` and loses its `Drop`s
   (one an instance may make fresh keeps them); a local stored once with
@@ -1313,7 +1294,7 @@ Those test-only queries do not require a second checker-facing fact API.
   hoisting (`own/hoist.rs`): an `IsUnique` in a loop's iteration block,
   behind an entry test whose prefix is pure, moves before the loop
   (marked hoisted) when nothing in the loop copies, references,
-  replaces, pins or suspends over its place and no call may write unless
+  replaces or suspends over its place and no call may write unless
   the place is a private local. Every other `IsUnique` of the place in
   the loop goes, including through a dereference. The pass lists stable
   list places in `stable_lists`. Insertion

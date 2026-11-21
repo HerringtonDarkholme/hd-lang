@@ -150,7 +150,7 @@ while source text makes a comment edit rerun the group's tests.
   cache entries. It writes no `.wasm` file.
 - **A script**: an entry module with top-level statements and no `main`
   runs its module initialization as the whole entry behavior
-  (`Roots::Script`, emitted by `hd_wasm::script_entry`).
+  (`Roots::Script`, emitted as `hd_wasm`'s `Entry::Script`).
 - **A FILE with no `hd.toml` above it is a one-file program**
   ([`cli.file.run`](../../spec/cli/command-line.md#r-cli.file.run)):
   only FILE is its source, not its siblings.
@@ -341,19 +341,17 @@ Continuing §7.3 at step 4:
 
 1. Check (§7.5), build the program in the dev pipeline, or with
    `--release` in the optimized pipeline and the release profile, and
-   load its `cwasm` entry.
+   compile it in process; Cranelift takes each function's machine code
+   from the module's `clpack` entry when an earlier run compiled it
+   (docs/compiler/engines-and-test-runner.md §18.2), so a warm run
+   translates the module and compiles no function. wasmtime's
+   precompiled modules are not cached, since deserializing them is
+   `unsafe`.
 2. Read the import list; refuse a totally denied need with status 101.
 3. Instantiate with the default profile's providers and the grant.
 4. Call `hd.init`, then drive `hd.poll` and the reactor (§14.4).
 5. Exit with the program's status: the entry's `ExitCode`, 1 for an
    `.Err`, or the profile's panic status.
-
-Implementation differs: there is no `cwasm` entry, because deserializing
-wasmtime's precompiled modules is `unsafe`. wasmtime compiles the module
-in process on every run, but Cranelift takes each function's machine
-code from the module's `clpack` entry when an earlier run compiled it
-(docs/compiler/engines-and-test-runner.md §18.2), so a warm run
-translates the module and compiles no function.
 
 ### 20.3 `hd build`
 
