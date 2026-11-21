@@ -126,8 +126,7 @@ outlive the function; a heap cell otherwise. Whether an address outlives
 the function comes from def-use on values: a value derived from a `Ref`
 extends the place's life to its own last use, as Swift's
 `mark_dependence` records it. The checker has already proven that
-such references stay in scope, so no new rule is needed. This replaces
-`frame.rs`'s per-local bit sets and their 64-candidate cap.
+such references stay in scope, so no new rule is needed.
 
 ### The One Place Each Count Is Decided
 
@@ -144,7 +143,7 @@ when a reason holds:
 | `Release p` | overwritten | a store replaces an owned value in a place not known to be empty |
 | `Release v` | cancelled | a suspension point is cancelled while `v` is live across it |
 | `IsUnique b` | may be shared | `b` is not fresh, and since its last check a retain, a consuming use or a keeping call may have shared it |
-| `LoanBegin`, `LoanEnd` | pointer loan | a reference through a `*T` outlives its expression, and elision found a possible conflicting access |
+| `LoanBegin`, `LoanClose` | pointer loan | a reference through a `*T` outlives its expression, and elision found a possible conflicting access |
 | any | by design | a `*dyn`'s data count, a suspension's counted reference (#1355) |
 | any | conservative | a fact was not computed (a size cap); reported, and its budget may only fall |
 
@@ -195,11 +194,13 @@ for a baseline; the verifier makes them checked.
 ### With Ownership And Lifetimes
 
 - **Model A loans** ([Conflicts Through Aliases](../../spec/lang/13-values-and-references.md#conflicts-through-aliases),
-  #1336). A loan is live until the last use of every holder. The pass
-  places `LoanBegin` and `LoanEnd` at that range; a `Drop` no longer ends
-  it. Elision keeps model A's per-reference rule over release write
-  summaries, moved from `emit/elide.rs` into a TIR pass. Same-root
-  conflicts stay compile errors in the checker.
+  #1336). A loan is live until the last use of every holder. The checker
+  gives each loan site and its holders; `hd_tir/src/own/loans.rs` places a
+  `LoanBegin` after the site and a `LoanClose` wherever its last holder
+  dies, on every path; a `Drop` does not end it. A whole-program link
+  pass (`hd_tir/src/own/pointer.rs`) keeps only the loans that an access
+  in range may meet. Same-root conflicts stay compile errors in the
+  checker.
 - **Views.** None remain: #1448 deleted representation views on
   2026-11-08. A local reference is a plain address that keeps nothing
   alive (`ref.count.local`); a counted reference keeps its object alive
@@ -377,10 +378,10 @@ elision removes it because `area` writes nothing through a pointer.
   static object has the same header. A static cell (`crates/hd_wasm/DESIGN.md` §23.20) has only a
   count word, so one that a closure shares gains a descriptor word: 4
   bytes of static data, no heap object.
-- **Spill.** A shared begin at count 31 calls `rt:loan_spill`, which adds
-  to a side table keyed by address and leaves the count at 31, so the
-  inline check still sees a shared loan; the matching end consults the
-  table first.
+- **Spill.** A shared begin at count 31 (`rt:loan_share`) adds to a side
+  table keyed by address and leaves the count at 31, so the inline check
+  still sees a shared loan; the matching end (`rt:loan_unshare`) consults
+  the table first.
 - **Own loans.** The checker counts, per pointer local and program point,
   the loans its references hold, and the emitted check compares the state
   with that constant. Where the count is not one constant (a loan taken

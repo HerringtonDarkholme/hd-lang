@@ -432,8 +432,9 @@ instructions. The code has neither; not judged.
 
 Implementation differs: the design patched pending provider records
 (`Providers::Pending`) in `ModuleFinish` once omitted rows were solved.
-The tag exists in `hd_tir`, but no code writes it; how such calls get
-their providers is in `hd_check/src/results.rs`; not judged.
+The code has no such variant: `hd_tir`'s `Providers` is `None`, `Pairs`
+or `Context`. How such calls get their providers is in
+`hd_check/src/results.rs`; not judged.
 
 #### 3.9.6 One Schema, Generated Accessors
 

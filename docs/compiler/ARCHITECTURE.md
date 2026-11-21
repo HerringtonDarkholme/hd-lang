@@ -16,12 +16,13 @@ for its imports and header, and parsed on demand into a green tree
 tables and content hashes. `hd_check` checks each module's bodies against
 those interfaces and emits one typed IR (TIR, `hd_tir`) per body; the
 driver's `Coherence` and `InitOrder` tasks add the overlap and
-initialization-order results. For a program, `hd_mono`
-collects the reachable instances from the TIR, `hd_opt` runs the pass
-pipeline chosen by engine target and level, and `hd_wasm` emits and links
-one RC-managed Wasm module. The CLI runs it on V8 through Node (`host/*.ts`), or
-in process on wasmtime (`hd_run_wasmtime`) when built with the `wasmtime`
-feature. Every stage boundary goes through the caller's cache store.
+initialization-order results. For a program, `hd_mono` collects the
+reachable instances from the TIR, with the body passes of the pipeline
+`hd_opt` picks by engine target and level. The driver then instantiates
+each instance's body and runs the folds, the inliner and the ownership
+passes on it, and `hd_wasm` emits and links one RC-managed Wasm module.
+The CLI runs it on V8 through Node (`host/*.ts`), or in process on
+wasmtime (`hd_run_wasmtime`) when built with the `wasmtime` feature. Every stage boundary goes through the caller's cache store.
 
 ## Crates
 
@@ -59,8 +60,11 @@ Back half:
 - `hd_mono`: reachable-instance collection and monomorphization; applies
   body plans. [DESIGN.md](../../crates/hd_mono/DESIGN.md)
 - `hd_opt`: the pass manager and the pipelines keyed by (engine target,
-  level). [DESIGN.md](../../crates/hd_opt/DESIGN.md)
-- `hd_wasm`: RC layout, emission, linking, the runtime pieces it
+  level), the inliner and the whole-program analyses.
+  [DESIGN.md](../../crates/hd_opt/DESIGN.md)
+- `hd_layout`: target-independent layouts and the type facts the
+  ownership passes and every backend read, and the per-type count shims.
+- `hd_wasm`: linear-memory emission, linking, the runtime pieces it
   generates, and each target's lowering profile.
   [DESIGN.md](../../crates/hd_wasm/DESIGN.md)
 
@@ -78,8 +82,12 @@ Services, driver and runtime:
 
 Tools and front ends:
 
-- `hd_command`: the `hd` binary: commands, disk sources and cache, the Node
-  engine, the REPL. [DESIGN.md](../../crates/hd_command/DESIGN.md)
+- `hd_command`: the `hd` command as a library and the developer binary:
+  commands, disk sources and cache, the Node engine, the REPL.
+  [DESIGN.md](../../crates/hd_command/DESIGN.md)
+- `hd-lang`: the crate `cargo install hd-lang` builds: the `hd` binary
+  over `hd_command` with the `dist` feature.
+- `hd_lint`: read-only advice over checked source facts, behind `hd lint`.
 - `hd_deps`: version selection, fetching with `git`, tree hashes, `hd.sum`.
 - `hd_fmt`: the green-tree formatter.
 - `hd_doc`: documentation pages for `hd doc`.
@@ -87,6 +95,8 @@ Tools and front ends:
   [DESIGN.md](../../crates/hd_stdpack/DESIGN.md)
 - `hd_web`: the playground's compile session for `wasm32`, over an
   in-memory store. [DESIGN.md](../../crates/hd_web/DESIGN.md)
+- `hd_wat`: the playground's lazily loaded WAT printer; independent of
+  the compiler.
 - `hd_testkit`: the determinism matrix, test scratch directories and the
   `KNOWN_FAILURES.tsv` reader (dev only).
 
@@ -104,8 +114,9 @@ Tools and front ends:
 - **The driver does no I/O of its own.** Sources, the cache store, the
   executor and the clock come from the caller, so `hd_command`, `hd_web` and
   the tests share one driver.
-- **`unsafe_code` is denied** workspace-wide. Two modules allow it:
-  `hd_base`'s `AppendVec` and `hd_web`'s exports.
+- **`unsafe_code` is denied** workspace-wide. Four places allow it:
+  `hd_base`'s `AppendVec`, the wasm exports of `hd_web` and `hd_wat`, and
+  `hd_command`'s counting allocator (`work.rs`).
 
 ## Cross-Cutting Design Docs
 

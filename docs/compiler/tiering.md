@@ -84,9 +84,13 @@ kept ([`types.arith.checked`](../../spec/lang/04-type-system.md#r-types.arith.ch
 - No planned body passes: the dev pipeline's planner plans nothing, so
   collection does no plan work. Its TIR pass list is `liveness`
   (`hd_opt::passes::DEV`).
-- The TIR rewrites every build runs: generated structure folds, the
-  inliner (`Env::fold_and_inline` in `hd_driver/src/own.rs`), then the
-  ownership passes.
+- The TIR rewrites every build runs, in release's order: each instance
+  is instantiated from its item's checked body, then the generated
+  structure folds and the inliner run at its type arguments
+  (`Env::fold_and_inline` in `hd_driver/src/own.rs`), then the ownership
+  passes. The dev inliner considers std functions and user functions
+  marked `@inline`; release considers every user function
+  (`hd_opt::inline`).
 - The link-time Wasm cleanup, for every function of the program, on one
   thread (`Module::finish_link`, `hd_wasm/src/module.rs`): `constants`,
   `fold_constant_branches`, `static_values` with `static_counts`,
@@ -107,8 +111,9 @@ bugs after ([wasmtime#10554](https://github.com/bytecodealliance/wasmtime/pull/1
 [#11544](https://github.com/bytecodealliance/wasmtime/issues/11544),
 [#12027](https://github.com/bytecodealliance/wasmtime/pull/12027)).
 
-Planned, not built: trivial inlining (callee of at most 8 instructions,
-no loop) in dev, if spike T4 shows it saves compile time.
+Planned, not built: trivial inlining of undecorated user functions
+(callee of at most 8 instructions, no loop) in dev, if spike T4 shows it
+saves compile time.
 
 ### 2.3 Winch
 
@@ -153,8 +158,8 @@ This is better: a body is planned once whatever its instance count, an
 edit re-plans one body, and specialization makes instances instead of
 needing an instance IR.
 
-Planned, not built: bounded inlining, escape analysis and scalar
-replacement, which the `allocations` target (0 per counted loop, at most
+Planned, not built: escape analysis and scalar replacement, which the
+`allocations` target (0 per counted loop, at most
 1 per iterator chain) needs. The pass table declares a pass only once
 something runs it. Dead-function removal and LEB compaction at link: planned,
 not built. Merging
@@ -264,10 +269,11 @@ parse large inputs feel the full slowdown; `--release` is their escape.
 | instance pass | instance | emission | `liveness`, which suspension lowering owns; the declared passes with no body |
 | engine | function | the engine | Cranelift level |
 
-TIR is never rewritten and no instance IR is materialized
-(crates/hd_mono/DESIGN.md §12.1). A body pass writes body facts
-(`ValueFlow`, `KnownCallees`, `ClosureSpec`) that collection reads
-through `hd_mono::plan::BodyPlan`.
+A body pass never rewrites TIR: it writes body facts (`ValueFlow`,
+`KnownCallees`, `ClosureSpec`) that collection reads through
+`hd_mono::plan::BodyPlan`. The rewrites (the folds, the inliner and the
+ownership passes) run per instance in the driver, on a copy of the
+instance's body (§2.2).
 
 ### 6.2 A Pass Declaration
 

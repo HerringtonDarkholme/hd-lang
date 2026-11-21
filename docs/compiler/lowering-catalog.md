@@ -40,7 +40,7 @@ and lengths, without getter functions.
 See [§15.7–15.9](../../crates/hd_wasm/DESIGN.md#157-emission)
 for emission, deterministic ordering and line tables, and
 [the link step](../../crates/hd_mono/DESIGN.md#1310-the-link-step)
-for collection's code entries. Function and table indices are separate
+for how one program is linked. Function and table indices are separate
 index spaces; a table slot is not a direct-call index.
 
 ## Baseline Emission
@@ -403,15 +403,16 @@ calls. Concatenation still operates on address/length views, as
 
 Pipes and binding expressions lower through ordinary evaluation and locals.
 Ranges are aggregate values unless consumed by counted-loop lowering.
-See [lowering rules](../../crates/hd_mono/DESIGN.md#122-lowering-rules)
-and [Loops](#loops); there is no separate runtime pipe object.
+See [Loops](#loops); there is no separate runtime pipe object.
 
 ### Propagation `?`
 
 Propagation tests an option or result, converts an error when required,
-and takes the appropriate exit through cleanup. See
-[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
-and [scalar emission](../../crates/hd_wasm/DESIGN.md#2311-scalar-instruction-emission).
+and returns. A return out of a cleanup scope breaks to the scope's
+chain for that target, which runs the registered suites first; the
+ownership passes lower that in TIR
+([scopes.rs](../../crates/hd_tir/src/own/scopes.rs)). See also
+[scalar emission](../../crates/hd_wasm/DESIGN.md#2311-scalar-instruction-emission).
 It uses scalar tags or addresses, not reference-typed branches.
 
 ### `if` And `match` As Values
@@ -449,15 +450,16 @@ pins, rather than allocating an object and closures for every element.
 
 ### `break` With A Value, `continue` And Loop `else`
 
-These use structured branches and result locals, with scope cleanup on
-exits that need it. See
-[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
-and [lowering rules](../../crates/hd_mono/DESIGN.md#122-lowering-rules).
+These use structured branches and result locals. A jump out of a cleanup
+scope breaks to a chain shared per target and registered count, whose
+end runs the suites and takes the jump; the ownership passes lower that
+in TIR ([scopes.rs](../../crates/hd_tir/src/own/scopes.rs)), so the
+backend sees only blocks and breaks.
 
 ### Comprehensions
 
 Comprehensions lower to loops and collection operations. See
-[lowering rules](../../crates/hd_mono/DESIGN.md#122-lowering-rules),
+[Loops](#loops),
 [list operations](../../crates/hd_wasm/DESIGN.md#2317-list-operations)
 and [map operations](../../crates/hd_wasm/DESIGN.md#2318-map-operations).
 Their elements use inline layouts, not per-field arrays.
@@ -522,17 +524,21 @@ for child polling, cancellation and entry drivers.
 
 ### `defer`
 
-Deferred suites run through scope cleanup on the exits that require them;
-cancellation uses frame cleanup. See
-[scopes.rs](../../crates/hd_tir/src/own/scopes.rs) and
+A `Defer` registers its suite where it stands. The ownership passes
+lower each cleanup scope in TIR
+([scopes.rs](../../crates/hd_tir/src/own/scopes.rs)): the scope's end
+runs a copy of each registered suite, last in, first out, and each way
+out breaks to a chain that runs them before the jump, so no flag local
+or exit code is needed. Each suspension point gets a cancel block that
+runs the suites around it, then a cancelled return. See also
 [cancellation and defer](../../crates/hd_wasm/DESIGN.md#146-cancellation-and-defer).
 
 ### Let Patterns And Let-Else
 
 Pattern tests and extraction use scalar values and structured branches;
-a diverging else takes the scope's exit. See
-[scopes.rs](../../crates/hd_tir/src/own/scopes.rs)
-and [aggregate values](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts).
+a diverging else leaves through its cleanup scopes' chains, lowered in
+TIR ([scopes.rs](../../crates/hd_tir/src/own/scopes.rs)). See also
+[aggregate values](../../crates/hd_wasm/DESIGN.md#2314-inline-aggregate-layouts).
 Tuple destructuring does not itself allocate a wrapper.
 
 ### `is`

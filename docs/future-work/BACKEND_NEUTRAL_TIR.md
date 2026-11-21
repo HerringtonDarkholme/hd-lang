@@ -1,9 +1,13 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals. Built as of 2026-11-20:
-steps 0, 1, 2a, 3, 3b, 5 and 6, plus step 4a's boundary decisions.
-Step 4b's per-type count and drop shims remain in #2173. It replaces
+recommendations"); domain: compiler internals. Built as of 2026-11-21:
+steps 0, 1, 2a, 3, 3b, 5 and 6; step 4a's boundary decisions and 4b's
+per-type count shims (62ae1844a, #2173); 7a and 7b (cleanup scopes and cancel
+exits in TIR, which carry 2b), and step 8's dev and release split
+(dev builds follow release's stage order, #2177). The rest of 7 (the
+coroutine lowering) and of 8 (`verify_lowered`, read modes in the
+backend) remain. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166.
@@ -196,7 +200,10 @@ and the eight structures this design rejects.
 
 ## Cost
 
-Steps 0 to 2a are built. Steps 3 to 8 are re-priced from a resolved
+Steps 0 to 3, 3b, 5, 6, 2b, 7a and 7b are built, with step 4a, 4b's
+shims and step 8's dev and release split; the rows below give the plan's
+prices. Steps 3 to 8 were
+re-priced from a resolved
 call graph at ed579e47b (lane 211; Appendix E, "Call graph"): deletions
 are measured non-test spans, additions are estimates with the method in
 Appendix E. "Moved" lines change crate and are not counted as deleted.
@@ -209,12 +216,12 @@ Each step deletes the path it replaces. Rows are in landing order.
 | 2a | cancel blocks: each await gets a cancel block (rustc's `Yield { drop }`); `own::known` writes `Release` statements into it; `unwind_drops` and `release_unwound` go (lane 210, done) | −17 | +61 | −1 | +43 |
 | 6 | index guards as an optimization (done, #2175): the list proofs in `hd_opt::prove`, `emit/guards.rs` deleted, the list caches as TIR values; `stable_lists` stays as the region rows | −3,608 | +771 | `hd_opt` +1,251; others +87 | −1,499, measured |
 | 5 | loan statements; `excl.rs`, `borrow.rs`, `loan_facts.rs`, `ref_slots.rs`, the loan scopes in `scope.rs`, the loan reads in `count.rs`. 5a done (#2174, d63923f1e, −3,461 measured): the checker places `LoanBegin`/`LoanClose` from its lifetime regions before inlining, as a `Ref<T>` guard's lifetime (owner: a `&*T` loan is local, like `Rc<RefCell<T>>`); the origin graph and the emitter's placement are deleted. 5b done (007e8498a, 160c70b6d, ec6255e76; −151 measured): each access's crossings and root binding are decided in TIR's link pass (`own::pointer`), which the emitter lowers as a table; own-loan counters are TIR locals named by `OwnLoans` statements. No `Access` statement: crossings exist only on final places after inlining, so it would repeat the link table (`ownership.md`, As built). Step 5 complete (#2174) | −5,408 | +4,390 | 0 | −1,018 |
-| 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, `ReleasePlan`, the count decisions in `count.rs` | −401 | +850 | `hd_layout` −1,538 | −1,089 |
+| 4 | count lowering and shims, keys for shim bodies; `walk_plan`, `Walk`, `ReleasePlan`, the count decisions in `count.rs`. Built: 4a's boundary decisions in TIR, and 4b's per-type retain and release shims as lowered TIR (`hd_layout::shims`, 62ae1844a), with the walk route deleted | −401 | +850 | `hd_layout` −1,538 | −1,089 |
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` passes, the flag tags. Done (#2172): storage kinds and a `Box` at scope entry in TIR (c4f7976dd, fixed by #2195), the emitter's memory-local flags as TIR flags. Drop elaboration moved into step 4's done check, since it needs the exit set as statements first | −1,150 | +267 | 0 | −883 |
-| 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted | 0 | −601, plus the lifting | 0 | priced when step 3 lands |
-| 2b | scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs` | −228 | +245 | 0 | +17 |
-| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave | −2,505 | +1,600 | 0 | −905 |
-| 8 | `verify_lowered`; read modes in the backend, the dev and release split | −72 | +250 | `own.rs` −66 | +112 |
+| 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted. Done (28fb8575a, `ir/lift.rs`) | 0 | −601, plus the lifting | 0 | priced when step 3 lands |
+| 2b | scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs`. Done with 7a and 7b (7fc4cc6b5): `own::scopes` lowers scopes to blocks with no flag locals, and `emit/scope.rs` is deleted | −228 | +245 | 0 | +17 |
+| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave. 7a and 7b done (7fc4cc6b5): cleanup scopes and cancel exits in TIR (`own::scopes`) | −2,505 | +1,600 | 0 | −905 |
+| 8 | `verify_lowered`; read modes in the backend, the dev and release split. The split is done (da2feb0ec, c12e519ec): dev instances run release's stage order, and `Env::generic_inlined` is deleted | −72 | +250 | `own.rs` −66 | +112 |
 | | **Total**, before 3b's lifting | **−14,622** | **+7,127** | **+2,310** | **−5,185** |
 
 **Where it grows, and why.** Step 8 grows by about 112 lines and step

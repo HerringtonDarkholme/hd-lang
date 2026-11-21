@@ -4,8 +4,7 @@ Part of the [compiler design](ARCHITECTURE.md).
 
 Status: built (#17); design record, may lag the code. Sections 2, 4, 5,
 7, 8 and 9 describe the shipped design, and the code cites them by
-number (some citations still name this file's old path under
-future-work, as it was at 7ccbb4ea8). Journal checkpoints (#646, owner 2026-10-25: an
+number. Journal checkpoints (#646, owner 2026-10-25: an
 initialized base module with extension modules, using a memory snapshot
 inside it) are built (`hd_run_wasmtime/src/session.rs`, `Checkpoint`).
 Durable resume and hot reload have closed design records (#18 and #182).
@@ -111,8 +110,7 @@ One Wasm module per input, in one `Store`:
 4. **Exports.** The module exports every instance and global it defines,
    under its instance key, and the session records them in `symbols`.
 5. **Run.** Instantiate with pre-resolved imports, then drive the root
-   through `hd.poll` and `hd.wake` as an entry (`RuntimeMeta.entry` is
-   `ReplInput`).
+   through `hd.poll` and `hd.wake` as an entry.
 
 ```text
 prelude.wasm      cached per toolchain: runtime globals, panic globals, wake table, common std instances

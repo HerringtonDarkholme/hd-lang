@@ -172,6 +172,6 @@ crates, and the back half (`hd_mono`, `hd_opt`, `hd_wasm`) depends on
    through the supplied clock. The browser build then needs no stubs.
 4. **No `serde` in the compiler.** Blob and entry formats are
    hand-written over `hd_base::wire`. `toml` parses manifests only;
-   `serde_json` is used only by `hd_run_wasmtime`.
+   `serde_json` is used only by `hd_command` and `hd_run_wasmtime`.
 5. **The browser build compiles in CI:**
    `cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown`.

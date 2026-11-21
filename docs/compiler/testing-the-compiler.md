@@ -183,8 +183,7 @@ The views keep their stage's evidence:
   instructions with their read modes and ownership statements, filtered
   by each instruction's own syntax node (`Positions::node_span`), the
   locals they use, and the body's exit set. Built with `Goal::Fixture`,
-  as `wat` is; until the passes exist it shows the checker's TIR as
-  collection decodes it.
+  as `wat` is.
 - `wat`: normalized Wasm for the functions a case defines, emitted with
   `Goal::Fixture` without requiring `main`. Generic functions need a
   concrete call. Per-instruction origins preserve source attribution.

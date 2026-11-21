@@ -46,33 +46,17 @@ test profile's checks. `hd_run_wasmtime::wasmtime_config` and
 
 ### 18.2 Compile Caches
 
-- **Precompiled modules.** `Engine::precompile_module` output is stored
-  as a `cwasm` entry and loaded with `Module::deserialize_file`, which
-  maps the file instead of copying it. The key holds the Wasm hash, the
-  wasmtime version, the engine configuration and the target.
-- **A `cwasm` is trusted native code.** `deserialize_file` is unsafe:
-  wasmtime runs the bytes as machine code. So `cwasm` entries live only in
-  a private directory, `$HD_CACHE/obj/native/`, created with owner-only
-  permissions and refused if another user can write it. They are never
-  shared between users or fetched from a remote cache. A `cwasm` is stored
-  raw beside a small framed sidecar entry with its key and checksum.
-- **Per-function cache.** `Config::enable_incremental_compilation` takes a
-  cache store; an adapter maps it onto `CacheStore` as `clpack` entries,
-  one per folder group of the program (crates/hd_cache/DESIGN.md §5.4). A
-  program whose other functions did not change recompiles only the changed
-  ones. The key is the function's CLIF, which abstracts direct call
+- **Modules, in process only.** `hd_run_wasmtime::cache` keeps compiled
+  modules for the life of the process: a 128-entry LRU per engine, keyed
+  by the module bytes. Loading a serialized module needs `unsafe`, which
+  the crate denies, so no module is written to disk.
+- **Per-function machine code** (`hd_run_wasmtime::code_cache`): Cranelift's
+  incremental compilation cache, kept as `clpack` entries of the compiled
+  cache. The key is the function's CLIF, which abstracts direct call
   targets but not global indices, type immediates or constants, so emitted
   bodies hold no program-wide dense number besides call targets
   ([Numbering](lowering-catalog.md#numbering)).
-
-Implementation differs: there is no `cwasm` cache, because deserializing
-needs `unsafe` and the crate forbids it; `hd_run_wasmtime::cache` keeps
-compiled modules in process only (a 128-entry LRU per engine, keyed by
-the module bytes). The per-function cache is built
-(`hd_run_wasmtime::code_cache`), with these differences:
-
-- **One pack per module, not per folder group.** wasmtime hands the
-  adapter one function at a time with no program context, so a `clpack`
+- **One pack per module.** wasmtime hands the adapter one function at a time with no program context, so a `clpack`
   holds every function of one module, keyed by the module's bytes and
   `Engine::precompile_compatibility_hash` (target, Cranelift flags,
   tunables, features, wasmtime version). Each function inside is found by
@@ -85,8 +69,7 @@ the module bytes). The per-function cache is built
 - **Private entries.** A pack is machine code wasmtime runs, so it is
   published with mode 0600 and read only when the reader owns it, it has
   one link and no group or other permission, and the path is no symbolic
-  link (`DiskStore::get_private`), the safe-code counterpart of the
-  private `native/` directory above. Platforms without Unix permissions
+  link (`DiskStore::get_private`). Platforms without Unix permissions
   keep no packs.
 - **The inlining pipeline, inlining nothing.** Cranelift 0.136's key also
   covers an exception table that a reused compiler context keeps from an
@@ -113,8 +96,9 @@ the module bytes). The per-function cache is built
   worker plus one spare per in-flight property shrink, each with one
   set of linear memories (up to three) and one table. An instantiation takes a
   slot instead of mapping memory.
-- **A `Store` per run or per test case**, with its own `ResourceLimiter`
-  and epoch deadline. Dropping the store returns the slot.
+- **A `Store` per run or per test case**, with its own epoch deadline.
+  The host sets no heap limit of its own (`hd_run_wasmtime::limits`).
+  Dropping the store returns the slot.
 - A test's named child programs compile on an ordinary on-demand engine,
   so a running child cannot take a slot its waiting parent case needs.
 
