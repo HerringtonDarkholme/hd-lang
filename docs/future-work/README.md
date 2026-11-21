@@ -15,7 +15,7 @@ action at a distance.
 ## What Remains
 
 Parked work is labelled `parked` on its own GitHub issue; the old index #833
-is closed. The execution-boundaries design (serializable closures, formerly #166) is PR #1139.
+is closed. The execution-boundaries design (serializable closures, formerly #166) is [EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md), from PR #1139.
 
 ### Application and host
 
@@ -26,6 +26,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Decimal](DECIMAL.md): parked by the owner on 2026-11-11 until after the ticket push and reference-counting work; the earlier fixed 128-bit package proposal is retained as a dated record (#840).
+- [Execution Boundaries](EXECUTION_BOUNDARIES.md): accepted by the owner 2026-11-21 (proposed 2026-11-02): moving code and data between execution domains on four parts: `Send` and `Wire` bounds, `Remote` interfaces whose objects are reached as `*mut dyn T`, `CrossError` kept apart as `E | CrossError`, and one build per target; every domain runs the same program; domains are run-time values and their kinds are std library; with an 18-case stress test (#166, PR #1139).
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 
 ### Tooling
