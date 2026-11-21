@@ -550,8 +550,8 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
             }
         }
     }
-    // The copies' rows go before their anchors, the cancel blocks at the
-    // end, as `known::cancel_blocks` appends them; one permutation.
+    // The copies' rows go before their anchors and the cancel blocks
+    // after the body; one permutation.
     let mut spans = std::mem::take(&mut cx.spans);
     spans.sort_stable_by_key(|s| s.0);
     let mut order = Vec::with_capacity(b.len());

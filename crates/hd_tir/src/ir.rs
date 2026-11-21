@@ -523,7 +523,7 @@ pub enum CaptureMode {
     Move,
     Shared,
     /// A `Shared` capture whose cell may live in a slot of the maker's
-    /// frame (`own::frame_cells`): the closure never outlives the frame,
+    /// frame (`own::frame::plan_cells`): the closure never outlives the frame,
     /// and the ownership passes keep the local alive over every use of
     /// the closure.
     Frame,
@@ -655,10 +655,10 @@ pub enum Proj {
     Deref,
     /// A slot of a list's buffer at an index value, bounds-checked unless
     /// a proof set its record word's [`place::ELEM_UNCHECKED`]: `[%n]`.
-    /// In stages 1 and 2 the projected value is the list header.
+    /// The projected value is the list header.
     Elem(Ref),
     /// The payload of an enum value known to be that variant, by
-    /// declaration index: `as .k` (stage 2).
+    /// declaration index: `as .k`.
     Variant(u32),
 }
 
