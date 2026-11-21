@@ -14,7 +14,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $maybe_change (param $alias i32) (param $change i32) (local $t0 i32) (local $t1 i32)
     ;; 18 |     if change:

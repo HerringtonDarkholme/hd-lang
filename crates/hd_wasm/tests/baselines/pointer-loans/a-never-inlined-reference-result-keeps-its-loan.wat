@@ -17,7 +17,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $"impl Slots.push" (param $self i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 14 |         for round in 0..64:

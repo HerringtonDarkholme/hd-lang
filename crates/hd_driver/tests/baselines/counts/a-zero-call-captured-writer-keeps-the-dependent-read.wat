@@ -15,7 +15,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 16 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 38 |     println(element())

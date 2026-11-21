@@ -1167,8 +1167,7 @@ struct BodyForms {
     body: OnceLock<Option<(Body, Hash128)>>,
     owned: OnceLock<Option<(Body, Hash128)>>,
     /// A generic item's body folded and inlined, before the passes
-    /// (`ProgramEnv::shape_body`), and its hash; in dev, each of its
-    /// instances substitutes it (`own::Env::inlined_instance`).
+    /// (`ProgramEnv::shape_body`), and its hash.
     inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
     /// Set once a rendering build has offered the body to its view.
     rendered: OnceLock<()>,
@@ -1710,12 +1709,11 @@ struct Run<'a> {
     /// first use; `None` where the passes refused it.
     instances: Mutex<HashMap<own::Node, Option<Arc<Body>>>>,
     /// Each lifted generic local function's own template
-    /// (`hd_tir::ir::function_template`), once per item, function and
-    /// pipeline.
-    lifted: Mutex<HashMap<(DefId, usize, bool), LiftedTemplate>>,
+    /// (`hd_tir::ir::function_template`), once per item and function.
+    lifted: Mutex<HashMap<(DefId, usize), LiftedTemplate>>,
     /// Each template's generic local functions (`hd_tir::ir::Lifting`),
-    /// once per item and pipeline.
-    liftings: Mutex<HashMap<(DefId, bool), Arc<hd_tir::ir::Lifting>>>,
+    /// once per item.
+    liftings: Mutex<HashMap<DefId, Arc<hd_tir::ir::Lifting>>>,
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
     entry_roots: OnceLock<hd_base::HashSet<DefId>>,

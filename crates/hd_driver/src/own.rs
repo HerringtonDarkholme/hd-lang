@@ -2935,7 +2935,8 @@ impl Env<'_> {
     }
 
     /// Generic item `def`'s own body folded and inlined
-    /// ([`Env::inlined_instance`] at no type arguments), once.
+    /// ([`Env::inlined_instance`] at no type arguments), once: the shape
+    /// collection's analyses read (`ProgramEnv::shape_body`).
     pub(super) fn generic_inlined(&self, def: DefId) -> Option<&(Body, Hash128)> {
         let lazy = self.run.lazy_body(self.p, def)?;
         let inlined = lazy.inlined.get_or_init(|| {
@@ -2956,29 +2957,25 @@ impl Env<'_> {
     /// types substituted, its bound calls chosen as impl or builtin
     /// calls); then folded and inlined
     /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
-    /// one instance's. In dev, a generic instance substitutes its item's
-    /// body after the folds and the inliner ([`Env::generic_inlined`]):
-    /// they run once per generic body, so a trait call the instance
-    /// chooses as an impl call stays a call.
+    /// one instance's. Dev and release run these stages in one order.
     /// The template of a lifted generic local function's instance at
     /// `args` (`hd_tir::ir::lifted_target`): `generic` pruned to that
-    /// function, made once per item, function and pipeline; `None` for an
-    /// item's own instance.
+    /// function, made once per item and function; `None` for an item's
+    /// own instance.
     fn lifted_template(
         &self,
         def: DefId,
         args: TyList,
         generic: &Body,
-        dev: bool,
     ) -> Option<std::sync::Arc<Body>> {
         let pool = &self.run.pool;
         lock(&self.run.liftings)
-            .entry((def, dev))
+            .entry(def)
             .or_insert_with(|| std::sync::Arc::new(hd_tir::ir::Lifting::new(generic, pool)));
-        let ts = self.lifted_subs(def, args, dev);
+        let ts = self.lifted_subs(def, args);
         let &first = ts.first()?;
         let mut memo = lock(&self.run.lifted);
-        memo.entry((def, first, dev))
+        memo.entry((def, first))
             .or_insert_with(|| {
                 (hd_tir::ir::function_template(generic, &ts).ok()).map(std::sync::Arc::new)
             })
@@ -2991,8 +2988,7 @@ impl Env<'_> {
         if self.run.host.render_tir.is_empty() {
             return;
         }
-        let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
-        for k in self.lifted_subs(def, args, dev) {
+        for k in self.lifted_subs(def, args) {
             let k = u16::try_from(k).unwrap_or(u16::MAX);
             self.run.render_own(self.p, def, k, owned, false);
         }
@@ -3000,9 +2996,9 @@ impl Env<'_> {
 
     /// The lifted generic local functions instance `(def, args)` is the
     /// code of, once its template's shape is known (`hd_tir::ir::Lifting`).
-    fn lifted_subs(&self, def: DefId, args: TyList, dev: bool) -> Vec<usize> {
+    fn lifted_subs(&self, def: DefId, args: TyList) -> Vec<usize> {
         let pool = &self.run.pool;
-        let Some(lifting) = lock(&self.run.liftings).get(&(def, dev)).cloned() else {
+        let Some(lifting) = lock(&self.run.liftings).get(&def).cloned() else {
             return Vec::new();
         };
         let owner = ProgramEnv::generics_owner(self, def);
@@ -3021,7 +3017,6 @@ impl Env<'_> {
     }
 
     pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
-        let dev = self.run.summaries.is_none() && args != TyList::EMPTY;
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with
         // none has no instance body here (its source body is a
@@ -3034,19 +3029,16 @@ impl Env<'_> {
         let (generic, hash) = if let Some((family, at)) = &supplied {
             (&family.bodies[*at], family.hash)
         } else {
-            let (raw, hash) = if dev {
-                self.generic_inlined(def)?
-            } else {
-                self.run
-                    .lazy_body(self.p, def)
-                    .and_then(|b| self.run.decode(b))?
-            };
+            let (raw, hash) = self
+                .run
+                .lazy_body(self.p, def)
+                .and_then(|b| self.run.decode(b))?;
             (raw, *hash)
         };
         // A lifted generic local function's instance starts from its own
         // template, so it costs the function, not its item.
         let lifted = (supplied.is_none() && args != TyList::EMPTY)
-            .then(|| self.lifted_template(def, args, generic, dev))
+            .then(|| self.lifted_template(def, args, generic))
             .flatten();
         let generic = lifted.as_deref().unwrap_or(generic);
         let mut body = if args == TyList::EMPTY {
@@ -3071,9 +3063,6 @@ impl Env<'_> {
             // A generated body's places are rooted at their locals, as the
             // checker roots its own (`Env::owned_generated`).
             Self::root(&mut body, None);
-        }
-        if dev {
-            return Some((body, hash));
         }
         let hash = if walk || StructureEnv::generated_structure_walk(self, def) {
             hd_opt::structure_specialize::specialize_shared_walk(self, &mut body, hash)
@@ -3850,9 +3839,7 @@ impl Run<'_> {
     /// declarations in the settings say what each path holds). The
     /// passes read the instance body, built from the generic body and the
     /// impls the arguments choose (the declarations), and the bodies the
-    /// folds and the inliner copied into the generic body's folded form
-    /// (`Env::generic_inlined`, whose reads every instance notes): the
-    /// entry holds those, as a package body's does
+    /// folds and the inliner copied into it: the entry holds those, as a package body's does
     /// ([`Run::store_package_owned`]), and a later build takes it only
     /// while each still hashes the same.
     ///

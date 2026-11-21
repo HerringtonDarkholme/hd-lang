@@ -56,7 +56,6 @@ app/main/both_later#0.cancel
 app/main/both_later#0.drop
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
-std/format/impl Display for string.to_string#0
 std/rt.alloc/init.init#0
 std/rt.cycle/collection_due#0
 std/rt.cycle/drop_root#0

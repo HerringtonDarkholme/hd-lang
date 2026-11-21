@@ -5,7 +5,7 @@
   (import "fixture" "invoke" (func $invoke (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $callback.0 i32) (local $t0 i32) (local $t1 i32)
     ;; 29 |     let callback: fn() -> i32 $ Named = original
     i32.const 4
@@ -21,7 +21,7 @@
     i32.const 0
     ;; 30 |     $.with(Named=box(S { n: 4 })):
     local.get $t0
-    i32.const 336 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[rt:dyn_slot]
     ;; 31 |         println(invoke(callback))
     call $invoke
     local.get $provider0
@@ -48,7 +48,7 @@
     i32.const 0
     local.get $t1
     ;; 32 |     $.with(Named=box(S { n: 6 })):
-    i32.const 336 ;; &vtable[rt:dyn_slot]
+    i32.const 304 ;; &vtable[rt:dyn_slot]
     ;; 33 |         println(invoke(callback))
     call $invoke
     local.get $provider0

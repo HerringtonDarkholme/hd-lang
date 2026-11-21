@@ -39,7 +39,6 @@ std/rt.alloc/extend#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
-std/format/impl Display for string.to_string#0
 std/rt.alloc/init.init#0
 std/rt.cycle/collection_due#0
 std/rt.cycle/drop_root#0
@@ -69,7 +68,6 @@ rt:panic#2
 rt:panic#3
 rt:panic#4
 rt:panic#5
-rt:panic#6
 rt:panic_str
 rt:panic_with
 rt:to_buf

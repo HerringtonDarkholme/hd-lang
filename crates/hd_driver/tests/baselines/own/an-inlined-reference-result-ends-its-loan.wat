@@ -5,7 +5,7 @@
   (import "fixture" "read" (func $read (param i32) (result i32 i32)))
   (import "fixture" "impl Slots.push" (func $"impl Slots.push" (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $expression (param $p i32) (param $alias i32) (result i32 i32) (local $message.0 i32) (local $message.1 i32) (local $value i32)
     ;; 30 |     seen := read(p.get_ref().expect("slot"))

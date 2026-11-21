@@ -3,7 +3,7 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
   (func $call (param $r.0 i32) (param $r.1 i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32)
     ;; 15 |     r.run()

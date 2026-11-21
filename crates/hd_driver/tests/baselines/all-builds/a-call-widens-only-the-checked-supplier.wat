@@ -4,7 +4,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "needs_base" (func $needs_base (param i32 i32) (result i32)))
-  (import "fixture" "heap" (memory $heap 17))
+  (import "fixture" "heap" (memory $heap 1))
   (func $projected (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t0 i32)
     ;; 30 |     needs_base()
     local.get $provider0
