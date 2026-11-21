@@ -312,6 +312,12 @@ fn map_slots(
 ) -> Result<(), u32> {
     locs.clear();
     slots(b, n, |loc, w, _| locs.push((loc, w)));
+    // A drop flag statement's path names its root value without using it
+    // (`slots::layout`); a copy maps that name all the same.
+    let word = b.data[n][0];
+    if matches!(b.tags[n], Tag::FlagSet | Tag::FlagClear) && word & place::BARE_LOCAL == 0 {
+        super::slots::place_words(b, word, |w, loc| locs.push((loc, w)));
+    }
     for &(loc, w) in locs.iter() {
         if let Loc::Extra(p) = loc
             && !done.first(p as usize)

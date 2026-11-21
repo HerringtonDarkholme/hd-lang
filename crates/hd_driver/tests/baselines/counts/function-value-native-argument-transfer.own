@@ -110,41 +110,45 @@ fn conditional_size(value: Conditional) -> usize:
 >   local $0 value: Conditional [param read] value
 >     uses $0: entry -> %2 lend last
 >   local $1 resource: Resource [read assigned] value
->     uses $1: %21 -> %6 consume last
+>     uses $1: %25 -> %9 consume last
 >   local $2 value: Resource [read captured] place
 >   local $3 $temporary_owner: bool [read assigned] value
->     uses $3: %1 -> %27 lend last
+>     uses $3: %1 -> %31 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$0] : Conditional
 >   %3 = Intrinsic Empty [] : ()
->   %4 = FlagClear [$0] #3 : ()
->   %15 = Drop [$1] : ()
->   %25 = Block - : never
->   %26 = Match %2 [%25 %5 %16] : usize
->   %27 = Read copy [$3] : bool
->   %28 = Drop [$0] : ()
->   %29 = Block - : ()
->   %30 = If %27 [%29 -] : ()
->   %31 = Block %26 : usize
+>   %4 = FlagSet [%2] #4 : ()
+>   %5 = FlagSet [%2 as #1] #5 : ()
+>   %6 = FlagSet [%2 as #1 .0] #6 : ()
+>   %7 = FlagClear [$0] #3 : ()
+>   %18 = Drop [$1] : ()
+>   %29 = Block - : never
+>   %30 = Match %2 [%29 %8 %19] : usize
+>   %31 = Read copy [$3] : bool
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
+>   %34 = If %31 [%33 -] : ()
+>   %35 = Block %30 : usize
         .Empty => 0
->   %5 = Block 0:usize : usize
->   %18 = Block - : never
->   %24 = SwitchTag %2 [#0 %18 %23] : never
+>   %8 = Block 0:usize : usize
+>   %21 = Block - : never
+>   %28 = SwitchTag %2 [#0 %21 %27] : never
         .Live(resource) => size(resource)
->   %6 = Read borrow [$1] : Resource
->   %7 = Box #2 #0 : ()
->   %8 = Store [$2] %6 : ()
->   %9 = Ref local frame [$2 .owned] : &UniqList[usize]
->   %10 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%9) : usize
->   %11 = LoanEnd [%9] : ()
->   %12 = Break L0 %10 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %16 = Block %14 : usize
->   %19 = Read move [%2 as #1 .0] : Resource
->   %20 = Intrinsic Empty [] : ()
->   %21 = Store [$1] %19 : ()
+>   %9 = Read borrow [$1] : Resource
+>   %10 = Box #2 #0 : ()
+>   %11 = Store [$2] %9 : ()
+>   %12 = Ref local frame [$2 .owned] : &UniqList[usize]
+>   %13 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%12) : usize
+>   %14 = LoanEnd [%12] : ()
+>   %15 = Break L0 %13 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %19 = Block %17 : usize
+>   %22 = Read move [%2 as #1 .0] : Resource
+>   %23 = Intrinsic Empty [] : ()
+>   %24 = FlagClear [%2 as #1 .0] #6 : ()
+>   %25 = Store [$1] %22 : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 
