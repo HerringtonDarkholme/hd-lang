@@ -48,7 +48,8 @@ app/main/calls
   %37 = Prim Add [%35 %36] : i64
   %38 = Call app/main/need[] (6:i64) : i64
   %39 = Prim Add [%37 %38] : i64
-  %40 = Block %39 : i64
+  %40 = Drop [$0] : ()
+  %41 = Block %39 : i64
   exit sub 0 drops [$0]
   storage sub 0: $0 slot
   summary kept [$0] writes

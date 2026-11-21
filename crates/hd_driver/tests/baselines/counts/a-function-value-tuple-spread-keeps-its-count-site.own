@@ -6,50 +6,62 @@
 use std.function.{Fn, Tuple}
 
 fn call[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+    f(args...)
 > app/main/call
 >   local $0 f: Fn[Args, O, $()] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 args: Args [param read] value
->     uses $1: entry -> %5 lend last
->   %2 = Release %8 Exit local $0 #2 : ()
->   %3 = Release %8 Exit local $1 #2 : ()
-    f(args...)
->   %0 = FlagSet [$0] #2 : ()
->   %1 = FlagSet [$1] #3 : ()
->   %4 = Read borrow [$0] : Fn[Args, O, $()]
->   %5 = Read borrow [$1] : Args
->   %6 = CallValue %4 [%5] : O
->   %7 = Retain %6 Operation arguments #0 : ()
->   %8 = Block %6 : O
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : Fn[Args, O, $()]
+>   %1 = Read borrow [$1] : Args
+>   %2 = CallValue %0 [%1] : O
+>   %3 = Retain %2 Operation arguments #0 : ()
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %2 : O
 >   summary kept [] borrows [$0 $1] writes
 
 fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -> usize:
 > app/main/through
 >   local $0 f: fn(string, List[i32]) -> usize [param read] value
->     uses $0: entry -> %7 lend last
+>     uses $0: entry -> %6 lend last
 >   local $1 text: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 values: List[i32] [param read] value
->     uses $2: entry -> %4 consume last
+>     uses $2: entry -> %3 consume last
 >   local $4 args: (string, List[i32]) [read] value
->     uses $4: %6 -> %8 consume last
->   %0 = Release %16 Exit local $0 #2 : ()
->   %1 = Retain %16 Entry local $1 #0 : ()
->   %2 = Retain %16 Entry local $2 #0 : ()
+>     uses $4: %5 -> %7 consume last
+>   %0 = Retain %22 Entry local $1 #0 : ()
+>   %1 = Retain %22 Entry local $2 #0 : ()
     call(f, (text, values))
->   %3 = Read move [$1] : string
->   %4 = Read move [$2] : List[i32]
->   %5 = NewTuple - [%3 %4] : (string, List[i32])
->   %6 = Store [$4] %5 : ()
->   %7 = Read borrow [$0] : fn(string, List[i32]) -> usize
->   %8 = Read move [$4] : (string, List[i32])
->   %9 = CallValue %7 [%8] : usize
->   %10 = Retain %9 Operation arguments #0 : ()
->   %11 = Release %9 Operation arguments #2 : ()
->   %12 = Drop [%8] : ()
->   %13 = Break L0 %9 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Block %15 : usize
+>   %2 = Read move [$1] : string
+>   %3 = Read move [$2] : List[i32]
+>   %4 = NewTuple - [%2 %3] : (string, List[i32])
+>   %5 = Store [$4] %4 : ()
+>   %6 = Read borrow [$0] : fn(string, List[i32]) -> usize
+>   %7 = Read move [$4] : (string, List[i32])
+>   %8 = CallValue %6 [%7] : usize
+>   %9 = Retain %8 Operation arguments #0 : ()
+>   %10 = Release %8 Operation arguments #2 : ()
+>   %11 = Drop [%7] : ()
+>   %12 = Break L0 %8 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Drop [$1] : ()
+>   %16 = Drop [$2] : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %14 : usize
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0] writes

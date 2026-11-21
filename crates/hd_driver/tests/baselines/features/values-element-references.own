@@ -33,12 +33,14 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %14 consume last
 >   local $3 out: List[Player] [read assigned] place
->   %0 = Retain %20 Entry local $0 #0 : ()
->   %1 = Retain %20 Entry local $2 #0 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $2 #0 : ()
     let mut out = players
 >   %2 = Read move [$0] : List[Player]
 >   %3 = Store [$3] %2 : ()
->   %20 = Block %19 : List[Player]
+>   %20 = Drop [$0] : ()
+>   %21 = Drop [$2] : ()
+>   %22 = Block %19 : List[Player]
     reward(&mut out[best], 10)
 >   %4 = Read copy [$1] : usize
 >   %5 = IsUnique [$3] : ()
@@ -65,25 +67,30 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 > app/main/by_key
 >   local $0 m: Map[string, Player] [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 k: string [param read] value
->     uses $1: entry -> %5 lend last
+>     uses $1: entry -> %4 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
->   %0 = Release %12 Exit local $1 #2 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %17 Entry local $0 #0 : ()
     let mut out = m
->   %2 = Read move [$0] : Map[string, Player]
->   %3 = Store [$2] %2 : ()
->   %12 = Block %11 : Map[string, Player]
+>   %1 = Read move [$0] : Map[string, Player]
+>   %2 = Store [$2] %1 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %10 : Map[string, Player]
     reward(&mut out[k], 10)
->   %4 = Read borrow [$2] : Map[string, Player]
->   %5 = Read borrow [$1] : string
->   %6 = Intrinsic MapEntry [%4 %5] : usize
->   %7 = IsUnique [$2] : ()
->   %8 = Ref mut local [$2 [%6]] : &mut Player
->   %9 = Call app/main/reward[] (%8, 10:i32) : ()
->   %10 = LoanEnd [%8] : ()
+>   %3 = Read borrow [$2] : Map[string, Player]
+>   %4 = Read borrow [$1] : string
+>   %5 = Intrinsic MapEntry [%3 %4] : usize
+>   %6 = IsUnique [$2] : ()
+>   %7 = Ref mut local [$2 [%5]] : &mut Player
+>   %8 = Call app/main/reward[] (%7, 10:i32) : ()
+>   %9 = LoanEnd [%7] : ()
     out
->   %11 = Read move [$2] : Map[string, Player]
+>   %10 = Read move [$2] : Map[string, Player]
 >   exit sub 0 drops [$0]
 >   summary kept [$0] borrows [$1] writes

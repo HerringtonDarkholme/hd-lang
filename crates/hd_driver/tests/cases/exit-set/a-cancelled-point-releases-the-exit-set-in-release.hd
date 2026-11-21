@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: release
+# The code of a suspending body's cancel exit (#2176, step 7c): the
+# body's exit set releases `b`; the string `a` moved into it is not read
+# again on that way out.
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+fn slow!(s: string) -> usize $ Clock:
+    a := s + "-a"
+    b := a
+    sleep!(ms(50))
+    b.len()
+
+fn quick!() -> usize $ Clock:
+    sleep!(ms(1))
+    1
+
+pub fn main!() -> void $ Console + Clock:
+    println("${race!(slow("x"), quick())}")

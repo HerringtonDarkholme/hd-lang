@@ -15,6 +15,8 @@ fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
 >   release Suspend[i32] (last use)
 >   release Suspend[i32] (last use)
 >   release Suspend[i32] (last use)
+>   release Suspend[i32] (last use)
+>   release Suspend[i32] (last use)
 >   release counted reference (last use)
 > app/main/both
 >   release Suspend[i32] (cancelled)

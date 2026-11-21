@@ -60,7 +60,9 @@ fn closure_exit_release_visits_its_own_rows() {
             let ((), small) = hd_wasm::work::count_exit_rows(|| build(&program(20)));
             let ((), large) = hd_wasm::work::count_exit_rows(|| build(&program(200)));
             eprintln!("exit rows: n=20 {small}, n=200 {large}");
-            assert!(small >= 40, "n=20 {small}");
+            // Each string's exit drop at least; a parameter the instance
+            // does not own folds away with its `ParamOwned` guard.
+            assert!(small >= 20, "n=20 {small}");
             assert!(large <= small * 12, "n=20 {small}, n=200 {large}");
         });
     assert!(worker.is_ok_and(|w| w.join().is_ok()));

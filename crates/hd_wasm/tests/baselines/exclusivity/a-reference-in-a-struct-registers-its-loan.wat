@@ -105,7 +105,7 @@
     local.get $t1
     local.get $t
   )
-  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $in_option (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 23 |     let held: Option[&string] = .Some(&t.lead.name)
     local.get $t
     i32.load $heap

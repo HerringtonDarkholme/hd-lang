@@ -18,6 +18,10 @@ fn join(
 > app/main/join.second
 >   release string (last use)
     limit: usize = 64,
+> app/main/join.limit
+>   release *mut List[string] (last use)
+>   release string (last use)
+>   release string (last use)
 ) -> string:
     "$first $second $limit"
 > app/main/join
@@ -30,6 +34,8 @@ pub fn main() -> void $ Console:
     println(join(log, "first"))
 > app/main/main
 >   retain *mut List[string] (conservative: DefaultCall)
+>   retain *mut List[string] (conservative: DefaultCall)
+>   retain string (conservative: DefaultCall)
 >   retain *mut List[string] (stored)
 >   retain string (stored)
 >   release string (last use)

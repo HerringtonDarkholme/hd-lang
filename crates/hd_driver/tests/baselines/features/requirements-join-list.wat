@@ -479,6 +479,21 @@
                 call $rt:release_ref'1
               end
             end
+            local.get $t1
+            i32.load $heap
+            local.tee $t1
+            if
+              local.get $t1
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t1
+                call $rt:release_ref'2
+              end
+            end
             i32.const 0
             local.set $t4
             i32.const 1
@@ -551,20 +566,20 @@
             end
           end
     ;; 14 |     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $t4

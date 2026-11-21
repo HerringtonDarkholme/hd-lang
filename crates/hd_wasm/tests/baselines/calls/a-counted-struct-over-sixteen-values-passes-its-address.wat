@@ -8,6 +8,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -281,15 +282,8 @@
     end
     local.get $t2
     i32.wrap_i64
-    local.set $t1
     local.get $t0
-    i32.load $heap
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
-    local.get $t1
+    call $rt:drop
   )
   (func $mk (param $x i32) (param $t0 i32)
     ;; 40 | fn mk(x: i32) -> Inner: Inner { a: x, b: +2, c: +3, d: +4, e: +5, f: +6, g: +7, h: +8, i: +9, j: +10, k: +11, l: +12, m: +13, n: +14, o: +15, p: +16, q: +17, s: "s" }

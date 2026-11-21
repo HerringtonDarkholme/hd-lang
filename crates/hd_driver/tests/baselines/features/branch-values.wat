@@ -9,91 +9,79 @@
         block
           block
             block
-              block
     ;; 22 |         0 => a
-                local.get $k
-                i64.const 0
-                i64.eq
-                br_if 0
+              local.get $k
+              i64.const 0
+              i64.eq
+              br_if 0
     ;; 23 |         1 => b
-                local.get $k
-                i64.const 1
-                i64.eq
-                br_if 1
+              local.get $k
+              i64.const 1
+              i64.eq
+              br_if 1
     ;; 24 |         2 => return "returned"
-                local.get $k
-                i64.const 2
-                i64.eq
-                i32.eqz
-                br_if 3
-                br 2
+              local.get $k
+              i64.const 2
+              i64.eq
+              i32.eqz
+              br_if 3
+              br 2
     ;; 21 |     match k:
-                unreachable
-              end
-    ;; 22 |         0 => a
-              local.get $a.0
-              i32.const 0
-              local.set $a.0
-    ;; 21 |     match k:
-              local.get $b.0
-              if
-                local.get $b.0
-                call $rt:release_ref
-              end
-              i32.const 0
-              local.set $b.0
-              local.set $b.1
-              br 3
+              unreachable
             end
-    ;; 23 |         1 => b
-            local.get $b.0
-            i32.const 0
-            local.set $b.0
-    ;; 21 |     match k:
+    ;; 22 |         0 => a
             local.get $a.0
+    ;; 21 |     match k:
+            local.get $b.0
             if
-              local.get $a.0
+              local.get $b.0
               call $rt:release_ref
             end
-            i32.const 0
-            local.set $a.0
-    ;; 23 |         1 => b
-            local.get $b.1
+    ;; 22 |         0 => a
+            local.get $a.1
     ;; 21 |     match k:
-            local.set $a.1
-            local.set $b.1
-            br 2
+            return
           end
-    ;; 24 |         2 => return "returned"
-          i32.const 65 ;; &"returned"
-          i32.const 8
-          local.set $a.1
-          local.set $b.1
-          br 2
+    ;; 23 |         1 => b
+          local.get $b.0
     ;; 21 |     match k:
-          br 1
+          local.get $a.0
+          if
+            local.get $a.0
+            call $rt:release_ref
+          end
+    ;; 23 |         1 => b
+          local.get $b.1
+    ;; 21 |     match k:
+          return
         end
-    ;; 25 |         _ => panic("branch")
-        i32.const 73 ;; &"branch"
-        i32.const 6
-        i32.const 0
-        call_indirect $table0 (param i32 i32)
-        unreachable
+        local.get $a.0
+        if
+          local.get $a.0
+          call $rt:release_ref
+        end
+        local.get $b.0
+        if
+          local.get $b.0
+          call $rt:release_ref
+        end
+    ;; 24 |         2 => return "returned"
+        i32.const 65 ;; &"returned"
+        i32.const 8
+        return
     ;; 21 |     match k:
+        br 1
       end
+    ;; 25 |         _ => panic("branch")
+      i32.const 73 ;; &"branch"
+      i32.const 6
+      i32.const 0
+      call_indirect $table0 (param i32 i32)
+      unreachable
+    ;; 21 |     match k:
     end
-    local.get $a.0
-    if
-      local.get $a.0
-      call $rt:release_ref
-    end
-    local.get $b.0
-    if
-      local.get $b.0
-      call $rt:release_ref
-    end
-    local.get $b.1
-    local.get $a.1
+    i32.const 0
+    i32.const 0
   )
   (func $pick_match (param $k i64) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32 i32)
     ;; 16 |     match k:

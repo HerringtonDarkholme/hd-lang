@@ -224,11 +224,10 @@
     local.get $provider0.vtable
     call $"println[string]"
   )
-  (func $count (param $forest i32) (result i32) (local $t0 i32)
+  (func $count (param $forest i32) (result i32)
     ;; 15 |     List(forest).len()
     local.get $forest
     i32.load $heap offset=4
-    local.set $t0
     local.get $forest
     if
       local.get $forest
@@ -240,6 +239,5 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
   )
 )

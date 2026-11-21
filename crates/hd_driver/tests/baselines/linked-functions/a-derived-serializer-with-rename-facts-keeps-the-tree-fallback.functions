@@ -93,7 +93,6 @@ std/rt.alloc/retain_known#0
 std/rt.memory/room#0
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
-rt:cell_drop
 std/json/encode_fallback#0 [app.main.Pair]
 std/collections/impl UniqList[u8].grow_bytes#0
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
@@ -151,6 +150,7 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]
 std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]

@@ -41,21 +41,17 @@
     end
     local.get $s.1
   )
-  (func $speak (param $g.0 i32) (param $g.1 i32) (result i32 i32) (local $t0 i32)
+  (func $speak (param $g.0 i32) (param $g.1 i32) (result i32 i32)
     ;; 50 |     g.greet()
     local.get $g.0
     local.get $g.1
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $g.1
-    local.set $t0
     local.get $g.0
     if
       local.get $g.0
       call $rt:release_ref
     end
-    local.get $t0
-    local.get $g.1
   )
   (func $"impl Greet for User.greet" (param $self i32) (result i32 i32) (local $t0 i32)
     ;; 40 |         self.name

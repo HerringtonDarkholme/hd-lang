@@ -13,18 +13,25 @@ fn bump!(c: &mut Counter) -> void:
 > app/main/bump
 >   local $0 c: &mut Counter [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %9 Cold local $0 #0 : ()
->   %1 = Retain %9 Entry local $0 #0 : ()
->   %2 = Retain %9 Cold referent $0 #8 : ()
->   %3 = Release %9 FrameDrop referent $0 #2 : ()
->   %4 = Release %9 Exit referent $0 #8 : ()
+>   %0 = Retain %10 Cold local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
+>   %2 = Retain %10 Cold referent $0 #8 : ()
+>   %3 = Release %10 FrameDrop referent $0 #2 : ()
+>   %4 = Release %10 Exit referent $0 #8 : ()
     c.hits = c.hits + 1
 >   %5 = Read copy [*$0 .hits] : i32
 >   %6 = Prim Add [%5 1:i32] : i32
 >   %7 = Store [*$0 .hits] %6 : ()
 >   %8 = Drop [$0] : ()
->   %9 = Block - : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block - : ()
 >   exit sub 0 drops [$0]
+>   cancel %10 releases [%16 %11]
 
 fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1
@@ -40,21 +47,23 @@ fn run!() -> void:
     let mut c = Counter { hits: +0, name: "a" }
 > app/main/run
 >   local $0 c: Counter [read assigned captured captured-assigned] place
->   %0 = Release %9 FrameDrop child #2 : ()
+>   %0 = Release %10 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i32 "a"] : Counter
 >   %2 = Box #0 #0 : ()
 >   %3 = Store [$0] %1 : ()
->   %9 = Block - : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
     bump!(&mut c)
 >   %4 = Ref mut local [$0] : &mut Counter
 >   %5 = Await app/main/bump[] (%4) : ()
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = LoanEnd [%4] : ()
 >   %8 = Drop [$0] : ()
->   %11 = Return - #2 : never
+>   %12 = Drop [$0] : ()
+>   %13 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
->   cancel %5 releases [%4 %4294967295]
+>   cancel %5 releases [%4 %2147483648 %4294967295]
 
 fn fresh() -> void:
     let mut c = Counter { hits: +0, name: "a" }

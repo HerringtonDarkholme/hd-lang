@@ -1,0 +1,21 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A suspending body cancelled at its point (the race's loser) leaves by
+# its cancel exit through the body's exit set: `b` holds the string `a`
+# moved into it, so `b` is released once and `a` not at all. The checked
+# runs' exit audit fails on a leak or a double free.
+use std.task.race
+use std.time.{Clock, ms, sleep}
+
+fn slow!(s: string) -> usize $ Clock:
+    a := s + "-a"
+    b := a
+    sleep!(ms(50))
+    b.len()
+
+fn quick!() -> usize $ Clock:
+    sleep!(ms(1))
+    1
+
+pub fn main!() -> void $ Console + Clock:
+    println("${race!(slow("x"), quick())}")

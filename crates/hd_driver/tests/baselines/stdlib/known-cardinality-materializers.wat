@@ -6,11 +6,11 @@
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:cell_drop'1" (func $rt:cell_drop'1 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[string]]" (func $"release_value[std.collections.UniqList[string]]" (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[i32]" (func $"impl[T < Copy] UniqList[T].from_list[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (param i32)))
   (import "fixture" "rt:list_reserve'2" (func $rt:list_reserve'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:cell_drop'2" (func $rt:cell_drop'2 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32]" (param i32 i32 i32)))
@@ -24,10 +24,10 @@
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "rt:cell_drop'3" (func $rt:cell_drop'3 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
-  (import "fixture" "rt:cell_drop'4" (func $rt:cell_drop'4 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(string, i32)]]" (func $"release_value[std.collections.UniqList[(string, i32)]]" (param i32)))
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -192,7 +192,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'1
+        call $"release_value[std.collections.UniqList[string]]"
       end
     end
     local.get $t1
@@ -333,7 +333,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'2
+        call $"release_value[std.collections.UniqList[i32]]"
       end
     end
     local.get $t1
@@ -670,7 +670,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'2
+        call $"release_value[std.collections.UniqList[i32]]"
       end
     end
     local.get $t1
@@ -1761,7 +1761,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'3
+        call $"release_value[std.collections.UniqList[(i32, usize)]]"
       end
     end
     local.get $t1
@@ -2017,7 +2017,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'4
+        call $"release_value[std.collections.UniqList[(string, i32)]]"
       end
     end
     local.get $t1
@@ -2092,98 +2092,24 @@
     local.get $t0
   )
   (func $"impl[T] List[T].windows[i32]" (param $t2 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
-    block
     ;; (no span)
-      local.get $t0
-      i32.eqz
-      if
-        i32.const 949 ;; &"windows: size must be positive"
-        i32.const 30
-        i32.const 6
-        call_indirect $table0 (param i32 i32)
-        unreachable
-      end
-      i32.const 80 ;; &empty-buffer
-      local.set $t1
-      local.get $t0
-      local.get $t2
-      i32.load $heap offset=4
-      i32.gt_u
-      if
-        br 1
-      end
-      local.get $t2
-      i32.load $heap offset=4
-      local.get $t0
-      i32.sub
-      local.tee $t3
-      i32.const 1
-      i32.add
-      local.tee $t4
-      if
-        local.get $t1
-        local.get $t4
-        call $rt:list_reserve'5
-        local.set $t1
-      end
-      block
-        loop
-          local.get $t5
-          local.get $t3
-          i32.le_u
-          i32.eqz
-          br_if 1
-          local.get $t5
-          local.get $t0
-          i32.add
-          local.set $t4
-          local.get $t2
-          local.get $t5
-          local.get $t4
-          call $"std/collections/impl[T] List[T].view[i32]'2"
-          local.set $t4
-          local.set $t6
-          local.set $t7
-          local.get $t1
-          local.tee $t8
-          i32.load $heap offset=4
-          local.tee $t9
-          local.get $t8
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t8
-            i32.const 30
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t8
-            local.set $t1
-          end
-          local.get $t8
-          local.get $t9
-          i32.const 12
-          i32.mul
-          i32.add
-          local.tee $t10
-          local.get $t7
-          i32.store $heap offset=16
-          local.get $t10
-          local.get $t6
-          i32.store $heap offset=20
-          local.get $t10
-          local.get $t4
-          i32.store $heap offset=24
-          local.get $t8
-          local.get $t9
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t5
-          i32.const 1
-          i32.add
-          local.set $t5
-          br 0
-        end
-      end
+    local.get $t0
+    i32.eqz
+    if
+      i32.const 949 ;; &"windows: size must be positive"
+      i32.const 30
+      i32.const 6
+      call_indirect $table0 (param i32 i32)
+      unreachable
+    end
+    i32.const 80 ;; &empty-buffer
+    local.set $t1
+    local.get $t0
+    local.get $t2
+    i32.load $heap offset=4
+    i32.gt_u
+    if
+      local.get $t1
       local.get $t2
       if
         local.get $t2
@@ -2197,8 +2123,79 @@
           call $rt:release_ref
         end
       end
-      i32.const 0
-      local.set $t2
+      return
+    end
+    local.get $t2
+    i32.load $heap offset=4
+    local.get $t0
+    i32.sub
+    local.tee $t3
+    i32.const 1
+    i32.add
+    local.tee $t4
+    if
+      local.get $t1
+      local.get $t4
+      call $rt:list_reserve'5
+      local.set $t1
+    end
+    block
+      loop
+        local.get $t5
+        local.get $t3
+        i32.le_u
+        i32.eqz
+        br_if 1
+        local.get $t5
+        local.get $t0
+        i32.add
+        local.set $t4
+        local.get $t2
+        local.get $t5
+        local.get $t4
+        call $"std/collections/impl[T] List[T].view[i32]'2"
+        local.set $t4
+        local.set $t6
+        local.set $t7
+        local.get $t1
+        local.tee $t8
+        i32.load $heap offset=4
+        local.tee $t9
+        local.get $t8
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t8
+          i32.const 30
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $t8
+          local.set $t1
+        end
+        local.get $t8
+        local.get $t9
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t10
+        local.get $t7
+        i32.store $heap offset=16
+        local.get $t10
+        local.get $t6
+        i32.store $heap offset=20
+        local.get $t10
+        local.get $t4
+        i32.store $heap offset=24
+        local.get $t8
+        local.get $t9
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+        local.get $t5
+        i32.const 1
+        i32.add
+        local.set $t5
+        br 0
+      end
     end
     local.get $t2
     if
@@ -2223,11 +2220,11 @@
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:cell_drop'1" (func $rt:cell_drop'1 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[string]]" (func $"release_value[std.collections.UniqList[string]]" (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[i32]" (func $"impl[T < Copy] UniqList[T].from_list[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (param i32)))
   (import "fixture" "rt:list_reserve'2" (func $rt:list_reserve'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:cell_drop'2" (func $rt:cell_drop'2 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
@@ -2242,10 +2239,10 @@
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "rt:cell_drop'3" (func $rt:cell_drop'3 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
-  (import "fixture" "rt:cell_drop'4" (func $rt:cell_drop'4 (param i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(string, i32)]]" (func $"release_value[std.collections.UniqList[(string, i32)]]" (param i32)))
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -2410,7 +2407,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'1
+        call $"release_value[std.collections.UniqList[string]]"
       end
     end
     local.get $t1
@@ -2551,7 +2548,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'2
+        call $"release_value[std.collections.UniqList[i32]]"
       end
     end
     local.get $t1
@@ -2892,7 +2889,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'2
+        call $"release_value[std.collections.UniqList[i32]]"
       end
     end
     local.get $t1
@@ -3993,7 +3990,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'3
+        call $"release_value[std.collections.UniqList[(i32, usize)]]"
       end
     end
     local.get $t1
@@ -4251,7 +4248,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:cell_drop'4
+        call $"release_value[std.collections.UniqList[(string, i32)]]"
       end
     end
     local.get $t1
@@ -4326,98 +4323,24 @@
     local.get $t0
   )
   (func $"impl[T] List[T].windows[i32]" (param $t2 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
-    block
     ;; (no span)
-      local.get $t0
-      i32.eqz
-      if
-        i32.const 1285 ;; &"windows: size must be positive"
-        i32.const 30
-        i32.const 6
-        call_indirect $table0 (param i32 i32)
-        unreachable
-      end
-      i32.const 80 ;; &empty-buffer
-      local.set $t1
-      local.get $t0
-      local.get $t2
-      i32.load $heap offset=4
-      i32.gt_u
-      if
-        br 1
-      end
-      local.get $t2
-      i32.load $heap offset=4
-      local.get $t0
-      i32.sub
-      local.tee $t3
-      i32.const 1
-      i32.add
-      local.tee $t4
-      if
-        local.get $t1
-        local.get $t4
-        call $rt:list_reserve'5
-        local.set $t1
-      end
-      block
-        loop
-          local.get $t5
-          local.get $t3
-          i32.le_u
-          i32.eqz
-          br_if 1
-          local.get $t5
-          local.get $t0
-          i32.add
-          local.set $t4
-          local.get $t2
-          local.get $t5
-          local.get $t4
-          call $"std/collections/impl[T] List[T].view[i32]'2"
-          local.set $t4
-          local.set $t6
-          local.set $t7
-          local.get $t1
-          local.tee $t8
-          i32.load $heap offset=4
-          local.tee $t9
-          local.get $t8
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t8
-            i32.const 30
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t8
-            local.set $t1
-          end
-          local.get $t8
-          local.get $t9
-          i32.const 12
-          i32.mul
-          i32.add
-          local.tee $t10
-          local.get $t7
-          i32.store $heap offset=16
-          local.get $t10
-          local.get $t6
-          i32.store $heap offset=20
-          local.get $t10
-          local.get $t4
-          i32.store $heap offset=24
-          local.get $t8
-          local.get $t9
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t5
-          i32.const 1
-          i32.add
-          local.set $t5
-          br 0
-        end
-      end
+    local.get $t0
+    i32.eqz
+    if
+      i32.const 1285 ;; &"windows: size must be positive"
+      i32.const 30
+      i32.const 6
+      call_indirect $table0 (param i32 i32)
+      unreachable
+    end
+    i32.const 80 ;; &empty-buffer
+    local.set $t1
+    local.get $t0
+    local.get $t2
+    i32.load $heap offset=4
+    i32.gt_u
+    if
+      local.get $t1
       local.get $t2
       if
         local.get $t2
@@ -4435,8 +4358,79 @@
       else
         call $skipped_test
       end
-      i32.const 0
-      local.set $t2
+      return
+    end
+    local.get $t2
+    i32.load $heap offset=4
+    local.get $t0
+    i32.sub
+    local.tee $t3
+    i32.const 1
+    i32.add
+    local.tee $t4
+    if
+      local.get $t1
+      local.get $t4
+      call $rt:list_reserve'5
+      local.set $t1
+    end
+    block
+      loop
+        local.get $t5
+        local.get $t3
+        i32.le_u
+        i32.eqz
+        br_if 1
+        local.get $t5
+        local.get $t0
+        i32.add
+        local.set $t4
+        local.get $t2
+        local.get $t5
+        local.get $t4
+        call $"std/collections/impl[T] List[T].view[i32]'2"
+        local.set $t4
+        local.set $t6
+        local.set $t7
+        local.get $t1
+        local.tee $t8
+        i32.load $heap offset=4
+        local.tee $t9
+        local.get $t8
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t8
+          i32.const 30
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $t8
+          local.set $t1
+        end
+        local.get $t8
+        local.get $t9
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t10
+        local.get $t7
+        i32.store $heap offset=16
+        local.get $t10
+        local.get $t6
+        i32.store $heap offset=20
+        local.get $t10
+        local.get $t4
+        i32.store $heap offset=24
+        local.get $t8
+        local.get $t9
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+        local.get $t5
+        i32.const 1
+        i32.add
+        local.set $t5
+        br 0
+      end
     end
     local.get $t2
     if
