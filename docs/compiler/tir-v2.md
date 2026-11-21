@@ -5,8 +5,7 @@ statements, the ownership passes and the inliner, as built. The code and
 the spec win. The design came from issue #667 (2026-10-21) and was built
 in three stages; its migration plans, commit logs and measurements are
 in git history (this file at 21fc0e06f). The owner chose Direction 3 of
-tir-v2-directions.md (git history at 7ccbb4ea8,
-`docs/compiler/tir-v2-directions.md`), the record of the alternatives.
+the TIR v2 alternatives record (git history at 7ccbb4ea8).
 The step plan that moves the rest of the backend's decisions into TIR is
 [BACKEND_NEUTRAL_TIR.md](../future-work/BACKEND_NEUTRAL_TIR.md).
 
