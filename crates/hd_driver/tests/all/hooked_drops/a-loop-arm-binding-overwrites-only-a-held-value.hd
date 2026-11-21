@@ -1,0 +1,51 @@
+# An arm binding stored on each pass of a loop: the store may find the
+# binding holding a value, so it releases the old one, but only under the
+# binding's whole drop flag, since on the first pass the binding is empty
+# and a hook must not run on an empty value (the bug, in release: the
+# inlined `size`'s binding ran its hook on the empty slot).
+# stdout: 8 made 5 gone 5
+use std.rt.Drop
+
+let made: usize = 0
+let gone: usize = 0
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        gone = gone + 1
+
+fn item(name: string) -> Item:
+    made = made + 1
+    Item { name: name }
+
+enum Slot:
+    One(it: Item)
+    Two(label: string, it: Item)
+    Empty
+
+fn size(slot: Slot) -> usize:
+    match slot:
+        .One(it) => it.name.len()
+        .Two(label, it) => label.len() + it.name.len()
+        .Empty => 0
+
+fn run(k: usize, slot: Slot) -> usize:
+    let t: usize = 0
+    for i in 0..3:
+        if i < k:
+            continue
+        t = t + size(slot)
+        break
+    t
+
+pub fn main() -> void $ Console:
+    let n: usize = 0
+    for k in 0..4:
+        n = n + run(k, Slot.One(item("ab")))
+    n = n + run(1, Slot.Two("c", item("d")))
+    n = n + run(2, Slot.Empty)
+    println("${n} made ${made} gone ${gone}")
