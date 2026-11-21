@@ -4623,6 +4623,22 @@ impl Ck<'_, '_> {
         Ok((self.b.close_loop(lp, lbody, ty, at), ty))
     }
 
+    /// The slot-entry operation for the fixed key/value pair a map loop yields.
+    fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
+        let pool = self.pool();
+        let TyData::Tuple { elems, rest: None } = pool.get(item_ty) else {
+            return Err(invalid_map_loop_item());
+        };
+        let [_, value] = pool.list_items(elems) else {
+            return Err(invalid_map_loop_item());
+        };
+        Ok(if self.ref_of(*value).is_some_and(|(_, mutable)| mutable) {
+            IntrinsicOp::MapSlotEntryMut
+        } else {
+            IntrinsicOp::MapSlotEntry
+        })
+    }
+
     /// A `for` over a built-in `List` or `Map` as a counted loop
     /// (lowering-catalog "Loops"): no iterator value. The loop iterates a
     /// snapshot of the collection as it was when the loop began
@@ -4639,6 +4655,11 @@ impl Ck<'_, '_> {
         body: &mut dyn FnMut(&mut Self) -> StageResult<()>,
     ) -> StageResult<(Ref, Ty)> {
         use hd_tir::ir::local_flags::ASSIGNED;
+        let map_entry = if map {
+            Some(self.map_loop_entry(item_ty)?)
+        } else {
+            None
+        };
         let result = loop_else.map(|(_, t)| t);
         let at = e.index();
         let us = Ty::prim(Prim::Usize);
@@ -4711,19 +4732,7 @@ impl Ck<'_, '_> {
         self.scopes.push(HashMap::default());
         let (c, p) = (collection(self), self.b.get(pos_l, us, at));
         // A map's live entry, or a list's element place `[%c [%p]]`.
-        let item = if map {
-            let TyData::Tuple { elems, .. } = self.pool().get(item_ty) else {
-                unreachable!("for_loop and map_ref_loop construct a pair item type");
-            };
-            let fields = self.pool().list_items(elems);
-            let mutable = fields
-                .get(1)
-                .is_some_and(|&ty| self.ref_of(ty).is_some_and(|(_, mutable)| mutable));
-            let op = if mutable {
-                IntrinsicOp::MapSlotEntryMut
-            } else {
-                IntrinsicOp::MapSlotEntry
-            };
+        let item = if let Some(op) = map_entry {
             let record = self.b.refs_record(&[c, p]);
             self.b
                 .emit(Tag::Intrinsic, op as u32, record, item_ty, pat.index())
@@ -6142,6 +6151,11 @@ impl Ck<'_, '_> {
     }
 }
 
+#[cold]
+fn invalid_map_loop_item() -> NotImplemented {
+    NotImplemented::bug(Stage::Body, "map loop requires a fixed key/value pair item")
+}
+
 /// The source parts of a closure: a `fn(...)` expression's, or a trailing
 /// block's, which has only a body.
 pub(crate) struct ClosureParts<'t> {
@@ -6283,5 +6297,120 @@ mod interpolation_metadata_tests {
                 },
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod map_loop_metadata_tests {
+    use hd_base::Stage;
+    use hd_tir::ir::{IntrinsicOp, NONE, Ref};
+    use hd_types::{Ty, TyData};
+
+    #[test]
+    fn map_pair_selects_the_existing_entry_operation() {
+        crate::body::with_checker(|ck| {
+            let pool = ck.pool();
+            for value in [Ty::I32, Ty::STRING] {
+                for (field, expected) in [
+                    (value, IntrinsicOp::MapSlotEntry),
+                    (
+                        pool.intern_ty(&TyData::Ref {
+                            inner: value,
+                            mutable: false,
+                            counted: false,
+                        }),
+                        IntrinsicOp::MapSlotEntry,
+                    ),
+                    (
+                        pool.intern_ty(&TyData::Ref {
+                            inner: value,
+                            mutable: true,
+                            counted: false,
+                        }),
+                        IntrinsicOp::MapSlotEntryMut,
+                    ),
+                    (
+                        pool.intern_ty(&TyData::Ref {
+                            inner: value,
+                            mutable: false,
+                            counted: true,
+                        }),
+                        IntrinsicOp::MapSlotEntry,
+                    ),
+                    (
+                        pool.intern_ty(&TyData::Ref {
+                            inner: value,
+                            mutable: true,
+                            counted: true,
+                        }),
+                        IntrinsicOp::MapSlotEntryMut,
+                    ),
+                ] {
+                    let pair = pool.intern_ty(&TyData::Tuple {
+                        elems: pool.list(&[Ty::I32, field]),
+                        rest: None,
+                    });
+                    assert_eq!(ck.map_loop_entry(pair).expect("map pair"), expected);
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn malformed_map_pair_fails_before_loop_state_or_callback() {
+        crate::body::with_checker(|ck| {
+            let pool = ck.pool();
+            let node = ck.cx.src.parse.tree.root();
+            let mut invalid = vec![Ty::I32, Ty::POISON];
+            for fields in [&[][..], &[Ty::I32][..], &[Ty::I32, Ty::I32, Ty::I32][..]] {
+                invalid.push(pool.intern_ty(&TyData::Tuple {
+                    elems: pool.list(fields),
+                    rest: None,
+                }));
+            }
+            invalid.push(pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&[Ty::I32, Ty::STRING]),
+                rest: Some(Ty::I32),
+            }));
+            let before = (
+                ck.b.body().len(),
+                ck.b.body().extra.len(),
+                ck.b.body().local_ty.len(),
+                ck.scopes.depth(),
+                ck.loops.len(),
+                ck.infer.var_count(),
+            );
+            let mut calls = 0;
+            for item in invalid {
+                let error = ck
+                    .collection_loop(
+                        node,
+                        (Ref(NONE), Ty::POISON, item, true),
+                        (None, None),
+                        node,
+                        &mut |_| {
+                            calls += 1;
+                            Ok(())
+                        },
+                    )
+                    .expect_err("malformed map item");
+                assert_eq!(error.stage, Stage::Body);
+                assert!(error.bug);
+                assert!(!error.out_of_fuel);
+                assert_eq!(error.what, "map loop requires a fixed key/value pair item");
+                assert_eq!(
+                    (
+                        ck.b.body().len(),
+                        ck.b.body().extra.len(),
+                        ck.b.body().local_ty.len(),
+                        ck.scopes.depth(),
+                        ck.loops.len(),
+                        ck.infer.var_count()
+                    ),
+                    before
+                );
+            }
+            assert_eq!(calls, 0);
+        });
     }
 }
