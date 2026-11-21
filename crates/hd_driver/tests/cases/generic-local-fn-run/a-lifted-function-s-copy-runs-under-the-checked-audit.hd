@@ -1,0 +1,20 @@
+# @dump: stdout
+# @build: release checked
+# The copy of a small generic local function that captures locals
+# (#2222) under the checked build: its exit audit fails on a leak or a
+# double free of the captured `tag` the copy reads.
+fn total(xs: List[i32], offset: i32, tag: string, label: string) -> (i32, string, string):
+    let mut seen = 0
+    fn shift[T](x: T) -> (T, i32, string):
+        seen += 1
+        (x, offset + seen, tag)
+    let mut sum = 0
+    for x in xs:
+        let (a, b, _) = shift(x)
+        sum += a + b
+    let (l, _, t) = shift(label)
+    (sum + seen, l, t)
+
+pub fn main() -> void $ Console:
+    let (s, l, t) = total([1, 2, 3], 10, "t", "l")
+    println("$s $l $t")

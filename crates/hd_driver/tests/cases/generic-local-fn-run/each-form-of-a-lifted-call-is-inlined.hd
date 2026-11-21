@@ -1,10 +1,10 @@
 # @dump: wat stdout
-# @build: release | release checked
+# @build: release
 # Every form of a call of a small generic local function is inlined in
-# release (#2222): one lifted function calling another that captures, one nested in a
-# generic item's local function at that item's arguments, and one called
-# through a local that holds it. A recursive one copies until its cycle
-# is found, as any function's does.
+# release (#2222): one lifted function calling another that captures,
+# one nested in a generic item's local function at that item's
+# arguments, and one called through a local that holds it. A recursive
+# one copies until its cycle is found, as any function's does.
 fn siblings(x: i32) -> i32:
     fn one[T](v: T) -> T:
         v

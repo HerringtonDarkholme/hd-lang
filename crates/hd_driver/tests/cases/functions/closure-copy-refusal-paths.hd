@@ -1,4 +1,4 @@
-# @dump: own wat stdout
+# @dump: own stdout
 # @build: release checked
 # expected: wide-capture and reference-writing literals retain valid call boundaries; a
 # generic local function's call is the ordinary inliner's (#2222).
