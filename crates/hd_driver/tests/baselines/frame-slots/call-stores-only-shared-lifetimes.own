@@ -36,14 +36,17 @@ fn non_storing(xs: List[string]) -> usize:
 > app/main/non_storing
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     let mut out: List[&string] = []
 >   %1 = Box #0 #255 : ()
 >   %2 = NewList - [] : List[&string]
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %14 : usize
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Block %14 : usize
     size := push_len(&mut out, &xs)
 >   %5 = Ref mut local frame [$1] : &mut List[&string]
 >   %6 = Ref local frame promoted [$0] : &List[string]
@@ -80,13 +83,16 @@ fn storing(xs: List[string]) -> usize:
 > app/main/storing
 >   local $0 xs: List[string] [param read] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
     let mut out: List[&string] = []
 >   %1 = NewList - [] : List[&string]
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %16 = Drop [$0] : ()
->   %17 = Block %13 : usize
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Block %13 : usize
     remember(&mut out, &xs[0])
 >   %4 = Ref mut local frame [$1] : &mut List[&string]
 >   %5 = IsUnique [$0] : ()

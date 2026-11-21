@@ -103,7 +103,7 @@ fn word(i: i32) -> string:
 > app/main/keep
 >   local $0 value: T [param read captured] value
 >     uses $0: entry -> %2 consume, %5 consume last
->   %1 = Retain %8 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 >   %0 = Retain %4 Entry captures #0 : ()
@@ -112,8 +112,11 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 >   %4 = Block %2 : T
 >   %5 = Closure #1 : fn() -> T
 >   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %5 : fn() -> T
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Block %5 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -122,7 +125,7 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 > app/main/lend
 >   local $0 value: string [param read captured] value
 >     uses $0: entry -> %2 lend, %10 consume last
->   %1 = Retain %13 Entry local $0 #0 : ()
+>   %1 = Retain %16 Entry local $0 #0 : ()
 fn lend(value: string) -> fn() -> usize:
     fn() -> usize: value.len()
 >   %0 = Retain %9 Entry captures #0 : ()
@@ -136,8 +139,11 @@ fn lend(value: string) -> fn() -> usize:
 >   %9 = Block %6 : usize
 >   %10 = Closure #1 : fn() -> usize
 >   %11 = Retain %10 Operation captures #0 : ()
->   %12 = Drop [$0] : ()
->   %13 = Block %10 : fn() -> usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Block %10 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

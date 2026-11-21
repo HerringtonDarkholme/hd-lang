@@ -8,6 +8,9 @@ app/main/impl Log.add
   %2 = IsUnique [*$0 .lines] : ()
   %3 = Read borrow [*$0 .lines] : List[string]
   %4 = Intrinsic ListPush [%3 %1] : ()
-  %5 = Drop [$1] : ()
-  %6 = Block - : ()
+  %5 = Intrinsic ParamOwned [1:i32] : bool
+  %6 = Drop [$1] : ()
+  %7 = Block - : ()
+  %8 = If %5 [%7 -] : ()
+  %9 = Block - : ()
   exit sub 0 drops [$1]

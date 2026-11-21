@@ -10,7 +10,10 @@ app/main/later
   %6 = Block %3 : usize
   %7 = Closure #1 : fn() -> usize
   %8 = Retain %7 Operation captures #0 : ()
-  %9 = Drop [$0] : ()
-  %10 = Block %7 : fn() -> usize
+  %9 = Intrinsic ParamOwned [0:i32] : bool
+  %10 = Drop [$0] : ()
+  %11 = Block - : ()
+  %12 = If %9 [%11 -] : ()
+  %13 = Block %7 : fn() -> usize
   exit sub 0 drops [$0]
   exit sub 1 drops [$0]

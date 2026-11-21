@@ -51,6 +51,10 @@ struct Elab<'a> {
     paths: Paths,
     reason: u32,
     syn: NodeIdx,
+    /// Per local, the sub-body it is a parameter of, else `NONE`, and the
+    /// sub-body of the release being written.
+    param_of: Vec<u32>,
+    sub: u32,
 }
 
 impl Elab<'_> {
@@ -192,6 +196,10 @@ impl Elab<'_> {
                 ty = parts[(s & place::PROJ_INDEX) as usize];
             }
         }
+        // A parameter's release runs only where the instance owns it: a
+        // lent one's flags are never read (its own flag starts false).
+        let lent = matches!(self.key, Key::Local(l) if self.param_of[l as usize] == self.sub);
+        let owned = (lent && self.paths.iter().all(|p| p.1 != NONE)).then(|| self.read(NONE));
         // What a store overwrites in a cell with drop slots: its slots say
         // what is whole, under a slot's whole flag.
         let rows = match self.key {
@@ -206,7 +214,13 @@ impl Elab<'_> {
             }
             _ => self.open(&mut steps, ty)?,
         };
-        self.out.extend(rows);
+        match owned {
+            Some(c) => {
+                let guarded = self.when(c, [Some(rows), None]);
+                self.out.extend([c, guarded]);
+            }
+            None => self.out.extend(rows),
+        }
         Ok(())
     }
 
@@ -317,6 +331,21 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         *c &= cx.holds_drop(b.local_ty[l]) != super::Tri::No && read(b, cx, Key::Local(u32_of(l)));
     }
     let parts = |t, v, out: &mut Vec<Ty>| cx.drop_parts(t, v, out);
+    // A parameter is its sub-body's: the root's, unless a sub-body names it.
+    let mut param_of: Vec<u32> = (0..b.local_ty.len())
+        .map(|l| {
+            if b.local_flags[l] & local_flags::PARAM != 0 {
+                0
+            } else {
+                NONE
+            }
+        })
+        .collect();
+    for s in 1..b.sub_params.len() {
+        for &l in b.sub_param_locals(s) {
+            param_of[l as usize] = u32_of(s);
+        }
+    }
     let mut e = Elab {
         b,
         parts: &parts,
@@ -327,6 +356,8 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         paths,
         reason: 0,
         syn: NodeIdx::NONE,
+        param_of,
+        sub: 0,
     };
     let old = Some(Info::new(At::Operation, Part::Result, OVERWRITTEN));
     for x in 0..n {
@@ -358,7 +389,7 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             Tag::Block if topo.is_root[x] && ends(list(u32_of(x)).last()) => ((NONE, NONE), true),
             _ => continue,
         };
-        e.syn = e.b.syn[x];
+        (e.syn, e.sub) = (e.b.syn[x], u32_of(sub[x]));
         if site.0 == NONE {
             let returned =
                 !end && Ref(a).as_inst().is_some() && consumers.get(a as usize) != Some(&u32_of(x));
@@ -399,6 +430,8 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     {
         let root = e.b.sub_root[s];
         e.syn = e.b.syn.get(root as usize).copied().unwrap_or(NodeIdx::NONE);
+        // A frame holds a count of every parameter (`OwnCx::received`).
+        e.sub = NONE;
         for &(word, _) in exit[s].iter().filter(|&&(_, count)| count == NONE) {
             let l = word & !place::BARE_LOCAL;
             if e.b.local_flags[l as usize] & local_flags::PARAM != 0 || caps.contains(&l) {
@@ -453,6 +486,8 @@ pub fn cell_drop(b: &mut Body, x: u32, ty: Ty, parts: &Parts) -> Result<u32, Str
         paths,
         reason: super::reason::LAST_USE,
         syn,
+        param_of: Vec::new(),
+        sub: NONE,
     };
     let list = e.cell(&mut vec![place::PROJ_DEREF], ty)?;
     let list = e.b.push_record(&list);

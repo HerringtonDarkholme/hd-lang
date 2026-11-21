@@ -11,10 +11,10 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   local $0 u: UniqList[i32] [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %5 -> %6 lend last
->   %0 = Retain %18 Cold row #0 : ()
->   %1 = Retain %18 Materialize row #0 : ()
->   %2 = Release %18 FrameDrop row #2 : ()
->   %3 = Release %18 FrameDrop child #2 : ()
+>   %0 = Retain %21 Cold row #0 : ()
+>   %1 = Retain %21 Materialize row #0 : ()
+>   %2 = Release %21 FrameDrop row #2 : ()
+>   %3 = Release %21 FrameDrop child #2 : ()
 >   %4 = Box #0 #1 : ()
 >   %5 = Store [$1] 1:i64 : ()
 >   %6 = Read copy [$1] : i64
@@ -24,10 +24,13 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %10 = Scope %9 [] : Duration
 >   %11 = Await std/time/sleep[] (%10) : ()
 >   %12 = Release %11 Operation child #2 : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %14 : usize
->   %22 = Drop [$0] : ()
->   %23 = Block - : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %14 : usize
+>   %28 = Drop [$0] : ()
+>   %29 = Block - : ()
     u.len()
 >   %13 = Ref local [$0] : &UniqList[i32]
 >   %14 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%13) : usize
@@ -35,8 +38,8 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %16 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   cancel %11 releases [%2147483648 %4294967295]
->   cancel %18 releases [%2147483648]
+>   cancel %11 releases [%16 %22 %4294967295]
+>   cancel %21 releases [%2147483648]
 
 pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()

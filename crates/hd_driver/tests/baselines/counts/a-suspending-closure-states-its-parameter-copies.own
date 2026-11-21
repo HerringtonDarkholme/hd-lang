@@ -11,19 +11,22 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   local $0 text: string [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %7 -> %8 lend last
->   %0 = Retain %20 Cold local $0 #0 : ()
->   %1 = Retain %20 Entry local $0 #0 : ()
->   %2 = Retain %20 Cold row #0 : ()
->   %3 = Retain %20 Materialize row #0 : ()
->   %4 = Release %20 FrameDrop row #2 : ()
->   %5 = Release %20 FrameDrop child #2 : ()
+>   %0 = Retain %23 Cold local $0 #0 : ()
+>   %1 = Retain %23 Entry local $0 #0 : ()
+>   %2 = Retain %23 Cold row #0 : ()
+>   %3 = Retain %23 Materialize row #0 : ()
+>   %4 = Release %23 FrameDrop row #2 : ()
+>   %5 = Release %23 FrameDrop child #2 : ()
 >   %6 = Box #0 #1 : ()
->   %19 = Drop [$0] : ()
->   %20 = Block %16 : usize
->   %21 = Closure #1 : fn!(string) -> usize
->   %22 = Block %21 : fn!(string) -> usize
->   %26 = Drop [$0] : ()
->   %27 = Block - : ()
+>   %19 = Intrinsic ParamOwned [0:i32] : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Block %16 : usize
+>   %24 = Closure #1 : fn!(string) -> usize
+>   %25 = Block %24 : fn!(string) -> usize
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
         sleep!(ms(1))
 >   %7 = Store [$1] 1:i64 : ()
 >   %8 = Read copy [$1] : i64
@@ -42,5 +45,5 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary kept [] writes
->   cancel %13 releases [%2147483648 %4294967295]
->   cancel %20 releases [%2147483648]
+>   cancel %13 releases [%16 %26 %4294967295]
+>   cancel %23 releases [%2147483648]

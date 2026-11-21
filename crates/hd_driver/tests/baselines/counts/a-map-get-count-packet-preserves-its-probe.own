@@ -12,20 +12,23 @@ fn replace(values: &mut Map[string, string], key: string, value: string) -> stri
 >     uses $2: entry -> %7 consume last
 >   local $3 previous: string? [:= read assigned] value
 >     uses $3: %5 -> %12 consume last
->   %0 = Retain %19 Entry local $2 #0 : ()
+>   %0 = Retain %22 Entry local $2 #0 : ()
     previous := values.get(key)
 >   %1 = Read borrow [*$0] : Map[string, string]
 >   %2 = Read borrow [$1] : string
 >   %3 = Intrinsic MapGet [%1 %2] : string?
 >   %4 = Retain %3 Operation operand 0 #0 : ()
 >   %5 = Store [$3] %3 : ()
->   %13 = Drop [$2] : ()
->   %14 = Intrinsic ParamOwned [1:i32] : bool
->   %15 = Drop [$1] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Release %19 Exit local $1 #2 : ()
->   %19 = Block %12 : string?
+>   %13 = Intrinsic ParamOwned [2:i32] : bool
+>   %14 = Drop [$2] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Intrinsic ParamOwned [1:i32] : bool
+>   %18 = Drop [$1] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $1 #2 : ()
+>   %22 = Block %12 : string?
     values[key] = value
 >   %6 = Read borrow [$1] : string
 >   %7 = Read move [$2] : string

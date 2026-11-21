@@ -73,13 +73,16 @@ fn total(items: Erased) -> i64:
 >   local $2 sum: i64 [read assigned mutated] place
 >   local $3 x: i64 [read assigned] value
 >     uses $3: %16 -> %9 lend last
->   %0 = Retain %33 Entry local $0 #0 : ()
+>   %0 = Retain %36 Entry local $0 #0 : ()
     let mut cursor = items
 >   %1 = Read move [$0] : Erased
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %32 = Drop [$0] : ()
->   %33 = Block %31 : i64
+>   %32 = Intrinsic ParamOwned [0:i32] : bool
+>   %33 = Drop [$0] : ()
+>   %34 = Block - : ()
+>   %35 = If %32 [%34 -] : ()
+>   %36 = Block %31 : i64
     let sum: i64 = 0
 >   %4 = Store [$2] 0:i64 : ()
     while true:

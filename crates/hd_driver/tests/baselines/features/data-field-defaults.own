@@ -18,7 +18,7 @@ fn make(name: string) -> Config:
 > app/main/make
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     Config { name: name }
 >   %1 = Read move [$0] : string
 >   %2 = DefaultCall [app/main/Config.retries []] [] : i32
@@ -30,8 +30,11 @@ fn make(name: string) -> Config:
 >   %8 = Block - : List[string]
 >   %9 = Scope %8 [] : List[string]
 >   %10 = NewStruct [%2 %5 %9 %1] : Config
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : Config
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %10 : Config
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -41,8 +44,8 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >     uses $0: entry -> %2 consume last
 >   local $1 tags: List[string] [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %11 Entry local $0 #0 : ()
->   %1 = Retain %11 Entry local $1 #0 : ()
+>   %0 = Retain %17 Entry local $0 #0 : ()
+>   %1 = Retain %17 Entry local $1 #0 : ()
     Config { name, tags }
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : List[string]
@@ -51,8 +54,14 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >   %6 = Block - : string
 >   %7 = Scope %6 [] : string
 >   %8 = NewStruct [%4 %7 %3 %2] : Config
->   %9 = Drop [$0] : ()
->   %10 = Drop [$1] : ()
->   %11 = Block %8 : Config
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Intrinsic ParamOwned [1:i32] : bool
+>   %14 = Drop [$1] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Block %8 : Config
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

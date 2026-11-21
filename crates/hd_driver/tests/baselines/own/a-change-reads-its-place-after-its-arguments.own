@@ -26,7 +26,7 @@ fn add(mut bags: List[Bag], i: usize, n: i64) -> List[Bag]:
 >     uses $1: entry -> %1 lend, %9 lend last
 >   local $2 n: i64 [param read] value
 >     uses $2: entry -> %3 lend, %11 consume last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     bags[i].items.push(twice(n))
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [$0 [%1] .items] : List[i64]
@@ -36,8 +36,11 @@ fn add(mut bags: List[Bag], i: usize, n: i64) -> List[Bag]:
 >   %6 = IsUnique [$0 [%1] .items] : ()
 >   %7 = Read borrow [$0 [%1] .items] : List[i64]
 >   %8 = Intrinsic ListPush [%7 %4] : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %16 : List[Bag]
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %16 : List[Bag]
     bags[i].items.push(n)
 >   %9 = Read copy [$1] : usize
 >   %10 = Read borrow [$0 [%9] .items] : List[i64]

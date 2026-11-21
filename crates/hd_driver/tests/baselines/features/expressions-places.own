@@ -18,18 +18,27 @@ fn tuple_slot(a: string, b: string, s: string) -> (string, string):
 >     uses $2: entry -> %7 consume last
 >   local $3 p: (string, string) [read assigned mutated] value ×2
 >     uses $3: %8 -> %10 consume last
->   %0 = Retain %14 Entry local $0 #0 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
->   %2 = Retain %14 Entry local $2 #0 : ()
+>   %0 = Retain %23 Entry local $0 #0 : ()
+>   %1 = Retain %23 Entry local $1 #0 : ()
+>   %2 = Retain %23 Entry local $2 #0 : ()
     let mut p = (a, b)
 >   %3 = Read move [$0] : string
 >   %4 = Read move [$1] : string
 >   %5 = NewTuple - [%3 %4] : (string, string)
 >   %6 = Store [$3] %5 : ()
->   %11 = Drop [$0] : ()
->   %12 = Drop [$1] : ()
->   %13 = Drop [$2] : ()
->   %14 = Block %10 : (string, string)
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Intrinsic ParamOwned [2:i32] : bool
+>   %20 = Drop [$2] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Block %10 : (string, string)
     p._0 = s
 >   %7 = Read move [$2] : string
 >   %8 = Store [$3 .0] %7 : ()
@@ -67,7 +76,7 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 >     uses $2: %2 -> %5 lend last
 >   local $3 i: usize [read] value
 >     uses $3: %3 -> %4 lend last
->   %0 = Retain %20 Entry local $1 #0 : ()
+>   %0 = Retain %23 Entry local $1 #0 : ()
     pick(xs, 0).name = s
 >   %1 = Read borrow [$0] : List[*mut Node]
 >   %2 = Store [$2] %1 : ()
@@ -82,13 +91,16 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 >   %11 = Store [*%9 .name] %10 : ()
 >   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [%9] : ()
->   %14 = Drop [$1] : ()
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
+>   %14 = Intrinsic ParamOwned [1:i32] : bool
+>   %15 = Drop [$1] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
 >   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
@@ -98,12 +110,15 @@ fn deref_store(r: &mut string, s: string) -> void:
 >     uses $0: entry -> %2 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %8 Entry local $1 #0 : ()
     *r = s
 >   %1 = Read move [$1] : string
 >   %2 = Store [*$0] %1 : ()
 >   %3 = Release %2 Operation #3 : ()
->   %4 = Drop [$1] : ()
->   %5 = Block - : ()
+>   %4 = Intrinsic ParamOwned [1:i32] : bool
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

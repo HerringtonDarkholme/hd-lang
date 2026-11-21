@@ -92,13 +92,13 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >     uses $4: none
 >   local $5 i: i64 [read assigned] value
 >     uses $5: %18 -> %27 lend last
->   %0 = Retain %45 Cold local $1 #0 : ()
->   %1 = Retain %45 Entry local $1 #0 : ()
+>   %0 = Retain %48 Cold local $1 #0 : ()
+>   %1 = Retain %48 Entry local $1 #0 : ()
     for i in 0..n:
->   %2 = Retain %45 Cold row #0 : ()
->   %3 = Retain %45 Materialize row #0 : ()
->   %4 = Release %45 FrameDrop row #2 : ()
->   %5 = Release %45 FrameDrop child #2 : ()
+>   %2 = Retain %48 Cold row #0 : ()
+>   %3 = Retain %48 Materialize row #0 : ()
+>   %4 = Release %48 FrameDrop row #2 : ()
+>   %5 = Release %48 FrameDrop child #2 : ()
 >   %6 = Read copy [$0] : i64
 >   %7 = NewStruct [0:i64 %6 0:bool] : Range[i64]
 >   %8 = Read copy [%7 .start] : i64
@@ -122,10 +122,13 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %41 = Block - : ()
 >   %42 = Loop %41 - : ()
 >   %43 = Drop [$1] : ()
->   %44 = Drop [$1] : ()
->   %45 = Block - : ()
->   %50 = Drop [$1] : ()
->   %51 = Block - : ()
+>   %44 = Intrinsic ParamOwned [1:i32] : bool
+>   %45 = Drop [$1] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Block - : ()
+>   %56 = Drop [$1] : ()
+>   %57 = Block - : ()
         $.use(Meter).record(i)
 >   %22 = ProviderGet #22 : Meter
 >   %23 = Coerce %22 [ProviderAsRef -] : &mut dyn Meter
@@ -145,8 +148,8 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %36 = Drop [%31] : ()
 >   exit sub 0 drops [$1]
 >   summary none
->   cancel %33 releases [%31 %2147483649 %4294967295]
->   cancel %45 releases [%2147483649]
+>   cancel %33 releases [%31 %16 %50 %4294967295]
+>   cancel %48 releases [%2147483649]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })

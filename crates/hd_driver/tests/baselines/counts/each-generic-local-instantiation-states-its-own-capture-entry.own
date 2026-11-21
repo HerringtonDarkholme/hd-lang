@@ -10,14 +10,17 @@ fn generic(captured: string) -> (fn(i32) -> (string, i32), fn(string) -> (string
 > app/main/generic
 >   local $0 captured: string [param read captured] value
 >     uses $0: entry -> %1 consume, %3 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     fn pair[T](value: T) -> (string, T):
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : (fn(i32) -> (string, i32), fn(string) -> (string, string))
->   %8 = Retain %11 Entry captures #0 : ()
->   %9 = Drop [$0] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Block %5 : (fn(i32) -> (string, i32), fn(string) -> (string, string))
+>   %11 = Retain %14 Entry captures #0 : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
 > app/main/generic#1
 >   local $0 captured: string [read captured] value
 >     uses $0: entry -> %1 consume, %6 consume last
@@ -65,8 +68,11 @@ fn counter() -> (fn!() -> usize):
 >   %15 = Closure #1 : fn!() -> usize
 >   %16 = Retain %15 Operation captures #0 : ()
 >   %17 = Drop [$0] : ()
->   %20 = Drop [$0] : ()
->   %21 = Block - : ()
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Block - : ()
         count += 1
 >   %7 = Read copy [$0] : usize
 >   %8 = Prim Add [%7 1:usize] : usize
@@ -79,7 +85,7 @@ fn counter() -> (fn!() -> usize):
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
->   cancel %14 releases [%2147483648]
+>   cancel %14 releases [%16 %20]
 
 fn framed() -> usize:
     let count: usize = 0

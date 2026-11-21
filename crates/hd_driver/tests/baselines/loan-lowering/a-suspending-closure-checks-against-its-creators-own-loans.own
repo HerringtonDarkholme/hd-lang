@@ -14,10 +14,10 @@ fn run!(f: fn!() -> void) -> void:
 > app/main/run
 >   local $0 f: fn!() -> () [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = Retain %11 Cold local $0 #0 : ()
->   %1 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
     f!()
->   %2 = Release %11 FrameDrop child #2 : ()
+>   %2 = Release %14 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : fn!() -> ()
 >   %4 = CallValue %3 [] : Suspend[()]
 >   %5 = AwaitValue %4 : ()
@@ -25,13 +25,16 @@ fn run!(f: fn!() -> void) -> void:
 >   %7 = Retain %5 Operation child #0 : ()
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %17 = Drop [$0] : ()
->   %18 = Block - : ()
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Block - : ()
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
 >   exit sub 0 drops [$0]
->   cancel %5 releases [%3 %4 %2147483648 %4294967295]
->   cancel %11 releases [%2147483648]
+>   cancel %5 releases [%3 %4 %16 %17 %4294967295]
+>   cancel %14 releases [%2147483648]
 
 fn run_plain(f: fn() -> void) -> void:
     f()
@@ -106,9 +109,15 @@ pub fn main!() -> void $ Console:
 >   %44 = Retain %43 Operation captures #0 : ()
 >   %45 = Await app/main/run[] (%43) : ()
 >   %46 = Release %45 Operation child #2 : ()
->   %79 = Drop [$1] : ()
->   %80 = Drop [$3] : ()
->   %81 = Block - : ()
+>   %85 = Intrinsic ParamOwned [1:i32] : bool
+>   %86 = Drop [$1] : ()
+>   %87 = Block - : ()
+>   %88 = If %85 [%87 -] : ()
+>   %89 = Intrinsic ParamOwned [3:i32] : bool
+>   %90 = Drop [$3] : ()
+>   %91 = Block - : ()
+>   %92 = If %89 [%91 -] : ()
+>   %93 = Block - : ()
         p.value = "c"
 >   %35 = Store [*$1 .value] "c" : ()
 >   %36 = Release %35 Operation #3 : ()
@@ -145,9 +154,9 @@ pub fn main!() -> void $ Console:
 >   storage sub 0: $0 cell, $3 cell
 >   storage sub 1: $0 cell, $3 cell
 >   storage sub 2: $0 cell, $3 cell
->   cancel %42 releases [%2147483649 %2147483651]
+>   cancel %42 releases [%16 %85 %16 %89]
 >   cancel %45 releases [%2147483649 %2147483650 %2147483651 %4294967295]
->   cancel %70 releases [%2147483649 %2147483651]
+>   cancel %70 releases [%16 %76 %16 %80]
 == @build: release
 # @dump: stdout own
 # @build: dev | release
@@ -163,10 +172,10 @@ fn run!(f: fn!() -> void) -> void:
 > app/main/run
 >   local $0 f: fn!() -> () [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = Retain %11 Cold local $0 #0 : ()
->   %1 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
     f!()
->   %2 = Release %11 FrameDrop child #2 : ()
+>   %2 = Release %14 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : fn!() -> ()
 >   %4 = CallValue %3 [] : Suspend[()]
 >   %5 = AwaitValue %4 : ()
@@ -174,14 +183,17 @@ fn run!(f: fn!() -> void) -> void:
 >   %7 = Retain %5 Operation child #0 : ()
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %17 = Drop [$0] : ()
->   %18 = Block - : ()
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Block - : ()
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %5 releases [%3 %4 %2147483648 %4294967295]
->   cancel %11 releases [%2147483648]
+>   cancel %5 releases [%3 %4 %16 %17 %4294967295]
+>   cancel %14 releases [%2147483648]
 
 fn run_plain(f: fn() -> void) -> void:
     f()
@@ -262,9 +274,15 @@ pub fn main!() -> void $ Console:
 >   %48 = Retain %47 Operation captures #0 : ()
 >   %49 = Await app/main/run[] (%47) : ()
 >   %50 = Release %49 Operation child #2 : ()
->   %83 = Drop [$1] : ()
->   %84 = Drop [$6] : ()
->   %85 = Block - : ()
+>   %89 = Intrinsic ParamOwned [1:i32] : bool
+>   %90 = Drop [$1] : ()
+>   %91 = Block - : ()
+>   %92 = If %89 [%91 -] : ()
+>   %93 = Intrinsic ParamOwned [6:i32] : bool
+>   %94 = Drop [$6] : ()
+>   %95 = Block - : ()
+>   %96 = If %93 [%95 -] : ()
+>   %97 = Block - : ()
         p.value = "c"
 >   %39 = Store [*$1 .value] "c" : ()
 >   %40 = Release %39 Operation #3 : ()
@@ -301,6 +319,6 @@ pub fn main!() -> void $ Console:
 >   storage sub 1: $0 cell, $6 cell
 >   storage sub 2: $0 cell, $6 cell
 >   summary none
->   cancel %46 releases [%2147483649 %2147483654]
+>   cancel %46 releases [%16 %89 %16 %93]
 >   cancel %49 releases [%2147483649 %2147483650 %2147483654 %4294967295]
->   cancel %74 releases [%2147483649 %2147483654]
+>   cancel %74 releases [%16 %80 %16 %84]

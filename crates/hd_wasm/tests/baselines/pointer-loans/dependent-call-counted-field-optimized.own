@@ -31,7 +31,7 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >     uses $3: %10 -> %14 lend last
 >   local $4 p: &P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %30 Entry local $2 #0 : ()
+>   %0 = Retain %33 Entry local $2 #0 : ()
     d := name_of(h.p)
 >   %1 = Ref local [*$0 .p *] : &P
 >   %2 = LoanBegin %1 #0 : ()
@@ -43,18 +43,21 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %8 = Scope %7 [] : &string
 >   %9 = LoanEnd [$4] : ()
 >   %10 = Store [$3] %8 : ()
->   %19 = Drop [$2] : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Release %30 Exit local $0 #2 : ()
->   %25 = Intrinsic ParamOwned [1:i32] : bool
->   %26 = Drop [$1] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Release %30 Exit local $1 #2 : ()
->   %30 = Block %14 : string
+>   %19 = Intrinsic ParamOwned [2:i32] : bool
+>   %20 = Drop [$2] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Intrinsic ParamOwned [0:i32] : bool
+>   %24 = Drop [$0] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %33 Exit local $0 #2 : ()
+>   %28 = Intrinsic ParamOwned [1:i32] : bool
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Release %33 Exit local $1 #2 : ()
+>   %33 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *P
 >   %12 = Store [*$1 .p] %11 : ()
@@ -94,7 +97,7 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >     uses $3: %10 -> %14 lend last
 >   local $4 p: &mut P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %30 Entry local $2 #0 : ()
+>   %0 = Retain %33 Entry local $2 #0 : ()
     d := name_mut(h.p)
 >   %1 = Ref mut local [*$0 .p *] : &mut P
 >   %2 = LoanBegin %1 #1 : ()
@@ -106,18 +109,21 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %8 = Scope %7 [] : &mut string
 >   %9 = LoanEnd [$4] : ()
 >   %10 = Store [$3] %8 : ()
->   %19 = Drop [$2] : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Release %30 Exit local $0 #2 : ()
->   %25 = Intrinsic ParamOwned [1:i32] : bool
->   %26 = Drop [$1] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Release %30 Exit local $1 #2 : ()
->   %30 = Block %14 : string
+>   %19 = Intrinsic ParamOwned [2:i32] : bool
+>   %20 = Drop [$2] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Intrinsic ParamOwned [0:i32] : bool
+>   %24 = Drop [$0] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %33 Exit local $0 #2 : ()
+>   %28 = Intrinsic ParamOwned [1:i32] : bool
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Release %33 Exit local $1 #2 : ()
+>   %33 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *mut P
 >   %12 = Store [*$1 .p] %11 : ()

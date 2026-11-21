@@ -54,12 +54,15 @@ fn wrap(items: List[string]) -> Bag:
 > app/main/wrap
 >   local $0 items: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
     Bag { items: items, n: 0 }
 >   %1 = Read move [$0] : List[string]
 >   %2 = NewStruct [%1 0:i64] : Bag
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : Bag
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Block %2 : Bag
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -83,14 +86,17 @@ fn add(all: &mut List[Bag], b: Bag) -> void:
 >     uses $0: entry -> %3 lend last
 >   local $1 b: Bag [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %6 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $1 #0 : ()
     all.push(b)
 >   %1 = Read move [$1] : Bag
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Read borrow [*$0] : List[Bag]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Drop [$1] : ()
->   %6 = Block - : ()
+>   %5 = Intrinsic ParamOwned [1:i32] : bool
+>   %6 = Drop [$1] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -98,7 +104,7 @@ fn later(b: Bag) -> fn() -> usize:
 > app/main/later
 >   local $0 b: Bag [param read captured] value
 >     uses $0: entry -> %2 lend, %7 consume last
->   %1 = Retain %10 Entry local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
     fn() -> usize: b.items.len()
 >   %0 = Retain %6 Entry captures #0 : ()
 >   %2 = Read move [$0 .items] : List[string]
@@ -108,8 +114,11 @@ fn later(b: Bag) -> fn() -> usize:
 >   %6 = Block %3 : usize
 >   %7 = Closure #1 : fn() -> usize
 >   %8 = Retain %7 Operation captures #0 : ()
->   %9 = Drop [$0] : ()
->   %10 = Block %7 : fn() -> usize
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Block %7 : fn() -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

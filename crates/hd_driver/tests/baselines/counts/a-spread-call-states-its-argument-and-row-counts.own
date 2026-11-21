@@ -39,7 +39,7 @@ fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) 
 >     uses $0: entry -> %1 lend last
 >   local $1 values: (string, List[i32]) [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Retain %18 Entry local $1 #0 : ()
+>   %0 = Retain %21 Entry local $1 #0 : ()
     call(f, values)
 >   %1 = Read borrow [$0] : fn(string, List[i32]) -> usize
 >   %2 = Read move [$1] : (string, List[i32])
@@ -52,13 +52,16 @@ fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) 
 >   %9 = Break L0 %3 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Drop [$1] : ()
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %11 : usize
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $0 #2 : ()
+>   %21 = Block %11 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 

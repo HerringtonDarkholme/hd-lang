@@ -815,15 +815,18 @@ fn param(p: string) -> string:
 >     uses $10: %26 -> %27 lend last
 >   local $11 value: string [read] value
 >     uses $11: %14 -> %15 lend last
->   %0 = Retain %94 Entry local $0 #0 : ()
+>   %0 = Retain %97 Entry local $0 #0 : ()
     let mut q = p
 >   %1 = Read copy [$0] : string
 >   %2 = Retain %1 Value #0 : ()
 >   %3 = Box #1 #1 : ()
 >   %4 = Store [$1] %1 : ()
->   %92 = Drop [$0] : ()
->   %93 = Drop [$1] : ()
->   %94 = Block %90 : string
+>   %92 = Intrinsic ParamOwned [0:i32] : bool
+>   %93 = Drop [$0] : ()
+>   %94 = Block - : ()
+>   %95 = If %92 [%94 -] : ()
+>   %96 = Drop [$1] : ()
+>   %97 = Block %90 : string
     bang(&mut q)
 >   %5 = Ref mut local [$1] : &mut string
 >   %6 = LoanBegin %5 #1 : ()

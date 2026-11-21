@@ -45,12 +45,15 @@ fn compound(a: string) -> string:
 >     uses $0: entry -> %1 consume last
 >   local $1 s: string [read assigned mutated] value ×2
 >     uses $1: %2 -> %3 lend last; %5 -> %7 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     let s = a
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %1 : ()
->   %8 = Drop [$0] : ()
->   %9 = Block %7 : string
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Block %7 : string
     s += "x"
 >   %3 = Read borrow [$1] : string
 >   %4 = Intrinsic StrConcat [%3 "x"] : string

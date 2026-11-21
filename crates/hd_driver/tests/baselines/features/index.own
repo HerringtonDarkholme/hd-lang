@@ -59,15 +59,18 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %7 Entry local $2 #0 : ()
+>   %0 = Retain %10 Entry local $2 #0 : ()
     xs[i] = s
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Store [*$0 [%1]] %2 : ()
 >   %5 = Release %4 Operation #3 : ()
->   %6 = Drop [$2] : ()
->   %7 = Block - : ()
+>   %6 = Intrinsic ParamOwned [2:i32] : bool
+>   %7 = Drop [$2] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
@@ -121,7 +124,7 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %13 Entry local $2 #0 : ()
+>   %0 = Retain %16 Entry local $2 #0 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
@@ -129,13 +132,16 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >   %4 = Read borrow [*$0] : Map[string, string]
 >   %5 = Intrinsic MapSet [%4 %1 %2] : ()
 >   %6 = Retain %5 Operation operand 1 #0 : ()
->   %7 = Drop [$2] : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Drop [$1] : ()
->   %10 = Block - : ()
->   %11 = If %8 [%10 -] : ()
->   %12 = Release %13 Exit local $1 #2 : ()
+>   %7 = Intrinsic ParamOwned [2:i32] : bool
+>   %8 = Drop [$2] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Intrinsic ParamOwned [1:i32] : bool
+>   %12 = Drop [$1] : ()
 >   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %16 Exit local $1 #2 : ()
+>   %16 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
@@ -215,7 +221,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >     uses $5: %4 -> %5 lend, %12 consume last
 >   local $7 index: usize [read] value
 >     uses $7: %13 -> %16 lend last
->   %0 = Retain %48 Entry local $2 #0 : ()
+>   %0 = Retain %51 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -250,8 +256,11 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %44 = Match %29 [%43 %33 %35] : ()
 >   %45 = LoanEnd [%29] : ()
 >   %46 = Drop [$2] : ()
->   %47 = Drop [$2] : ()
->   %48 = Block - : ()
+>   %47 = Intrinsic ParamOwned [2:i32] : bool
+>   %48 = Drop [$2] : ()
+>   %49 = Block - : ()
+>   %50 = If %47 [%49 -] : ()
+>   %51 = Block - : ()
         .Some(r) => *r = s
 >   %30 = Read move [$2] : string
 >   %31 = Store [*$3] %30 : ()

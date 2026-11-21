@@ -33,14 +33,20 @@ fn rewarded(players: List[Player], best: usize, s: string) -> List[Player]:
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %14 consume last
 >   local $3 out: List[Player] [read assigned] place
->   %0 = Retain %22 Entry local $0 #0 : ()
->   %1 = Retain %22 Entry local $2 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
+>   %1 = Retain %28 Entry local $2 #0 : ()
     let mut out = players
 >   %2 = Read move [$0] : List[Player]
 >   %3 = Store [$3] %2 : ()
->   %20 = Drop [$0] : ()
->   %21 = Drop [$2] : ()
->   %22 = Block %19 : List[Player]
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Intrinsic ParamOwned [2:i32] : bool
+>   %25 = Drop [$2] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Block %19 : List[Player]
     reward(&mut out[best], 10)
 >   %4 = Read copy [$1] : usize
 >   %5 = IsUnique [$3] : ()
@@ -71,17 +77,20 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %4 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
     let mut out = m
 >   %1 = Read move [$0] : Map[string, Player]
 >   %2 = Store [$2] %1 : ()
->   %11 = Drop [$0] : ()
->   %12 = Intrinsic ParamOwned [1:i32] : bool
->   %13 = Drop [$1] : ()
->   %14 = Block - : ()
->   %15 = If %12 [%14 -] : ()
->   %16 = Release %17 Exit local $1 #2 : ()
->   %17 = Block %10 : Map[string, Player]
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $1 #2 : ()
+>   %20 = Block %10 : Map[string, Player]
     reward(&mut out[k], 10)
 >   %3 = Read borrow [$2] : Map[string, Player]
 >   %4 = Read borrow [$1] : string

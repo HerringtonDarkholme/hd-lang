@@ -27,7 +27,10 @@ app/main/holds
   %24 = Drop [$2] : ()
   %25 = Drop [%4] : ()
   %26 = Drop [$1] : ()
-  %27 = Drop [$1] : ()
-  %28 = Block %23 : bool
+  %27 = Intrinsic ParamOwned [1:i32] : bool
+  %28 = Drop [$1] : ()
+  %29 = Block - : ()
+  %30 = If %27 [%29 -] : ()
+  %31 = Block %23 : bool
   exit sub 0 drops [$1]
   storage sub 0: $1 slot, $2 slot

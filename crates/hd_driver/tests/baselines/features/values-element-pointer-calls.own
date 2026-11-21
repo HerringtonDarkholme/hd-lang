@@ -99,14 +99,17 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 >     uses $0: entry -> %1 consume last
 >   local $1 k: &mut Keeper [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
     k.saved.push(n)
 >   %1 = Read move [$0] : *Node
 >   %2 = IsUnique [*$1 .saved] : ()
 >   %3 = Read borrow [*$1 .saved] : List[*Node]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block - : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

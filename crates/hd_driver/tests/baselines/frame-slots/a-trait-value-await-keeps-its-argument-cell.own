@@ -20,21 +20,21 @@ impl Sizer for Plain:
 >     uses $1: entry -> %23 lend last
 >   local $2 count: i64 [read] value
 >     uses $2: %15 -> %16 lend last
->   %0 = Retain %28 Cold local $0 #0 : ()
->   %1 = Retain %28 Entry local $0 #0 : ()
->   %2 = Retain %28 Cold local $1 #0 : ()
->   %3 = Retain %28 Entry local $1 #0 : ()
->   %7 = Retain %28 Cold referent $0 #8 : ()
->   %8 = Release %28 FrameDrop referent $0 #2 : ()
->   %9 = Release %28 Exit referent $0 #8 : ()
->   %10 = Retain %28 Cold referent $1 #8 : ()
->   %11 = Release %28 FrameDrop referent $1 #2 : ()
->   %12 = Release %28 Exit referent $1 #8 : ()
+>   %0 = Retain %34 Cold local $0 #0 : ()
+>   %1 = Retain %34 Entry local $0 #0 : ()
+>   %2 = Retain %34 Cold local $1 #0 : ()
+>   %3 = Retain %34 Entry local $1 #0 : ()
+>   %7 = Retain %34 Cold referent $0 #8 : ()
+>   %8 = Release %34 FrameDrop referent $0 #2 : ()
+>   %9 = Release %34 Exit referent $0 #8 : ()
+>   %10 = Retain %34 Cold referent $1 #8 : ()
+>   %11 = Release %34 FrameDrop referent $1 #2 : ()
+>   %12 = Release %34 Exit referent $1 #8 : ()
         sleep!(ms(1))
->   %4 = Retain %28 Cold row #0 : ()
->   %5 = Retain %28 Materialize row #0 : ()
->   %6 = Release %28 FrameDrop row #2 : ()
->   %13 = Release %28 FrameDrop child #2 : ()
+>   %4 = Retain %34 Cold row #0 : ()
+>   %5 = Retain %34 Materialize row #0 : ()
+>   %6 = Release %34 FrameDrop row #2 : ()
+>   %13 = Release %34 FrameDrop child #2 : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Store [$2] 1:i64 : ()
 >   %16 = Read copy [$2] : i64
@@ -44,19 +44,25 @@ impl Sizer for Plain:
 >   %20 = Scope %19 [] : Duration
 >   %21 = Await std/time/sleep[] (%20) : ()
 >   %22 = Release %21 Operation child #2 : ()
->   %26 = Drop [$0] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block %24 : usize
->   %33 = Drop [$0] : ()
->   %34 = Drop [$1] : ()
->   %35 = Block - : ()
+>   %26 = Intrinsic ParamOwned [0:i32] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Intrinsic ParamOwned [1:i32] : bool
+>   %31 = Drop [$1] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Block %24 : usize
+>   %45 = Drop [$0] : ()
+>   %46 = Drop [$1] : ()
+>   %47 = Block - : ()
         text.len()
 >   %23 = Read move [$1] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
 >   %25 = Drop [%23] : ()
 >   exit sub 0 drops [$0 $1]
->   cancel %21 releases [%2147483648 %2147483649 %4294967295]
->   cancel %28 releases [%2147483648 %2147483649]
+>   cancel %21 releases [%16 %35 %16 %39 %4294967295]
+>   cancel %34 releases [%2147483648 %2147483649]
 
 fn known!(text: &string) -> usize $ Clock:
 > app/main/known
@@ -64,16 +70,16 @@ fn known!(text: &string) -> usize $ Clock:
 >     uses $0: entry -> %17 lend last
 >   local $1 count: i64 [read] value
 >     uses $1: %9 -> %10 lend last
->   %0 = Retain %21 Cold local $0 #0 : ()
->   %1 = Retain %21 Entry local $0 #0 : ()
->   %5 = Retain %21 Cold referent $0 #8 : ()
->   %6 = Release %21 FrameDrop referent $0 #2 : ()
->   %7 = Release %21 Exit referent $0 #8 : ()
+>   %0 = Retain %24 Cold local $0 #0 : ()
+>   %1 = Retain %24 Entry local $0 #0 : ()
+>   %5 = Retain %24 Cold referent $0 #8 : ()
+>   %6 = Release %24 FrameDrop referent $0 #2 : ()
+>   %7 = Release %24 Exit referent $0 #8 : ()
     sleep!(ms(1))
->   %2 = Retain %21 Cold row #0 : ()
->   %3 = Retain %21 Materialize row #0 : ()
->   %4 = Release %21 FrameDrop row #2 : ()
->   %8 = Release %21 FrameDrop child #2 : ()
+>   %2 = Retain %24 Cold row #0 : ()
+>   %3 = Retain %24 Materialize row #0 : ()
+>   %4 = Release %24 FrameDrop row #2 : ()
+>   %8 = Release %24 FrameDrop child #2 : ()
 >   %9 = Store [$1] 1:i64 : ()
 >   %10 = Read copy [$1] : i64
 >   %11 = Call std/time/impl Duration.milliseconds[] (%10) : Duration
@@ -82,17 +88,20 @@ fn known!(text: &string) -> usize $ Clock:
 >   %14 = Scope %13 [] : Duration
 >   %15 = Await std/time/sleep[] (%14) : ()
 >   %16 = Release %15 Operation child #2 : ()
->   %20 = Drop [$0] : ()
->   %21 = Block %18 : usize
->   %25 = Drop [$0] : ()
->   %26 = Block - : ()
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Block %18 : usize
+>   %31 = Drop [$0] : ()
+>   %32 = Block - : ()
     text.len()
 >   %17 = Read move [$0] : &string
 >   %18 = Call std/text/impl string.len[] (%17) : usize
 >   %19 = Drop [%17] : ()
 >   exit sub 0 drops [$0]
->   cancel %15 releases [%2147483648 %4294967295]
->   cancel %21 releases [%2147483648]
+>   cancel %15 releases [%16 %25 %4294967295]
+>   cancel %24 releases [%2147483648]
 
 fn through_known!(n: usize) -> usize $ Clock:
     let text = "k".repeat(n)
@@ -129,25 +138,28 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %9 lend last
 >   local $2 text: string [read assigned captured] place
->   %0 = Retain %24 Cold local $0 #0 : ()
->   %1 = Retain %24 Entry local $0 #0 : ()
->   %5 = Retain %24 Cold referent $0 #8 : ()
->   %6 = Release %24 FrameDrop referent $0 #2 : ()
->   %7 = Release %24 Exit referent $0 #8 : ()
+>   %0 = Retain %27 Cold local $0 #0 : ()
+>   %1 = Retain %27 Entry local $0 #0 : ()
+>   %5 = Retain %27 Cold referent $0 #8 : ()
+>   %6 = Release %27 FrameDrop referent $0 #2 : ()
+>   %7 = Release %27 Exit referent $0 #8 : ()
     let text = "v".repeat(n)
->   %2 = Retain %24 Cold row #0 : ()
->   %3 = Retain %24 Materialize row #0 : ()
->   %4 = Release %24 FrameDrop row #2 : ()
->   %8 = Release %24 FrameDrop child #2 : ()
+>   %2 = Retain %27 Cold row #0 : ()
+>   %3 = Retain %27 Materialize row #0 : ()
+>   %4 = Release %27 FrameDrop row #2 : ()
+>   %8 = Release %27 FrameDrop child #2 : ()
 >   %9 = Read copy [$1] : usize
 >   %10 = Call std/text/impl string.repeat[] ("v", %9) : string
 >   %11 = Box #2 #1 : ()
 >   %12 = Store [$2] %10 : ()
->   %22 = Drop [$0] : ()
->   %23 = Drop [$2] : ()
->   %24 = Block %15 : usize
->   %30 = Drop [$0] : ()
->   %31 = Block - : ()
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Drop [$2] : ()
+>   %27 = Block %15 : usize
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
     sizer.size!(&text)
 >   %13 = Read borrow [*$0] : Sizer
 >   %14 = Ref local [$2] : &string
@@ -160,8 +172,8 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   %21 = Drop [$0] : ()
 >   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 cell
->   cancel %15 releases [%14 %2147483648 %2147483650 %4294967295]
->   cancel %24 releases [%2147483648]
+>   cancel %15 releases [%14 %16 %29 %2147483650 %4294967295]
+>   cancel %27 releases [%2147483648]
 
 pub fn main!() -> void $ Console + Clock:
     let plain = Plain {}

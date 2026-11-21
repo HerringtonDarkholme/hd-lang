@@ -167,6 +167,8 @@ fn empty_controls() -> void:
     assert_equal(read_empty(empty_size, EmptyResource {}), 0)
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
     inspect := fn(value: EmptyResource) -> usize: 0
+> std/rt_tests.stage_case/empty_controls
+>   release std.rt_tests.stage_case.EmptyResource (last use)
     assert_equal(read_empty(inspect, EmptyResource {}), 0)
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
     seen := box(+0)

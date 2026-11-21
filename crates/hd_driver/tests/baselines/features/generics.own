@@ -9,11 +9,14 @@ fn ident[T](x: T) -> T:
 > app/main/ident
 >   local $0 x: T [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
     x
 >   %1 = Read move [$0] : T
->   %2 = Drop [$0] : ()
->   %3 = Block %1 : T
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Block %1 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
@@ -21,7 +24,7 @@ fn first[T](xs: List[T]) -> T?:
 > app/main/first
 >   local $0 xs: List[T] [param read] value
 >     uses $0: entry -> %1 lend, %4 lend last
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     if xs.len() > 0: .Some(xs[0]) else: .None
 >   %1 = Read borrow [$0] : List[T]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -34,8 +37,11 @@ fn first[T](xs: List[T]) -> T?:
 >   %9 = Block %8 : T?
 >   %10 = If %3 [%7 %9] : T?
 >   %11 = Drop [$0] : ()
->   %12 = Drop [$0] : ()
->   %13 = Block %10 : T?
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Block %10 : T?
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -55,12 +61,15 @@ fn keep[T](x: T) -> List[T]:
 >     uses $0: entry -> %3 consume last
 >   local $1 out: List[T] [read assigned] value
 >     uses $1: %2 -> %5 lend, %7 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     let mut out: List[T] = []
 >   %1 = NewList - [] : List[T]
 >   %2 = Store [$1] %1 : ()
->   %8 = Drop [$0] : ()
->   %9 = Block %7 : List[T]
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Block %7 : List[T]
     out.push(x)
 >   %3 = Read move [$0] : T
 >   %4 = IsUnique fresh [$1] : ()
@@ -90,8 +99,8 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >     uses $10: %24 -> %25 lend, %28 lend last
 >   local $11 xs: &List[string] [read] value
 >     uses $11: %15 -> %16 lend last
->   %0 = Retain %80 Entry local $0 #0 : ()
->   %1 = Retain %80 Entry local $1 #0 : ()
+>   %0 = Retain %86 Entry local $0 #0 : ()
+>   %1 = Retain %86 Entry local $1 #0 : ()
     ident(s).len() + size(&xs) + first(xs).unwrap_or("").len() + keep(s).len()
 >   %2 = Box #1 #0 : ()
 >   %3 = Read borrow [$0] : string
@@ -166,9 +175,15 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %75 = Intrinsic ListLen [%74] : usize
 >   %76 = Drop [%74] : ()
 >   %77 = Prim Add [%64 %75] : usize
->   %78 = Drop [$0] : ()
->   %79 = Drop [$1] : ()
->   %80 = Block %77 : usize
+>   %78 = Intrinsic ParamOwned [0:i32] : bool
+>   %79 = Drop [$0] : ()
+>   %80 = Block - : ()
+>   %81 = If %78 [%80 -] : ()
+>   %82 = Intrinsic ParamOwned [1:i32] : bool
+>   %83 = Drop [$1] : ()
+>   %84 = Block - : ()
+>   %85 = If %82 [%84 -] : ()
+>   %86 = Block %77 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $1 slot
 >   summary kept [$0 $1]

@@ -21,11 +21,14 @@ impl Tag for Named:
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
         self.label
 >   %1 = Read move [$0 .label] : string
->   %2 = Drop [$0] : ()
->   %3 = Block %1 : string
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -33,19 +36,22 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %6 Cold local $0 #0 : ()
->   %1 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %9 Cold local $0 #0 : ()
+>   %1 = Retain %9 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "?"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block %3 : string
->   %7 = Drop [$0] : ()
->   %8 = Block - : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block %3 : string
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %6 releases [%2147483648]
+>   cancel %9 releases [%2147483648]
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
@@ -77,18 +83,21 @@ fn later!(key: string) -> usize:
 >   local $1 pending: Suspend[string] [read assigned] value
 >     uses $1: %5 -> %6 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Cold local $0 #0 : ()
+>   %1 = Retain %21 Entry local $0 #0 : ()
     let mut pending = fetch(key)
->   %2 = Release %18 FrameDrop child #2 : ()
+>   %2 = Release %21 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Store [$1] %4 : ()
 >   %11 = Box #2 #1 : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %14 : usize
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %14 : usize
+>   %29 = Drop [$0] : ()
+>   %30 = Block - : ()
     pending!().len()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = AwaitValue %6 : string
@@ -103,8 +112,8 @@ fn later!(key: string) -> usize:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary none
->   cancel %7 releases [%6 %2147483648 %4294967295]
->   cancel %18 releases [%2147483648]
+>   cancel %7 releases [%6 %16 %23 %4294967295]
+>   cancel %21 releases [%2147483648]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
@@ -112,7 +121,7 @@ fn blocking(key: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 v: string [read assigned] value
 >     uses $1: %13 -> %5 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Retain %26 Entry local $0 #0 : ()
     match block_on(fetch(key)):
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
@@ -121,8 +130,11 @@ fn blocking(key: string) -> usize:
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %10 %11] : usize
 >   %21 = Drop [%3] : ()
->   %22 = Drop [$0] : ()
->   %23 = Block %20 : usize
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Block %20 : usize
         .Completed(v) => v.len()
 >   %5 = Read borrow [$1] : string
 >   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
@@ -143,13 +155,16 @@ fn discard(key: string) -> usize:
 > app/main/discard
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     _ := fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Drop [%2] : ()
->   %4 = Drop [$0] : ()
->   %5 = Block 0:usize : usize
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block 0:usize : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
     0
@@ -163,10 +178,10 @@ fn bound!(s: string) -> usize:
 >   local $2 provider: Named [read] value
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %32 Cold local $0 #0 : ()
->   %1 = Retain %32 Entry local $0 #0 : ()
+>   %0 = Retain %35 Cold local $0 #0 : ()
+>   %1 = Retain %35 Entry local $0 #0 : ()
     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
->   %2 = Release %32 FrameDrop child #2 : ()
+>   %2 = Release %35 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = NewStruct [%3] : Named
 >   %5 = Store [$2] %4 : ()
@@ -188,10 +203,13 @@ fn bound!(s: string) -> usize:
 >   %23 = With [Tag %19] %22 : Suspend[usize]
 >   %24 = Drop [%19] : ()
 >   %25 = Store [$1] %23 : ()
->   %31 = Drop [$0] : ()
->   %32 = Block %27 : usize
->   %37 = Drop [$0] : ()
->   %38 = Block - : ()
+>   %31 = Intrinsic ParamOwned [0:i32] : bool
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
+>   %34 = If %31 [%33 -] : ()
+>   %35 = Block %27 : usize
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
         tagged()
 >   %21 = Call app/main/tagged[] () : Suspend[usize]
 >   %22 = Block %21 : Suspend[usize]
@@ -204,5 +222,5 @@ fn bound!(s: string) -> usize:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell
 >   summary none
->   cancel %27 releases [%26 %2147483648 %4294967295]
->   cancel %32 releases [%2147483648]
+>   cancel %27 releases [%26 %16 %37 %4294967295]
+>   cancel %35 releases [%2147483648]

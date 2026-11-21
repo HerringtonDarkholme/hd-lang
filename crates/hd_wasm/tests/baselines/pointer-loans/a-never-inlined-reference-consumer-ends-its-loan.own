@@ -104,14 +104,17 @@ impl Slots:
 >     uses $0: entry -> %3 lend last
 >   local $1 value: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %6 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $1 #0 : ()
         self.items.push(value)
 >   %1 = Read move [$1] : string
 >   %2 = IsUnique [*$0 .items] : ()
 >   %3 = Read borrow [*$0 .items] : List[string]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Drop [$1] : ()
->   %6 = Block - : ()
+>   %5 = Intrinsic ParamOwned [1:i32] : bool
+>   %6 = Drop [$1] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$1]
 
     fn remove_at(&mut self, index: usize) -> string:
@@ -183,13 +186,16 @@ fn set(slot: &mut string, value: string) -> void:
 >     uses $0: entry -> %2 lend last
 >   local $1 value: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %8 Entry local $1 #0 : ()
     *slot = value
 >   %1 = Read move [$1] : string
 >   %2 = Store [*$0] %1 : ()
 >   %3 = Release %2 Operation #3 : ()
->   %4 = Drop [$1] : ()
->   %5 = Block - : ()
+>   %4 = Intrinsic ParamOwned [1:i32] : bool
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$1]
 
 # Allocates blocks the size of a freed string, so a read of freed memory
@@ -247,16 +253,22 @@ fn slots(first: string, last: string) -> Slots:
 >     uses $0: entry -> %2 consume last
 >   local $1 last: string [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %8 Entry local $0 #0 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
     Slots { items: [first, last] }
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : string
 >   %4 = NewList - [%2 %3] : List[string]
 >   %5 = NewStruct [%4] : Slots
->   %6 = Drop [$0] : ()
->   %7 = Drop [$1] : ()
->   %8 = Block %5 : Slots
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Block %5 : Slots
 >   exit sub 0 drops [$0 $1]
 
 fn make() -> *mut Outer:

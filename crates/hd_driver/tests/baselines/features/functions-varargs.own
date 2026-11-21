@@ -70,9 +70,9 @@ fn three(a: string, b: string, c: string) -> usize:
 >     uses $1: entry -> %4 consume last
 >   local $2 c: string [param read] value
 >     uses $2: entry -> %5 consume last
->   %0 = Retain %13 Entry local $0 #0 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
->   %2 = Retain %13 Entry local $2 #0 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
+>   %2 = Retain %22 Entry local $2 #0 : ()
     total(a, b, c)
 >   %3 = Read move [$0] : string
 >   %4 = Read move [$1] : string
@@ -81,10 +81,19 @@ fn three(a: string, b: string, c: string) -> usize:
 >   %7 = Call app/main/total[] (%6) : usize
 >   %8 = Retain %7 Operation operand 0 #0 : ()
 >   %9 = Drop [%6] : ()
->   %10 = Drop [$0] : ()
->   %11 = Drop [$1] : ()
->   %12 = Drop [$2] : ()
->   %13 = Block %7 : usize
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Intrinsic ParamOwned [1:i32] : bool
+>   %15 = Drop [$1] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Intrinsic ParamOwned [2:i32] : bool
+>   %19 = Drop [$2] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Block %7 : usize
 >   exit sub 0 drops [$0 $1 $2]
 >   summary kept [$0 $1 $2]
 
@@ -122,14 +131,20 @@ fn through_value(a: string, b: string) -> usize:
 >     uses $1: entry -> %7 consume last
 >   local $2 f: fn(List[string]) -> usize [:= read assigned] value
 >     uses $2: %3 -> %4 lend last
->   %0 = Retain %14 Entry local $0 #0 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
+>   %1 = Retain %20 Entry local $1 #0 : ()
     f := total
 >   %2 = ItemRef #0 [..] : fn(List[string]) -> usize
 >   %3 = Store [$2] %2 : ()
->   %12 = Drop [$0] : ()
->   %13 = Drop [$1] : ()
->   %14 = Block %9 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Intrinsic ParamOwned [1:i32] : bool
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Block %9 : usize
     f(a, b)
 >   %4 = Read borrow [$2] : fn(List[string]) -> usize
 >   %5 = Drop [$2] : ()

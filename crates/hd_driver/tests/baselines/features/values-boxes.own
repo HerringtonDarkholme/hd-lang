@@ -27,16 +27,22 @@ fn copy_box(s: string, t: string) -> usize:
 >     uses $5: %25 -> %26 lend last
 >   local $6 self: string [read] value
 >     uses $6: %16 -> %17 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
->   %1 = Retain %35 Entry local $1 #0 : ()
+>   %0 = Retain %41 Entry local $0 #0 : ()
+>   %1 = Retain %41 Entry local $1 #0 : ()
     let mut p = Point { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Point
 >   %4 = Store [$2] %3 : ()
 >   %7 = Box #3 #1 : ()
->   %33 = Drop [$0] : ()
->   %34 = Drop [$1] : ()
->   %35 = Block %32 : usize
+>   %33 = Intrinsic ParamOwned [0:i32] : bool
+>   %34 = Drop [$0] : ()
+>   %35 = Block - : ()
+>   %36 = If %33 [%35 -] : ()
+>   %37 = Intrinsic ParamOwned [1:i32] : bool
+>   %38 = Drop [$1] : ()
+>   %39 = Block - : ()
+>   %40 = If %37 [%39 -] : ()
+>   %41 = Block %32 : usize
     copy := box(p)
 >   %5 = Read copy [$2] : Point
 >   %6 = Retain %5 Value #0 : ()
@@ -76,13 +82,16 @@ fn move_box(s: string) -> *mut Point:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     p := Point { name: s }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Point
 >   %3 = Box #2 #1 : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : *mut Point
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Block %5 : *mut Point
     box(p)
 >   %4 = Store [$2] %2 : ()
 >   %5 = Ref take mut [$2] : *mut Point
@@ -103,8 +112,8 @@ fn shared(s: string, t: string) -> usize:
 >     uses $4: %11 -> %16 lend last
 >   local $5 self: string [read] value
 >     uses $5: %18 -> %19 lend last
->   %0 = Retain %28 Entry local $0 #0 : ()
->   %1 = Retain %28 Entry local $1 #0 : ()
+>   %0 = Retain %34 Entry local $0 #0 : ()
+>   %1 = Retain %34 Entry local $1 #0 : ()
     b := box(Point { name: s })
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Point
@@ -112,9 +121,15 @@ fn shared(s: string, t: string) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %6 = Ref take mut [$2] : *mut Point
 >   %7 = Store [$3] %6 : ()
->   %26 = Drop [$0] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block %23 : usize
+>   %26 = Intrinsic ParamOwned [0:i32] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Intrinsic ParamOwned [1:i32] : bool
+>   %31 = Drop [$1] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Block %23 : usize
     h := Holder { point: b }
 >   %8 = Read copy [$3] : *mut Point
 >   %9 = Retain %8 Value #0 : ()

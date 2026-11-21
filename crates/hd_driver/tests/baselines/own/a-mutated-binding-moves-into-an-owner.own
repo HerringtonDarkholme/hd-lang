@@ -93,13 +93,16 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $1 root: usize [param read] value
 >     uses $1: entry -> %10 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %16 : Owner
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %16 : Owner
     s.at = 0
 >   %4 = Store [$2 .at] 0:usize : ()
     s.mutate()
@@ -135,7 +138,7 @@ fn make_owner(text: string) -> Owner:
 > std/rt_tests.stage_case/make_owner
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 lend, %8 consume last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -146,8 +149,11 @@ fn make_owner(text: string) -> Owner:
 >   %7 = NewList - [] : List[usize]
 >   %8 = Read move [$0] : string
 >   %9 = NewStruct [%8 %5 0:usize %6 %7 0:usize] : Record
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : Owner
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %10 : Owner
     own_after_mutation(p, 0)
 >   %10 = Call std/rt_tests.stage_case/own_after_mutation[] (%9, 0:usize) : Owner
 >   exit sub 0 drops [$0]
@@ -245,13 +251,16 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $1 root: usize [param read] value
 >     uses $1: entry -> %10 consume last
 >   local $2 s: Record [read assigned mutated captured captured-assigned] place
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
->   %17 = Drop [$0] : ()
->   %18 = Block %16 : Owner
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %16 : Owner
     s.at = 0
 >   %4 = Store [$2 .at] 0:usize : ()
     s.mutate()
@@ -287,7 +296,7 @@ fn make_owner(text: string) -> Owner:
 > std/rt_tests.stage_case/make_owner
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 lend, %8 consume last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -298,8 +307,11 @@ fn make_owner(text: string) -> Owner:
 >   %7 = NewList - [] : List[usize]
 >   %8 = Read move [$0] : string
 >   %9 = NewStruct [%8 %5 0:usize %6 %7 0:usize] : Record
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : Owner
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %10 : Owner
     own_after_mutation(p, 0)
 >   %10 = Call std/rt_tests.stage_case/own_after_mutation[] (%9, 0:usize) : Owner
 >   exit sub 0 drops [$0]
@@ -403,13 +415,16 @@ fn own_after_mutation(p: Record, root: usize) -> Owner:
 >   local $6 index: usize [read assigned mutated] place
 >   local $7 byte: u8 [:= read assigned] value
 >     uses $7: %16 -> %17 lend, %19 lend, %23 lend, %27 lend last
->   %0 = Retain %59 Entry local $0 #0 : ()
+>   %0 = Retain %62 Entry local $0 #0 : ()
     let mut s = p
 >   %1 = Read move [$0] : Record
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
->   %58 = Drop [$0] : ()
->   %59 = Block %57 : Owner
+>   %58 = Intrinsic ParamOwned [0:i32] : bool
+>   %59 = Drop [$0] : ()
+>   %60 = Block - : ()
+>   %61 = If %58 [%60 -] : ()
+>   %62 = Block %57 : Owner
     s.at = 0
 >   %4 = Store [$2 .at] 0:usize : ()
     s.mutate()
@@ -487,7 +502,7 @@ fn make_owner(text: string) -> Owner:
 > std/rt_tests.stage_case/make_owner
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 lend, %8 consume last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -498,8 +513,11 @@ fn make_owner(text: string) -> Owner:
 >   %7 = NewList - [] : List[usize]
 >   %8 = Read move [$0] : string
 >   %9 = NewStruct [%8 %5 0:usize %6 %7 0:usize] : Record
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : Owner
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %10 : Owner
     own_after_mutation(p, 0)
 >   %10 = Call std/rt_tests.stage_case/own_after_mutation[] (%9, 0:usize) : Owner
 >   exit sub 0 drops [$0]

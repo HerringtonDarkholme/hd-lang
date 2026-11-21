@@ -42,6 +42,9 @@ std/rt_tests.stage_case/add
   %32 = Break L0 - : never
   %33 = Block - : ()
   %34 = Scope %33 [] : ()
-  %35 = Drop [$1] : ()
-  %36 = Block - : ()
+  %35 = Intrinsic ParamOwned [1:i32] : bool
+  %36 = Drop [$1] : ()
+  %37 = Block - : ()
+  %38 = If %35 [%37 -] : ()
+  %39 = Block - : ()
   exit sub 0 drops [$1]

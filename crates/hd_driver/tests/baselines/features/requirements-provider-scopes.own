@@ -18,11 +18,14 @@ impl Tag for Named:
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
         self.label
 >   %1 = Read move [$0 .label] : string
->   %2 = Drop [$0] : ()
->   %3 = Block %1 : string
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -55,7 +58,7 @@ fn by_value(s: string) -> usize:
 >   local $3 provider: Named [read] value
 >     uses $3: %3 -> %4 consume last
 >   local $4 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %39 Entry local $0 #0 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -75,8 +78,11 @@ fn by_value(s: string) -> usize:
 >   %16 = LoanEnd [%13] : ()
 >   %33 = With [Tag %15] %32 : usize
 >   %34 = Drop [%15] : ()
->   %35 = Drop [$0] : ()
->   %36 = Block %33 : usize
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Block %33 : usize
         read_tag()
 >   %17 = ProviderGet #41 : Tag
 >   %18 = Coerce %17 [ProviderAsRef -] : &dyn Tag
@@ -116,8 +122,8 @@ fn nested(a: string, b: string) -> usize:
 >   local $9 provider: Named [read] value
 >     uses $9: %4 -> %5 consume last
 >   local $10 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %75 Entry local $0 #0 : ()
->   %1 = Retain %75 Entry local $1 #0 : ()
+>   %0 = Retain %81 Entry local $0 #0 : ()
+>   %1 = Retain %81 Entry local $1 #0 : ()
     $.with(Tag=Named { label: a }):
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
@@ -137,9 +143,15 @@ fn nested(a: string, b: string) -> usize:
 >   %17 = LoanEnd [%14] : ()
 >   %71 = With [Tag %16] %70 : usize
 >   %72 = Drop [%16] : ()
->   %73 = Drop [$0] : ()
->   %74 = Drop [$1] : ()
->   %75 = Block %71 : usize
+>   %73 = Intrinsic ParamOwned [0:i32] : bool
+>   %74 = Drop [$0] : ()
+>   %75 = Block - : ()
+>   %76 = If %73 [%75 -] : ()
+>   %77 = Intrinsic ParamOwned [1:i32] : bool
+>   %78 = Drop [$1] : ()
+>   %79 = Block - : ()
+>   %80 = If %77 [%79 -] : ()
+>   %81 = Block %71 : usize
         outer := read_tag()
 >   %18 = ProviderGet #182 : Tag
 >   %19 = Coerce %18 [ProviderAsRef -] : &dyn Tag
@@ -228,7 +240,7 @@ fn lexical(s: string) -> usize:
 >     uses $4: %21 -> %22 lend, %31 lend last
 >   local $5 $ref: string [read assigned mutated] value
 >     uses $5: %24 -> %25 lend last
->   %0 = Retain %45 Entry local $0 #0 : ()
+>   %0 = Retain %48 Entry local $0 #0 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -248,8 +260,11 @@ fn lexical(s: string) -> usize:
 >   %16 = LoanEnd [%13] : ()
 >   %42 = With [Tag %15] %41 : usize
 >   %43 = Drop [%15] : ()
->   %44 = Drop [$0] : ()
->   %45 = Block %42 : usize
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Block %42 : usize
         tag := $.use(Tag)
 >   %17 = ProviderGet #16 : Tag
 >   %18 = Coerce %17 [ProviderAsRef -] : &dyn Tag

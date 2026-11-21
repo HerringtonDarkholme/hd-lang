@@ -6,7 +6,7 @@ fn text(value: string) -> fn!() -> string:
 > app/main/text
 >   local $0 value: string [param read captured] value
 >     uses $0: entry -> %6 consume, %9 consume last
->   %5 = Retain %12 Entry local $0 #0 : ()
+>   %5 = Retain %15 Entry local $0 #0 : ()
     fn!() -> string: value
 >   %0 = Retain %8 Cold row #0 : ()
 >   %1 = Retain %8 Materialize row #0 : ()
@@ -18,10 +18,13 @@ fn text(value: string) -> fn!() -> string:
 >   %8 = Block %6 : string
 >   %9 = Closure #1 : fn!() -> string
 >   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %9 : fn!() -> string
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %9 : fn!() -> string
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]

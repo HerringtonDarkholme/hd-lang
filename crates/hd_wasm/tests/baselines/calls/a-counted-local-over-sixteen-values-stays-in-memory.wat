@@ -869,7 +869,7 @@
     i32.add
     global.set $stack
   )
-  (func $moved (param $x i32) (result i32) (local $t.tag.0 i32) (local $t.inner.name.0 i32) (local $t.v i32) (local $t0 i64)
+  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t3 i64) (local $t2 i32)
     ;; 43 |     let t = mk_outer(x)
     global.get $stack
     global.get $stack_limit
@@ -883,108 +883,46 @@
     global.get $stack
     i32.const 88
     i32.sub
-    local.tee $t.tag.0
+    local.tee $t0
     global.set $stack
     local.get $x
-    local.get $t.tag.0
+    local.get $t0
     call $mk_outer
-    local.get $t.tag.0
-    i32.load $heap offset=8
-    local.get $t.tag.0
-    i32.load $heap offset=12
-    local.get $t.tag.0
-    i32.load $heap offset=16
-    local.get $t.tag.0
-    i32.load $heap offset=20
-    local.get $t.tag.0
-    i32.load $heap offset=24
-    local.get $t.tag.0
-    i32.load $heap offset=28
-    local.get $t.tag.0
-    i32.load $heap offset=32
-    local.get $t.tag.0
-    i32.load $heap offset=36
-    local.get $t.tag.0
-    i32.load $heap offset=40
-    local.get $t.tag.0
-    i32.load $heap offset=44
-    local.get $t.tag.0
-    i32.load $heap offset=48
-    local.get $t.tag.0
-    i32.load $heap offset=52
-    local.get $t.tag.0
-    i32.load $heap offset=56
-    local.get $t.tag.0
-    i32.load $heap offset=60
-    local.get $t.tag.0
-    i32.load $heap offset=64
-    local.get $t.tag.0
-    i32.load $heap offset=68
-    local.get $t.tag.0
-    i32.load $heap offset=72
-    local.get $t.tag.0
-    i32.load $heap
-    local.get $t.tag.0
-    i32.load $heap offset=4
-    local.get $t.tag.0
-    i32.load $heap offset=84
-    local.get $t.tag.0
-    i32.load $heap offset=76
-    local.get $t.tag.0
-    i32.load $heap offset=80
-    local.get $t.tag.0
-    i32.const 88
-    i32.add
-    global.set $stack
-    local.set $x
-    local.set $t.tag.0
-    local.set $t.v
-    drop
-    local.set $t.inner.name.0
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
-    drop
     ;; 44 |     let s = keep(t.tag)
-    local.get $t.tag.0
-    local.get $x
+    local.get $t0
+    i32.load $heap offset=76
+    local.get $t0
+    i32.load $heap offset=80
     call $keep
     local.set $x
-    local.set $t.tag.0
+    local.set $s.0
+    ;; 45 |     t.v + i32(s.len())
+    local.get $t0
+    i32.load $heap offset=84
+    local.set $t1
     ;; 43 |     let t = mk_outer(x)
-    local.get $t.inner.name.0
+    local.get $t0
+    i32.load $heap
+    local.tee $t2
     if
-      local.get $t.inner.name.0
+      local.get $t2
       call $rt:release_ref
     end
     ;; 45 |     t.v + i32(s.len())
-    local.get $t.tag.0
+    local.get $s.0
     if
-      local.get $t.tag.0
+      local.get $s.0
       call $rt:release_ref
     end
-    local.get $t.v
+    local.get $t1
     i64.extend_i32_s
     local.get $x
     i64.extend_i32_s
     i64.add
-    local.tee $t0
+    local.tee $t3
     i64.const 2147483647
     i64.gt_s
-    local.get $t0
+    local.get $t3
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -992,7 +930,12 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t0
+    local.get $t3
     i32.wrap_i64
+    ;; 43 |     let t = mk_outer(x)
+    local.get $t0
+    i32.const 88
+    i32.add
+    global.set $stack
   )
 )

@@ -55,19 +55,22 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >     uses $1: entry -> %2 consume last
 >   local $2 node: *Node [read assigned] value
 >     uses $2: %14 -> %4 lend, %5 consume last
->   %0 = Retain %26 Entry local $1 #0 : ()
+>   %0 = Retain %29 Entry local $1 #0 : ()
     match n:
 >   %1 = Read borrow [$0] : *Node?
 >   %9 = Drop [$1] : ()
 >   %18 = Block - : never
 >   %19 = Match %1 [%18 %3 %10] : *Node
->   %20 = Drop [$1] : ()
->   %21 = Intrinsic ParamOwned [0:i32] : bool
->   %22 = Drop [$0] : ()
->   %23 = Block - : ()
->   %24 = If %21 [%23 -] : ()
->   %25 = Release %26 Exit local $0 #2 : ()
->   %26 = Block %19 : *Node
+>   %20 = Intrinsic ParamOwned [1:i32] : bool
+>   %21 = Drop [$1] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Intrinsic ParamOwned [0:i32] : bool
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Release %29 Exit local $0 #2 : ()
+>   %29 = Block %19 : *Node
         .None => last
 >   %2 = Read move [$1] : *Node
 >   %3 = Block %2 : *Node

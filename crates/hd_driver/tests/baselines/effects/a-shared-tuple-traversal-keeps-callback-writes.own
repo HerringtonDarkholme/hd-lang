@@ -104,9 +104,15 @@ fn ordered(left: Values, right: Values) -> bool:
 >   %13 = Block %12 : bool
 >   %14 = Block 0:bool : bool
 >   %15 = SwitchTag %4 [#1 %13 %14] : bool
->   %16 = Drop [$0] : ()
->   %17 = Drop [$1] : ()
->   %18 = Block %15 : bool
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Intrinsic ParamOwned [1:i32] : bool
+>   %21 = Drop [$1] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Block %15 : bool
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] writes

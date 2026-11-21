@@ -1829,13 +1829,13 @@ impl Em<'_, '_, '_> {
     /// is an owned one. `None` for any other value.
     pub(super) fn param_owned(&self, r: u32) -> Option<bool> {
         let l = self.b.param_owned(r)? as usize;
-        let (k, t) = (
-            self.root_params.iter().position(|&p| p == l),
-            self.b.local_ty[l],
-        );
-        // A lifted closure's input convention is the function-value one.
-        let lends = (self.sub_id == 0).then_some(self.lends);
-        let pass = k.map(|k| self.argument_pass(lends, k, t));
+        // A lifted closure's parameters are its own sub-body's, lent as its
+        // entry says (`own::boundary`).
+        if self.sub_id != 0 {
+            return Some(!self.borrowed.contains(&l));
+        }
+        let k = self.root_params.iter().position(|&p| p == l);
+        let pass = k.map(|k| self.argument_pass(Some(self.lends), k, self.b.local_ty[l]));
         Some(matches!(pass, Some(Pass::Owned)))
     }
 

@@ -3,7 +3,6 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $first_long (param $xs i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32) (local $x.0 i32)
     ;; 8 |     for x in xs:
@@ -144,16 +143,6 @@
         br 0
       end
     ;; 24 |     let out = s
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
-      local.get $s.0
-      if
-        local.get $s.0
-        call $rt:release_ref
-      end
       unreachable
     end
     i32.const 0

@@ -9,43 +9,49 @@ fn bump!(t: &mut Tally) -> void:
 > app/main/bump
 >   local $0 t: &mut Tally [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %10 Cold local $0 #0 : ()
->   %1 = Retain %10 Entry local $0 #0 : ()
->   %2 = Retain %10 Cold referent $0 #8 : ()
->   %3 = Release %10 FrameDrop referent $0 #2 : ()
->   %4 = Release %10 Exit referent $0 #8 : ()
+>   %0 = Retain %13 Cold local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
+>   %2 = Retain %13 Cold referent $0 #8 : ()
+>   %3 = Release %13 FrameDrop referent $0 #2 : ()
+>   %4 = Release %13 Exit referent $0 #8 : ()
     t.n += 1
 >   %5 = Read copy [*$0 .n] : i64
 >   %6 = Prim Add [%5 1:i64] : i64
 >   %7 = Store [*$0 .n] %6 : ()
 >   %8 = Drop [$0] : ()
->   %9 = Drop [$0] : ()
->   %10 = Block - : ()
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Block - : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %10 releases [%2147483648]
+>   cancel %13 releases [%2147483648]
 
 fn read!(t: &Tally) -> i64:
 > app/main/read
 >   local $0 t: &Tally [param read] value
 >     uses $0: entry -> %5 lend last
->   %0 = Retain %8 Cold local $0 #0 : ()
->   %1 = Retain %8 Entry local $0 #0 : ()
->   %2 = Retain %8 Cold referent $0 #8 : ()
->   %3 = Release %8 FrameDrop referent $0 #2 : ()
->   %4 = Release %8 Exit referent $0 #8 : ()
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
+>   %2 = Retain %11 Cold referent $0 #8 : ()
+>   %3 = Release %11 FrameDrop referent $0 #2 : ()
+>   %4 = Release %11 Exit referent $0 #8 : ()
     t.n
 >   %5 = Read copy [*$0 .n] : i64
 >   %6 = Drop [$0] : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %5 : i64
->   %9 = Drop [$0] : ()
->   %10 = Block - : ()
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Block %5 : i64
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %8 releases [%2147483648]
+>   cancel %11 releases [%2147483648]
 
 fn local!() -> i64:
     run := fn!() -> i64:
@@ -121,8 +127,11 @@ fn shared!() -> i64:
 >   %17 = Closure #1 : fn!() -> ()
 >   %18 = Retain %17 Operation captures #0 : ()
 >   %19 = Store [$1] %17 : ()
->   %42 = Drop [$0] : ()
->   %43 = Block - : ()
+>   %45 = Intrinsic ParamOwned [0:i32] : bool
+>   %46 = Drop [$0] : ()
+>   %47 = Block - : ()
+>   %48 = If %45 [%47 -] : ()
+>   %49 = Block - : ()
     run!()
 >   %20 = Read move [$1] : fn!() -> ()
 >   %21 = CallValue %20 [] : Suspend[()]
@@ -140,9 +149,9 @@ fn shared!() -> i64:
 >   storage sub 1: $0 cell
 >   summary none
 >   cancel %11 releases [%10 %2147483648 %4294967295]
->   cancel %16 releases [%2147483648]
+>   cancel %16 releases [%16 %45]
 >   cancel %22 releases [%20 %21 %2147483648 %4294967295]
->   cancel %30 releases [%2147483648]
+>   cancel %30 releases [%16 %40]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -171,8 +180,11 @@ fn copied!() -> i64:
 >   %15 = Closure #1 : fn!() -> i64
 >   %16 = Drop [$0] : ()
 >   %17 = Store [$1] %15 : ()
->   %38 = Drop [$0] : ()
->   %39 = Block - : ()
+>   %41 = Intrinsic ParamOwned [0:i32] : bool
+>   %42 = Drop [$0] : ()
+>   %43 = Block - : ()
+>   %44 = If %41 [%43 -] : ()
+>   %45 = Block - : ()
     run!()
 >   %18 = Read move [$1] : fn!() -> i64
 >   %19 = CallValue %18 [] : Suspend[i64]
@@ -186,6 +198,6 @@ fn copied!() -> i64:
 >   storage sub 0: $0 cell
 >   summary none
 >   cancel %9 releases [%8 %2147483648 %4294967295]
->   cancel %14 releases [%2147483648]
+>   cancel %14 releases [%16 %41]
 >   cancel %20 releases [%18 %19 %2147483648 %4294967295]
->   cancel %26 releases [%2147483648]
+>   cancel %26 releases [%16 %36]

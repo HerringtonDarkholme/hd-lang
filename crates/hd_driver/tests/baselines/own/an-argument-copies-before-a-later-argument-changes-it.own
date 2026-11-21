@@ -9,7 +9,10 @@ app/main/first
   %6 = LoanEnd [%4] : ()
   %7 = Drop [$0] : ()
   %8 = Call app/main/before[] (%2, %5) : usize
-  %9 = Drop [$0] : ()
-  %10 = Block %8 : usize
+  %9 = Intrinsic ParamOwned [0:i32] : bool
+  %10 = Drop [$0] : ()
+  %11 = Block - : ()
+  %12 = If %9 [%11 -] : ()
+  %13 = Block %8 : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot

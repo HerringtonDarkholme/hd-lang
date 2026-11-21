@@ -212,8 +212,9 @@ fn compute_params(
         let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
         let kept = match (tag, counted.get(&l.idx())) {
             (Tag::Read, None) => fields,
-            // Its whole drop releases from the address.
-            (Tag::Drop, Some(_)) => p.proj.is_empty(),
+            // Its drops, whole or of fields (`hd_tir::own::elaborate`),
+            // release from the address.
+            (Tag::Drop, Some(_)) => fields,
             // A move out of a counted one is skipped by its drop: a whole
             // move clears its TIR flag, and a field move is elaborated
             // only through fields passed by address, so every proper
@@ -1115,7 +1116,7 @@ impl Em<'_, '_, '_> {
                         self.plan_in_place(*value, base, off, &uses)?;
                     }
                 }
-                Tag::Drop if p.proj.is_empty() => {
+                Tag::Drop if fields => {
                     dropped.insert(l.idx());
                 }
                 _ => *entry = None,

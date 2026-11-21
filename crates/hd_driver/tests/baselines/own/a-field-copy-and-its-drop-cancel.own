@@ -5,6 +5,9 @@ app/main/both
   %1 = Read move [$0 .left] : string
   %2 = Read move [$0 .right] : string
   %3 = NewList - [%1 %2] : List[string]
-  %4 = Drop [$0] : ()
-  %5 = Block %3 : List[string]
+  %4 = Intrinsic ParamOwned [0:i32] : bool
+  %5 = Drop [$0] : ()
+  %6 = Block - : ()
+  %7 = If %4 [%6 -] : ()
+  %8 = Block %3 : List[string]
   exit sub 0 drops [$0]

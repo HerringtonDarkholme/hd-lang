@@ -86,15 +86,18 @@ fn whole(o: string?) -> usize:
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
 >     uses $3: %16 -> %17 lend last
->   %0 = Retain %58 Entry local $0 #0 : ()
+>   %0 = Retain %61 Entry local $0 #0 : ()
     match o:
 >   %1 = Read move [$0] : string?
 >   %34 = Drop [$2] : ()
 >   %54 = Block - : never
 >   %55 = Match %1 [%54 %14 %35] : usize
 >   %56 = Drop [%1] : ()
->   %57 = Drop [$0] : ()
->   %58 = Block %55 : usize
+>   %57 = Intrinsic ParamOwned [0:i32] : bool
+>   %58 = Drop [$0] : ()
+>   %59 = Block - : ()
+>   %60 = If %57 [%59 -] : ()
+>   %61 = Block %55 : usize
         .Some(s) if s.len() > 0 => s.len()
 >   %2 = Read borrow [$1] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize

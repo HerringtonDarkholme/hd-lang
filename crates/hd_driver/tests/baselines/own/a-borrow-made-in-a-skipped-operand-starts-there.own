@@ -53,14 +53,17 @@ fn greeting(input: string) -> string:
 >     uses $23: %27 -> %28 lend last
 >   local $24 value: string [read] value
 >     uses $24: %19 -> %20 lend last
->   %0 = Retain %157 Entry local $0 #0 : ()
+>   %0 = Retain %160 Entry local $0 #0 : ()
     args := input.split(",")
 >   %1 = Read move [$0] : string
 >   %2 = Call std/text/impl string.split[] (%1, ",") : List[string]
 >   %3 = Store [$1] %2 : ()
 >   %155 = Read move [%100] : string
->   %156 = Drop [$0] : ()
->   %157 = Block %155 : string
+>   %156 = Intrinsic ParamOwned [0:i32] : bool
+>   %157 = Drop [$0] : ()
+>   %158 = Block - : ()
+>   %159 = If %156 [%158 -] : ()
+>   %160 = Block %155 : string
     msg := if args.len() < 2 || (name := args[1]) == "":
 >   %4 = Read borrow [$1] : List[string]
 >   %5 = Intrinsic ListLen [%4] : usize

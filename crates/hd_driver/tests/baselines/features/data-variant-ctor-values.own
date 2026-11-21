@@ -147,87 +147,93 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
     wrap_with(errors, SyncError.Fs)
 > app/main/as_value
 >   local $0 errors: List[FsError] [param read] value
->     uses $0: entry -> %7 lend, %21 lend
+>     uses $0: entry -> %10 lend, %24 lend
 >   local $1 $0: FsError [param] value
 >     uses $1: none
 >   local $4 $acc: List[SyncError] [assigned] value
->     uses $4: %6 -> %12 lend, %32 lend, %46 consume last
+>     uses $4: %9 -> %15 lend, %35 lend, %49 consume last
 >   local $6 $len: usize [assigned] value
->     uses $6: %9 -> %10 lend, %14 consume last
+>     uses $6: %12 -> %13 lend, %17 consume last
 >   local $7 $pos: usize [assigned] place
 >   local $8 $end: usize [assigned] value
->     uses $8: %15 -> %18 lend
+>     uses $8: %18 -> %21 lend
 >   local $9 e: FsError [read assigned] value
->     uses $9: %36 -> %25 consume last
->   %0 = Retain %4 Entry local $1 #0 : ()
+>     uses $9: %39 -> %28 consume last
+>   %0 = Retain %7 Entry local $1 #0 : ()
 >   %1 = Drop [$1] : ()
 >   %2 = Unreachable  : never
->   %3 = Drop [$1] : ()
->   %4 = Block %2 : never
->   %5 = NewList - [] : List[SyncError]
->   %6 = Store [$4] %5 : ()
->   %7 = Read borrow [$0] : List[FsError]
->   %8 = Intrinsic ListLen [%7] : usize
->   %9 = Store [$6] %8 : ()
->   %10 = Read copy [$6] : usize
->   %11 = IsUnique fresh [$4] : ()
->   %12 = Read borrow [$4] : List[SyncError]
->   %13 = Intrinsic ListReserve [%12 %10] : ()
->   %14 = Read copy [$6] : usize
->   %15 = Store [$8] %14 : ()
->   %16 = Store [$7] 0:usize : ()
->   %17 = Read copy [$7] : usize
->   %18 = Read copy [$8] : usize
->   %19 = Prim Lt [%17 %18] : bool
+>   %3 = Intrinsic ParamOwned [1:i32] : bool
+>   %4 = Drop [$1] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Block %2 : never
+>   %8 = NewList - [] : List[SyncError]
+>   %9 = Store [$4] %8 : ()
+>   %10 = Read borrow [$0] : List[FsError]
+>   %11 = Intrinsic ListLen [%10] : usize
+>   %12 = Store [$6] %11 : ()
+>   %13 = Read copy [$6] : usize
+>   %14 = IsUnique fresh [$4] : ()
+>   %15 = Read borrow [$4] : List[SyncError]
+>   %16 = Intrinsic ListReserve [%15 %13] : ()
+>   %17 = Read copy [$6] : usize
+>   %18 = Store [$8] %17 : ()
+>   %19 = Store [$7] 0:usize : ()
 >   %20 = Read copy [$7] : usize
->   %21 = Read borrow [$0 [%20]] : FsError
->   %22 = Read copy [$7] : usize
->   %23 = Prim Add [%22 1:usize] : usize
->   %24 = Store [$7] %23 : ()
->   %25 = Read copy [$9] : FsError
->   %26 = Retain %25 Value #0 : ()
->   %27 = NewVariant #0 [%25] : SyncError
->   %28 = Break L2 %27 : never
->   %29 = Block - : SyncError
->   %30 = Scope %29 [] : SyncError
->   %31 = IsUnique fresh [$4] : ()
->   %32 = Read borrow [$4] : List[SyncError]
->   %33 = Intrinsic ListPush [%32 %30] : ()
->   %34 = Block - : ()
->   %35 = Read borrow [%21] : FsError
->   %36 = Store [$9] %35 : ()
->   %38 = Block - : never
->   %39 = Match %21 [%38 %34] : ()
->   %40 = Block - : ()
->   %41 = Break L0 - : never
->   %42 = Block - : ()
->   %43 = If %19 [%40 %42] : ()
->   %44 = Block - : ()
->   %45 = Loop %44 - : ()
->   %46 = Read move [$4] : List[SyncError]
->   %47 = Break L1 %46 : never
->   %48 = Block - : List[SyncError]
->   %49 = Scope %48 [] : List[SyncError]
->   %50 = Intrinsic ParamOwned [0:i32] : bool
->   %51 = Drop [$0] : ()
->   %52 = Block - : ()
->   %53 = If %50 [%52 -] : ()
->   %54 = Release %55 Exit local $0 #2 : ()
->   %55 = Block %49 : List[SyncError]
+>   %21 = Read copy [$8] : usize
+>   %22 = Prim Lt [%20 %21] : bool
+>   %23 = Read copy [$7] : usize
+>   %24 = Read borrow [$0 [%23]] : FsError
+>   %25 = Read copy [$7] : usize
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$7] %26 : ()
+>   %28 = Read copy [$9] : FsError
+>   %29 = Retain %28 Value #0 : ()
+>   %30 = NewVariant #0 [%28] : SyncError
+>   %31 = Break L2 %30 : never
+>   %32 = Block - : SyncError
+>   %33 = Scope %32 [] : SyncError
+>   %34 = IsUnique fresh [$4] : ()
+>   %35 = Read borrow [$4] : List[SyncError]
+>   %36 = Intrinsic ListPush [%35 %33] : ()
+>   %37 = Block - : ()
+>   %38 = Read borrow [%24] : FsError
+>   %39 = Store [$9] %38 : ()
+>   %41 = Block - : never
+>   %42 = Match %24 [%41 %37] : ()
+>   %43 = Block - : ()
+>   %44 = Break L0 - : never
+>   %45 = Block - : ()
+>   %46 = If %22 [%43 %45] : ()
+>   %47 = Block - : ()
+>   %48 = Loop %47 - : ()
+>   %49 = Read move [$4] : List[SyncError]
+>   %50 = Break L1 %49 : never
+>   %51 = Block - : List[SyncError]
+>   %52 = Scope %51 [] : List[SyncError]
+>   %53 = Intrinsic ParamOwned [0:i32] : bool
+>   %54 = Drop [$0] : ()
+>   %55 = Block - : ()
+>   %56 = If %53 [%55 -] : ()
+>   %57 = Release %58 Exit local $0 #2 : ()
+>   %58 = Block %52 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0]
->   loop %45 keeps len [$0] (-..-)
+>   loop %48 keeps len [$0] (-..-)
 
 fn named(p: string) -> SyncError:
 > app/main/named
 >   local $0 p: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     SyncError.Retry(error=FsError.NotFound(p), attempt=1)
 >   %1 = Read move [$0] : string
 >   %2 = NewVariant #0 [%1] : FsError
 >   %3 = NewVariant #1 [1:i32 %2] : SyncError
->   %4 = Drop [$0] : ()
->   %5 = Block %3 : SyncError
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block %3 : SyncError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

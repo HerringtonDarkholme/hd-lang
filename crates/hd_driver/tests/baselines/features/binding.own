@@ -50,10 +50,13 @@ fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
 >     uses $0: entry -> %1 consume last
 >   local $1 all: &mut List[List[string]] [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
     ys := xs
->   %5 = Drop [$0] : ()
->   %6 = Block - : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block - : ()
     all.push(ys)
 >   %1 = Read move [$0] : List[string]
 >   %2 = IsUnique [*$1] : ()

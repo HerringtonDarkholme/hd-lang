@@ -145,10 +145,10 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >     uses $0: entry -> %1 consume last
 >   local $1 parser: Parser [read assigned captured captured-assigned] place
 >   local $2 root: *i32 [:= read assigned] value
->     uses $2: %28 -> %43 consume last
+>     uses $2: %31 -> %49 consume last
 >   local $3 self: Chars [read] value
 >     uses $3: %6 -> %7 consume last
->   %0 = Retain %49 Entry local $0 #0 : ()
+>   %0 = Retain %58 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:usize] : Chars
@@ -164,10 +164,13 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %12 = NewStruct [%11 0:usize] : Parser
 >   %13 = Box #1 #1 : ()
 >   %14 = Store [$1] %12 : ()
->   %46 = Drop [$0] : ()
->   %47 = Drop [$1] : ()
->   %48 = Drop [$2] : ()
->   %49 = Block %44 : Result[*i32, string]
+>   %52 = Intrinsic ParamOwned [0:i32] : bool
+>   %53 = Drop [$0] : ()
+>   %54 = Block - : ()
+>   %55 = If %52 [%54 -] : ()
+>   %56 = Drop [$1] : ()
+>   %57 = Drop [$2] : ()
+>   %58 = Block %50 : Result[*i32, string]
     root := parser.expression()?
 >   %15 = Ref mut local [$1] : &mut Parser
 >   %16 = Call app/main/impl Parser.expression[] (%15) : Result[*i32, string]
@@ -176,34 +179,40 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %19 = Block %18 : *i32
 >   %20 = Read move [%16 as #1 .0] : string
 >   %21 = NewVariant #1 [%20] : Result[*i32, string]
->   %22 = Drop [$0] : ()
->   %23 = Drop [$1] : ()
->   %24 = Drop [$2] : ()
->   %25 = Return %21 : never
->   %26 = Block - : never
->   %27 = SwitchTag %16 [#0 %19 %26] : *i32
->   %28 = Store [$2] %27 : ()
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Drop [$1] : ()
+>   %27 = Drop [$2] : ()
+>   %28 = Return %21 : never
+>   %29 = Block - : never
+>   %30 = SwitchTag %16 [#0 %19 %29] : *i32
+>   %31 = Store [$2] %30 : ()
     parser.whitespace()
->   %29 = Ref mut local [$1] : &mut Parser
->   %30 = Call app/main/impl Parser.whitespace[] (%29) : ()
->   %31 = LoanEnd [%29] : ()
+>   %32 = Ref mut local [$1] : &mut Parser
+>   %33 = Call app/main/impl Parser.whitespace[] (%32) : ()
+>   %34 = LoanEnd [%32] : ()
     if parser.at != parser.chars.len():
->   %32 = Read copy [$1 .at] : usize
->   %33 = Read borrow [$1 .chars] : List[char]
->   %34 = Intrinsic ListLen [%33] : usize
->   %35 = Prim Ne [%32 %34] : bool
->   %42 = If %35 [%41 -] : ()
+>   %35 = Read copy [$1 .at] : usize
+>   %36 = Read borrow [$1 .chars] : List[char]
+>   %37 = Intrinsic ListLen [%36] : usize
+>   %38 = Prim Ne [%35 %37] : bool
+>   %48 = If %38 [%47 -] : ()
         return .Err("trailing input")
->   %36 = NewVariant #1 ["trailing input"] : Result[*i32, string]
->   %37 = Drop [$0] : ()
->   %38 = Drop [$1] : ()
->   %39 = Drop [$2] : ()
->   %40 = Return %36 : never
->   %41 = Block - : never
+>   %39 = NewVariant #1 ["trailing input"] : Result[*i32, string]
+>   %40 = Intrinsic ParamOwned [0:i32] : bool
+>   %41 = Drop [$0] : ()
+>   %42 = Block - : ()
+>   %43 = If %40 [%42 -] : ()
+>   %44 = Drop [$1] : ()
+>   %45 = Drop [$2] : ()
+>   %46 = Return %39 : never
+>   %47 = Block - : never
     .Ok(root)
->   %43 = Read move [$2] : *i32
->   %44 = NewVariant #0 [%43] : Result[*i32, string]
->   %45 = Drop [$1] : ()
+>   %49 = Read move [$2] : *i32
+>   %50 = NewVariant #0 [%49] : Result[*i32, string]
+>   %51 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 cell
 >   summary kept [$0]
@@ -218,7 +227,7 @@ fn length_across_write(text: string) -> usize:
 >     uses $2: %16 -> %21 lend last
 >   local $3 self: Chars [read] value
 >     uses $3: %6 -> %7 consume last
->   %0 = Retain %25 Entry local $0 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:usize] : Chars
@@ -233,8 +242,11 @@ fn length_across_write(text: string) -> usize:
 >   %11 = Scope %10 [] : List[char]
 >   %12 = NewStruct [%11 0:usize] : Parser
 >   %13 = Store [$1] %12 : ()
->   %24 = Drop [$0] : ()
->   %25 = Block %22 : usize
+>   %24 = Intrinsic ParamOwned [0:i32] : bool
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Block %22 : usize
     chars := parser.chars
 >   %14 = Read copy [$1 .chars] : List[char]
 >   %15 = Retain %14 Value #0 : ()

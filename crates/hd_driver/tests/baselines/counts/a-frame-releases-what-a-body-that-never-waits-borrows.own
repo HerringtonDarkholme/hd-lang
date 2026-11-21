@@ -16,15 +16,18 @@ fn change!(n: *mut Note) -> usize:
 >     uses $0: entry -> %2 lend, %4 lend last
 >   local $1 self: string [read] value
 >     uses $1: %6 -> %7 lend last
->   %0 = Retain %15 Cold local $0 #0 : ()
->   %1 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
     n.text = "m"
 >   %2 = Store [*$0 .text] "m" : ()
 >   %3 = Release %2 Operation #3 : ()
->   %14 = Drop [$0] : ()
->   %15 = Block %11 : usize
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block %11 : usize
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
     n.text.len()
 >   %4 = Read borrow [*$0 .text] : string
 >   %5 = LoanBegin %4 #0 : ()
@@ -37,7 +40,7 @@ fn change!(n: *mut Note) -> usize:
 >   %12 = LoanClose %5 : ()
 >   %13 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
->   cancel %15 releases [%2147483648]
+>   cancel %18 releases [%2147483648]
 
 fn other!() -> usize:
     1

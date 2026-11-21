@@ -41,27 +41,30 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 > app/main/awaited
 >   local $0 work: &dyn Work [param read] value
 >     uses $0: entry -> %9 lend last
->   %0 = Retain %16 Cold local $0 #0 : ()
->   %1 = Retain %16 Entry local $0 #0 : ()
->   %5 = Retain %16 Cold referent $0 #8 : ()
->   %6 = Release %16 FrameDrop referent $0 #2 : ()
->   %7 = Release %16 Exit referent $0 #8 : ()
+>   %0 = Retain %19 Cold local $0 #0 : ()
+>   %1 = Retain %19 Entry local $0 #0 : ()
+>   %5 = Retain %19 Cold referent $0 #8 : ()
+>   %6 = Release %19 FrameDrop referent $0 #2 : ()
+>   %7 = Release %19 Exit referent $0 #8 : ()
     work.later!()
->   %2 = Retain %16 Cold row #0 : ()
->   %3 = Retain %16 Materialize row #0 : ()
->   %4 = Release %16 FrameDrop row #2 : ()
->   %8 = Release %16 FrameDrop child #2 : ()
+>   %2 = Retain %19 Cold row #0 : ()
+>   %3 = Retain %19 Materialize row #0 : ()
+>   %4 = Release %19 FrameDrop row #2 : ()
+>   %8 = Release %19 FrameDrop child #2 : ()
 >   %9 = Read borrow [*$0] : Work
 >   %10 = Await app/main/Work.later for Work [] via TraitValue (%9) : i32
 >   %11 = Retain %10 Operation row #0 : ()
 >   %12 = Release %10 Operation row #2 : ()
 >   %13 = Release %10 Operation child #2 : ()
 >   %14 = Drop [$0] : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %10 : i32
->   %20 = Drop [$0] : ()
->   %21 = Block - : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Block %10 : i32
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %10 releases [%2147483648 %4294967295]
->   cancel %16 releases [%2147483648]
+>   cancel %10 releases [%16 %20 %4294967295]
+>   cancel %19 releases [%2147483648]

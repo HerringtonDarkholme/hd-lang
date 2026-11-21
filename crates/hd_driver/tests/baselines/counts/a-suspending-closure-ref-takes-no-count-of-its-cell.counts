@@ -59,7 +59,6 @@ fn shared!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 > app/main/shared
->   release counted reference (cancelled)
 >   release counted reference (last use)
     run := fn!() -> void: bump!(&mut tally)
 > app/main/shared
@@ -97,7 +96,6 @@ fn copied!() -> i64:
 >   release fn!() -> i64 (last use)
 >   release counted reference (last use)
 > app/main/copied
->   release counted reference (cancelled)
 >   release counted reference (last use)
     run := fn!() -> i64: read!(&tally)
 >   release counted reference (last use)

@@ -39,16 +39,22 @@ fn make(s: string, t: string) -> Post:
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
 >     uses $1: entry -> %4 consume last
->   %0 = Retain %8 Entry local $0 #0 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
     Post { Stamp: Stamp { by: s }, title: t }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Stamp
 >   %4 = Read move [$1] : string
 >   %5 = NewStruct [%3 %4] : Post
->   %6 = Drop [$0] : ()
->   %7 = Drop [$1] : ()
->   %8 = Block %5 : Post
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Block %5 : Post
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 

@@ -37,7 +37,7 @@ fn read_config(path: string) -> Result[string, FsError]:
 > app/main/read_config
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %1 lend, %7 lend last, %12 consume last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -55,8 +55,11 @@ fn read_config(path: string) -> Result[string, FsError]:
 >   %14 = NewVariant #1 [%13] : Result[string, FsError]
 >   %15 = Block %14 : Result[string, FsError]
 >   %16 = If %6 [%11 %15] : Result[string, FsError]
->   %17 = Drop [$0] : ()
->   %18 = Block %16 : Result[string, FsError]
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block %16 : Result[string, FsError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -68,7 +71,7 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   local $2 $ref: *FsError [read assigned captured] value
 >     uses $2: %27 -> %28 lend last
 >   local $4 path: string [read captured] place
->   %0 = Retain %40 Entry local $0 #0 : ()
+>   %0 = Retain %46 Entry local $0 #0 : ()
     text := read_config(path)?
 >   %1 = Read move [$0] : string
 >   %2 = Box #4 #255 : ()
@@ -103,14 +106,20 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >   %31 = Block %29 : Error
 >   %32 = RefDyn %31 : *dyn Error
 >   %33 = NewVariant #1 [%32] : Result[string, *dyn Error]
->   %34 = Drop [$0] : ()
->   %35 = Return %33 : never
->   %36 = Block - : never
->   %37 = SwitchTag %19 [#0 %22 %36] : string
->   %39 = Drop [$0] : ()
->   %40 = Block %38 : Result[string, *dyn Error]
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Return %33 : never
+>   %39 = Block - : never
+>   %40 = SwitchTag %19 [#0 %22 %39] : string
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
+>   %45 = If %42 [%44 -] : ()
+>   %46 = Block %41 : Result[string, *dyn Error]
     .Ok(text)
->   %38 = NewVariant #0 [%37] : Result[string, *dyn Error]
+>   %41 = NewVariant #0 [%40] : Result[string, *dyn Error]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

@@ -42,7 +42,7 @@ fn demo(a: &User) -> usize:
     apply(name_of, a) + apply(fn(u): &u.name, a)
 > app/main/demo
 >   local $0 a: &User [param read] value
->     uses $0: entry -> %1 lend, %13 lend last
+>     uses $0: entry -> %1 lend, %16 lend last
 >   local $1 u: &User [param read] value
 >     uses $1: entry -> %6 lend last
 >   %0 = ItemRef #0 [..] : fn(&User) -> &string
@@ -50,19 +50,22 @@ fn demo(a: &User) -> usize:
 >   %2 = Call app/main/apply[] (%0, %1) : usize
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Drop [%0] : ()
->   %5 = Retain %11 Entry local $1 #0 : ()
+>   %5 = Retain %14 Entry local $1 #0 : ()
 >   %6 = Ref local [*$1 .name] : &string
 >   %7 = Drop [$1] : ()
 >   %8 = LoanBegin %6 #0 : ()
 >   %9 = LoanClose %8 : ()
->   %10 = Drop [$1] : ()
->   %11 = Block %6 : &string
->   %12 = Closure #1 : fn(&User) -> &string
->   %13 = Read borrow [$0] : &User
->   %14 = Call app/main/apply[] (%12, %13) : usize
->   %15 = Retain %14 Operation operand 0 #0 : ()
->   %16 = Drop [%12] : ()
->   %17 = Prim Add [%2 %14] : usize
->   %18 = Block %17 : usize
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Block %6 : &string
+>   %15 = Closure #1 : fn(&User) -> &string
+>   %16 = Read borrow [$0] : &User
+>   %17 = Call app/main/apply[] (%15, %16) : usize
+>   %18 = Retain %17 Operation operand 0 #0 : ()
+>   %19 = Drop [%15] : ()
+>   %20 = Prim Add [%2 %17] : usize
+>   %21 = Block %20 : usize
 >   exit sub 1 drops [$1]
 >   summary kept [] writes

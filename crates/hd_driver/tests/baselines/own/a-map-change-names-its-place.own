@@ -14,7 +14,7 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >     uses $1: entry -> %1 lend, %7 lend, %14 lend last
 >   local $2 n: i64 [param read] value
 >     uses $2: entry -> %8 consume last
->   %0 = Retain %29 Entry local $0 #0 : ()
+>   %0 = Retain %32 Entry local $0 #0 : ()
     m[k] = []
 >   %1 = Read borrow [$1] : string
 >   %2 = NewList - [] : List[i64]
@@ -22,13 +22,16 @@ fn put(mut m: Map[string, List[i64]], k: string, n: i64) -> Map[string, List[i64
 >   %4 = Read borrow [$0] : Map[string, List[i64]]
 >   %5 = Intrinsic MapSet [%4 %1 %2] : ()
 >   %6 = Retain %5 Operation operand 1 #0 : ()
->   %23 = Drop [$0] : ()
->   %24 = Intrinsic ParamOwned [1:i32] : bool
->   %25 = Drop [$1] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Release %29 Exit local $1 #2 : ()
->   %29 = Block %22 : Map[string, List[i64]]
+>   %23 = Intrinsic ParamOwned [0:i32] : bool
+>   %24 = Drop [$0] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Intrinsic ParamOwned [1:i32] : bool
+>   %28 = Drop [$1] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Release %32 Exit local $1 #2 : ()
+>   %32 = Block %22 : Map[string, List[i64]]
     m[k] = [n]
 >   %7 = Read borrow [$1] : string
 >   %8 = Read copy [$2] : i64
@@ -56,7 +59,7 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
 >     uses $0: entry -> %1 lend, %8 lend, %11 consume last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %2 lend last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     counts[k] += 1
 >   %1 = Read borrow [$0] : Map[string, i64]
 >   %2 = Read borrow [$1] : string
@@ -68,13 +71,16 @@ fn tally(mut counts: Map[string, i64], k: string) -> Map[string, i64]:
 >   %8 = Read borrow [$0] : Map[string, i64]
 >   %9 = Intrinsic MapSet [%8 %2 %6] : ()
 >   %10 = Retain %9 Operation operand 1 #0 : ()
->   %12 = Drop [$0] : ()
->   %13 = Intrinsic ParamOwned [1:i32] : bool
->   %14 = Drop [$1] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Release %18 Exit local $1 #2 : ()
->   %18 = Block %11 : Map[string, i64]
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Intrinsic ParamOwned [1:i32] : bool
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $1 #2 : ()
+>   %21 = Block %11 : Map[string, i64]
     counts
 >   %11 = Read move [$0] : Map[string, i64]
 >   exit sub 0 drops [$0]

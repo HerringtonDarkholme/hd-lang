@@ -31,7 +31,7 @@ fn probe(items: UniqList[string]) -> string:
 >   local $9 index: usize [read] value
 >     uses $9: %12 -> %13 lend, %20 lend last
 >   local $10 $temporary_owner: bool [read assigned] value
->     uses $10: %1 -> %72 lend last
+>     uses $10: %1 -> %73 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$10] %0 : ()
 >   %2 = Read move [$0] : UniqList[string]
@@ -41,11 +41,14 @@ fn probe(items: UniqList[string]) -> string:
 >   %6 = Store [$1] %4 : ()
 >   %7 = Ref take mut [$1] : *mut Outer
 >   %8 = Store [$2] %7 : ()
->   %72 = Read copy [$10] : bool
->   %73 = Drop [$0] : ()
->   %74 = Block - : ()
->   %75 = If %72 [%74 -] : ()
->   %76 = Block %67 : string
+>   %72 = Intrinsic ParamOwned [0:i32] : bool
+>   %73 = Read copy [$10] : bool
+>   %74 = Drop [$0] : ()
+>   %75 = Block - : ()
+>   %76 = If %73 [%75 -] : ()
+>   %77 = Block - : ()
+>   %78 = If %72 [%77 -] : ()
+>   %79 = Block %67 : string
     r := p.items.get_ref(0).expect("slot")
 >   %9 = Ref local [*$2 .items] : &UniqList[string]
 >   %10 = LoanBegin %9 #0 : ()
