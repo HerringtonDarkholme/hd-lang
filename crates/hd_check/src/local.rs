@@ -823,6 +823,7 @@ impl Ck<'_, '_> {
                 {
                     self.note_impl_use(trait_, None);
                     self.pending.push(PendingGoal {
+                        region_source: None,
                         tref: TraitRef {
                             trait_,
                             self_ty: v,

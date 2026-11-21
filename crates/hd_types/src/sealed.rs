@@ -610,18 +610,13 @@ fn fails(memo: &mut CopyMemo, root: Ty) -> bool {
     false
 }
 
-/// `ref.generic.static.no-local`: a type meets `'static` when it holds no
-/// local reference, so each part a value holds must meet it too, a
-/// counted reference's referent included (`ref.local.holding.counted`); a
-/// function value holds no local reference, since a closure never captures
-/// one. A parameter meets it only by its own bound, which the environment
-/// answers before this row.
+/// Structural requirements of `ref.generic.static.no-local`. Qualifiers
+/// and captured value origins live outside Ty, so successful compound
+/// proofs defer those checks to the ordinary region pass. A parameter
+/// still needs its own bound, answered by the environment before this row.
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
-        TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
-        // A counted reference meets it when its referent does. A trait
-        // value is only ever a reference's referent, and meets it.
         TyData::Ref { inner, .. } => subs.push(inner),
         TyData::Tuple { elems, rest } => {
             subs.extend_from_slice(pool.list_items(elems));
@@ -639,9 +634,8 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         }
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
-        // No part to check: a value with no reference inside, a function
-        // type, which always meets it (`ref.generic.static.no-local`), a goal
-        // already in error, or one the solver stalls on before this row.
+        // No structural part to ask. A function's captures are value
+        // origins checked by the deferred requirement, not signature types.
         TyData::Prim(_)
         | TyData::Never
         | TyData::Poison
@@ -746,6 +740,9 @@ mod coverage_contracts {
             static_row(p, projection(Ty::I32, &[local])),
             Row::Holds(BuiltinImpl::Static, vec![local]),
         );
-        assert_eq!(static_row(p, local), Row::Fails(FailReason::NoImpl));
+        assert_eq!(
+            static_row(p, local),
+            Row::Holds(BuiltinImpl::Static, vec![])
+        );
     }
 }

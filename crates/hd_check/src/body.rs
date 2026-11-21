@@ -168,7 +168,9 @@ impl TryFrom<Answer> for ProofAnswer {
 
     fn try_from(answer: Answer) -> StageResult<Self> {
         match answer {
-            Answer::Holds { evidence, learned } => Ok(Self::Holds { evidence, learned }),
+            Answer::Holds {
+                evidence, learned, ..
+            } => Ok(Self::Holds { evidence, learned }),
             Answer::Fails(_) => Ok(Self::Fails),
             Answer::Stalled { .. } => Ok(Self::Stalled),
             Answer::Overflow => Ok(Self::Overflow),
@@ -413,6 +415,7 @@ pub(crate) struct Ck<'a, 'c> {
     /// the end of the body, calls and projections also at the end of
     /// their statement.
     pub pending: Vec<PendingGoal>,
+    pub region_uses: Vec<RegionUse>,
     /// Type parameters an argument of type `never` was passed for, with no
     /// earlier error to have left that `never`: one that nothing else
     /// solves is `never` at the end of the body.
@@ -734,9 +737,18 @@ enum Defaults {
     All,
 }
 
+pub(crate) type RegionUse = (
+    NodeRefIdx,
+    ParamRef,
+    usize,
+    TraitRef,
+    hd_types::solver::RegionObligations,
+);
+
 /// A goal that waited for inference, with the node it arose at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PendingGoal {
+    pub region_source: Option<(ParamRef, usize)>,
     pub tref: TraitRef,
     pub at: NodeRefIdx,
     pub kind: Waiting,
@@ -834,6 +846,7 @@ pub(crate) fn new_ck<'a, 'c>(
         impl_params: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
+        region_uses: Vec::new(),
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
@@ -3379,7 +3392,33 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         at: NodeRef<'_>,
         code: Code,
-    ) -> StageResult<Option<hd_types::solver::Evidence>> {
+    ) -> StageResult<Option<Evidence>> {
+        self.require_ref_source(tref, at, code, None)
+    }
+
+    pub(crate) fn require_param_bound(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        param: ParamRef,
+        bound: usize,
+    ) -> StageResult<Option<Evidence>> {
+        let pending = self.pending.len();
+        let ev =
+            self.require_ref_source(tref, at, Code::UnsatisfiedTraitBound, Some((param, bound)))?;
+        if ev.is_some() || self.pending.len() > pending {
+            self.note_impl_use(tref.trait_, ev.as_ref());
+        }
+        Ok(ev)
+    }
+
+    fn require_ref_source(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+        source: Option<(ParamRef, usize)>,
+    ) -> StageResult<Option<Evidence>> {
         let origin = tref;
         let pool = self.pool();
         // Projections with a known base normalize before the goal is
@@ -3407,7 +3446,14 @@ impl Ck<'_, '_> {
         if let Some(evidence) = self.function_evidence(tref) {
             return Ok(Some(evidence));
         }
-        match ProofAnswer::try_from(self.solve(tref)?)? {
+        let answer = self.solve(tref)?;
+        if let Answer::Holds { obligations, .. } = &answer
+            && let Some((param, bound)) = source.filter(|_| !obligations.is_empty())
+        {
+            self.region_uses
+                .push((at.index(), param, bound, tref, obligations.clone()));
+        }
+        match ProofAnswer::try_from(answer)? {
             ProofAnswer::Holds { evidence, learned } => {
                 for (v, t) in learned {
                     let var = pool.intern_ty(&TyData::Infer(v));
@@ -3448,6 +3494,7 @@ impl Ck<'_, '_> {
             }
             ProofAnswer::Stalled => {
                 self.pending.push(PendingGoal {
+                    region_source: source,
                     tref,
                     at: at.index(),
                     kind: Waiting::Bound { code },
@@ -4109,7 +4156,14 @@ impl Ck<'_, '_> {
         if self.function_evidence(tref).is_some() {
             return Ok(true);
         }
-        match ProofAnswer::try_from(self.solve(tref)?)? {
+        let answer = self.solve(tref)?;
+        if let Answer::Holds { obligations, .. } = &answer
+            && let Some((param, bound)) = g.region_source.filter(|_| !obligations.is_empty())
+        {
+            self.region_uses
+                .push((node.index(), param, bound, tref, obligations.clone()));
+        }
+        match ProofAnswer::try_from(answer)? {
             ProofAnswer::Holds { learned, .. } => {
                 if matches!(g.kind, Waiting::Bound { .. }) {
                     return Ok(true);
@@ -5564,7 +5618,7 @@ impl Ck<'_, '_> {
             self.check_moves_out_of_place(&mut cx);
         }
         if !self.too_many_slots && !slots.over(pool, ret) {
-            self.check_dependent_results(root, ret, fun, &move_facts);
+            self.check_dependent_results(root, ret, fun, &move_facts)?;
         }
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
@@ -5967,8 +6021,16 @@ mod proof_answer_tests {
             ];
             let ptr = learned.as_ptr();
             let capacity = learned.capacity();
-            let proof = ProofAnswer::try_from(Answer::Holds { evidence, learned }).expect("proof");
-            let ProofAnswer::Holds { evidence, learned } = proof else {
+            let proof = ProofAnswer::try_from(Answer::Holds {
+                evidence,
+                learned,
+                obligations: hd_types::solver::RegionObligations::default(),
+            })
+            .expect("proof");
+            let ProofAnswer::Holds {
+                evidence, learned, ..
+            } = proof
+            else {
                 panic!("successful proof lost its outcome");
             };
             assert_eq!(evidence, expected);
