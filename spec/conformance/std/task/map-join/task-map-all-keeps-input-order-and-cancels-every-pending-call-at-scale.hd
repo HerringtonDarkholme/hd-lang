@@ -10,7 +10,7 @@ struct Gauge:
     started: usize
     cleaned: usize
 
-fn work!(gauge: &mut Gauge, item: usize) -> usize $ Clock:
+fn work!(gauge: *mut Gauge, item: usize) -> usize $ Clock:
     gauge.started += 1
     defer(fn() -> void: gauge.cleaned += 1)
     sleep!(60s)

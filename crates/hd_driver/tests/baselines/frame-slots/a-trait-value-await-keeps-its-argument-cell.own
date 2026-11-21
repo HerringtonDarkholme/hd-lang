@@ -119,35 +119,37 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %9 lend last
 >   local $2 text: string [read assigned captured] place
->   %0 = Retain %22 Cold local $0 #0 : ()
->   %1 = Retain %22 Entry local $0 #0 : ()
->   %5 = Retain %22 Cold referent $0 #8 : ()
->   %6 = Release %22 FrameDrop referent $0 #2 : ()
->   %7 = Release %22 Exit referent $0 #8 : ()
+>   %0 = Retain %24 Cold local $0 #0 : ()
+>   %1 = Retain %24 Entry local $0 #0 : ()
+>   %5 = Retain %24 Cold referent $0 #8 : ()
+>   %6 = Release %24 FrameDrop referent $0 #2 : ()
+>   %7 = Release %24 Exit referent $0 #8 : ()
     let text = "v".repeat(n)
->   %2 = Retain %22 Cold row #0 : ()
->   %3 = Retain %22 Materialize row #0 : ()
->   %4 = Release %22 FrameDrop row #2 : ()
->   %8 = Release %22 FrameDrop child #2 : ()
+>   %2 = Retain %24 Cold row #0 : ()
+>   %3 = Retain %24 Materialize row #0 : ()
+>   %4 = Release %24 FrameDrop row #2 : ()
+>   %8 = Release %24 FrameDrop child #2 : ()
 >   %9 = Read copy [$1] : usize
 >   %10 = Call std/text/impl string.repeat[] ("v", %9) : string
 >   %11 = Box #2 #1 : ()
 >   %12 = Store [$2] %10 : ()
->   %22 = Block %15 : usize
+>   %24 = Block %16 : usize
     sizer.size!(&text)
 >   %13 = Read borrow [*$0] : Sizer
->   %14 = Ref local [$2] : &string
->   %15 = Await app/main/Sizer.size for Sizer [] via TraitValue (%13, %14) : usize
->   %16 = Retain %15 Operation row #0 : ()
->   %17 = Release %15 Operation row #2 : ()
->   %18 = Release %15 Operation child #2 : ()
->   %19 = LoanEnd [%14] : ()
->   %20 = Drop [$2] : ()
->   %21 = Drop [$0] : ()
->   %24 = Return - #2 : never
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Ref local [$2] : &string
+>   %16 = Await app/main/Sizer.size for Sizer [] via TraitValue (%13, %15) : usize
+>   %17 = Retain %16 Operation row #0 : ()
+>   %18 = Release %16 Operation row #2 : ()
+>   %19 = Release %16 Operation child #2 : ()
+>   %20 = LoanClose %14 : ()
+>   %21 = LoanEnd [%15] : ()
+>   %22 = Drop [$2] : ()
+>   %23 = Drop [$0] : ()
+>   %26 = Return - #2 : never
 >   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 cell
->   cancel %15 releases [%14 %4294967295]
+>   cancel %16 releases [%15 %4294967295]
 
 pub fn main!() -> void $ Console + Clock:
     let plain = Plain {}

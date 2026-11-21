@@ -7,7 +7,7 @@
 # expect-stdout: two clocks 5000 3000
 use std.task.{block_on, join, race}
 use std.testing.assert_equal
-use std.time.{Clock, ManualClock, Timestamp, s}
+use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 # Synchronous code that waits on the clock through its own drive.
 fn nap(clock: *mut ManualClock, seconds: i64) -> void:
@@ -20,7 +20,8 @@ fn sync_nap!(clock: *mut ManualClock, seconds: i64) -> string:
     "sync"
 
 fn task_nap!(clock: *mut ManualClock, seconds: i64) -> string:
-    clock.sleep!(s(seconds))
+    $.with(Clock=clock):
+        sleep!(s(seconds))
     "task"
 
 fn at(clock: *mut ManualClock) -> i64:

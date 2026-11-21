@@ -727,6 +727,31 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
 7. r[ref.excl.alias.call-loan] A `&` or `&mut` argument or auto-ref receiver whose path dereferences a `*mut` or a `*T` takes a run-time loan from its evaluation until its call returns. A `&mut self` receiver's loan is shared until the call begins, then exclusive. A closure argument holds the run-time loans of the references it captures until its call returns.
 8. r[ref.excl.alias.path-pointer] A run-time loan holds each object its place's path reads a `*mut` or a `*T` from, so replacing such a pointer slot conflicts until the loan ends, in every build.
 9. r[ref.excl.alias.untracked-path] A reference whose place passes through no `*T`, no variable a closure shares and no top-level binding a reference reaches takes no run-time loan, so an alias reads or writes its place in place.
+10. r[ref.excl.alias.await] An awaited call's argument loan lasts until the awaited call returns, across every suspension point in it.
+11. r[ref.excl.alias.await.tasks] An access from another task checks against that loan as an access from the same task does. Panic: `borrow-conflict`.
+
+```text
+fn hold!(c: &mut Counter) -> i32 $ Clock:
+    sleep!(ms(10))
+    c.value
+
+fn first!(p: *mut Counter) -> i32 $ Clock:
+    hold!(p)             # p's loan lasts the whole wait
+
+fn poke!(alias: *mut Counter) -> i32:
+    alias.value = 99     # panics borrow-conflict when alias is p
+    0
+
+fn shared!(p: *mut Counter) -> i32 $ Clock:
+    p.value += 1         # valid: tasks share state through a `*mut`
+    sleep!(ms(10))
+    p.value
+```
+
+> **Why.** A `&` or `&mut` an awaited call holds must stay valid while its
+> task waits, and other tasks run during that wait. Tasks that change one
+> object take it as a `*mut T`, whose accesses check loans at each use, not
+> as a `&mut T` held across a `!` call.
 
 See also: [`ref.convert.lend.loan`](#r-ref.convert.lend.loan), the loan a `*mut T` takes where it converts to `&mut T` or `&T`.
 

@@ -1799,21 +1799,6 @@ impl Gen<'_, '_> {
             .filter(|x| x.2 != NONE)
             .filter_map(|x| Some((u32::try_from(b.direct_value(x.0)?).ok()?, x.2)))
             .collect();
-        // Exception (owner, 2026-11-19; the gap is #2197): an awaited
-        // call's arguments take no run-time loan, as the tasks of one scope
-        // interleave their uses of them. This set is the one place.
-        let mut awaited: HashSet<u32> = HashSet::default();
-        for c in 0..b.len() {
-            if b.tags[c] == Tag::Await {
-                slots(b, c, |_, v, word| {
-                    if matches!(word, Word::Value(Role::Arg(_)))
-                        && let Some(v) = b.direct_value(v).and_then(|v| u32::try_from(v).ok())
-                    {
-                        awaited.insert(v);
-                    }
-                });
-            }
-        }
         let lent_reads: HashSet<u32> = (self.s.lent.iter())
             .filter_map(|x| b.direct_value(x.0).and_then(|v| u32::try_from(v).ok()))
             .collect();
@@ -1840,9 +1825,6 @@ impl Gen<'_, '_> {
             // A `*T` read takes a loan only where a call lends it as a
             // local reference; passing a pointer is no access.
             if b.tags[i as usize] == Tag::Read && !lent_reads.contains(&i) {
-                continue;
-            }
-            if awaited.contains(&i) {
                 continue;
             }
             let excl = match b.tags[i as usize] {

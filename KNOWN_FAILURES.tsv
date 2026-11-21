@@ -1,4 +1,3 @@
 path	issue	engine	reason
 lang/references/static-references/static-reference-stored-and-called.hd	#1435		`T < 'static` rejects a `&T` argument by its type; the static source is not asked
 lang/references/static-references/static-reference-bound-with-sub-obligations.hd	#1435		`Saved` selects an impl with a static sub-obligation; successful solver answers do not yet carry region obligations
-lang/references/dependent-results/conflicts-through-aliases/awaited-call-argument-alias-write-from-another-task-panics.hd	#2197		an awaited call's arguments take no run-time loan (step 5 of #2174, owner 2026-11-19), so another task's write through an alias runs: prints `99 0`

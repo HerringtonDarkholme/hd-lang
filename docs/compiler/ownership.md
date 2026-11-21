@@ -65,12 +65,12 @@ path (`hd_tir/src/own/loans.rs`, a backward liveness walk over holders).
 Inlining, mono and the passes copy them; the inliner moves a callee's
 closes of the loans its result carries to where the caller closes them.
 A whole-program link pass (`hd_tir/src/own/pointer.rs`) keeps the loans an
-access in their statement range may meet. Two exceptions, owner
+access in their statement range may meet. One exception, owner
 2026-11-19: a `Suspend` value holds no run-time loan, so a suspending
 call's argument loans end with the call that makes the task
-(`Gen::run_loans`, `task`); and an awaited call's arguments take no
-run-time loan (`Ck::lent_args` and `Gen::run_loans`, `awaited`; the gap
-is #2197).
+(`Gen::run_loans`, `task`). An awaited call's argument loans last the
+whole call, against every task (`ref.excl.alias.await`, owner
+2026-11-21, #2197): tasks share mutable state through a `*mut T`.
 Access checks are decided in the same link pass, per instance and access
 instruction: the objects the place crosses (its root object, a shared
 variable's cell or a top-level binding that is an object; a `*T`-only

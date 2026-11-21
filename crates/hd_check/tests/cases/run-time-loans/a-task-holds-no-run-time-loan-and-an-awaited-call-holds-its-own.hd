@@ -1,7 +1,8 @@
 # @dump: tir
-# Two exceptions (owner, 2026-11-19): a `Suspend` value holds no run-time
-# loan, so a task's construction loan closes after the call that makes it;
-# an awaited call's argument takes none (#2197).
+# A `Suspend` value holds no run-time loan (owner, 2026-11-19), so a task's
+# construction loan closes after the call that makes it. An awaited call's
+# argument holds its loan for the whole call, suspension included
+# (ref.excl.alias.await, owner 2026-11-21, #2197).
 use std.time.{Clock, ms, sleep}
 
 struct Counter:

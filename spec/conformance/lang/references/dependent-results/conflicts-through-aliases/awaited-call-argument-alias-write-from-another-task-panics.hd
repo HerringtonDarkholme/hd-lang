@@ -1,6 +1,6 @@
 # fixture-runtime-profile: pending-tick
 # test: a task awaiting a call that holds a `&mut` lent from a `*T` keeps its loan across the wait, so another task's write through an alias panics
-# Spec 13 Conflicts Through Aliases: ref.excl.alias.loan; Spec 11 Joining.
+# Spec 13 Conflicts Through Aliases: ref.excl.alias.await, ref.excl.alias.await.tasks; Spec 11 Joining.
 use std.task.join
 
 pub trait Tick:

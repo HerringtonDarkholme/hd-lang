@@ -16,7 +16,7 @@ struct Gauge:
     peak: i32
     started: *mut List[i32]
 
-fn measured!(gauge: &mut Gauge, id: i32) -> i32 $ Clock:
+fn measured!(gauge: *mut Gauge, id: i32) -> i32 $ Clock:
     gauge.started.push(id)
     gauge.live = gauge.live + 1
     if gauge.live > gauge.peak:

@@ -6158,7 +6158,7 @@ lang/references/dependent-results/conflicts-through-aliases/alias-write-beside-c
 lang/references/dependent-results/conflicts-through-aliases/bang-call-pointer-argument-beside-a-shared-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 lang/references/dependent-results/conflicts-through-aliases/bang-call-disjoint-argument-checks-once.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.counted-access
 lang/references/dependent-results/conflicts-through-aliases/alias-write-after-abandoned-call-result-loan-passes.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.loan
-lang/references/dependent-results/conflicts-through-aliases/awaited-call-argument-alias-write-from-another-task-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.loan
+lang/references/dependent-results/conflicts-through-aliases/awaited-call-argument-alias-write-from-another-task-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.await.tasks
 lang/references/dependent-results/conflicts-through-aliases/shared-counted-reference-loan-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-counted-loan
 lang/references/dependent-results/conflicts-through-aliases/shared-counted-reference-loan-other-field-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/references/dependent-results/conflicts-through-aliases/call-reference-loan-hidden-alias-write-panics.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.call-loan

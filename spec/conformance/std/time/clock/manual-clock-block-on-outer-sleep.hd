@@ -3,14 +3,15 @@
 # expect-stdout: nested sleep done at 1000
 # expect-stdout: outer sleep done at 5000
 use std.task.{block_on, join}
-use std.time.{Clock, ManualClock, Timestamp, s}
+use std.time.{Clock, ManualClock, Timestamp, s, sleep}
 
 fn inner(clock: *mut ManualClock) -> void:
     _ := block_on(clock.sleep(1s))
     println("nested sleep done at ${clock.now().unix_milliseconds()}")
 
 fn outer!(clock: *mut ManualClock) -> void:
-    clock.sleep!(5s)
+    $.with(Clock=clock):
+        sleep!(5s)
     println("outer sleep done at ${clock.now().unix_milliseconds()}")
 
 fn sync_side!(clock: *mut ManualClock) -> void:
