@@ -111,8 +111,7 @@ impl OwnCx for View<'_, '_> {
         OwnCx::temporary_owner_name(self.env)
     }
     fn counted(&self, ty: Ty) -> bool {
-        let ty = self.ty(ty);
-        self.env.is_open(ty) || OwnCx::counted(self.env, ty)
+        OwnCx::counted(self.env, self.ty(ty))
     }
     fn holds_drop(&self, ty: Ty) -> Tri {
         OwnCx::holds_drop(self.env, self.ty(ty))
