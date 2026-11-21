@@ -40,6 +40,8 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
+>   release counted reference (last use)
     value
 
 @cold

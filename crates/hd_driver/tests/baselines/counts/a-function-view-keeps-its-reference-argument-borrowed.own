@@ -19,14 +19,18 @@ fn read(value: &i32) -> i32:
 >   summary kept []
 
 @cold
-> app/main/keep
->   local $0 value: *i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %2 Exit local $0 #2 : ()
 fn keep(value: *i32) -> *i32:
     value
->   %1 = Read borrow [$0] : *i32
->   %2 = Block %1 : *i32
+> app/main/keep
+>   local $0 value: *i32 [param read] value
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : *i32
+>   %1 = Intrinsic ParamOwned [0:i32] : bool
+>   %2 = Drop [$0] : ()
+>   %3 = Block - : ()
+>   %4 = If %1 [%3 -] : ()
+>   %5 = Release %6 Exit local $0 #2 : ()
+>   %6 = Block %0 : *i32
 >   summary kept [] borrows [$0] returns $0
 
 @cold
@@ -46,47 +50,61 @@ fn own_view() -> fn(*i32) -> *i32:
 >   summary kept []
 
 fn nested_view(values: List[fn(&i32) -> i32]) -> List[fn(*i32) -> i32]:
+    values
 > app/main/nested_view
 >   local $0 values: List[fn(&i32) -> i32] [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Release %3 Exit local $0 #2 : ()
-    values
->   %1 = Read borrow [$0] : List[fn(&i32) -> i32]
->   %2 = Coerce %1 [Variance -] : List[fn(*i32) -> i32]
->   %3 = Block %2 : List[fn(*i32) -> i32]
+>     uses $0: entry -> %0 consume last
+>   %0 = Read borrow [$0] : List[fn(&i32) -> i32]
+>   %1 = Coerce %0 [Variance -] : List[fn(*i32) -> i32]
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block %1 : List[fn(*i32) -> i32]
 >   summary kept [] borrows [$0]
 
 @cold
-> app/main/invoke
->   local $0 call: fn(T) -> i32 [param read] value
->     uses $0: entry -> %4 lend last
->   local $1 value: T [param read] value
->     uses $1: entry -> %5 lend last
->   %2 = Release %7 Exit local $0 #2 : ()
->   %3 = Release %7 Exit local $1 #2 : ()
 fn invoke[T](call: fn(T) -> i32, value: T) -> i32:
     call(value)
->   %0 = FlagSet [$0] #2 : ()
->   %1 = FlagSet [$1] #3 : ()
->   %4 = Read borrow [$0] : fn(T) -> i32
->   %5 = Read borrow [$1] : T
->   %6 = CallValue %4 [%5] : i32
->   %7 = Block %6 : i32
+> app/main/invoke
+>   local $0 call: fn(T) -> i32 [param read] value
+>     uses $0: entry -> %0 lend last
+>   local $1 value: T [param read] value
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : fn(T) -> i32
+>   %1 = Read borrow [$1] : T
+>   %2 = CallValue %0 [%1] : i32
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : i32
 >   summary kept [] borrows [$0 $1] writes
 
 fn use_lent(value: *i32) -> i32:
+    invoke(lend_view(), value)
 > app/main/use_lent
 >   local $0 value: *i32 [param read] value
->     uses $0: entry -> %2 lend last
->   %0 = Release %7 Exit local $0 #2 : ()
-    invoke(lend_view(), value)
->   %1 = Call app/main/lend_view[] () : fn(*i32) -> i32
->   %2 = Read borrow [$0] : *i32
->   %3 = Call app/main/invoke[*i32] (%1, %2) : i32
->   %4 = Retain %3 Operation operand 0 #0 : ()
->   %5 = Retain %3 Operation operand 1 #0 : ()
->   %6 = Drop [%1] : ()
->   %7 = Block %3 : i32
+>     uses $0: entry -> %1 lend last
+>   %0 = Call app/main/lend_view[] () : fn(*i32) -> i32
+>   %1 = Read borrow [$0] : *i32
+>   %2 = Call app/main/invoke[*i32] (%0, %1) : i32
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Retain %2 Operation operand 1 #0 : ()
+>   %5 = Drop [%0] : ()
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %2 : i32
 >   summary kept [] borrows [$0] writes
 
 type View[+T](T)

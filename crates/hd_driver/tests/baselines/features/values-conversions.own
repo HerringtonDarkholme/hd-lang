@@ -54,44 +54,48 @@ fn bump(p: &mut Point) -> void:
 >   summary kept [] writes
 
 fn lend(h: *mut Point) -> usize:
+    nudge(h)
 > app/main/lend
 >   local $0 h: *mut Point [param read] value
->     uses $0: entry -> %1 lend, %6 lend, %11 lend last
+>     uses $0: entry -> %0 lend, %5 lend, %10 lend last
 >   local $1 p: Point [read] value
->     uses $1: %13 -> %14 consume last
+>     uses $1: %12 -> %13 consume last
 >   local $2 self: string [read] value
->     uses $2: %16 -> %17 lend last
->   %0 = Release %27 Exit local $0 #2 : ()
-    nudge(h)
->   %1 = Ref mut local [*$0] : &mut Point
->   %2 = LoanBegin %1 #1 : ()
->   %3 = Call app/main/nudge[] (%1) : ()
->   %4 = LoanClose %2 : ()
->   %5 = LoanEnd [%1] : ()
->   %27 = Block %25 : usize
+>     uses $2: %15 -> %16 lend last
+>   %0 = Ref mut local [*$0] : &mut Point
+>   %1 = LoanBegin %0 #1 : ()
+>   %2 = Call app/main/nudge[] (%0) : ()
+>   %3 = LoanClose %1 : ()
+>   %4 = LoanEnd [%0] : ()
+>   %26 = Intrinsic ParamOwned [0:i32] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $0 #2 : ()
+>   %31 = Block %24 : usize
     bump(h)
->   %6 = Ref mut local [*$0] : &mut Point
->   %7 = LoanBegin %6 #1 : ()
->   %8 = Call app/main/bump[] (%6) : ()
->   %9 = LoanClose %7 : ()
->   %10 = LoanEnd [%6] : ()
+>   %5 = Ref mut local [*$0] : &mut Point
+>   %6 = LoanBegin %5 #1 : ()
+>   %7 = Call app/main/bump[] (%5) : ()
+>   %8 = LoanClose %6 : ()
+>   %9 = LoanEnd [%5] : ()
     view(h)
->   %11 = Read borrow [*$0] : Point
->   %12 = LoanBegin %11 #0 : ()
->   %13 = Store [$1] %11 : ()
->   %14 = Read borrow [$1 .name] : string
->   %15 = LoanBegin %14 #0 : ()
->   %16 = Store [$2] %14 : ()
->   %17 = Read borrow [$2] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L0 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = LoanClose %15 : ()
->   %23 = Break L1 %21 : never
->   %24 = Block - : usize
->   %25 = Scope %24 [] : usize
->   %26 = LoanClose %12 : ()
+>   %10 = Read borrow [*$0] : Point
+>   %11 = LoanBegin %10 #0 : ()
+>   %12 = Store [$1] %10 : ()
+>   %13 = Read borrow [$1 .name] : string
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Store [$2] %13 : ()
+>   %16 = Read borrow [$2] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = LoanClose %14 : ()
+>   %22 = Break L1 %20 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = LoanClose %11 : ()
 >   summary kept [] borrows [$0] writes
 
 fn local(s: string) -> usize:
@@ -105,13 +109,14 @@ fn local(s: string) -> usize:
 >     uses $3: %19 -> %20 consume last
 >   local $4 self: string [read] value
 >     uses $4: %22 -> %23 lend last
->   %0 = Retain %33 Entry local $0 #0 : ()
+>   %0 = Retain %34 Entry local $0 #0 : ()
     let mut origin = Point { name: s, n: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()
->   %33 = Block %31 : usize
+>   %33 = Drop [$0] : ()
+>   %34 = Block %31 : usize
     nudge(&mut origin)
 >   %5 = Ref mut local frame [$1] : &mut Point
 >   %6 = Read copy [*%5 .n] : i32
@@ -149,12 +154,16 @@ fn local(s: string) -> usize:
 >   summary kept [$0]
 
 fn weaken(h: *mut Point) -> *Point:
+    h
 > app/main/weaken
 >   local $0 h: *mut Point [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Release %3 Exit local $0 #2 : ()
-    h
->   %1 = Read borrow [$0] : *mut Point
->   %2 = Coerce %1 [Weaken -] : *Point
->   %3 = Block %2 : *Point
+>     uses $0: entry -> %0 consume last
+>   %0 = Read borrow [$0] : *mut Point
+>   %1 = Coerce %0 [Weaken -] : *Point
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block %1 : *Point
 >   summary kept [] borrows [$0]

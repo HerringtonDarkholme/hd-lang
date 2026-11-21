@@ -22,13 +22,12 @@
       end
     end
   )
-  (func $greet (param $p i32) (result i32) (local $t0 i32)
+  (func $greet (param $p i32) (result i32)
     ;; 13 |     n := &p.name
     local.get $p
     ;; 14 |     n.len()
     call $"impl string.len"
     ;; 13 |     n := &p.name
-    local.set $t0
     local.get $p
     if
       local.get $p
@@ -40,7 +39,6 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t0
   )
   (func $"impl Named.set" (param $self i32) (param $name.0 i32) (param $name.1 i32)
     ;; 10 |         self.name = name

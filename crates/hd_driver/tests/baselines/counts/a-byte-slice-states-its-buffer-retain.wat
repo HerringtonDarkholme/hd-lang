@@ -5,7 +5,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "table0" (table $table0 3 funcref))
-  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32)
+  (func $through_function (param $text.0 i32) (param $text.1 i32) (result i32 i32)
     ;; 15 |     slice_fn(text, 0, 1)
     i32.const 0
     local.get $text.0
@@ -18,8 +18,6 @@
     ;; 15 |     slice_fn(text, 0, 1)
     call_indirect $table0 (param i32 i32 i32 i32 i32 i32) (result i32 i32)
     ;; 14 |     slice_fn := bytes_slice
-    local.set $text.1
-    local.set $t0
     local.get $text.0
     if
       local.get $text.0
@@ -27,8 +25,6 @@
     else
       call $skipped_test
     end
-    local.get $t0
-    local.get $text.1
   )
   (func $slice (param $text.0 i32) (param $text.1 i32) (param $start i32) (param $end i32) (result i32 i32)
     ;; 8 |     bytes_slice(text, start, end)

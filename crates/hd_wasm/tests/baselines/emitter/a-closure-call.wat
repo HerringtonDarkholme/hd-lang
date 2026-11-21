@@ -10,7 +10,6 @@
     i32.const 0
     local.get $f.0
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.set $f.0
     local.get $f.1
     if
       local.get $f.1
@@ -22,6 +21,5 @@
         call $rt:release_ref
       end
     end
-    local.get $f.0
   )
 )

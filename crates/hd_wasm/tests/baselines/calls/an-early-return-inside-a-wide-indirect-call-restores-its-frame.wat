@@ -1064,7 +1064,9 @@
         call $rt:release_ref
       end
     end
+    ;; 18 |     result._1
     local.get $callback.0
+    ;; 17 |     result := callback(value)
     local.get $t0
     i32.const 552
     i32.add

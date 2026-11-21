@@ -27,6 +27,7 @@ fn forever(s: string) -> string:
     let out = s
 > app/main/forever
 >   release string (last use)
+>   release string (last use)
     while true:
         if out.len() > 8:
             return out

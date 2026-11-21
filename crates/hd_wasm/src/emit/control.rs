@@ -133,6 +133,12 @@ impl Em<'_, '_, '_> {
                     let [a, bw] = self.b.data[i as usize];
                     let r = self.rec(bw);
                     self.slot(i)?;
+                    // Known at link time: only the arm that runs.
+                    if let Some(owned) = self.param_owned(a) {
+                        let arm = r.get(usize::from(!owned)).copied();
+                        work.extend(arm.filter(|&x| x != NONE).map(|x| Task::Block(x, Some(i))));
+                        continue;
+                    }
                     self.push(a)?;
                     self.resume_branch(i, r[0]);
                     self.f.op(Instruction::If(BlockType::Empty));

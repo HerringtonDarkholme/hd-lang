@@ -24,7 +24,7 @@ pub(super) fn fields(steps: &[Proj]) -> Option<Vec<u32>> {
 /// The values passed as arguments by call instruction `i`.
 pub(super) fn call_args(b: &Body, i: usize) -> Vec<u32> {
     if b.tags[i] == Tag::CallValue {
-        return b.record(b.data[i][1]).to_vec();
+        return b.call_args(i).to_vec();
     }
     let mut args = Vec::new();
     slots(b, i, |_, v, word| {

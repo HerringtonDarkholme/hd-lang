@@ -481,26 +481,41 @@
                 call $rt:release_ref'1
               end
             end
+            local.get $t1
+            i32.load $heap offset=4
+            local.tee $provider0.vtable
+            if
+              local.get $provider0.vtable
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $provider0.vtable
+                call $rt:release_ref'2
+              end
+            end
             i32.const 0
             local.set $provider0.vtable
             i32.const 1
             local.set $t5
             br 1
           end
-        end
-        local.get $t1
-        i32.load $heap offset=4
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
+          i32.load $heap offset=4
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $provider0.vtable

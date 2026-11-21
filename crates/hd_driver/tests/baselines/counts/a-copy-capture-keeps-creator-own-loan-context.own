@@ -8,14 +8,18 @@ struct Cell:
     other: string
 
 fn run_plain(f: fn() -> void) -> void:
+    f()
 > app/main/run_plain
 >   local $0 f: fn() -> () [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
-    f()
->   %1 = Read borrow [$0] : fn() -> ()
->   %2 = CallValue %1 [] : ()
->   %3 = Block - : ()
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> ()
+>   %1 = CallValue %0 [] : ()
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block - : ()
 >   summary kept [] borrows [$0] writes
 
 fn probe() -> (string, string):

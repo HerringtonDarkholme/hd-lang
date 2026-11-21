@@ -44,6 +44,7 @@ fn local!() -> i64:
         bump!(&mut tally)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
         tally.n
     run!()
 >   retain counted reference (stored)
@@ -67,6 +68,7 @@ fn shared!() -> i64:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
 > app/main/shared
 >   release counted reference (cancelled)
 >   release counted reference (last use)
@@ -83,6 +85,7 @@ fn shared!() -> i64:
 >   release counted reference (last use)
 >   release fn!() -> () (cancelled)
 >   release Suspend[()] (cancelled)
+>   release counted reference (last use)
 >   release Suspend[()] (last use)
 >   release fn!() -> () (last use)
     tally.n
@@ -116,3 +119,4 @@ fn copied!() -> i64:
 >   release counted reference (last use)
 >   release fn!() -> i64 (cancelled)
 >   release Suspend[i64] (cancelled)
+>   release counted reference (last use)

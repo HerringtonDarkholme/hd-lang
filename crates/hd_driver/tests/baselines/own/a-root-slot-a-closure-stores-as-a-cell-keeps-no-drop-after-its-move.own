@@ -6,17 +6,21 @@
 # and the `Drop` after the move goes (the bench `points` shape). A move
 # of a heap cell keeps its drop, which ends the box (`rounds_cell`).
 fn eat(s: string) -> usize:
+    s.len()
 > app/main/eat
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
-    s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Block %5 : usize
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %4 : usize
 
 fn rounds(n: usize) -> usize:
     let mut xs: List[string] = ["a"]
@@ -31,19 +35,19 @@ fn rounds(n: usize) -> usize:
 >     uses $4: none
 >   local $5 i: usize [read assigned captured] place
 >   local $6 tag: string [:= read assigned captured] value
->     uses $6: %74 -> %120 lend, %181 consume last
+>     uses $6: %74 -> %120 lend, %183 consume last
 >   local $7 x: &string [param read] value
 >     uses $7: entry -> %79 consume last
 >   local $8 $ref: &string [read assigned captured captured-assigned] place
 >   local $9 $interpolation: StringBuilder [read assigned captured captured-assigned] place
 >   local $10 total: usize [read assigned mutated] place
 >   local $11 $coll: List[string] [assigned] value
->     uses $11: %195 -> %196 lend, %204 lend
+>     uses $11: %197 -> %198 lend, %206 lend
 >   local $13 $pos: usize [assigned] place
 >   local $14 $end: usize [assigned] value
->     uses $14: %198 -> %201 lend
+>     uses $14: %200 -> %203 lend
 >   local $15 x: string [read assigned] value
->     uses $15: %216 -> %209 consume last
+>     uses $15: %218 -> %211 consume last
 >   local $16 result: string [read] value
 >     uses $16: %159 -> %163 lend last
 >   local $17 offset: usize [read] value
@@ -87,7 +91,8 @@ fn rounds(n: usize) -> usize:
 >   %0 = NewList - ["a"] : List[string]
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] %0 : ()
->   %228 = Block %227 : usize
+>   %230 = Drop [$6] : ()
+>   %231 = Block %229 : usize
     for i in 0..n:
 >   %3 = Read copy [$0] : usize
 >   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
@@ -106,12 +111,12 @@ fn rounds(n: usize) -> usize:
 >   %17 = Read copy [$2] : usize
 >   %18 = Prim Add [%17 1:usize] : usize
 >   %19 = Store [$2] %18 : ()
->   %187 = Block - : ()
->   %188 = Break L0 - : never
 >   %189 = Block - : ()
->   %190 = If %13 [%187 %189] : ()
+>   %190 = Break L0 - : never
 >   %191 = Block - : ()
->   %192 = Loop %191 - : ()
+>   %192 = If %13 [%189 %191] : ()
+>   %193 = Block - : ()
+>   %194 = Loop %193 - : ()
         tag := "r$i"
 >   %20 = Ref local frame [$5] : &usize
 >   %21 = Read copy [*%20] : usize
@@ -171,8 +176,8 @@ fn rounds(n: usize) -> usize:
 >   %75 = Release %74 Operation #3 : ()
         xs = xs.map(fn(x): "$x$tag")
 >   %76 = Ref local frame [$1] : &List[string]
->   %77 = Retain %180 Entry captures #0 : ()
->   %78 = Retain %180 Entry local $7 #0 : ()
+>   %77 = Retain %182 Entry captures #0 : ()
+>   %78 = Retain %182 Entry local $7 #0 : ()
 >   %79 = Read move [$7] : &string
 >   %80 = Box #8 #1 : ()
 >   %81 = Store [$8] %79 : ()
@@ -274,165 +279,169 @@ fn rounds(n: usize) -> usize:
 >   %177 = Read move [%137] : string
 >   %178 = Drop [$18] : ()
 >   %179 = Coerce %177 [Identity -] : string
->   %180 = Block %179 : string
->   %181 = Closure #1 : fn(&string) -> string
->   %182 = Retain %181 Operation captures #0 : ()
->   %183 = Call std/collections/impl[T] List[T].map[string, string] (%76, %181) : List[string]
->   %183 keeps %181
->   %184 = LoanEnd [%76] : ()
->   %185 = Store [$1] %183 : ()
->   %186 = Release %185 Operation #3 : ()
+>   %180 = Drop [$6] : ()
+>   %181 = Drop [$7] : ()
+>   %182 = Block %179 : string
+>   %183 = Closure #1 : fn(&string) -> string
+>   %184 = Retain %183 Operation captures #0 : ()
+>   %185 = Call std/collections/impl[T] List[T].map[string, string] (%76, %183) : List[string]
+>   %185 keeps %183
+>   %186 = LoanEnd [%76] : ()
+>   %187 = Store [$1] %185 : ()
+>   %188 = Release %187 Operation #3 : ()
     let mut total = 0
->   %193 = Store [$10] 0:usize : ()
+>   %195 = Store [$10] 0:usize : ()
     for x in xs:
->   %194 = Read move [$1] : List[string]
->   %195 = Store [$11] %194 : ()
->   %196 = Read borrow [$11] : List[string]
->   %197 = Intrinsic ListLen [%196] : usize
->   %198 = Store [$14] %197 : ()
->   %199 = Store [$13] 0:usize : ()
->   %200 = Read copy [$13] : usize
->   %201 = Read copy [$14] : usize
->   %202 = Prim Lt [%200 %201] : bool
->   %203 = Read copy [$13] : usize
->   %204 = Read borrow [$11 [%203]] : string
+>   %196 = Read move [$1] : List[string]
+>   %197 = Store [$11] %196 : ()
+>   %198 = Read borrow [$11] : List[string]
+>   %199 = Intrinsic ListLen [%198] : usize
+>   %200 = Store [$14] %199 : ()
+>   %201 = Store [$13] 0:usize : ()
+>   %202 = Read copy [$13] : usize
+>   %203 = Read copy [$14] : usize
+>   %204 = Prim Lt [%202 %203] : bool
 >   %205 = Read copy [$13] : usize
->   %206 = Prim Add [%205 1:usize] : usize
->   %207 = Store [$13] %206 : ()
->   %214 = Block - : ()
->   %215 = Read borrow [%204] : string
->   %216 = Store [$15] %215 : ()
->   %218 = Block - : never
->   %219 = Match %204 [%218 %214] : ()
->   %220 = Block - : ()
->   %221 = Break L1 - : never
+>   %206 = Read borrow [$11 [%205]] : string
+>   %207 = Read copy [$13] : usize
+>   %208 = Prim Add [%207 1:usize] : usize
+>   %209 = Store [$13] %208 : ()
+>   %216 = Block - : ()
+>   %217 = Read borrow [%206] : string
+>   %218 = Store [$15] %217 : ()
+>   %220 = Block - : never
+>   %221 = Match %206 [%220 %216] : ()
 >   %222 = Block - : ()
->   %223 = If %202 [%220 %222] : ()
+>   %223 = Break L1 - : never
 >   %224 = Block - : ()
->   %225 = Loop %224 - : ()
->   %226 = Drop [$11] : ()
+>   %225 = If %204 [%222 %224] : ()
+>   %226 = Block - : ()
+>   %227 = Loop %226 - : ()
+>   %228 = Drop [$11] : ()
         total = total + eat(x)
->   %208 = Read copy [$10] : usize
->   %209 = Read copy [$15] : string
->   %210 = Retain %209 Value #0 : ()
->   %211 = Call app/main/eat[] (%209) : usize
->   %212 = Prim Add [%208 %211] : usize
->   %213 = Store [$10] %212 : ()
+>   %210 = Read copy [$10] : usize
+>   %211 = Read copy [$15] : string
+>   %212 = Retain %211 Value #0 : ()
+>   %213 = Call app/main/eat[] (%211) : usize
+>   %214 = Prim Add [%210 %213] : usize
+>   %215 = Store [$10] %214 : ()
     total
->   %227 = Read copy [$10] : usize
+>   %229 = Read copy [$10] : usize
 >   exit sub 0 drops [$6]
 >   exit sub 1 drops [$6 $7]
 >   storage sub 0: $1 slot, $5 slot, $8 cell, $9 cell
 >   storage sub 1: $1 cell, $5 cell, $8 cell, $9 cell
->   loop %225 keeps len [$11] (%195..%226)
+>   loop %227 keeps len [$11] (%197..%228)
 
 fn rounds_cell(n: usize) -> usize:
     let mut xs: List[string] = ["a"]
 > app/main/rounds_cell
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %12 consume last
+>     uses $0: entry -> %13 consume last
 >   local $1 xs: List[string] [read assigned captured] place
 >     frame cell [$1]
 >   local $2 add: fn() -> () [:= read assigned] value
->     uses $2: %11 -> %27 lend
+>     uses $2: %12 -> %28 lend
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %17 -> %21 lend
+>     uses $4: %18 -> %22 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   local $6 total: usize [read assigned mutated] place
 >   local $7 $coll: List[string] [assigned] value
->     uses $7: %40 -> %41 lend, %49 lend
+>     uses $7: %41 -> %42 lend, %50 lend
 >   local $9 $pos: usize [assigned] place
 >   local $10 $end: usize [assigned] value
->     uses $10: %43 -> %46 lend
+>     uses $10: %44 -> %47 lend
 >   local $11 x: string [read assigned] value
->     uses $11: %61 -> %54 consume last
+>     uses $11: %62 -> %55 consume last
 >   %0 = NewList - ["a"] : List[string]
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] %0 : ()
->   %73 = Block %72 : usize
+>   %74 = Drop [$1] : ()
+>   %75 = Block %73 : usize
     add := fn() -> void: xs.push("b")
->   %3 = Retain %8 Entry captures #0 : ()
+>   %3 = Retain %9 Entry captures #0 : ()
 >   %4 = IsUnique [$1] : ()
 >   %5 = Read borrow [$1] : List[string]
 >   %6 = Intrinsic ListPush [%5 "b"] : ()
 >   %7 = Drop [$1] : ()
->   %8 = Block - : ()
->   %9 = Closure #1 : fn() -> ()
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Store [$2] %9 : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = Closure #1 : fn() -> ()
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Store [$2] %10 : ()
     for _ in 0..n:
->   %12 = Read copy [$0] : usize
->   %13 = NewStruct [0:usize %12 0:bool] : Range[usize]
->   %14 = Read copy [%13 .start] : usize
->   %15 = Store [$3] %14 : ()
->   %16 = Read copy [%13 .end] : usize
->   %17 = Store [$4] %16 : ()
->   %18 = Read copy [%13 .inclusive] : bool
->   %19 = Store [$5] %18 : ()
->   %20 = Read copy [$3] : usize
->   %21 = Read copy [$4] : usize
->   %22 = Prim Lt [%20 %21] : bool
->   %23 = Read copy [$3] : usize
+>   %13 = Read copy [$0] : usize
+>   %14 = NewStruct [0:usize %13 0:bool] : Range[usize]
+>   %15 = Read copy [%14 .start] : usize
+>   %16 = Store [$3] %15 : ()
+>   %17 = Read copy [%14 .end] : usize
+>   %18 = Store [$4] %17 : ()
+>   %19 = Read copy [%14 .inclusive] : bool
+>   %20 = Store [$5] %19 : ()
+>   %21 = Read copy [$3] : usize
+>   %22 = Read copy [$4] : usize
+>   %23 = Prim Lt [%21 %22] : bool
 >   %24 = Read copy [$3] : usize
->   %25 = Prim Add [%24 1:usize] : usize
->   %26 = Store [$3] %25 : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %22 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
->   %35 = Drop [$2] : ()
+>   %25 = Read copy [$3] : usize
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$3] %26 : ()
+>   %30 = Block - : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = If %23 [%30 %32] : ()
+>   %34 = Block - : ()
+>   %35 = Loop %34 - : ()
+>   %36 = Drop [$2] : ()
         add()
->   %27 = Read borrow [$2] : fn() -> ()
->   %28 = CallValue %27 [] : ()
+>   %28 = Read borrow [$2] : fn() -> ()
+>   %29 = CallValue %28 [] : ()
     let mut total = 0
->   %36 = Store [$6] 0:usize : ()
+>   %37 = Store [$6] 0:usize : ()
     for x in xs:
->   %37 = Read copy [$1] : List[string]
->   %38 = Retain %37 Value #0 : ()
->   %39 = Drop [$1] : ()
->   %40 = Store [$7] %37 : ()
->   %41 = Read borrow [$7] : List[string]
->   %42 = Intrinsic ListLen [%41] : usize
->   %43 = Store [$10] %42 : ()
->   %44 = Store [$9] 0:usize : ()
->   %45 = Read copy [$9] : usize
->   %46 = Read copy [$10] : usize
->   %47 = Prim Lt [%45 %46] : bool
->   %48 = Read copy [$9] : usize
->   %49 = Read borrow [$7 [%48]] : string
->   %50 = Read copy [$9] : usize
->   %51 = Prim Add [%50 1:usize] : usize
->   %52 = Store [$9] %51 : ()
->   %59 = Block - : ()
->   %60 = Read borrow [%49] : string
->   %61 = Store [$11] %60 : ()
->   %63 = Block - : never
->   %64 = Match %49 [%63 %59] : ()
->   %65 = Block - : ()
->   %66 = Break L1 - : never
->   %67 = Block - : ()
->   %68 = If %47 [%65 %67] : ()
->   %69 = Block - : ()
->   %70 = Loop %69 - : ()
->   %71 = Drop [$7] : ()
+>   %38 = Read copy [$1] : List[string]
+>   %39 = Retain %38 Value #0 : ()
+>   %40 = Drop [$1] : ()
+>   %41 = Store [$7] %38 : ()
+>   %42 = Read borrow [$7] : List[string]
+>   %43 = Intrinsic ListLen [%42] : usize
+>   %44 = Store [$10] %43 : ()
+>   %45 = Store [$9] 0:usize : ()
+>   %46 = Read copy [$9] : usize
+>   %47 = Read copy [$10] : usize
+>   %48 = Prim Lt [%46 %47] : bool
+>   %49 = Read copy [$9] : usize
+>   %50 = Read borrow [$7 [%49]] : string
+>   %51 = Read copy [$9] : usize
+>   %52 = Prim Add [%51 1:usize] : usize
+>   %53 = Store [$9] %52 : ()
+>   %60 = Block - : ()
+>   %61 = Read borrow [%50] : string
+>   %62 = Store [$11] %61 : ()
+>   %64 = Block - : never
+>   %65 = Match %50 [%64 %60] : ()
+>   %66 = Block - : ()
+>   %67 = Break L1 - : never
+>   %68 = Block - : ()
+>   %69 = If %48 [%66 %68] : ()
+>   %70 = Block - : ()
+>   %71 = Loop %70 - : ()
+>   %72 = Drop [$7] : ()
         total = total + eat(x)
->   %53 = Read copy [$6] : usize
->   %54 = Read copy [$11] : string
->   %55 = Retain %54 Value #0 : ()
->   %56 = Call app/main/eat[] (%54) : usize
->   %57 = Prim Add [%53 %56] : usize
->   %58 = Store [$6] %57 : ()
+>   %54 = Read copy [$6] : usize
+>   %55 = Read copy [$11] : string
+>   %56 = Retain %55 Value #0 : ()
+>   %57 = Call app/main/eat[] (%55) : usize
+>   %58 = Prim Add [%54 %57] : usize
+>   %59 = Store [$6] %58 : ()
     total
->   %72 = Read copy [$6] : usize
+>   %73 = Read copy [$6] : usize
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $1 slot
 >   storage sub 1: $1 cell
->   loop %70 keeps [$7] (%40..%71)
+>   loop %71 keeps [$7] (%41..%72)
 
 pub fn main() -> void $ Console:
     println(rounds(3) + rounds_cell(2))

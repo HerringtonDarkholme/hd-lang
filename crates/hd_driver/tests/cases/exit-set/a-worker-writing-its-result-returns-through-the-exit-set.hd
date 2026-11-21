@@ -1,0 +1,28 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A function whose result is written to its caller's memory (more than
+# sixteen values) returns early while an owned local is still held: the
+# result is stored once and `extra` is released once on each way out
+# (lane 237's sret finding for the exit set, #2176). The checked runs'
+# exit audit fails on a leak or a double free.
+struct Big:
+    a: string
+    b: string
+    c: string
+    d: string
+    e: string
+    f: string
+    g: string
+    h: string
+    i: string
+
+fn pick(flag: bool, s: string) -> Big:
+    extra := s + "-extra"
+    if flag:
+        return Big { a: s, b: "b", c: "c", d: "d", e: "e", f: "f", g: "g", h: "h", i: "${extra.len()}" }
+    Big { a: "A", b: "B", c: "C", d: "D", e: "E", f: "F", g: "G", h: "H", i: extra }
+
+pub fn main() -> void $ Console:
+    x := pick(true, "s")
+    y := pick(false, "t")
+    println("${x.a} ${x.i} ${y.a} ${y.i}")

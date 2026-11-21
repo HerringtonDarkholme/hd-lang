@@ -476,6 +476,8 @@
         call $rt:release_ref'2
       end
     end
+    ;; 79 |     seen
+    local.get $message.0
     ;; 74 |     seen := length(hold_ref(p.items.get_ref(1).expect("slot")))
     local.get $p
     if
@@ -499,7 +501,7 @@
         call $rt:release_ref'2
       end
     end
-    local.get $message.0
+    ;; 79 |     seen
     local.get $message.1
   )
   (func $set (param $slot i32) (param $value.0 i32) (param $value.1 i32)

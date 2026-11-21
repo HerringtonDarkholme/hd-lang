@@ -102,13 +102,17 @@ fn through_borrowed['a](holder: &BorrowedHolder['a]) -> &'a string:
 >   summary kept [] writes
 
 fn through_owned_borrowed['a](holder: BorrowedHolder['a]) -> &'a string:
+    &holder.values[0]
 > app/main/through_owned_borrowed
 >   local $0 holder: BorrowedHolder [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %4 Exit local $0 #2 : ()
-    &holder.values[0]
->   %1 = Ref local [$0 .values * [0:usize]] : &string
->   %2 = LoanBegin %1 #0 : ()
->   %3 = LoanClose %2 : ()
->   %4 = Block %1 : &string
+>     uses $0: entry -> %0 lend last
+>   %0 = Ref local [$0 .values * [0:usize]] : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = LoanClose %1 : ()
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %0 : &string
 >   summary kept [] borrows [$0] writes

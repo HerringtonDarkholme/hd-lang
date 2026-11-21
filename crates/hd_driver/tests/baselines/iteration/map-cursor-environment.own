@@ -6,17 +6,21 @@
 use std.iter.MapEntries
 
 fn cursor(values: Map[u64, (u8, u64)]) -> MapEntries[u64, (u8, u64)]:
+    values.iter()
 > app/main/cursor
 >   local $0 values: Map[u64, (u8, u64)] [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %8 Exit local $0 #2 : ()
-    values.iter()
->   %1 = Read borrow [$0] : Map[u64, (u8, u64)]
->   %2 = Call std/iter/map_steps[u64, (u8, u64)] (%1) : fn(usize) -> (usize, (u64, (u8, u64)))?
->   %3 = Retain %2 Operation operand 0 #0 : ()
->   %4 = NewStruct [%2 0:usize] : MapEntries[u64, (u8, u64)]
->   %5 = Break L0 %4 : never
->   %6 = Block - : MapEntries[u64, (u8, u64)]
->   %7 = Scope %6 [] : MapEntries[u64, (u8, u64)]
->   %8 = Block %7 : MapEntries[u64, (u8, u64)]
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : Map[u64, (u8, u64)]
+>   %1 = Call std/iter/map_steps[u64, (u8, u64)] (%0) : fn(usize) -> (usize, (u64, (u8, u64)))?
+>   %2 = Retain %1 Operation operand 0 #0 : ()
+>   %3 = NewStruct [%1 0:usize] : MapEntries[u64, (u8, u64)]
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : MapEntries[u64, (u8, u64)]
+>   %6 = Scope %5 [] : MapEntries[u64, (u8, u64)]
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %12 Exit local $0 #2 : ()
+>   %12 = Block %6 : MapEntries[u64, (u8, u64)]
 >   summary kept [] borrows [$0] writes

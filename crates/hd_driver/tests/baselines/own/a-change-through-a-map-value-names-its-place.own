@@ -24,7 +24,7 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
 >     uses $0: entry -> %1 lend, %3 lend, %6 lend, %9 lend, %11 lend, %13 lend, %17 lend, %20 lend, %22 consume last
 >   local $1 n: i64 [param read] value
 >     uses $1: entry -> %4 consume, %14 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Retain %24 Entry local $0 #0 : ()
     m["a"].push(n)
 >   %1 = Read borrow [$0] : Map[string, List[i64]]
 >   %2 = Intrinsic MapEntry [%1 "a"] : usize
@@ -36,7 +36,8 @@ fn add(mut m: Map[string, List[i64]], n: i64) -> Map[string, List[i64]]:
 >   %8 = IsUnique [$0 [%7]] : ()
 >   %9 = Read borrow [$0 [%7]] : List[i64]
 >   %10 = Intrinsic ListPush [%9 %4] : ()
->   %23 = Block %22 : Map[string, List[i64]]
+>   %23 = Drop [$0] : ()
+>   %24 = Block %22 : Map[string, List[i64]]
     m["a"].push(twice(n))
 >   %11 = Read borrow [$0] : Map[string, List[i64]]
 >   %12 = Intrinsic MapEntry [%11 "a"] : usize
@@ -68,8 +69,8 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   local $0 m: Map[string, List[i64]] [param read] value
 >     uses $0: entry -> %3 lend, %7 lend, %13 lend, %16 lend, %19 consume last
 >   local $1 k: string [param read assigned captured captured-assigned] place
->   %0 = Retain %20 Entry local $0 #0 : ()
->   %1 = Retain %20 Entry local $1 #0 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
     m[k].push(next(&mut k))
 >   %2 = Box #1 #0 : ()
 >   %3 = Read borrow [$0] : Map[string, List[i64]]
@@ -88,7 +89,9 @@ fn add_at(mut m: Map[string, List[i64]], mut k: string) -> Map[string, List[i64]
 >   %16 = Read borrow [$0 [%14]] : List[i64]
 >   %17 = Intrinsic ListPush [%16 %9] : ()
 >   %18 = Drop [%4] : ()
->   %20 = Block %19 : Map[string, List[i64]]
+>   %20 = Drop [$0] : ()
+>   %21 = Drop [$1] : ()
+>   %22 = Block %19 : Map[string, List[i64]]
     m
 >   %19 = Read move [$0] : Map[string, List[i64]]
 >   exit sub 0 drops [$0 $1]

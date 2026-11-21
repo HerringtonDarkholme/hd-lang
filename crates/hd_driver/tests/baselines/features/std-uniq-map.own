@@ -16,15 +16,17 @@ fn put(m: &mut UniqMap[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %3 consume last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %4 consume last
->   %0 = Retain %7 Entry local $1 #0 : ()
->   %1 = Retain %7 Entry local $2 #0 : ()
+>   %0 = Retain %9 Entry local $1 #0 : ()
+>   %1 = Retain %9 Entry local $2 #0 : ()
     _ := m.insert(k, v)
 >   %2 = Read borrow [$0] : &mut UniqMap[string, string]
 >   %3 = Read move [$1] : string
 >   %4 = Read move [$2] : string
 >   %5 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string] (%2, %3, %4) : string?
 >   %6 = Drop [%5] : ()
->   %7 = Block - : ()
+>   %7 = Drop [$1] : ()
+>   %8 = Drop [$2] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] writes
 
@@ -36,7 +38,7 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 >     uses $1: entry -> %2 consume last
 >   local $2 v: &string [read assigned] value
 >     uses $2: %9 -> %4 lend last
->   %0 = Retain %18 Entry local $1 #0 : ()
+>   %0 = Retain %19 Entry local $1 #0 : ()
     match m.get_ref(k):
 >   %1 = Read borrow [$0] : &UniqMap[string, string]
 >   %2 = Read move [$1] : string
@@ -44,7 +46,8 @@ fn lookup(m: &UniqMap[string, string], k: string) -> usize:
 >   %15 = Block - : never
 >   %16 = Match %3 [%15 %6 %7] : usize
 >   %17 = Drop [%3] : ()
->   %18 = Block %16 : usize
+>   %18 = Drop [$1] : ()
+>   %19 = Block %16 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
@@ -76,8 +79,8 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >     uses $10: %4 -> %5 consume last
 >   local $11 capacity: usize [read] value
 >     uses $11: %6 -> %7 lend, %10 consume last
->   %0 = Retain %70 Entry local $1 #0 : ()
->   %1 = Retain %70 Entry local $2 #0 : ()
+>   %0 = Retain %72 Entry local $1 #0 : ()
+>   %1 = Retain %72 Entry local $2 #0 : ()
     m.get_or_insert(k, UniqList::new()).push(v)
 >   %2 = Read borrow [$0] : &mut UniqMap[string, UniqList[string]]
 >   %3 = Read move [$1] : string
@@ -147,6 +150,8 @@ fn group(m: &mut UniqMap[string, UniqList[string]], k: string, v: string) -> voi
 >   %67 = Block - : ()
 >   %68 = Scope %67 [] : ()
 >   %69 = Drop [$3] : ()
->   %70 = Block - : ()
+>   %70 = Drop [$1] : ()
+>   %71 = Drop [$2] : ()
+>   %72 = Block - : ()
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] writes

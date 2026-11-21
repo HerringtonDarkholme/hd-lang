@@ -18,13 +18,13 @@
       i32.const 0
       local.set $pair.left.name.1
       i32.const 0
-      local.set $t1
+      local.set $t0
       call $rt:release_spilled'1
     ;; 36 |     if early:
     end
-    local.get $t0
+    local.get $t1
     if
-      local.get $t1
+      local.get $t0
       if
         local.get $pair.left.name.0
         local.get $pair.left.name.1
@@ -32,7 +32,7 @@
         local.get $pair.right.name.1
         call $rt:release_spilled'2
       else
-        local.get $t1
+        local.get $t0
         if
           local.get $pair.left.name.0
           local.get $pair.left.name.1
