@@ -763,7 +763,7 @@ impl<'a> Locals<'a> {
 struct Module {
     /// Each defined function's body bounds, by function index.
     bodies: BTreeMap<u32, (u64, u64)>,
-    /// Each function's name, from the `name` section, by index.
+    /// Each function's name, from `name` or release `hd.names`, by index.
     names: BTreeMap<u32, String>,
     /// Each function type's signature, by type index.
     types: Vec<wasmparser::FuncType>,
@@ -849,6 +849,22 @@ impl Module {
                     defined += 1;
                 }
                 wasmparser::Payload::CustomSection(c) => {
+                    // Release's compact payload has the same index/name entries
+                    // as a standard function-name map. Standard names take
+                    // precedence regardless of custom-section order.
+                    if c.name() == "hd.names"
+                        && let Ok(names) = wasmparser::NameMap::new(wasmparser::BinaryReader::new(
+                            c.data(),
+                            c.data_offset(),
+                        ))
+                    {
+                        for name in names.flatten() {
+                            module
+                                .names
+                                .entry(name.index)
+                                .or_insert_with(|| name.name.to_owned());
+                        }
+                    }
                     if let wasmparser::KnownCustom::Name(names) = c.as_known() {
                         for name in names {
                             if let Ok(wasmparser::Name::Function(map)) = name {
@@ -982,5 +998,87 @@ mod tests {
         assert_eq!(names.name(9), "f'1");
         assert_eq!(names.name(2), "f'2");
         assert_eq!(names.name(4), "g");
+    }
+}
+
+#[cfg(test)]
+mod compact_name_tests {
+    use super::Module;
+
+    fn section(wasm: &mut Vec<u8>, id: u8, data: &[u8]) {
+        wasm.push(id);
+        hd_base::leb::put(wasm, data.len() as u64);
+        wasm.extend_from_slice(data);
+    }
+
+    fn name_map(names: &[(u32, &str)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        hd_base::leb::put(&mut out, names.len() as u64);
+        for &(index, name) in names {
+            hd_base::leb::put(&mut out, u64::from(index));
+            hd_base::leb::put(&mut out, name.len() as u64);
+            out.extend_from_slice(name.as_bytes());
+        }
+        out
+    }
+
+    fn custom(wasm: &mut Vec<u8>, name: &str, data: &[u8]) {
+        let mut out = Vec::new();
+        hd_base::leb::put(&mut out, name.len() as u64);
+        out.extend_from_slice(name.as_bytes());
+        out.extend_from_slice(data);
+        section(wasm, 0, &out);
+    }
+
+    fn module() -> Vec<u8> {
+        let mut wasm = b"\0asm\x01\0\0\0".to_vec();
+        section(&mut wasm, 1, &[1, 0x60, 0, 0]);
+        section(&mut wasm, 3, &[2, 0, 0]);
+        section(&mut wasm, 10, &[2, 2, 0, 0x0b, 2, 0, 0x0b]);
+        wasm
+    }
+
+    #[test]
+    fn compact_names_follow_the_function_across_index_changes() {
+        for (index, names) in [
+            (0, [(0, "rt:bytes_index_set"), (1, "app/main/other#0")]),
+            (1, [(0, "app/main/other#0"), (1, "rt:bytes_index_set")]),
+        ] {
+            let mut wasm = module();
+            custom(&mut wasm, "hd.names", &name_map(&names));
+            let read = Module::read(&wasm);
+            assert_eq!(read.name(index), "rt:bytes_index_set");
+            assert_eq!(read.names.len(), 2);
+        }
+    }
+
+    #[test]
+    fn standard_names_win_in_either_section_order() {
+        for standard_first in [true, false] {
+            let mut wasm = module();
+            let mut standard = Vec::new();
+            section(&mut standard, 1, &name_map(&[(0, "rt:standard")]));
+            for is_standard in [standard_first, !standard_first] {
+                if is_standard {
+                    custom(&mut wasm, "name", &standard);
+                } else {
+                    custom(&mut wasm, "hd.names", &name_map(&[(0, "rt:compact")]));
+                }
+            }
+            assert_eq!(Module::read(&wasm).name(0), "rt:standard");
+        }
+    }
+
+    #[test]
+    fn absent_unknown_or_malformed_optional_names_keep_the_fallback() {
+        let mut wasm = module();
+        assert_eq!(Module::read(&wasm).name(1), "func1");
+        custom(&mut wasm, "foreign.names", &name_map(&[(1, "foreign")]));
+        assert_eq!(Module::read(&wasm).name(1), "func1");
+        for malformed in [vec![0x80], vec![1, 1, 1, 0xff]] {
+            let mut wasm = module();
+            custom(&mut wasm, "hd.names", &malformed);
+            assert_eq!(Module::read(&wasm).name(1), "func1");
+        }
     }
 }
