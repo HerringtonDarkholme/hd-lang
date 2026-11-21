@@ -78,7 +78,7 @@ mod strip_comments;
 include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 
 /// The module of the entry and test-case result glue ([`RT_SOURCE`]).
-pub const ENTRY_MODULE: &str = "std.rt.entry";
+pub const ENTRY_MODULE: &str = hd_resolve::known::ENTRY_MODULE;
 /// The [`ENTRY_MODULE`] functions an entry's glue hands a root's result to,
 /// plain, `Error` and `dyn Error` (`report_fn`).
 const ENTRY_STATUS_FNS: [&str; 3] = ["entry_status", "entry_status_error", "entry_status_dyn_ref"];
@@ -182,7 +182,7 @@ fn rt_roots(table: &ModuleTable, checked: bool) -> impl Iterator<Item = ModuleId
     // A checked build links the checked runtime, which has folders of its
     // own (`std.rt.checked`, and `std.rt.checked_report` with that feature).
     let checked_rt: &[&str] = if checked {
-        &["std.rt.checked", hd_wasm::CHECKED_MODULE]
+        &[hd_resolve::known::CHECKED_MODULE, hd_wasm::CHECKED_MODULE]
     } else {
         &[]
     };
@@ -1255,13 +1255,13 @@ fn skim_module(
     // a `tests:` block is test code only in the test role.
     let package = table.modules[m].package;
     let testing_elsewhere = table
-        .module_of_use("std.testing")
+        .module_of_use(hd_resolve::known::TESTING_MODULE)
         .is_some_and(|t| table.modules[t.idx()].package != package);
     if testing_elsewhere {
         if table.modules[m].role == hd_project::Role::Test {
-            uses.push("std.testing".to_owned());
+            uses.push(hd_resolve::known::TESTING_MODULE.to_owned());
         } else if file.has_tests_block {
-            test_uses.push("std.testing".to_owned());
+            test_uses.push(hd_resolve::known::TESTING_MODULE.to_owned());
         }
     }
     // A REPL input sees `src/lib.hd`, once its session holds it, and the
@@ -1272,7 +1272,7 @@ fn skim_module(
     // edge per input instead of one per pair of inputs.
     uses.extend(session);
     // The prelude's fixed uses (`module.prelude.fixed-uses`).
-    if module != "std.core" {
+    if module != hd_resolve::known::CORE_MODULE {
         uses.extend(
             hd_resolve::prelude_modules(module)
                 .into_iter()
@@ -10554,24 +10554,23 @@ impl Run<'_> {
                 .sources
                 .get(module.file.idx())
                 .is_some_and(|(_, file)| hd_project::Root::of(file).0 == hd_project::Root::Test);
-        let mut paths = vec!["std.testing.TestRunner"];
-        if integration {
-            paths.extend(
-                hd_host_abi::TABLE
-                    .iter()
-                    .map(hd_host_abi::public_provider_path),
-            );
-        }
         let names = self.names();
-        let keys = paths
-            .iter()
-            .filter_map(|p| {
-                let (owner, name) = p.rsplit_once('.')?;
-                Some(self.pool.intern_ty(&TyData::TraitValue {
-                    def: names.item(owner, name),
+        let mut defs = vec![names.known.test_runner];
+        if integration {
+            defs.extend(hd_host_abi::TABLE.iter().filter_map(|entry| {
+                let path = hd_host_abi::public_provider_path(entry);
+                let (owner, name) = path.rsplit_once('.')?;
+                Some(names.item(owner, name))
+            }));
+        }
+        let keys = defs
+            .into_iter()
+            .map(|def| {
+                self.pool.intern_ty(&TyData::TraitValue {
+                    def,
                     args: TyList::EMPTY,
                     bindings: vec![],
-                }))
+                })
             })
             .collect();
         self.pool.row(&hd_types::RowData {
@@ -11447,7 +11446,7 @@ impl Run<'_> {
                         // One pass over the instance table for the inits the
                         // groups name, not a scan of it per init.
                         let table = &c.collected.table;
-                        let runtime = names.module("std.rt");
+                        let runtime = names.module(hd_resolve::known::RUNTIME_MODULE);
                         let wanted: HashSet<Hash128> = units.iter().flatten().copied().collect();
                         table
                             .key

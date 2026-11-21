@@ -12,16 +12,10 @@ use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 use crate::iface::{
     CallAttrs, Field, FnAttrs, FnSig, Generic, Item, ItemData, Names, TraitData, TypeAttrs, Variant,
 };
+use crate::known;
 
 /// The modules that have compiler-supplied items.
-pub const SEEDED: &[&str] = &[
-    "std.core",
-    "std.task",
-    "std.function",
-    "std.inspect",
-    "std.structure",
-    "std.testing",
-];
+pub use crate::known::SEEDED_MODULES as SEEDED;
 
 fn param(names: &Names<'_>, owner: hd_base::DefId, index: u16) -> Ty {
     names
@@ -74,7 +68,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
         out.push(it);
     };
     match module {
-        "std.core" => {
+        known::CORE_MODULE => {
             for p in Prim::ALL {
                 item(
                     p.name(),
@@ -218,7 +212,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Fn(sig, intrinsic(names, "box")),
             ));
         }
-        "std.task" => {
+        known::TASK_MODULE => {
             item("Suspend", gens(names, &["T"]), ItemData::Builtin);
             let poll_def = names.item(module, "Poll");
             item(
@@ -269,7 +263,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Fn(join, intrinsic(names, "task_all")),
             );
         }
-        "std.function" => {
+        known::FUNCTION_MODULE => {
             let tr = names.item(module, "Fn");
             let tuple = pool.intern_ty(&TyData::TraitValue {
                 def: names.known.tuple,
@@ -335,7 +329,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             );
             out.push(call);
         }
-        "std.structure" => {
+        known::STRUCTURE_MODULE => {
             // `Structure` (annotations, "The Structure Trait"): sealed; the
             // compiler supplies it to a target while a template runs.
             let tr = names.item(module, "Structure");
@@ -435,7 +429,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             );
             out.extend(members);
         }
-        "std.testing" => {
+        known::TESTING_MODULE => {
             let body = pool.intern_ty(&TyData::Fn {
                 params: TyList::EMPTY,
                 result: Ty::VOID,
@@ -460,7 +454,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
         // ruled out: a match on a module path; the other modules have no seeded items.
         _ => {}
     }
-    if module == "std.testing"
+    if module == known::TESTING_MODULE
         && let Some(c) = (out.iter_mut())
             .find(|i| i.def == names.item(module, "it"))
             .and_then(Item::call_mut)
