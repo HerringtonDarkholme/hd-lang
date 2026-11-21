@@ -31,9 +31,9 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >     uses $3: %12 -> %16 lend last
 >   local $4 p: &P [read] value
 >     uses $4: %5 -> %6 lend last
->   %0 = Release %21 Exit local $0 #2 : ()
->   %1 = Release %21 Exit local $1 #2 : ()
->   %2 = Retain %21 Entry local $2 #0 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
+>   %1 = Release %22 Exit local $1 #2 : ()
+>   %2 = Retain %22 Entry local $2 #0 : ()
     d := name_of(h.p)
 >   %3 = Ref local [*$0 .p *] : &P
 >   %4 = LoanBegin %3 #0 : ()
@@ -45,7 +45,8 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %10 = Scope %9 [] : &string
 >   %11 = LoanEnd [$4] : ()
 >   %12 = Store [$3] %10 : ()
->   %21 = Block %16 : string
+>   %21 = Drop [$2] : ()
+>   %22 = Block %16 : string
     alias.p = next
 >   %13 = Read move [$2] : *P
 >   %14 = Store [*$1 .p] %13 : ()
@@ -85,9 +86,9 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >     uses $3: %12 -> %16 lend last
 >   local $4 p: &mut P [read] value
 >     uses $4: %5 -> %6 lend last
->   %0 = Release %21 Exit local $0 #2 : ()
->   %1 = Release %21 Exit local $1 #2 : ()
->   %2 = Retain %21 Entry local $2 #0 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
+>   %1 = Release %22 Exit local $1 #2 : ()
+>   %2 = Retain %22 Entry local $2 #0 : ()
     d := name_mut(h.p)
 >   %3 = Ref mut local [*$0 .p *] : &mut P
 >   %4 = LoanBegin %3 #1 : ()
@@ -99,7 +100,8 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %10 = Scope %9 [] : &mut string
 >   %11 = LoanEnd [$4] : ()
 >   %12 = Store [$3] %10 : ()
->   %21 = Block %16 : string
+>   %21 = Drop [$2] : ()
+>   %22 = Block %16 : string
     alias.p = next
 >   %13 = Read move [$2] : *mut P
 >   %14 = Store [*$1 .p] %13 : ()

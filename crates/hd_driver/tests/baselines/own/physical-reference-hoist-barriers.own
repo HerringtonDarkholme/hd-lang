@@ -109,11 +109,12 @@ app/main/impl Probes.replace
     uses $0: entry -> %2 lend last
   local $1 source: List[usize] [param read] value
     uses $1: entry -> %1 consume last
-  %0 = Retain %4 Entry local $1 #0 : ()
+  %0 = Retain %5 Entry local $1 #0 : ()
   %1 = Read move [$1] : List[usize]
   %2 = Store [*$0] %1 : ()
   %3 = Release %2 Operation #3 : ()
-  %4 = Block - : ()
+  %4 = Drop [$1] : ()
+  %5 = Block - : ()
   exit sub 0 drops [$1]
   summary kept [$1] writes
 app/main/impl Probes.step

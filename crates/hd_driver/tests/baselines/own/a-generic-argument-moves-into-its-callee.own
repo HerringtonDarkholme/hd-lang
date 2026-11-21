@@ -6,5 +6,6 @@ app/main/show
   %2 = Read move [$0] : T
   %3 = FlagClear [$0] #1 : ()
   %4 = Call app/main/keep[T] (%2) : List[T]
-  %5 = Block %4 : List[T]
+  %5 = Drop [$0] : ()
+  %6 = Block %4 : List[T]
   exit sub 0 drops [$0]

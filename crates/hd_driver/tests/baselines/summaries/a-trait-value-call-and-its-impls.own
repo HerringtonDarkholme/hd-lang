@@ -44,13 +44,14 @@ impl Sink for Keep:
 >     uses $0: entry -> %3 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
         self.all.push(m)
 >   %1 = Read move [$1] : Member
 >   %2 = IsUnique [*$0 .all] : ()
 >   %3 = Read borrow [*$0 .all] : List[Member]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Block - : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 

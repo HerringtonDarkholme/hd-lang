@@ -3682,15 +3682,10 @@ impl Em<'_, '_, '_> {
             self.ret = self.results.iter().map(|v| self.f.local(*v)).collect();
         }
         if a != NONE && !self.results.is_empty() {
-            // The value moves out at its only use, or takes a count for
-            // the caller.
+            // The value moves out at its only use, or took its count for
+            // the caller before the exit set (`hd_tir::own::exits`).
             let moved = !borrowed && self.take(a);
-            let s = if !moved && !borrowed {
-                self.retain_ref(a)?
-            } else {
-                value::Src::Ref(a)
-            };
-            self.push_src(&s)?;
+            self.push(a)?;
             for l in self.ret.clone().iter().rev() {
                 self.f.set(*l);
             }

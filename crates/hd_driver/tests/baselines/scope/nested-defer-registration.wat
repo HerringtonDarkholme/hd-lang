@@ -210,6 +210,37 @@
           i32.const -1
           i32.add
           global.set $forbid
+          local.get $log
+          if
+            local.get $log
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $log
+              call $rt:release_ref
+            end
+          end
+          local.get $t3
+          if
+            local.get $t3
+            i32.load $heap offset=4
+            local.tee $log
+            if
+              local.get $log
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $log
+                call $rt:release_ref
+              end
+            end
+          end
           br 2
         end
     ;; 9 |     if early:
@@ -230,58 +261,23 @@
       if
         local.get $t3
         i32.load $heap offset=4
-        local.tee $t3
+        local.tee $t1
         if
-          local.get $t3
+          local.get $t1
           i32.const 8
           i32.sub
           i32.load $heap
           global.get $tracing
           i32.or
           if
-            local.get $t3
+            local.get $t1
             call $rt:release_ref
           end
         end
       end
-      i32.const 0
-      local.set $t3
       i32.const 4
       local.set $t1
       local.get $log
-      if
-        local.get $log
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $log
-          call $rt:release_ref
-        end
-      end
-      i32.const 0
-      local.set $log
-    end
-    local.get $log
-    if
-      local.get $log
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $log
-        call $rt:release_ref
-      end
-    end
-    local.get $t3
-    if
-      local.get $t3
-      i32.load $heap offset=4
-      local.tee $log
       if
         local.get $log
         i32.const 8

@@ -38,7 +38,8 @@ fn probe(items: UniqList[string]) -> string:
 >   %5 = Store [$1] %3 : ()
 >   %6 = Ref take mut [$1] : *mut Outer
 >   %7 = Store [$2] %6 : ()
->   %71 = Block %66 : string
+>   %71 = Drop [$0] : ()
+>   %72 = Block %66 : string
     r := p.items.get_ref(0).expect("slot")
 >   %8 = Ref local [*$2 .items] : &UniqList[string]
 >   %9 = LoanBegin %8 #0 : ()

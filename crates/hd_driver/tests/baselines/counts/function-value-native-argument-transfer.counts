@@ -207,6 +207,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
     sleep!(ms(1))
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
     value.owned.len()
 
 @inline(.Never)
@@ -230,6 +231,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   retain counted reference (stored)
             cold_starts += 1
             sleep!(ms(1))
+>   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
             value.owned.len()
@@ -274,6 +276,8 @@ pub fn main!() -> void $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
+>   release *mut i32 (last use)
+>   release List[bool] (last use)
 >   release Suspend[usize] (last use)
             1,
             reason="the suspended callback reads its unique input after awaiting",

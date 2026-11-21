@@ -111,13 +111,14 @@ fn lbl(n: i64) -> Label:
 > app/main/sql
 >   local $0 t: Template[i64] [param read] value
 >     uses $0: entry -> %1 consume, %2 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
 fn sql(t: Template[i64]) -> Query:
     Query { text: t.raw_parts, params: t.values }
 >   %1 = Read move [$0 .raw_parts] : List[string]
 >   %2 = Read move [$0 .values] : List[i64]
 >   %3 = NewStruct [%1 %2] : Query
->   %4 = Block %3 : Query
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : Query
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -187,7 +188,7 @@ fn tagged(s: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 t: Template[string] [read] value
 >     uses $1: %5 -> %6 lend, %8 lend last
->   %0 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     tag"<$s>"
 >   %1 = Read move [$0] : string
 >   %2 = NewList - ["<" ">"] : List[string]
@@ -203,6 +204,7 @@ fn tagged(s: string) -> usize:
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
 >   %14 = Drop [$1] : ()
->   %15 = Block %13 : usize
+>   %15 = Drop [$0] : ()
+>   %16 = Block %13 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

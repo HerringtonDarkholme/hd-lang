@@ -649,10 +649,17 @@
       local.get $x
       i32.const 5
       i32.gt_s
-      br_if 0
+      if
+    ;; 58 |         return 0
+        local.get $t1
+        if
+          local.get $t0
+          call $"release_value[Outer]"
+        end
+        br 1
+    ;; 57 |     if x > 5:
+      end
     ;; 59 |     take(a) + 1
-      i32.const 0
-      local.set $t1
       local.get $t0
       call $take
       local.tee $t2
@@ -667,11 +674,6 @@
       i32.add
     ;; 56 |     let a = mk(x)
       local.set $t2
-    end
-    local.get $t1
-    if
-      local.get $t0
-      call $"release_value[Outer]"
     end
     local.get $t2
     local.get $t0

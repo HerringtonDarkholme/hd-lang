@@ -20,8 +20,8 @@
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -1132,6 +1132,28 @@
                 call $rt:release_ref'1
               end
             end
+            local.get $t1
+            i32.load $heap
+            local.tee $s.0
+            if
+              local.get $s.0
+              call $rt:release_ref'1
+            end
+            local.get $t1
+            i32.load $heap offset=16
+            local.tee $s.0
+            if
+              local.get $s.0
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $s.0
+                call $rt:release_ref'2
+              end
+            end
             i32.const 0
             local.set $s.0
             i32.const 1
@@ -1162,27 +1184,27 @@
           local.get $t1
           i32.const 0
           i32.store $heap offset=16
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $s.1
-        if
-          local.get $s.1
-          call $rt:release_ref'1
-        end
-        local.get $t1
-        i32.load $heap offset=16
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
+          local.tee $s.1
+          if
+            local.get $s.1
+            call $rt:release_ref'1
+          end
+          local.get $t1
+          i32.load $heap offset=16
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $s.0

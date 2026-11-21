@@ -40,9 +40,9 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >     uses $5: %22 -> %23 lend last
 >   local $6 self: string [read] value
 >     uses $6: %15 -> %16 lend last
->   %0 = Retain %43 Entry local $0 #0 : ()
->   %1 = Retain %43 Entry local $1 #0 : ()
->   %2 = Retain %43 Entry local $2 #0 : ()
+>   %0 = Retain %46 Entry local $0 #0 : ()
+>   %1 = Retain %46 Entry local $1 #0 : ()
+>   %2 = Retain %46 Entry local $2 #0 : ()
     using first = Res { name: a, log: log }
 >   %3 = Read move [$1] : string
 >   %4 = Read copy [$0] : *mut List[string]
@@ -59,7 +59,10 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %40 = Drop [$3] : ()
 >   %41 = Block %28 : usize
 >   %42 = Scope %41 [] : usize
->   %43 = Block %42 : usize
+>   %43 = Drop [$0] : ()
+>   %44 = Drop [$1] : ()
+>   %45 = Drop [$2] : ()
+>   %46 = Block %42 : usize
     using second = Res { name: b, log: log }
 >   %9 = Read move [$2] : string
 >   %10 = Read move [$0] : *mut List[string]

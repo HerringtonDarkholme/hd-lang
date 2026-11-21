@@ -70,12 +70,13 @@ fn ident[T](x: T) -> T:
 > app/main/ident
 >   local $0 x: T [param read] value
 >     uses $0: entry -> %2 consume last
->   %1 = Retain %4 Entry local $0 #0 : ()
+>   %1 = Retain %5 Entry local $0 #0 : ()
     x
 >   %0 = FlagSet [$0] #1 : ()
 >   %2 = Read move [$0] : T
 >   %3 = FlagClear [$0] #1 : ()
->   %4 = Block %2 : T
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
@@ -102,7 +103,7 @@ fn generic_value(s: string) -> string:
 >     uses $0: entry -> %4 consume last
 >   local $2 f: fn(string) -> string [read] value
 >     uses $2: %2 -> %3 lend last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     map_one(s, ident)
 >   %1 = ItemRef #0 [..] : fn(string) -> string
 >   %2 = Store [$2] %1 : ()
@@ -115,7 +116,8 @@ fn generic_value(s: string) -> string:
 >   %9 = Block - : string
 >   %10 = Scope %9 [] : string
 >   %11 = Drop [$2] : ()
->   %12 = Block %10 : string
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -123,7 +125,7 @@ fn variant_value(s: string) -> Event:
 > app/main/variant_value
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     map_one(s, Event.Named)
 >   %1 = Read move [$0] : string
 >   %2 = NewVariant #0 [%1] : Event
@@ -133,7 +135,8 @@ fn variant_value(s: string) -> Event:
 >   %6 = Break L1 %5 : never
 >   %7 = Block - : Event
 >   %8 = Scope %7 [] : Event
->   %9 = Block %8 : Event
+>   %9 = Drop [$0] : ()
+>   %10 = Block %8 : Event
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

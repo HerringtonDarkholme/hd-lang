@@ -898,15 +898,9 @@ impl Em<'_, '_, '_> {
                 let root = self.b.sub_root[self.sub_id as usize];
                 (super::value::Src::Ref(r), self.take_from(r, root))
             }
-            Some(borrowed) => {
-                let moved = !borrowed && self.take(r);
-                let s = if moved || borrowed {
-                    super::value::Src::Ref(r)
-                } else {
-                    self.retain_ref(r)?
-                };
-                (s, moved)
-            }
+            // A returned value took its count before the exit set
+            // (`hd_tir::own::exits`).
+            Some(borrowed) => (super::value::Src::Ref(r), !borrowed && self.take(r)),
         };
         self.store_src(HEAP, base, 0, &mem.leaves, &src)?;
         if moved {

@@ -34,20 +34,21 @@ fn start() -> fn!(bool) -> void:
 >   %0 = NewStruct [0:i32 "d"] : Counter
 >   %1 = Box #0 #0 : ()
 >   %2 = Store [$0] %0 : ()
->   %25 = Block %24 : fn!(bool) -> ()
+>   %26 = Block %25 : fn!(bool) -> ()
     tick(&mut d)
 >   %3 = Ref mut local frame [$0] : &mut Counter
 >   %4 = Call app/main/tick[] (%3) : ()
 >   %5 = LoanEnd [%3] : ()
 >   %6 = Drop [$0] : ()
     fn!(go: bool) -> void:
->   %7 = Retain %23 Cold row #0 : ()
->   %8 = Retain %23 Materialize row #0 : ()
->   %9 = Release %23 FrameDrop row #2 : ()
->   %10 = Release %23 FrameDrop child #2 : ()
+>   %7 = Retain %24 Cold row #0 : ()
+>   %8 = Retain %24 Materialize row #0 : ()
+>   %9 = Release %24 FrameDrop row #2 : ()
+>   %10 = Release %24 FrameDrop child #2 : ()
 >   %12 = Box #2 #1 : ()
->   %23 = Block - : ()
->   %24 = Closure #1 : fn!(bool) -> ()
+>   %23 = Drop [$2] : ()
+>   %24 = Block - : ()
+>   %25 = Closure #1 : fn!(bool) -> ()
         let mut c = Counter { hits: +0, name: "a" }
 >   %11 = NewStruct [0:i32 "a"] : Counter
 >   %13 = Store [$2] %11 : ()
@@ -58,7 +59,7 @@ fn start() -> fn!(bool) -> void:
 >   %15 = Await app/main/pause[] () : ()
 >   %16 = Release %15 Operation child #2 : ()
 >   %17 = Block - : ()
->   %26 = Return - #2 : never
+>   %28 = Return - #2 : never
         tick(&mut c)
 >   %19 = Ref mut local [$2] : &mut Counter
 >   %20 = Call app/main/tick[] (%19) : ()
@@ -67,4 +68,4 @@ fn start() -> fn!(bool) -> void:
 >   exit sub 1 drops [$2]
 >   storage sub 0: $0 slot, $2 cell
 >   storage sub 1: $0 cell, $2 cell
->   cancel %15 releases [%4294967295]
+>   cancel %15 releases [%2147483650 %4294967295]

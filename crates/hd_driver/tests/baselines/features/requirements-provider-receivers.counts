@@ -43,6 +43,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[()] (cancelled)
+>   release Suspend[()] (last use)
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
