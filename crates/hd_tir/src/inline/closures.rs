@@ -11,28 +11,6 @@ use crate::ir::{
     local_flags, local_words, place, push_frame, slots, u32_of,
 };
 
-// Test-only work accounting: absent from the compiler used by benchmarks.
-macro_rules! work {
-    ($amount:expr) => {
-        #[cfg(test)]
-        measurements::add($amount);
-    };
-}
-#[cfg(test)]
-mod measurements {
-    use std::cell::Cell;
-    thread_local! { static WORK: Cell<usize> = const { Cell::new(0) }; }
-    pub(super) fn add(n: usize) {
-        WORK.with(|work| work.set(work.get() + n));
-    }
-    pub(super) fn reset() {
-        WORK.with(|work| work.set(0));
-    }
-    pub(super) fn total() -> usize {
-        WORK.with(Cell::get)
-    }
-}
-
 /// Shared instruction and side-row groups for all closure copies of a body.
 struct Index {
     rows: Vec<Vec<usize>>,
@@ -242,7 +220,7 @@ impl Index {
 pub(crate) fn extract_subs(
     body: &Body,
     keep: &[bool],
-    defining: &[u32],
+    defining: &HashSet<u32>,
     all_locals: bool,
 ) -> Result<Body, String> {
     let subs = body.inst_subs();
@@ -252,6 +230,7 @@ pub(crate) fn extract_subs(
             && keep.get(body.data[i][0] as usize) != Some(&true)
     };
     let kept = |i: usize| {
+        work!(1);
         defining.contains(&u32_of(i)) || (keep.get(subs[i] as usize) == Some(&true) && !dropped(i))
     };
     let order: Vec<usize> = (0..body.len()).filter(|&i| kept(i)).collect();
@@ -331,20 +310,24 @@ pub(crate) fn extract_subs(
     for (side, _) in side.iter().zip(keep).filter(|(_, k)| **k) {
         side.copy(&mut out, &mut map)?;
     }
-    // Each kept sub-body's root and parameters; an empty root for the rest.
+    // Each kept sub-body's root and parameters; an empty root for the rest,
+    // holding its defining `Closure`s in instruction order, as in `body`.
+    let mut held: Vec<Vec<u32>> = vec![Vec::new(); body.sub_root.len()];
+    let mut sorted: Vec<u32> = defining.iter().copied().collect();
+    sorted.sort_stable();
+    for d in sorted {
+        work!(1);
+        held[subs[d as usize] as usize].push(values[&d]);
+    }
     let none = out.push_record(&[]);
     for s in 0..body.sub_root.len() {
         let root = if keep[s] {
             values[&body.sub_root[s]]
         } else {
-            let held: Vec<u32> = (defining.iter())
-                .filter(|&&d| subs[d as usize] as usize == s)
-                .map(|d| values[d])
-                .collect();
-            let members = if held.is_empty() {
+            let members = if held[s].is_empty() {
                 none
             } else {
-                out.push_record(&held)
+                out.push_record(&held[s])
             };
             out.tags.push(Tag::Block);
             out.data.push([members, NONE]);
@@ -1056,11 +1039,12 @@ fn erase_definitions(
 
 #[cfg(test)]
 mod tests {
-    use super::{inline_local_closures, measurements};
+    use super::inline_local_closures;
     use crate::ir::{
         Body, BodyKind, CaptureMode, INLINED, NONE, Tag, TirBuilder, TirSink, Topology,
         local_flags, u32_of, verify_structure,
     };
+    use crate::measurements;
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
