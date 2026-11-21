@@ -1,0 +1,6 @@
+# @dump: diagnostics tir
+type Ordered[A, B] = (A, B)
+fn pair['a, 'b](left: &'a string, right: &'b string) -> Ordered[&'a string, &'b string]:
+    (left, right)
+fn again['a, 'b](left: &'a string, right: &'b string) -> Ordered[&'a string, &'b string]:
+    pair(left, right)

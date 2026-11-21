@@ -1,0 +1,4 @@
+# @dump: diagnostics
+type Repeated[T] = (T, T)
+fn take['a](value: Repeated[&'a string]) -> void:
+    pass

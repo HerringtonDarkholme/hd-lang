@@ -1,0 +1,10 @@
+# @dump: diagnostics tir
+type Repeated[A, B, 'keep] = (B, A, B, &'keep string)
+fn take['a, 'b, 'c](value: Repeated[&'a string, &'b string, 'c]) -> void:
+    pass
+fn make['a, 'b, 'c](
+    left: &'a string,
+    right: &'b string,
+    kept: &'c string,
+) -> Repeated[&'a string, &'b string, 'c]:
+    (right, left, right, kept)

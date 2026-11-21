@@ -1,0 +1,4 @@
+# @dump: diagnostics
+type Ordered[A, B] = (A, B)
+fn swap['a, 'b](left: &'a string, right: &'b string) -> Ordered[&'a string, &'b string]:
+    (right, left)
