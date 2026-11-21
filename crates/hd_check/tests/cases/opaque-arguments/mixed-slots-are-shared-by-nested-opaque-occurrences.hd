@@ -1,0 +1,10 @@
+# @dump: diagnostics tir
+fn make[T, $ R, N < const i32](value: T) -> (impl Eq, List[impl Eq]):
+    (+1, [+2])
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+fn uses() -> void:
+    same(make::[i32, $(), 1](+0)._0, make::[i32, $(), 1](+1)._0)
+    same(make::[i32, $(), 1](+0)._1, make::[i32, $(), 1](+1)._1)
