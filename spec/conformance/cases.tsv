@@ -6276,6 +6276,7 @@ lang/references/moves/move-out-of-reference-as-tail-value.hd	type	reject:move-ou
 lang/references/moves/move-out-of-mut-reference-as-branch-tail.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place
 lang/references/moves/move-out-of-a-captured-binding.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place.capture
 lang/references/moves/a-closure-reads-a-captured-value-that-is-not-copied.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.out-of-place.capture
+lang/references/moves/move-out-of-a-shared-binding-in-its-scope.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.out-of-place.cell
 lang/references/moves/move-payload-out-of-deref-in-match.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 lang/references/moves/move-field-out-of-deref-in-let-pattern.hd	type	reject:move-out-of-place	lang/13-values-and-references.md#r-ref.move.pattern
 lang/references/moves/match-through-reference-reads-payload-field.hd	type	accept	lang/13-values-and-references.md#r-ref.move.pattern

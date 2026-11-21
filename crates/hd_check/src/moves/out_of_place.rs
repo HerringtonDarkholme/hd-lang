@@ -78,6 +78,8 @@ enum From {
     Reference(RefKind),
     /// A binding the read's closure captures.
     Capture,
+    /// A binding a closure shares through a cell, read in its scope.
+    Cell,
 }
 
 /// The reference a place is behind: `&T`, `&mut T`, or a counted `*T`
@@ -120,16 +122,39 @@ fn captures_of(b: &Body) -> Vec<(u32, u32)> {
     out
 }
 
-/// Whether place `p` of a read in sub-body `sub` is all of, or a field or
-/// payload of, a binding that sub-body captures.
-fn captured(captures: &[(u32, u32)], sub: u32, root: Root, p: &Place) -> bool {
+/// The locals a closure captures that own their value: one whose value
+/// is not copied lives in a cell the closure shares (`fn.capture.cell`;
+/// the checker's capture modes), so its scope reads it there too. A
+/// local reference is captured as itself.
+fn shared_of(b: &Body, pool: hd_types::Types<'_>) -> Vec<bool> {
+    let mut out = vec![false; b.local_ty.len()];
+    for l in &b.cap_local {
+        out[l.idx()] = !crate::local_refs::holds_local_ref(pool, b.local_ty[l.idx()]);
+    }
+    out
+}
+
+/// Where place `p` of a read in sub-body `sub`, all of, or a field or
+/// payload of, a local, reads from: a binding that sub-body captures, or
+/// a variable a closure shares (`shared`).
+fn captured(
+    captures: &[(u32, u32)],
+    shared: &[bool],
+    sub: u32,
+    root: Root,
+    p: &Place,
+) -> Option<From> {
     let Root::Local(l) = root else {
-        return false;
+        return None;
     };
-    p.proj
-        .iter()
-        .all(|x| matches!(x, Proj::Field(_) | Proj::Variant(_)))
-        && captures.binary_search(&(sub, w(l.idx()))).is_ok()
+    if !(p.proj.iter()).all(|x| matches!(x, Proj::Field(_) | Proj::Variant(_))) {
+        return None;
+    }
+    if captures.binary_search(&(sub, w(l.idx()))).is_ok() {
+        Some(From::Capture)
+    } else {
+        shared[l.idx()].then_some(From::Cell)
+    }
 }
 
 impl Ck<'_, '_> {
@@ -146,7 +171,7 @@ impl Ck<'_, '_> {
     /// closure captures, is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self, cx: &mut Uses) {
         let b = self.b.body();
-        let captures = captures_of(b);
+        let (captures, shared) = (captures_of(b), shared_of(b, self.pool()));
         // The reads of a value that is not copied through a reference or
         // out of a capture, with where from and the place's root.
         let reads: Vec<(u32, From, Root)> = (0..b.len())
@@ -156,8 +181,7 @@ impl Ck<'_, '_> {
                 let root = root_of(b, p.root);
                 let from = match self.behind_ref(b, &p) {
                     Some(kind) => From::Reference(kind),
-                    None if captured(&captures, cx.topo.sub[i], root, &p) => From::Capture,
-                    None => return None,
+                    None => captured(&captures, &shared, cx.topo.sub[i], root, &p)?,
                 };
                 Some((w(i), from, root))
             })
@@ -197,6 +221,9 @@ impl Ck<'_, '_> {
                 }
                 From::Capture => format!(
                     "this moves a value out of a binding the closure captures, and a closure may run any number of times; {why}. Borrow it with `&`"
+                ),
+                From::Cell => format!(
+                    "this moves a value out of a binding a closure shares, which the closure may still read; {why}. Borrow it with `&`"
                 ),
             };
             let node = self.cx.src.parse.tree.node(at);
