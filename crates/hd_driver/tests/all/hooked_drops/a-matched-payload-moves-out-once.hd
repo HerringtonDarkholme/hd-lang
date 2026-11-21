@@ -1,0 +1,42 @@
+# A `match` that moves a hooked payload out of its enum: the drop of the
+# enum after the match skips the moved payload's hook, by the drop flags
+# of the matched value. The flags' paths name that value, so every
+# renumbering of the body maps them (the bug: a stale path dropped the
+# emptied payload again, its hook running twice).
+# stdout: 3 made 3 gone 3
+use std.rt.Drop
+
+let made: usize = 0
+let gone: usize = 0
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        gone = gone + 1
+
+fn item(name: string) -> Item:
+    made = made + 1
+    Item { name: name }
+
+enum Slot:
+    One(it: Item)
+    Two(label: string, it: Item)
+    Empty
+
+fn size(slot: Slot) -> usize:
+    match slot:
+        .One(it) => it.name.len()
+        .Two(label, it) => label.len() + it.name.len()
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    let n: usize = 0
+    n = n + size(Slot.One(item("a")))
+    n = n + size(Slot.Two("b", item("c")))
+    n = n + size(Slot.Empty)
+    keep := Slot.Two("d", item("e"))
+    println("${n} made ${made} gone ${gone}")

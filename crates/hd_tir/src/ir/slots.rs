@@ -225,7 +225,7 @@ pub fn slot_words(b: &Body, i: usize, keep: impl Fn(Word) -> bool) -> Vec<u32> {
 
 /// The value words of the place record at `at`: a value or pointer root,
 /// then each element index, with their positions.
-fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
+pub(super) fn place_words(b: &Body, at: u32, mut f: impl FnMut(u32, Loc)) {
     let Some(&n) = b.extra.get(at as usize) else {
         return;
     };

@@ -32,6 +32,7 @@ mod function_value_loan_work;
 mod function_value_native_drop;
 mod generics_determinism;
 mod header_goals;
+mod hooked_drops;
 mod host_drive_slots;
 mod iface_put_order;
 mod impl_universe;
