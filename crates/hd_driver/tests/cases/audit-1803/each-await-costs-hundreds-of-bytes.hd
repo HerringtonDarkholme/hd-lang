@@ -1,9 +1,9 @@
 # @build: release
 # @dump: wat
-# expected: audit #1803 draft 55. Suspension code is linear in the number of
-# awaits (500 awaits measured 6.7x the size of 50), but each await costs about
-# 440 bytes of code: frame save, state store, poll and resume dispatch per
-# point. Shared resume code and smaller per-point records should cut that.
+# expected: audit #1803 draft 55 (#2205). Every point parks at one Pending exit
+# and every cancellation leaves by one exit per body, and a child's cancel is
+# one `rt:cancel_child` call: 50 awaits 25,385 B, 500 awaits 131,659 B (was
+# 35,682 / 234,431), about 236 bytes an await (was 442), ratio 5.2 (was 6.6).
 use std.task.{block_on}
 use std.time.{Clock, s, sleep}
 

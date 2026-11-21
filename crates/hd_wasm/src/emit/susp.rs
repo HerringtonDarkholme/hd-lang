@@ -194,6 +194,9 @@ pub(super) struct Susp {
     /// suspension or a cancellation hands the frame out. Like
     /// `cancelled`, it starts at zero on every poll and is never saved.
     pub own: Option<u32>,
+    /// The locals of the child and the state a Pending exit stores at the
+    /// body's one parking exit ([`Em::close_park`]), while it is open.
+    pub park: Option<(u32, u32)>,
 }
 
 impl Susp {
@@ -475,13 +478,69 @@ impl Em<'_, '_, '_> {
     /// takes. Scalar accesses are already resident; write only task metadata.
     fn suspend(&mut self, k: u32, child: u32) {
         ledger!("susp/suspend-site(materialize)");
+        // Every point parks at one exit, as LLVM's coroutine split sends
+        // each suspend to one return block: a point stores its child and
+        // state in two locals and branches there.
+        if let Some((c, s)) = self.susp.as_ref().and_then(|x| x.park) {
+            self.f.get(child);
+            self.f.set(c);
+            self.f.u32(k);
+            self.f.set(s);
+            let d = self.depth(Ctl::Park);
+            self.f.op(I::Br(d));
+            return;
+        }
+        self.pending(child, |f| f.u32(k));
+    }
+
+    /// Pending: the frame made, the child in local `child` and the state
+    /// `state` pushes stored, the frame returned.
+    fn pending(&mut self, child: u32, state: impl FnOnce(&mut crate::module::Func)) {
         self.materialize();
         self.f.get(FRAME);
         self.f.get(child);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
         self.f.get(FRAME);
-        self.f.u32(k);
+        state(&mut self.f);
         self.f.op(I::I32Store(mem(HEAP, F_STATE, 2)));
+        for v in self.results.clone() {
+            push_zero(&mut self.f, v);
+        }
+        self.f.get(FRAME);
+        self.f.op(I::Return);
+    }
+
+    /// Opens the body's parking exit, when it has a point.
+    pub(super) fn open_park(&mut self) {
+        let points = self.susp.as_ref().is_some_and(|s| !s.states.is_empty());
+        if points {
+            let park = (self.f.local(Val::I32), self.f.local(Val::I32));
+            if let Some(s) = self.susp.as_mut() {
+                s.park = Some(park);
+            }
+            self.open(Ctl::Park);
+            self.open(Ctl::Gone);
+        }
+    }
+
+    /// Ends the body with its results on the stack, then the one parking
+    /// exit: the frame, the child and state a point stored, Pending.
+    pub(super) fn close_park(&mut self) {
+        let Some((c, k)) = self.susp.as_mut().and_then(|s| s.park.take()) else {
+            return;
+        };
+        self.f.op(I::Return);
+        self.close();
+        self.gone();
+        self.close();
+        self.pending(c, |f| f.get(k));
+    }
+
+    /// The frame of a body that counts nothing left by its cancellation:
+    /// exited, unwound, returned.
+    fn gone(&mut self) {
+        self.flags_or(FRAME, EXITED);
+        self.unwound();
         for v in self.results.clone() {
             push_zero(&mut self.f, v);
         }
@@ -604,12 +663,12 @@ impl Em<'_, '_, '_> {
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
         }
-        self.f.i32(0);
-        self.f.set(wait);
-        self.f.helper(Helper::CancelEnter);
-        self.f.set(seen);
         let all = self.susp.as_ref().and_then(|s| s.alls.get(&i).cloned());
         if let Some(all) = &all {
+            self.f.i32(0);
+            self.f.set(wait);
+            self.f.helper(Helper::CancelEnter);
+            self.f.set(seen);
             // `join!` cancels its unfinished children in argument order
             // (`req.combinator.cancel-order`).
             for (j, (ch, _, _)) in all.parts.iter().enumerate() {
@@ -626,15 +685,17 @@ impl Em<'_, '_, '_> {
             }
             self.f.i32(0);
             self.f.set(c);
+            self.f.get(FRAME);
+            self.f.get(seen);
+            self.f.helper(Helper::CancelLeave);
         } else {
+            self.f.get(FRAME);
+            self.f.helper(Helper::CancelChild);
+            self.f.set(wait);
             self.f.get(FRAME);
             self.f.op(I::I32Load(mem(HEAP, F_CHILD, 2)));
             self.f.set(c);
-            self.cancel_task(c, wait);
         }
-        self.f.get(FRAME);
-        self.f.get(seen);
-        self.f.helper(Helper::CancelLeave);
         self.f.get(wait);
         self.f.op(I::If(BlockType::Empty));
         self.ctl.push(Ctl::Plain);
@@ -1407,13 +1468,13 @@ impl Em<'_, '_, '_> {
             self.f.op(I::Br(d));
             return;
         }
-        self.flags_or(FRAME, EXITED);
-        self.unwound();
-        for v in self.results.clone() {
-            push_zero(&mut self.f, v);
+        // One exit per body, as for Pending (`close_park`).
+        if self.susp.as_ref().is_some_and(|s| s.park.is_some()) {
+            let d = self.depth(Ctl::Gone);
+            self.f.op(I::Br(d));
+            return;
         }
-        self.f.get(FRAME);
-        self.f.op(I::Return);
+        self.gone();
     }
 }
 

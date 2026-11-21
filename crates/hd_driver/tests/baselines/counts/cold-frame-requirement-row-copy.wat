@@ -9,18 +9,18 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 9 funcref))
-  (func $read'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t0 i32)
+  (func $read'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; 8 |     $.use(Value).value()
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $t0
       i32.const 128
       i32.and
-      local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.set $t1
+      local.get $t0
       i32.const 128
       i32.or
       i32.store $heap offset=12
@@ -55,7 +55,7 @@
       i32.load $heap offset=12
       i32.const -129
       i32.and
-      local.get $t0
+      local.get $t1
       i32.or
       i32.store $heap offset=12
     end

@@ -94,18 +94,18 @@
     i32.add
     global.set $stack
   )
-  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $sink i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
+  (func $helper'2 (param $frame i32) (result i32 i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $sink i32)
     ;; 14 |     let mut sink = Sink { text: "" }
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $sink
       i32.const 128
       i32.and
       local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $sink
       i32.const 128
       i32.or
       i32.store $heap offset=12

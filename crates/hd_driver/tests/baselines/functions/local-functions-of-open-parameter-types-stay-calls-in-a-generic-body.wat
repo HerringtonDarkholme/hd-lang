@@ -35,18 +35,18 @@
     ;; 45 |         read(self)
     local.get $self
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i64) (local $text.0'1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $value'2 i64) (local $t8 i32) (local $text.0'2 i32) (local $t9 i64) (local $value'3 i64) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32) (local $t0 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $t1 i64) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $value'1 i64) (local $t5 i32) (local $t6 i32) (local $t7 i64) (local $value'2 i64) (local $t8 i32) (local $text.0'2 i32) (local $t9 i64) (local $value'3 i64) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t15 i32) (local $t16 i32) (local $t17 i32) (local $t18 i32) (local $t19 i32) (local $t20 i32) (local $t21 i32) (local $t23 i32) (local $t22 i32) (local $t0 i32) (local $text.0'1 i32)
     ;; 55 |     println("${plain(7)} ${held(7)} ${borrowed(7)} ${tupled(7)} ${counted(7, fn(v: i32) -> i32: v + 1)} ${literal(7)} ${P { n: 7 }.twice()}")
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $text.0'1
       i32.const 128
       i32.and
       local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $text.0'1
       i32.const 128
       i32.or
       i32.store $heap offset=12

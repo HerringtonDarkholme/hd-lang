@@ -1,9 +1,9 @@
 # @build: release
 # @dump: wat
-# expected: audit #1803 draft 86. The suspending body tests its frame pointer
-# for null several times and loads the same header word twice in a row to set
-# one flag bit: no redundant-load elimination, and the frame protocol tests and
-# writes piece by piece. Each test and load should happen once.
+# expected: audit #1803 draft 86 (#2203). The flags word is loaded once to set
+# RUNNING, and one test of the frame picks the save area and readies a fresh
+# one. Still open: the RUNNING guard and the resume state each test the frame
+# again (they are made by separate stages); one prologue would test it once.
 use std.task.{block_on}
 use std.time.{Clock, s, sleep}
 

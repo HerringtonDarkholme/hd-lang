@@ -666,6 +666,9 @@ pub enum Helper {
     CancelEnter,
     /// `(frame, seen)`: ends it.
     CancelLeave,
+    /// `(frame) -> i32`: a point's cancellation of the child its frame
+    /// holds, bracketed as a cancel; 1 when the child is left unwinding.
+    CancelChild,
     /// `(n)`: `hd.wake(n)`, the completed handles into the wake table.
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed, which it takes.
@@ -2061,6 +2064,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CycleFree
         | H::FreeClassLoaded
         | H::WakeLink => (3, 0),
+        H::CancelChild => (1, 1),
         H::CanCancel
         | H::MapSeed
         | H::EntryCall { .. }
@@ -2251,6 +2255,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::CancelCheck
         | Helper::CancelEnter
         | Helper::CancelLeave
+        | Helper::CancelChild
         | Helper::WakeMark
         | Helper::WakeTake
         | Helper::WakeSlot
