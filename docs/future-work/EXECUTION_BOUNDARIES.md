@@ -1865,7 +1865,7 @@ fn ship!(source: &mut FileReader, to: Sender[SharedBytes]) -> Result[void, FsErr
 ## Sources
 
 - "Types and Transport Across Execution Boundaries" (gist, 2026-10-31), and the review of PR #1139.
-- #166 study: <https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/SERIALIZABLE_CLOSURE_DESIGN.md>; [Parallelism And Locality](PARALLELISM_AND_LOCALITY.md).
+- #166 study: <https://github.com/HerringtonDarkholme/hd-lang/blob/28072b8a1/docs/future-work/SERIALIZABLE_CLOSURE_DESIGN.md>; Parallelism And Locality (Appendix D of this record).
 - Rust, `Send` and `Sync`: <https://doc.rust-lang.org/std/marker/trait.Send.html>; `thread::scope`: <https://doc.rust-lang.org/std/thread/fn.scope.html>; auto traits: <https://doc.rust-lang.org/unstable-book/language-features/auto-traits.html>
 - SYCL 2020, device-copyable types: <https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec::device.copyable>
 - `cust`, `DeviceCopy`: <https://docs.rs/cust/latest/cust/memory/trait.DeviceCopy.html>
