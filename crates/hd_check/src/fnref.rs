@@ -12,7 +12,7 @@
 //! then its own; a trait member's `Self`, the trait's arguments, then its
 //! own.
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, NotImplemented, Stage, StageResult};
 use hd_diag::{Code, Severity};
 use hd_resolve::{FnSig, HeadKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
@@ -20,7 +20,7 @@ use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags,
 };
 use hd_types::solver::TraitRef;
-use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
+use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind, with_assoc_args};
 
 use crate::body::{Ck, supertrait_args};
 use crate::call::{Hit, subst_owner};
@@ -40,6 +40,35 @@ enum Owner {
         args: Vec<Ty>,
         choice: Option<(ChoiceKind, u32)>,
     },
+}
+
+/// A trait owner's identity, borrowed arguments and current dispatch evidence.
+type TraitParts<'a> = (DefId, &'a [Ty], Option<(ChoiceKind, u32)>);
+
+impl Owner {
+    /// Dynamic dispatch needs a trait owner; bounds may later settle its choice.
+    fn trait_parts(&self) -> StageResult<TraitParts<'_>> {
+        match self {
+            Self::Trait {
+                def, args, choice, ..
+            } => Ok((*def, args, *choice)),
+            Self::Item | Self::Impl { .. } => Err(NotImplemented::bug(
+                Stage::Body,
+                "dynamic member reference requires a trait owner",
+            )),
+        }
+    }
+}
+
+/// A normalized member function type and the fields used to construct it.
+/// Consumers need not decode the interned type to recover its function shape.
+struct MemberFnType {
+    ty: Ty,
+    params: TyList,
+    result: Ty,
+    row: RowId,
+    suspends: bool,
+    inputs: Inputs,
 }
 
 /// A referenced function or member with fresh variables for its own
@@ -637,10 +666,10 @@ impl Ck<'_, '_> {
             vars: Vec::new(),
             owner: Owner::Item,
         };
-        self.member_fn_ty(&m, 0)
+        Ok(self.member_fn_ty(&m, 0)?.ty)
     }
 
-    fn member_fn_ty(&mut self, m: &Member, skip: usize) -> StageResult<Ty> {
+    fn member_fn_ty(&mut self, m: &Member, skip: usize) -> StageResult<MemberFnType> {
         let pool = self.pool();
         // A function value carries the current row. M1 records this
         // signature read and rechecks the body if that row grows.
@@ -658,14 +687,26 @@ impl Ck<'_, '_> {
             && params
                 .last()
                 .is_some_and(|t| matches!(pool.get(*t), TyData::Adt { def, .. } if def == list));
-        Ok(pool.intern_ty(&TyData::Fn {
-            params: pool.list(&params),
+        let params = pool.list(&params);
+        let row = inst_row(pool, m, row);
+        let suspends = m.sig.suspends;
+        let inputs = if rest { Inputs::Rest } else { Inputs::Fixed };
+        let ty = pool.intern_ty(&TyData::Fn {
+            params,
             result,
-            row: inst_row(pool, m, row),
-            suspends: m.sig.suspends,
-            inputs: if rest { Inputs::Rest } else { Inputs::Fixed },
+            row,
+            suspends,
+            inputs,
             deps: self.sig_fn_deps(&m.sig, skip),
-        }))
+        });
+        Ok(MemberFnType {
+            ty,
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+        })
     }
 
     /// Solves what the expected function type determines
@@ -892,7 +933,8 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         self.note_call(m.def);
-        let ft = self.member_fn_ty(&m, 0)?;
+        let function = self.member_fn_ty(&m, 0)?;
+        let ft = function.ty;
         self.fit_expected(ft, want);
         self.member_bounds(&mut m, n)?;
         self.open_ref_params(&m, n);
@@ -906,10 +948,11 @@ impl Ck<'_, '_> {
             }
         };
         targs.extend(&m.vars);
-        if (self.lowers_call(m.def) || self.tracked_caller(m.def).is_some())
-            && let TyData::Fn { params, result, .. } = pool.get(ft)
-        {
-            return Ok((self.lowered_ref(&m, (params, result), ft, n), ft));
+        if self.lowers_call(m.def) || self.tracked_caller(m.def).is_some() {
+            return Ok((
+                self.lowered_ref(&m, (function.params, function.result), ft, n),
+                ft,
+            ));
         }
         // A call-site record names the function (`module.dbg.value.function`).
         let span = self.cx.src.span(n);
@@ -1136,9 +1179,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let Owner::Trait { def: trait_, .. } = m.owner else {
-            unreachable!("dynamic member callers select Owner::Trait");
-        };
+        let (trait_, _, _) = m.owner.trait_parts()?;
         if pool.has_opaque(m.sig.ret) {
             let name = self
                 .cx
@@ -1187,18 +1228,14 @@ impl Ck<'_, '_> {
             self.err(Code::DynMemberUnavailable, n, "this member cannot be referenced through a trait value: it has no receiver or names `Self` outside it");
             return Ok(self.poison_value(n));
         }
-        let method_ty = self.member_fn_ty(&m, 1)?;
-        let TyData::Fn {
+        let MemberFnType {
             params,
             result,
             row,
             suspends,
             inputs,
             ..
-        } = pool.get(method_ty)
-        else {
-            unreachable!("member_fn_ty constructs TyData::Fn");
-        };
+        } = self.member_fn_ty(&m, 1)?;
         let mut ptys = Vec::new();
         if bound.is_none() {
             ptys.push(receiver);
@@ -1245,10 +1282,8 @@ impl Ck<'_, '_> {
         for (local, ty) in locals.iter().zip(&ptys).skip(usize::from(bound.is_none())) {
             refs.push(self.b.get(*local, *ty, syn));
         }
-        let Owner::Trait { args, choice, .. } = &m.owner else {
-            unreachable!()
-        };
-        let mut all = args.clone();
+        let (_, args, choice) = m.owner.trait_parts()?;
+        let mut all = args.to_vec();
         all.extend(&m.vars);
         let callee = Callee::TraitMethod {
             trait_,
@@ -1316,19 +1351,17 @@ impl Ck<'_, '_> {
             Some(kind) if !addressed => self.fit_receiver(recv, rt, kind, name, n),
             _ => recv,
         };
-        let ft = self.member_fn_ty(&m, 1)?;
+        let function = self.member_fn_ty(&m, 1)?;
+        let ft = function.ty;
         self.fit_expected(ft, want);
         self.member_bounds(&mut m, n)?;
         self.open_ref_params(&m, n);
-        let TyData::Fn {
+        let MemberFnType {
             params,
             result,
             suspends,
             ..
-        } = pool.get(ft)
-        else {
-            unreachable!("member_fn_ty constructs TyData::Fn");
-        };
+        } = function;
         let callee = self.member_callee(&m);
         let syn = n.index();
         let receiver = self.cx.names.syms.intern("$receiver");
@@ -1371,5 +1404,146 @@ impl Ck<'_, '_> {
         }
         let root = self.b.close_block(blk, Some(r), result, syn);
         Ok((self.b.close_sub(mark, root, ft, syn), ft))
+    }
+}
+
+#[cfg(test)]
+mod member_metadata_tests {
+    use super::{Member, Owner};
+    use hd_base::{DefId, Stage};
+    use hd_resolve::FnSig;
+    use hd_tir::ir::ChoiceKind;
+    use hd_types::{Inputs, RowId, Ty, TyData};
+
+    #[test]
+    fn retained_function_parts_match_the_interned_shape() {
+        crate::body::with_checker(|ck| {
+            let list = ck.pool().applied(ck.cx.names.known.list, Ty::STRING);
+            for skip in [0, 1] {
+                for variadic in [false, true] {
+                    for suspends in [false, true] {
+                        let params = vec![
+                            (ck.cx.names.syms.intern("self"), Ty::I32),
+                            (ck.cx.names.syms.intern("rest"), list),
+                        ];
+                        let mut sig = FnSig::simple(Vec::new(), params, Ty::BOOL);
+                        sig.variadic = variadic;
+                        sig.suspends = suspends;
+                        let member = Member {
+                            def: DefId::from_raw(1),
+                            sig,
+                            vars: Vec::new(),
+                            owner: Owner::Item,
+                        };
+                        let function = ck.member_fn_ty(&member, skip).expect("function metadata");
+                        assert_eq!(
+                            ck.pool().list_items(function.params),
+                            &[Ty::I32, list][skip..]
+                        );
+                        assert_eq!(function.result, Ty::BOOL);
+                        assert_eq!(function.row, RowId::EMPTY);
+                        assert_eq!(function.suspends, suspends);
+                        assert_eq!(
+                            function.inputs,
+                            if variadic {
+                                Inputs::Rest
+                            } else {
+                                Inputs::Fixed
+                            }
+                        );
+                        assert_eq!(
+                            ck.pool().get(function.ty),
+                            TyData::Fn {
+                                params: function.params,
+                                result: function.result,
+                                row: function.row,
+                                suspends: function.suspends,
+                                inputs: function.inputs,
+                                deps: ck.sig_fn_deps(&member.sig, skip),
+                            }
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn trait_parts_preserve_arguments_and_current_evidence() {
+        let def = DefId::from_raw(3);
+        for choice in [None, Some((ChoiceKind::TraitValue, 7))] {
+            let mut owner = Owner::Trait {
+                def,
+                self_ty: Ty::I32,
+                args: vec![Ty::STRING, Ty::BOOL],
+                choice,
+            };
+            let (selected, args, evidence) = owner.trait_parts().expect("trait owner");
+            assert_eq!(selected, def);
+            assert_eq!(args, [Ty::STRING, Ty::BOOL]);
+            assert_eq!(evidence, choice);
+            if let Owner::Trait { choice, .. } = &mut owner {
+                *choice = Some((ChoiceKind::Impl, 11));
+            }
+            assert_eq!(
+                owner.trait_parts().expect("updated choice").2,
+                Some((ChoiceKind::Impl, 11))
+            );
+        }
+        for owner in [
+            Owner::Item,
+            Owner::Impl {
+                def,
+                args: Vec::new(),
+            },
+        ] {
+            let error = owner.trait_parts().expect_err("nontrait owner");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+        }
+    }
+
+    #[test]
+    fn dynamic_nontrait_selection_fails_before_emission() {
+        crate::body::with_checker(|ck| {
+            let node = ck.cx.src.parse.tree.root();
+            let before = (
+                ck.b.body().len(),
+                ck.b.body().extra.len(),
+                ck.b.body().local_ty.len(),
+            );
+            for owner in [
+                Owner::Item,
+                Owner::Impl {
+                    def: DefId::from_raw(1),
+                    args: Vec::new(),
+                },
+            ] {
+                let member = Member {
+                    def: DefId::from_raw(2),
+                    sig: FnSig::simple(Vec::new(), Vec::new(), Ty::VOID),
+                    vars: Vec::new(),
+                    owner,
+                };
+                let error = ck
+                    .dynamic_member_ref(member, (Ty::I32, Ty::I32, false), None, None, node)
+                    .expect_err("invalid dynamic owner");
+                assert_eq!(error.stage, Stage::Body);
+                assert!(error.bug);
+                assert_eq!(
+                    error.what,
+                    "dynamic member reference requires a trait owner"
+                );
+                assert_eq!(
+                    (
+                        ck.b.body().len(),
+                        ck.b.body().extra.len(),
+                        ck.b.body().local_ty.len()
+                    ),
+                    before
+                );
+            }
+        });
     }
 }
