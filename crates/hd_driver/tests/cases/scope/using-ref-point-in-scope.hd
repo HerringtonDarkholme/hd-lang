@@ -1,0 +1,28 @@
+# @dump: stdout
+# expected: a using! of a reference, with a suspension point inside its scope, disposes once at the end of each body; the point's cancel path holds the dispose suite (step 7a/7b)
+use std.ops.AsyncDisposable
+
+struct R:
+    n: i32
+
+impl AsyncDisposable[$ Console] for R:
+    fn dispose!(&mut self) -> void $ Console:
+        println("dispose ${self.n}")
+
+fn work!() -> void:
+    pass
+
+fn by_ref!(r: &mut R) -> void $ Console:
+    using! x = r
+    work!()
+    println("body ref")
+
+fn by_value!() -> void $ Console:
+    using! x = R { n: 2 }
+    work!()
+    println("body value")
+
+pub fn main!() -> void $ Console:
+    let mut r = R { n: 1 }
+    by_ref!(&mut r)
+    by_value!()
