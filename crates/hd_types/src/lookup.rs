@@ -641,3 +641,41 @@ fn one_row_per_impl(mut rows: Vec<(ImplRef, &ImplTable)>) -> Vec<(ImplRef, &Impl
     });
     rows
 }
+
+#[cfg(test)]
+mod coverage_contracts {
+    use super::{FolderImpls, FolderSlots};
+    use std::sync::{Arc, OnceLock};
+
+    #[test]
+    fn program_folder_iteration_matches_the_built_closure_without_copying_tables() {
+        let slots: Vec<OnceLock<Option<Arc<FolderImpls>>>> =
+            (0..5).map(|_| OnceLock::new()).collect();
+        let first = Arc::new(FolderImpls::default());
+        let second = Arc::new(FolderImpls::default());
+        slots[1]
+            .set(Some(Arc::clone(&first)))
+            .expect("publish folder 1");
+        slots[2].set(None).expect("publish failed folder 2");
+        slots[3]
+            .set(Some(Arc::clone(&second)))
+            .expect("publish folder 3");
+        let built = [1, 3];
+        let program = FolderSlots::Program(&slots, &built);
+        let entries = [(1, first.as_ref()), (3, second.as_ref())];
+        let closure = FolderSlots::new(&entries);
+        let actual: Vec<_> = program.iter().collect();
+        let expected: Vec<_> = closure.iter().collect();
+        assert_eq!(actual.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [1, 3]);
+        for ((a, table_a), (b, table_b)) in actual.iter().zip(expected.iter()) {
+            assert_eq!(a, b);
+            assert!(std::ptr::eq(*table_a, *table_b));
+        }
+        assert!(program.get(0).is_none());
+        assert!(program.get(2).is_none());
+        assert!(program.get(4).is_none());
+        assert!(program.get(5).is_none());
+        assert_eq!(Arc::strong_count(&first), 2);
+        assert_eq!(Arc::strong_count(&second), 2);
+    }
+}
