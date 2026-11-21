@@ -31,7 +31,7 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $0 log: *mut List[string] [param read captured] value
 >     uses $0: entry -> %5 lend, %9 consume last
 >   local $1 s: string [param read captured] value
->     uses $1: entry -> %3 consume, %9 consume, %24 lend last
+>     uses $1: entry -> %3 consume, %9 consume, %19 lend last
 >   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
 >     uses $4: %11 -> %12 consume last
@@ -55,24 +55,24 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %16 = Scope %15 [] : DeferGuard[fn() -> (), $()]
 >   %17 = Box #2 #0 : ()
 >   %18 = Store [$2] %16 : ()
->   %19 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
->   %20 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%19) : ()
->   %21 = LoanEnd [%19] : ()
->   %22 = Block - : ()
->   %23 = Defer #22 : ()
->   %29 = Block %28 : usize
->   %30 = Scope %29 [%22] : usize
->   %31 = Drop [$2] : ()
+>   %24 = Ref mut local frame [$2] : &mut DeferGuard[fn() -> (), $()]
+>   %25 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $()] [$()] via Impl (%24) : ()
+>   %26 = LoanEnd [%24] : ()
+>   %27 = Block - : ()
+>   %28 = Scope %27 [] : ()
+>   %29 = Drop [$2] : ()
+>   %30 = Block %23 : usize
+>   %31 = Scope %30 [] : usize
 >   %32 = Drop [$0] : ()
 >   %33 = Drop [$1] : ()
->   %34 = Block %30 : usize
+>   %34 = Block %31 : usize
     s.len()
->   %24 = Read borrow [$1] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
->   %26 = Break L0 %25 : never
->   %27 = Block - : usize
->   %28 = Scope %27 [] : usize
->   exit sub 0 drops [$0 $1 $2]
+>   %19 = Read borrow [$1] : string
+>   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %21 = Break L0 %20 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
+>   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   storage sub 1: $2 cell
@@ -85,9 +85,10 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 $ref: Res [read assigned captured captured-assigned] place
->   local $3 r: *mut Res [:= read assigned] place
+>   local $3 r: *mut Res [:= read assigned] value
+>     uses $3: %8 -> %9 lend, %18 lend last
 >   local $4 self: string [read] value
->     uses $4: %15 -> %16 lend last
+>     uses $4: %11 -> %12 lend last
 >   %0 = Retain %25 Entry local $0 #0 : ()
 >   %1 = Retain %25 Entry local $1 #0 : ()
     using r = box(Res { name: s, log: log })
@@ -98,24 +99,24 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   %6 = Store [$2] %4 : ()
 >   %7 = Ref take mut [$2] : *mut Res
 >   %8 = Store [$3] %7 : ()
->   %9 = Read borrow [$3] : *mut Res
->   %10 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%9) : ()
->   %11 = Block - : ()
->   %12 = Defer #11 : ()
->   %22 = Block %20 : usize
->   %23 = Scope %22 [%11] : usize
->   %24 = Drop [$3] : ()
->   %25 = Block %23 : usize
+>   %18 = Read borrow [$3] : *mut Res
+>   %19 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%18) : ()
+>   %20 = Block - : ()
+>   %21 = Scope %20 [] : ()
+>   %22 = Drop [$3] : ()
+>   %23 = Block %16 : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Block %24 : usize
     r.name.len()
->   %13 = Read borrow [*$3 .name] : string
->   %14 = LoanBegin %13 #0 : ()
->   %15 = Store [$4] %13 : ()
->   %16 = Read borrow [$4] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = LoanClose %14 : ()
->   exit sub 0 drops [$0 $1 $3]
+>   %9 = Read borrow [*$3 .name] : string
+>   %10 = LoanBegin %9 #0 : ()
+>   %11 = Store [$4] %9 : ()
+>   %12 = Read borrow [$4] : string
+>   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %14 = Break L0 %13 : never
+>   %15 = Block - : usize
+>   %16 = Scope %15 [] : usize
+>   %17 = LoanClose %10 : ()
+>   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

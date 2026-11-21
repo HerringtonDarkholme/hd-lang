@@ -59,7 +59,6 @@ mod promote;
 pub use promote::{Settled, settled};
 mod refs;
 mod row;
-mod scope;
 mod shape;
 mod susp;
 mod susp_spill;
@@ -1166,9 +1165,6 @@ enum Ctl {
     Arm(u32, u32),
     /// The body of a function that counts: its end is the one exit.
     Exit,
-    /// The body of cleanup `Scope` `i`: its end runs the scope's suites
-    /// (`scope.rs`).
-    Scope(u32),
 }
 
 /// An enum read in place through a reference ([`Em::lazy_borrow`]): the
@@ -1327,10 +1323,6 @@ struct Em<'i, 'a, 'm> {
     ret: Vec<u32>,
     /// The function's results.
     results: Vec<Val>,
-    /// Each open cleanup scope's exit ladder (`scope.rs`).
-    scopes: HashMap<u32, scope::ScopeInfo>,
-    /// Each `defer` suite's "registered" flag local.
-    defer_flags: HashMap<u32, u32>,
     /// The reads that take no count (`borrow` reads, lent parameters'
     /// reads and references, [`Em::prepare_own_loans`],
     /// the TIR boundary plan): their places are no place's to release.
@@ -1600,8 +1592,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             counting: false,
             ret: Vec::new(),
             results: Vec::new(),
-            scopes: HashMap::default(),
-            defer_flags: HashMap::default(),
             loans: hd_base::HashSet::default(),
             loan_locals: HashMap::default(),
             borrows: borrow::Borrows::default(),
@@ -2640,11 +2630,14 @@ impl Em<'_, '_, '_> {
                         self.tail_into(bw, target, i)?;
                     }
                     self.settle(i);
-                    self.exit(scope::Exit::Brk(target));
+                    let d = self.depth(Ctl::Brk(target));
+                    self.f.op(Instruction::Br(d));
                 } else {
-                    self.exit(scope::Exit::Cont(target));
+                    let d = self.depth(Ctl::Cont(target));
+                    self.f.op(Instruction::Br(d));
                 }
             }
+            Tag::Return if bw == hd_tir::ir::return_word::CANCELLED => self.leave_cancelled(),
             Tag::Return => {
                 if a != NONE && self.diverges(a) {
                     self.f.op(Instruction::Unreachable);
@@ -2653,14 +2646,25 @@ impl Em<'_, '_, '_> {
                 self.ret_value(a, bw == hd_tir::ir::return_word::BORROWED)?;
             }
             Tag::Unreachable => self.f.op(Instruction::Unreachable),
-            Tag::Scope if !self.rec(bw).is_empty() => self.scope(i, a, bw)?,
-            Tag::Defer => self.defer(a),
             Tag::Scope => {
                 if !self.placed.contains_key(&i) {
                     self.slot(i)?;
                 }
                 self.open(Ctl::Plain);
-                self.block_into(a, Some(i))?;
+                // A cleanup suite (`own::scopes`). One that waits runs
+                // under the driver (flow.using.async.not-forbidden), its
+                // points shielded (flow.using.async.cancel.shielded); one
+                // that does not is a forbidden context
+                // (`req.drive.block-on.indirect`).
+                let suite = self.b.is_suite(i);
+                let shield = u32::from(suite && self.range(i).is_some());
+                let forbid = i32::from(suite) - i32::from(shield != 0);
+                self.shield += shield;
+                self.forbid_by(forbid);
+                let r = self.block_into(a, Some(i));
+                self.shield -= shield;
+                self.forbid_by(-forbid);
+                r?;
                 self.close();
                 if self.placed.contains_key(&i) {
                     self.written.insert(i);
@@ -2682,7 +2686,8 @@ impl Em<'_, '_, '_> {
                 for arm in &blocks[1..] {
                     self.close();
                     self.block_into(*arm, Some(i))?;
-                    self.exit(scope::Exit::Brk(i));
+                    let d = self.depth(Ctl::Brk(i));
+                    self.f.op(Instruction::Br(d));
                 }
                 self.close();
             }
@@ -3633,10 +3638,58 @@ impl Em<'_, '_, '_> {
     }
 
     fn forbid_by(&mut self, by: i32) {
+        if by == 0 {
+            return;
+        }
         self.f.global_get(Global::Forbid);
         self.f.i32(by);
         self.f.op(Instruction::I32Add);
         self.f.global_set(Global::Forbid);
+    }
+
+    /// `return a`: its value, with a count for the caller when the
+    /// function counts, in the result locals, then out by the function's
+    /// one exit.
+    fn ret_value(&mut self, a: u32, borrowed: bool) -> StageResult<()> {
+        // A worker that writes its result stores it in its caller's block
+        // and returns nothing (`indirect.rs`).
+        if let Some((base, mem)) = self.sret.clone()
+            && a != NONE
+        {
+            self.store_result(a, base, &mem, Some(borrowed))?;
+            return self.ret_value(NONE, borrowed);
+        }
+        if !self.counting {
+            if a != NONE {
+                self.push(a)?;
+            }
+            self.ready_frame();
+            self.f.op(Instruction::Return);
+            return Ok(());
+        }
+        if self.ret.len() != self.results.len() {
+            self.ret = self.results.iter().map(|v| self.f.local(*v)).collect();
+        }
+        if a != NONE && !self.results.is_empty() {
+            // The value moves out at its only use, or takes a count for
+            // the caller.
+            let moved = !borrowed && self.take(a);
+            let s = if !moved && !borrowed {
+                self.retain_ref(a)?
+            } else {
+                value::Src::Ref(a)
+            };
+            self.push_src(&s)?;
+            for l in self.ret.clone().iter().rev() {
+                self.f.set(*l);
+            }
+            if moved {
+                self.settle_value(a);
+            }
+        }
+        let d = self.depth(Ctl::Exit);
+        self.f.op(Instruction::Br(d));
+        Ok(())
     }
 
     fn intrinsic(&mut self, i: u32, key: &str, args: &[u32]) -> StageResult<()> {

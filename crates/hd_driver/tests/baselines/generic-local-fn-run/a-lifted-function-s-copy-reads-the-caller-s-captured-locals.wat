@@ -168,7 +168,7 @@
       call $rt:release_ref'2
     end
   )
-  (func $total (param $xs i32) (param $offset i32) (param $tag.0 i32) (param $tag.1 i32) (param $label.0 i32) (param $label.1 i32) (result i32 i32 i32 i32 i32) (local $seen i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $b i32)
+  (func $total (param $xs i32) (param $offset i32) (param $tag.0 i32) (param $tag.1 i32) (param $label.0 i32) (param $label.1 i32) (result i32 i32 i32 i32 i32) (local $seen i32) (local $sum i32) (local $t0 i32) (local $t1 i32) (local $x i32) (local $a i32)
     ;; 13 |     for x in xs:
     local.get $xs
     i32.load $heap offset=4
@@ -200,28 +200,20 @@
         i32.const 1
         i32.add
         local.set $seen
+        local.get $x
         local.get $offset
         local.get $seen
         i32.add
-        local.set $b
-        local.get $tag.0
-        if
-          local.get $tag.0
-          call $retain
-        end
+        local.set $x
+        local.set $a
         block
           br 0
           unreachable
         end
-        local.get $tag.0
-        if
-          local.get $tag.0
-          call $rt:release_ref'2
-        end
     ;; 15 |         sum += a + b
         local.get $sum
+        local.get $a
         local.get $x
-        local.get $b
         i32.add
         i32.add
         local.set $sum

@@ -216,10 +216,10 @@ pub(crate) fn verify(b: &Body, cx: &dyn super::OwnCx, mut error: impl FnMut(u32,
     }
     let topo = Topology::new(b);
     for (i, &tag) in b.tags.iter().enumerate() {
-        if tag != Tag::Return {
+        let mode = b.data[i][1];
+        if tag != Tag::Return || mode == crate::ir::return_word::CANCELLED {
             continue;
         }
-        let mode = b.data[i][1];
         let expected = if lent && topo.sub[i] == 0 {
             crate::ir::return_word::BORROWED
         } else {

@@ -17,7 +17,8 @@ app/main/caller
   %11 = LoanEnd [%8] : ()
   %12 = Drop [$1] : ()
   %13 = Block %9 : usize
+  %15 = Return - #2 : never
   exit sub 0 drops [$1]
   storage sub 0: $1 slot
   summary none
-  cancel %9 releases [%8]
+  cancel %9 releases [%8 %4294967295]

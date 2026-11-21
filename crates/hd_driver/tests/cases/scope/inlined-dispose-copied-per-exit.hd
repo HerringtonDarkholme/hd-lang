@@ -1,0 +1,21 @@
+# @dump: stdout
+# @build: v8 release
+# expected: a dispose the release pipeline inlines into its suite is copied whole to
+# each way out: its child blocks once, its labels its own (`own::scopes`)
+use std.ops.Disposable
+
+struct R:
+    n: i32
+
+impl Disposable for R:
+    fn dispose(&mut self) -> void:
+        self.n = 0
+
+fn many(k: i32) -> i32:
+    using r0 = R { n: 0 }
+    if k == 0:
+        return 0
+    -1
+
+pub fn main() -> void $ Console:
+    println("${many(7)} ${many(0)}")

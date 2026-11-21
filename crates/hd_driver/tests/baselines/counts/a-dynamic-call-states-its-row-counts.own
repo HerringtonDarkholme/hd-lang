@@ -58,5 +58,7 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 >   %13 = Release %10 Operation child #2 : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Block %10 : i32
+>   %16 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %10 releases [%4294967295]

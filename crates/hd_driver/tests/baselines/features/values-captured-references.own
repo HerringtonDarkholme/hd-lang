@@ -81,18 +81,20 @@ fn local(xs: &List[string]) -> usize:
 > app/main/local
 >   local $0 xs: &List[string] [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 xs: &List[string] [read assigned] place
+>   local $1 xs: &List[string] [read assigned] value
+>     uses $1: %1 -> %2 lend, %4 lend last
 >   %0 = Read borrow [$0] : &List[string]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [*$1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
 >   %4 = Read borrow [$1] : &List[string]
 >   %5 = Block - : ()
->   %6 = Break L0 %3 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [%5] : usize
->   %9 = Break L1 %8 : never
->   %10 = Block - : usize
->   %11 = Scope %10 [] : usize
->   %12 = Block %11 : usize
+>   %6 = Scope %5 [] : ()
+>   %7 = Break L0 %3 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = Break L1 %9 : never
+>   %11 = Block - : usize
+>   %12 = Scope %11 [] : usize
+>   %13 = Block %12 : usize
 >   summary kept []

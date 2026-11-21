@@ -41,6 +41,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %20 = Block %15 : string
 >   %21 = If %8 [%10 %20] : string
 >   %22 = Drop [$2] : ()
+>   %34 = Return - #2 : never
     read
 >   %29 = Read copy [$2] : fn!(usize) -> string
 >   %30 = Retain %29 Value #0 : ()
@@ -48,7 +49,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   exit sub 0 drops [$0 $2]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
->   cancel %15 releases [%14]
+>   cancel %15 releases [%14 %4294967295]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
@@ -126,8 +127,9 @@ pub fn main!() -> void $ Console:
 >   %35 = Drop [%31] : ()
 >   %36 = Drop [%30] : ()
 >   %37 = Call std/console/println[i32] (%32) : ()
+>   %49 = Return - #2 : never
 >   exit sub 0 drops [$2]
 >   summary none
->   cancel %8 releases [%6 %7]
->   cancel %22 releases [%20 %21]
->   cancel %32 releases [%30 %31]
+>   cancel %8 releases [%6 %7 %4294967295]
+>   cancel %22 releases [%20 %21 %4294967295]
+>   cancel %32 releases [%30 %31 %4294967295]

@@ -28,7 +28,8 @@ app/main/run
   %24 = Loop %23 - : ()
   %25 = Drop [$0] : ()
   %26 = Block - : ()
+  %28 = Return - #2 : never
   exit sub 0 drops [$0]
   storage sub 0: $0 cell
   summary none
-  cancel %12 releases [%9]
+  cancel %12 releases [%9 %4294967295]

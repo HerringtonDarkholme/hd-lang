@@ -84,6 +84,7 @@ pub fn main!() -> void $ Console:
 >   %20 = Store [$2] %19 : ()
 >   %22 = Block - : never
 >   %23 = Match %13 [%22 %18] : ()
+>   %62 = Return - #2 : never
     println("$a")
 >   %24 = Ref local [$2] : &usize
 >   %25 = Read copy [*%24] : usize
@@ -121,4 +122,4 @@ pub fn main!() -> void $ Console:
 >   %57 = Read move [%41] : string
 >   %58 = Call std/console/println[string] (%57) : ()
 >   storage sub 0: $0 cell, $2 cell
->   cancel %13 releases [%11 %12]
+>   cancel %13 releases [%11 %12 %4294967295]

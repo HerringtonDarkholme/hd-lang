@@ -26,6 +26,7 @@ fn after!(text: string) -> usize $ Clock:
 >   %13 = Await std/time/sleep[] (%12) : ()
 >   %14 = Release %13 Operation child #2 : ()
 >   %19 = Block %16 : usize
+>   %20 = Return - #2 : never
     text.len()
 >   %15 = Ref local [$0] : &string
 >   %16 = Call std/text/impl string.len[] (%15) : usize
@@ -34,3 +35,4 @@ fn after!(text: string) -> usize $ Clock:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   summary none
+>   cancel %13 releases [%4294967295]

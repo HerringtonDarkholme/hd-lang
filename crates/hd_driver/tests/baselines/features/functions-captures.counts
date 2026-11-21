@@ -23,7 +23,7 @@ fn shared_list(s: string) -> usize:
 >   retain string (stored)
 >   unique List[string] (may be shared)
     xs.len()
->   retain string (conservative: copy read)
+>   retain string (stored)
 >   unique List[string] (may be shared)
 >   release string (last use)
 >   (no span) release List[string] (last use)

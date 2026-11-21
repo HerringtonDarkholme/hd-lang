@@ -145,7 +145,7 @@ mod tests {
         let mut b = builder.finish(root, &[]).unwrap();
         // The first join's result is held across the second: the second's
         // cancel block releases it.
-        crate::own::known::cancel_blocks(&mut b);
+        crate::own::scopes::lower(&mut b).expect("lowers");
         let blk = b.cancel_block(second).unwrap();
         let record =
             Info::new(At::Value, Part::Result, crate::own::reason::CANCELLED).write(&mut b);

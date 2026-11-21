@@ -9,18 +9,14 @@
     ;; 11 |     measure("t"):
     i32.const 1
     local.set $t0
-    ;; 12 |         s + "!"
     local.get $s.1
-    ;; 11 |     measure("t"):
     i32.const 1
     i32.add
     local.tee $t1
     call $rt:str
     local.tee $t2
     local.tee $t3
-    ;; 12 |         s + "!"
     local.get $s.0
-    ;; 11 |     measure("t"):
     local.get $s.1
     call $rt:memory_copy/0/0
     local.get $t3

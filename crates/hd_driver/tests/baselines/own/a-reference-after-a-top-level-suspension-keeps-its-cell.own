@@ -36,6 +36,7 @@ fn run!(go: bool) -> void:
     pause!()
 >   %4 = Await app/main/pause[] () : ()
 >   %5 = Release %4 Operation child #2 : ()
+>   %11 = Return - #2 : never
     tick(&mut c)
 >   %6 = Ref mut local [$1] : &mut Counter
 >   %7 = Call app/main/tick[] (%6) : ()
@@ -43,3 +44,4 @@ fn run!(go: bool) -> void:
 >   %9 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
+>   cancel %4 releases [%4294967295]

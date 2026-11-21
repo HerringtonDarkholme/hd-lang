@@ -133,10 +133,10 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 lend last
 >   local $2 n: i32 [param read] value
->     uses $2: entry -> %13 lend last
+>     uses $2: entry -> %8 lend last
 >   local $3 r: Res [:= read assigned captured captured-assigned] place
 >   local $4 self: string [read] value
->     uses $4: %19 -> %20 lend last
+>     uses $4: %14 -> %15 lend last
 >   %0 = Release %28 Exit local $1 #2 : ()
 >   %1 = Retain %28 Entry local $0 #0 : ()
     using r = Res { name: s + "?", log: log }
@@ -146,30 +146,30 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %5 = NewStruct [%3 %4] : Res
 >   %6 = Box #3 #0 : ()
 >   %7 = Store [$3] %5 : ()
->   %8 = Ref mut local frame [$3] : &mut Res
->   %9 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%8) : ()
->   %10 = LoanEnd [%8] : ()
->   %11 = Block - : ()
->   %12 = Defer #11 : ()
->   %25 = Block %24 : usize
->   %26 = Scope %25 [%11] : usize
->   %27 = Drop [$3] : ()
->   %28 = Block %26 : usize
+>   %20 = Ref mut local frame [$3] : &mut Res
+>   %21 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%20) : ()
+>   %22 = LoanEnd [%20] : ()
+>   %23 = Block - : ()
+>   %24 = Scope %23 [] : ()
+>   %25 = Drop [$3] : ()
+>   %26 = Block %19 : usize
+>   %27 = Scope %26 [] : usize
+>   %28 = Block %27 : usize
     if n < 0:
->   %13 = Read copy [$2] : i32
->   %14 = Prim Lt [%13 0:i32] : bool
->   %17 = If %14 [%16 -] : ()
+>   %8 = Read copy [$2] : i32
+>   %9 = Prim Lt [%8 0:i32] : bool
+>   %12 = If %9 [%11 -] : ()
         panic("negative")
->   %15 = Call std/core/panic[] ("negative") : never
->   %16 = Block - : never
+>   %10 = Call std/core/panic[] ("negative") : never
+>   %11 = Block - : never
     r.name.len()
->   %18 = Read borrow [$3 .name] : string
->   %19 = Store [$4] %18 : ()
->   %20 = Read borrow [$4] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
->   %22 = Break L0 %21 : never
->   %23 = Block - : usize
->   %24 = Scope %23 [] : usize
->   exit sub 0 drops [$0 $3]
+>   %13 = Read borrow [$3 .name] : string
+>   %14 = Store [$4] %13 : ()
+>   %15 = Read borrow [$4] : string
+>   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %17 = Break L0 %16 : never
+>   %18 = Block - : usize
+>   %19 = Scope %18 [] : usize
+>   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0] borrows [$1] writes
