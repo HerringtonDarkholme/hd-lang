@@ -1295,3 +1295,7 @@ says that the check covered syntax only.
 | 2026-11-20 | #1442 decorator coverage | semantic | Put `@cfg(.Debug)` on `debug_only` and `@cfg(.Release)` on a different `release_only` method | ``invalid-cfg-declaration: a configured name has exactly one `@cfg(.Debug)` and one `@cfg(.Release)` declaration`` | yes | Give both profile declarations the same `selected` name, isolating the intended bodyless-method target diagnostic | GPT-6 (Codex) |
 
 | 2026-11-20 | #2225 argument-validation stage | syntax | `@annotation.annotate(...[.Missing])` | `syntax-error: a spread is written after its value: write 'value...'` | yes; the message named the spelling | `@annotation.annotate([.Missing]...)` | GPT-6 (Codex) |
+
+| 2026-11-20 | #1804 Debug escape scan | api | `char_from_scalar(u32(bytes_at(text, at))).unwrap()` | ``unknown-method: no method `unwrap` on char?; use `expect(message)` or `unwrap_or(fallback)` `` | yes; the diagnostic and fix-it named `expect` | `.expect("an ASCII search byte is a scalar")`; the search set contains only valid ASCII scalars | GPT-6 (Codex) |
+
+| 2026-11-20 | #2228 Debug escape scan | api | `hd fmt lib/std/format.hd crates/hd_driver/tests/cases/stdlib/debug-escape-byte-runs.hd` | ``error: `hd fmt` takes at most one FILE`` | yes | Run `hd fmt` separately for each file | GPT-6 (Codex) |
