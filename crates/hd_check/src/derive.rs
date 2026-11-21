@@ -27,9 +27,9 @@
 use hd_base::SliceSort as _;
 use std::cell::{Cell, RefCell};
 
-use hd_base::{DefId, StageResult, Symbol};
+use hd_base::{DefId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{Item, ItemData, Lookup, Names};
+use hd_resolve::{FnSig, Item, ItemData, Lookup, Names};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::ChoiceKind;
 use hd_types::solver::{Answer, Evidence, MEMBER_PARAM, MemberOn, MemberStep, TraitRef};
@@ -393,31 +393,57 @@ pub fn member_lines<'t>(src: &hd_resolve::Src<'t>, block: NodeRef<'t>) -> Vec<Me
     out
 }
 
+/// A callable header and its signature, borrowed from the same resolved item.
+struct ResolvedCallable<'i> {
+    item: &'i Item,
+    sig: &'i FnSig,
+}
+
+impl<'i> ResolvedCallable<'i> {
+    fn new(item: Option<&'i Item>) -> StageResult<Self> {
+        item.and_then(|item| item.sig().map(|sig| Self { item, sig }))
+            .ok_or_else(|| {
+                NotImplemented::bug(
+                    Stage::Body,
+                    "derive instantiation requires a resolved callable header and signature",
+                )
+            })
+    }
+}
+
+/// A checked template body with the header and signature it was checked against.
+/// Only the template checker constructs this input to [`instance`].
+pub struct TemplateBody<'i> {
+    callable: ResolvedCallable<'i>,
+    body: hd_tir::Body,
+}
+
 /// What one checked opt-in yields: one message per failing member, with
 /// the member's index in `opt.members`, in member order; one per member
 /// that a skip fact omits but that has no applicable default for `build`;
 /// and when it checks clean, the
 /// checked template bodies by template method.
-pub struct OptInCheck {
+pub struct OptInCheck<'i> {
     pub failures: Vec<(usize, String)>,
     pub no_default: Vec<(usize, String)>,
-    pub bodies: Vec<(DefId, hd_tir::Body)>,
+    pub bodies: Vec<TemplateBody<'i>>,
 }
 
 /// Checks the template `methods` (their `DefId` and syntax) as `opt`'s
 /// instance. `cx` sees the template's module. Diagnostics of the bodies
 /// themselves are dropped: a body with one is not kept.
-pub fn check_opt_in(
-    cx: &BodyCx<'_>,
+pub fn check_opt_in<'i>(
+    cx: &'i BodyCx<'_>,
     opt: &OptIn,
     methods: &[(DefId, NodeRef<'_>)],
-) -> StageResult<OptInCheck> {
+) -> StageResult<OptInCheck<'i>> {
     let mut bodies = Vec::new();
     for &(def, node) in methods {
         let mut scratch = DiagBuf::default();
         let b = check_fn_in(cx, def, node, &mut scratch, Some(opt))?;
         if !scratch.has_errors() {
-            bodies.push((def, b));
+            let callable = ResolvedCallable::new(cx.lookup.item(def))?;
+            bodies.push(TemplateBody { callable, body: b });
         }
     }
     if bodies.len() != methods.len() {
@@ -536,14 +562,15 @@ pub fn check_opt_in(
 pub fn instance(
     cx: &BodyCx<'_>,
     opt: &OptIn,
-    method: DefId,
-    mut body: hd_tir::Body,
+    template: TemplateBody<'_>,
 ) -> StageResult<(Item, hd_tir::Body)> {
     let names = &cx.names;
     let pool = names.pool;
-    // `check_opt_in` supplies only checked template method bodies.
-    let mi = cx.lookup.item(method).expect("checked template method");
-    let sig = mi.sig().expect("template function signature");
+    let TemplateBody {
+        callable: ResolvedCallable { item: mi, sig },
+        mut body,
+    } = template;
+    let method = mi.def;
     let def = names.member(opt.impl_, hd_intern::PathKind::Member, names.text(mi.name));
     let f = |p: ParamRef| {
         if p.owner == opt.template && p.index == 0 {
@@ -578,7 +605,8 @@ pub fn instance(
         if trait_ != structure {
             continue;
         }
-        let name = names.text(cx.lookup.item(m).expect("checked Structure call").name);
+        let called = ResolvedCallable::new(cx.lookup.item(m))?;
+        let name = names.text(called.item.name);
         // The owner's parameters, then the method's own.
         let mut all = pool.list_items(owner_args).to_vec();
         all.extend_from_slice(pool.list_items(targs));
@@ -1038,5 +1066,56 @@ impl<'c> Ck<'_, 'c> {
             return Ok(false);
         }
         Ok(matches!(self.solve(tref)?, Answer::Fails(_)))
+    }
+}
+
+#[cfg(test)]
+mod callable_input_tests {
+    use super::ResolvedCallable;
+    use hd_base::{DefId, Stage, Symbol};
+    use hd_resolve::{CallAttrs, FnAttrs, FnSig, Item, ItemData, TypeAttrs};
+    use hd_types::Ty;
+
+    #[test]
+    fn functions_and_abstract_or_concrete_methods_borrow_their_signature() {
+        let signature = || FnSig::simple(vec![], vec![], Ty::I32);
+        let method = |has_body| ItemData::Method {
+            owner: DefId::from_raw(2),
+            sig: signature(),
+            has_body,
+            call: CallAttrs::default(),
+        };
+        for data in [
+            ItemData::Fn(signature(), FnAttrs::default()),
+            method(false),
+            method(true),
+        ] {
+            let item = Item::new(DefId::from_raw(1), Symbol::from_raw(1), true, data);
+            let callable = ResolvedCallable::new(Some(&item)).expect("callable");
+            assert!(std::ptr::eq(callable.item, &raw const item));
+            assert!(std::ptr::eq(callable.sig, item.sig().expect("signature")));
+        }
+    }
+
+    #[test]
+    fn absent_or_non_callable_headers_return_internal_errors() {
+        let builtin = Item::new(
+            DefId::from_raw(1),
+            Symbol::from_raw(1),
+            false,
+            ItemData::Builtin,
+        );
+        let data = Item::new(
+            DefId::from_raw(2),
+            Symbol::from_raw(2),
+            false,
+            ItemData::Struct(vec![], TypeAttrs::default()),
+        );
+        for item in [None, Some(&builtin), Some(&data)] {
+            let error = ResolvedCallable::new(item).err().expect("invalid header");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+        }
     }
 }
