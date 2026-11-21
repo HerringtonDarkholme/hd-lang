@@ -2289,17 +2289,10 @@ impl InlineEnv for Env<'_> {
         }
     }
 
-    fn lifted_args(
-        &self,
-        def: DefId,
-        args: TyList,
-        sub: u32,
-        first: u32,
-        own: TyList,
-    ) -> Option<TyList> {
+    fn lifted_args(&self, def: DefId, args: TyList, [sub, first, own]: [u32; 3]) -> Option<TyList> {
         let (generic, _) = InlineEnv::checked_body(self, def)?;
         let around = self.lifting(def, generic).scope(sub as usize);
-        let own = self.run.pool.list_items(own);
+        let own = self.run.pool.list_items(TyList(own));
         hd_mono::lifted_args(&self.run.pool, self, def, args, &around, first, own)
     }
 

@@ -165,16 +165,10 @@ pub trait InlineEnv: ProgramEnv {
     /// (`hd_mono::defaults::collapse_quiet`).
     fn quiet(&self, body: &Body, i: usize) -> bool;
     /// The arguments of the instance that runs generic local function
-    /// `sub` of `def`, instantiated from parameter index `first` at `own`
-    /// in `def`'s instance at `args` (`hd_mono::lifted_args`).
-    fn lifted_args(
-        &self,
-        def: DefId,
-        args: TyList,
-        sub: u32,
-        first: u32,
-        own: TyList,
-    ) -> Option<TyList>;
+    /// `made[0]` (its sub-body) of `def`, instantiated from parameter index
+    /// `made[1]` at `TyList(made[2])` in `def`'s instance at `args`
+    /// (`hd_mono::lifted_args`).
+    fn lifted_args(&self, def: DefId, args: TyList, made: [u32; 3]) -> Option<TyList>;
     /// The generic local function `def`'s instance at `at` runs
     /// (`hd_tir::ir::lift`), at its types, as a body of its own whose first
     /// locals are its captures (`hd_tir::inline::function_body`), and the
@@ -239,6 +233,22 @@ enum FlagSite {
 /// its function.
 type Frame = (DefId, Option<TyList>);
 
+/// A callee, as rustc's `Instance`: item `def` at `args`, or, `lifted`,
+/// the generic local function item `def`'s instance at `args` runs
+/// (`hd_tir::ir::lift`), which declares no hint or result of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct Key {
+    def: DefId,
+    args: TyList,
+    lifted: bool,
+}
+
+impl Key {
+    fn new(def: DefId, args: TyList, lifted: bool) -> Self {
+        Self { def, args, lifted }
+    }
+}
+
 /// A copy a call inlines, and its hash ([`Memo`]).
 type Inlined = (Body, Hash128);
 
@@ -285,8 +295,7 @@ struct CycleMarks {
 
 type Reply = Rc<RefCell<Option<Option<Inlined>>>>;
 struct CopyRequest {
-    def: DefId,
-    args: TyList,
+    key: Key,
     reply: Reply,
 }
 
@@ -294,8 +303,7 @@ struct CopyRequest {
 /// the trampoline owns that child's future in a separate heap work frame.
 struct CopyWait<'a> {
     stack: &'a Stack,
-    def: DefId,
-    args: TyList,
+    key: Key,
     reply: Reply,
 }
 impl Future for CopyWait<'_> {
@@ -305,8 +313,7 @@ impl Future for CopyWait<'_> {
             return Poll::Ready(made);
         }
         *self.stack.pending.borrow_mut() = Some(CopyRequest {
-            def: self.def,
-            args: self.args,
+            key: self.key,
             reply: self.reply.clone(),
         });
         Poll::Pending
@@ -344,8 +351,8 @@ fn run_inline(env: &dyn InlineEnv, body: &mut Body, hash: Hash128, stack: &Stack
             pending.is_some(),
             "inliner suspended without a callee request"
         );
-        if let Some(CopyRequest { def, args, reply }) = pending {
-            work.push((Box::pin(env.prepare_callee(def, args, stack)), reply));
+        if let Some(CopyRequest { key, reply }) = pending {
+            work.push((Box::pin(env.prepare_callee(key, stack)), reply));
             let mut counts = stack.work.get();
             counts.preparations += 1;
             counts.depth = counts.depth.max(work.len());
@@ -670,12 +677,9 @@ impl dyn InlineEnv + '_ {
             else {
                 continue;
             };
-            // A lifted function has no declaration: an undecorated one.
-            let hint = match lifted {
-                Some(_) => InlineHint::Default,
-                None => self.inline_hint(def),
-            };
-            if loops_only && !in_loop && !(lifted.is_none() && self.declares_local_reference(def)) {
+            let key = Key::new(def, targs, lifted.is_some());
+            let hint = self.hint(key);
+            if loops_only && !in_loop && (key.lifted || !self.declares_local_reference(def)) {
                 continue;
             }
             if body.tags[c] == Tag::DefaultCall
@@ -692,11 +696,7 @@ impl dyn InlineEnv + '_ {
             }
             // A flag method's call copies its solved value, even its own
             // call inside its body.
-            let site = match lifted {
-                Some(_) => FlagSite::Plain,
-                None => self.flag_site(def, targs, stack.solving),
-            };
-            let folded = match site {
+            let folded = match self.flag_site(key, stack.solving) {
                 FlagSite::Folded(copy) => Some(*copy),
                 FlagSite::Kept => continue,
                 FlagSite::Plain => None,
@@ -707,26 +707,18 @@ impl dyn InlineEnv + '_ {
             // one function, collection's own bound on instance nesting,
             // which stops a polymorphic recursion's ever-larger types.
             if folded.is_none()
-                && let Some(at) = stack.cycle(def, targs, lifted.is_some())
+                && let Some(at) = stack.cycle(def, targs, key.lifted)
             {
                 self.found_stack_cycle(stack, at);
                 continue;
             }
             let ordinary = match folded {
                 Some(copy) => Some(copy),
-                None => self.callee_copy(def, targs, stack).await,
+                None => self.callee_copy(key, stack).await,
             };
             let consumer = ordinary.is_none();
             let Some((mut copy, callee_hash)) = ordinary.or_else(|| {
-                if lifted.is_some() {
-                    return None;
-                }
-                self.literal_consumer(
-                    def,
-                    targs,
-                    literals.get(c).map_or(&[], Vec::as_slice),
-                    in_loop,
-                )
+                self.literal_consumer(key, literals.get(c).map_or(&[], Vec::as_slice), in_loop)
             }) else {
                 continue;
             };
@@ -760,10 +752,7 @@ impl dyn InlineEnv + '_ {
             // argument names a place the copy may read once. A small
             // release reader can otherwise keep the reference itself.
             let mut by_ref = 0;
-            let result = match lifted {
-                Some(_) => root_type(&copy),
-                None => self.result(def),
-            };
+            let result = self.declared(key, &copy);
             let by_value = if hint == InlineHint::Default && self.takes_reference(result, &copy) {
                 let may_write = |c: &Callee| self.call_may_write(c);
                 let promote = self.by_value(&copy);
@@ -943,22 +932,23 @@ impl dyn InlineEnv + '_ {
     /// makes one per explicit call site. Dev builds consider only explicitly
     /// decorated user functions; release builds also consider ordinary user
     /// functions.
-    async fn callee_copy(&self, def: DefId, targs: TyList, stack: &Stack) -> Option<Inlined> {
-        if let Some(ControlFlow::Break(made)) =
-            self.memo().map(|memo| memo.cached_copy((def, targs)))
+    async fn callee_copy(&self, key: Key, stack: &Stack) -> Option<Inlined> {
+        if let Some(ControlFlow::Break(made)) = self
+            .memo()
+            .map(|memo| memo.cached_copy((key.def, key.args)))
         {
             return made;
         }
         CopyWait {
             stack,
-            def,
-            args: targs,
+            key,
             reply: Rc::new(RefCell::new(None)),
         }
         .await
     }
 
-    async fn prepare_callee(&self, def: DefId, targs: TyList, stack: &Stack) -> Option<Inlined> {
+    async fn prepare_callee(&self, key: Key, stack: &Stack) -> Option<Inlined> {
+        let (def, targs, hint) = (key.def, key.args, self.hint(key));
         let memo = self.memo();
         if let Some(memo) = memo {
             if let Some(made) = lock(&memo.inlined).get(&(def, targs)) {
@@ -968,18 +958,7 @@ impl dyn InlineEnv + '_ {
                 return None;
             }
         }
-        // A lifted generic local function has no declaration: an
-        // undecorated function of its copy's result type.
-        let lifted = memo.and_then(|_| self.lifted_body(def, targs));
-        let hint = match lifted {
-            Some(_) => InlineHint::Default,
-            None => self.inline_hint(def),
-        };
-        let result = |copy: &Body| match lifted {
-            Some(_) => root_type(copy),
-            None => self.result(def),
-        };
-        if lifted.is_none()
+        if !key.lifted
             && self.const_fold()
             && let Some(c) = self
                 .quiet_constant(def, targs, stack)
@@ -991,10 +970,7 @@ impl dyn InlineEnv + '_ {
             }
             return Some(c);
         }
-        let instance = match &lifted {
-            Some((copy, hash)) => self.lifted_instance(copy, *hash),
-            None => self.instance(def, targs),
-        };
+        let instance = self.instance(key);
         let nested = if let Some((copy, hash, _)) =
             instance.as_ref().filter(|c| !hd_tir::inline::leaf(&c.0))
         {
@@ -1027,9 +1003,7 @@ impl dyn InlineEnv + '_ {
             }
             match nested {
                 Some((nested, h)) if fits && hint != InlineHint::Default => Some((nested, h)),
-                Some((nested, h)) if self.fits_as(hint, result(&nested), &nested) => {
-                    Some((nested, h))
-                }
+                Some((nested, h)) if self.fits(key, &nested) => Some((nested, h)),
                 // Charge a tiny one-call forwarding body as well as its
                 // scalar writer, rather than losing the known target at
                 // each forwarding layer. Memoized copies remain bounded
@@ -1110,10 +1084,11 @@ impl dyn InlineEnv + '_ {
     /// constants: the value `hd_opt::whole::solve_flags` gives it, solved
     /// with every flag it reaches on first ask. Dev keeps every call, and
     /// its runtime flag answers a re-entry.
-    fn flag_site(&self, def: DefId, targs: TyList, solving: bool) -> FlagSite {
-        let Some(memo) = self.memo() else {
+    fn flag_site(&self, key: Key, solving: bool) -> FlagSite {
+        let (Some(memo), false) = (self.memo(), key.lifted) else {
             return FlagSite::Plain;
         };
+        let (def, targs) = (key.def, key.args);
         if !self.const_fold() || !crate::whole::is_flag_method(self, def, targs) {
             return FlagSite::Plain;
         }
@@ -1254,20 +1229,26 @@ impl dyn InlineEnv + '_ {
 
     /// The callee's body at the call's types, with its hash, and whether
     /// it inlines as written (`fits`); `None` when no copy of it can
-    /// (`inline_callee`), or its types do not settle.
-    fn instance(&self, def: DefId, targs: TyList) -> Option<(Body, Hash128, bool)> {
-        let pool = self.pool();
-        let (copy, hash) = self.inline_callee(def)?;
-        let copy = hd_mono::instantiate(pool, self, def, targs, Cow::Owned(copy), &|t, s, a| {
-            self.select_choice(t, s, a)
-        });
+    /// (`inline_callee`; a lifted function's that may copy as written), or
+    /// its types do not settle.
+    fn instance(&self, key: Key) -> Option<(Body, Hash128, bool)> {
+        let (pool, def) = (self.pool(), key.def);
+        let (copy, hash) = if key.lifted {
+            let made = self.lifted_body(def, key.args)?;
+            (copy_metadata_fits(&made.0) && self.priced(&made.0, false)).then_some(made)?
+        } else {
+            let (copy, hash) = self.inline_callee(def)?;
+            let choose = |t, s, a| self.select_choice(t, s, a);
+            let copy = hd_mono::instantiate(pool, self, def, key.args, Cow::Owned(copy), &choose);
+            (copy, hash)
+        };
         // A projection left open names a type the caller's bounds may
         // fix, which the call's type already shows; such a copy waits, as
         // does one an opaque result left poison: the call stays.
         if !hd_mono::settled(pool, &copy, true) {
             return None;
         }
-        let fits = self.fits(def, &copy);
+        let fits = self.fits(key, &copy);
         Some((copy, hash, fits))
     }
 
@@ -1293,14 +1274,9 @@ impl dyn InlineEnv + '_ {
     /// [`AUTO_INLINE_LIMIT`] and accepts them, and `.Always` has neither
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
-    fn fits(&self, def: DefId, copy: &Body) -> bool {
-        self.fits_as(self.inline_hint(def), self.result(def), copy)
-    }
-
-    /// [`Self::fits`] for a callee with hint `hint` and declared result
-    /// `result`.
-    fn fits_as(&self, hint: InlineHint, result: Option<Ty>, copy: &Body) -> bool {
-        match hint {
+    fn fits(&self, key: Key, copy: &Body) -> bool {
+        let result = self.declared(key, copy);
+        match self.hint(key) {
             InlineHint::Default => {
                 let release = self.memo().is_some();
                 (self.fits_size(copy, INLINE_LIMIT)
@@ -1339,14 +1315,11 @@ impl dyn InlineEnv + '_ {
     /// Cost O(K) per admitted site, K <=16*`AUTO_INLINE_LIMIT` budget units;
     /// each instruction/local unit covers a fixed number of column words.
     /// no recursive preparation or failed-memo policy is changed.
-    fn literal_consumer(
-        &self,
-        def: DefId,
-        targs: TyList,
-        inputs: &[usize],
-        in_loop: bool,
-    ) -> Option<(Body, Hash128)> {
-        let memo = self.memo()?;
+    fn literal_consumer(&self, key: Key, inputs: &[usize], in_loop: bool) -> Option<Inlined> {
+        let (Some(memo), false) = (self.memo(), key.lifted) else {
+            return None;
+        };
+        let (def, targs) = (key.def, key.args);
         if inputs.is_empty()
             || lock(&memo.recursive).contains(&(def, targs))
             || self.inline_hint(def) != InlineHint::Default
@@ -1367,7 +1340,7 @@ impl dyn InlineEnv + '_ {
         if !copy_metadata_fits(raw) {
             return None;
         }
-        let (copy, hash, _) = self.instance(def, targs)?;
+        let (copy, hash, _) = self.instance(Key::new(def, targs, false))?;
         if !copy_metadata_fits(&copy)
             || !self.fits_size(&copy, AUTO_INLINE_LIMIT)
             // The contextual size bonus does not enlarge dependent-result
@@ -1462,18 +1435,22 @@ impl dyn InlineEnv + '_ {
                 && fits(AUTO_INLINE_LIMIT))
     }
 
-    /// A lifted generic local function's copy (`InlineEnv::lifted_body`)
-    /// when [`Self::instance`] would take it: an undecorated function's
-    /// body that may copy as written.
-    fn lifted_instance(&self, copy: &Body, hash: Hash128) -> Option<(Body, Hash128, bool)> {
-        if !copy_metadata_fits(copy)
-            || !self.priced(copy, false)
-            || !hd_mono::settled(self.pool(), copy, true)
-        {
-            return None;
+    /// `key`'s hint: an undecorated function's for a lifted one.
+    fn hint(&self, key: Key) -> InlineHint {
+        if key.lifted {
+            InlineHint::Default
+        } else {
+            self.inline_hint(key.def)
         }
-        let fits = self.fits_as(InlineHint::Default, root_type(copy), copy);
-        Some((copy.clone(), hash, fits))
+    }
+
+    /// `key`'s declared result: a lifted function's is its copy's.
+    fn declared(&self, key: Key, copy: &Body) -> Option<Ty> {
+        if key.lifted {
+            root_type(copy)
+        } else {
+            self.result(key.def)
+        }
     }
 
     /// A call `c` of a generic local function the body instantiates
@@ -1500,7 +1477,7 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         let sub = body.data[made as usize][0];
-        let at = self.lifted_args(body.item, args, sub, first, TyList(own))?;
+        let at = self.lifted_args(body.item, args, [sub, first, own])?;
         let environment = (0..count).map(|j| (j, body.cap_local[(start + j) as usize].raw()));
         Some((at, environment.collect()))
     }

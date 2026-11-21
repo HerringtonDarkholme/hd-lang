@@ -1,0 +1,20 @@
+# @dump: wat stdout
+# @build: release
+# expected: gap: #1449. A small generic local function that captures a
+# local, called in a loop through a local that holds it, is inlined as a
+# direct call of it is (#2222). Today it stays a call of
+# `total#1[i32]` with an environment: the copy would read the captured
+# locals where the call stands, and the holding local may outlive them.
+# Closure environments decided from escape (#1449) prove it does not.
+fn total(xs: List[i32], offset: i32) -> i32:
+    fn shift[T](x: T) -> (T, i32):
+        (x, offset)
+    let f = shift::[i32]
+    let mut sum = 0
+    for x in xs:
+        let (a, b) = f(x)
+        sum += a + b
+    sum
+
+pub fn main() -> void $ Console:
+    println("${total([1, 2, 3], 10)}")
