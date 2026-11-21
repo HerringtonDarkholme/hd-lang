@@ -15,7 +15,7 @@
 //! then checks like `let f: D[A] = v`. Every error is reported once, at the
 //! decorator or member-line element.
 
-use hd_base::{DefId, HashMap, StageResult};
+use hd_base::{DefId, HashMap, NotImplemented, Stage, StageResult};
 use hd_diag::{Code, DiagBuf};
 use hd_intern::PathKind;
 use hd_resolve::facts::{callee_of, fact_lines as resolved_fact_lines, name_path};
@@ -33,23 +33,30 @@ use crate::fnref::PathOwner;
 use crate::structure::{FactLines, Slot};
 use crate::ty::Named;
 
-/// `Facts` and the type of its `items`.
-fn facts_types(cx: &BodyCx<'_>) -> (Ty, Ty) {
-    let facts = cx.names.known.facts;
-    // ruled out: every build loads the whole std, embedded or, for a root
-    // package named `std`, the root's own sources; the CLI names no
-    // directory's program `std` (#1714) and rejects a manifest that names
-    // its package `std` (`cli.name.std.manifest`); and lib/std/structure.hd
-    // declares `Facts` as a struct whose first field is `items`.
-    let ItemData::Struct(fields, _) = &cx.lookup.item(facts).expect("stdpack Facts").data else {
-        unreachable!("stdpack Facts is a struct");
+/// The first field type of std's resolved `Facts` declaration.
+/// Every build loads std; malformed known-item metadata is an internal error.
+fn facts_items(item: Option<&Item>) -> StageResult<Ty> {
+    let items = match item.map(|item| &item.data) {
+        Some(ItemData::Struct(fields, _)) => fields.first().map(|field| field.ty),
+        _ => None,
     };
-    let items = fields.first().expect("stdpack Facts.items").ty;
+    items.ok_or_else(|| {
+        NotImplemented::bug(
+            Stage::Body,
+            "stdpack Facts requires a resolved struct with its items field first",
+        )
+    })
+}
+
+/// `Facts` and the type of its `items`.
+fn facts_types(cx: &BodyCx<'_>) -> StageResult<(Ty, Ty)> {
+    let facts = cx.names.known.facts;
+    let items = facts_items(cx.lookup.item(facts))?;
     let ty = cx.names.pool.intern_ty(&TyData::Adt {
         def: facts,
         args: TyList::EMPTY,
     });
-    (ty, items)
+    Ok((ty, items))
 }
 
 /// The declaration the path expression `e` names, under its call and
@@ -218,7 +225,7 @@ fn fact_list_steps(
 ) -> StageResult<Body> {
     let names = &cx.names;
     let pool = names.pool;
-    let (facts_ty, items_ty) = facts_types(cx);
+    let (facts_ty, items_ty) = facts_types(cx)?;
     let trait_value = pool.intern_ty(&TyData::TraitValue {
         def: names.known.inspectable,
         args: TyList::EMPTY,
@@ -1481,7 +1488,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let (facts_ty, items_ty) = facts_types(self.cx);
+        let (facts_ty, items_ty) = facts_types(self.cx)?;
         let plain = args.spread.is_none()
             && args.after_spread.is_empty()
             && args.named.is_empty()
@@ -1645,5 +1652,54 @@ impl Ck<'_, '_> {
         let msg = format!("`facts_of` takes a module-level function: {why}");
         self.err(Code::InvalidFactsOfTarget, at, &msg);
         (Ref(NONE), Ty::POISON)
+    }
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::facts_items;
+    use hd_base::{DefId, Stage, Symbol};
+    use hd_resolve::{Field, Item, ItemData, TypeAttrs};
+    use hd_types::Ty;
+
+    fn item(data: ItemData) -> Item {
+        Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data)
+    }
+
+    #[test]
+    fn items_type_is_the_first_resolved_field() {
+        let field = |ty| Field {
+            name: Symbol::from_raw(2),
+            ty,
+            public: true,
+            has_default: false,
+            embedded: false,
+            lifetimes: Vec::new(),
+            fn_lifetimes: Vec::new(),
+        };
+        for ty in [Ty::I32, Ty::VOID] {
+            let declaration = item(ItemData::Struct(
+                vec![field(ty), field(Ty::POISON)],
+                TypeAttrs::default(),
+            ));
+            assert_eq!(facts_items(Some(&declaration)).expect("items type"), ty);
+        }
+    }
+
+    #[test]
+    fn absent_non_struct_and_empty_metadata_are_internal_errors() {
+        let wrong = item(ItemData::Builtin);
+        let empty = item(ItemData::Struct(Vec::new(), TypeAttrs::default()));
+        let enum_item = item(ItemData::Enum {
+            shared: Vec::new(),
+            variants: Vec::new(),
+            attrs: TypeAttrs::default(),
+        });
+        for declaration in [None, Some(&wrong), Some(&empty), Some(&enum_item)] {
+            let error = facts_items(declaration).expect_err("invalid Facts metadata");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+        }
     }
 }
