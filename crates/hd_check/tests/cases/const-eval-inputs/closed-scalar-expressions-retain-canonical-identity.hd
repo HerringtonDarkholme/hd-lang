@@ -1,0 +1,8 @@
+# @dump: diagnostics tir
+struct Key[N < const i32]:
+    value: i32
+
+WIDTH := 1i32 + 2i32
+
+fn keep(value: Key[WIDTH]) -> Key[3]:
+    value
