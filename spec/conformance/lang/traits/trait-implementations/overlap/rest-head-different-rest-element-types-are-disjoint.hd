@@ -1,0 +1,12 @@
+# test: different rest element types are disjoint
+# Spec: trait.overlap.unify; types.tuple.rest.same.
+trait Pick[A]:
+    fn pick(self, value: A) -> i32
+
+impl Pick[i32] for (i32, List[bool]...):
+    fn pick(self, value: i32) -> i32:
+        1
+
+impl Pick[i32] for (i32, List[string]...):
+    fn pick(self, value: i32) -> i32:
+        2
