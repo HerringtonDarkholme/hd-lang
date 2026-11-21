@@ -1,0 +1,24 @@
+# @dump: tir
+# expected: value/streaming interpolation keeps its runtime helpers, buffer constructor arguments and settled unsigned calls.
+use std.text.StringBuilder
+
+struct Mark: pass
+
+impl Display for Mark:
+    fn to_string(&self) -> string:
+        "mark"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        out.push("mark")
+
+fn value(n: i64, u: u64, c: char, b: bool, f: f64, text: string, mark: Mark) -> string:
+    "$n:$u:$c:$b:$f:$text:$mark"
+
+fn stream(out: &mut StringBuilder, n: i64, mark: Mark) -> void:
+    out.push("head $n:$mark tail")
+
+fn open_integer() -> (string, u64):
+    number := 18446744073709551615
+    text := "$number"
+    let wide: u64 = number
+    (text, wide)
