@@ -12,7 +12,7 @@ sloppy-catchall-empty	hd_tir	42
 sloppy-catchall-empty	hd_wasm	27
 sloppy-expect	hd_check	4
 sloppy-expect	hd_driver	4
-sloppy-expect	hd_layout	5
+sloppy-expect	hd_layout	4
 sloppy-expect	hd_mono	4
 sloppy-expect	hd_opt	9
 sloppy-expect	hd_resolve	12
