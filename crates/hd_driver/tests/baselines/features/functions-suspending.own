@@ -52,10 +52,10 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >     uses $0: entry -> %3 lend, %15 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %36 Cold local $0 #0 : ()
->   %1 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %30 Cold local $0 #0 : ()
+>   %1 = Retain %30 Entry local $0 #0 : ()
     body!().len() + body!().len()
->   %2 = Release %36 FrameDrop child #2 : ()
+>   %2 = Release %30 FrameDrop child #2 : ()
 >   %3 = Read borrow [$0] : fn!() -> string
 >   %4 = CallValue %3 [] : Suspend[string]
 >   %5 = AwaitValue %4 : string
@@ -82,22 +82,16 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %26 = LoanEnd [%24] : ()
 >   %27 = Drop [$2] : ()
 >   %28 = Prim Add [%12 %25] : usize
->   %29 = Break L1 %28 : never
->   %30 = Block - : ()
->   %31 = Scope %30 [] : ()
->   %32 = Drop [$0] : ()
->   %33 = Return - #2 : never
->   %34 = Block - : usize
->   %35 = Scope %34 [] : usize
->   %36 = Block %35 : usize
->   %44 = Drop [$0] : ()
->   %45 = Block - : ()
+>   %29 = Drop [$0] : ()
+>   %30 = Block %28 : usize
+>   %40 = Drop [$0] : ()
+>   %41 = Block - : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   cancel %5 releases [%4 %0]
->   cancel %17 releases [%15 %16 %0]
->   cancel %36 releases [%2147483648]
+>   cancel %5 releases [%4 %2147483648 %4294967295]
+>   cancel %17 releases [%15 %16 %2147483648 %4294967295]
+>   cancel %30 releases [%2147483648]
 
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang

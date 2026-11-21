@@ -197,22 +197,16 @@ pub fn main!() -> void $ Console + Clock:
 >     uses $14: %30 -> %31 lend last
 >   local $15 value: u64 [read] value
 >     uses $15: %10 -> %11 lend last
->   %0 = Retain %104 Cold row #0 : ()
->   %1 = Retain %104 Materialize row #0 : ()
->   %2 = Release %104 FrameDrop row #2 : ()
->   %3 = Release %104 FrameDrop child #2 : ()
+>   %0 = Retain %98 Cold row #0 : ()
+>   %1 = Retain %98 Materialize row #0 : ()
+>   %2 = Release %98 FrameDrop row #2 : ()
+>   %3 = Release %98 FrameDrop child #2 : ()
 >   %4 = NewStruct [] : Plain
 >   %5 = Box #0 #1 : ()
 >   %6 = Store [$0] %4 : ()
->   %96 = Break L7 - : never
->   %97 = Block - : ()
->   %98 = Scope %97 [] : ()
->   %99 = Drop [$0] : ()
->   %100 = Drop [$1] : ()
->   %101 = Return - #2 : never
->   %102 = Block - : ()
->   %103 = Scope %102 [] : ()
->   %104 = Block %103 : ()
+>   %96 = Drop [$0] : ()
+>   %97 = Drop [$1] : ()
+>   %98 = Block - : ()
     println("${through_known!(2)} ${through_value!(&plain, 3)}")
 >   %7 = Await app/main/through_known[] (2:usize) : usize
 >   %8 = Release %7 Operation child #2 : ()
@@ -303,8 +297,10 @@ pub fn main!() -> void $ Console + Clock:
 >   %93 = Scope %92 [] : ()
 >   %94 = Read move [%44] : string
 >   %95 = Call std/console/println[string] (%94) : ()
->   %108 = Break L6 - : never
+>   %104 = Drop [$0] : ()
+>   %105 = Drop [$1] : ()
+>   %106 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 cell
->   cancel %7 releases [%6]
->   cancel %24 releases [%23 %6]
+>   cancel %7 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %24 releases [%23 %2147483648 %2147483649 %4294967295]

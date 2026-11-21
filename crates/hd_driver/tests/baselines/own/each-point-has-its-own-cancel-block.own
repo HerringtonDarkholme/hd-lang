@@ -9,10 +9,10 @@ app/main/scoped
     uses $3: %24 -> %25 lend last
   local $4 action: fn() -> () [read] value
     uses $4: %7 -> %8 consume last
-  %0 = Retain %53 Cold row #0 : ()
-  %1 = Retain %53 Materialize row #0 : ()
-  %2 = Release %53 FrameDrop row #2 : ()
-  %3 = Release %53 FrameDrop child #2 : ()
+  %0 = Retain %47 Cold row #0 : ()
+  %1 = Retain %47 Materialize row #0 : ()
+  %2 = Release %47 FrameDrop row #2 : ()
+  %3 = Release %47 FrameDrop child #2 : ()
   %4 = Call std/console/println[string] ("cleanup") : ()
   %5 = Block - : ()
   %6 = Closure #1 : fn() -> ()
@@ -55,25 +55,20 @@ app/main/scoped
   %43 = Drop [$2] : ()
   %44 = Block %35 : usize
   %45 = Scope %44 [] : usize
-  %46 = Break L2 %45 : never
-  %47 = Block - : ()
-  %48 = Scope %47 [] : ()
-  %49 = Drop [$2] : ()
-  %50 = Return - #2 : never
-  %51 = Block - : usize
-  %52 = Scope %51 [] : usize
-  %53 = Block %52 : usize
-  %65 = Ref mut local [$2] : &mut DeferGuard[fn() -> (), $ Console]
-  %66 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $ Console] [$ Console] via Impl (%65) : ()
-  %67 = Retain %66 Operation row #0 : ()
-  %68 = Release %66 Operation row #2 : ()
-  %69 = LoanEnd [%65] : ()
-  %70 = Block - : ()
-  %71 = Scope %70 [] : ()
-  %72 = Break L1 - : never
+  %46 = Drop [$2] : ()
+  %47 = Block %45 : usize
+  %60 = Ref mut local [$2] : &mut DeferGuard[fn() -> (), $ Console]
+  %61 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $ Console] [$ Console] via Impl (%60) : ()
+  %62 = Retain %61 Operation row #0 : ()
+  %63 = Release %61 Operation row #2 : ()
+  %64 = LoanEnd [%60] : ()
+  %65 = Block - : ()
+  %66 = Scope %65 [] : ()
+  %67 = Drop [$2] : ()
+  %68 = Return - #2 : never
   exit sub 0 drops [$2]
   storage sub 0: $2 cell
   storage sub 1: $2 cell
   summary none
-  cancel %17 releases [%15 %463 %60 %1]
-  cancel %28 releases [%26 %469 %70 %1]
+  cancel %17 releases [%15 %463 %54 %2147483650 %4294967295]
+  cancel %28 releases [%26 %469 %65 %2147483650 %4294967295]
