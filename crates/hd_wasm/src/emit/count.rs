@@ -24,7 +24,7 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::refs::bare_local;
 use super::value::Src;
-use crate::layout::{Pass, Walk, coll_kind, coll_leaves};
+use crate::layout::{Pass, coll_kind, coll_leaves};
 use crate::module::Val;
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -319,8 +319,17 @@ impl Em<'_, '_, '_> {
     }
 
     /// The counted references of a `t` value, when the program counts.
-    pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
-        crate::layout::count_walk(self.pool(), self.env(), t)
+    pub(super) fn counted(&self, t: Ty) -> bool {
+        crate::layout::counted(self.pool(), self.env(), t)
+    }
+
+    /// Whether a value of `t` counts as one known address (a thin counted
+    /// reference, a box): its count is its payload's.
+    pub(super) fn known_address(&mut self, t: Ty) -> StageResult<bool> {
+        Ok(matches!(
+            crate::rt::counted_of(self.input, self.m, t)?,
+            crate::rt::Counted::Address { known: true, .. }
+        ))
     }
 
     /// Whether `t` is a thin local reference (`ref.count.local`) in a
@@ -369,7 +378,7 @@ impl Em<'_, '_, '_> {
     /// and releases an object it owns, so it has work too: this is the
     /// ownership passes' walk ([`crate::layout::walk`]), not the count's.
     pub(super) fn needs_drop(&self, t: Ty) -> bool {
-        self.cx().tracked(t) || !self.drop_calls(t).is_empty()
+        self.cx().tracked(t) || crate::layout::holds_drop(self.pool(), self.env(), t)
     }
 
     /// Whether a new object of type `t` (a self-recursive enum's cell, a
@@ -407,7 +416,7 @@ impl Em<'_, '_, '_> {
     /// buffer carrying another count. On retain, `ls` holds borrowed bits
     /// to which the new count gives an owner; the reserved word stays 0.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
-        ledger!(if self.counted(t).is_some() || !self.drop_calls(t).is_empty() =>
+        ledger!(if self.counted(t) || crate::layout::holds_drop(self.pool(), self.env(), t) =>
             "count/{}/at-{}/{:?}", if retain { "retain" } else { "release" },
             self.emitting.last().map_or("none", |&i| self.b.tags[i as usize].name()),
             self.f.reason);
@@ -550,13 +559,19 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.checked.is_none() {
             return Ok(());
         }
-        let Some(walk) = self.counted(t) else {
+        let counted = crate::rt::counted_of(self.input, self.m, t)?;
+        if !counted.counts() {
             return Ok(());
-        };
+        }
         let vals = self.vals(t)?;
-        self.m
-            .stored
-            .insert(h, crate::module::Stored { vals, walk, slot });
+        self.m.stored.insert(
+            h,
+            crate::module::Stored {
+                vals,
+                counted,
+                slot,
+            },
+        );
         Ok(())
     }
 
@@ -864,7 +879,7 @@ impl Em<'_, '_, '_> {
                     && self.topo.sub[i] == u32::from(self.sub_id)
                     && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
                         let ty = self.b.local_ty[local as usize];
-                        matches!(self.parameter_pass(k, ty), Pass::Owned(_))
+                        matches!(self.parameter_pass(k, ty), Pass::Owned)
                     }))
                 .then_some((local as usize, Reason::from_word(c.reason)))
             })
@@ -1118,7 +1133,7 @@ impl Em<'_, '_, '_> {
         if mode == Some(ReadMode::Move)
             && (self.owned_locals.contains(&l)
                 || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
-                    && self.counted(self.b.local_ty[l]).is_some()))
+                    && self.counted(self.b.local_ty[l])))
         {
             self.owned_refs.insert(i);
         }

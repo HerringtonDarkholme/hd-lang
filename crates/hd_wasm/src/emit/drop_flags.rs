@@ -86,23 +86,6 @@ fn path_order(a: &[Proj], b: &[Proj]) -> std::cmp::Ordering {
     a.iter().map(step).cmp(b.iter().map(step))
 }
 
-/// The flag of `path` among one root's sorted flagged `paths`, and the
-/// flagged paths under it: one binary search, then its subtree's range.
-pub(super) fn path_flags<'p>(
-    paths: &'p [(Vec<Proj>, u32)],
-    path: &[Proj],
-) -> (Option<u32>, &'p [(Vec<Proj>, u32)]) {
-    let start = paths.partition_point(|(p, _)| path_order(p, path).is_lt());
-    let len = paths[start..]
-        .iter()
-        .take_while(|(p, _)| p.starts_with(path))
-        .count();
-    match &paths[start..start + len] {
-        [(p, flag), under @ ..] if p.len() == path.len() => (Some(*flag), under),
-        under => (None, under),
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Root {
     Local(usize),
@@ -256,36 +239,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Pushes the guard of a hook at path `full` of `root`: its nearest
-    /// flagged path, at or above it, and each flagged path under it, all
-    /// set, or the constant 1 when none is flagged. Binary searches of
-    /// the root's sorted paths: O(d log P) for a hook at depth d, plus the
-    /// paths under it.
-    fn push_hook_guard(&mut self, paths: &[(Vec<Proj>, u32)], full: &[Proj]) -> StageResult<()> {
-        let nearest = (0..=full.len()).rev().find_map(|k| {
-            let at = paths.binary_search_by(|(p, _)| path_order(p, &full[..k]));
-            at.ok().map(|i| paths[i].1)
-        });
-        let start = paths.partition_point(|(p, _)| path_order(p, full).is_le());
-        let below = paths[start..]
-            .iter()
-            .take_while(|(p, _)| p.starts_with(full))
-            .map(|&(_, f)| f);
-        let mut first = true;
-        for flag in nearest.into_iter().chain(below) {
-            self.count_flag_read();
-            let local = self.local(flag)?[0];
-            self.f.get(local);
-            if !std::mem::take(&mut first) {
-                self.f.op(I::I32And);
-            }
-        }
-        if first {
-            self.f.u32(1);
-        }
-        Ok(())
-    }
-
     /// Whether [`Em::open_drop`] descends the value: held in locals, one
     /// per value of `ty` (not by address), with every flag at or below
     /// `at` under fields and variants, each part's values among them.
@@ -364,7 +317,13 @@ impl Em<'_, '_, '_> {
     /// `push_hook_guard` guards a hook; else each field drops the same
     /// way, and the hook at `at` does not run. O(the flags and the fields
     /// on their paths).
-    fn open_drop(&mut self, ls: &[u32], ty: Ty, at: &[Proj], g: &Guards) -> StageResult<()> {
+    pub(super) fn open_drop(
+        &mut self,
+        ls: &[u32],
+        ty: Ty,
+        at: &[Proj],
+        g: &Guards,
+    ) -> StageResult<()> {
         // TIR flags: the flag at `at` guards it all, then the flags below.
         // A cell's slot at `at` is both already (`cell_statement`).
         let mut own = false;
@@ -439,9 +398,13 @@ impl Em<'_, '_, '_> {
     /// glue, a release that runs in place gets the node's address in the
     /// cell; else from its values.
     fn release_node(&mut self, ls: &[u32], ty: Ty, g: &Guards) -> StageResult<()> {
-        if let Guards::Cell {
-            c, at: Some(at), ..
-        } = g
+        let base = match g {
+            Guards::Cell {
+                c, at: Some(at), ..
+            } => Some((*c, Rc::clone(at))),
+            _ => self.node_base.clone(),
+        };
+        if let Some((c, at)) = &base
             && let Some(&off) = ls.first().and_then(|l| at.get(l))
         {
             let counted = crate::rt::counted_of(self.input, self.m, ty)?;
@@ -551,9 +514,6 @@ impl Em<'_, '_, '_> {
         if let Some((root, _)) = &root {
             self.assert_cancelled(root);
         }
-        // One flag per hook, whatever guards it: every release of a type
-        // shares one drop helper, and the optimizer folds a constant 1.
-        let mut flags = Vec::new();
         if let Some((root, rt)) = root
             && matches!(self.kind(rt), Kind::Value)
             && crate::layout::holds_drop(self.pool(), self.env(), rt)
@@ -580,37 +540,19 @@ impl Em<'_, '_, '_> {
                 },
                 None => Guards::Tir(paths.to_vec()),
             };
-            if self.open_drop_fits(&guards, &p.proj, ty, ls.len()) {
-                return self.open_drop(ls, ty, &p.proj, &guards);
+            // ruled out: drop flags name field and variant paths only (the
+            // checker refuses a move out of an element or through a
+            // reference), and `ls` holds the place's values: the open drop
+            // takes every flagged place.
+            if !self.open_drop_fits(&guards, &p.proj, ty, ls.len()) {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "a drop flag past the fields and variants the open drop opens",
+                ));
             }
-            for (_, child) in self.drop_paths(ty) {
-                let full: Vec<_> = p.proj.iter().chain(&child).copied().collect();
-                match &cell {
-                    Some((c, cell)) => {
-                        let at = cell.slot(&full).ok_or_else(|| {
-                            hd_base::NotImplemented::bug(
-                                hd_base::Stage::Emit,
-                                "a cell's hook at a node its flags lack",
-                            )
-                        })?;
-                        self.f.get(*c);
-                        self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
-                        if let Some(whole) = whole {
-                            self.f.get(whole);
-                            self.f.op(I::I32And);
-                        }
-                    }
-                    None => self.push_hook_guard(paths, &full)?,
-                }
-                let local = self.f.local(Val::I32);
-                self.f.set(local);
-                flags.push(Some(local));
-            }
+            return self.open_drop(ls, ty, &p.proj, &guards);
         }
-        if !self.drop_inline_flags(ls, ty, &flags)? {
-            self.release_locals(ls, ty)?;
-        }
-        Ok(())
+        self.release_locals(ls, ty)
     }
 
     pub(super) fn store_drop_place(&self) -> Option<Place> {

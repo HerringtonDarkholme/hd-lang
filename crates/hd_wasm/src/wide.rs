@@ -298,11 +298,6 @@ pub fn frame_enter(f: &mut Func, base: u32, size: u32) -> (Vec<Ins>, i32) {
     (enter(f, base, &[Ins::Op(I::I32Const(size))]), size)
 }
 
-/// The shared reservation for a size computed at runtime.
-pub fn frame_enter_sized(f: &mut Func, base: u32, size: u32) -> Vec<Ins> {
-    enter(f, base, &[Ins::Op(I::LocalGet(size))])
-}
-
 /// Check available bytes before subtraction so a large frame cannot wrap.
 fn enter(f: &mut Func, base: u32, size: &[Ins]) -> Vec<Ins> {
     let top = f.intern_global(Global::Stack);

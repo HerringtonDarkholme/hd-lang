@@ -176,7 +176,7 @@ impl Em<'_, '_, '_> {
         let elem = Elem {
             size: m.size,
             leaves: m.leaves,
-            walk: self.counted(et),
+            walk: crate::layout::count_walk(self.pool(), self.env(), et),
             counted,
             // List elements are Copy, so only their referents may have hooks.
             drops: Vec::new(),

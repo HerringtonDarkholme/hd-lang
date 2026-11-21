@@ -447,12 +447,12 @@ impl hd_opt::prove::Cx for Env<'_> {
         hd_layout::coll_kind(&self.run.pool, self, t) == Some(hd_mono::layout::StdKind::List)
     }
     fn tracked(&self, t: Ty) -> bool {
-        hd_layout::walk(&self.run.pool, self, t).is_some()
+        hd_layout::tracked(&self.run.pool, self, t)
     }
     fn elems_tracked(&self, t: Ty) -> bool {
         let pool = &self.run.pool;
         let (_, args) = pool.adt_parts(hd_mono::layout::strip_newtype(pool, self, t));
-        (pool.list_items(args).first()).is_some_and(|&e| hd_layout::walk(pool, self, e).is_some())
+        (pool.list_items(args).first()).is_some_and(|&e| hd_layout::tracked(pool, self, e))
     }
     fn length_name(&self) -> hd_base::Symbol {
         self.run.syms.intern("$len")
@@ -807,7 +807,7 @@ impl OwnCx for Env<'_> {
     }
 
     fn tracked(&self, ty: Ty) -> bool {
-        hd_layout::walk(&self.run.pool, self, ty).is_some()
+        hd_layout::tracked(&self.run.pool, self, ty)
     }
 
     fn mutable_ref(&self, ty: Ty) -> bool {

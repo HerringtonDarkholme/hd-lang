@@ -169,7 +169,7 @@ impl KeyOps {
             let p = crate::emit::callee_params(input, m, t.key, t.item, t.args)[k];
             let lent = k < 64 && input.env.lends(t.item, t.args) & (1 << k) != 0;
             match crate::layout::pass(input.pool, input.env, true, p) {
-                Pass::Owned(_) if !lent => crate::rt::counted_of(input, m, p),
+                Pass::Owned if !lent => crate::rt::counted_of(input, m, p),
                 _ => Ok(crate::rt::Counted::None),
             }
         };

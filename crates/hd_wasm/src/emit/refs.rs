@@ -899,7 +899,7 @@ impl Em<'_, '_, '_> {
         crate::work::use_facts(1);
         let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
             && !self.cx().tracked(target)
-            && self.drop_calls(target).is_empty();
+            && !crate::layout::holds_drop(self.pool(), self.env(), target);
         self.susp.is_none()
             && (self.loans.contains(&i) || shared_copy)
             && matches!(self.kind(target), Kind::Value)

@@ -110,10 +110,6 @@ pub fn count_moved_paths<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&MOVED_PATHS, run)
 }
 
-pub(crate) fn moved_paths(n: usize) {
-    add(&MOVED_PATHS, n);
-}
-
 /// Counts the exit-set rows on this thread: each row a body's census
 /// indexes, and each row an emitted function's exit release visits
 /// ([`crate::emit`]'s `release_all`).

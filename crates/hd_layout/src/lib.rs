@@ -1178,6 +1178,21 @@ impl PartialEq for Walk {
 }
 impl Eq for Walk {}
 
+/// Whether the ownership passes track a value of `t`: it holds a counted
+/// or local reference, or a `Drop` hook. Memoized per link.
+#[must_use]
+pub fn tracked(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    walk(pool, env, t).is_some()
+}
+
+/// Whether counting a value of `t` does anything: it holds a counted
+/// reference (a local one counts nothing, `ref.count.local`) or a `Drop`
+/// hook. Memoized per link.
+#[must_use]
+pub fn counted(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    count_walk(pool, env, t).is_some()
+}
+
 /// The counted references of a concrete type's values, or `None` when it
 /// has none: scalars, and what holds no counted address. A type this
 /// backend does not lay out has none here; its layout refuses it.

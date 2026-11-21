@@ -711,7 +711,7 @@ impl Reentry {
                 cell,
                 Stored {
                     vals: vec![Val::I32],
-                    walk: crate::layout::Walk::sequence(vec![]),
+                    counted: crate::rt::Counted::None,
                     slot: None,
                 },
             );
@@ -795,14 +795,12 @@ impl OnceCell<'_> {
             // including an uncounted result and the flag, between test cases.
             let mut vals = self.results.clone();
             vals.push(Val::I32);
-            let walk = em
-                .counted(ret)
-                .unwrap_or(crate::layout::Walk::sequence(vec![]));
+            let counted = crate::rt::counted_of(em.input, em.m, ret)?;
             em.m.stored.insert(
                 self.key,
                 Stored {
                     vals,
-                    walk,
+                    counted,
                     slot: None,
                 },
             );
@@ -1038,7 +1036,7 @@ fn forward(
         let vs = vals(pool, env, t)?;
         let target_lends = hd_tir::own::ParameterMode::Owned.with_lends(lends, k)
             == hd_tir::own::ParameterMode::Lent;
-        if let Pass::Owned(_) = crate::layout::pass(pool, env, true, t) {
+        if let Pass::Owned = crate::layout::pass(pool, env, true, t) {
             let (borrowed, owned) = hd_layout::shims::input_portions(pool, env, t);
             // ruled out: collected function signatures use Wasm's u32
             // parameter indices, as the existing signature encoding does.
@@ -1279,6 +1277,11 @@ struct Em<'i, 'a, 'm> {
     /// reference owns. The direct drop can release the known table without
     /// resolving the interior address through the page table.
     map_probe_refs: HashMap<u32, (u32, bool)>,
+    /// While an open drop runs over leaves loaded from memory: the base
+    /// address local and each leaf local's offset from it, so a whole
+    /// node whose release runs in place gets its address
+    /// (`Em::release_node`).
+    node_base: Option<(u32, std::rc::Rc<HashMap<u32, u32>>)>,
     /// Each direct `string.slice` call consumed by string equality, with
     /// that equality instruction (`count.rs`).
     string_slice_comparisons: HashMap<u32, u32>,
@@ -1575,6 +1578,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input_transferred: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
+            node_base: None,
             string_slice_comparisons: HashMap::default(),
             short_origins: hd_base::HashSet::default(),
             short_skips: hd_base::HashSet::default(),
@@ -1959,12 +1963,7 @@ impl Em<'_, '_, '_> {
         // local reference holds no count. A copy read's count goes at once,
         // since its place keeps the object; any other value's count is the
         // object's own, which the local reference then owns.
-        if matches!(
-            self.counted(self.ty_of(a)),
-            Some(crate::layout::Walk::Known(_))
-        ) && self.local_ref(self.ty(i))
-            && self.take(a)
-        {
+        if self.known_address(self.ty_of(a))? && self.local_ref(self.ty(i)) && self.take(a) {
             self.push(a)?;
             self.store(i)?;
             if self.b.tags.get(a as usize) == Some(&Tag::Read) {
@@ -1984,7 +1983,7 @@ impl Em<'_, '_, '_> {
         // `&dyn` that takes a `*dyn`'s count owns that trait value too,
         // though the local reference type counts nothing (`ref.count.local`).
         let owns = !self.loans.contains(&a)
-            && ((self.fat_local_ref(self.ty(i)) && self.counted(self.ty_of(a)).is_some())
+            && ((self.fat_local_ref(self.ty(i)) && self.counted(self.ty_of(a)))
                 || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
                     && self.owned_refs.contains(&a)));
         if self.take(a)
@@ -3104,7 +3103,7 @@ impl Em<'_, '_, '_> {
         t: Ty,
         lends: Option<u64>,
     ) -> StageResult<Option<value::Src>> {
-        if !matches!(self.argument_pass(lends, k, t), Pass::Owned(_)) {
+        if !matches!(self.argument_pass(lends, k, t), Pass::Owned) {
             return Ok(None);
         }
         let s = if let Some(reason) = self.operation_count(
@@ -3162,7 +3161,7 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned(_) = self.argument_pass(lends, k, *t)
+            if let Pass::Owned = self.argument_pass(lends, k, *t)
                 && self
                     .operation_count(i, Tag::Release, CountPart::Arguments)
                     .is_none()
@@ -3210,9 +3209,8 @@ impl Em<'_, '_, '_> {
         // the checker typed as a local reference (`ref.convert.lend`, as
         // `let r: &mut T = make()`) owns the object that count keeps; a
         // `&dyn` owns the trait value.
-        if matches!(self.counted(ret), Some(crate::layout::Walk::Known(_)))
-            && self.local_ref(self.ty(i))
-            || self.counted(ret).is_some() && self.fat_local_ref(self.ty(i))
+        if self.known_address(ret)? && self.local_ref(self.ty(i))
+            || self.counted(ret) && self.fat_local_ref(self.ty(i))
         {
             self.owned_refs.insert(i);
         }
@@ -3801,7 +3799,7 @@ impl Em<'_, '_, '_> {
             "task_race_frame" => {
                 let inner = self.susp_inner(self.ty_of(i));
                 let results = self.vals(inner)?;
-                let walk = self.counted(inner);
+                let walk = crate::layout::count_walk(self.pool(), self.env(), inner);
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::Race {
                     part: 0,

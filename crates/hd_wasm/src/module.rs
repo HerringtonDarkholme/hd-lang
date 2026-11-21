@@ -1188,14 +1188,6 @@ pub struct Module {
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params:
         hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
-    /// Per type passed by address, its release plan, once
-    /// (`emit/indirect.rs`, `layout::ReleasePlan`).
-    pub(crate) release_plans:
-        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::layout::ReleasePlan>>>,
-    /// Per type kept by address that holds a `Drop` hook, its hook plan,
-    /// once (`emit/indirect.rs`, `rt::HookPlan`).
-    pub(crate) hook_plans:
-        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::rt::HookPlan>>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     /// Each suspending instance's frame payload size.
     pub frames: hd_base::HashMap<Hash128, u32>,
@@ -1337,8 +1329,6 @@ impl Module {
             inst_of: hd_base::HashMap::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
-            release_plans: hd_base::HashMap::default(),
-            hook_plans: hd_base::HashMap::default(),
             frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
             addressed: hd_base::HashMap::default(),
@@ -1380,13 +1370,13 @@ impl Default for Module {
     }
 }
 
-/// Stored values and their counted-reference walk (§23.24), with a static
+/// Stored values and how they count (§23.24), with a static
 /// slot when addressed. A once-cell includes its uncounted flag after its
 /// result values so teardown resets the cache between test cases.
 #[derive(Clone, Debug)]
 pub struct Stored {
     pub vals: Vec<Val>,
-    pub walk: crate::layout::Walk,
+    pub counted: crate::rt::Counted,
     pub slot: Option<(Address, Vec<crate::layout::Leaf>)>,
 }
 

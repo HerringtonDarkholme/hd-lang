@@ -374,7 +374,7 @@ impl Em<'_, '_, '_> {
     /// candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
         let m = self.cell_mem(l)?;
-        let counted = self.counted(self.b.local_ty[l]).is_some();
+        let counted = self.counted(self.b.local_ty[l]);
         let c = self.cell_of(l)?;
         let held = self.f.load_locals(c, &m.leaves);
         // Only a counted payload needs its old copy cleared: an uncounted

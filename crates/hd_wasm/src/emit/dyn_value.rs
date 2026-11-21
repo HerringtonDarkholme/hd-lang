@@ -84,7 +84,7 @@ impl Em<'_, '_, '_> {
             // A local reference counts nothing (`ref.count.local`): the
             // trait value made from one borrows its referent too.
             // A local reference has no count for the trait value to take.
-            let borrowed = !self.has_result_retain(i) && direct && self.counted(from).is_none();
+            let borrowed = !self.has_result_retain(i) && direct && !self.counted(from);
             if borrowed {
                 self.loans.insert(i);
             }
@@ -198,7 +198,7 @@ impl Em<'_, '_, '_> {
                     self.pass_at(env.lends(t.item, t.args), k, pt)
                 };
                 let w = match target_pass {
-                    crate::layout::Pass::Owned(_)
+                    crate::layout::Pass::Owned
                         if !env.suspends(t.item)
                             || cold
                             || crate::layout::holds_drop(self.pool(), env, pt) =>
@@ -213,7 +213,7 @@ impl Em<'_, '_, '_> {
                 }
                 let vs = self.vals(pt)?;
                 let n = u32::try_from(vs.len()).expect("values");
-                if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
+                if matches!(self.pass(pt), crate::layout::Pass::Owned)
                     && (env.cold_transfers(*m, pt)
                         || crate::layout::holds_drop(self.pool(), env, pt))
                 {
@@ -321,7 +321,7 @@ impl Em<'_, '_, '_> {
                 .get(tail as usize)
                 .is_some_and(|&c| c == user || c == i)
             && !self.loans.contains(&tail)
-            && self.counted(self.ty_of(tail)).is_some()
+            && self.counted(self.ty_of(tail))
         {
             self.owned_refs.insert(i);
         }
@@ -495,7 +495,7 @@ impl Em<'_, '_, '_> {
         // value one refers to, borrows as it does.
         let borrowed = !self.has_result_retain(i)
             && match &read {
-                Some((_, _, loaded)) => *loaded || self.counted(source).is_none(),
+                Some((_, _, loaded)) => *loaded || !self.counted(source),
                 None => self.loans.contains(&a),
             };
         if borrowed {
