@@ -1,0 +1,15 @@
+# @dump: diagnostics tir
+fn outer[T, N < const i32, $ R](value: T) -> impl Eq:
+    fn inner() -> impl Eq:
+        +4
+    inner()
+
+fn pair[T, $ R, N < const i32](value: T) -> (impl Eq, impl Eq):
+    (+1, "a")
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+fn uses() -> void:
+    same(outer::[i32, 1, $()](+0), outer::[i32, 1, $()](+1))
+    same(pair::[i32, $(), 1](+0)._0, pair::[i32, $(), 1](+1)._0)

@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# expected: different implementation targets produce distinct opaque result identities.
+struct Maker[T, $ R, N < const i32]:
+    value: T
+
+trait Produce:
+    fn produce(self) -> (impl Eq, impl Eq)
+
+impl[T, $ R, N < const i32] Produce for Maker[T, $ R, N]:
+    fn produce(self) -> (impl Eq, impl Eq):
+        (+1, "a")
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+fn uses() -> void:
+    a := Maker::[i32, $(), 1] { value: +0 }
+    b := Maker::[string, $(), 1] { value: "a" }
+    same(a.produce()._0, b.produce()._0)

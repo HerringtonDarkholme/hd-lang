@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# expected: different anonymous argument types produce distinct opaque identities.
+fn anonymous(value: impl Eq) -> impl Eq:
+    +1
+
+fn same[T](left: T, right: T) -> void:
+    pass
+
+fn uses() -> void:
+    first := anonymous(1i32)
+    second := anonymous("x")
+    same(first, second)
