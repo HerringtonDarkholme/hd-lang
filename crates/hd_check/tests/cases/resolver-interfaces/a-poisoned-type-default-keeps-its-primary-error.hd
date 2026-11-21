@@ -1,0 +1,7 @@
+# @dump: diagnostics
+struct Broken[T = Missing]:
+    value: T
+struct Holder:
+    value: Broken
+fn identity(value: Broken) -> Broken:
+    value

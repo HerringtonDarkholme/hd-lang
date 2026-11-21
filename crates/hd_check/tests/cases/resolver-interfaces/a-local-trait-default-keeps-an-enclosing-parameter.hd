@@ -1,0 +1,9 @@
+# @dump: diagnostics tir
+fn outer[T](value: T) -> T:
+    trait Select[Other = T]:
+        fn select(self, other: Other) -> Other
+    struct Local: pass
+    impl Select for Local:
+        fn select(self, other: T) -> T:
+            other
+    Local {}.select(value)
