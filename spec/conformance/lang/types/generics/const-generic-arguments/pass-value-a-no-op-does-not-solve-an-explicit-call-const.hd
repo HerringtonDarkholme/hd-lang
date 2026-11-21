@@ -1,0 +1,9 @@
+# test: a no op does not solve an explicit call const
+# Spec: expr.literal.pass; types.generic.const.closed; types.generic.const.nonconstant.
+UNIT := pass
+
+fn accept[N < const i32]() -> void:
+    pass
+
+fn reject() -> void:
+    accept::[UNIT]() # diagnostic: nonconstant-generic-argument

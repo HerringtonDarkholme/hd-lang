@@ -171,6 +171,15 @@ lang/types/generics/generic-parameters-at-the-limit.hd	type	accept	lang/04-type-
 lang/types/generics/too-many-generic-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
 lang/types/generics/too-many-lifetime-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
 lang/types/generics/too-many-lifetime-parameters-with-an-implementation.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
+lang/types/generics/const-generic-arguments/pass-value-a-chain-to-a-no-op-does-not-supply-a-field-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-named-no-op-does-not-supply-an-integer-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-does-not-solve-an-explicit-call-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-does-not-supply-a-boolean-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-does-not-supply-a-character-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-does-not-supply-a-string-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-is-not-a-comparison-operand.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-a-no-op-is-not-an-integer-operand.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/pass-value-scalar-values-and-short-circuiting-keep-their-identity.hd	type	accept	lang/04-type-system.md#r-types.generic.const.closed
 lang/types/generics/const-generic-arguments/closed-input-unit-is-not-a-scalar-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
 lang/types/generics/const-generic-arguments/closed-input-a-dereference-is-not-a-const-operation.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
 lang/types/generics/const-generic-arguments/closed-input-a-simple-name-interpolation-is-not-a-const-string.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
