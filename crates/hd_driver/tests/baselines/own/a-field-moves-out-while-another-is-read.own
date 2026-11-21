@@ -26,6 +26,8 @@ fn split(p: Pair) -> usize:
     eat(p.a) + p.b.len()
 > app/main/split
 >   local $0 p: Pair [param read captured] place
+>   local $1 $temporary_owner: bool [read assigned] value
+>     uses $1: entry -> %9 lend, %14 lend last
 >   %0 = FlagSet [$0] #1 : ()
 >   %1 = FlagSet [$0 .a] #2 : ()
 >   %2 = Box #0 #0 : ()
@@ -35,9 +37,15 @@ fn split(p: Pair) -> usize:
 >   %6 = Ref local frame [$0 .b] : &UniqList[string]
 >   %7 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%6) : usize
 >   %8 = LoanEnd [%6] : ()
->   %9 = Drop [$0] : ()
->   %10 = Prim Add [%5 %7] : usize
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : usize
+>   %9 = Read copy [$1] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Prim Add [%5 %7] : usize
+>   %14 = Read copy [$1] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block %13 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot

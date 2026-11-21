@@ -351,10 +351,15 @@ pub enum IntrinsicOp {
     /// parameter local `l`, a link-time fact (the whole-program lends);
     /// a lent parameter's drop flag starts false (`own::drop_flags`).
     ParamOwned,
+    /// `(place) -> bool`, the place word a constant: whether the drop
+    /// slot of the place's node holds, the node and all under it whole,
+    /// in the cell its root local lives in or the memory a `Deref` at its
+    /// start reaches (the backend's slot layout, `own::elaborate`).
+    CellFlag,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 17] = [
+    pub const ALL: [IntrinsicOp; 18] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -372,6 +377,7 @@ impl IntrinsicOp {
         IntrinsicOp::ListReserve,
         IntrinsicOp::MapSlotEntryMut,
         IntrinsicOp::ParamOwned,
+        IntrinsicOp::CellFlag,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

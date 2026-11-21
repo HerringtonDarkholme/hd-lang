@@ -48,15 +48,20 @@ impl[T < Ord] Queue[T]:
 >   local $5 left: usize [:= read assigned] value
 >     uses $5: %15 -> %16 consume, %18 lend, %22 lend, %26 lend, %36 lend last
 >   local $6 larger: usize [read assigned mutated] place
->   %1 = Retain %91 Entry local $2 #0 : ()
+>   local $7 $temporary_owner: bool [read assigned] value
+>     uses $7: entry -> %90 lend last
+>   %1 = Retain %94 Entry local $2 #0 : ()
         size := self.items.len()
 >   %0 = FlagSet [$2] #7 : ()
 >   %2 = Box #2 #0 : ()
 >   %3 = Read borrow [*$0 .items] : List[T]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Store [$3] %4 : ()
->   %90 = Drop [$2] : ()
->   %91 = Block - : ()
+>   %90 = Read copy [$7] : bool
+>   %91 = Drop [$2] : ()
+>   %92 = Block - : ()
+>   %93 = If %90 [%92 -] : ()
+>   %94 = Block - : ()
         let parent = start
 >   %6 = Read copy [$1] : usize
 >   %7 = Store [$4] %6 : ()

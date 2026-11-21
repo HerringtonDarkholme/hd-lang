@@ -65,7 +65,9 @@ fn take![T < 'static](value: T) -> T $ Clock:
 @cold
 > std/rt_tests.stage_case/stack
 >   local $0 value: T [param read captured] place
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   local $1 $temporary_owner: bool [read assigned] value
+>     uses $1: entry -> %11 lend last
+>   %1 = Retain %15 Entry local $0 #0 : ()
 fn stack[T](value: T) -> T:
     _ := same(&value, &value)
 >   %0 = FlagSet [$0] #1 : ()
@@ -76,8 +78,11 @@ fn stack[T](value: T) -> T:
 >   %6 = Call std/rt_tests.stage_case/same[T] (%4, %5) : bool
 >   %7 = Drop [%5] : ()
 >   %8 = Drop [%4] : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : T
+>   %11 = Read copy [$1] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Block %10 : T
     value
 >   %9 = FlagClear [$0] #1 : ()
 >   %10 = Read move [$0] : T

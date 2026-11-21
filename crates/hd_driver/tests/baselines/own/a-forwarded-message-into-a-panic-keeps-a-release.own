@@ -71,8 +71,12 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >     uses $30: %26 -> %27 lend last
 >   local $31 value: string [read] value
 >     uses $31: %16 -> %17 lend last
->   %2 = Retain %226 Entry local $0 #0 : ()
->   %3 = Retain %226 Entry local $1 #0 : ()
+>   local $32 $temporary_owner: bool [read assigned] value
+>     uses $32: entry -> %217 lend, %225 lend last
+>   local $33 $temporary_owner: bool [read assigned] value
+>     uses $33: entry -> %221 lend, %229 lend last
+>   %2 = Retain %238 Entry local $0 #0 : ()
+>   %3 = Retain %238 Entry local $1 #0 : ()
     if actual != expected:
 >   %0 = FlagSet [$0] #32 : ()
 >   %1 = FlagSet [$1] #33 : ()
@@ -85,16 +89,28 @@ fn check_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void:
 >   %10 = Drop [%6] : ()
 >   %11 = Prim Not [%8] : bool
 >   %216 = If %11 [%215 -] : ()
->   %217 = Drop [$0] : ()
->   %218 = Drop [$1] : ()
->   %219 = Drop [$0] : ()
->   %220 = Drop [$1] : ()
->   %221 = Intrinsic ParamOwned [2:i32] : bool
->   %222 = Drop [$2] : ()
+>   %217 = Read copy [$32] : bool
+>   %218 = Drop [$0] : ()
+>   %219 = Block - : ()
+>   %220 = If %217 [%219 -] : ()
+>   %221 = Read copy [$33] : bool
+>   %222 = Drop [$1] : ()
 >   %223 = Block - : ()
 >   %224 = If %221 [%223 -] : ()
->   %225 = Release %226 Exit local $2 #2 : ()
->   %226 = Block - : ()
+>   %225 = Read copy [$32] : bool
+>   %226 = Drop [$0] : ()
+>   %227 = Block - : ()
+>   %228 = If %225 [%227 -] : ()
+>   %229 = Read copy [$33] : bool
+>   %230 = Drop [$1] : ()
+>   %231 = Block - : ()
+>   %232 = If %229 [%231 -] : ()
+>   %233 = Intrinsic ParamOwned [2:i32] : bool
+>   %234 = Drop [$2] : ()
+>   %235 = Block - : ()
+>   %236 = If %233 [%235 -] : ()
+>   %237 = Release %238 Exit local $2 #2 : ()
+>   %238 = Block - : ()
         details := "actual ${debug(actual)}, expected ${debug(expected)}"
 >   %12 = FlagClear [$0] #32 : ()
 >   %13 = Read move [$0] : T

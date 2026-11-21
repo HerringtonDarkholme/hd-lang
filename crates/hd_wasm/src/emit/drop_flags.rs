@@ -30,18 +30,6 @@ pub(super) type TirFlags = hd_base::HashMap<Root, Vec<(Vec<Proj>, u32)>>;
 
 /// A cell's flag slots after its value: their offset, and one node
 /// path per slot.
-/// Where the open drop reads whether a place is whole: a cell's slot
-/// words (`cell_statement`), each AND the cell's whole flag.
-pub(super) struct Guards {
-    c: u32,
-    cell: Rc<CellLayout>,
-    whole: Option<u32>,
-    /// In a cell's glue, each loaded leaf's local and its offset in the
-    /// cell: a whole node whose release runs in place gets its address
-    /// there.
-    at: Option<Rc<hd_base::HashMap<u32, u32>>>,
-}
-
 pub(super) struct CellLayout {
     base: u32,
     pub(super) paths: Vec<Vec<Proj>>,
@@ -53,7 +41,7 @@ impl CellLayout {
     }
 
     /// The offset of node `path`'s slot: one binary search.
-    fn slot(&self, path: &[Proj]) -> Option<u32> {
+    pub(super) fn slot(&self, path: &[Proj]) -> Option<u32> {
         let k = self.paths.binary_search_by(|p| path_order(p, path));
         Some(self.offset(k.ok()?))
     }
@@ -133,19 +121,6 @@ impl Em<'_, '_, '_> {
         out
     }
 
-    /// The flag local of slot `root`'s whole path, when a whole move may
-    /// empty it: the slot keeps its address, and this says whether it
-    /// holds a value, as rustc's drop flag of a maybe-moved place.
-    pub(super) fn slot_flag(&mut self, root: Root) -> StageResult<Option<u32>> {
-        let flags = self.tir_flags();
-        match (root, flags.get(&root).and_then(|ps| ps.first())) {
-            (Root::Local(l), Some((p, flag))) if p.is_empty() && self.slots.contains_key(&l) => {
-                Ok(Some(self.local(*flag)?[0]))
-            }
-            _ => Ok(None),
-        }
-    }
-
     /// Local `root`'s cell address local and slots, when it is a cell.
     fn cell_slots(&self, root: Root) -> Option<(u32, Rc<CellLayout>)> {
         let Root::Local(l) = root else {
@@ -217,237 +192,12 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Whether [`Em::open_drop`] descends the value: held in locals, one
-    /// per value of `ty` (not by address), with every flag at or below
-    /// `at` under fields and variants, each part's values among them.
-    fn open_drop_fits(&self, g: &Guards, at: &[Proj], ty: Ty, n: usize) -> bool {
-        if !g.cell.paths.iter().any(|q| q.starts_with(at)) {
-            return true;
-        }
-        if crate::layout::vals(self.pool(), self.env(), ty).map_or(true, |v| v.len() != n) {
-            return false;
-        }
-        self.open_parts(ty).is_some_and(|parts| {
-            parts.iter().all(|(step, part, at_values)| {
-                let sub: Vec<Proj> = at.iter().copied().chain(step.iter().copied()).collect();
-                at_values.iter().all(|&k| (k as usize) < n)
-                    && self.open_drop_fits(g, &sub, *part, at_values.len())
-            })
-        })
-    }
-
-    /// The parts the open drop descends into, each with the projections
-    /// that reach it, its type and its values' indices among `ty`'s: a
-    /// struct's or tuple's fields, or each variant's payload fields
-    /// (behind `Proj::Variant`). `None` for a type with no parts to open.
-    #[allow(clippy::type_complexity)]
-    fn open_parts(&self, ty: Ty) -> Option<Vec<(Vec<Proj>, Ty, Vec<u32>)>> {
-        let s = crate::layout::strip_newtype(self.pool(), self.env(), ty);
-        if let Some(vs) = crate::layout::variants(self.pool(), self.env(), s) {
-            let flat = crate::layout::flat(self.pool(), self.env(), s).ok()??;
-            let mut out = Vec::new();
-            for (v, fields) in (0u32..).zip(vs.iter()) {
-                for (k, &f) in (0u32..).zip(fields) {
-                    let at = flat.positions.get(v as usize)?.get(k as usize)?.clone();
-                    out.push((vec![Proj::Variant(v), Proj::Field(k)], f, at));
-                }
-            }
-            return Some(out);
-        }
-        let parts = crate::layout::value_parts(self.pool(), self.env(), s);
-        let (_, places) = crate::layout::payload_mem(self.pool(), self.env(), &parts).ok()?;
-        Some(
-            (0u32..)
-                .zip(parts.iter().zip(&places))
-                .map(|(k, (&part, place))| {
-                    let first = u32::try_from(place.first).unwrap_or(u32::MAX);
-                    let count = u32::try_from(place.count).unwrap_or(0);
-                    (vec![Proj::Field(k)], part, (first..first + count).collect())
-                })
-                .collect(),
-        )
-    }
-
-    /// rustc's open drop (elaborate drops) of the value `ls` of type `ty`
-    /// at `at`, whose drop flags (`paths`) say which places are still
-    /// initialized. The flag at `at`, when there is one, guards it all: a
-    /// place moved whole leaves nothing. Under it, with no flag below, the
-    /// value releases whole: its shim, its hooks and fields. With flags
-    /// below, it releases whole when every one is set, as
-    /// `push_hook_guard` guards a hook; else each field drops the same
-    /// way, and the hook at `at` does not run. O(the flags and the fields
-    /// on their paths).
-    pub(super) fn open_drop(
-        &mut self,
-        ls: &[u32],
-        ty: Ty,
-        at: &[Proj],
-        g: &Guards,
-    ) -> StageResult<()> {
-        crate::work::moved_paths(1);
-        // A cell's slot at `at` says whether the node is whole
-        // (`cell_statement`).
-        let guarded = g.cell.slot(at).inspect(|&off| {
-            self.count_flag_read();
-            self.f.get(g.c);
-            self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
-            if let Some(w) = g.whole {
-                self.f.get(w);
-                self.f.op(I::I32And);
-            }
-        });
-        let guarded = guarded.is_some();
-        // A node with no slot of its own but slots below (a struct of
-        // hooked fields) opens unguarded. A slot with none below is a
-        // leaf: clear, the place moved whole.
-        let below = (g.cell.paths.iter()).any(|p| p.len() > at.len() && p.starts_with(at));
-        if guarded {
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            self.release_node(ls, ty, g)?;
-            if below {
-                self.f.op(I::Else);
-                self.open_below(ls, ty, at, g)?;
-            }
-            self.f.op(I::End);
-        } else if below {
-            self.open_below(ls, ty, at, g)?;
-        } else {
-            self.release_node(ls, ty, g)?;
-        }
-        Ok(())
-    }
-
-    /// One count less on the node `ls` of type `ty` whole: in a cell's
-    /// glue, a release that runs in place gets the node's address in the
-    /// cell; else from its values.
-    fn release_node(&mut self, ls: &[u32], ty: Ty, g: &Guards) -> StageResult<()> {
-        if let Guards {
-            c, at: Some(at), ..
-        } = g
-            && let Some(&off) = ls.first().and_then(|l| at.get(l))
-        {
-            let counted = crate::rt::counted_of(self.input, self.m, ty)?;
-            if let crate::rt::Counted::Shims(s) = &counted
-                && s.release_at
-            {
-                let (c, off) = (*c, off - counted.first_offset());
-                counted.emit_at(
-                    &mut self.f,
-                    self.m,
-                    &|f| {
-                        f.get(c);
-                        if off != 0 {
-                            f.u32(off);
-                            f.op(I::I32Add);
-                        }
-                    },
-                    &|_, _| {},
-                    false,
-                );
-                return Ok(());
-            }
-        }
-        self.release_locals(ls, ty)
-    }
-
-    /// The open drop's parts of the value `ls` of type `ty` at `at`: an
-    /// enum's variant it holds, one test per variant, or each field.
-    fn open_below(&mut self, ls: &[u32], ty: Ty, at: &[Proj], g: &Guards) -> StageResult<()> {
-        let s = crate::layout::strip_newtype(self.pool(), self.env(), ty);
-        // An enum opens the variant it holds: one test per variant,
-        // each opening that variant's payload fields.
-        let disc = crate::layout::variants(self.pool(), self.env(), s)
-            .and_then(|_| {
-                crate::layout::flat(self.pool(), self.env(), s)
-                    .ok()
-                    .flatten()
-            })
-            .map(|flat| flat.disc);
-        let parts = self.open_parts(ty).unwrap_or_default();
-        let mut tested: Option<u32> = None;
-        for (step, part, at_values) in parts {
-            if let (Some(Proj::Variant(v)), Some(crate::layout::Disc::Cell(d))) =
-                (step.first().copied(), disc)
-                && tested != Some(v)
-            {
-                if tested.take().is_some() {
-                    self.f.op(I::End);
-                }
-                let is = d.enc.is(v);
-                if matches!(is, crate::layout::Is::Never) {
-                    continue;
-                }
-                self.f.get(ls[d.value as usize]);
-                for op in crate::layout::IsOps::ops(is) {
-                    self.f.op(op);
-                }
-                self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                tested = Some(v);
-            }
-            if let Some(Proj::Variant(v)) = step.first().copied()
-                && matches!(disc, Some(crate::layout::Disc::Cell(_)))
-                && tested != Some(v)
-            {
-                continue;
-            }
-            let sub: Vec<Proj> = at.iter().copied().chain(step.iter().copied()).collect();
-            let part_ls: Vec<u32> = at_values.iter().map(|&k| ls[k as usize]).collect();
-            self.open_drop(&part_ls, part, &sub, g)?;
-        }
-        if tested.is_some() {
-            self.f.op(I::End);
-        }
-        Ok(())
-    }
-
-    /// Counts one read of a TIR drop flag for the ledger, by the
-    /// statement whose lowering reads it: a `Drop`, a `Store` releasing
-    /// what it overwrites, or another (an exit or unwind release).
-    #[cfg_attr(not(feature = "ledger"), allow(clippy::unused_self))]
-    pub(super) fn count_flag_read(&self) {
-        ledger!(
-            "drop-flag-read/{}",
-            match self.emitting.last().map(|&i| self.b.tags[i as usize]) {
-                Some(Tag::Drop) => "drop",
-                Some(Tag::Store) => "overwrite",
-                _ => "exit-or-unwind",
-            }
-        );
-    }
-
+    /// Releases the `ty` value `ls` at place `p`: its flags, and a cell's
+    /// drop slots, guard it in TIR (`hd_tir::own::elaborate`), and its
+    /// release shim runs its hooks (`hd_layout::shims`).
     pub(super) fn release_drop_place(&mut self, ls: &[u32], ty: Ty, p: &Place) -> StageResult<()> {
-        let root = self.drop_root(p);
-        if let Some((root, _)) = &root {
-            self.assert_cancelled(root);
-        }
-        if let Some((root, rt)) = root
-            && matches!(self.kind(rt), Kind::Value)
-            && crate::layout::holds_drop(self.pool(), self.env(), rt)
-        {
-            // Not a cell: TIR's elaborated drops read its flags
-            // (`hd_tir::own::elaborate`), and its release shim runs its
-            // hooks (`hd_layout::shims`). A cell's slots: the open drop.
-            let Some((c, cell)) = self.cell_slots(root) else {
-                return self.release_locals(ls, ty);
-            };
-            let whole = self.slot_flag(root)?;
-            let guards = Guards {
-                c,
-                cell,
-                whole,
-                at: None,
-            };
-            // ruled out: drop flags name field and variant paths only (the
-            // checker refuses a move out of an element or through a
-            // reference), and `ls` holds the place's values: the open drop
-            // takes every flagged place.
-            if !self.open_drop_fits(&guards, &p.proj, ty, ls.len()) {
-                return Err(hd_base::NotImplemented::bug(
-                    hd_base::Stage::Emit,
-                    "a drop flag past the fields and variants the open drop opens",
-                ));
-            }
-            return self.open_drop(ls, ty, &p.proj, &guards);
+        if let Some((root, _)) = self.drop_root(p) {
+            self.assert_cancelled(&root);
         }
         self.release_locals(ls, ty)
     }
@@ -475,45 +225,39 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// The node paths under a `ty` value laid out in place, in preorder:
+    /// the parts `OwnCx::drop_parts` names, each variant a node over its
+    /// payload's fields, as `hd_tir::own::elaborate` opens them. None when
+    /// `ty` holds no hook.
     fn drop_node_paths(&self, ty: Ty) -> Vec<Vec<Proj>> {
-        fn add(em: &Em<'_, '_, '_>, ty: Ty, path: &[Proj], out: &mut Vec<Vec<Proj>>) {
-            out.push(path.to_vec());
-            if !matches!(em.kind(ty), Kind::Value) {
-                return;
-            }
-            if let Some(variants) = em.try_variant_tys(ty) {
-                for (v, fields) in variants.iter().enumerate() {
-                    let mut variant = path.to_vec();
-                    variant.push(Proj::Variant(u32::try_from(v).expect("variant")));
-                    out.push(variant.clone());
-                    for (f, &field) in fields.iter().enumerate() {
-                        let mut child = variant.clone();
-                        child.push(Proj::Field(u32::try_from(f).expect("field")));
-                        add(em, field, &child, out);
-                    }
-                }
-            } else {
-                for (f, field) in crate::layout::value_parts(
-                    em.pool(),
-                    em.env(),
-                    crate::layout::strip_newtype(em.pool(), em.env(), ty),
-                )
-                .into_iter()
-                .enumerate()
+        fn add(em: &Em<'_, '_, '_>, ty: Ty, path: &mut Vec<Proj>, out: &mut Vec<Vec<Proj>>) {
+            let (pool, env, mut parts) = (em.pool(), em.env(), Vec::new());
+            out.push(path.clone());
+            let fields = crate::layout::facts::in_place_parts(pool, env, ty, None, &mut parts);
+            for v in (0u32..).take(if fields { 1 } else { usize::MAX }) {
+                if !fields
+                    && !crate::layout::facts::in_place_parts(pool, env, ty, Some(v), &mut parts)
                 {
-                    let mut child = path.to_vec();
-                    child.push(Proj::Field(u32::try_from(f).expect("field")));
-                    add(em, field, &child, out);
+                    break;
                 }
+                path.extend((!fields).then_some(Proj::Variant(v)));
+                if !fields {
+                    out.push(path.clone());
+                }
+                for (f, t) in (0u32..).zip(std::mem::take(&mut parts)) {
+                    path.push(Proj::Field(f));
+                    add(em, t, path, out);
+                    path.pop();
+                }
+                path.truncate(path.len() - usize::from(!fields));
             }
-        }
-        if !matches!(self.kind(ty), Kind::Value)
-            || !crate::layout::holds_drop(self.pool(), self.env(), ty)
-        {
-            return Vec::new();
         }
         let mut paths = Vec::new();
-        add(self, ty, &[], &mut paths);
+        if matches!(self.kind(ty), Kind::Value)
+            && crate::layout::holds_drop(self.pool(), self.env(), ty)
+        {
+            add(self, ty, &mut Vec::new(), &mut paths);
+        }
         paths
     }
 
@@ -540,65 +284,28 @@ impl Em<'_, '_, '_> {
     }
 
     /// The release glue of a heap cell holding a `ty` laid out as `m`.
-    /// With drop slots (`cell_layout`), the open drop over them, as a
-    /// `Drop` statement on the cell runs it, made once per key as its own
-    /// function: its parameter is the payload's address. Else one count
-    /// less on the value whole ([`Helper::DropParts`]).
+    /// With drop slots (`cell_layout`), its TIR shim, the open drop over
+    /// them (`hd_tir::own::cell_drop`): its parameter is the payload's
+    /// address. Else one count less on the value whole
+    /// ([`Helper::DropParts`]).
     pub(super) fn cell_glue(&mut self, ty: Ty, m: &Mem) -> StageResult<Option<Sym>> {
+        use hd_layout::shims::{Portion, Shim};
         let parts = self.typed_parts(ty)?;
-        let cell = self
-            .cell_layout(ty)
-            .filter(|_| matches!(self.kind(ty), Kind::Value));
-        let (Some(cell), [(_, crate::rt::Counted::Shims(shims))]) = (cell, parts.as_slice()) else {
+        if self.cell_layout(ty).is_none() || !matches!(self.kind(ty), Kind::Value) {
             return Ok((!parts.is_empty()).then(|| {
                 Sym::Helper(Helper::DropParts {
                     leaves: m.leaves.clone(),
                     parts,
                 })
             }));
-        };
-        let mut h = hd_base::StableHasher::new("cell-drop");
-        h.hash(shims.release);
-        h.u32(cell.base);
-        for path in &cell.paths {
-            h.u32(u32::try_from(path.len()).expect("ruled out: a path is under 2^32 steps"));
-            for p in path {
-                h.u32(match p {
-                    Proj::Field(k) => k.wrapping_mul(2),
-                    Proj::Variant(v) => v.wrapping_mul(2) | 1,
-                    _ => u32::MAX,
-                });
-            }
         }
-        let sym = Sym::CellDrop(h.finish());
-        if !self.m.is_defined(sym.clone()) {
-            let glue = self.m.func("rt:cell_drop", vec![Val::I32], vec![]);
-            let body = std::mem::replace(&mut self.f, glue);
-            let ls = self.f.load_locals(0, &m.leaves);
-            let at = ls
-                .iter()
-                .copied()
-                .zip(m.leaves.iter().map(|l| l.offset))
-                .collect();
-            let guards = Guards {
-                c: 0,
-                cell,
-                whole: None,
-                at: Some(Rc::new(at)),
-            };
-            let made = if self.open_drop_fits(&guards, &[], ty, ls.len()) {
-                self.open_drop(&ls, ty, &[], &guards)
-            } else {
-                Err(hd_base::NotImplemented::bug(
-                    hd_base::Stage::Emit,
-                    "a cell's open drop past fields and variants",
-                ))
-            };
-            let glue = std::mem::replace(&mut self.f, body);
-            made?;
-            self.m.define(sym.clone(), glue);
-        }
-        Ok(Some(sym))
+        let (_, shape, _) = (self.input.shim)(ty, Shim::CellDrop, Portion::All)?;
+        Ok(Some(Sym::CellDrop(self.m.shim_key(
+            ty,
+            shape,
+            Shim::CellDrop,
+            Portion::All,
+        ))))
     }
 
     /// Sets every slot of a new cell at `at`: whole when `init` is

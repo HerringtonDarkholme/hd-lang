@@ -897,6 +897,17 @@ impl Em<'_, '_, '_> {
         let reason = self.b.data[i as usize][1];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
             let l = bare_local(self.b, word);
+            // What a store overwrites in a cell is the value there, not
+            // the cell (`hd_tir::own::elaborate`).
+            if reason == hd_tir::own::OVERWRITTEN && self.is_cell(l) {
+                let root = hd_tir::ir::PlaceRoot::Local(hd_base::LocalId::from_raw(
+                    u32::try_from(l).expect("locals"),
+                ));
+                return self.drop_part(&hd_tir::ir::Place {
+                    root,
+                    proj: Vec::new(),
+                });
+            }
             // Nothing reads the local after an exit's drop, and a store
             // writes it after an overwrite's.
             if reason == hd_tir::own::EXIT_DROP || reason == hd_tir::own::OVERWRITTEN {
@@ -918,39 +929,80 @@ impl Em<'_, '_, '_> {
     }
 
     /// A `Drop` of a part of a local or a value (`hd_tir::own::elaborate`):
-    /// the part's values, where the root's locals or its address hold
-    /// them, while the enum on its path holds each variant it names.
+    /// the part's values, where the root's locals hold them or loaded from
+    /// where it lies in memory (a local kept by address, a cell, what a
+    /// `Deref` at the place's start reaches), while the enum on its path
+    /// holds each variant it names.
     fn drop_part(&mut self, p: &hd_tir::ir::Place) -> StageResult<()> {
-        use crate::layout::{Disc, Is};
+        use crate::layout::{Disc, Is, LeafOps as _};
         use hd_tir::ir::{PlaceRoot, Proj};
         let root = match p.root {
             PlaceRoot::Local(l) => Some(l.idx()),
             _ => None,
         };
-        if root.is_some_and(|l| self.borrowed.contains(&l) || self.loan_locals.contains_key(&l)) {
+        // A borrowed local's value is its lender's; what it refers to is not.
+        let deref = p.proj.first() == Some(&Proj::Deref);
+        let lent = |l: usize| self.borrowed.contains(&l) || self.loan_locals.contains_key(&l);
+        if !deref && root.is_some_and(lent) {
             return Ok(());
         }
-        let (t, ls) = match root.and_then(|l| Some((l, self.mem_locals.get(&l).cloned()?))) {
-            Some((l, (at, off, mem))) => {
+        let (t, proj, base, ls) = match root {
+            Some(l) if deref => {
+                let TyData::Ref { inner, .. } = self.pool().get(self.b.local_ty[l]) else {
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a cell's release through no reference",
+                    ));
+                };
+                (
+                    inner,
+                    &p.proj[1..],
+                    Some(self.local(u32::try_from(l).expect("locals"))?[0]),
+                    None,
+                )
+            }
+            Some(l) if self.is_cell(l) => (
+                self.b.local_ty[l],
+                &p.proj[..],
+                Some(self.cell_of(l)?),
+                None,
+            ),
+            Some(l) if let Some(&(at, off, _)) = self.mem_locals.get(&l) => {
                 let base = self.f.local(Val::I32);
                 super::indirect::address(&mut self.f, at, off);
                 self.f.set(base);
-                (self.b.local_ty[l], self.f.load_locals(base, &mem.leaves))
+                (self.b.local_ty[l], &p.proj[..], Some(base), None)
             }
-            None => match self.root_locals(p)? {
-                Some(x) => x,
+            _ => match self.root_locals(p)? {
+                Some((t, ls)) => (t, &p.proj[..], None, Some(ls)),
                 None => return Ok(()),
             },
         };
+        let leaves = match base {
+            Some(_) => crate::layout::mem(self.pool(), self.env(), t)?.leaves,
+            None => Vec::new(),
+        };
+        crate::work::moved_paths(1);
+        let mut ls = ls.unwrap_or_else(|| vec![NONE; leaves.len()]);
+        // Each leaf in memory loads where it is first read.
+        let mut get = |em: &mut Self, k: usize| {
+            if let (Some(base), NONE) = (base, ls[k]) {
+                ls[k] = em.f.local(leaves[k].val);
+                em.f.get(base);
+                em.f.op(leaves[k].load(0));
+                em.f.set(ls[k]);
+            }
+            ls[k]
+        };
         let part = super::required(
-            crate::layout::facts::place_part(self.pool(), self.env(), t, &p.proj)?,
+            crate::layout::facts::place_part(self.pool(), self.env(), t, proj)?,
             "ruled out: own::elaborate opens only fields and variants laid out in place",
         );
         let mut open = 0;
-        for (d, step) in p.proj.iter().enumerate() {
+        for (d, step) in proj.iter().enumerate() {
             let Proj::Variant(v) = *step else { continue };
             let outer = super::required(
-                crate::layout::facts::place_part(self.pool(), self.env(), t, &p.proj[..d])?,
+                crate::layout::facts::place_part(self.pool(), self.env(), t, &proj[..d])?,
                 "ruled out: a variant's enum lies in place as its payload does",
             );
             let s = crate::layout::strip_newtype(self.pool(), self.env(), outer.ty);
@@ -964,19 +1016,73 @@ impl Em<'_, '_, '_> {
                 (0..open).for_each(|_| self.f.op(I::End));
                 return Ok(());
             }
-            let Some(Disc::Cell(c)) = disc else {
-                continue;
-            };
-            self.f.get(ls[outer.slots[c.value as usize]]);
+            let Some(Disc::Cell(c)) = disc else { continue };
+            let x = get(self, outer.slots[c.value as usize]);
+            self.f.get(x);
             for op in crate::layout::IsOps::ops(is) {
                 self.f.op(op);
             }
             self.f.op(I::If(BlockType::Empty));
             open += 1;
         }
-        let values: Vec<u32> = part.slots.iter().map(|&k| ls[k]).collect();
-        self.release_locals(&values, part.ty)?;
+        // A part whose release runs where it lives takes its address.
+        let counted = crate::rt::counted_of(self.input, self.m, part.ty)?;
+        match (base, &counted, part.slots.first()) {
+            (Some(c), crate::rt::Counted::Shims(s), Some(&k)) if s.release_at => {
+                let off = leaves[k].offset - counted.first_offset();
+                let at = |f: &mut crate::module::Func| {
+                    f.get(c);
+                    if off != 0 {
+                        f.u32(off);
+                        f.op(I::I32Add);
+                    }
+                };
+                counted.emit_at(&mut self.f, self.m, &at, &|_, _| {}, false);
+            }
+            _ => {
+                let values: Vec<u32> = part.slots.iter().map(|&k| get(self, k)).collect();
+                self.release_locals(&values, part.ty)?;
+            }
+        }
         (0..open).for_each(|_| self.f.op(I::End));
+        Ok(())
+    }
+
+    /// Pushes `CellFlag` of the place word `word`: its node's drop slot, in
+    /// the cell or memory its root reaches (`hd_tir::own::elaborate`).
+    pub(super) fn cell_flag(&mut self, word: u32) -> StageResult<()> {
+        let p = self.b.decode_place(word).ok_or_else(|| {
+            hd_base::NotImplemented::bug(hd_base::Stage::Emit, "a cell flag of no place")
+        })?;
+        let hd_tir::ir::PlaceRoot::Local(l) = p.root else {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a cell flag of no local",
+            ));
+        };
+        let (c, deref) = (
+            self.local(l.raw())?[0],
+            p.proj.first() == Some(&hd_tir::ir::Proj::Deref),
+        );
+        let t = match self.pool().get(self.b.local_ty[l.idx()]) {
+            TyData::Ref { inner, .. } if deref => inner,
+            _ => self.b.local_ty[l.idx()],
+        };
+        let slot = self
+            .cell_layout(t)
+            .and_then(|cell| cell.slot(&p.proj[usize::from(deref)..]));
+        let slot = slot.ok_or_else(|| {
+            hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a cell flag of a node with no drop slot",
+            )
+        })?;
+        self.f.get(c);
+        self.f.op(I::I32Load(crate::module::mem(
+            crate::module::HEAP,
+            u64::from(slot),
+            2,
+        )));
         Ok(())
     }
 

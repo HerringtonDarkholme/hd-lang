@@ -27,19 +27,25 @@ use super::OwnCx;
 use super::drop_flags::{Key, cells, key_of, read, step_words, word_of};
 use super::reason::{CANCELLED, EXIT_DROP, OVERWRITTEN};
 use crate::ir::count::{At, Info, Part};
-use crate::ir::{Body, IntrinsicOp, NONE, PrimOp, ReadMode, Ref, Tag, Topology, grow};
+use crate::ir::{Body, IntrinsicOp, NONE, PrimOp, ReadMode, Ref, Tag, Topology};
 use crate::ir::{local_flags, place, return_word, u32_of};
 
 /// A root's flagged paths, as step words and flag local, sorted so the
 /// paths under a path follow it.
 type Paths = Vec<(Vec<u32>, u32)>;
 
+/// The parts of a type the open drop descends into ([`OwnCx::drop_parts`]).
+pub type Parts<'a> = dyn Fn(Ty, Option<u32>, &mut Vec<Ty>) -> bool + 'a;
+
 /// The rows being written, and the release being written: its root, its
 /// flags, its `Drop`s' reason and source position.
 struct Elab<'a> {
     b: &'a mut Body,
-    cx: &'a dyn OwnCx,
+    /// The parts drop elaboration opens ([`OwnCx::drop_parts`]).
+    parts: &'a Parts<'a>,
     flags: HashMap<Key, Paths>,
+    /// Per local, whether it lives in a cell (`drop_flags::cells`).
+    cells: Vec<bool>,
     out: Vec<u32>,
     key: Key,
     paths: Paths,
@@ -49,11 +55,15 @@ struct Elab<'a> {
 
 impl Elab<'_> {
     fn row(&mut self, tag: Tag, data: [u32; 2], ty: Ty) -> u32 {
-        let r = self.b.len();
         let b = &mut *self.b;
-        grow(b, r + 1);
-        (b.tags[r], b.data[r], b.ty[r], b.syn[r]) = (tag, data, ty, self.syn);
-        u32_of(r)
+        b.tags.push(tag);
+        b.data.push(data);
+        b.ty.push(ty);
+        b.syn.push(self.syn);
+        if !b.anchors.is_empty() {
+            b.anchors.push(NONE);
+        }
+        u32_of(b.len() - 1)
     }
 
     /// Reads flag local `flag`; `NONE`: whether the instance owns the
@@ -86,12 +96,14 @@ impl Elab<'_> {
     /// The open drop of the place at `steps`, of type `ty`, in evaluation
     /// order: each read before what it guards.
     fn open(&mut self, steps: &mut Vec<u32>, ty: Ty) -> Result<Vec<u32>, String> {
-        let own = self.paths.iter().find(|p| p.0 == *steps).map(|p| p.1);
-        let own = own.map(|f| self.read(f));
-        let below: Vec<u32> = (self.paths.iter())
-            .filter(|p| p.0.len() > steps.len() && p.0.starts_with(steps))
+        // The paths at and under `steps` are one sorted range: one search.
+        let at = self.paths.partition_point(|p| p.0 < *steps);
+        let own = self.paths.get(at).filter(|p| p.0 == *steps).map(|p| p.1);
+        let below: Vec<u32> = (self.paths[at + usize::from(own.is_some())..].iter())
+            .take_while(|p| p.0.starts_with(steps))
             .map(|p| p.1)
             .collect();
+        let own = own.map(|f| self.read(f));
         let word = word_of(self.b, self.key, steps);
         let leaf = self.row(Tag::Drop, [word, self.reason], Ty::VOID);
         let mut list = vec![leaf];
@@ -104,7 +116,11 @@ impl Elab<'_> {
                 all = self.row(Tag::Prim, [PrimOp::And as u32, args], Ty::BOOL);
                 list.extend([r, all]);
             }
-            let parts = self.below(steps, ty)?;
+            // ruled out: the checker moves a part only out of a value laid
+            // out in place, whose parts `OwnCx::drop_parts` names.
+            let parts = Some(self.below(steps, ty, false)?).filter(|p| !p.is_empty());
+            let parts =
+                parts.ok_or_else(|| format!("a drop flag under {ty:?}, which does not open"))?;
             list.push(self.when(all, [Some(vec![leaf]), Some(parts)]));
         }
         Ok(match own {
@@ -113,29 +129,43 @@ impl Elab<'_> {
         })
     }
 
-    /// The parts of the place at `steps`: a struct's or tuple's fields, or
-    /// each variant's payload fields.
-    fn below(&mut self, steps: &mut Vec<u32>, ty: Ty) -> Result<Vec<u32>, String> {
+    /// The parts the open drop descends into, as their steps and type: a
+    /// struct's or tuple's fields, or each variant's payload fields.
+    fn children(&self, ty: Ty) -> Vec<(Vec<u32>, Ty)> {
         let (mut fields, mut out) = (Vec::new(), Vec::new());
-        let variants = !self.cx.drop_parts(ty, None, &mut fields);
-        let mut v = 0;
-        while !variants || self.cx.drop_parts(ty, Some(v), &mut fields) {
-            for (f, t) in (0u32..).zip(std::mem::take(&mut fields)) {
-                let n = steps.len();
-                steps.extend(variants.then_some(place::PROJ_VARIANT | v));
-                steps.push(place::PROJ_FIELD | f);
-                out.extend(self.open(steps, t)?);
-                steps.truncate(n);
-            }
-            if !variants {
-                return Ok(out);
-            }
-            v += 1;
+        if (self.parts)(ty, None, &mut fields) {
+            out.extend(
+                (0u32..)
+                    .zip(fields)
+                    .map(|(f, t)| (vec![place::PROJ_FIELD | f], t)),
+            );
+            return out;
         }
-        // ruled out: the checker moves a part only out of a value laid out
-        // in place, whose parts `OwnCx::drop_parts` names.
-        let what = || format!("a drop flag under a part of {ty:?}, which does not open");
-        (v > 0).then_some(out).ok_or_else(what)
+        for v in 0u32.. {
+            if !(self.parts)(ty, Some(v), &mut fields) {
+                break;
+            }
+            let variant = |(f, t)| (vec![place::PROJ_VARIANT | v, place::PROJ_FIELD | f], t);
+            out.extend((0u32..).zip(fields.drain(..)).map(variant));
+        }
+        out
+    }
+
+    /// The open drops of the parts of the place at `steps` (`cell`: in a
+    /// cell's slots, else under the flags).
+    fn below(&mut self, steps: &mut Vec<u32>, ty: Ty, cell: bool) -> Result<Vec<u32>, String> {
+        let mut out = Vec::new();
+        for (step, t) in self.children(ty) {
+            let n = steps.len();
+            steps.extend(step);
+            out.extend(if cell {
+                self.cell(steps, t)?
+            } else {
+                self.open(steps, t)?
+            });
+            steps.truncate(n);
+        }
+        Ok(out)
     }
 
     /// Releases place `word` under its flags: a parameter's (`param`), with
@@ -158,13 +188,51 @@ impl Elab<'_> {
         for &s in &steps {
             if s & place::PROJ_KIND == place::PROJ_VARIANT {
                 variant = Some(s & place::PROJ_INDEX);
-            } else if self.cx.drop_parts(ty, variant.take(), &mut parts) {
+            } else if (self.parts)(ty, variant.take(), &mut parts) {
                 ty = parts[(s & place::PROJ_INDEX) as usize];
             }
         }
-        let rows = self.open(&mut steps, ty)?;
+        // What a store overwrites in a cell with drop slots: its slots say
+        // what is whole, under a slot's whole flag.
+        let rows = match self.key {
+            Key::Local(l) if reason == OVERWRITTEN && self.cells[l as usize] => {
+                let own = self.paths.first().map(|p| p.1);
+                let own = own.map(|f| self.read(f));
+                let list = self.cell(&mut steps, ty)?;
+                match own {
+                    Some(c) => vec![c, self.when(c, [Some(list), None])],
+                    None => list,
+                }
+            }
+            _ => self.open(&mut steps, ty)?,
+        };
         self.out.extend(rows);
         Ok(())
+    }
+
+    /// The open drop of the place at `steps`, of type `ty`, in a cell or
+    /// in the memory a `Deref` at its start reaches, whose drop slots say,
+    /// per node, whether it and all under it are whole
+    /// ([`IntrinsicOp::CellFlag`]).
+    fn cell(&mut self, steps: &mut Vec<u32>, ty: Ty) -> Result<Vec<u32>, String> {
+        let word = word_of(self.b, self.key, steps);
+        self.b.consts.push((Ty::I32, u64::from(word)));
+        let args = self
+            .b
+            .push_record(&[Ref::konst(u32_of(self.b.consts.len() - 1)).0]);
+        let c = self.row(
+            Tag::Intrinsic,
+            [IntrinsicOp::CellFlag as u32, args],
+            Ty::BOOL,
+        );
+        let leaf = self.row(Tag::Drop, [word, self.reason], Ty::VOID);
+        let parts = Some(self.below(steps, ty, true)?).filter(|p| !p.is_empty());
+        Ok(vec![c, self.when(c, [Some(vec![leaf]), parts])])
+    }
+
+    /// Whether place `word` lies in a cell with drop slots.
+    fn slotted(&self, word: u32) -> bool {
+        matches!(key_of(self.b, word), Some(Key::Local(l)) if self.cells[l as usize])
     }
 
     /// Whether a flag stands at or under place `word`.
@@ -180,8 +248,13 @@ impl Elab<'_> {
 /// # Errors
 /// A flag under a part that does not open, or a refused renumbering.
 pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
-    let (cells, _) = cells(b);
+    let (mut cells, slots) = cells(b);
     let (n, topo) = (b.len(), Topology::new(b));
+    let boxed: hd_base::HashSet<u32> = (super::storage::declarations(b, &topo.sub).into_iter())
+        .enumerate()
+        .filter(|&(l, d)| cells[l] && d != NONE)
+        .map(|(_, d)| d)
+        .collect();
     let (mut spans, mut gone, mut blocks) = (Vec::new(), vec![false; n], Vec::new());
     let mut put = HashMap::<(u32, bool), Vec<u32>>::default();
     let mut flags = HashMap::<Key, Paths>::default();
@@ -206,8 +279,13 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             (Tag::Store, Some(l)) => (place::BARE_LOCAL | l, word & !place::BARE_LOCAL),
             _ => continue,
         };
-        match key_of(b, word).filter(|k| !matches!(k, Key::Local(l) if cells[*l as usize])) {
-            Some(key) if read(b, cx, key) => {
+        // A cell's flags are its slots (the backend's), but a slot's whole
+        // flag, which says whether it holds a value.
+        let whole = step_words(b, word).is_empty();
+        match key_of(b, word).filter(
+            |k| !matches!(k, Key::Local(l) if cells[*l as usize] && !(slots[*l as usize] && whole)),
+        ) {
+            Some(key) if read(b, cx, key) || matches!(key, Key::Local(l) if cells[l as usize]) => {
                 let paths = flags.entry(key).or_default();
                 paths.push((step_words(b, word).to_vec(), flag));
             }
@@ -234,10 +312,16 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     let mut consumers = Vec::new();
     super::consumers(b, &topo, cx, &mut consumers);
     let (key, out, paths) = (Key::Value(0), Vec::new(), Vec::new());
+    // A cell whose value's drop slots say what is whole.
+    for (l, c) in cells.iter_mut().enumerate() {
+        *c &= cx.holds_drop(b.local_ty[l]) != super::Tri::No && read(b, cx, Key::Local(u32_of(l)));
+    }
+    let parts = |t, v, out: &mut Vec<Ty>| cx.drop_parts(t, v, out);
     let mut e = Elab {
         b,
-        cx,
+        parts: &parts,
         flags,
+        cells,
         out,
         key,
         paths,
@@ -259,7 +343,15 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             Tag::Release if cancel.contains(&blk) && e.flags.contains_key(&Key::Value(a)) => {
                 ((word_of(e.b, Key::Value(a), &[]), CANCELLED), false)
             }
-            Tag::Store if next.is_some() && e.flagged(a) => ((a, OVERWRITTEN), false),
+            // A cell's declaration fills the cell its `Box` made, which
+            // releases the round before's.
+            Tag::Store
+                if next.is_some()
+                    && (e.flagged(a) || e.slotted(a))
+                    && !boxed.contains(&u32_of(x)) =>
+            {
+                ((a, OVERWRITTEN), false)
+            }
             // A return's word: `NONE`, or one of [`return_word`]'s.
             Tag::Return if blk != NONE => ((NONE, w), false),
             // A root's end, unless it leaves by a `return`.
@@ -339,4 +431,30 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     super::scopes::place(b, n, spans, &gone)?;
     b.cancel.sort_stable();
     Ok(())
+}
+
+/// The root block of a cell's release, in `b`, whose parameter local `x`
+/// is the address of a `ty` with its drop slots after it: the open drop of
+/// `*x` over them (`hd_layout::shims`, [`IntrinsicOp::CellFlag`]).
+///
+/// # Errors
+/// None today: a cell's open drop opens only parts `parts` names.
+pub fn cell_drop(b: &mut Body, x: u32, ty: Ty, parts: &Parts) -> Result<u32, String> {
+    let (key, syn) = (Key::Local(x), NodeIdx::NONE);
+    let cells = Vec::new();
+    let (flags, out, paths) = (HashMap::default(), Vec::new(), Vec::new());
+    let mut e = Elab {
+        b,
+        parts,
+        flags,
+        cells,
+        out,
+        key,
+        paths,
+        reason: super::reason::LAST_USE,
+        syn,
+    };
+    let list = e.cell(&mut vec![place::PROJ_DEREF], ty)?;
+    let list = e.b.push_record(&list);
+    Ok(e.row(Tag::Block, [list, NONE], Ty::VOID))
 }

@@ -35,6 +35,9 @@ use hd_base::{Stage, StageResult};
 pub enum Shim {
     Retain,
     Release,
+    /// The release of a value in a cell, under the drop slots after it
+    /// (`hd_tir::own::cell_drop`).
+    CellDrop,
 }
 
 /// Which of a value's counted parts a shim counts. A function value's
@@ -453,7 +456,7 @@ pub fn shim(
     }
     let n = NodeIdx::from_raw(0);
     let mut b = TirBuilder::new(item, BodyKind::Fn);
-    let at = in_place(pool, env, t, kind, counts.portion);
+    let at = kind == Shim::CellDrop || in_place(pool, env, t, kind, counts.portion);
     let x = if at {
         // The value where it lives: a `&mut` of it, in heap form.
         let to = pool.intern_ty(&TyData::Ref {
@@ -465,6 +468,15 @@ pub fn shim(
     } else {
         b.local(t, Symbol::from_raw(0), local_flags::PARAM, n)
     };
+    if kind == Shim::CellDrop {
+        let parts = |t, v, out: &mut Vec<Ty>| crate::facts::in_place_parts(pool, env, t, v, out);
+        let root = hd_tir::own::cell_drop(b.body_mut(), x.raw(), t, &parts)
+            .map_err(|e| hd_base::NotImplemented::bug(Stage::Collect, e))?;
+        b.body_mut().phase = Phase::Lowered;
+        let body = (b.finish(Ref(root), &[]))
+            .map_err(|e| VerifyError::bug(Stage::Collect, "cell drop TIR verifier", &e))?;
+        return Ok(Some(body));
+    }
     let root = b.open_block();
     if at && hooked(pool, env, t, kind, counts.portion) {
         hook_calls(pool, env, hooks, &mut b, x, t);
@@ -608,7 +620,7 @@ impl Writer<'_> {
         let own = self.counts.of(self.pool, self.env, t)?;
         let tag = match self.kind {
             Shim::Retain => Tag::Retain,
-            Shim::Release => Tag::Release,
+            Shim::Release | Shim::CellDrop => Tag::Release,
         };
         match own {
             Count::None => {}

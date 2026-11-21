@@ -3,10 +3,11 @@
   (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:cell_drop" (func $rt:cell_drop (param i32)))
+  (import "fixture" "std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1" (func $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1" (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (func $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -100,7 +101,7 @@
     local.get $held
     if
       local.get $held
-      call $rt:cell_drop
+      call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
     end
     local.get $n
     local.get $t0
@@ -321,13 +322,12 @@
         end
     ;; 40 |     for i in 0..n:
         local.get $t2
-        local.get $held
-        i32.const 0
-        i32.ne
-        i32.and
         if
           local.get $held
-          call $rt:cell_drop
+          if
+            local.get $held
+            call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+          end
         end
         br 0
       end
@@ -452,21 +452,20 @@
           local.set $total
     ;; 52 |         if i % 2 == 0:
         end
+    ;; 50 |     for i in 0..n:
+        local.get $t1
+        if
+          local.get $held
+          i32.load $heap offset=4
+          if
+            local.get $held
+            call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'2"
+          end
+        end
     ;; 54 |         held = Held { id: i }
-        local.get $held
-        i32.load $heap
-        local.set $t3
         local.get $held
         local.get $i
         i32.store $heap
-        local.get $held
-        i32.load $heap offset=4
-        local.get $t1
-        i32.and
-        if
-          local.get $t3
-          call $rt:release_spilled
-        end
     ;; 50 |     for i in 0..n:
         local.get $held
         i32.const 1
@@ -483,15 +482,16 @@
     local.get $held
     i32.load $heap
     local.set $n
+    ;; 48 |     let mut held = Held { id: 0 }
     local.get $t1
-    local.get $held
-    i32.const 0
-    i32.ne
-    i32.and
     if
       local.get $held
-      call $rt:cell_drop
+      if
+        local.get $held
+        call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+      end
     end
+    ;; 55 |     total + held.id
     local.get $total
     i64.extend_i32_u
     local.get $n
@@ -581,17 +581,6 @@
         i32.store $heap
         call $consume
         local.set $early
-        i32.const 0
-    ;; 68 |     if early:
-        local.get $held
-        i32.const 0
-        i32.ne
-        i32.and
-        if
-          local.get $held
-          call $rt:cell_drop
-        end
-    ;; 69 |         return consume(held)
         br 1
     ;; 68 |     if early:
       end
@@ -601,22 +590,22 @@
       local.set $early
     ;; 67 |     bump(&mut held)
       local.get $t1
-      local.get $held
-      i32.const 0
-      i32.ne
-      i32.and
       if
         local.get $held
-        call $rt:cell_drop
+        if
+          local.get $held
+          call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+        end
+        i32.const 0
+        local.set $held
       end
-      i32.const 0
-      local.set $held
       local.get $t1
-      i32.const 0
-      i32.and
       if
         local.get $held
-        call $rt:cell_drop
+        if
+          local.get $held
+          call $"std/rt.alloc/release_value[std.rt_tests.stage_case.Held]'1"
+        end
       end
     end
     local.get $early

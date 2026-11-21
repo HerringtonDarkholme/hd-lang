@@ -194,7 +194,11 @@ pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         let hooked = kind == Shim::Release
             && portion != hd_layout::shims::Portion::Thin
             && hd_layout::holds_drop(input.pool, input.env, t);
-        m.define(Sym::Shim(key, kind == Shim::Retain, width, hooked), f);
+        let sym = match kind {
+            Shim::CellDrop => Sym::CellDrop(key),
+            _ => Sym::Shim(key, kind == Shim::Retain, width, hooked),
+        };
+        m.define(sym, f);
     }
     Ok(())
 }
@@ -1802,6 +1806,18 @@ impl Em<'_, '_, '_> {
             self.f.u32(u32::from(owned));
             return Ok(());
         }
+        if self.b.tags[r as usize] == Tag::Intrinsic
+            && IntrinsicOp::from_u32(self.b.data[r as usize][0]) == Some(IntrinsicOp::CellFlag)
+        {
+            let k = self.b.record(self.b.data[r as usize][1])[0] & !Ref::CONST_BIT;
+            return self.cell_flag(
+                self.b
+                    .consts
+                    .get(k as usize)
+                    .and_then(|c| u32::try_from(c.1).ok())
+                    .unwrap_or(NONE),
+            );
+        }
         for l in self.computed(r) {
             self.f.get(l);
         }
@@ -2790,7 +2806,8 @@ impl Em<'_, '_, '_> {
                         self.map_slot_entry(i, args[0], args[1])?;
                     }
                     // A constant where it is used ([`Em::param_owned`]).
-                    IntrinsicOp::ParamOwned => {}
+                    // Read where it is used ([`Em::push`]).
+                    IntrinsicOp::ParamOwned | IntrinsicOp::CellFlag => {}
                     IntrinsicOp::Item => {
                         // ruled out: call::emit_call emits Tag::Call
                         // for named intrinsics, collected as call targets.
