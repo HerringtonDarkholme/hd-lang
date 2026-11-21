@@ -1042,26 +1042,38 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
 
 /// The read that `CallValue` `i` calls when it is read through a local
 /// reference and fields alone (`(self.transform)(x)`) and the call is
-/// given no reference, else `NONE`. The call cannot change that place
-/// (#1436): with no `*T` on the way, only the reference reaches it, which
-/// the call does not receive; past one, the reference's loan lasts the
-/// call, as a function value's call writes everything and never elides
-/// it, so an alias's write panics `borrow-conflict`
-/// (`docs/compiler/ownership.md`, "Pointer Loans"). Swift's SIL applies a
-/// field of a `@guaranteed` struct the same way, with no retain.
+/// given no reference but to its own reference-free locals, else `NONE`.
+/// The call cannot change that place (#1436): with no `*T` on the way,
+/// only the reference reaches it, which the call does not receive; past
+/// one, the reference's loan lasts the call, as a function value's call
+/// writes everything and never elides it, so an alias's write panics
+/// `borrow-conflict` (`docs/compiler/ownership.md`, "Pointer Loans").
+/// Swift's SIL applies a field of a `@guaranteed` struct the same way,
+/// with no retain.
 fn borrowed_callee(b: &Body, cx: &dyn OwnCx, i: usize) -> u32 {
     let Some(r) = Ref(b.data[i][0]).as_inst().map(|r| r.0 as usize) else {
         return NONE;
     };
+    let p = b.view(b.data[r][0]);
+    // A reference argument reaches the place only when it is no `Ref` of a
+    // local of this body other than the root, with no dereference, whose
+    // value holds no reference (`Filter.next`'s `&item`).
+    let own = |x: usize| {
+        let q = b.view(b.data[x][0]);
+        b.tags[x] == Tag::Ref
+            && q.kinds(b) == (0, false)
+            && matches!(q.root, Root::Local(l) if p.root != Root::Local(l)
+                && !cx.holds_ref(b.local_ty[l as usize]))
+    };
     let given = |&x: &u32| {
         Ref(x)
             .as_inst()
-            .is_some_and(|x| cx.holds_ref(b.ty[x.0 as usize]))
+            .map(|x| x.0 as usize)
+            .is_some_and(|x| cx.holds_ref(b.ty[x]) && !own(x))
     };
     if b.call_args(i).iter().any(given) || !matches!(b.call_providers(i), Providers::None) {
         return NONE;
     }
-    let p = b.view(b.data[r][0]);
     let through_ref = |l: u32| {
         let ty = b.local_ty[l as usize];
         cx.reference_target(ty).is_some() && cx.plain_reference(ty)

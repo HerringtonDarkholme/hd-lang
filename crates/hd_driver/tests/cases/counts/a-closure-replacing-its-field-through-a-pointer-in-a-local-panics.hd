@@ -1,0 +1,29 @@
+# @dump: stdout counts
+# @build: dev | release
+# #1436, route B's control: `item` holds a `*mut Gate` that reaches the
+# `Gate` whose `keep` runs, and the closure replaces `keep` through it.
+# `Link` holds no local reference, so the callee is borrowed, and the
+# write is caught at run time: `g.admit(alias)` lends `&mut *g` with the
+# call's exclusive loan on the boxed `Gate` (`ownership.md`, "Pointer
+# Loans": a write through a `*T` checks the whole state), so the write
+# through the alias panics `borrow-conflict` before the running closure's
+# environment could be released.
+struct Link:
+    gate: *mut Gate
+
+struct Gate:
+    keep: fn(&Link) -> bool
+
+impl Gate:
+    fn admit(&mut self, other: *mut Gate) -> bool:
+        item := Link { gate: other }
+        (self.keep)(&item)
+
+pub fn main() -> void $ Console:
+    let g: *mut Gate = box(Gate { keep: fn(l): true })
+    alias := g
+    tag := "kept-" + "z".repeat(40)
+    g.keep = fn(l):
+        l.gate.keep = fn(m): false
+        tag.len() > 0
+    println("${g.admit(alias)}")

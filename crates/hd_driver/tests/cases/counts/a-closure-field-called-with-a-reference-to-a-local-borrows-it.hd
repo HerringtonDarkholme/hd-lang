@@ -1,0 +1,27 @@
+# @dump: counts
+# @build: v8 release
+# #1436, route B: `Filter.next`'s shape. The call is given `&item`, a
+# reference to a local of this body whose value holds no reference, which
+# reaches nothing but `item`, so not `self.keep`: the callee borrows its
+# environment, with no count. A generic instance whose `T` holds a
+# reference (`Gate[*mut Cell].admit`) gives the closure a way back to
+# memory, so its callee keeps the count, as does
+# a-closure-that-receives-its-own-struct-keeps-its-count.
+use std.annotation.inline
+
+struct Cell:
+    value: i64
+
+struct Gate[T]:
+    keep: fn(&T) -> bool
+
+impl[T] Gate[T]:
+    @inline(.Never)
+    fn admit(&mut self, v: T) -> bool:
+        item := v
+        (self.keep)(&item)
+
+pub fn main() -> void $ Console:
+    let mut plain: Gate[i64] = Gate { keep: fn(x): *x > 1 }
+    let mut pointed: Gate[*mut Cell] = Gate { keep: fn(c): c.value > 1 }
+    println("${plain.admit(2)} ${pointed.admit(box(Cell { value: 3 }))}")
