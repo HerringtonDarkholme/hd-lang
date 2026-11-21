@@ -1172,4 +1172,49 @@ mod tests {
         let t = Tables::read(&mut Reader::new(&out.bytes), &pool3, &paths, &syms).expect("tables");
         assert_eq!(t.ty(at), Some(open(&pool3, r(&pool3))));
     }
+
+    /// These are corrupt cache bytes, not malformed in-memory pool records.
+    /// Floats have no const-generic value representation; unknown/retired tags
+    /// must turn the table read into a cache miss.
+    #[test]
+    fn corrupt_const_kinds_and_unknown_tags_are_cache_misses() {
+        use super::tag;
+        use crate::{ConstValue, Prim};
+
+        let pool = InternPool::new();
+        let paths = PathTable::new();
+        let syms = ShardedInterner::default();
+        let table = |row_tag, words: &[u32]| {
+            let mut w = Writer::default();
+            w.u32(0); // no paths
+            w.u32(0); // no symbols
+            w.u32(1); // one type row
+            w.u8(row_tag);
+            w.len_of(words);
+            for &word in words {
+                w.u32(word);
+            }
+            w.bytes
+        };
+        // A valid neighboring const row proves the prefix and row framing.
+        let good = table(tag::CONST, &[Prim::Bool as u32, 1, 0]);
+        let decoded = Tables::read(&mut Reader::new(&good), &pool, &paths, &syms)
+            .expect("valid bool const table");
+        assert_eq!(
+            decoded.ty(0).map(|t| pool.get(t)),
+            Some(TyData::Const(ConstValue::Bool(true)))
+        );
+        for prim in [Prim::F32, Prim::F64] {
+            let bytes = table(tag::CONST, &[prim as u32, 0, 0]);
+            assert!(Tables::read(&mut Reader::new(&bytes), &pool, &paths, &syms).is_none());
+        }
+        for retired_or_unknown in [5, 7, 10, 17, 18, 19, 20, u8::MAX] {
+            let bytes = table(retired_or_unknown, &[]);
+            assert!(Tables::read(&mut Reader::new(&bytes), &pool, &paths, &syms).is_none());
+        }
+        // Truncation is a cache miss at every prefix of the valid small table.
+        for end in 0..good.len() {
+            assert!(Tables::read(&mut Reader::new(&good[..end]), &pool, &paths, &syms).is_none());
+        }
+    }
 }
