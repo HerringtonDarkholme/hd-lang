@@ -171,6 +171,10 @@ lang/types/generics/generic-parameters-at-the-limit.hd	type	accept	lang/04-type-
 lang/types/generics/too-many-generic-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
 lang/types/generics/too-many-lifetime-parameters.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
 lang/types/generics/too-many-lifetime-parameters-with-an-implementation.hd	type	reject:too-many-generic-parameters	lang/04-type-system.md#r-types.limit.generic-params.error
+lang/types/generics/const-generic-arguments/closed-input-unit-is-not-a-scalar-const.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/closed-input-a-dereference-is-not-a-const-operation.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/closed-input-a-simple-name-interpolation-is-not-a-const-string.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.closed
+lang/types/generics/const-generic-arguments/closed-input-mixed-integer-types-do-not-form-a-const-expression.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.const.evaluate
 lang/types/generics/const-generic-arguments/const-generic-cast.hd	type	reject:nonconstant-generic-argument	lang/04-type-system.md#r-types.generic.const.no-cast-or-trait
 lang/types/generics/const-generic-arguments/const-generic-evaluation-division-by-zero.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
 lang/types/generics/const-generic-arguments/const-generic-evaluation-invalid-shift.hd	type	reject:const-evaluation-failed	lang/04-type-system.md#r-types.generic.const.evaluate-failure
