@@ -4,8 +4,7 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:heap_frame" (func $rt:heap_frame (param i32) (result i32)))
-  (import "fixture" "rt:hooks_at" (func $rt:hooks_at (param i32)))
+  (import "fixture" "release_value[std.rt_tests.stage_case.Loud]" (func $"release_value[std.rt_tests.stage_case.Loud]" (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
@@ -13,7 +12,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $value'3 i64) (local $t7 i32) (local $t8 i32) (local $t10 i32) (local $t9 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $t7 i32) (local $value'3 i64) (local $t8 i32) (local $t10 i32) (local $t9 i32)
     ;; 68 |     let b = keep(make(1))
     global.get $stack
     global.get $stack_limit
@@ -171,28 +170,14 @@
     local.get $t0
     i32.load $heap offset=84
     local.set $t4
+    local.get $t0
+    i32.const 80
+    i32.add
+    local.set $t7
     local.get $t2
     if
-      i32.const 80
-      call $rt:heap_frame
-      local.tee $t2
-      local.get $t0
-      i32.const 80
-      i32.add
-      i32.const 72
-      memory.copy $heap $heap
-      local.get $t2
-      call $rt:hooks_at
-      local.get $t0
-      i32.const 80
-      i32.add
-      local.get $t2
-      i32.const 72
-      memory.copy $heap $heap
-      global.get $stack
-      i32.const 80
-      i32.add
-      global.set $stack
+      local.get $t7
+      call $"release_value[std.rt_tests.stage_case.Loud]"
     end
     local.get $t4
     i64.extend_i32_s
@@ -206,11 +191,11 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t7
+      local.set $t8
     end
     local.get $t2
     i64.extend_i32_u
-    local.get $t7
+    local.get $t8
     i64.extend_i32_u
     i64.add
     local.tee $value'3
@@ -222,7 +207,7 @@
     end
     local.get $value'3
     i32.wrap_i64
-    local.set $t7
+    local.set $t8
     local.get $t5
     local.tee $t2
     i32.const -2
@@ -249,19 +234,19 @@
     local.get $value'3
     i32.wrap_i64
     local.tee $t4
-    local.tee $t8
+    local.tee $t7
     i32.const -2
     i32.gt_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t8
+    local.get $t7
     i32.const 1
     i32.add
-    local.tee $t8
+    local.tee $t7
     i64.extend_i32_u
-    local.get $t7
+    local.get $t8
     i64.extend_i32_u
     i64.add
     local.tee $value'3
@@ -325,9 +310,9 @@
     i32.store8 $heap
     local.get $value'2
     local.get $t10
-    local.get $t8
-    i32.add
     local.get $t7
+    i32.add
+    local.get $t8
     call $write_signed_sized
     local.get $t10
     local.get $t9
@@ -344,26 +329,12 @@
     i32.add
     global.set $stack
   )
-  (func $hold (param $t0 i32) (result i32) (local $t1 i32)
+  (func $hold (param $t0 i32) (result i32)
     ;; 60 | fn hold(l: Loud) -> i32: l.id
     local.get $t0
     i32.load $heap offset=68
-    i32.const 80
-    call $rt:heap_frame
-    local.tee $t1
     local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
-    local.get $t1
-    call $rt:hooks_at
-    local.get $t0
-    local.get $t1
-    i32.const 72
-    memory.copy $heap $heap
-    global.get $stack
-    i32.const 80
-    i32.add
-    global.set $stack
+    call $"release_value[std.rt_tests.stage_case.Loud]"
   )
   (func $"impl Drop for Loud.drop" (param $self i32)
     ;; 44 |         self.id = 0
@@ -373,39 +344,28 @@
   )
   (func $loud_on (param $t1 i32) (param $go i32) (result i32) (local $t0 i32)
     ;; 63 |     if go:
-    i32.const 1
-    local.set $t0
-    local.get $go
-    if
+    block
+      i32.const 1
+      local.set $t0
+      local.get $go
+      if
     ;; 64 |         return hold(l)
-      local.get $t1
-      call $hold
-      return
+        local.get $t1
+        call $hold
+        local.set $go
+        br 1
     ;; 63 |     if go:
-    end
+      end
     ;; 65 |     l.big.f1
-    local.get $t1
-    i32.load $heap offset=4
-    local.set $go
+      local.get $t1
+      i32.load $heap offset=4
+      local.set $go
     ;; 63 |     if go:
-    local.get $t0
-    if
-      i32.const 80
-      call $rt:heap_frame
-      local.tee $t0
-      local.get $t1
-      i32.const 72
-      memory.copy $heap $heap
       local.get $t0
-      call $rt:hooks_at
-      local.get $t1
-      local.get $t0
-      i32.const 72
-      memory.copy $heap $heap
-      global.get $stack
-      i32.const 80
-      i32.add
-      global.set $stack
+      if
+        local.get $t1
+        call $"release_value[std.rt_tests.stage_case.Loud]"
+      end
     end
     local.get $go
   )
@@ -443,11 +403,12 @@
     i32.load $heap offset=16
     local.set $go
     ;; 55 |     if go:
+    local.get $t1
+    i32.load $heap
+    local.set $t1
     local.get $t0
     if
       local.get $t1
-      i32.load $heap
-      local.tee $t1
       if
         local.get $t1
         call $rt:release_ref

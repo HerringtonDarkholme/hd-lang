@@ -2,13 +2,13 @@
 == @build: dev tests
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "retain_value[std.json.JsonObject]" (func $"retain_value[std.json.JsonObject]" (param i32 i32)))
   (import "fixture" "impl JsonObject.get" (func $"impl JsonObject.get" (param i32 i32 i32) (result i32 i32 i32 i64 f64 i32)))
-  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32)))
+  (import "fixture" "release_value[std.json.JsonObject]" (func $"release_value[std.json.JsonObject]" (param i32 i32)))
   (import "fixture" "read" (func $read (param i32 i32) (result i32 i32 i32 i64 f64 i32)))
-  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32 i32 i64 f64 i32)))
+  (import "fixture" "release_value[std.json.Json]" (func $"release_value[std.json.Json]" (param i32 i32 i32 i64 f64 i32)))
   (import "fixture" "impl[T < ?Copy] T?.is_none[std.json.Json]" (func $"impl[T < ?Copy] T?.is_none[std.json.Json]" (param i32) (result i32)))
-  (import "fixture" "rt:release'3" (func $rt:release'3 (param i32 i32 i32 i64 f64 i32)))
+  (import "fixture" "release_value[std.json.Json?]" (func $"release_value[std.json.Json?]" (param i32 i32 i32 i64 f64 i32)))
   (import "fixture" "assert" (func $assert (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -55,11 +55,9 @@
           local.get $t2
           i32.load $heap offset=12
           local.set $t3
-          call $rt:coll_copy
-          local.set $t4
+          local.tee $t4
           local.get $t3
-          call $rt:coll_copy
-          local.set $t3
+          call $"retain_value[std.json.JsonObject]"
           local.get $t1
           local.get $t4
           i32.store $heap
@@ -90,7 +88,7 @@
       i32.load $heap
       local.get $t1
       i32.load $heap offset=4
-      call $rt:release'1
+      call $"release_value[std.json.JsonObject]"
     end
     local.get $t2
     local.get $t9
@@ -157,7 +155,7 @@
       f64.load $heap offset=8
       local.get $value
       i32.load $heap offset=12
-      call $rt:release'2
+      call $"release_value[std.json.Json]"
     end
     ;; ...
     local.get $t5
@@ -194,7 +192,7 @@
       f64.load $heap offset=8
       local.get $value
       i32.load $heap offset=12
-      call $rt:release'3
+      call $"release_value[std.json.Json?]"
     end
     local.get $t0
     i32.const 16 ;; &"heap-exhausted"
@@ -208,9 +206,9 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl JsonObject.get" (func $"impl JsonObject.get" (param i32 i32 i32) (result i32 i32 i32 i64 f64 i32)))
   (import "fixture" "parse" (func $parse (param i32 i32) (result i32 i32 i32 i32 i32 i32 i64 f64 i32)))
-  (import "fixture" "rt:release'1" (func $rt:release'1 (param i32 i32 i32 i32 i32 i32 i64 f64 i32)))
-  (import "fixture" "rt:release'2" (func $rt:release'2 (param i32 i32 i32 i64 f64 i32)))
-  (import "fixture" "rt:release'3" (func $rt:release'3 (param i32 i32 i32 i64 f64 i32)))
+  (import "fixture" "release_value[Result[std.json.Json, std.json.JsonError]]" (func $"release_value[Result[std.json.Json, std.json.JsonError]]" (param i32 i32 i32 i32 i32 i32 i64 f64 i32)))
+  (import "fixture" "release_value[std.json.Json]" (func $"release_value[std.json.Json]" (param i32 i32 i32 i64 f64 i32)))
+  (import "fixture" "release_value[std.json.Json?]" (func $"release_value[std.json.Json?]" (param i32 i32 i32 i64 f64 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -357,7 +355,7 @@
     local.get $t1
     local.get $t0
     local.get $reason.0'1
-    call $rt:release'1
+    call $"release_value[Result[std.json.Json, std.json.JsonError]]"
     ;; ...
     local.get $value.2'2
     i32.store $heap
@@ -400,7 +398,7 @@
       f64.load $heap offset=8
       local.get $reason.0'1
       i32.load $heap offset=12
-      call $rt:release'2
+      call $"release_value[std.json.Json]"
     end
     ;; ...
     local.get $t3
@@ -450,7 +448,7 @@
       f64.load $heap offset=8
       local.get $reason.0'1
       i32.load $heap offset=12
-      call $rt:release'3
+      call $"release_value[std.json.Json?]"
     end
     i32.const 16 ;; &"heap-exhausted"
     local.set $reason.0'1

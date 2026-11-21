@@ -6,7 +6,6 @@
   (import "fixture" "rt:map_seed" (func $rt:map_seed (result i64)))
   (import "fixture" "rt:map_unique'2" (func $rt:map_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:map_lookup'2" (func $rt:map_lookup'2 (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:map_unique'3" (func $rt:map_unique'3 (param i32) (result i32)))
   (import "fixture" "rt:map_lookup'3" (func $rt:map_lookup'3 (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -81,7 +80,7 @@
     end
     local.get $t1
   )
-  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $unused (param $values i32) (param $key.0 i32) (param $key.1 i32) (local $t0 i32) (local $t1 i32)
     ;; 20 |     _ := values.remove(key)
     local.get $values
     i32.load $heap
@@ -113,10 +112,7 @@
       i32.add
       local.tee $key.0
       i32.load $heap offset=8
-      local.get $key.0
-      i32.load $heap offset=12
       local.set $t1
-      local.set $t2
       local.get $key.0
       i32.load $heap
       local.tee $key.0
@@ -153,9 +149,11 @@
         i64.store $heap offset=24
       end
     end
-    local.get $t2
     local.get $t1
-    call $rt:release
+    if
+      local.get $t1
+      call $rt:release_ref
+    end
   )
   (func $lists (param $values i32) (param $key.0 i32) (param $key.1 i32) (result i32)
     ;; 11 |     remove_value(values, key)

@@ -10,7 +10,7 @@
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[std.task.BlockOn[string]]" (func $"release_value[std.task.BlockOn[string]]" (param i32 i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
@@ -254,7 +254,7 @@
     local.get $t1
     local.get $t0
     local.get $key.1
-    call $rt:release
+    call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )
   (func $deferred (param $key.0 i32) (param $key.1 i32) (param $log i32) (result i32) (local $t0 i32) (local $t1 i32) (local $value.1 i32)
@@ -368,7 +368,7 @@
     local.get $t1
     local.get $log
     local.get $key.1
-    call $rt:release
+    call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )
   (func $stored (param $key.0 i32) (param $key.1 i32) (result i32) (local $t1 i32) (local $t0 i32) (local $value.1 i32)
@@ -421,7 +421,7 @@
     local.get $t1
     local.get $t0
     local.get $key.1
-    call $rt:release
+    call $"release_value[std.task.BlockOn[string]]"
     local.get $value.1
   )
 )

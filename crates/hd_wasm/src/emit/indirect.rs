@@ -89,13 +89,11 @@ use hd_base::{HashMap, HashSet, InstId, SliceSort as _};
 use hd_mono::{Sub, subst};
 use hd_tir::ir::{NONE, PlaceRoot, Proj, ReadMode, Ref, Tag, Word, slots};
 
-use super::drop_flags::path_flags;
 use super::shape::u32_of;
 use super::{Em, Input, param_locals};
-use crate::layout::{LeafOps as _, Mem, ReleasePlan, ReleaseStep, by_address};
+use crate::layout::{LeafOps as _, Mem, by_address};
 use crate::module::{Func, Global, HEAP, Module, Part, Sym, Val};
 use crate::op::Op as I;
-use crate::rt::{DropCall, HookPlan, HookStep};
 
 /// What an instance's worker takes or gives by address: per parameter
 /// local, in order, the layout of each one that passes by address, and
@@ -179,9 +177,7 @@ fn compute_params(
         if matches!(by_address(pool, env, ty), Ok(true))
             && let Ok(m) = crate::layout::mem(pool, env, ty)
         {
-            if crate::layout::walk(pool, env, ty).is_some()
-                || crate::layout::holds_drop(pool, env, ty)
-            {
+            if crate::layout::tracked(pool, env, ty) || crate::layout::holds_drop(pool, env, ty) {
                 if k < 64 && lends & (1 << k) != 0 {
                     continue;
                 }
@@ -270,91 +266,6 @@ fn moves_through_addresses(
         t = u;
     }
     true
-}
-
-/// The release plan of a type passed by address ([`ReleasePlan`]), made
-/// once per type in `memo`, nested types first, with a stack of its own:
-/// a chain of K nested types takes no native stack depth and O(K) work.
-pub(crate) fn release_plan(
-    pool: &hd_types::InternPool,
-    env: &dyn hd_mono::ProgramEnv,
-    memo: &mut HashMap<hd_types::Ty, Option<std::sync::Arc<ReleasePlan>>>,
-    t: hd_types::Ty,
-) -> hd_base::StageResult<Option<std::sync::Arc<ReleasePlan>>> {
-    let strip_newtype = |u| crate::layout::strip_newtype(pool, env, u);
-    let t = strip_newtype(t);
-    let mut stack = vec![(t, false)];
-    while let Some((u, ready)) = stack.pop() {
-        if memo.contains_key(&u) {
-            continue;
-        }
-        // An enum releases its values by its own switch walk: no part of
-        // it is a field a move can take out alone.
-        if crate::layout::variants(pool, env, u).is_some() {
-            let plan = match crate::layout::count_walk(pool, env, u) {
-                Some(walk) => Some(std::sync::Arc::new(ReleasePlan::new(vec![
-                    ReleaseStep::Inline {
-                        field: 0,
-                        leaves: crate::layout::mem(pool, env, u)?.leaves,
-                        walk,
-                        colls: crate::layout::coll_leaves(pool, env, u),
-                    },
-                ]))),
-                None => None,
-            };
-            memo.insert(u, plan);
-            continue;
-        }
-        // Each field's own layout, at its offset: no leaf list of `u`,
-        // whose fields past `INDIRECT` values list none.
-        let tys = crate::layout::value_parts(pool, env, u);
-        if !ready {
-            let mut pending = Vec::new();
-            for &f in &tys {
-                let f = strip_newtype(f);
-                if !memo.contains_key(&f) && by_address(pool, env, f)? {
-                    pending.push((f, false));
-                }
-            }
-            if !pending.is_empty() {
-                stack.push((u, true));
-                stack.extend(pending);
-                continue;
-            }
-        }
-        let layout = crate::layout::layout(pool, env, u)?;
-        let mut steps = Vec::new();
-        for (field, (&f, &offset)) in tys.iter().zip(layout.fields.offsets()).enumerate() {
-            let field = u32_of(field);
-            let part = crate::layout::layout(pool, env, f)?;
-            if part.repr == crate::layout::Repr::Memory {
-                if let Some(plan) = memo.get(&strip_newtype(f)).cloned().flatten() {
-                    steps.push(ReleaseStep::Nested {
-                        field,
-                        offset,
-                        plan,
-                    });
-                }
-            } else if let Some(walk) = crate::layout::count_walk(pool, env, f) {
-                let colls = if crate::layout::coll_kind(pool, env, f).is_some() {
-                    vec![0]
-                } else {
-                    crate::layout::coll_leaves(pool, env, f)
-                };
-                steps.push(ReleaseStep::Inline {
-                    field,
-                    leaves: part.leaves_at(offset),
-                    walk,
-                    colls,
-                });
-            }
-        }
-        memo.insert(
-            u,
-            (!steps.is_empty()).then(|| std::sync::Arc::new(ReleasePlan::new(steps))),
-        );
-    }
-    Ok(memo.get(&t).cloned().flatten())
 }
 
 /// The leaf-ABI function of an instance whose worker `worker` has the
@@ -578,7 +489,7 @@ impl Em<'_, '_, '_> {
                 let owned_copy = mode == ReadMode::Copy as u32
                     && matches!(
                         self.argument_pass(Some(lends), k, t),
-                        crate::layout::Pass::Owned(_)
+                        crate::layout::Pass::Owned
                     );
                 if mode == ReadMode::Move as u32 || !self.cx().tracked(t) || owned_copy {
                     out.push(r);
@@ -639,10 +550,16 @@ impl Em<'_, '_, '_> {
         let Some(&(at, off)) = self.mem_vals.get(&value) else {
             return Ok(false);
         };
-        let (pool, env, t) = (self.input.pool, self.input.env, self.ty_of(value));
-        if let Some(plan) = release_plan(pool, env, &mut self.m.release_plans, t)? {
+        let t = self.ty_of(value);
+        let counted = crate::rt::counted_of(self.input, self.m, t)?;
+        if counted.counts() {
+            // The type's retain glue on the address, one helper per layout.
+            let mem = crate::layout::mem(self.input.pool, self.input.env, t)?;
             address(&mut self.f, at, off);
-            self.f.helper(crate::rt::Helper::RetainAt(plan));
+            self.f.helper(crate::rt::Helper::RetainFields {
+                leaves: mem.leaves,
+                parts: vec![(0, counted)],
+            });
         }
         Ok(true)
     }
@@ -1380,217 +1297,15 @@ impl Em<'_, '_, '_> {
         self.cx().tracked(field) || crate::layout::holds_drop(self.pool(), self.env(), local)
     }
 
-    /// The hook plan of `t`, a type kept by address ([`HookPlan`]), made
-    /// once per type in the module's memo, nested types first, with a
-    /// stack of its own: a chain of K nested types takes no native stack
-    /// depth and O(K) work. None when no hook runs for it.
-    fn hook_plan(
-        &mut self,
-        t: hd_types::Ty,
-    ) -> hd_base::StageResult<Option<std::sync::Arc<HookPlan>>> {
-        let input = self.input;
-        let (pool, env) = (input.pool, input.env);
-        let mut stack = vec![(t, false)];
-        while let Some((u, ready)) = stack.pop() {
-            if self.m.hook_plans.contains_key(&u) {
-                continue;
-            }
-            // An enum's hooks, its own first, are its leaf glue's, each
-            // under its variant's guards.
-            if crate::layout::variants(pool, env, u).is_some() {
-                let calls = self.drop_calls(u);
-                let plan = (!calls.is_empty()).then(|| {
-                    let step = HookStep::Inline { field: 0, calls };
-                    std::sync::Arc::new(HookPlan::new(Vec::new(), vec![step]))
-                });
-                self.m.hook_plans.insert(u, plan);
-                continue;
-            }
-            let ms = crate::layout::members(pool, env, u)?;
-            if !ready {
-                let mut pending = Vec::new();
-                for &f in &ms.tys {
-                    if !self.m.hook_plans.contains_key(&f)
-                        && crate::layout::holds_drop(pool, env, f)
-                        && by_address(pool, env, f)?
-                    {
-                        pending.push((f, false));
-                    }
-                }
-                if !pending.is_empty() {
-                    stack.push((u, true));
-                    stack.extend(pending);
-                    continue;
-                }
-            }
-            // The value's own hooks: each newtype layer's, outermost
-            // first, then the struct's (module.rt.drop.glue), as
-            // `Em::drop_paths` orders a root.
-            let mut own = Vec::new();
-            let mut glue = |layer: hd_types::Ty| {
-                if let Some(&target) = input.collected.drop_glue.get(&layer) {
-                    own.push(DropCall {
-                        offset: 0,
-                        target,
-                        guards: Vec::new(),
-                    });
-                }
-            };
-            crate::layout::newtype_layers(pool, env, u, &mut glue);
-            glue(crate::layout::strip_newtype(pool, env, u));
-            let mut fields = Vec::new();
-            for (field, (&f, part)) in ms.tys.iter().zip(&ms.parts).enumerate() {
-                if !matches!(self.kind(f), crate::layout::Kind::Value)
-                    || !crate::layout::holds_drop(pool, env, f)
-                {
-                    continue;
-                }
-                let field = u32_of(field);
-                if by_address(pool, env, f)? {
-                    if let Some(plan) = self.m.hook_plans.get(&f).cloned().flatten() {
-                        fields.push(HookStep::Nested {
-                            field,
-                            offset: part.offset,
-                            plan,
-                        });
-                    }
-                } else {
-                    let calls: Vec<DropCall> = self
-                        .drop_calls(f)
-                        .into_iter()
-                        .map(|c| c.shifted(part.offset))
-                        .collect();
-                    if !calls.is_empty() {
-                        fields.push(HookStep::Inline { field, calls });
-                    }
-                }
-            }
-            let plan = (!own.is_empty() || !fields.is_empty())
-                .then(|| std::sync::Arc::new(HookPlan::new(own, fields)));
-            self.m.hook_plans.insert(u, plan);
-        }
-        Ok(self.m.hook_plans.get(&t).cloned().flatten())
-    }
-
-    /// Runs the `Drop` hooks of the value of `size` bytes at `off` past
-    /// the shadow-stack address in local `at`, by `plan`, skipping each
-    /// hook a moved field rules out (`paths`, the local's TIR flags under
-    /// its whole path, 1 while present): the hooks of a moved field and
-    /// of every value enclosing one. A
-    /// hook's `&mut self` is a heap address, so the value is copied into
-    /// a heap frame with a zero header (one `memory.copy`), the hooks run
-    /// there, and it is copied back for the release, which reads the
-    /// hooks' writes. Code: O(the steps on the flagged paths), the rest
-    /// one witness call each.
-    fn mem_hooks(
-        &mut self,
-        at: u32,
-        off: u32,
-        size: u32,
-        plan: std::sync::Arc<HookPlan>,
-        paths: &[(Vec<Proj>, u32)],
-    ) -> hd_base::StageResult<()> {
-        enum Task {
-            Level(u32, std::sync::Arc<HookPlan>, Vec<Proj>),
-            Step(u32, HookStep),
-            Guard(u32),
-            End,
-        }
-        let frame = (crate::module::HEADER + size).next_multiple_of(8);
-        let h = self.f.local(Val::I32);
-        self.f.op(I::I32Const(frame.cast_signed()));
-        self.f.helper(crate::rt::Helper::HeapFrame);
-        self.f.set(h);
-        self.f.get(h);
-        address(&mut self.f, at, off);
-        self.f.op(I::I32Const(size.cast_signed()));
-        self.f.push(crate::bulk::copy(HEAP, crate::module::HEAP));
-        let mut todo = Vec::new();
-        if path_flags(paths, &[]).1.is_empty() {
-            self.f.get(h);
-            self.f.helper(crate::rt::Helper::HooksAt(plan));
-        } else {
-            todo.push(Task::Level(0, plan, Vec::new()));
-        }
-        while let Some(task) = todo.pop() {
-            match task {
-                Task::End => self.f.op(I::End),
-                Task::Guard(flag) => {
-                    self.count_flag_read();
-                    self.f.get(flag);
-                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                }
-                Task::Step(off, step) => crate::rt::hook_step(&mut self.f, h, off, &step),
-                Task::Level(off, plan, path) => {
-                    // The own hooks run only when no path under this
-                    // level moved: one test of all their flags.
-                    let (_, under) = path_flags(paths, &path);
-                    crate::work::moved_paths(plan.fields.len() + under.len());
-                    if !plan.own.is_empty() {
-                        for (n, &(_, flag)) in under.iter().enumerate() {
-                            self.count_flag_read();
-                            let flag = self.local(flag)?[0];
-                            self.f.get(flag);
-                            if n > 0 {
-                                self.f.op(I::I32And);
-                            }
-                        }
-                        if !under.is_empty() {
-                            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                        }
-                        let own: Vec<DropCall> =
-                            plan.own.iter().cloned().map(|c| c.shifted(off)).collect();
-                        crate::rt::call_drops(&mut self.f, h, &own);
-                        if !under.is_empty() {
-                            self.f.op(I::End);
-                        }
-                    }
-                    let mut seq = Vec::new();
-                    for step in &plan.fields {
-                        let full = [&path[..], &[Proj::Field(step.field())]].concat();
-                        let (flag, under) = path_flags(paths, &full);
-                        let guard = flag.map(|f| self.local(f).map(|ls| ls[0])).transpose()?;
-                        seq.extend(guard.map(Task::Guard));
-                        // A deeper move is through fields kept by address
-                        // (`moves_through_addresses`): one into a nested plan.
-                        match step {
-                            HookStep::Nested { offset, plan, .. } if !under.is_empty() => {
-                                seq.push(Task::Level(off + offset, plan.clone(), full));
-                            }
-                            _ => seq.push(Task::Step(off, step.clone())),
-                        }
-                        seq.extend(guard.map(|_| Task::End));
-                    }
-                    todo.extend(seq.into_iter().rev());
-                }
-            }
-        }
-        address(&mut self.f, at, off);
-        self.f.get(h);
-        self.f.op(I::I32Const(size.cast_signed()));
-        self.f.push(crate::bulk::copy(crate::module::HEAP, HEAP));
-        self.f.global_get(crate::module::Global::Stack);
-        self.f.op(I::I32Const(frame.cast_signed()));
-        self.f.op(I::I32Add);
-        self.f.global_set(crate::module::Global::Stack);
-        Ok(())
-    }
-
-    /// Releases local `l` kept in memory from its address: its type's
-    /// release plan ([`release_plan`]) and hooks, under the TIR flag of
-    /// its whole path (`hd_tir::own::drop_flags`, which flags a local kept
-    /// by address: set by its store or at its sub-body's entry, cleared
-    /// by a whole move and by each `Drop`), with each field a move took
-    /// out skipped under its path's flag. Whether `l` is a counted address
-    /// parameter or a counted frame local. O(the steps on the flagged
-    /// paths), the rest one witness call each.
+    /// Releases local `l` kept in memory from its address: the open drop
+    /// over its leaves under the TIR flags of its paths
+    /// (`hd_tir::own::drop_flags`, which flags a local kept by address:
+    /// set by its store or at its sub-body's entry, cleared by a whole
+    /// move and by each `Drop`), each whole node released where it lives
+    /// (its type's in-place shim when it holds a hook). Whether `l` is a
+    /// counted address parameter or a counted frame local. O(the flags
+    /// and the fields on their paths).
     pub(super) fn mem_release(&mut self, l: usize) -> hd_base::StageResult<bool> {
-        enum Task {
-            Level(u32, std::sync::Arc<ReleasePlan>, Vec<Proj>),
-            Step(u32, ReleaseStep),
-            Guard(u32),
-            End,
-        }
         let Some((at, off, mem)) = self.mem_locals.get(&l).cloned() else {
             return Ok(false);
         };
@@ -1598,70 +1313,40 @@ impl Em<'_, '_, '_> {
         if !self.parameter_positions.contains_key(&l) && !self.released(ty) {
             return Ok(false);
         }
-        let (pool, env) = (self.input.pool, self.input.env);
-        let plan = release_plan(pool, env, &mut self.m.release_plans, ty)?;
-        let hooks = if crate::layout::holds_drop(pool, env, ty) {
-            self.hook_plan(ty)?
-        } else {
-            None
-        };
-        if plan.is_none() && hooks.is_none() {
+        let counted = crate::rt::counted_of(self.input, self.m, ty)?;
+        if !counted.counts() {
             return Ok(true);
         }
-        let tir = self.tir_flags();
-        let paths = tir
+        let paths = self
+            .tir_flags()
             .get(&super::drop_flags::Root::Local(l))
-            .map_or(&[][..], Vec::as_slice);
-        let live = path_flags(paths, &[])
-            .0
-            .map(|f| self.local(f).map(|ls| ls[0]));
-        if let Some(live) = live.transpose()? {
-            self.count_flag_read();
-            self.f.get(live);
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            .cloned()
+            .unwrap_or_default();
+        // No flag: the value is whole, released from its address by the
+        // type's object glue, one helper per layout, in place.
+        if paths.is_empty() {
+            address(&mut self.f, at, off);
+            self.f.helper(crate::rt::Helper::DropParts {
+                leaves: mem.leaves.clone(),
+                parts: vec![(0, counted)],
+            });
+            return Ok(true);
         }
-        if let Some(hooks) = hooks {
-            self.mem_hooks(at, off, mem.size, hooks, paths)?;
-        }
-        let mut todo: Vec<Task> = plan
-            .map(|p| Task::Level(off, p, Vec::new()))
-            .into_iter()
+        let base = self.f.local(crate::module::Val::I32);
+        address(&mut self.f, at, off);
+        self.f.set(base);
+        let ls = self.f.load_locals(base, &mem.leaves);
+        let offsets = ls
+            .iter()
+            .copied()
+            .zip(mem.leaves.iter().map(|x| x.offset))
             .collect();
-        while let Some(task) = todo.pop() {
-            match task {
-                Task::End => self.f.op(I::End),
-                Task::Guard(flag) => {
-                    self.count_flag_read();
-                    self.f.get(flag);
-                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                }
-                Task::Step(off, step) => crate::rt::release_step(&mut self.f, at, off, &step),
-                Task::Level(off, plan, path) => {
-                    crate::work::moved_paths(plan.steps.len());
-                    let mut seq = Vec::new();
-                    for step in &plan.steps {
-                        let full = [&path[..], &[Proj::Field(step.field())]].concat();
-                        let (flag, under) = path_flags(paths, &full);
-                        let guard = flag.map(|f| self.local(f).map(|ls| ls[0])).transpose()?;
-                        seq.extend(guard.map(Task::Guard));
-                        // `indirect::params` keeps a move only through
-                        // fields passed by address: a deeper path is one
-                        // into a nested plan.
-                        match step {
-                            ReleaseStep::Nested { offset, plan, .. } if !under.is_empty() => {
-                                seq.push(Task::Level(off + offset, plan.clone(), full));
-                            }
-                            _ => seq.push(Task::Step(off, step.clone())),
-                        }
-                        seq.extend(guard.map(|_| Task::End));
-                    }
-                    todo.extend(seq.into_iter().rev());
-                }
-            }
-        }
-        if path_flags(paths, &[]).0.is_some() {
-            self.f.op(I::End);
-        }
+        let was = self.node_base.replace((base, Rc::new(offsets)));
+        // ruled out: `indirect::params` keeps a move only through fields
+        // passed by address, the paths the open drop opens.
+        let done = self.open_drop(&ls, ty, &[], &super::drop_flags::Guards::Tir(paths));
+        self.node_base = was;
+        done?;
         Ok(true)
     }
 }

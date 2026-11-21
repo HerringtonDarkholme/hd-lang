@@ -36,7 +36,7 @@ fn replaced(p: &mut Item) -> void:
 fn used_after(items: &mut List[Item], i: usize) -> usize:
     previous := items[i]
 > app/main/used_after
->   copy app.main.Item [batches, depots] (stored)
+>   retain app.main.Item [batches, depots] (stored)
     items[i] = Item { ...previous, r: 1 }
 >   unique List[app.main.Item] (may be shared)
 >   release app.main.Item [batches, depots] (overwritten)

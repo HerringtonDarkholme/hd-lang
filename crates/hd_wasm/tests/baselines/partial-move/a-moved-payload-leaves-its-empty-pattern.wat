@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
+  (import "fixture" "release_value[Pair]" (func $"release_value[Pair]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
@@ -112,7 +112,7 @@
     i32.const 0
     local.get $p.b.0
     local.get $p.b.1
-    call $rt:release
+    call $"release_value[Pair]"
     local.get $p.a.1
   )
   (func $speaker (result i32 i32 i32) (local $t0 i32)

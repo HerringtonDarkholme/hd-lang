@@ -941,7 +941,7 @@ fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         };
         match &*symbols.get(*id) {
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
-            Sym::Helper(Helper::Release { vals, .. }) => Some(vals.len()),
+            Sym::Shim(_, false, width, false) => usize::try_from(*width).ok(),
             _ => None,
         }
     };
@@ -3890,13 +3890,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
             (Sym::Helper(Helper::CollCopy), 1, 1) => Some((1, 0)),
             (Sym::Inst(k), n, 0) if *k == retain => Some((n, n)),
             (
-                Sym::Helper(
-                    Helper::ReleaseRef
-                    | Helper::RetainKnown
-                    | Helper::ReleaseKnown
-                    | Helper::Retain { .. }
-                    | Helper::Release { .. },
-                ),
+                Sym::Helper(Helper::ReleaseRef | Helper::RetainKnown | Helper::ReleaseKnown)
+                | Sym::Shim(_, _, _, false),
                 n,
                 0,
             ) => Some((n, n)),
@@ -4122,10 +4117,11 @@ fn fixed_locals(
     fixed
 }
 
-/// Makes each direct call of a runtime helper with no effect and no result
-/// the `drop` of its arguments. Such a helper is one whose body only reads
-/// and writes its locals and branches forward, or calls another such
-/// helper. A release helper whose counted part folded away is one. A body with a loop, a store, a
+/// Makes each direct call of a runtime helper or count shim with no effect
+/// and no result the `drop` of its arguments. Such a function is one whose
+/// body only reads and writes its locals and branches forward, or calls
+/// another such function. A release helper or shim whose counted part
+/// folded away is one. A body with a loop, a store, a
 /// trap or any other call keeps its calls. Gives, per function, whether
 /// any of its calls went.
 pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<bool> {
@@ -4139,7 +4135,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 || !f.results.is_empty()
                 || !matches!(
                     &*symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                    Sym::Helper(_)
+                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
                 )
             {
                 continue;
@@ -5924,7 +5920,7 @@ mod origin_tests {
             .iter()
             .filter(|i| {
                 matches!(i, Ins::Call(id, _) if matches!(&*f.symbol(*id),
-            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown | Helper::Release { .. })))
+            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)))
             })
             .count()
     }
@@ -6919,40 +6915,6 @@ mod origin_tests {
             zero_releases(f);
         });
         assert_eq!(spans(&f), [12, 13]);
-        let value = tracked(
-            &symbols,
-            0,
-            2,
-            vec![
-                Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::LocalGet(1)),
-                call(
-                    &symbols,
-                    Sym::Helper(Helper::Release {
-                        vals: vec![Val::I32, Val::I32],
-                        walk: crate::layout::Walk::switch(
-                            crate::layout::Discr {
-                                leaf: crate::layout::Leaf {
-                                    offset: 0,
-                                    val: Val::I32,
-                                    bytes: 4,
-                                    signed: false,
-                                },
-                                value: 0,
-                                enc: crate::layout::Enc::Direct,
-                            },
-                            vec![None, Some(crate::layout::Walk::Ref(1))],
-                        ),
-                    }),
-                ),
-            ],
-        );
-        assert_eq!(
-            releases(&run(value, |f| {
-                zero_releases(f);
-            })),
-            0
-        );
     }
 
     #[test]

@@ -8,7 +8,6 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:release_at" (func $rt:release_at (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -419,7 +418,7 @@
     i32.add
     global.set $stack
   )
-  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t4 i64) (local $t3 i32)
+  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
     ;; 54 |     let acc = 0
     global.get $stack
     global.get $stack_limit
@@ -872,7 +871,7 @@
     i32.add
     global.set $stack
   )
-  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t2 i64)
+  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     ;; 43 |     let t = mk_outer(x)
     global.get $stack
     global.get $stack_limit
@@ -898,13 +897,19 @@
     i32.load $heap offset=80
     call $keep
     local.set $x
-    local.tee $s.0
+    local.set $s.0
     ;; 45 |     t.v + i32(s.len())
     local.get $t0
     i32.load $heap offset=84
     local.set $t1
     local.get $t0
-    call $rt:release_at
+    i32.load $heap
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref
+    end
+    local.get $s.0
     if
       local.get $s.0
       call $rt:release_ref
@@ -914,10 +919,10 @@
     local.get $x
     i64.extend_i32_s
     i64.add
-    local.tee $t2
+    local.tee $t3
     i64.const 2147483647
     i64.gt_s
-    local.get $t2
+    local.get $t3
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -925,7 +930,7 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t2
+    local.get $t3
     i32.wrap_i64
     ;; 43 |     let t = mk_outer(x)
     local.get $t0

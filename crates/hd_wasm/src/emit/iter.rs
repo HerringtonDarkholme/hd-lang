@@ -10,7 +10,7 @@ use hd_base::StageResult;
 use hd_types::{Prim, Ty, TyData};
 
 use super::Em;
-use crate::layout::{Mem, Part, fields_walk, payload_mem};
+use crate::layout::{Mem, Part, payload_mem};
 use crate::map::USED;
 use crate::module::{HEAP, Sym, mem};
 use crate::rt::Helper;
@@ -46,9 +46,9 @@ impl Em<'_, '_, '_> {
         let int = pool.intern_ty(&TyData::Prim(Prim::I32));
         let tys = [self.ty_of(map), int];
         let (m, parts) = payload_mem(pool, self.env(), &tys)?;
-        let walk = fields_walk(pool, self.env(), &tys);
         let cyclic = self.cyclic_holding(&tys);
-        let env = self.object(&m, walk.as_ref(), cyclic, false, None);
+        let counted = self.payload_parts(&tys.map(Some), &parts)?;
+        let env = self.object_parts(&m, counted.clone(), cyclic, false);
         let h = self.buffer(map)?;
         let store = |em: &mut Self, m: &Mem, p: Part, v: &dyn Fn(&mut Self) -> StageResult<()>| {
             em.store_leaf(
@@ -70,7 +70,6 @@ impl Em<'_, '_, '_> {
             em.f.op(I::I32Load(mem(HEAP, USED, 2)));
             Ok(())
         })?;
-        let colls = self.part_colls(&tys, &parts);
         let reason = self.operation_count(
             i,
             hd_tir::ir::Tag::Retain,
@@ -82,7 +81,7 @@ impl Em<'_, '_, '_> {
             "a map cursor must state its snapshot copy"
         );
         self.because(reason.as_slice()[0], |em| {
-            em.retain_fields(env, &m, walk.as_ref(), &colls, colls.len());
+            em.retain_fields(env, &m, counted.clone());
         });
         self.f.table_slot(Sym::Helper(code));
         self.f.get(env);

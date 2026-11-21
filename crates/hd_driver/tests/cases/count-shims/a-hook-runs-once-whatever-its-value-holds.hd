@@ -1,0 +1,38 @@
+# @dump: counts wat
+# @build: std
+# A release shim that runs a `Drop` hook is not a release of nothing: a
+# zero-value type's (`Empty`) and a type's with one counted field
+# (`Named`) each release through their shim, which runs the hook. Taken
+# as a plain release, the optimizer's zero-release rule deleted `Empty`'s
+# release, of no operands, and its hook never ran: `take_empty` showed
+# no count.
+use std.rt.Drop
+
+let drops: usize = 0
+
+struct Empty: pass
+
+impl !Copy for Empty
+
+impl Drop for Empty:
+    fn drop(&mut self) -> void:
+        drops += 1
+
+struct Named:
+    name: string
+
+impl !Copy for Named
+
+impl Drop for Named:
+    fn drop(&mut self) -> void:
+        drops += 10
+
+# subject
+fn take_empty(value: Empty) -> usize:
+    0
+
+fn take_named(value: Named) -> usize:
+    0
+
+fn take_both(first: Empty, named: Named, last: Empty) -> usize:
+    named.name.len()

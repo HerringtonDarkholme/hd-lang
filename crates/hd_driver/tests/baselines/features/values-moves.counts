@@ -30,8 +30,6 @@ fn into_field(photo: Photo) -> Album:
 
 fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
     let mut ys = xs
-> app/main/uniq
->   release counted reference (last use)
     ys.push(s)
     ys
 

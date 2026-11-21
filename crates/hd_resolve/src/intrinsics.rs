@@ -110,6 +110,8 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("caller_location", &[s(0, &[], Named("Location"))]),
     ("char_from_scalar", &[s(0, &[U32], Opt)]),
     ("char_scalar", &[s(0, &[CHAR], U32)]),
+    ("count_release", &[s(1, &[Any], VOID)]),
+    ("count_retain", &[s(1, &[Any], VOID)]),
     ("dbg_printer", &[s(1, &[], Fn)]),
     ("dbg_write", &[s(0, &[STR], VOID)]),
     ("debug_texts", &[s(1, &[Any, LIST], LIST)]),

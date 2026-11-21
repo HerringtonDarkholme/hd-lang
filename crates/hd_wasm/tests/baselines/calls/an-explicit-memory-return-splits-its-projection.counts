@@ -22,11 +22,13 @@ type S1 = (S0, S0)
 
 fn moved(x: S1) -> S0:
     return x._0
+> app/main/moved
+>   release counted reference (last use)
 
 fn copied(x: &S1) -> S0:
     return x._0
 > app/main/copied
->   retain (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
+>   release (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
 
 # A composite of loans is a Memory value but owns no string counts.
 type B0['a] = (
@@ -69,11 +71,13 @@ type S1 = (S0, S0)
 
 fn moved(x: S1) -> S0:
     return x._0
+> app/main/moved
+>   release counted reference (last use)
 
 fn copied(x: &S1) -> S0:
     return x._0
 > app/main/copied
->   retain (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
+>   release (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
 
 # A composite of loans is a Memory value but owns no string counts.
 type B0['a] = (
@@ -116,11 +120,13 @@ type S1 = (S0, S0)
 
 fn moved(x: S1) -> S0:
     return x._0
+> app/main/moved
+>   release counted reference (last use)
 
 fn copied(x: &S1) -> S0:
     return x._0
 > app/main/copied
->   retain (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
+>   release (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
 
 # A composite of loans is a Memory value but owns no string counts.
 type B0['a] = (
@@ -163,11 +169,13 @@ type S1 = (S0, S0)
 
 fn moved(x: S1) -> S0:
     return x._0
+> app/main/moved
+>   release counted reference (last use)
 
 fn copied(x: &S1) -> S0:
     return x._0
 > app/main/copied
->   retain (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
+>   release (string, string, string, string, string, string, string, string, string) [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0] (stored)
 
 # A composite of loans is a Memory value but owns no string counts.
 type B0['a] = (

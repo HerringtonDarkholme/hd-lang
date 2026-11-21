@@ -6,11 +6,10 @@
 
 use crate::op::Op as Instruction;
 use hd_base::Hash128;
-use hd_base::SliceSort as _;
 use wasm_encoder::BlockType;
 
 use crate::boundary::LTy;
-use crate::layout::{Leaf, LeafOps as _, Walk};
+use crate::layout::{Leaf, LeafOps as _};
 use crate::module::{BUF, Func, Global, HEADER, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::rt::{Elem, HostCounts};
@@ -353,13 +352,13 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Race {
             part,
             results,
-            walk,
+            counted,
         } => match part {
-            0 => race_cold(m, results, walk.as_ref()),
+            0 => race_cold(m, results, counted),
             1 => race_poll(m, results),
             _ => race_cancel(m),
         },
-        Helper::RaceDrop { results, walk } => race_drop(m, results, walk.as_ref()),
+        Helper::RaceDrop { results, counted } => race_drop(m, results, counted),
         Helper::All { part, elem } => match part {
             0 => all_cold(m, elem),
             1 => all_poll(m, elem),
@@ -1000,15 +999,14 @@ fn wake_link(m: &Module) -> Func {
     f.i32(16);
     crate::rt::push_desc(
         &mut f,
-        Some(Sym::Helper(Helper::DropFields {
+        Some(Sym::Helper(Helper::DropParts {
             leaves: vec![Leaf {
                 offset: 8,
                 val: Val::I32,
                 bytes: 4,
                 signed: false,
             }],
-            walk: Walk::Ref(0),
-            drops: Vec::new(),
+            parts: vec![(0, ADDRESS)],
         })),
         false,
     );
@@ -1259,65 +1257,33 @@ fn wake_take(m: &Module) -> Func {
 }
 
 /// The release glue of a leaf frame whose arguments are laid out as
-/// `area`: one count less on each counted reference among them.
+/// `area`: one count less on each of its arguments.
 fn leaf_drop(area: &Elem) -> Option<Sym> {
-    Some(walk_drop(area, area.walk.as_ref()?))
+    (!area.parts.is_empty()).then(|| parts_drop(area, &area.parts))
 }
 
-/// The glue that releases what `walk` reads of a leaf frame laid out as
-/// `area`.
-fn walk_drop(area: &Elem, walk: &Walk) -> Sym {
-    // Only the leaves the walk reads, so the glue loads nothing else.
-    let mut used = Vec::new();
-    walk_indices(walk, &mut used);
-    used.sort_stable();
-    used.dedup();
-    let leaves = used
+/// The glue that releases `parts` of a leaf frame's arguments laid out as
+/// `area`: each part through its type's count, a hooked one in place.
+fn parts_drop(area: &Elem, parts: &[(u32, crate::rt::Counted)]) -> Sym {
+    let leaves = area
+        .leaves
         .iter()
-        .map(|k| {
-            let l = area.leaves[*k as usize];
-            Leaf {
-                offset: l.offset + LEAF_ARGS,
-                ..l
-            }
+        .map(|l| Leaf {
+            offset: l.offset + LEAF_ARGS,
+            ..*l
         })
         .collect();
-    let mut remap = vec![0; area.leaves.len()];
-    for (index, &leaf) in (0u32..).zip(&used) {
-        remap[leaf as usize] = index;
-    }
-    let walk = walk.selected(&remap);
-    Sym::Helper(Helper::DropFields {
+    Sym::Helper(Helper::DropParts {
         leaves,
-        walk,
-        drops: area
-            .drops
-            .iter()
-            .map(|drop| crate::rt::DropCall {
-                offset: drop.offset + LEAF_ARGS,
-                target: drop.target,
-                guards: drop
-                    .guards
-                    .iter()
-                    .map(|&(cell, is)| {
-                        (
-                            Leaf {
-                                offset: cell.offset + LEAF_ARGS,
-                                ..cell
-                            },
-                            is,
-                        )
-                    })
-                    .collect(),
-            })
-            .collect(),
+        parts: parts.to_vec(),
     })
 }
 
-/// Every value index a walk reads: its references and its tags.
-fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
-    out.extend(w.indices(false));
-}
+/// One address found through its block, as a counted reference is.
+const ADDRESS: crate::rt::Counted = crate::rt::Counted::Address {
+    index: 0,
+    known: false,
+};
 
 /// [`Helper::HostCold`]: `(data, arguments) -> frame`, a host method
 /// that may wait, called cold: a leaf frame holding the arguments, laid
@@ -1384,10 +1350,11 @@ fn init_host_leaf(f: &mut Func, m: &Module, fr: u32, leaf: &HostLeaf<'_>, blocki
     // them. Collection values transfer their existing counts. A blocking
     // leaf's borrowed fields remain live in the caller, and its transferred
     // fields are released by the shadow frame's terminal callback.
-    if !blocking && let Some(w) = &counts.borrowed {
-        crate::rt::walk_code(f, w, &|f, k| f.get(k + 1), &|f, _| {
-            f.call(Sym::Helper(Helper::RetainAny));
-        });
+    if !blocking {
+        for (first, counted) in &counts.borrowed {
+            let first = *first;
+            counted.emit(f, m, &|f, k| f.get(first + k + 1), true);
+        }
     }
 }
 
@@ -1542,7 +1509,7 @@ fn host_drive(m: &Module, blocking: bool, leaf: &HostLeaf<'_>) -> Func {
         counts,
         res,
     } = *leaf;
-    let owned = counts.owned.as_ref();
+    let owned = (!counts.owned.is_empty()).then_some(&counts.owned);
     let rvals = res.vals();
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
@@ -1581,7 +1548,7 @@ fn host_drive(m: &Module, blocking: bool, leaf: &HostLeaf<'_>) -> Func {
         flags_or(&mut f, fr, HOST_BORROWED);
         f.get(fr);
         if let Some(owned) = owned {
-            f.table_slot(walk_drop(area, owned));
+            f.table_slot(parts_drop(area, owned));
         } else {
             f.i32(-1);
         }
@@ -2040,15 +2007,14 @@ const CELL_EPOCH: u64 = 4;
 /// releases the waiter edges still linked.
 fn wait_cell(m: &Module) -> Func {
     let mut f = m.func("rt:wait_cell", vec![], vec![Val::I32]);
-    let edges = Helper::DropFields {
+    let edges = Helper::DropParts {
         leaves: vec![Leaf {
             offset: 0,
             val: Val::I32,
             bytes: 4,
             signed: false,
         }],
-        walk: Walk::Ref(0),
-        drops: Vec::new(),
+        parts: vec![(0, ADDRESS)],
     };
     let cell = new_zeroed(&mut f, 8, Some(Sym::Helper(edges)), false);
     f.get(cell);
@@ -2939,7 +2905,7 @@ fn all_drop(m: &Module, elem: &Elem) -> Func {
     f.set(n);
     all_field(&mut f, 0, ALL_RESULTS);
     f.set(buffer);
-    if let Some(walk) = &elem.walk {
+    if elem.counted.counts() {
         f.get(buffer);
         f.op(Instruction::If(BlockType::Empty));
         all_for(&mut f, n, |f, index| {
@@ -2957,11 +2923,19 @@ fn all_drop(m: &Module, elem: &Elem) -> Func {
             f.op(Instruction::I32Add);
             f.set(address);
             let values = f.load_locals(address, &elem.leaves);
-            crate::rt::walk_code(
+            let off = elem.leaves.first().map_or(0, |l| l.offset) - elem.counted.first_offset();
+            elem.counted.emit_at(
                 f,
-                walk,
+                m,
+                &|f| {
+                    f.get(address);
+                    if off != 0 {
+                        f.u32(off);
+                        f.op(Instruction::I32Add);
+                    }
+                },
                 &|f, k| f.get(values[k as usize]),
-                &crate::rt::release_call,
+                false,
             );
             f.op(Instruction::End);
         });
@@ -3002,18 +2976,18 @@ fn race_area(results: &[Val]) -> (Vec<(u32, Val)>, u32) {
 
 /// [`Helper::RaceCold`]: `(list) -> frame`, `race!`'s frame over its
 /// list of tasks, which it holds with a count of its own.
-fn race_cold(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
+fn race_cold(m: &Module, results: &[Val], counted: &crate::rt::Counted) -> Func {
     let (_, size) = race_area(results);
     let mut f = m.func("rt:race_cold", vec![Val::I32], vec![Val::I32]);
     let drop = Sym::Helper(Helper::RaceDrop {
         results: results.to_vec(),
-        walk: walk.cloned(),
+        counted: counted.clone(),
     });
     let fr = new_zeroed(&mut f, size, Some(drop), true);
     let h = |k| Helper::Race {
         part: k,
         results: results.to_vec(),
-        walk: walk.cloned(),
+        counted: counted.clone(),
     };
     f.get(fr);
     f.table_slot(Sym::Helper(h(1)));
@@ -3205,27 +3179,26 @@ fn race_cancel(m: &Module) -> Func {
 
 /// [`Helper::RaceDrop`]: one count less on the list, and on a winner's
 /// value that no poll handed out.
-fn race_drop(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
+fn race_drop(m: &Module, results: &[Val], counted: &crate::rt::Counted) -> Func {
     let (area, _) = race_area(results);
     let mut f = m.func("rt:race_drop", vec![Val::I32], vec![]);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
     f.helper(Helper::ReleaseRef);
-    if let Some(w) = walk {
+    if counted.counts() {
         f.get(0);
         f.op(Instruction::I32Load(mem(HEAP, F_STATE, 2)));
         flags_any(&mut f, 0, DONE);
         f.op(Instruction::I32Eqz);
         f.op(Instruction::I32And);
         f.op(Instruction::If(BlockType::Empty));
-        for (at, v) in &area {
+        let ls: Vec<u32> = area.iter().map(|(_, v)| f.local(*v)).collect();
+        for ((at, v), l) in area.iter().zip(&ls) {
             f.get(0);
             f.op(load(*v, *at));
+            f.set(*l);
         }
-        f.helper(Helper::Release {
-            vals: results.to_vec(),
-            walk: w.clone(),
-        });
+        counted.emit(&mut f, m, &|f, k| f.get(ls[k as usize]), false);
         f.op(Instruction::End);
     }
     f
@@ -3277,14 +3250,14 @@ mod tests {
                 area: crate::rt::Elem {
                     size: 0,
                     leaves: vec![],
-                    walk: None,
+                    counted: crate::rt::Counted::None,
                     colls: vec![],
-                    drops: vec![],
+                    parts: vec![],
                     cyclic: false,
                 },
                 counts: Box::new(super::HostCounts {
-                    borrowed: None,
-                    owned: None,
+                    borrowed: Vec::new(),
+                    owned: Vec::new(),
                 }),
                 res: super::HostRes::Void,
             },
@@ -3330,9 +3303,9 @@ mod tests {
         let area = crate::rt::Elem {
             size: 0,
             leaves: vec![],
-            walk: None,
+            counted: crate::rt::Counted::None,
             colls: vec![],
-            drops: vec![],
+            parts: vec![],
             cyclic: false,
         };
         for blocking in [false, true] {
@@ -3346,8 +3319,8 @@ mod tests {
                         args: vec![],
                         area: area.clone(),
                         counts: Box::new(super::HostCounts {
-                            borrowed: area.walk.clone(),
-                            owned: None,
+                            borrowed: area.parts.clone(),
+                            owned: Vec::new(),
                         }),
                         res: super::HostRes::Void,
                     },
@@ -3474,7 +3447,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
 
     #[test]
     fn blocking_host_drive_has_no_heap_frame_edge_and_uses_reserved_leaf_word() {
-        use crate::layout::{Leaf, Walk};
+        use crate::layout::Leaf;
         use crate::module::{HEAP, Ins};
         let m = crate::module::Module::default();
         let area = crate::rt::Elem {
@@ -3488,9 +3461,18 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                     signed: false,
                 })
                 .collect(),
-            walk: Some(Walk::Ref(0)),
+            counted: crate::rt::Counted::Address {
+                index: 0,
+                known: false,
+            },
             colls: vec![],
-            drops: vec![],
+            parts: vec![(
+                0,
+                crate::rt::Counted::Address {
+                    index: 0,
+                    known: false,
+                },
+            )],
             cyclic: false,
         };
         for blocking in [false, true] {
@@ -3503,8 +3485,8 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                     args: &[super::HostArg::Str],
                     area: &area,
                     counts: &super::HostCounts {
-                        borrowed: area.walk.clone(),
-                        owned: None,
+                        borrowed: area.parts.clone(),
+                        owned: Vec::new(),
                     },
                     res: &super::HostRes::Void,
                 },
@@ -3545,8 +3527,8 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 args: &[super::HostArg::Str],
                 area: &area,
                 counts: &super::HostCounts {
-                    borrowed: area.walk.clone(),
-                    owned: None,
+                    borrowed: area.parts.clone(),
+                    owned: Vec::new(),
                 },
                 res: &super::HostRes::Void,
             },
@@ -3578,7 +3560,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
 
     #[test]
     fn flat_all_drains_woken_children_in_order_without_rescanning() {
-        use crate::layout::{Leaf, Walk};
+        use crate::layout::Leaf;
         use crate::module::{Global, Import};
         use crate::rt::Elem;
 
@@ -3592,9 +3574,9 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
         let elem = Elem {
             size: 4,
             leaves: vec![word],
-            walk: None,
+            counted: crate::rt::Counted::None,
             colls: vec![],
-            drops: vec![],
+            parts: vec![],
             cyclic: false,
         };
         for (name, part) in [("all", 0), ("poll", 1), ("cancel", 2)] {
@@ -3639,7 +3621,6 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
         f.get(0);
         f.helper(Helper::ListBuf {
             elem: Elem {
-                walk: Some(Walk::Ref(0)),
                 cyclic: true,
                 ..elem.clone()
             },
@@ -3873,9 +3854,14 @@ assert.equal(w.ready(last), 32, 'weak lookup survives registry growth');
 mod native_leaf_drop_tests {
     use super::*;
 
+    /// A leaf frame's glue releases each argument through its type's
+    /// count, its leaves past the frame's header fields.
     #[test]
-    fn a_glue_only_leaf_keeps_its_native_hook_without_count_leaf_loads() -> Result<(), String> {
-        let target = Hash128(91);
+    fn a_leaf_frame_releases_its_arguments_by_parts() -> Result<(), String> {
+        let part = crate::rt::Counted::Address {
+            index: 0,
+            known: false,
+        };
         let area = Elem {
             size: 4,
             leaves: vec![Leaf {
@@ -3884,28 +3870,16 @@ mod native_leaf_drop_tests {
                 bytes: 4,
                 signed: false,
             }],
-            walk: Some(Walk::Glue),
+            counted: crate::rt::Counted::None,
+            parts: vec![(0, part.clone())],
             colls: vec![],
-            drops: vec![crate::rt::DropCall {
-                offset: 0,
-                target,
-                guards: vec![],
-            }],
             cyclic: false,
         };
-        let Some(Sym::Helper(Helper::DropFields {
-            leaves,
-            walk,
-            drops,
-        })) = leaf_drop(&area)
-        else {
-            return Err("a native leaf must have release glue".into());
+        let Some(Sym::Helper(Helper::DropParts { leaves, parts })) = leaf_drop(&area) else {
+            return Err("a leaf with a counted argument must have release glue".into());
         };
-        assert!(leaves.is_empty());
-        assert_eq!(walk, Walk::Glue);
-        assert_eq!(drops.len(), 1);
-        assert_eq!(drops[0].target, target);
-        assert_eq!(drops[0].offset, LEAF_ARGS);
+        assert_eq!(leaves[0].offset, LEAF_ARGS);
+        assert_eq!(parts, vec![(0, part)]);
         Ok(())
     }
 }

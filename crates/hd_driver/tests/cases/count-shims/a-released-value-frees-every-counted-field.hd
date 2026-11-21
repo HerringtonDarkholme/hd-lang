@@ -1,0 +1,41 @@
+# @dump: stdout
+# @build: dev | checked
+# A struct of several counted fields, and an enum whose variants hold
+# them, release through their types' shims (`hd_layout::shims`): bodies
+# built lowered (`Phase::Lowered`), whose `Release` statements count
+# borrowed field reads where they stand. The checked build's audit finds
+# no leaked block. Taken as owned TIR, each statement read as the end of
+# a loan and lowered nowhere, and every field leaked.
+struct Item:
+    name: string
+    tags: List[string]
+    revision: usize
+
+enum Shape:
+    Empty
+    One(string)
+    Two(Item)
+
+fn rename(p: &mut Item) -> usize:
+    p.name = "${"changed"}"
+    p.tags = []
+    7
+
+fn make(name: string) -> Item:
+    Item { name: "${name}", tags: ["${name}"], revision: 0 }
+
+fn describe(s: &Shape) -> string:
+    match s:
+        .Empty => "empty"
+        .One(x) => x
+        .Two(item) => "${item.name} ${item.tags.len()}"
+
+pub fn main() -> void $ Console:
+    let mut p = make("first")
+    q := Item { ...p, revision: rename(&mut p) }
+    println("${q.name} ${q.tags[0]} ${q.revision} ${p.name}")
+    shapes := [Shape.Empty, Shape.One("${"one"}"), Shape.Two(make("two"))]
+    for s in shapes:
+        println(describe(&s))
+    kept := shapes[2]
+    println(describe(&kept))

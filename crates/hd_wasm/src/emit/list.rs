@@ -154,8 +154,8 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The element type of list type `t` and its layout for the glue.
-    pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
+    /// The element type of list type `t`.
+    pub(super) fn elem_ty(&self, t: Ty) -> Ty {
         // ruled out: the driver roots std runtime items before collecting list operations.
         // ruled out: list intrinsic signatures and checked projections supply List[T].
         let (def, args) = self
@@ -165,14 +165,19 @@ impl Em<'_, '_, '_> {
         let items = self.pool().list_items(args);
         // ruled out: the seeded List[T] has one completed generic argument.
         debug_assert_eq!(items.len(), 1);
-        let et = items[0];
+        items[0]
+    }
+
+    /// The element type of list type `t` and its layout for the glue.
+    pub(super) fn elem(&mut self, t: Ty) -> StageResult<(Ty, Elem)> {
+        let et = self.elem_ty(t);
         let m = mem_of(self.pool(), self.env(), et)?;
+        let counted = crate::rt::counted_of(self.input, self.m, et)?;
         let elem = Elem {
             size: m.size,
             leaves: m.leaves,
-            walk: self.counted(et),
-            // List elements are Copy, so only their referents may have hooks.
-            drops: Vec::new(),
+            counted,
+            parts: Vec::new(),
             colls: coll_leaves(self.pool(), self.env(), et),
             cyclic: self.cyclic_object(t),
         };

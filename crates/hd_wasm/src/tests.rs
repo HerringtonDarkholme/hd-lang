@@ -130,8 +130,8 @@ fn static_bytes_and_vtables_are_shared_by_content() {
             args: vec![crate::task::HostArg::Str],
             area: string_area(),
             counts: Box::new(crate::rt::HostCounts {
-                borrowed: string_area().walk,
-                owned: None,
+                borrowed: string_area().parts,
+                owned: Vec::new(),
             }),
             res: crate::task::HostRes::Tags,
         })
@@ -223,8 +223,8 @@ fn every_runtime_helper_validates() {
         args: vec![crate::task::HostArg::Str],
         area: string_area(),
         counts: Box::new(crate::rt::HostCounts {
-            borrowed: string_area().walk,
-            owned: None,
+            borrowed: string_area().parts,
+            owned: Vec::new(),
         }),
         res: crate::task::HostRes::Tags,
     })]);
@@ -253,14 +253,14 @@ fn every_runtime_helper_validates() {
         area: Elem {
             size: 12,
             leaves: vec![word(0), word(4), word(8)],
-            walk: None,
+            counted: crate::rt::Counted::None,
             colls: vec![],
-            drops: vec![],
+            parts: vec![],
             cyclic: false,
         },
         counts: Box::new(crate::rt::HostCounts {
-            borrowed: None,
-            owned: None,
+            borrowed: Vec::new(),
+            owned: Vec::new(),
         }),
         res: crate::task::HostRes::Buf(every.clone()),
     };
@@ -303,9 +303,18 @@ fn string_area() -> Elem {
     Elem {
         size: 8,
         leaves: vec![word(0), word(4)],
-        walk: Some(crate::layout::Walk::Ref(0)),
+        counted: crate::rt::Counted::Address {
+            index: 0,
+            known: false,
+        },
         colls: vec![],
-        drops: vec![],
+        parts: vec![(
+            0,
+            crate::rt::Counted::Address {
+                index: 0,
+                known: false,
+            },
+        )],
         cyclic: false,
     }
 }
@@ -367,9 +376,9 @@ fn every_boundary_type() -> LTy {
             elem: Elem {
                 size: 8,
                 leaves: vec![word(0), word(4)],
-                walk: None,
+                counted: crate::rt::Counted::None,
                 colls: vec![],
-                drops: vec![],
+                parts: vec![],
                 cyclic: false,
             },
             ty: LTy::Str,
@@ -1401,8 +1410,8 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         size: 8,
         leaves: vec![word(0), word(4)],
         keys: 1,
-        key_walk: None,
-        val_walk: None,
+        key_counted: crate::rt::Counted::None,
+        val_counted: crate::rt::Counted::None,
         colls: vec![],
         cyclic: false,
     };
@@ -1445,29 +1454,38 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         },
         Helper::DynSlot {
             target: Hash128(8),
-            retained_result: Some(crate::layout::Walk::Known(0)),
+            retained_result: crate::rt::Counted::Address {
+                index: 0,
+                known: true,
+            },
             leaves: None,
             params: vec![Val::I64, Val::F64],
             results: vec![Val::I32],
-            own: vec![(1, None), (1, None), (1, None)],
+            own: vec![
+                (1, crate::rt::Counted::None),
+                (1, crate::rt::Counted::None),
+                (1, crate::rt::Counted::None),
+            ],
             given: vec![],
             ctx: None,
         },
         Helper::DynRead {
             target: Hash128(8),
-            retained_result: Some(crate::layout::Walk::Known(0)),
+            retained_result: crate::rt::Counted::Address {
+                index: 0,
+                known: true,
+            },
             read: RefRead {
                 value: RefLayout {
                     size: 4,
                     leaves: vec![word(0)],
-                    walk: None,
-                    drops: Box::new([]),
+                    counted: crate::rt::Counted::None,
                     colls: Box::new([]),
                 },
             },
             params: vec![Val::I64],
             results: vec![Val::I32],
-            own: vec![(1, None), (1, None)],
+            own: vec![(1, crate::rt::Counted::None), (1, crate::rt::Counted::None)],
             given: vec![],
             ctx: None,
         },
@@ -1482,15 +1500,15 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             check(Helper::Race {
                 part,
                 results: results.clone(),
-                walk: None,
+                counted: crate::rt::Counted::None,
             });
         }
     }
     let all_element = Elem {
         size: 4,
         leaves: vec![word(0)],
-        walk: None,
-        drops: vec![],
+        counted: crate::rt::Counted::None,
+        parts: vec![],
         colls: vec![],
         cyclic: false,
     };
@@ -1530,8 +1548,8 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
     let area = Elem {
         size: offset,
         leaves,
-        walk: None,
-        drops: vec![],
+        counted: crate::rt::Counted::None,
+        parts: vec![],
         colls: vec![],
         cyclic: false,
     };
@@ -1541,8 +1559,8 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         args: args.clone(),
         area: area.clone(),
         counts: Box::new(HostCounts {
-            borrowed: None,
-            owned: None,
+            borrowed: Vec::new(),
+            owned: Vec::new(),
         }),
         res,
     };
@@ -1586,8 +1604,8 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
                 args: args.clone(),
                 area: area.clone(),
                 counts: Box::new(HostCounts {
-                    borrowed: None,
-                    owned: None,
+                    borrowed: Vec::new(),
+                    owned: Vec::new(),
                 }),
                 res: res.clone(),
             });
@@ -1878,9 +1896,9 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     let elem = |size| Elem {
         size,
         leaves: vec![],
-        walk: None,
+        counted: crate::rt::Counted::None,
         colls: vec![],
-        drops: vec![],
+        parts: vec![],
         cyclic: false,
     };
     // Record each allocation's byte size in the exchange memory, indexed by

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -44,14 +44,16 @@
     local.get $alias
     i32.load $heap
     local.get $alias
-    i32.load $heap offset=4
-    local.get $alias
     i32.const 65 ;; &"changed"
     i32.store $heap
     local.get $alias
     i32.const 7
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $alias
+    if
+      local.get $alias
+      call $rt:release_ref
+    end
     ;; 216 |     *view.inner
     i32.load $heap
     ;; 172 |                                                                                                                                                                     inner: View0 {

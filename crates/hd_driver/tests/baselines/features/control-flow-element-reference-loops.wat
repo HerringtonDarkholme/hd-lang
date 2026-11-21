@@ -4,7 +4,7 @@
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $total_len (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $p i32)
     ;; 10 |     for p in &xs:
@@ -121,14 +121,16 @@
         local.get $p
         i32.load $heap
         local.get $p
-        i32.load $heap offset=4
-        local.get $p
         local.get $t3
         i32.store $heap
         local.get $p
         local.get $t2
         i32.store $heap offset=4
-        call $rt:release
+        local.tee $p
+        if
+          local.get $p
+          call $rt:release_ref
+        end
     ;; 22 |     for p in &mut out:
         br 0
       end

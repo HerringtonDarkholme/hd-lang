@@ -1006,13 +1006,18 @@ pub enum Phase {
     Checked,
     /// One instance's body, built by the driver at its type arguments.
     Instance,
+    /// A body built lowered, its counts already stated: a count shim
+    /// (`hd_layout::shims`). No ownership pass runs on it, so invariant 22
+    /// does not apply, and a backend lowers each count statement as
+    /// written, on a borrowed value too.
+    Lowered,
 }
 
 impl Phase {
     /// The phase of wire byte `v`.
     #[must_use]
     pub fn from_u8(v: u8) -> Option<Self> {
-        [Phase::Checked, Phase::Instance]
+        [Phase::Checked, Phase::Instance, Phase::Lowered]
             .get(usize::from(v))
             .copied()
     }
@@ -2694,11 +2699,15 @@ pub fn cleanup_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
 
 /// Verifies the checker's TIR of a body (§4.13.11 "Invariants"): the
 /// structural invariants, and 22, that it has no ownership yet. A body
-/// after the ownership passes is verified with [`verify_owned`].
+/// after the ownership passes is verified with [`verify_owned`]. A
+/// [`Phase::Lowered`] body is built with its counts stated, so 22 is not
+/// its invariant.
 #[must_use]
 pub fn verify(b: &Body) -> Vec<VerifyError> {
     let mut errs = verify_structure(b, &Topology::new(b));
-    no_ownership(b, &mut errs);
+    if b.phase != Phase::Lowered {
+        no_ownership(b, &mut errs);
+    }
     errs
 }
 
@@ -3240,6 +3249,7 @@ pub fn print(b: &Body) -> String {
     let phase = match b.phase {
         Phase::Checked => "",
         Phase::Instance => " Instance",
+        Phase::Lowered => " Lowered",
     };
     let _ = writeln!(o, "body {} {:?}{phase}", b.item.raw(), b.kind);
     let words = |v: &[u32]| {
@@ -3413,6 +3423,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
             b.phase = match f.get(3).copied() {
                 None => Phase::Checked,
                 Some("Instance") => Phase::Instance,
+                Some("Lowered") => Phase::Lowered,
                 Some(other) => return Err(e(format!("unknown phase `{other}`"))),
             };
             body = Some(b);

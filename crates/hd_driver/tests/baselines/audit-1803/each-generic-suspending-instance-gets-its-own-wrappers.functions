@@ -58,6 +58,7 @@ std/rt.cycle/due#0
 std/rt.bytes/write_unsigned_sized#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
+std/rt.alloc/release_value#0 [std.task.BlockOn[string]]
 rt:memory_copy/0/0
 rt:memory_copy/0/1
 rt:memory_fill/0/0
@@ -88,7 +89,6 @@ rt:alloc_class/4
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:release
 rt:release_ref#0
 rt:release_drain
 rt:release_ref#1

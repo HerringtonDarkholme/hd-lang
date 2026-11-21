@@ -62,7 +62,6 @@ rt:alloc_class/1
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:release
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

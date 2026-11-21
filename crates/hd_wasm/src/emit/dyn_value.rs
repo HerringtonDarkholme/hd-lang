@@ -12,7 +12,7 @@ use hd_types::{Ty, TyData};
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Leaf, LeafOps as _, Part, mem as mem_of, walk};
+use crate::layout::{Leaf, LeafOps as _, Part, mem as mem_of, one_ref_first};
 use crate::module::{HEAP, Ins, Val, mem};
 use crate::rt::{Helper, RefRead, TypeIdParts};
 
@@ -65,8 +65,7 @@ impl Em<'_, '_, '_> {
             return self.widen(i, a);
         };
         let vs = self.vals(from)?;
-        let direct = vs == [Val::I32]
-            && walk(self.pool(), self.env(), from).and_then(|w| w.single()) == Some(0);
+        let direct = vs == [Val::I32] && one_ref_first(self.pool(), self.env(), from);
         if direct || vs.is_empty() {
             // A value of no Wasm values needs no box: its slots load
             // nothing. A value that is one counted address is the data
@@ -84,7 +83,7 @@ impl Em<'_, '_, '_> {
             // A local reference counts nothing (`ref.count.local`): the
             // trait value made from one borrows its referent too.
             // A local reference has no count for the trait value to take.
-            let borrowed = !self.has_result_retain(i) && direct && self.counted(from).is_none();
+            let borrowed = !self.has_result_retain(i) && direct && !self.counted(from);
             if borrowed {
                 self.loans.insert(i);
             }
@@ -92,17 +91,16 @@ impl Em<'_, '_, '_> {
         }
         let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
-        let w = self.counted(from);
         let cyclic = self.cyclic_holding(&[from]);
-        let at = self.object(&m, w.as_ref(), cyclic, false, Some(from));
+        let counted = self.typed_parts(from)?;
+        let at = self.object_parts(&m, counted.clone(), cyclic, false);
         let part = Part {
             first: 0,
             count: m.leaves.len(),
             offset: 0,
         };
         self.store_part(at, &m, part, &src)?;
-        let colls = self.copied(from);
-        self.retain_fields(at, &m, w.as_ref(), &colls, colls.len());
+        self.retain_fields(at, &m, counted);
         let vt = self.vtable_of(table, Some(&m.leaves), from)?;
         self.f.get(at);
         self.f.push(Ins::VTable(vt));
@@ -169,7 +167,7 @@ impl Em<'_, '_, '_> {
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             hd_mono::work::dyn_emit(1);
-            let env = self.env();
+            let env = self.input.env;
             let mut params = Vec::new();
             // Counts the target needs from the slot's lent receiver
             // and borrowed arguments. Owned cold parameters and inline
@@ -184,7 +182,7 @@ impl Em<'_, '_, '_> {
                     // The receiver: a reference, or the value the slot
                     // passes, the payload or what its reference reads.
                     if matches!(self.kind(pt), crate::layout::Kind::Ref { .. }) {
-                        own.push((0, None));
+                        own.push((0, crate::rt::Counted::None));
                         continue;
                     }
                     pt = match (recv, self.kind(from)) {
@@ -199,14 +197,14 @@ impl Em<'_, '_, '_> {
                     self.pass_at(env.lends(t.item, t.args), k, pt)
                 };
                 let w = match target_pass {
-                    crate::layout::Pass::Owned(w)
+                    crate::layout::Pass::Owned
                         if !env.suspends(t.item)
                             || cold
                             || crate::layout::holds_drop(self.pool(), env, pt) =>
                     {
-                        Some(w)
+                        crate::rt::counted_of(self.input, self.m, pt)?
                     }
-                    _ => None,
+                    _ => crate::rt::Counted::None,
                 };
                 if k == 0 {
                     own.push((0, w));
@@ -214,14 +212,14 @@ impl Em<'_, '_, '_> {
                 }
                 let vs = self.vals(pt)?;
                 let n = u32::try_from(vs.len()).expect("values");
-                if matches!(self.pass(pt), crate::layout::Pass::Owned(_))
+                if matches!(self.pass(pt), crate::layout::Pass::Owned)
                     && (env.cold_transfers(*m, pt)
                         || crate::layout::holds_drop(self.pool(), env, pt))
                 {
-                    if w.is_none() {
+                    if !w.counts() {
                         given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));
                     }
-                    own.push((n, None));
+                    own.push((n, crate::rt::Counted::None));
                 } else {
                     own.push((n, w));
                 }
@@ -264,9 +262,9 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let retained_result = if env.return_loan_parameter(t.item, t.args).is_some() {
-                crate::layout::count_walk(self.pool(), env, t.ret)
+                crate::rt::counted_of(self.input, self.m, t.ret)?
             } else {
-                None
+                crate::rt::Counted::None
             };
             slots.push(if traps {
                 let mut all = vec![Val::I32];
@@ -322,7 +320,7 @@ impl Em<'_, '_, '_> {
                 .get(tail as usize)
                 .is_some_and(|&c| c == user || c == i)
             && !self.loans.contains(&tail)
-            && self.counted(self.ty_of(tail)).is_some()
+            && self.counted(self.ty_of(tail))
         {
             self.owned_refs.insert(i);
         }
@@ -423,8 +421,7 @@ impl Em<'_, '_, '_> {
         // The payload as `trait_value` stored it: the data itself, no
         // values, or a box of the target's layout.
         let vs = self.vals(target)?;
-        let direct = vs == [Val::I32]
-            && walk(self.pool(), self.env(), target).and_then(|w| w.single()) == Some(0);
+        let direct = vs == [Val::I32] && one_ref_first(self.pool(), self.env(), target);
         let m = mem_of(self.pool(), self.env(), target)?;
         self.f.get(same);
         self.f.op(I::If(wasm_encoder::BlockType::Empty));
@@ -496,7 +493,7 @@ impl Em<'_, '_, '_> {
         // value one refers to, borrows as it does.
         let borrowed = !self.has_result_retain(i)
             && match &read {
-                Some((_, _, loaded)) => *loaded || self.counted(source).is_none(),
+                Some((_, _, loaded)) => *loaded || !self.counted(source),
                 None => self.loans.contains(&a),
             };
         if borrowed {

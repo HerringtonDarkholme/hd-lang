@@ -4,20 +4,9 @@
 use std::cell::Cell;
 
 thread_local! {
-    static WALK_PLANS: Cell<Option<u64>> = const { Cell::new(None) };
     static MEMBER_LAYOUTS: Cell<Option<u64>> = const { Cell::new(None) };
     static LAYOUT_LEAVES: Cell<Option<u64>> = const { Cell::new(None) };
     static LAYOUT_PARTS: Cell<Option<u64>> = const { Cell::new(None) };
-}
-
-/// Counts recipe nodes/edges, mapping composition and view/import visits.
-pub fn count_walk_plans<R>(run: impl FnOnce() -> R) -> (R, u64) {
-    count(&WALK_PLANS, run)
-}
-
-pub fn walk_plans(n: usize) {
-    hd_base::work::add(hd_base::work::Counter::WalkPlans, n as u64);
-    add(&WALK_PLANS, n);
 }
 
 /// Counts the members the layout's struct and tuple member memo lays

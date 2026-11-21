@@ -42,13 +42,7 @@ fn a_serial_run_reports_every_counter_and_repeats_its_counts() {
         String::from_utf8_lossy(&first.stderr)
     );
     let report = std::fs::read_to_string(&work).expect("report");
-    for name in [
-        "allocs",
-        "alloc_bytes",
-        "hashes",
-        "item_body_checks",
-        "walk_plans",
-    ] {
+    for name in ["allocs", "alloc_bytes", "hashes", "item_body_checks"] {
         assert!(report.contains(&format!("\"{name}\":")), "{name}: {report}");
     }
     assert!(!report.contains("\"allocs\":0,"), "{report}");

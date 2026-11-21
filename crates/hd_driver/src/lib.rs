@@ -1605,6 +1605,9 @@ impl Drop for Owed<'_> {
 
 /// A lifted generic local function's template, or `None` where its copy
 /// failed (`hd_tir::ir::function_template`).
+/// Each count shim's body made this run, by type, kind and portion.
+type ShimBodies =
+    HashMap<(Ty, hd_layout::shims::Shim, hd_layout::shims::Portion), Option<Arc<Body>>>;
 type LiftedTemplate = Option<Arc<Body>>;
 
 struct Run<'a> {
@@ -11537,9 +11540,53 @@ impl Run<'_> {
                 || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
             let coinductive_flags =
                 hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
+            // Each `Drop` implementation's instance, by its type, for the
+            // release shims: one pass over the instances. Types may share
+            // one instance (its key), so each type keeps its own entry.
+            let table = &c.collected.table;
+            let at: hd_base::HashMap<Hash128, usize> =
+                (0..table.key.len()).map(|k| (table.key[k], k)).collect();
+            let hook_of: hd_base::HashMap<Ty, (DefId, TyList)> = c
+                .collected
+                .drop_glue
+                .iter()
+                .filter_map(|(&t, key)| {
+                    let &k = at.get(key)?;
+                    Some((t, (table.item[k], table.args[k])))
+                })
+                .collect();
+            let hooks = |t: Ty| hook_of.get(&t).copied();
+            // Each type's count shims, made once per run (`hd_layout::shims`).
+            let shims = std::sync::Mutex::new((
+                HashMap::<hd_layout::shims::Portion, hd_layout::shims::Counts>::default(),
+                ShimBodies::default(),
+            ));
+            let shim = |t: Ty, kind: hd_layout::shims::Shim, portion: hd_layout::shims::Portion| {
+                let mut memo = shims
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let (all, made) = &mut *memo;
+                let counts = all
+                    .entry(portion)
+                    .or_insert_with(|| hd_layout::shims::Counts::new(portion));
+                let count = counts.of(&self.pool, env, t)?;
+                let shape = counts.shape(&self.pool, env, t)?;
+                if let Some(b) = made.get(&(t, kind, portion)) {
+                    return Ok((count, shape, b.clone()));
+                }
+                let item = match kind {
+                    hd_layout::shims::Shim::Retain => self.known.retain_value,
+                    hd_layout::shims::Shim::Release => self.known.release_value,
+                };
+                let b = hd_layout::shims::shim(&self.pool, env, counts, &hooks, item, t, kind)?
+                    .map(Arc::new);
+                made.insert((t, kind, portion), b.clone());
+                Ok((count, shape, b))
+            };
             let input = hd_wasm::Input {
                 pool: &self.pool,
                 env,
+                shim: &shim,
                 path: &path,
                 package_host: &package_host,
                 package_trait: &package_trait,

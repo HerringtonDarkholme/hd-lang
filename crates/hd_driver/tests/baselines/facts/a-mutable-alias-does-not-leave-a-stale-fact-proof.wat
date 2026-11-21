@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl Facts.find[std.serde.EnumTagging]" (func $"impl Facts.find[std.serde.EnumTagging]" (param i32) (result i32 i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32 i32)))
+  (import "fixture" "release_value[std.serde.EnumTagging?]" (func $"release_value[std.serde.EnumTagging?]" (param i32 i32 i32 i32 i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $mutated (param $value i64) (result i64) (local $t0 i32) (local $t1 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t6 i32)
@@ -76,7 +76,7 @@
       i32.load $heap offset=12
       local.get $t0
       i32.load $heap offset=16
-      call $rt:release
+      call $"release_value[std.serde.EnumTagging?]"
     end
     local.get $t6
     if (result i64)

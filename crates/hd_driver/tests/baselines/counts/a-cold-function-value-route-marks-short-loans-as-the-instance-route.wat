@@ -17,7 +17,6 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -998,8 +997,10 @@
       end
     end
     local.get $t3
-    local.get $t2
-    call $rt:release
+    if
+      local.get $t3
+      call $rt:release_ref'2
+    end
     local.get $value.1
     local.get $frame
     if
@@ -1263,8 +1264,10 @@
       end
     end
     local.get $t3
-    local.get $t2
-    call $rt:release
+    if
+      local.get $t3
+      call $rt:release_ref'2
+    end
     local.get $value.1
     local.get $frame
     if

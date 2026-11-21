@@ -5,7 +5,7 @@
   (import "fixture" "rt:idle_block" (func $rt:idle_block (result i32)))
   (import "fixture" "rt:wake_mark" (func $rt:wake_mark (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]" (func $"release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]" (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "rewake" (global $rewake (mut i32)))
@@ -129,7 +129,7 @@
     local.get $provider0
     local.get $path.1
     local.get $path.0
-    call $rt:release
+    call $"release_value[std.task.BlockOn[Result[string, std.fs.FsError]]]"
     local.get $t5
     local.get $t0
     i32.const 56

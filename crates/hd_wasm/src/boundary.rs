@@ -27,7 +27,7 @@ use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{self, IsOps as _, Leaf, Walk};
+use crate::layout::{self, IsOps as _, Leaf};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};
@@ -453,11 +453,12 @@ fn of_at(
                     LTy::Bytes
                 } else {
                     let mem = layout::mem(pool, env, e)?;
+                    let counted = crate::rt::counted_of(input, m, e)?;
                     let elem = Elem {
                         size: mem.size,
                         leaves: mem.leaves,
-                        walk: layout::walk(pool, env, e),
-                        drops: Vec::new(),
+                        counted,
+                        parts: Vec::new(),
                         colls: layout::coll_leaves(pool, env, e),
                         cyclic: crate::cycle::object(pool, env, t),
                     };
@@ -473,13 +474,14 @@ fn of_at(
                     "ruled out: `Map` has a key and a value type"
                 );
                 let (k, v) = (items[0], items[1]);
-                let entry = crate::map::Entry::of(input, s, (k, v))?;
+                let entry = crate::map::Entry::of(input, m, s, (k, v))?;
                 let collected = &input.collected.boundary;
                 // ruled out: hd_mono's note_boundary_value selects the key
                 // operations of every map type a boundary value reaches.
                 let ops = (collected.get(&t).or_else(|| collected.get(&s)))
                     .and_then(|c| c.map_key.as_ref())
                     .map(|o| crate::map::KeyOps::of(input, m, o, &entry.key_vals()))
+                    .transpose()?
                     .expect("ruled out: a boundary map without its key operations");
                 let key = of_at(input, m, k, path, at)?;
                 let val = of_at(input, m, v, path, at)?;
@@ -610,11 +612,12 @@ fn object_of(
     let (pool, env) = (input.pool, input.env);
     let mem = layout::mem(pool, env, target)?;
     let tracked = crate::cycle::holding(pool, env, &[target]);
+    let counted = crate::rt::counted_of(input, m, target)?;
     let elem = Elem {
         size: mem.size,
         leaves: mem.leaves,
-        walk: layout::count_walk(pool, env, target),
-        drops: Vec::new(),
+        counted,
+        parts: Vec::new(),
         colls: Vec::new(),
         cyclic: tracked,
     };
@@ -914,7 +917,7 @@ pub fn host_slot(
             method,
             args,
             result,
-            owned: synchronous_owned_arguments(input, &types)?,
+            owned: synchronous_owned_arguments(input, mm, &types)?,
         });
     }
     let res = match row.result {
@@ -938,7 +941,7 @@ pub fn host_slot(
             }
         }
     };
-    let (area, counts) = args_area(input, &types, m)?;
+    let (area, counts) = args_area(input, mm, &types, m)?;
     Ok(Helper::HostCold {
         module,
         method,
@@ -1208,11 +1211,11 @@ fn tags_only(body: &Body, root: u32) -> bool {
 /// takes value arguments and their Drop hooks, and retains borrowed references.
 fn args_area(
     input: &Input<'_>,
+    m: &mut Module,
     types: &[Ty],
     method: DefId,
 ) -> StageResult<(Elem, crate::rt::HostCounts)> {
     let (pool, env) = (input.pool, input.env);
-    let (mem, parts) = layout::payload_mem(pool, env, types)?;
     // Inline Drop arguments move even under the borrowed cold convention,
     // exactly as OwnCx::cold_moves and Em::push_cold_operand require.
     let transfers = |ty| env.cold_transfers(method, ty) || layout::holds_drop(pool, env, ty);
@@ -1224,71 +1227,75 @@ fn args_area(
             "host collection arguments transfer"
         );
     }
+    let (mem, at) = layout::payload_mem(pool, env, types)?;
+    let mut parts = Vec::new();
+    let (mut borrowed, mut owned) = (Vec::new(), Vec::new());
+    for (&ty, p) in types.iter().zip(&at) {
+        let counted = crate::rt::counted_of(input, m, ty)?;
+        if counted.counts() {
+            let part = (p.first_leaf(), counted);
+            if transfers(ty) {
+                owned.push(part.clone());
+            } else {
+                borrowed.push(part.clone());
+            }
+            parts.push(part);
+        }
+    }
     let area = Elem {
         size: mem.size,
         leaves: mem.leaves,
-        walk: layout::fields_walk(pool, env, types),
-        drops: argument_drops(input, types, &parts)?,
+        counted: crate::rt::Counted::None,
+        parts,
         colls: Vec::new(),
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
         cyclic: crate::cycle::holding(pool, env, types),
     };
-    let borrowed = layout::fields_walk_by(pool, env, types, &|ty| {
-        (!transfers(ty))
-            .then(|| layout::count_walk(pool, env, ty))
-            .flatten()
-    });
-    let owned = layout::fields_walk_by(pool, env, types, &|ty| {
-        transfers(ty)
-            .then(|| layout::count_walk(pool, env, ty))
-            .flatten()
-    });
     Ok((area, crate::rt::HostCounts { borrowed, owned }))
 }
 
 /// Synchronous slots borrow ordinary values, but take inline Drop values.
 /// Only those values need cleanup when the host import returns.
-fn synchronous_owned_arguments(input: &Input<'_>, types: &[Ty]) -> StageResult<Option<Elem>> {
+fn synchronous_owned_arguments(
+    input: &Input<'_>,
+    m: &mut Module,
+    types: &[Ty],
+) -> StageResult<Option<Elem>> {
     let (pool, env) = (input.pool, input.env);
-    let walk = layout::fields_walk_by(pool, env, types, &|ty| {
-        layout::holds_drop(pool, env, ty)
-            .then(|| layout::count_walk(pool, env, ty))
-            .flatten()
-    });
-    let Some(walk) = walk else {
-        return Ok(None);
-    };
-    let (mem, parts) = layout::payload_mem(pool, env, types)?;
-    Ok(Some(Elem {
+    let (mem, at) = layout::payload_mem(pool, env, types)?;
+    let mut parts = Vec::new();
+    for (&ty, p) in types.iter().zip(&at) {
+        if layout::holds_drop(pool, env, ty) {
+            let counted = crate::rt::counted_of(input, m, ty)?;
+            parts.push((p.first_leaf(), counted));
+        }
+    }
+    Ok((!parts.is_empty()).then(|| Elem {
         size: mem.size,
         leaves: mem.leaves,
-        walk: Some(walk),
-        drops: argument_drops(input, types, &parts)?,
+        counted: crate::rt::Counted::None,
+        parts,
         colls: Vec::new(),
         cyclic: false,
     }))
 }
 
-/// Releases the values a host slot takes, after its synchronous call or
-/// its immediate Ready drive. Return values remain underneath on the stack.
-pub(crate) fn release_host_arguments(f: &mut Func, m: &Module, area: &Elem, walk: &Walk) {
+/// Releases `parts` of the values a host slot takes, in its parameters
+/// from 1 on laid out as `area`, after its synchronous call or its
+/// immediate Ready drive; a hooked one runs its hooks in a frame slot.
+/// Return values remain underneath on the stack.
+pub(crate) fn release_host_arguments(
+    f: &mut Func,
+    m: &Module,
+    area: &Elem,
+    parts: &[(u32, crate::rt::Counted)],
+) {
+    let _ = area;
     let start = f.body.len();
-    for (local, _) in (1u32..).zip(&area.leaves) {
-        f.get(local);
-    }
-    if area.drops.is_empty() {
-        f.helper(Helper::Release {
-            vals: area.leaves.iter().map(|leaf| leaf.val).collect(),
-            walk: walk.clone(),
-        });
-    } else {
-        f.helper(Helper::DropValue {
-            size: area.size,
-            leaves: area.leaves.clone(),
-            walk: walk.clone(),
-            drops: area.drops.clone(),
-        });
+    for (first, counted) in parts {
+        let first = *first;
+        counted.emit(f, m, &|f, k| f.get(first + k + 1), false);
     }
     if m.track_origins {
         f.note_runtime_count(
@@ -1298,100 +1305,6 @@ pub(crate) fn release_host_arguments(f: &mut Func, m: &Module, area: &Elem, walk
             hd_tir::own::Reason::LastUse,
         );
     }
-}
-
-/// Structural hooks for moved inline host arguments. Counted objects run
-/// their own hooks through their descriptor, so only inline nodes expand.
-/// Cost: one iterative visit per inline layout node plus the guard words
-/// emitted for actual hooks. Guard ancestry is shared until a hook needs it.
-fn argument_drops(
-    input: &Input<'_>,
-    types: &[Ty],
-    parts: &[layout::Part],
-) -> StageResult<Vec<crate::rt::DropCall>> {
-    use layout::{Is, Kind, Test};
-    let (pool, env) = (input.pool, input.env);
-    let mut work: Vec<_> = types
-        .iter()
-        .zip(parts)
-        .rev()
-        .map(|(&ty, part)| (ty, part.offset, None))
-        .collect();
-    let mut ancestry: Vec<(Option<usize>, layout::Leaf, Is)> = Vec::new();
-    let mut out = Vec::new();
-    while let Some((ty, base, guard)) = work.pop() {
-        if !matches!(layout::kind(pool, env, ty), Kind::Value) {
-            continue;
-        }
-        if let Some(&target) = input.collected.drop_glue.get(&ty) {
-            let mut guards = Vec::new();
-            let mut at = guard;
-            while let Some(index) = at {
-                let (parent, cell, is) = ancestry[index];
-                guards.push((cell, is));
-                at = parent;
-            }
-            guards.reverse();
-            out.push(crate::rt::DropCall {
-                offset: base,
-                target,
-                guards,
-            });
-        }
-        let ty = layout::strip_newtype(pool, env, ty);
-        if let Some(variants) = layout::variants(pool, env, ty) {
-            let flat = crate::emit::required(
-                layout::flat(pool, env, ty)?,
-                "layout::variants supplies the enum's cached flat layout",
-            );
-            let first_child = work.len();
-            for (variant, (fields, offsets)) in (0u32..).zip(variants.iter().zip(&flat.offsets)) {
-                let guard = match flat.test(variant) {
-                    Test::Const(true) => guard,
-                    Test::Const(false) | Test::Read(_, Is::Never) => continue,
-                    Test::Read(disc, is) => {
-                        let index = ancestry.len();
-                        ancestry.push((
-                            guard,
-                            layout::Leaf {
-                                offset: base + disc.leaf.offset,
-                                ..disc.leaf
-                            },
-                            is,
-                        ));
-                        Some(index)
-                    }
-                };
-                work.extend(
-                    fields
-                        .iter()
-                        .zip(offsets)
-                        .map(|(&field, &offset)| (field, base + offset, guard)),
-                );
-            }
-            work[first_child..].reverse();
-        } else {
-            let fields: Vec<_> = match pool.get(ty) {
-                TyData::Tuple { .. } => layout::tuple_members(pool, ty),
-                TyData::Adt { def, args } if !env.is_enum(def) => env
-                    .data_fields(def)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|field| subst(pool, env, def, args, field))
-                    .collect(),
-                _ => continue,
-            };
-            let (_, parts) = layout::payload_mem(pool, env, &fields)?;
-            work.extend(
-                fields
-                    .into_iter()
-                    .zip(parts)
-                    .rev()
-                    .map(|(field, part)| (field, base + part.offset, guard)),
-            );
-        }
-    }
-    Ok(out)
 }
 
 /// Where a host handle's methods come from.
@@ -1808,11 +1721,7 @@ pub fn host_call(
         f.op(I::Drop);
     }
     if let Some(area) = owned {
-        let walk = crate::emit::required(
-            area.walk.as_ref(),
-            "synchronous_owned_arguments includes an owned walk",
-        );
-        release_host_arguments(&mut f, m, area, walk);
+        release_host_arguments(&mut f, m, area, &area.parts);
     }
     f
 }
@@ -2048,16 +1957,17 @@ fn dec_into(f: &mut Func, off: u32, b: &LTy) -> Vec<u32> {
     ls
 }
 
+/// A value whose one counted address is its first, found through its
+/// block (a string's buffer, a box).
+const ADDRESS: crate::rt::Counted = crate::rt::Counted::Address {
+    index: 0,
+    known: false,
+};
+
 /// One count less on the values in locals `ls`, laid out with counted
 /// references at `walk`, when the program counts.
-fn release(f: &mut Func, _m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Walk>) {
-    let Some(walk) = walk else {
-        return;
-    };
-    for l in ls {
-        f.get(*l);
-    }
-    f.helper(Helper::Release { vals, walk });
+fn release(f: &mut Func, m: &Module, ls: &[u32], counted: &crate::rt::Counted) {
+    counted.emit(f, m, &|f, k| f.get(ls[k as usize]), false);
 }
 
 /// [`Helper::Enc`]: the encoder of `b`, `(off, values...) -> off'`.
@@ -2272,7 +2182,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
                 f.get(text[0]);
                 f.get(text[1]);
             });
-            release(f, m, &text, vec![Val::I32, Val::I32], Some(Walk::Ref(0)));
+            release(f, m, &text, &ADDRESS);
             crate::wide::locals_frame(
                 f,
                 base,
@@ -2534,11 +2444,10 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
             let vals = dec_into(f, 0, &o.ty);
             let obj = f.local(Val::I32);
             f.u32(o.elem.size);
-            let glue = o.elem.walk.as_ref().map(|w| {
-                Sym::Helper(Helper::DropFields {
+            let glue = o.elem.counted.counts().then(|| {
+                Sym::Helper(Helper::DropParts {
                     leaves: o.elem.leaves.clone(),
-                    walk: w.clone(),
-                    drops: Vec::new(),
+                    parts: vec![(0, o.elem.counted.clone())],
                 })
             });
             crate::rt::push_desc_recursive(f, glue, o.elem.cyclic, o.recursive);
@@ -2643,10 +2552,10 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
                 // first goes. `wrap` owns its argument (`layout::Pass`),
                 // so it takes a count of the box of its own.
                 {
-                    own_arg(f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
+                    own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
                 }
                 f.call(Sym::Inst(wrap));
-                release(f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
+                release(f, m, &[data], &ADDRESS);
             }
         }
         LTy::Codec(c) => {
@@ -2770,8 +2679,8 @@ fn byte_elem() -> Elem {
             bytes: 1,
             signed: false,
         }],
-        walk: None,
-        drops: Vec::new(),
+        counted: crate::rt::Counted::None,
+        parts: Vec::new(),
         colls: Vec::new(),
         cyclic: false,
     }

@@ -45,15 +45,20 @@ impl Em<'_, '_, '_> {
 
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
-    pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
+    pub(super) fn entry(&mut self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
+        let (kt, vt) = self.map_types(t);
+        Ok((kt, vt, Entry::of(self.input, self.m, t, (kt, vt))?))
+    }
+
+    /// The key and value types of map type `t`.
+    pub(super) fn map_types(&self, t: Ty) -> (Ty, Ty) {
         // ruled out: collected map operands are Map[K, V]; the driver roots std runtime items.
         let (_, args) =
             (self.pool().adt(strip_newtype(self.pool(), self.env(), t))).expect("a map");
-        let (kt, vt) = (
+        (
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],
-        );
-        Ok((kt, vt, Entry::of(self.input, t, (kt, vt))?))
+        )
     }
 
     /// How instruction `i`'s map hashes and compares keys whose values
@@ -65,13 +70,14 @@ impl Em<'_, '_, '_> {
     /// `hash_string(string, u64)` by the key's primitive type, else
     /// `hash_key[K](K, u64) -> u32` and `key_equal[K](K, K) -> bool`, so
     /// each takes the key's values.
-    fn key_ops(&self, i: u32, key: &[Val]) -> KeyOps {
-        let ops = self
-            .calls
-            .get(&i)
-            .map(|t| KeyOps::of(self.input, self.m, t, key));
+    fn key_ops(&mut self, i: u32, key: &[Val]) -> StageResult<KeyOps> {
+        let target = self.calls.get(&i).cloned();
         // ruled out: hd_mono::map_key collects every map operation's key ops.
-        super::required(ops, "collection selects a map operation's key operations")
+        let target = super::required(
+            target,
+            "collection selects a map operation's key operations",
+        );
+        KeyOps::of(self.input, self.m, &target, key)
     }
 
     /// Key `r` in fresh locals.
@@ -179,7 +185,7 @@ impl Em<'_, '_, '_> {
             self.f.get(m);
             return self.store(i);
         }
-        let ops = self.key_ops(i, &e.key_vals());
+        let ops = self.key_ops(i, &e.key_vals())?;
         for pair in items.chunks(2) {
             let key = self.consumed(pair[0])?;
             let kl: Vec<u32> = e.key_vals().iter().map(|v| self.f.local(*v)).collect();
@@ -395,7 +401,7 @@ impl Em<'_, '_, '_> {
     /// map's place.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
-        let ops = self.key_ops(i, &e.key_vals());
+        let ops = self.key_ops(i, &e.key_vals())?;
         let m = self.buffer(args[0])?;
         if op == IntrinsicOp::MapSet {
             let source = self.map_probe_source(i, args[0], args[1]);
@@ -637,7 +643,7 @@ impl Em<'_, '_, '_> {
         // ruled out: the probe's receiver is `&mut self` by its signature.
         let (mt, _) = self.cx().reference(self.ty_of(map)).expect("`&mut self`");
         let (kt, vt, entry) = self.entry(mt)?;
-        let ops = self.key_ops(i, &entry.key_vals());
+        let ops = self.key_ops(i, &entry.key_vals())?;
         let at = self.f.local(Val::I32);
         self.comp(map, 0)?;
         self.f.set(at);

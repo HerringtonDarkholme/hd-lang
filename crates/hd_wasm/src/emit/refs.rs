@@ -121,18 +121,12 @@ fn project_reference(function: &mut crate::module::Func, at: u32, value: &RefLay
 }
 
 impl Em<'_, '_, '_> {
-    pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
+    pub(super) fn ref_layout(&mut self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
-        let walk = self.counted(ty);
         Ok(RefLayout {
             size: m.size,
             leaves: m.leaves,
-            walk,
-            drops: if matches!(self.kind(ty), Kind::Value) {
-                self.drop_calls(ty).into()
-            } else {
-                Box::default()
-            },
+            counted: crate::rt::counted_of(self.input, self.m, ty)?,
             colls: self.copied(ty).into(),
         })
     }
@@ -788,10 +782,10 @@ impl Em<'_, '_, '_> {
                 // A local no cell holds, as a closure's copy of what it
                 // captured, which never changes: the reference is to a new
                 // object holding a copy (`ref.expr.allocate`).
-                let w = self.counted(ty);
                 let cyclic = self.cyclic_holding(&[ty]);
                 let recursive = self.recursive_object(ty);
-                let obj = self.object(&m, w.as_ref(), cyclic, recursive, Some(ty));
+                let counted = self.typed_parts(ty)?;
+                let obj = self.object_parts(&m, counted.clone(), cyclic, recursive);
                 let src = Src::Locals(ls[first..first + m.leaves.len()].to_vec());
                 let all = Part {
                     first: 0,
@@ -799,8 +793,7 @@ impl Em<'_, '_, '_> {
                     offset: 0,
                 };
                 self.store_part(obj, &m, all, &src)?;
-                let colls = self.copied(ty);
-                self.retain_fields(obj, &m, w.as_ref(), &colls, colls.len());
+                self.retain_fields(obj, &m, counted);
                 self.f.get(obj);
                 // A local reference owns the copy; a counted reference's
                 // count of it is the reference's own.
@@ -906,7 +899,7 @@ impl Em<'_, '_, '_> {
         crate::work::use_facts(1);
         let shared_copy = !crate::layout::ref_mutable(self.pool(), self.env(), ref_ty)
             && !self.cx().tracked(target)
-            && self.drop_calls(target).is_empty();
+            && !crate::layout::holds_drop(self.pool(), self.env(), target);
         self.susp.is_none()
             && (self.loans.contains(&i) || shared_copy)
             && matches!(self.kind(target), Kind::Value)
@@ -932,7 +925,7 @@ impl Em<'_, '_, '_> {
         {
             return Ok(false);
         }
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let (pt, part) = self.fold_path(self.b.local_ty[l], &path)?;
         ledger!("partial-move/out-of-cell-zeroed");
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();
@@ -1142,7 +1135,7 @@ impl Em<'_, '_, '_> {
         let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let release = self.releases_old();
-        rt::ref_store(&mut self.f, at, &ls, &value, moved, release);
+        rt::ref_store(&mut self.f, self.m, at, &ls, &value, moved, release);
         Ok(())
     }
 
@@ -1163,7 +1156,7 @@ impl Em<'_, '_, '_> {
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let dst = self.offset_local(at, part.offset);
         let release = self.releases_old();
-        rt::ref_store(&mut self.f, dst, &ls, &field, moved, release);
+        rt::ref_store(&mut self.f, self.m, dst, &ls, &field, moved, release);
         Ok(())
     }
 
@@ -1459,8 +1452,8 @@ impl Em<'_, '_, '_> {
         while let Some(&step) = steps.next() {
             match step {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
-                Proj::Elem(_) if self.cx().is_map(ty) => ty = self.entry(ty)?.1,
-                Proj::Elem(_) => ty = self.elem(ty)?.0,
+                Proj::Elem(_) if self.cx().is_map(ty) => ty = self.map_types(ty).1,
+                Proj::Elem(_) => ty = self.elem_ty(ty),
                 Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
                     let f = place_field(steps.next());
@@ -1571,7 +1564,7 @@ mod tests {
 
     #[test]
     fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
-        use crate::layout::{Leaf, Walk};
+        use crate::layout::Leaf;
         use crate::module::{Func, Ins, Val};
         use crate::op::Op;
         use crate::rt::RefLayout;
@@ -1590,8 +1583,10 @@ mod tests {
                     signed: false,
                 })
                 .into(),
-            walk: Some(Walk::Ref(0)),
-            drops: Box::default(),
+            counted: crate::rt::Counted::Address {
+                index: 0,
+                known: false,
+            },
             colls: Box::default(),
         };
         for fat in [false, true] {

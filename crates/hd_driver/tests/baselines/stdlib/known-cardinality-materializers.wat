@@ -6,11 +6,11 @@
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop'1" (func $rt:drop'1 (param i32)))
+  (import "fixture" "rt:cell_drop'1" (func $rt:cell_drop'1 (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[i32]" (func $"impl[T < Copy] UniqList[T].from_list[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (param i32)))
   (import "fixture" "rt:list_reserve'2" (func $rt:list_reserve'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop'2" (func $rt:drop'2 (param i32)))
+  (import "fixture" "rt:cell_drop'2" (func $rt:cell_drop'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32]" (param i32 i32 i32)))
@@ -24,10 +24,10 @@
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "rt:drop'3" (func $rt:drop'3 (param i32)))
+  (import "fixture" "rt:cell_drop'3" (func $rt:cell_drop'3 (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
-  (import "fixture" "rt:drop'4" (func $rt:drop'4 (param i32)))
+  (import "fixture" "rt:cell_drop'4" (func $rt:cell_drop'4 (param i32)))
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -193,7 +193,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'1
+        call $rt:cell_drop'1
       end
     end
     local.get $t2
@@ -335,7 +335,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'2
+        call $rt:cell_drop'2
       end
     end
     local.get $t2
@@ -672,7 +672,7 @@
       local.get $t5
       if
         local.get $t5
-        call $rt:drop'2
+        call $rt:cell_drop'2
       end
     end
     local.get $t2
@@ -1764,7 +1764,7 @@
       local.get $t5
       if
         local.get $t5
-        call $rt:drop'3
+        call $rt:cell_drop'3
       end
     end
     local.get $t2
@@ -2021,7 +2021,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'4
+        call $rt:cell_drop'4
       end
     end
     local.get $t2
@@ -2227,11 +2227,11 @@
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop'1" (func $rt:drop'1 (param i32)))
+  (import "fixture" "rt:cell_drop'1" (func $rt:cell_drop'1 (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[i32]" (func $"impl[T < Copy] UniqList[T].from_list[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]" (param i32)))
   (import "fixture" "rt:list_reserve'2" (func $rt:list_reserve'2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:drop'2" (func $rt:drop'2 (param i32)))
+  (import "fixture" "rt:cell_drop'2" (func $rt:cell_drop'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
@@ -2246,10 +2246,10 @@
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "rt:drop'3" (func $rt:drop'3 (param i32)))
+  (import "fixture" "rt:cell_drop'3" (func $rt:cell_drop'3 (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
-  (import "fixture" "rt:drop'4" (func $rt:drop'4 (param i32)))
+  (import "fixture" "rt:cell_drop'4" (func $rt:cell_drop'4 (param i32)))
   (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -2415,7 +2415,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'1
+        call $rt:cell_drop'1
       end
     end
     local.get $t2
@@ -2557,7 +2557,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'2
+        call $rt:cell_drop'2
       end
     end
     local.get $t2
@@ -2898,7 +2898,7 @@
       local.get $t5
       if
         local.get $t5
-        call $rt:drop'2
+        call $rt:cell_drop'2
       end
     end
     local.get $t2
@@ -4000,7 +4000,7 @@
       local.get $t5
       if
         local.get $t5
-        call $rt:drop'3
+        call $rt:cell_drop'3
       end
     end
     local.get $t2
@@ -4259,7 +4259,7 @@
       local.get $t4
       if
         local.get $t4
-        call $rt:drop'4
+        call $rt:cell_drop'4
       end
     end
     local.get $t2

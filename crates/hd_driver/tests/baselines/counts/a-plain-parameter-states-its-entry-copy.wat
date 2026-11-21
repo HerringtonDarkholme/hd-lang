@@ -15,8 +15,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
-  (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:cell_drop" (func $rt:cell_drop (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -505,7 +504,7 @@
     local.get $t2
     if
       local.get $t2
-      call $rt:drop
+      call $rt:cell_drop
     end
     local.get $t1
     local.get $provider0
@@ -531,12 +530,6 @@
   (func $unique (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
     ;; 36 |     value
     local.get $value.buffer.address
-    i32.const 0
-    i32.const 0
-    i32.const 0
-    i32.const 0
-    i32.const 0
-    call $rt:drop_value
     local.get $value.buffer.capacity
     local.get $value.len
   )

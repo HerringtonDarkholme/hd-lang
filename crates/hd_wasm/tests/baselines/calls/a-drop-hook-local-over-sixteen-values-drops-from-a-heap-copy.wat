@@ -2,14 +2,12 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "mk" (func $mk (param i32 i32)))
-  (import "fixture" "rt:heap_frame" (func $rt:heap_frame (param i32) (result i32)))
-  (import "fixture" "rt:hooks_at" (func $rt:hooks_at (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "release_value[std.rt_tests.stage_case.Big]" (func $"release_value[std.rt_tests.stage_case.Big]" (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $local (param $x i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $local (param $x i32) (result i32) (local $t0 i32) (local $t1 i64)
     ;; 65 |     let b = mk(x)
     global.get $stack
     global.get $stack_limit
@@ -31,49 +29,19 @@
     ;; 66 |     b.f2 + b.f3
     local.get $t0
     i32.load $heap offset=24
-    local.set $x
     local.get $t0
     i32.load $heap offset=28
-    local.set $t1
-    i32.const 88
-    call $rt:heap_frame
-    local.tee $t2
+    local.set $x
     local.get $t0
-    i32.const 80
-    memory.copy $heap $heap
-    local.get $t2
-    call $rt:hooks_at
-    local.get $t0
-    local.get $t2
-    i32.const 80
-    memory.copy $heap $heap
-    global.get $stack
-    i32.const 88
-    i32.add
-    global.set $stack
-    local.get $t0
-    i32.load $heap
-    local.tee $t2
-    if
-      local.get $t2
-      call $rt:release_ref
-    end
-    local.get $t0
-    i32.load $heap offset=8
-    local.tee $t2
-    if
-      local.get $t2
-      call $rt:release_ref
-    end
+    call $"release_value[std.rt_tests.stage_case.Big]"
+    i64.extend_i32_s
     local.get $x
     i64.extend_i32_s
-    local.get $t1
-    i64.extend_i32_s
     i64.add
-    local.tee $t3
+    local.tee $t1
     i64.const 2147483647
     i64.gt_s
-    local.get $t3
+    local.get $t1
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -81,7 +49,7 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t3
+    local.get $t1
     i32.wrap_i64
     ;; 65 |     let b = mk(x)
     local.get $t0

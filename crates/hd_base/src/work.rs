@@ -54,7 +54,6 @@ counters! {
     EnumSteps = "enum_steps",
     TypeSteps = "type_steps",
     Control = "control",
-    WalkPlans = "walk_plans",
     UseFacts = "use_facts",
     LoanQueries = "loan_queries",
     TraitLookup = "trait_lookup",

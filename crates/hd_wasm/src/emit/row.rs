@@ -100,9 +100,9 @@ impl Em<'_, '_, '_> {
             // Ordinary typed function payload (code, old env), 8 bytes. Its
             // existing count walk/drop/cycle traversal owns only old env.
             let layout = crate::layout::mem(self.pool(), self.env(), source_ty)?;
-            let walk = crate::layout::count_walk(self.pool(), self.env(), source_ty);
             let cyclic = self.cyclic_holding(&[source_ty]);
-            let at = self.object(&layout, walk.as_ref(), cyclic, false, None);
+            let counted = self.typed_parts(source_ty)?;
+            let at = self.object_parts(&layout, counted, cyclic, false);
             #[cfg(feature = "checked-report")]
             crate::rt::checked_kind(&mut self.f, self.m, 1);
             for component in 0..2 {

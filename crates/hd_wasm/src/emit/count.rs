@@ -15,6 +15,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
+use hd_layout::shims::Count;
 use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{NONE, Ref, Tag};
 use hd_tir::own::Reason;
@@ -23,7 +24,7 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::refs::bare_local;
 use super::value::Src;
-use crate::layout::{Pass, Walk, coll_kind, coll_leaves};
+use crate::layout::{Pass, coll_kind, coll_leaves};
 use crate::module::Val;
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -99,7 +100,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
         // A lent value (`Em::prepare_own_loans`) takes no count.
         if self.retained_before_result.remove(&value)
-            || self.loans.contains(&value)
+            || self.lent(value)
             || self.mem_retain(value)?
         {
             return Ok(());
@@ -113,6 +114,58 @@ impl Em<'_, '_, '_> {
         );
         let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))
+    }
+
+    /// A count statement of a lowered body (a shim) on `value`, as the walk
+    /// helpers counted: an address by the runtime's own count call, which
+    /// tests null itself, and a part with its own shim by that shim. Inline
+    /// fast paths belong at an ordinary body's count sites, not in glue.
+    pub(super) fn lowered_count(&mut self, i: u32, value: u32, retain: bool) -> StageResult<()> {
+        let t = self.ty(value);
+        // The statement's reason word states the portion it counts, and
+        // whether its value is a `&mut` of the part, counted in place:
+        // the reference, which nothing else reads, is computed here.
+        let reason = Info::read(self.b, i as usize).map_or(0, |c| c.reason);
+        let portion = hd_layout::shims::Portion::from_reason(reason);
+        if reason & hd_layout::shims::IN_PLACE != 0 {
+            self.comp(value, 0)?;
+            let at = self.f.local(crate::module::Val::I32);
+            self.f.set(at);
+            let TyData::Ref { inner, .. } = self.input.pool.get(t) else {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "an in-place count of a value that is no reference",
+                ));
+            };
+            let counted = crate::rt::counted_of_portion(self.input, self.m, inner, portion)?;
+            counted.emit_at(&mut self.f, self.m, &|f| f.get(at), &|_, _| {}, retain);
+            return Ok(());
+        }
+        let Some(ls) = self.vals.get(&value).cloned() else {
+            return Ok(());
+        };
+        self.count_portion(&ls, t, retain, portion)
+    }
+
+    /// One count more (`retain`) or less on `portion` of the value of `t`
+    /// in locals `ls`: an address's count call, or its shim.
+    pub(super) fn count_portion(
+        &mut self,
+        ls: &[u32],
+        t: Ty,
+        retain: bool,
+        portion: hd_layout::shims::Portion,
+    ) -> StageResult<()> {
+        let counted = crate::rt::counted_of_portion(self.input, self.m, t, portion)?;
+        counted.emit(&mut self.f, self.m, &|f, k| f.get(ls[k as usize]), retain);
+        Ok(())
+    }
+
+    /// Whether `value` is lent, so a count statement on it counts nothing:
+    /// never in a [`hd_tir::ir::Phase::Lowered`] body, whose count
+    /// statements are its counts, on borrowed values too.
+    fn lent(&self, value: u32) -> bool {
+        self.b.phase != hd_tir::ir::Phase::Lowered && self.loans.contains(&value)
     }
 
     /// Whether the passes state a `Retain` of `value`'s result right after
@@ -161,8 +214,7 @@ impl Em<'_, '_, '_> {
             {
                 for (arg, borrowed) in self.input_carriers(a, &self.rec(w))? {
                     if Ref(arg).as_inst().is_some()
-                        && crate::layout::function_input(self.pool(), self.env(), self.ty_of(arg))
-                            .transfer
+                        && self.env().function_input(self.ty_of(arg)).transfer
                         && !self.input_transferred.contains_key(&arg)
                     {
                         let flag = self.f.local(Val::I32);
@@ -199,7 +251,7 @@ impl Em<'_, '_, '_> {
     /// Borrowed portions of each physical source argument. A tuple spread
     /// follows its concrete flattened parameters, so Copy fields stay with
     /// the caller while adjacent unique fields transfer to their callees.
-    fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, Option<Walk>)>> {
+    fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, super::Carried)>> {
         let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip_newtype(
             self.pool(),
             self.env(),
@@ -216,11 +268,9 @@ impl Em<'_, '_, '_> {
             return Ok(args
                 .iter()
                 .map(|&arg| {
-                    (
-                        arg,
-                        crate::layout::function_input(self.pool(), self.env(), self.ty_of(arg))
-                            .borrowed,
-                    )
+                    let t = self.ty_of(arg);
+                    let lent = hd_layout::shims::input_portions(self.pool(), self.env(), t).0;
+                    (arg, lent.map(|p| vec![(0, t, p)]).unwrap_or_default())
                 })
                 .collect());
         }
@@ -244,10 +294,8 @@ impl Em<'_, '_, '_> {
                 if len > width - offset {
                     break;
                 }
-                if let Some(walk) =
-                    crate::layout::function_input(self.pool(), self.env(), t).borrowed
-                {
-                    borrowed.push(walk.shifted(offset));
+                if let Some(p) = hd_layout::shims::input_portions(self.pool(), self.env(), t).0 {
+                    borrowed.push((offset, t, p));
                 }
                 offset += len;
                 parameter += 1;
@@ -258,10 +306,7 @@ impl Em<'_, '_, '_> {
                     "spread argument does not partition into whole parameter ABIs",
                 ));
             }
-            out.push((
-                arg,
-                (!borrowed.is_empty()).then_some(Walk::sequence(borrowed)),
-            ));
+            out.push((arg, borrowed));
         }
         if parameter != params.len() {
             return Err(hd_base::NotImplemented::bug(
@@ -273,8 +318,17 @@ impl Em<'_, '_, '_> {
     }
 
     /// The counted references of a `t` value, when the program counts.
-    pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
-        crate::layout::count_walk(self.pool(), self.env(), t)
+    pub(super) fn counted(&self, t: Ty) -> bool {
+        crate::layout::counted(self.pool(), self.env(), t)
+    }
+
+    /// Whether a value of `t` counts as one known address (a thin counted
+    /// reference, a box): its count is its payload's.
+    pub(super) fn known_address(&mut self, t: Ty) -> StageResult<bool> {
+        Ok(matches!(
+            crate::rt::counted_of(self.input, self.m, t)?,
+            crate::rt::Counted::Address { known: true, .. }
+        ))
     }
 
     /// Whether `t` is a thin local reference (`ref.count.local`) in a
@@ -323,7 +377,7 @@ impl Em<'_, '_, '_> {
     /// and releases an object it owns, so it has work too: this is the
     /// ownership passes' walk ([`crate::layout::walk`]), not the count's.
     pub(super) fn needs_drop(&self, t: Ty) -> bool {
-        self.cx().tracked(t) || !self.drop_calls(t).is_empty()
+        self.cx().tracked(t) || crate::layout::holds_drop(self.pool(), self.env(), t)
     }
 
     /// Whether a new object of type `t` (a self-recursive enum's cell, a
@@ -361,7 +415,7 @@ impl Em<'_, '_, '_> {
     /// buffer carrying another count. On retain, `ls` holds borrowed bits
     /// to which the new count gives an owner; the reserved word stays 0.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
-        ledger!(if self.counted(t).is_some() || !self.drop_calls(t).is_empty() =>
+        ledger!(if self.counted(t) || crate::layout::holds_drop(self.pool(), self.env(), t) =>
             "count/{}/at-{}/{:?}", if retain { "retain" } else { "release" },
             self.emitting.last().map_or("none", |&i| self.b.tags[i as usize].name()),
             self.f.reason);
@@ -454,11 +508,19 @@ impl Em<'_, '_, '_> {
     }
 
     fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
-        if !retain && self.drop_inline(ls, t)? {
-            return Ok(());
-        }
-        let Some(mut w) = self.counted(t) else {
-            return Ok(());
+        let kind = if retain {
+            hd_layout::shims::Shim::Retain
+        } else {
+            hd_layout::shims::Shim::Release
+        };
+        let (count, shape, _) = (self.input.shim)(t, kind, hd_layout::shims::Portion::All)?;
+        let (index, known) = match count {
+            Count::None => return Ok(()),
+            Count::Address { index, known } => (index, known),
+            Count::Parts | Count::Call => {
+                let _ = shape;
+                return self.count_portion(ls, t, retain, hd_layout::shims::Portion::All);
+            }
         };
         let colls = if retain { self.copied(t) } else { Vec::new() };
         for &c in &colls {
@@ -466,34 +528,20 @@ impl Em<'_, '_, '_> {
             self.f.helper(Helper::CollCopy);
             self.f.set(ls[c as usize]);
         }
+        // The one address is the collection, copied above.
         if !colls.is_empty() {
-            match w.without(&colls) {
-                Some(rest) => w = rest,
-                None => return Ok(()),
-            }
-        }
-        if let (Some(k), Some(addr)) = (w.single(), w.addr()) {
-            self.f.get(ls[k as usize]);
-            if w.known() {
-                if retain {
-                    self.f.helper(Helper::RetainKnown);
-                } else {
-                    crate::rt::release_call(&mut self.f, addr);
-                }
-            } else {
-                self.ref_count(retain);
-            }
             return Ok(());
         }
-        for l in ls {
-            self.f.get(*l);
-        }
-        let vals = self.vals(t)?;
-        self.f.helper(if retain {
-            Helper::Retain { vals, walk: w }
+        self.f.get(ls[index as usize]);
+        if known {
+            if retain {
+                self.f.helper(Helper::RetainKnown);
+            } else {
+                crate::rt::release_call(&mut self.f, crate::layout::Addr::Known);
+            }
         } else {
-            Helper::Release { vals, walk: w }
-        });
+            self.ref_count(retain);
+        }
         Ok(())
     }
 
@@ -510,13 +558,19 @@ impl Em<'_, '_, '_> {
         if self.input.runtime.checked.is_none() {
             return Ok(());
         }
-        let Some(walk) = self.counted(t) else {
+        let counted = crate::rt::counted_of(self.input, self.m, t)?;
+        if !counted.counts() {
             return Ok(());
-        };
+        }
         let vals = self.vals(t)?;
-        self.m
-            .stored
-            .insert(h, crate::module::Stored { vals, walk, slot });
+        self.m.stored.insert(
+            h,
+            crate::module::Stored {
+                vals,
+                counted,
+                slot,
+            },
+        );
         Ok(())
     }
 
@@ -678,14 +732,10 @@ impl Em<'_, '_, '_> {
             let flag = *flag;
             self.f.get(flag);
             self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-            if let Some(walk) = borrowed.clone() {
-                for &local in &ls {
-                    self.f.get(local);
-                }
-                self.f.helper(Helper::Release {
-                    vals: self.vals(t)?,
-                    walk,
-                });
+            for &(off, pt, portion) in borrowed {
+                let n = self.vals(pt)?.len();
+                let at = off as usize;
+                self.count_portion(&ls[at..at + n], pt, false, portion)?;
             }
             self.f.op(crate::op::Op::Else);
         }
@@ -701,7 +751,7 @@ impl Em<'_, '_, '_> {
         ledger!(if transferred.is_some() => "drop-value/input-transferred-flag");
         if self.owned_refs.contains(&x) {
             self.release_owned_ref(&ls, t)?;
-        } else if !self.loans.contains(&x) {
+        } else if !self.lent(x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;
         }
         if let Some((flag, _)) = transferred {
@@ -828,7 +878,7 @@ impl Em<'_, '_, '_> {
                     && self.topo.sub[i] == u32::from(self.sub_id)
                     && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
                         let ty = self.b.local_ty[local as usize];
-                        matches!(self.parameter_pass(k, ty), Pass::Owned(_))
+                        matches!(self.parameter_pass(k, ty), Pass::Owned)
                     }))
                 .then_some((local as usize, Reason::from_word(c.reason)))
             })
@@ -1082,7 +1132,7 @@ impl Em<'_, '_, '_> {
         if mode == Some(ReadMode::Move)
             && (self.owned_locals.contains(&l)
                 || ((self.local_ref(self.ty(i)) || self.fat_local_ref(self.ty(i)))
-                    && self.counted(self.b.local_ty[l]).is_some()))
+                    && self.counted(self.b.local_ty[l])))
         {
             self.owned_refs.insert(i);
         }

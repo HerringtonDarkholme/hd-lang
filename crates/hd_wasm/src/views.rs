@@ -5,7 +5,7 @@ use hd_base::StageResult;
 use hd_mono::{ProgramEnv, printed_type_name, subst};
 use hd_types::{InternPool, Ty, TyData};
 
-use crate::layout::{self, Walk};
+use crate::layout;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypeLayout {
@@ -40,81 +40,55 @@ pub struct FieldLayout {
     pub niche: Option<layout::Niche>,
 }
 
+/// Whether a leaf held under the variant tests `held` (one list per place
+/// it appears) may be absent: no place holds it untested, and no test
+/// holds it in every variant unconditionally. O(the places).
+fn conditional(held: &[&[(layout::Discr, usize, usize)]]) -> bool {
+    if held.iter().any(|g| g.is_empty()) {
+        return false;
+    }
+    let mut tests: Vec<layout::Discr> = Vec::new();
+    for g in held {
+        if !tests.contains(&g[0].0) {
+            tests.push(g[0].0);
+        }
+    }
+    !tests.into_iter().any(|d| {
+        let under: Vec<_> = held.iter().filter(|g| g[0].0 == d).collect();
+        let n = under[0][0].2;
+        (0..n).all(|v| {
+            let arm: Vec<&[(layout::Discr, usize, usize)]> = under
+                .iter()
+                .filter(|g| g[0].1 == v)
+                .map(|g| &g[1..])
+                .collect();
+            !arm.is_empty() && !conditional(&arm)
+        })
+    })
+}
+
 fn counted(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     ty: Ty,
     base: u32,
 ) -> StageResult<Vec<CountedLeaf>> {
-    fn walk(w: &Walk) -> std::collections::BTreeMap<u32, bool> {
-        use crate::layout::WalkKind;
-        use std::collections::BTreeMap;
-        enum Task {
-            Enter(Walk),
-            Seq(usize),
-            Switch(usize),
-        }
-        let mut todo = vec![Task::Enter(w.clone())];
-        let mut values: Vec<BTreeMap<u32, bool>> = Vec::new();
-        while let Some(task) = todo.pop() {
-            match task {
-                Task::Enter(w) => match w.kind() {
-                    WalkKind::Ref(k) | WalkKind::Known(k) => {
-                        values.push(BTreeMap::from([(k, false)]));
-                    }
-                    WalkKind::Glue => values.push(BTreeMap::new()),
-                    WalkKind::Seq(children) => {
-                        todo.push(Task::Seq(children.len()));
-                        todo.extend(children.into_iter().rev().map(Task::Enter));
-                    }
-                    WalkKind::Switch(_, arms) => {
-                        todo.push(Task::Switch(arms.len()));
-                        // Absent arms contribute the same empty map as Glue.
-                        todo.extend(
-                            arms.into_iter()
-                                .rev()
-                                .map(|a| Task::Enter(a.unwrap_or(Walk::Glue))),
-                        );
-                    }
-                },
-                Task::Seq(n) | Task::Switch(n) => {
-                    let switching = matches!(task, Task::Switch(_));
-                    let mut out = BTreeMap::new();
-                    // Count the arms in which a leaf is definitely counted,
-                    // rather than searching every arm again for every leaf.
-                    let mut definite = BTreeMap::<u32, usize>::new();
-                    for arm in values.drain(values.len() - n..) {
-                        for (k, conditional) in arm {
-                            if switching {
-                                out.insert(k, true);
-                                if !conditional {
-                                    *definite.entry(k).or_default() += 1;
-                                }
-                            } else {
-                                out.entry(k)
-                                    .and_modify(|c| *c &= conditional)
-                                    .or_insert(conditional);
-                            }
-                        }
-                    }
-                    if switching {
-                        for (k, conditional) in &mut out {
-                            *conditional = definite.get(k).copied().unwrap_or(0) != n;
-                        }
-                    }
-                    values.push(out);
-                }
-            }
-        }
-        // ruled out: every continuation consumes its children and produces one map.
-        values.pop().unwrap_or_default()
-    }
-
     let mem = layout::mem(pool, env, ty)?;
-    let refs = layout::walk(pool, env, ty)
-        .as_ref()
-        .map(walk)
-        .unwrap_or_default();
+    // Each reference leaf once; conditional unless every variant of a
+    // test holds it unconditionally.
+    let mut by_value = std::collections::BTreeMap::<u32, Vec<layout::Guards>>::new();
+    for leaf in layout::ref_leaves(pool, env, ty) {
+        by_value.entry(leaf.value).or_default().push(leaf.guards);
+    }
+    let refs: std::collections::BTreeMap<u32, bool> = by_value
+        .into_iter()
+        .map(|(k, held)| {
+            (
+                k,
+                conditional(&held.iter().map(Vec::as_slice).collect::<Vec<_>>()),
+            )
+        })
+        .collect();
     let paths = layout::value_paths(pool, env, ty);
     let mut out: Vec<_> = refs
         .into_iter()
@@ -245,22 +219,20 @@ pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction>
     match s {
         Sym::Helper(Helper::CollCopy) => Some(Copy),
         Sym::Helper(Helper::ListUnique { .. } | Helper::MapUnique { .. }) => Some(Unique),
+        Sym::Helper(Helper::RetainKnown | Helper::RetainFields { .. } | Helper::RetainAny) => {
+            Some(Retain)
+        }
         Sym::Helper(
-            Helper::Retain { .. }
-            | Helper::RetainKnown
-            | Helper::RetainFields { .. }
-            | Helper::RetainAny,
-        ) => Some(Retain),
-        Sym::Helper(
-            Helper::Release { .. }
-            | Helper::ReleaseRef
+            Helper::ReleaseRef
             | Helper::ReleaseKnown
             | Helper::TakeBox
-            | Helper::DropFields { .. }
-            | Helper::DropValue { .. }
+            | Helper::DropParts { .. }
+            | Helper::ReleaseSpilled { .. }
             | Helper::CycleRelease,
         ) => Some(Release),
         Sym::Helper(Helper::CycleFree) => Some(Free),
+        Sym::Shim(_, true, ..) => Some(Retain),
+        Sym::Shim(_, false, ..) => Some(Release),
         _ => None,
     }
 }

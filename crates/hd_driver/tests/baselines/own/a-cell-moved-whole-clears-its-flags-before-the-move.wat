@@ -9,7 +9,7 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "take" (func $take (param i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32)))
+  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
@@ -334,19 +334,21 @@
       end
       local.get $t2
       i32.load $heap offset=4
-      local.tee $early
+      local.tee $t5
       if
-        local.get $early
+        local.get $t5
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $early
+          local.get $t5
           call $rt:release_ref'2
         end
       end
+      i32.const 0
+      local.set $t5
       local.get $t2
       i32.const 0
       i32.store $heap offset=4
@@ -357,16 +359,16 @@
     ;; 33 |     value := Token { id: 1 }
       local.get $t2
       i32.load $heap offset=16
-      local.set $t5
+      if
+        local.get $t2
+        i32.load $heap offset=12
+        call $rt:release_spilled
+      end
       local.get $t2
-      i32.load $heap offset=12
       local.get $t5
-      call $rt:drop_value
-      local.get $t2
-      i32.const 0
       i32.store $heap offset=12
       local.get $t2
-      i32.const 0
+      local.get $t5
       i32.store $heap offset=16
     end
     local.get $t2
@@ -386,11 +388,11 @@
     end
     local.get $t2
     i32.load $heap offset=16
-    local.set $t4
-    local.get $t2
-    i32.load $heap offset=12
-    local.get $t4
-    call $rt:drop_value
+    if
+      local.get $t2
+      i32.load $heap offset=12
+      call $rt:release_spilled
+    end
     local.get $early
     local.get $frame
     if

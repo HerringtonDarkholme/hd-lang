@@ -103,6 +103,15 @@ impl DescriptorKey {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {
     Inst(Hash128),
+    /// A type's count shim (`hd_layout::shims`, [`Module::shim_key`]): a
+    /// retain when `true`, else a release, of a value of `width` values;
+    /// last, whether it runs a `Drop` hook, so that releasing nothing
+    /// counted is not doing nothing.
+    Shim(Hash128, bool, u32, bool),
+    /// The release glue of a heap cell whose type holds a `Drop` hook:
+    /// the open drop over the cell's drop slots, made by the emitter once
+    /// per key (`Em::cell_glue`).
+    CellDrop(Hash128),
     /// A part of a suspending instance, beside its cold constructor.
     Part(Hash128, Part),
     Helper(Helper),
@@ -202,6 +211,11 @@ impl Symbols {
                     .or_else(|| match symbol {
                         Sym::Helper(helper) => Some(crate::rt::arity(helper)),
                         Sym::Import(import) => Some((import.params.len(), import.results.len())),
+                        // A shim takes its value's values and gives nothing,
+                        // known before the drain defines it.
+                        Sym::Shim(_, _, width, _) => Some((*width as usize, 0)),
+                        // The cell's payload address; defined when named.
+                        Sym::CellDrop(_) => Some((1, 0)),
                         Sym::Inst(_) | Sym::Part(..) => None,
                     })
             })
@@ -1174,14 +1188,6 @@ pub struct Module {
     /// (`emit/indirect.rs`).
     pub(crate) indirect_params:
         hd_base::HashMap<hd_base::InstId, Option<crate::emit::IndirectParams>>,
-    /// Per type passed by address, its release plan, once
-    /// (`emit/indirect.rs`, `layout::ReleasePlan`).
-    pub(crate) release_plans:
-        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::layout::ReleasePlan>>>,
-    /// Per type kept by address that holds a `Drop` hook, its hook plan,
-    /// once (`emit/indirect.rs`, `rt::HookPlan`).
-    pub(crate) hook_plans:
-        hd_base::HashMap<hd_types::Ty, Option<std::sync::Arc<crate::rt::HookPlan>>>,
     /// Lazy body loan facts shared by collected sub-bodies through stable IDs.
     /// Each suspending instance's frame payload size.
     pub frames: hd_base::HashMap<Hash128, u32>,
@@ -1228,6 +1234,16 @@ pub struct Module {
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
     /// (`annot.inline.cold`).
     pub cold_insts: BTreeSet<Hash128>,
+    /// Each count shim emission asked for (`emit::shims`), by shape and
+    /// kind: its key. Types of one shape share it; each is queued once, the
+    /// first type of its shape, so the drain ends.
+    pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim), Hash128>,
+    pub shim_queue: Vec<(
+        hd_types::Ty,
+        hd_layout::shims::Shim,
+        hd_layout::shims::Portion,
+        Hash128,
+    )>,
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
@@ -1313,8 +1329,6 @@ impl Module {
             inst_of: hd_base::HashMap::default(),
             body_facts: Vec::default(),
             indirect_params: hd_base::HashMap::default(),
-            release_plans: hd_base::HashMap::default(),
-            hook_plans: hd_base::HashMap::default(),
             frames: hd_base::HashMap::default(),
             frame_spills: hd_base::HashMap::default(),
             addressed: hd_base::HashMap::default(),
@@ -1328,6 +1342,8 @@ impl Module {
             std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
+            shims: hd_base::HashMap::default(),
+            shim_queue: Vec::new(),
             inline_counts: Default::default(),
             fixed_allocations: Default::default(),
             drain_glues: Vec::default(),
@@ -1354,13 +1370,13 @@ impl Default for Module {
     }
 }
 
-/// Stored values and their counted-reference walk (§23.24), with a static
+/// Stored values and how they count (§23.24), with a static
 /// slot when addressed. A once-cell includes its uncounted flag after its
 /// result values so teardown resets the cache between test cases.
 #[derive(Clone, Debug)]
 pub struct Stored {
     pub vals: Vec<Val>,
-    pub walk: crate::layout::Walk,
+    pub counted: crate::rt::Counted,
     pub slot: Option<(Address, Vec<crate::layout::Leaf>)>,
 }
 
@@ -1395,8 +1411,32 @@ impl Module {
         Func::new(self.symbols.clone(), name, params, results)
     }
     /// Defines a symbol without moving its semantic ordering into the id.
+    /// The function key of `t`'s `kind` shim, queued for the drain the
+    /// first time it is asked for.
+    pub fn shim_key(
+        &mut self,
+        t: hd_types::Ty,
+        shape: Hash128,
+        kind: hd_layout::shims::Shim,
+        portion: hd_layout::shims::Portion,
+    ) -> Hash128 {
+        if let Some(&key) = self.shims.get(&(shape, kind)) {
+            return key;
+        }
+        let mut h = hd_base::StableHasher::new("count-shim");
+        h.hash(shape);
+        h.u32(u32::from(kind == hd_layout::shims::Shim::Retain));
+        let key = h.finish();
+        self.shims.insert((shape, kind), key);
+        self.shim_queue.push((t, kind, portion, key));
+        key
+    }
+
     pub fn define(&mut self, s: Sym, mut f: Func) {
-        let instance = matches!(s, Sym::Inst(_) | Sym::Part(..));
+        let instance = matches!(
+            s,
+            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
+        );
         let id = self.symbols.intern(s);
         assert!(
             Rc::ptr_eq(&self.symbols.0, &f.symbols.0),
@@ -1409,6 +1449,11 @@ impl Module {
         self.funcs
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
+    }
+    /// Whether symbol `s` has a function defined.
+    pub fn is_defined(&mut self, s: Sym) -> bool {
+        let id = self.symbols.intern(s);
+        self.funcs.get(id.idx()).is_some_and(Option::is_some)
     }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
         self.exports.push((name.into(), self.symbols.intern(s)));
@@ -1725,11 +1770,10 @@ impl Module {
             let call = k + 1;
             let nothing = match f.body.get(call) {
                 Some(Ins::Call(callee, _)) => match &*self.symbols.get(*callee) {
-                    Sym::Helper(Helper::Release { vals, walk })
-                        if vals.as_slice() == [Val::I32] =>
-                    {
-                        crate::layout::releases_nothing(walk, c.cast_unsigned())
-                    }
+                    // Every address count tests null: a release of null
+                    // releases nothing.
+                    Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)
+                    | Sym::Shim(_, false, 1, false) => c == 0,
                     _ => false,
                 },
                 _ => false,
@@ -2128,10 +2172,17 @@ impl Module {
                 known_inlined: self.inline_counts && r.checked.is_none(),
                 skipped: r.checked.map(|c| c.skipped_test),
             };
+            // Glue, a helper, a count shim or a cell's release glue, keeps
+            // its counts plain calls: the runtime's count functions test
+            // null and static data, and a collection's trace hands each
+            // release to `visit` there.
             for (k, slot) in self.funcs.iter_mut().enumerate() {
                 let id = SymId(u32::try_from(k).expect("symbols"));
                 if let Some(f) = slot.as_mut()
-                    && !matches!(&*self.symbols.get(id), Sym::Helper(_))
+                    && !matches!(
+                        &*self.symbols.get(id),
+                        Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
+                    )
                     && crate::count_tests::lower(f, counts)
                 {
                     crate::opt::locals(f, &arity);

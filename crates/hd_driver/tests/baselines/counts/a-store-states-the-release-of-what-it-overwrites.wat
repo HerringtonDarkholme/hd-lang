@@ -3,14 +3,13 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
+  (import "fixture" "rt:cell_drop" (func $rt:cell_drop (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -103,14 +102,16 @@
     local.get $r
     i32.load $heap
     local.get $r
-    i32.load $heap offset=4
-    local.get $r
     local.get $t0
     i32.store $heap
     local.get $r
     local.get $k
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $r
+    if
+      local.get $r
+      call $rt:release_ref
+    end
   )
   (func $fresh (result i32 i32 i32)
     ;; 36 |     UniqList::[i32].new()
@@ -229,7 +230,7 @@
       local.get $u
       if
         local.get $u
-        call $rt:drop
+        call $rt:cell_drop
       end
       i32.const 0
       local.set $u
@@ -237,7 +238,7 @@
     local.get $u
     if
       local.get $u
-      call $rt:drop
+      call $rt:cell_drop
     end
     local.get $t4
     local.get $t0

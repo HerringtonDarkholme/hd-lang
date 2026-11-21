@@ -27,10 +27,9 @@ pub enum Pass {
     /// Nothing in the value is counted.
     Uncounted,
     /// A value parameter `T`: the callee's own copy, which arrives with a
-    /// count of each counted reference the walk names and which the
-    /// callee releases. The caller moves its value in at its last use,
-    /// else counts a copy.
-    Owned(Walk),
+    /// count of each counted reference and which the callee releases.
+    /// The caller moves its value in at its last use, else counts a copy.
+    Owned,
     /// A `&T` parameter: a borrowed read. The caller keeps the argument
     /// alive for the call, and neither side counts it.
     Borrowed,
@@ -57,7 +56,8 @@ pub fn pass_mode(
     match mode {
         ParameterMode::Lent => Pass::Borrowed,
         ParameterMode::Uncounted => Pass::Uncounted,
-        ParameterMode::Owned => count_walk(pool, env, t).map_or(Pass::Uncounted, Pass::Owned),
+        ParameterMode::Owned if counted(pool, env, t) => Pass::Owned,
+        ParameterMode::Owned => Pass::Uncounted,
     }
 }
 

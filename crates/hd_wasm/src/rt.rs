@@ -8,7 +8,7 @@ use hd_base::{DefId, Hash128, HashSet, StageResult};
 use hd_types::{Ty, TyList};
 use wasm_encoder::BlockType;
 
-use crate::layout::{Addr, Is, IsOps as _, Leaf, LeafOps as _, Walk};
+use crate::layout::{Addr, Leaf, LeafOps as _};
 use crate::map::{self, KeyOps};
 #[cfg(feature = "checked-report")]
 use crate::module::DescriptorKey;
@@ -110,10 +110,9 @@ fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
 pub struct RefLayout {
     pub size: u32,
     pub leaves: Vec<Leaf>,
-    pub walk: Option<Walk>,
-    /// The `std.rt.Drop` implementations a release of an inline value
-    /// runs before its fields (`module.rt.drop.glue`).
-    pub drops: Box<[DropCall]>,
+    /// How the value counts: its type's shims, which run its `Drop` hooks
+    /// first (`hd_layout::shims`).
+    pub counted: Counted,
     /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
     pub colls: Box<[u32]>,
 }
@@ -280,37 +279,6 @@ pub enum Helper {
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
-    /// `(values)`: one more count on each counted reference in a value
-    /// laid out as `vals`, which `walk` finds.
-    Retain {
-        vals: Vec<Val>,
-        walk: Walk,
-    },
-    /// `(values)`: one count less on each, as [`Helper::ReleaseRef`] takes.
-    Release {
-        vals: Vec<Val>,
-        walk: Walk,
-    },
-    /// `(address)`: one count less on each counted reference of a value
-    /// at `address` in the shadow stack (#2031): its type's release
-    /// witness ([`crate::layout::ReleasePlan`]).
-    ReleaseAt(std::sync::Arc<crate::layout::ReleasePlan>),
-    /// `(address)`: one count more on each counted reference of a value
-    /// whose bits were just copied to `address` in the shadow stack: the
-    /// same plan's counted leaves, each collection replaced by its copy
-    /// glue's result (Swift's value-witness `initializeWithCopy`, after
-    /// the `memory.copy`).
-    RetainAt(std::sync::Arc<crate::layout::ReleasePlan>),
-    /// `(address)`: the `Drop` hooks of a value at `address` in the heap,
-    /// its type's hook witness ([`HookPlan`], #2031).
-    HooksAt(std::sync::Arc<HookPlan>),
-    /// `(size) -> address`: reserves `size` bytes on the local stack, a
-    /// frame whose first [`crate::module::HEADER`] bytes are zero, and
-    /// gives the address past them: where a value kept on the shadow
-    /// stack is copied for its `Drop` hooks, whose `&mut self` is a heap
-    /// address. The caller gives the frame back by adding `size` to the
-    /// stack top. One function for every size.
-    HeapFrame,
     /// `(address)`: one count less on the object that holds `address`. At
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
@@ -329,28 +297,31 @@ pub enum Helper {
     /// (1); a shared one loses a count, and the caller counts its copy
     /// (0).
     TakeBox,
-    /// `(payload)`: the release glue of an object whose payload is laid
-    /// out as `leaves`: its `std.rt.Drop` hooks, then one count less on
-    /// each counted reference in it.
-    DropFields {
-        leaves: Vec<Leaf>,
-        walk: Walk,
-        /// The `std.rt.Drop.drop` instances to call before the fields.
-        drops: Vec<DropCall>,
-    },
-    /// `(values)`: moves an inline value into a local-stack frame, runs
-    /// its Drop hooks, then releases its fields. No counted box is made.
-    DropValue {
-        size: u32,
-        leaves: Vec<Leaf>,
-        walk: Walk,
-        drops: Vec<DropCall>,
-    },
-    /// `(payload)`: one more count on each counted reference in a new
-    /// object's payload, which its construction copied in.
+    /// `(payload)`: one more count on each part of a new object's
+    /// payload, laid out as `leaves`, that its construction copied in:
+    /// each part's first leaf and how its type counts.
     RetainFields {
         leaves: Vec<Leaf>,
-        walk: Walk,
+        parts: Vec<(u32, Counted)>,
+    },
+    /// `(values)`: a value whose release runs in place, in locals: stores
+    /// it in a frame slot laid out as `leaves`, `size` bytes, in heap form,
+    /// then calls its in-place release shim `release` on that address.
+    ReleaseSpilled {
+        size: u32,
+        leaves: Vec<Leaf>,
+        shim: Hash128,
+        retain: bool,
+        hooked: bool,
+    },
+    /// `(payload)`: the release glue of an object whose payload is laid
+    /// out as `leaves`: one count less on each part, by its first leaf
+    /// and how its type counts. A part whose type holds a `std.rt.Drop`
+    /// hook runs it in its release shim. The cycle collector's drain
+    /// reruns this same glue.
+    DropParts {
+        leaves: Vec<Leaf>,
+        parts: Vec<(u32, Counted)>,
     },
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
@@ -459,11 +430,11 @@ pub enum Helper {
     /// it after the call, including its Drop hooks.
     DynSlot {
         target: Hash128,
-        retained_result: Option<Walk>,
+        retained_result: Counted,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
-        own: Vec<(u32, Option<Walk>)>,
+        own: Vec<(u32, Counted)>,
         given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
@@ -472,11 +443,11 @@ pub enum Helper {
     /// that address, calls `target`, then releases the value read.
     DynRead {
         target: Hash128,
-        retained_result: Option<Walk>,
+        retained_result: Counted,
         read: RefRead,
         params: Vec<Val>,
         results: Vec<Val>,
-        own: Vec<(u32, Option<Walk>)>,
+        own: Vec<(u32, Counted)>,
         given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
@@ -743,12 +714,12 @@ pub enum Helper {
     Race {
         part: u8,
         results: Vec<Val>,
-        walk: Option<Walk>,
+        counted: Counted,
     },
     /// `(payload)`: a race frame's glue.
     RaceDrop {
         results: Vec<Val>,
-        walk: Option<Walk>,
+        counted: Counted,
     },
     /// A flat homogeneous all frame: constructor, poll, cancel, release
     /// glue, ready-tree traversal, and first-poll tree initialization.
@@ -767,9 +738,11 @@ pub enum Helper {
 pub struct Elem {
     pub size: u32,
     pub leaves: Vec<Leaf>,
-    pub walk: Option<Walk>,
-    /// Inline hooks for host/task argument areas; Copy list elements have none.
-    pub drops: Vec<DropCall>,
+    /// How an element counts: its type's shims (`hd_layout::shims`).
+    pub counted: Counted,
+    /// A host argument area's arguments, each by its first leaf and how
+    /// its type counts, hooks in its shims; none for a list's element.
+    pub parts: Vec<(u32, Counted)>,
     pub colls: Vec<u32>,
     pub cyclic: bool,
 }
@@ -778,8 +751,179 @@ pub struct Elem {
 /// to the shared area layout, so the slot stores that layout only once.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct HostCounts {
-    pub borrowed: Option<Walk>,
-    pub owned: Option<Walk>,
+    pub borrowed: Vec<(u32, Counted)>,
+    pub owned: Vec<(u32, Counted)>,
+}
+
+/// How a value of a layout record's type counts (`hd_layout::shims`):
+/// nothing, one address among its values, or its retain and release
+/// shims (their keys, the value's width, and whether the release runs a
+/// `Drop` hook).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Counted {
+    #[default]
+    None,
+    Address {
+        index: u32,
+        known: bool,
+    },
+    Shims(Box<ShimSyms>),
+}
+
+/// A type's retain and release shim keys (`Module::shim_key`), the width
+/// of its values, and whether its release runs a `Drop` hook.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ShimSyms {
+    pub retain: Hash128,
+    pub release: Hash128,
+    pub width: u32,
+    pub hooked: bool,
+    /// Which shims take the value by address and count it where it lives
+    /// (`hd_layout::shims::in_place`): the release, the retain; with the
+    /// value's layout, its leaves and size, so values in locals go to a
+    /// frame slot first.
+    pub release_at: bool,
+    pub retain_at: bool,
+    pub in_place: Option<Box<(u32, Vec<Leaf>)>>,
+}
+
+impl Counted {
+    /// Whether a value of the type counts anything.
+    #[must_use]
+    pub fn counts(&self) -> bool {
+        *self != Counted::None
+    }
+
+    /// One count more (`retain`) or less on the value whose `k`th value
+    /// `get` pushes: the address's count call, or a call of the shim.
+    pub(crate) fn emit(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        match *self {
+            Counted::None => {}
+            Counted::Address { index, known } => {
+                get(f, index);
+                let addr = if known { Addr::Known } else { Addr::Ref };
+                if retain {
+                    retain_call(m)(f, addr);
+                } else {
+                    release_call(f, addr);
+                }
+            }
+            Counted::Shims(ref s) => {
+                let ShimSyms {
+                    retain: r,
+                    release,
+                    width,
+                    hooked,
+                    release_at,
+                    retain_at,
+                    ref in_place,
+                } = **s;
+                for k in 0..width {
+                    get(f, k);
+                }
+                match in_place {
+                    Some(layout) if (retain && retain_at) || (!retain && release_at) => {
+                        f.helper(Helper::ReleaseSpilled {
+                            size: layout.0,
+                            leaves: layout.1.clone(),
+                            shim: if retain { r } else { release },
+                            retain,
+                            hooked: !retain && hooked,
+                        });
+                    }
+                    _ if retain => f.call(Sym::Shim(r, true, width, false)),
+                    _ => f.call(Sym::Shim(release, false, width, hooked)),
+                }
+            }
+        }
+    }
+
+    /// [`Counted::emit`] of a value kept in memory: a release that runs
+    /// in place gets the address `addr` pushes, the payload address of
+    /// the value's first leaf at `first` bytes; any other count, its
+    /// values, as `emit` does.
+    pub(crate) fn emit_at(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        addr: &dyn Fn(&mut Func),
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        match self {
+            Counted::Shims(s) if retain && s.retain_at => {
+                addr(f);
+                f.call(Sym::Shim(s.retain, true, 1, false));
+            }
+            Counted::Shims(s) if !retain && s.release_at => {
+                addr(f);
+                f.call(Sym::Shim(s.release, false, 1, s.hooked));
+            }
+            _ => self.emit(f, m, get, retain),
+        }
+    }
+
+    /// The byte offset of the value's first leaf in its own layout, for
+    /// an address found from where that leaf is stored.
+    pub(crate) fn first_offset(&self) -> u32 {
+        match self {
+            Counted::Shims(s) => s
+                .in_place
+                .as_ref()
+                .and_then(|l| l.1.first())
+                .map_or(0, |l| l.offset),
+            _ => 0,
+        }
+    }
+}
+
+/// How a value of `t` counts, its shims queued for the drain when it has
+/// them (`Module::shim_key`): both kinds, since the glue that calls them
+/// is built at link, after the drain; one no glue reaches is not linked.
+pub(crate) fn counted_of(input: &Input<'_>, m: &mut Module, t: Ty) -> StageResult<Counted> {
+    counted_of_portion(input, m, t, hd_layout::shims::Portion::All)
+}
+
+/// [`counted_of`] of `portion` of the value's counted parts.
+pub(crate) fn counted_of_portion(
+    input: &Input<'_>,
+    m: &mut Module,
+    t: Ty,
+    portion: hd_layout::shims::Portion,
+) -> StageResult<Counted> {
+    use hd_layout::shims::{Count, Shim};
+    let (count, shape, _) = (input.shim)(t, Shim::Release, portion)?;
+    Ok(match count {
+        Count::None => Counted::None,
+        Count::Address { index, known } => Counted::Address { index, known },
+        Count::Parts | Count::Call => {
+            use hd_layout::shims::{Shim, in_place};
+            let release_at = in_place(input.pool, input.env, t, Shim::Release, portion);
+            let retain_at = in_place(input.pool, input.env, t, Shim::Retain, portion);
+            let layout = if release_at || retain_at {
+                let mem = crate::layout::mem(input.pool, input.env, t)?;
+                Some(Box::new((mem.size, mem.leaves)))
+            } else {
+                None
+            };
+            Counted::Shims(Box::new(ShimSyms {
+                retain: m.shim_key(t, shape, Shim::Retain, portion),
+                release: m.shim_key(t, shape, Shim::Release, portion),
+                width: u32::try_from(crate::layout::vals(input.pool, input.env, t)?.len())
+                    .unwrap_or(u32::MAX),
+                hooked: hd_layout::shims::hooked(input.pool, input.env, t, Shim::Release, portion),
+                release_at,
+                retain_at,
+                in_place: layout,
+            }))
+        }
+    })
 }
 
 impl Elem {
@@ -787,121 +931,7 @@ impl Elem {
     /// its bytes: counts, or copies of its collections.
     #[must_use]
     pub fn counts(&self) -> bool {
-        self.walk.is_some() || !self.colls.is_empty()
-    }
-}
-
-/// The `Drop` hooks of a type kept by address (#2031): Swift's per-type
-/// value witness, as [`crate::layout::ReleasePlan`] is for counts. `own`
-/// is the type's own hooks (each newtype layer's, then the struct's) and
-/// `fields` each field's, in field order: an inline field's calls, or a
-/// field kept by address calling its type's plan. Run on a heap address,
-/// this is the pre-order of the leaf path's [`Helper::DropValue`] glue,
-/// so each type's code is O(its own fields) and a chain of K nested
-/// types O(K) in all. Equality, order and hash are by `key`, as a
-/// release plan's.
-#[derive(Debug)]
-pub struct HookPlan {
-    pub key: u128,
-    pub own: Vec<DropCall>,
-    pub fields: Vec<HookStep>,
-}
-
-/// One field's part of a [`HookPlan`]; `field` is its index among the
-/// type's members.
-#[derive(Clone, Debug)]
-pub enum HookStep {
-    /// The field's hook calls, offsets from the value's start.
-    Inline { field: u32, calls: Vec<DropCall> },
-    /// A field kept by address: its type's plan at `offset`.
-    Nested {
-        field: u32,
-        offset: u32,
-        plan: std::sync::Arc<HookPlan>,
-    },
-}
-
-impl HookStep {
-    /// The field's index among the type's members.
-    #[must_use]
-    pub fn field(&self) -> u32 {
-        match self {
-            Self::Inline { field, .. } | Self::Nested { field, .. } => *field,
-        }
-    }
-}
-
-impl HookPlan {
-    /// The plan of `own` and `fields`, keyed.
-    #[must_use]
-    pub fn new(own: Vec<DropCall>, fields: Vec<HookStep>) -> Self {
-        use std::hash::{Hash as _, Hasher as _};
-        let half = |seed: u8| {
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            seed.hash(&mut h);
-            own.hash(&mut h);
-            for s in &fields {
-                match s {
-                    HookStep::Inline { calls, .. } => {
-                        0u8.hash(&mut h);
-                        calls.hash(&mut h);
-                    }
-                    HookStep::Nested { offset, plan, .. } => {
-                        1u8.hash(&mut h);
-                        offset.hash(&mut h);
-                        plan.key.hash(&mut h);
-                    }
-                }
-            }
-            h.finish()
-        };
-        let key = (u128::from(half(0)) << 64) | u128::from(half(1));
-        Self { key, own, fields }
-    }
-}
-impl PartialEq for HookPlan {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-impl Eq for HookPlan {}
-impl PartialOrd for HookPlan {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for HookPlan {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.key.cmp(&other.key)
-    }
-}
-impl std::hash::Hash for HookPlan {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-    }
-}
-
-/// One `std.rt.Drop.drop` call in structural release glue. Every guard is
-/// an enclosing enum's discriminant cell and the test that it says the
-/// variant that contains the value, or a drop flag and the test that it
-/// is set.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct DropCall {
-    pub offset: u32,
-    pub target: Hash128,
-    pub guards: Vec<(Leaf, Is)>,
-}
-
-impl DropCall {
-    /// The call for the same value `by` bytes further into its record:
-    /// its offset and its guards' cells move together.
-    #[must_use]
-    pub fn shifted(mut self, by: u32) -> Self {
-        self.offset += by;
-        for (cell, _) in &mut self.guards {
-            cell.offset += by;
-        }
-        self
+        self.counted.counts() || !self.colls.is_empty()
     }
 }
 
@@ -932,8 +962,11 @@ pub fn ctx_elem() -> Elem {
             leaf(8, Val::I32, 4),
             leaf(12, Val::I32, 4),
         ],
-        walk: Some(Walk::Ref(1)),
-        drops: Vec::new(),
+        counted: Counted::Address {
+            index: 1,
+            known: false,
+        },
+        parts: Vec::new(),
         colls: Vec::new(),
         cyclic: true,
     }
@@ -1702,18 +1735,8 @@ fn teardown(m: &Module) -> Func {
             }
             f.set(*l);
         }
-        if let (Some(k), Some(addr)) = (s.walk.single(), s.walk.addr()) {
-            f.get(ls[k as usize]);
-            release_call(&mut f, addr);
-        } else {
-            for l in &ls {
-                f.get(*l);
-            }
-            f.helper(Helper::Release {
-                vals: s.vals.clone(),
-                walk: s.walk.clone(),
-            });
-        }
+        s.counted
+            .emit(&mut f, m, &|f, k| f.get(ls[k as usize]), false);
         // Zeros release as nothing, so a later init's store of the
         // binding releases nothing twice.
         for (k, v) in s.vals.iter().enumerate() {
@@ -1960,11 +1983,11 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 #[allow(clippy::too_many_arguments)]
 fn dyn_read(
     target: Hash128,
-    retained_result: Option<&Walk>,
+    retained_result: &Counted,
     read: &RefRead,
     params: &[Val],
     results: &[Val],
-    own: &[(u32, Option<Walk>)],
+    own: &[(u32, Counted)],
     given: &[(u32, RefLayout)],
     ctx: Option<&SlotCtx>,
     m: &Module,
@@ -1972,7 +1995,7 @@ fn dyn_read(
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
     let mut f = m.func("rt:dyn_read", all, results.to_vec());
-    let held = ref_load(&mut f, 0, &read.value);
+    let held = ref_load(&mut f, m, 0, &read.value);
     let rvals: Vec<Val> = ref_vals(&read.value);
     let recv = |f: &mut Func| {
         for l in &held {
@@ -1983,35 +2006,33 @@ fn dyn_read(
     // the receiver takes it over, and it is released after one that
     // borrows it. Other arguments follow the slot's handoff rules.
     let mut owned = own.to_vec();
-    let recv_owned = owned.first_mut().is_some_and(|r| r.1.take().is_some());
-    own_lent(&mut f, &rvals, &recv, params, &owned);
+    let recv_owned = owned
+        .first_mut()
+        .is_some_and(|r| std::mem::take(&mut r.1).counts());
+    own_lent(&mut f, m, &rvals, &recv, params, &owned);
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
-    retain_slot_result(&mut f, results, retained_result);
+    retain_slot_result(&mut f, m, results, retained_result);
     if !recv_owned {
-        ref_count(&mut f, &held, &read.value, false);
+        ref_count(&mut f, m, &held, &read.value, false);
     }
-    release_given(&mut f, own, given);
+    release_given(&mut f, m, own, given);
     f
 }
 
 /// Dynamic slots preserve their owned-result ABI even when the concrete
 /// function forwards a guaranteed argument. Take the count before ending
 /// any argument or receiver owner.
-pub(crate) fn retain_slot_result(f: &mut Func, results: &[Val], walk: Option<&Walk>) {
-    let Some(walk) = walk else { return };
+pub(crate) fn retain_slot_result(f: &mut Func, m: &Module, results: &[Val], counted: &Counted) {
+    if !counted.counts() {
+        return;
+    }
     let locals: Vec<_> = results.iter().map(|&v| f.local(v)).collect();
     for &local in locals.iter().rev() {
         f.set(local);
     }
-    for &local in &locals {
-        f.get(local);
-    }
-    f.helper(Helper::Retain {
-        vals: results.to_vec(),
-        walk: walk.clone(),
-    });
+    counted.emit(f, m, &|f, k| f.get(locals[k as usize]), true);
     for &local in &locals {
         f.get(local);
     }
@@ -2116,7 +2137,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::ReleaseDrain
         | H::RetainKnown
         | H::ReleaseKnown
-        | H::DropFields { .. }
+        | H::DropParts { .. }
         | H::RetainFields { .. }
         | H::DropElems { .. }
         | H::DropEntries { .. }
@@ -2159,10 +2180,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::TestPoll { .. }
         | H::TestPollPart { .. } => (2, 1),
         H::RowAdapter(row) => (row.params.len(), row.results.len()),
-        H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
-        H::ReleaseAt(_) | H::RetainAt(_) | H::HooksAt(_) => (1, 0),
-        H::HeapFrame => (1, 1),
-        H::DropValue { leaves, .. } => (leaves.len(), 0),
+        H::ReleaseSpilled { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
         H::MapFind { entry, .. } => (2 + entry.keys, 1),
@@ -2546,48 +2564,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.helper(Helper::New);
             f
         }
-        Helper::Retain { vals, walk } => {
-            let mut f = m.func("rt:retain", vals.clone(), vec![]);
-            let on = retain_call(m);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &on);
-            f
-        }
-        Helper::Release { vals, walk } => {
-            let mut f = m.func("rt:release", vals.clone(), vec![]);
-            walk_code(&mut f, walk, &|f, k| f.get(k), &release_call);
-            f
-        }
-        Helper::ReleaseAt(plan) => {
-            let mut f = m.func("rt:release_at", vec![Val::I32], vec![]);
-            release_steps(&mut f, 0, 0, &plan.steps);
-            f
-        }
-        Helper::RetainAt(plan) => {
-            let mut f = m.func("rt:retain_at", vec![Val::I32], vec![]);
-            retain_steps(m, &mut f, 0, &plan.steps);
-            f
-        }
-        Helper::HooksAt(plan) => {
-            let mut f = m.func("rt:hooks_at", vec![Val::I32], vec![]);
-            call_drops(&mut f, 0, &plan.own);
-            for step in &plan.fields {
-                hook_step(&mut f, 0, 0, step);
-            }
-            f
-        }
-        Helper::HeapFrame => {
-            let mut f = m.func("rt:heap_frame", vec![Val::I32], vec![Val::I32]);
-            let base = f.local(Val::I32);
-            let enter = crate::wide::frame_enter_sized(&mut f, base, 0);
-            f.body.extend(enter);
-            f.get(base);
-            f.op(Instruction::I64Const(0));
-            f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
-            f.get(base);
-            f.u32(crate::module::HEADER);
-            f.op(Instruction::I32Add);
-            f
-        }
         Helper::ReleaseRef => release_ref(m, Addr::Ref),
         Helper::ReleaseKnown => release_ref(m, Addr::Known),
         Helper::ReleaseDrain => release_drain(m),
@@ -2601,20 +2577,17 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
-        Helper::DropFields {
-            leaves,
-            walk,
-            drops,
-        } => fields_glue(m, "rt:drop", leaves, walk, drops, &release_call),
-        Helper::DropValue {
+        Helper::RetainFields { leaves, parts } => {
+            parts_glue(m, "rt:retain_fields", leaves, parts, true)
+        }
+        Helper::DropParts { leaves, parts } => parts_glue(m, "rt:drop", leaves, parts, false),
+        Helper::ReleaseSpilled {
             size,
             leaves,
-            walk,
-            drops,
-        } => drop_value_glue(m, *size, leaves, walk, drops),
-        Helper::RetainFields { leaves, walk } => {
-            fields_glue(m, "rt:retain_fields", leaves, walk, &[], &retain_call(m))
-        }
+            shim,
+            retain,
+            hooked,
+        } => release_spilled(m, *size, leaves, Sym::Shim(*shim, *retain, 1, *hooked)),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
@@ -2660,7 +2633,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             let rvals = leaves
                 .as_ref()
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
-            own_lent(&mut f, &rvals, &recv, params, own);
+            own_lent(&mut f, m, &rvals, &recv, params, own);
             recv(&mut f);
             push_slot_params(
                 &mut f,
@@ -2668,8 +2641,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            retain_slot_result(&mut f, results, retained_result.as_ref());
-            release_given(&mut f, own, given);
+            retain_slot_result(&mut f, m, results, retained_result);
+            release_given(&mut f, m, own, given);
             f
         }
         Helper::DynRead {
@@ -2683,7 +2656,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             ctx,
         } => dyn_read(
             *target,
-            retained_result.as_ref(),
+            retained_result,
             read,
             params,
             results,
@@ -3070,18 +3043,19 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
 /// owns it; each of those takes a count of its own here.
 fn own_lent(
     f: &mut Func,
+    m: &Module,
     rvals: &[Val],
     recv: &dyn Fn(&mut Func),
     params: &[Val],
-    own: &[(u32, Option<Walk>)],
+    own: &[(u32, Counted)],
 ) {
     let ((_, r), rest) = own.split_first().unwrap();
-    own_arg(f, rvals, r.as_ref(), recv);
+    own_arg(f, m, rvals, r, recv);
     let mut at = 1u32;
     for (n, w) in rest {
         let first = at;
         let vals = &params[(first - 1) as usize..(first - 1 + n) as usize];
-        own_arg(f, vals, w.as_ref(), &|f| {
+        own_arg(f, m, vals, w, &|f| {
             for k in first..first + n {
                 f.get(k);
             }
@@ -3094,12 +3068,12 @@ fn own_lent(
 /// (an index in `own`, whose entries give each parameter's value count,
 /// and its layout), whose ownership the dynamic call handed in and the target
 /// only borrowed. The target's results stay on the stack.
-fn release_given(f: &mut Func, own: &[(u32, Option<Walk>)], given: &[(u32, RefLayout)]) {
+fn release_given(f: &mut Func, m: &Module, own: &[(u32, Counted)], given: &[(u32, RefLayout)]) {
     for (k, value) in given {
         let first: u32 = 1 + own[1..*k as usize].iter().map(|o| o.0).sum::<u32>();
         let n = own[*k as usize].0;
         let locals: Vec<u32> = (first..first + n).collect();
-        ref_count(f, &locals, value, false);
+        ref_count(f, m, &locals, value, false);
     }
 }
 
@@ -3107,14 +3081,22 @@ fn release_given(f: &mut Func, own: &[(u32, Option<Walk>)], given: &[(u32, RefLa
 /// owns its parameter (`layout::Pass::Owned`, `crates/hd_wasm/DESIGN.md`
 /// §23.25): `get` pushes the value, of layout `vals`; `walk` is the
 /// parameter's when the callee owns it.
-pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn Fn(&mut Func)) {
-    if let Some(w) = walk {
-        get(f);
-        f.helper(Helper::Retain {
-            vals: vals.to_vec(),
-            walk: w.clone(),
-        });
+pub(crate) fn own_arg(
+    f: &mut Func,
+    m: &Module,
+    vals: &[Val],
+    counted: &Counted,
+    get: &dyn Fn(&mut Func),
+) {
+    if !counted.counts() {
+        return;
     }
+    get(f);
+    let ls: Vec<u32> = vals.iter().map(|&v| f.local(v)).collect();
+    for &l in ls.iter().rev() {
+        f.set(l);
+    }
+    counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
 }
 
 /// What retains the address on the stack, given whether it is a known
@@ -3137,166 +3119,67 @@ pub(crate) fn release_call(f: &mut Func, addr: Addr) {
     });
 }
 
-/// Releases the counts of `steps` (a [`crate::layout::ReleasePlan`]'s)
-/// of a value at `off` bytes past the shadow-stack address in local
-/// `base`: an inline field's walk over its loaded leaves, a nested
-/// field's witness call. O(the steps).
-pub(crate) fn release_steps(
-    f: &mut Func,
-    base: u32,
-    off: u32,
-    steps: &[crate::layout::ReleaseStep],
-) {
-    for step in steps {
-        release_step(f, base, off, step);
-    }
-}
-
-/// One step of [`release_steps`].
-pub(crate) fn release_step(f: &mut Func, base: u32, off: u32, step: &crate::layout::ReleaseStep) {
-    match step {
-        crate::layout::ReleaseStep::Inline { leaves, walk, .. } => walk_code(
-            f,
-            walk,
-            &|f, k| {
-                f.get(base);
-                f.op(leaves[k as usize].load_in(crate::module::HEAP, off));
-            },
-            &release_call,
-        ),
-        crate::layout::ReleaseStep::Nested { offset, plan, .. } => {
-            f.get(base);
-            if off + offset != 0 {
-                f.i32((off + offset).cast_signed());
-                f.op(Instruction::I32Add);
-            }
-            f.helper(Helper::ReleaseAt(plan.clone()));
-        }
-    }
-}
-
-/// One count more on each counted reference of the value at the
-/// shadow-stack address in local `base`, by `steps` (a
-/// [`crate::layout::ReleasePlan`]'s): an inline field's collections
-/// through the copy glue, stored back, and its other counted leaves
-/// retained; a nested field's witness call. O(the steps).
-fn retain_steps(m: &Module, f: &mut Func, base: u32, steps: &[crate::layout::ReleaseStep]) {
-    let on = retain_call(m);
-    for step in steps {
-        match step {
-            crate::layout::ReleaseStep::Inline {
-                leaves,
-                walk,
-                colls,
-                ..
-            } => {
-                for &c in colls {
-                    let leaf = leaves[c as usize];
-                    f.get(base);
-                    f.get(base);
-                    f.op(leaf.load_in(crate::module::HEAP, 0));
-                    f.helper(Helper::CollCopy);
-                    f.op(leaf.store_in(crate::module::HEAP, 0));
-                }
-                if let Some(w) = walk.without(colls) {
-                    walk_code(
-                        f,
-                        &w,
-                        &|f, k| {
-                            f.get(base);
-                            f.op(leaves[k as usize].load_in(crate::module::HEAP, 0));
-                        },
-                        &on,
-                    );
-                }
-            }
-            crate::layout::ReleaseStep::Nested { offset, plan, .. } => {
-                f.get(base);
-                if *offset != 0 {
-                    f.i32(offset.cast_signed());
-                    f.op(Instruction::I32Add);
-                }
-                f.helper(Helper::RetainAt(plan.clone()));
-            }
-        }
-    }
-}
-
-/// Emits `walk` over the values that `get(k)` pushes, running `on` with
-/// each counted address on the stack and the leaf that holds it: an
-/// enum's arms by its tag.
-pub(crate) fn walk_code(
-    f: &mut Func,
-    walk: &Walk,
-    get: &dyn Fn(&mut Func, u32),
-    on: &dyn Fn(&mut Func, Addr),
-) {
-    use crate::layout::WalkKind;
-    enum Task {
-        Walk(Walk),
-        Arm(crate::layout::Discr, u32, Walk),
-        End,
-    }
-    let mut todo = vec![Task::Walk(walk.clone())];
-    while let Some(task) = todo.pop() {
-        match task {
-            Task::End => f.op(Instruction::End),
-            Task::Arm(d, variant, arm) => match d.enc.is(variant) {
-                Is::Never => {}
-                is @ (Is::Eq(_) | Is::Outside { .. }) => {
-                    get(f, d.value);
-                    for op in is.ops() {
-                        f.op(op);
-                    }
-                    f.op(Instruction::If(BlockType::Empty));
-                    todo.push(Task::End);
-                    todo.push(Task::Walk(arm));
-                }
-            },
-            Task::Walk(walk) => match walk.kind() {
-                WalkKind::Ref(k) => {
-                    get(f, k);
-                    on(f, Addr::Ref);
-                }
-                WalkKind::Known(k) => {
-                    get(f, k);
-                    on(f, Addr::Known);
-                }
-                WalkKind::Glue => {}
-                WalkKind::Seq(children) => todo.extend(children.into_iter().rev().map(Task::Walk)),
-                WalkKind::Switch(d, arms) => {
-                    // Variants use u32 throughout layout. Zipping before the
-                    // reversal preserves those indices without a narrowing cast.
-                    let arms: Vec<_> = (0u32..)
-                        .zip(arms)
-                        .filter_map(|(v, arm)| arm.map(|arm| Task::Arm(d, v, arm)))
-                        .collect();
-                    todo.extend(arms.into_iter().rev());
-                }
-            },
-        }
-    }
-}
-
-/// A `(payload)` glue function: loads every leaf of the payload, then
-/// walks them.
-fn fields_glue(
+/// [`Helper::DropParts`] and [`Helper::RetainFields`]: loads the
+/// payload's leaves, then counts each part through its type's count.
+fn parts_glue(
     m: &Module,
     name: &str,
     leaves: &[Leaf],
-    walk: &Walk,
-    drops: &[DropCall],
-    on: &dyn Fn(&mut Func, Addr),
+    parts: &[(u32, Counted)],
+    retain: bool,
 ) -> Func {
     let mut f = m.func(name, vec![Val::I32], vec![]);
-    call_drops(&mut f, 0, drops);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
         f.get(0);
         f.op(l.load(0));
         f.set(*at);
     }
-    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), on);
+    for (first, counted) in parts {
+        let off = leaves[*first as usize].offset - counted.first_offset();
+        counted.emit_at(
+            &mut f,
+            m,
+            &|f| {
+                f.get(0);
+                if off != 0 {
+                    f.u32(off);
+                    f.op(Instruction::I32Add);
+                }
+            },
+            &|f, k| f.get(ls[(first + k) as usize]),
+            retain,
+        );
+    }
+    f
+}
+
+/// [`Helper::ReleaseSpilled`]: the value moves into a frame slot in heap
+/// form, as `drop_value_glue` puts one, and its in-place release runs
+/// there.
+fn release_spilled(m: &Module, size: u32, leaves: &[Leaf], shim: Sym) -> Func {
+    let mut f = m.func(
+        "rt:release_spilled",
+        leaves.iter().map(|l| l.val).collect(),
+        vec![],
+    );
+    let base = f.local(Val::I32);
+    let at = f.local(Val::I32);
+    f.get(base);
+    f.op(Instruction::I64Const(0));
+    f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
+    f.get(base);
+    f.u32(crate::module::HEADER);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.store_locals(at, leaves, 0..);
+    f.get(at);
+    f.call(shim);
+    crate::wide::locals_frame(
+        &mut f,
+        base,
+        (crate::module::HEADER + size).next_multiple_of(8),
+    );
     f
 }
 
@@ -3822,10 +3705,8 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.op(Instruction::I32Mul);
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
-    let glue = elem
-        .walk
-        .as_ref()
-        .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+    let glue =
+        (elem.counted.counts()).then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
     push_desc(&mut f, glue, elem.cyclic);
     f.helper(Helper::New);
     f.set(b);
@@ -4006,7 +3887,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
     f.get(b);
     f.helper(Helper::ListUnique { elem: elem.clone() });
     f.set(b);
-    if let Some(walk) = &elem.walk {
+    if elem.counted.counts() {
         f.get(b);
         f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
         f.get(1);
@@ -4023,7 +3904,8 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         let ls = load_elem_locals(&mut f, &elem.leaves);
         each_elem(&mut f, at, n, elem.size, &|f| {
             fill_elem(f, at, &elem.leaves, &ls);
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+            elem.counted
+                .emit(f, m, &|f, k| f.get(ls[k as usize]), false);
         });
     }
     f.get(b);
@@ -4047,61 +3929,10 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
-        if let Some(walk) = &elem.walk {
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
-        }
+        elem.counted
+            .emit(f, m, &|f, k| f.get(ls[k as usize]), false);
     });
     f
-}
-
-/// Calls each `std.rt.Drop` implementation of `drops` on the value at
-/// `base`. A trace runs them in every pass, so their releases visit what
-/// the value holds (`module.rt.drop.trace`).
-pub(crate) fn call_drops(f: &mut Func, base: u32, drops: &[DropCall]) {
-    for drop in drops {
-        for &(cell, is) in &drop.guards {
-            f.get(base);
-            f.op(cell.load(0));
-            for op in is.ops() {
-                f.op(op);
-            }
-            f.op(Instruction::If(BlockType::Empty));
-        }
-        f.get(base);
-        if drop.offset != 0 {
-            f.u32(drop.offset);
-            f.op(Instruction::I32Add);
-        }
-        f.call(Sym::Inst(drop.target));
-        for _ in &drop.guards {
-            f.op(Instruction::End);
-        }
-    }
-}
-
-/// One field's hooks of a [`HookPlan`] for a value `off` bytes past the
-/// heap address in local `base`: an inline field's calls, or a call of
-/// the nested type's witness at its offset.
-pub(crate) fn hook_step(f: &mut Func, base: u32, off: u32, step: &HookStep) {
-    match step {
-        HookStep::Inline { calls, .. } => {
-            if off == 0 {
-                call_drops(f, base, calls);
-            } else {
-                let shifted: Vec<DropCall> =
-                    calls.iter().cloned().map(|c| c.shifted(off)).collect();
-                call_drops(f, base, &shifted);
-            }
-        }
-        HookStep::Nested { offset, plan, .. } => {
-            f.get(base);
-            if off + offset != 0 {
-                f.u32(off + offset);
-                f.op(Instruction::I32Add);
-            }
-            f.helper(Helper::HooksAt(plan.clone()));
-        }
-    }
 }
 
 /// Fresh locals for an element's leaves.
@@ -4122,14 +3953,16 @@ fn fill_elem(f: &mut Func, at: u32, leaves: &[Leaf], ls: &[u32]) {
 fn copy_elems(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
     let ls = load_elem_locals(&mut f, &elem.leaves);
-    let walk = elem.walk.as_ref().and_then(|w| w.without(&elem.colls));
-    let retain = retain_call(m);
+    // A shim retains every counted part, collections too; an element that
+    // is one collection is copied through the copy glue below.
+    let shims = matches!(elem.counted, Counted::Shims(_));
+    let colls: &[u32] = if shims { &[] } else { &elem.colls };
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
-        if let Some(w) = &walk {
-            walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+        if shims || colls.is_empty() {
+            elem.counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
         }
-        for c in &elem.colls {
+        for c in colls {
             let l = elem.leaves[*c as usize];
             f.get(0);
             f.get(ls[*c as usize]);
@@ -4626,117 +4459,37 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
     value.leaves.iter().map(|l| l.val).collect()
 }
 
-fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if !retain && !value.drops.is_empty() {
-        drop_value(f, ls, value, &value.drops);
-        return;
-    }
-    if let Some((k, addr)) = value
-        .walk
-        .as_ref()
-        .filter(|w| w.known())
-        .and_then(|w| Some((w.single()?, w.addr()?)))
-    {
-        f.get(ls[k as usize]);
-        if retain {
-            f.helper(Helper::RetainKnown);
-        } else {
-            release_call(f, addr);
-        }
-    } else if let Some(walk) = &value.walk {
-        for l in ls {
-            f.get(*l);
-        }
-        let vals = ref_vals(value);
-        f.helper(if retain {
-            Helper::Retain {
-                vals,
-                walk: walk.clone(),
-            }
-        } else {
-            Helper::Release {
-                vals,
-                walk: walk.clone(),
-            }
-        });
-    }
-}
-
-/// Releases an inline value through the same local-stack helper as
-/// `Em::drop_inline`.
-fn drop_value(f: &mut Func, ls: &[u32], value: &RefLayout, drops: &[DropCall]) {
-    for &l in ls {
-        f.get(l);
-    }
-    f.helper(Helper::DropValue {
-        size: value.size,
-        leaves: value.leaves.clone(),
-        walk: value.walk.clone().unwrap_or(Walk::Glue),
-        drops: drops.to_vec(),
-    });
-}
-
-/// Each invocation has its own frame, so nested Drop calls cannot
-/// overwrite a parent's payload. The zero header gives references to the
-/// frame the same uncounted representation as every other local slot.
-fn drop_value_glue(
-    m: &Module,
-    size: u32,
-    leaves: &[Leaf],
-    walk: &Walk,
-    drops: &[DropCall],
-) -> Func {
-    let mut f = m.func(
-        "rt:drop_value",
-        leaves.iter().map(|l| l.val).collect(),
-        vec![],
-    );
-    let base = f.local(Val::I32);
-    let at = f.local(Val::I32);
-    f.get(base);
-    f.op(Instruction::I64Const(0));
-    f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
-    f.get(base);
-    f.u32(crate::module::HEADER);
-    f.op(Instruction::I32Add);
-    f.set(at);
-    f.store_locals(at, leaves, 0..);
-    call_drops(&mut f, at, drops);
-    let ls = load_elem_locals(&mut f, leaves);
-    fill_elem(&mut f, at, leaves, &ls);
-    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
-    crate::wide::locals_frame(
-        &mut f,
-        base,
-        (crate::module::HEADER + size).next_multiple_of(8),
-    );
-    f
+fn ref_count(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout, retain: bool) {
+    value
+        .counted
+        .emit(f, m, &|f, k| f.get(ls[k as usize]), retain);
 }
 
 /// One more count on each counted reference of the value in locals `ls`,
 /// loads no count keeps: a collection's is the copy glue's result, which
 /// replaces it with the same buffer carrying one more count. The reserved
 /// collection word stays 0.
-fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
+fn ref_copy(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout) {
+    // A shim retains every counted part, collections too; a value that is
+    // one collection is copied through the copy glue.
+    if matches!(value.counted, Counted::Shims(_)) || value.colls.is_empty() {
+        ref_count(f, m, ls, value, true);
+        return;
+    }
     for &c in &value.colls {
         f.get(ls[c as usize]);
         f.helper(Helper::CollCopy);
         f.set(ls[c as usize]);
     }
-    let rest = RefLayout {
-        walk: value.walk.as_ref().and_then(|w| w.without(&value.colls)),
-        ..value.clone()
-    };
-    ref_count(f, ls, &rest, true);
 }
 
 /// The value that the reference in local `at` names, in new locals with
 /// counts of their own: the leaves at the address. Emitted inline, so a
 /// value of any width stays in locals and never crosses a function's
 /// parameters or results.
-pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> Vec<u32> {
     let ls = ref_lend(f, at, value);
-    ref_copy(f, &ls, value);
+    ref_copy(f, m, &ls, value);
     ls
 }
 
@@ -4776,6 +4529,7 @@ pub(crate) fn ref_take(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
 /// takes a count of its own. Emitted inline, as [`ref_load`] is.
 pub(crate) fn ref_store(
     f: &mut Func,
+    m: &Module,
     at: u32,
     ls: &[u32],
     value: &RefLayout,
@@ -4786,13 +4540,13 @@ pub(crate) fn ref_store(
         return;
     }
     if !owned {
-        ref_count(f, ls, value, true);
+        ref_count(f, m, ls, value, true);
     }
     let old = f.load_locals(at, &value.leaves);
     f.store_locals(at, &value.leaves, ls.iter().copied());
     if release {
         let was = f.reason.replace(hd_tir::own::Reason::Overwritten);
-        ref_count(f, &old, value, false);
+        ref_count(f, m, &old, value, false);
         f.reason = was;
     }
 }
@@ -5189,48 +4943,5 @@ mod checked_fixed_allocation_tests {
         assert!(fast.body.iter().any(|ins| matches!(ins,
             Ins::Call(id, _) if matches!(*fast.symbol(*id), Sym::Helper(Helper::AllocClass { .. })))));
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod walk_code_tests {
-    use super::*;
-    use crate::layout::{Discr, Enc, Leaf};
-    use std::cell::RefCell;
-
-    #[test]
-    fn an_absent_niche_variant_does_not_read_or_count_its_payload() {
-        let m = Module::default();
-        let mut f = m.func("walk", vec![], vec![]);
-        let walk = Walk::switch(
-            Discr {
-                leaf: Leaf {
-                    val: Val::I32,
-                    offset: 0,
-                    bytes: 4,
-                    signed: false,
-                },
-                value: 0,
-                enc: Enc::Niche {
-                    untagged: 0,
-                    first: 1,
-                    last: 1,
-                    start: 0,
-                    bytes: 4,
-                },
-            },
-            vec![Some(Walk::Ref(1)), None, Some(Walk::Ref(9))],
-        );
-        let reads = RefCell::new(Vec::new());
-        walk_code(
-            &mut f,
-            &walk,
-            &|f, k| {
-                reads.borrow_mut().push(k);
-                f.u32(k);
-            },
-            &|f, _| f.op(Instruction::Drop),
-        );
-        assert_eq!(*reads.borrow(), [0, 1]);
     }
 }

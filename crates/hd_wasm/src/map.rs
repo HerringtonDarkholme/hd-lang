@@ -17,9 +17,9 @@ use hd_mono::{CallTarget, Target};
 use hd_types::Ty;
 
 use crate::Input;
-use crate::layout::{Leaf, Pass, Walk};
+use crate::layout::{Leaf, Pass};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
-use crate::rt::{Helper, own_arg, retain_call, walk_code};
+use crate::rt::{Helper, own_arg};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), four bytes no code reads or writes, the
@@ -54,16 +54,16 @@ pub enum KeyOps {
     I32(Hash128),
     /// A 64-bit integer; equal by `i64.eq`.
     I64(Hash128),
-    /// A string, hashed over its bytes; equal by its bytes. With the walk
-    /// of the hash's parameter when the hash owns it (`layout::Pass`).
-    Str(Hash128, Option<Walk>),
-    /// The key type's `hash_key` and `Eq.eq`. With the walk of
-    /// each of their parameters that the callee owns: the hash's key, then
+    /// A string, hashed over its bytes; equal by its bytes. With how the
+    /// hash's parameter counts when the hash owns it (`layout::Pass`).
+    Str(Hash128, crate::rt::Counted),
+    /// The key type's `hash_key` and `Eq.eq`. With how each of their
+    /// parameters counts that the callee owns: the hash's key, then
     /// `eq`'s two.
     Call {
         hash: Hash128,
         eq: Hash128,
-        own: [Option<Walk>; 3],
+        own: [crate::rt::Counted; 3],
     },
 }
 
@@ -78,8 +78,10 @@ pub struct Entry {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub keys: usize,
-    pub key_walk: Option<Walk>,
-    pub val_walk: Option<Walk>,
+    /// How the key and the value count (`hd_layout::shims`): the value's
+    /// values follow the key's `keys`.
+    pub key_counted: crate::rt::Counted,
+    pub val_counted: crate::rt::Counted,
     pub colls: Vec<u32>,
     /// Whether the map's header and tables take part in cycle collection
     /// (`crate::cycle`).
@@ -99,40 +101,46 @@ impl Entry {
         self.vals(self.keys, self.leaves.len())
     }
 
-    /// Whether releasing an entry walks counted references.
+    /// Whether releasing an entry counts anything.
     pub(crate) fn has_glue(&self) -> bool {
-        self.key_walk.is_some() || self.val_walk.is_some()
+        self.key_counted.counts() || self.val_counted.counts()
     }
 
-    /// The walk of the whole entry.
-    pub(crate) fn walk(&self) -> Option<Walk> {
-        match (&self.key_walk, &self.val_walk) {
-            (Some(k), Some(v)) => Some(Walk::sequence(vec![k.clone(), v.clone()])),
-            (Some(w), None) | (None, Some(w)) => Some(w.clone()),
-            (None, None) => None,
-        }
+    /// One count more or less on the entry whose `k`th value `get`
+    /// pushes: its key's, then its value's.
+    pub(crate) fn count(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        let keys = u32::try_from(self.keys).unwrap_or(u32::MAX);
+        self.key_counted.emit(f, m, get, retain);
+        self.val_counted
+            .emit(f, m, &|f, k| get(f, keys + k), retain);
     }
 }
 
 impl Entry {
     /// The entry of a `Map[kt, vt]`, for an operation or boundary codec.
     /// Its Copy elements need count walks but no inline Drop calls.
-    pub(crate) fn of(input: &Input<'_>, t: Ty, (kt, vt): (Ty, Ty)) -> StageResult<Self> {
+    pub(crate) fn of(
+        input: &Input<'_>,
+        m: &mut Module,
+        t: Ty,
+        (kt, vt): (Ty, Ty),
+    ) -> StageResult<Self> {
         let (pool, env, counts) = (input.pool, input.env, true);
-        let (m, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
+        let (mem, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
         let keys = parts[0].count;
         let shift = n32(keys);
-        let counted = |t: Ty| {
-            counts
-                .then(|| crate::layout::count_walk(pool, env, t))
-                .flatten()
-        };
         Ok(Entry {
-            size: m.size,
-            leaves: m.leaves,
+            size: mem.size,
+            leaves: mem.leaves,
             keys,
-            key_walk: counted(kt),
-            val_walk: counted(vt).map(|w| w.shifted(shift)),
+            key_counted: crate::rt::counted_of(input, m, kt)?,
+            val_counted: crate::rt::counted_of(input, m, vt)?,
             colls: crate::layout::coll_leaves(pool, env, vt)
                 .into_iter()
                 .map(|k| k + shift)
@@ -148,33 +156,38 @@ impl KeyOps {
     /// `hash_integer(u64, u64)` or `hash_string(string, u64)` by the key's
     /// primitive type, else `hash_key[K](K, u64) -> u32` and
     /// `key_equal[K](K, K) -> bool`, so each takes the key's values.
-    pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Self {
-        // The walk of parameter `k` of a key operation's instance when
-        // the instance owns it (`layout::Pass`): the map glue that lends
-        // it the key then counts a copy for it.
-        let own = |t: &CallTarget, k: usize| -> Option<Walk> {
+    pub(crate) fn of(
+        input: &Input<'_>,
+        m: &mut Module,
+        target: &Target,
+        key: &[Val],
+    ) -> StageResult<Self> {
+        // How parameter `k` of a key operation's instance counts when the
+        // instance owns it (`layout::Pass`): the map glue that lends it
+        // the key then counts a copy for it.
+        let mut own = |t: &CallTarget, k: usize| -> StageResult<crate::rt::Counted> {
             let p = crate::emit::callee_params(input, m, t.key, t.item, t.args)[k];
             let lent = k < 64 && input.env.lends(t.item, t.args) & (1 << k) != 0;
             match crate::layout::pass(input.pool, input.env, true, p) {
-                Pass::Owned(w) if !lent => Some(w),
-                _ => None,
+                Pass::Owned if !lent => crate::rt::counted_of(input, m, p),
+                _ => Ok(crate::rt::Counted::None),
             }
         };
-        match target {
+        Ok(match target {
             Target::MapInline(hash) => match key {
                 [Val::I32] => KeyOps::I32(hash.key),
                 [Val::I64] => KeyOps::I64(hash.key),
-                _ => KeyOps::Str(hash.key, own(hash, 0)),
+                _ => KeyOps::Str(hash.key, own(hash, 0)?),
             },
             Target::MapKey { hash, eq } => KeyOps::Call {
                 hash: hash.key,
                 eq: eq.key,
-                own: [own(hash, 0), own(eq, 0), own(eq, 1)],
+                own: [own(hash, 0)?, own(eq, 0)?, own(eq, 1)?],
             },
             // ruled out: map_key and note_boundary_value collect only these
             // two target forms before the map emitters call this accessor.
             _ => crate::emit::required(None, "collection must select map key operations"),
-        }
+        })
     }
 }
 
@@ -429,22 +442,16 @@ pub fn table(m: &Module, entry: &Entry) -> Func {
 pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
     let mut f = m.func("rt:drop_entries", vec![Val::I32], vec![]);
     let (cap, e, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
-    let walk = entry.walk();
     load_u32(&mut f, 0, CAP);
     f.set(cap);
     let n = entry.leaves.len();
     each_live(&mut f, 0, cap, e, &|f| {
         entry_at(f, 0, cap, e, entry.size);
         f.set(at);
-        if let Some(walk) = &walk {
+        if entry.has_glue() {
             f.get(at);
             let ls = load_entry(f, entry, 0, n);
-            walk_code(
-                f,
-                walk,
-                &|f, k| f.get(ls[k as usize]),
-                &crate::rt::release_call,
-            );
+            entry.count(f, m, &|f, k| f.get(ls[k as usize]), false);
         }
     });
     f
@@ -475,7 +482,7 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
             ..
         } => {
             // The map lends the key; a hash that owns it takes a count.
-            own_arg(&mut f, key, own.as_ref(), &|f| {
+            own_arg(&mut f, m, key, own, &|f| {
                 for k in 0..key.len() {
                     f.get(n32(k));
                 }
@@ -501,11 +508,11 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
 pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
     let mut f = m.func("rt:map_find", params, vec![Val::I32]);
-    find_body(&mut f, entry, ops, false);
+    find_body(&mut f, m, entry, ops, false);
     f
 }
 
-fn find_body(f: &mut Func, entry: &Entry, ops: &KeyOps, probe: bool) {
+fn find_body(f: &mut Func, m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) {
     let (cap, gmask, g, at, e) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -581,7 +588,7 @@ fn find_body(f: &mut Func, entry: &Entry, ops: &KeyOps, probe: bool) {
     f.op(I::I32Eq);
     f.op(I::If(BlockType::Empty));
     entry_at(f, 0, cap, e, entry.size);
-    key_equal(f, entry, ops);
+    key_equal(f, m, entry, ops);
     f.op(I::If(BlockType::Empty));
     f.get(e);
     if probe {
@@ -765,7 +772,7 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
             f.op(I::End);
             f.op(I::End);
         } else {
-            key_equal(&mut f, entry, ops);
+            key_equal(&mut f, m, entry, ops);
             f.op(I::If(BlockType::Empty));
             // Inline integer bits remain initialized in a tombstone.
             // Only a matching key needs the liveness metadata read.
@@ -798,7 +805,7 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
             f.u32(entry.size);
             f.op(I::I32Mul);
             f.op(I::I32Add);
-            key_equal(&mut f, entry, ops);
+            key_equal(&mut f, m, entry, ops);
             f.op(I::If(BlockType::Empty));
             f.get(candidate);
             f.op(I::Return);
@@ -820,13 +827,13 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
         ops: ops.clone(),
     });
     f.set(1);
-    find_body(&mut f, entry, ops, probe);
+    find_body(&mut f, m, entry, ops, probe);
     f
 }
 
 /// Consume the stored entry address and push equality with the lookup
 /// key, using the same ABI and ownership convention on both probe paths.
-fn key_equal(f: &mut Func, entry: &Entry, ops: &KeyOps) {
+fn key_equal(f: &mut Func, m: &Module, entry: &Entry, ops: &KeyOps) {
     let stored = load_entry(f, entry, 0, entry.keys);
     match ops {
         KeyOps::I32(_) => {
@@ -853,12 +860,12 @@ fn key_equal(f: &mut Func, entry: &Entry, ops: &KeyOps) {
         } => {
             // Both keys are lent; an `eq` that owns them takes counts.
             let kv: Vec<Val> = entry.leaves[..entry.keys].iter().map(|l| l.val).collect();
-            own_arg(f, &kv, own_self.as_ref(), &|f| {
+            own_arg(f, m, &kv, own_self, &|f| {
                 for s in &stored[..entry.keys] {
                     f.get(*s);
                 }
             });
-            own_arg(f, &kv, own_other.as_ref(), &|f| {
+            own_arg(f, m, &kv, own_other, &|f| {
                 for k in 0..entry.keys {
                     f.get(2 + n32(k));
                 }
@@ -1012,15 +1019,11 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
     entry_at(&mut f, t, cap, e, entry.size);
     f.set(at);
     // Copy elements have no inline hooks; release the replaced value's counts.
-    if let Some(w) = &entry.val_walk {
+    if entry.val_counted.counts() {
         f.get(at);
         let old = load_entry(&mut f, entry, nk, n);
-        walk_code(
-            &mut f,
-            w,
-            &|f, k| f.get(old[k as usize]),
-            &crate::rt::release_call,
-        );
+        let nk32 = u32::try_from(nk).unwrap_or(u32::MAX);
+        (entry.val_counted).emit(&mut f, m, &|f, k| f.get(old[(nk32 + k) as usize]), false);
     }
     for k in nk..n {
         f.get(at);
@@ -1028,14 +1031,7 @@ pub fn put(m: &Module, entry: &Entry, _ops: &KeyOps) -> Func {
         f.op(store_op(entry.leaves[k], 0));
     }
     // The table keeps its key, so release the incoming key's counts.
-    if let Some(w) = &entry.key_walk {
-        walk_code(
-            &mut f,
-            w,
-            &|f, k| f.get(arg(k as usize)),
-            &crate::rt::release_call,
-        );
-    }
+    (entry.key_counted).emit(&mut f, m, &|f, k| f.get(arg(k as usize)), false);
     f.get(t);
     f.op(I::Return);
     f.op(I::End);
@@ -1202,19 +1198,24 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.get(t);
     table_bytes(&mut f, cap, entry.size);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    let walk = entry.walk().and_then(|w| w.without(&entry.colls));
-    let retain = retain_call(m);
-    if walk.is_some() || !entry.colls.is_empty() {
+    // A value's shim retains its collections too; a value that is one
+    // collection is copied through the copy glue below.
+    let shims = matches!(entry.val_counted, crate::rt::Counted::Shims(_));
+    let colls: &[u32] = if shims { &[] } else { &entry.colls };
+    if entry.has_glue() || !colls.is_empty() {
         let n = entry.leaves.len();
+        let keys = u32::try_from(entry.keys).unwrap_or(u32::MAX);
         each_live(&mut f, nt, cap, e, &|f| {
             entry_at(f, nt, cap, e, entry.size);
             f.set(at);
             f.get(at);
             let ls = load_entry(f, entry, 0, n);
-            if let Some(w) = &walk {
-                walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+            (entry.key_counted).emit(f, m, &|f, k| f.get(ls[k as usize]), true);
+            if shims || colls.is_empty() {
+                let get = |f: &mut Func, k: u32| f.get(ls[(keys + k) as usize]);
+                entry.val_counted.emit(f, m, &get, true);
             }
-            for c in &entry.colls {
+            for c in colls {
                 let l = entry.leaves[*c as usize];
                 f.get(at);
                 f.get(ls[*c as usize]);
@@ -1321,15 +1322,7 @@ pub fn step(m: &Module, entry: &Entry, item: &crate::layout::Flat) -> Func {
     entry_at(&mut f, t, cap, i, entry.size);
     f.set(at);
     f.load_into(at, &entry.leaves, &elems);
-    if let Some(w) = entry.walk() {
-        for x in &elems {
-            f.get(*x);
-        }
-        f.helper(Helper::Retain {
-            vals: entry.leaves.iter().map(|l| l.val).collect(),
-            walk: w,
-        });
-    }
+    entry.count(&mut f, m, &|f, k| f.get(elems[k as usize]), true);
     // The payload's one field, the `(usize, (K, V))` tuple.
     let leaf = |f: &mut Func, _: usize, k: usize| f.get(if k == 0 { i } else { elems[k - 1] });
     // A value `.Some` leaves zero stays zero, as its local starts.
@@ -1391,8 +1384,8 @@ mod seed_tests {
             size: 0,
             leaves: vec![],
             keys: 0,
-            key_walk: None,
-            val_walk: None,
+            key_counted: crate::rt::Counted::None,
+            val_counted: crate::rt::Counted::None,
             colls: vec![],
             cyclic: false,
         };

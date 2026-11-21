@@ -24,13 +24,11 @@ impl Drop for Resource:
 
 fn size(value: Resource) -> usize:
     value.owned.len()
-> std/rt_tests.stage_case/size
->   release counted reference (last use)
 
 fn ignore(value: Resource) -> usize:
     0
 > std/rt_tests.stage_case/ignore
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.Resource [seen] (last use)
 
 fn boxed_size(value: *Resource) -> usize:
     value.owned.len()
@@ -53,8 +51,7 @@ impl !Copy for Conditional
 fn conditional_size(value: Conditional) -> usize:
     match value:
 > std/rt_tests.stage_case/conditional_size
->   release counted reference (last use)
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.Resource [seen] (last use)
         .Empty => 0
         .Live(resource) => size(resource)
 
@@ -63,14 +60,12 @@ fn read_conditional(callback: fn(Conditional) -> usize, value: Conditional) -> u
     callback(value)
 > std/rt_tests.stage_case/read_conditional
 >   release counted reference (last use)
->   release counted reference (last use)
 >   release fn(std.rt_tests.stage_case.Conditional) -> usize (last use)
 
 @inline(.Never)
 fn read(callback: fn(Resource) -> usize, value: Resource) -> usize:
     callback(value)
 > std/rt_tests.stage_case/read
->   release counted reference (last use)
 >   release counted reference (last use)
 >   release fn(std.rt_tests.stage_case.Resource) -> usize (last use)
 
@@ -79,13 +74,10 @@ fn identity(callback: fn(Resource) -> Resource, value: Resource) -> Resource:
     callback(value)
 > std/rt_tests.stage_case/identity
 >   release counted reference (last use)
->   release counted reference (last use)
 >   release fn(std.rt_tests.stage_case.Resource) -> std.rt_tests.stage_case.Resource (last use)
 
 fn keep(value: Resource) -> Resource:
     value
-> std/rt_tests.stage_case/keep
->   release counted reference (last use)
 
 fn plain_controls() -> void:
     seen := box(+0)
@@ -105,7 +97,6 @@ fn plain_controls() -> void:
 >   retain *mut i32 (stored)
     assert_equal(*seen, +2, reason="returning callback transfers the native Drop hook")
     assert_equal(returned.owned.len(), 0)
->   release counted reference (last use)
     assert_equal(*seen, +3, reason="the returned native owner drops at its last use")
     assert_equal(read(ignore, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   retain *mut i32 (stored)
@@ -143,13 +134,12 @@ impl Drop for EmptyResource:
 fn empty_size(value: EmptyResource) -> usize:
     0
 > std/rt_tests.stage_case/empty_size
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.EmptyResource (last use)
 
 @inline(.Never)
 fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usize:
     callback(value)
 > std/rt_tests.stage_case/read_empty
->   release counted reference (last use)
 >   release fn(std.rt_tests.stage_case.EmptyResource) -> usize (last use)
 
 @inline(.Never)
@@ -169,18 +159,16 @@ fn mixed_size(
 ) -> usize:
     value.owned.len() + label.len()
 > std/rt_tests.stage_case/mixed_size
->   release counted reference (last use)
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.EmptyResource (last use)
 >   release string (last use)
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.EmptyResource (last use)
 
 fn empty_controls() -> void:
     assert_equal(read_empty(empty_size, EmptyResource {}), 0)
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
     inspect := fn(value: EmptyResource) -> usize: 0
 > std/rt_tests.stage_case/empty_controls
->   release counted reference (last use)
->   release counted reference (last use)
+>   release std.rt_tests.stage_case.EmptyResource (last use)
     assert_equal(read_empty(inspect, EmptyResource {}), 0)
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
     seen := box(+0)

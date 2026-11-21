@@ -3,9 +3,9 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
@@ -104,9 +104,11 @@
     if
       local.get $wrapped
       i32.load $heap
-      local.get $wrapped
-      i32.load $heap offset=4
-      call $rt:release
+      local.tee $wrapped
+      if
+        local.get $wrapped
+        call $rt:release_ref'1
+      end
     end
     local.get $t1
     i64.extend_i32_u
@@ -128,7 +130,7 @@
         i32.load $heap
         if
           local.get $rest
-          call $rt:release_ref
+          call $rt:release_ref'2
         end
       end
     end

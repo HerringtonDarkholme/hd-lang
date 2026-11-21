@@ -3,7 +3,7 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[(string, List[i32])]" (func $"release_value[(string, List[i32])]" (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 8 funcref))
   (func $one (param $f.0 i32) (param $f.1 i32) (param $value.0.0 i32) (param $value.0.1 i32) (param $value.1 i32) (result i32)
@@ -50,7 +50,7 @@
     local.get $values.0.0
     local.get $values.0.1
     local.get $values.1
-    call $rt:release
+    call $"release_value[(string, List[i32])]"
   )
   (func $scalars (param $f.0 i32) (param $f.1 i32) (param $values.0 i32) (param $values.1 i32) (result i32)
     ;; 16 |     call(f, values)

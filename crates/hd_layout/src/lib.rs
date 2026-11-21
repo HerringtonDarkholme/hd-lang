@@ -30,6 +30,7 @@
 
 pub mod facts;
 pub mod layouts;
+pub mod shims;
 pub mod work;
 
 pub use layouts::{Fields, Layout, LayoutId, Layouts, Repr, Tag, Variants, layout, layouts};
@@ -211,6 +212,18 @@ pub struct Part {
     pub offset: u32,
 }
 
+impl Part {
+    /// Its first value's index among the parent's values, as a value
+    /// index.
+    #[must_use]
+    pub fn first_leaf(&self) -> u32 {
+        // ruled out: a laid-out value is at most `VALUE_SIZE` bytes
+        // (`value_size` refuses more as `type-too-large`) and each value is
+        // at least one byte, so a value index is below `VALUE_SIZE`, a u32.
+        u32::try_from(self.first).unwrap_or(u32::MAX)
+    }
+}
+
 /// What a concrete type is to this backend.
 pub enum Kind {
     /// Its values are in locals: a scalar, a string, an enum, a struct or
@@ -375,109 +388,6 @@ fn inline(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     }
 }
 
-/// How a value of a [`by_address`] type releases its counts from its
-/// address (#2031, step 4): Swift's value-witness `destroy`, one per
-/// type. A field of at most [`INDIRECT`] values walks its own leaves
-/// ([`Step::Inline`]); a field passed by address calls its type's plan at
-/// its offset ([`Step::Nested`]). So each type's release code is
-/// O(its own fields), and a chain of K nested types costs O(K) in all,
-/// where one flat [`Walk`] of the whole value costs O(K) per type.
-/// Equality, order and hash are by `key`, a hash of the steps with each
-/// nested plan's key in place of the plan: O(own fields) to make, O(1) to
-/// compare.
-#[derive(Debug)]
-pub struct ReleasePlan {
-    pub key: u128,
-    pub steps: Vec<ReleaseStep>,
-}
-
-/// One field's part of a [`ReleasePlan`]; `field` is its index among
-/// the type's members.
-#[derive(Clone, Debug)]
-pub enum ReleaseStep {
-    /// The field's leaves, offsets from the value's start, and the walk
-    /// over them; `colls`, the leaves among them that are collections a
-    /// copy copies through the copy glue (`rt:coll_copy`).
-    Inline {
-        field: u32,
-        leaves: Vec<Leaf>,
-        walk: Walk,
-        colls: Vec<u32>,
-    },
-    /// A field passed by address: its type's plan at `offset`.
-    Nested {
-        field: u32,
-        offset: u32,
-        plan: std::sync::Arc<ReleasePlan>,
-    },
-}
-
-impl ReleaseStep {
-    /// The field's index among the type's members.
-    #[must_use]
-    pub fn field(&self) -> u32 {
-        match self {
-            Self::Inline { field, .. } | Self::Nested { field, .. } => *field,
-        }
-    }
-}
-
-impl ReleasePlan {
-    /// The plan of `steps`, keyed.
-    #[must_use]
-    pub fn new(steps: Vec<ReleaseStep>) -> Self {
-        use std::hash::{Hash as _, Hasher as _};
-        let half = |seed: u8| {
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            seed.hash(&mut h);
-            for s in &steps {
-                match s {
-                    ReleaseStep::Inline {
-                        leaves,
-                        walk,
-                        colls,
-                        ..
-                    } => {
-                        0u8.hash(&mut h);
-                        leaves.hash(&mut h);
-                        walk.hash(&mut h);
-                        colls.hash(&mut h);
-                    }
-                    ReleaseStep::Nested { offset, plan, .. } => {
-                        1u8.hash(&mut h);
-                        offset.hash(&mut h);
-                        plan.key.hash(&mut h);
-                    }
-                }
-            }
-            h.finish()
-        };
-        let key = (u128::from(half(0)) << 64) | u128::from(half(1));
-        Self { key, steps }
-    }
-}
-impl PartialEq for ReleasePlan {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-impl Eq for ReleasePlan {}
-impl PartialOrd for ReleasePlan {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for ReleasePlan {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.key.cmp(&other.key)
-    }
-}
-impl std::hash::Hash for ReleasePlan {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-    }
-}
-
 /// The scalar values of a concrete type.
 pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<Val>> {
     Ok(mem(pool, env, t)?.vals())
@@ -613,32 +523,28 @@ type VariantTypes = std::rc::Rc<Vec<Vec<Ty>>>;
 
 thread_local! {
     static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
-    static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
-    static COUNT_WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+    static TRACKS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static COUNTS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static THIN_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static LOCAL_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
-    static INPUT_BORROWED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
-    static INPUT_OWNED: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
     static VARIANTS: Memo<Option<VariantTypes>> = const { std::cell::RefCell::new(None) };
     static MEMBERS: Memo<StageResult<std::rc::Rc<Members>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Runs `link` with the layout cache in place: within it, [`mem`] and
-/// [`walk`] compute each type once, so a long chain of types held by
+/// [`counted`] compute each type once, so a long chain of types held by
 /// value costs its length, not its square, at every use.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     struct Reset {
         mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
         layouts: Option<std::rc::Rc<Layouts>>,
-        walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
-        count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+        tracks: Option<hd_base::HashMap<Ty, bool>>,
+        counts: Option<hd_base::HashMap<Ty, bool>>,
         drops: Option<hd_base::HashMap<Ty, bool>>,
         thin_refs: Option<hd_base::HashMap<Ty, bool>>,
         local_refs: Option<hd_base::HashMap<Ty, bool>>,
-        input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
-        input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
         flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
         variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
         members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
@@ -647,13 +553,11 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
         fn drop(&mut self) {
             MEMS.set(self.mems.take());
             layouts::LAYOUTS.set(self.layouts.take());
-            WALKS.set(self.walks.take());
-            COUNT_WALKS.set(self.count_walks.take());
+            TRACKS.set(self.tracks.take());
+            COUNTS.set(self.counts.take());
             DROPS.set(self.drops.take());
             THIN_REFS.set(self.thin_refs.take());
             LOCAL_REFS.set(self.local_refs.take());
-            INPUT_BORROWED.set(self.input_borrowed.take());
-            INPUT_OWNED.set(self.input_owned.take());
             FLATS.set(self.flats.take());
             VARIANTS.set(self.variants.take());
             MEMBERS.set(self.members.take());
@@ -663,48 +567,40 @@ pub fn cached<R>(link: impl FnOnce() -> R) -> R {
     let _reset = Reset {
         mems: MEMS.take(),
         layouts: layouts::LAYOUTS.take(),
-        walks: WALKS.take(),
-        count_walks: COUNT_WALKS.take(),
+        tracks: TRACKS.take(),
+        counts: COUNTS.take(),
         drops: DROPS.take(),
         thin_refs: THIN_REFS.take(),
         local_refs: LOCAL_REFS.take(),
-        input_borrowed: INPUT_BORROWED.take(),
-        input_owned: INPUT_OWNED.take(),
         flats: FLATS.take(),
         variants: VARIANTS.take(),
         members: MEMBERS.take(),
     };
     MEMS.set(Some(hd_base::HashMap::default()));
     layouts::LAYOUTS.set(Some(std::rc::Rc::default()));
-    WALKS.set(Some(hd_base::HashMap::default()));
-    COUNT_WALKS.set(Some(hd_base::HashMap::default()));
+    TRACKS.set(Some(hd_base::HashMap::default()));
+    COUNTS.set(Some(hd_base::HashMap::default()));
     DROPS.set(Some(hd_base::HashMap::default()));
     THIN_REFS.set(Some(hd_base::HashMap::default()));
     LOCAL_REFS.set(Some(hd_base::HashMap::default()));
-    INPUT_BORROWED.set(Some(hd_base::HashMap::default()));
-    INPUT_OWNED.set(Some(hd_base::HashMap::default()));
     FLATS.set(Some(hd_base::HashMap::default()));
     VARIANTS.set(Some(hd_base::HashMap::default()));
     MEMBERS.set(Some(hd_base::HashMap::default()));
-    walk_plan::cached(link)
+    link()
 }
 
-/// A layout cache scope's state on its thread: the memo maps, the walk
-/// plans' store and the reference slot plans.
+/// A layout cache scope's state on its thread: the memo maps.
 struct Scope {
     mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
     layouts: Option<std::rc::Rc<Layouts>>,
-    walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
-    count_walks: Option<hd_base::HashMap<Ty, Option<Walk>>>,
+    tracks: Option<hd_base::HashMap<Ty, bool>>,
+    counts: Option<hd_base::HashMap<Ty, bool>>,
     drops: Option<hd_base::HashMap<Ty, bool>>,
     thin_refs: Option<hd_base::HashMap<Ty, bool>>,
     local_refs: Option<hd_base::HashMap<Ty, bool>>,
-    input_borrowed: Option<hd_base::HashMap<Ty, Option<Walk>>>,
-    input_owned: Option<hd_base::HashMap<Ty, Option<Walk>>>,
     flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
     variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
     members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
-    walk_plans: walk_plan::Saved,
 }
 
 impl Scope {
@@ -713,17 +609,14 @@ impl Scope {
         Self {
             mems: MEMS.take(),
             layouts: layouts::LAYOUTS.take(),
-            walks: WALKS.take(),
-            count_walks: COUNT_WALKS.take(),
+            tracks: TRACKS.take(),
+            counts: COUNTS.take(),
             drops: DROPS.take(),
             thin_refs: THIN_REFS.take(),
             local_refs: LOCAL_REFS.take(),
-            input_borrowed: INPUT_BORROWED.take(),
-            input_owned: INPUT_OWNED.take(),
             flats: FLATS.take(),
             variants: VARIANTS.take(),
             members: MEMBERS.take(),
-            walk_plans: walk_plan::Saved::take(),
         }
     }
 
@@ -732,17 +625,14 @@ impl Scope {
         Self {
             mems: Some(hd_base::HashMap::default()),
             layouts: Some(std::rc::Rc::default()),
-            walks: Some(hd_base::HashMap::default()),
-            count_walks: Some(hd_base::HashMap::default()),
+            tracks: Some(hd_base::HashMap::default()),
+            counts: Some(hd_base::HashMap::default()),
             drops: Some(hd_base::HashMap::default()),
             thin_refs: Some(hd_base::HashMap::default()),
             local_refs: Some(hd_base::HashMap::default()),
-            input_borrowed: Some(hd_base::HashMap::default()),
-            input_owned: Some(hd_base::HashMap::default()),
             flats: Some(hd_base::HashMap::default()),
             variants: Some(hd_base::HashMap::default()),
             members: Some(hd_base::HashMap::default()),
-            walk_plans: walk_plan::Saved::fresh(),
         }
     }
 
@@ -750,17 +640,14 @@ impl Scope {
     fn put(self) {
         MEMS.set(self.mems);
         layouts::LAYOUTS.set(self.layouts);
-        WALKS.set(self.walks);
-        COUNT_WALKS.set(self.count_walks);
+        TRACKS.set(self.tracks);
+        COUNTS.set(self.counts);
         DROPS.set(self.drops);
         THIN_REFS.set(self.thin_refs);
         LOCAL_REFS.set(self.local_refs);
-        INPUT_BORROWED.set(self.input_borrowed);
-        INPUT_OWNED.set(self.input_owned);
         FLATS.set(self.flats);
         VARIANTS.set(self.variants);
         MEMBERS.set(self.members);
-        self.walk_plans.put();
     }
 }
 
@@ -821,7 +708,7 @@ fn memoized<T: Clone + 'static>(
     let held = memo.take();
     let linked = held.is_some();
     let mut done = held.unwrap_or_default();
-    let got = walk_plan::cached_here(|| by_parts(pool, env, t, &mut done, one));
+    let got = by_parts(pool, env, t, &mut done, one);
     if linked {
         memo.set(Some(done));
     }
@@ -939,307 +826,185 @@ fn enum_flat_by(
     Ok(got?.mem.clone())
 }
 
-/// How one counted address of a [`Walk`] is counted: the leaf that holds it.
+/// How one counted address is counted: the leaf that holds it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Addr {
-    /// [`Walk::Ref`]: counting finds the block through the page table.
+    /// Counting finds the block through the page table.
     Ref,
-    /// [`Walk::Known`]: a known payload start.
+    /// A known payload start.
     Known,
 }
 
-/// Where a value's counted references are among its values (§23.4): what
-/// counting walks to retain or release the value.
-/// A count recipe: scalar leaves stay inline; compound recipes share flat
-/// arena nodes and composed value-index mappings.
-#[derive(Clone)]
-pub enum Walk {
-    Ref(u32),
-    Known(u32),
-    Glue,
-    Plan(walk_plan::Root),
+/// One reference among a value's values ([`ref_leaves`]): its index,
+/// whether counting counts it (a local reference, thin or `&dyn`, counts
+/// nothing, `ref.count.local`), and the variant tests that hold it,
+/// outermost first, each a discriminant over the whole value's values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RefLeaf {
+    pub value: u32,
+    pub counted: bool,
+    pub guards: Guards,
 }
 
-/// One shallow view of a recipe. Children are constant-size shared handles.
-pub enum WalkKind {
-    Ref(u32),
-    Known(u32),
-    Glue,
-    Seq(Vec<Walk>),
-    Switch(Discr, Vec<Option<Walk>>),
-}
-
-/// Whether releasing the one-value constant `c` walked by `walk` releases
-/// nothing: an enum whose variant `c` encodes has no counted payload, such
-/// as `.None` of a `*T?`. Conservative: any other walk may release.
+/// Whether a value of `t` holds one reference, at its first value, under
+/// no variant test.
 #[must_use]
-pub fn releases_nothing(walk: &Walk, c: u32) -> bool {
-    let WalkKind::Switch(discr, arms) = walk.kind() else {
-        return false;
-    };
-    if discr.value != 0 || discr.leaf.offset != 0 {
-        return false;
-    }
-    let encoded = (0..u32::try_from(arms.len()).unwrap_or(u32::MAX))
-        .find(|v| matches!(discr.enc.is(*v), Is::Eq(x) if x == c));
-    let variant = match (encoded, discr.enc) {
-        (Some(v), _) => v,
-        (None, Enc::Niche { untagged, .. }) => untagged,
-        (None, Enc::Direct) => return false,
-    };
-    matches!(arms.get(variant as usize), Some(None))
+pub fn one_ref_first(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    matches!(
+        ref_leaves(pool, env, t).as_slice(),
+        [RefLeaf { value: 0, guards, .. }] if guards.is_empty()
+    )
 }
 
-impl Walk {
-    fn from_root(root: walk_plan::Root) -> Self {
-        match root.scalar().map(Self::view_kind) {
-            Some(WalkKind::Ref(k)) => Self::Ref(k),
-            Some(WalkKind::Known(k)) => Self::Known(k),
-            Some(WalkKind::Glue) => Self::Glue,
-            _ => Self::Plan(root),
-        }
-    }
-    fn root_in(self, arena: &walk_plan::Arena) -> walk_plan::Root {
-        match self {
-            Self::Ref(k) => arena.reference(k),
-            Self::Known(k) => arena.known(k),
-            Self::Glue => arena.glue(),
-            Self::Plan(root) => root,
-        }
-    }
-    fn arena<'a>(walks: impl Iterator<Item = &'a Walk>) -> walk_plan::Arena {
-        walk_plan::Arena::for_roots(walks.filter_map(|w| match w {
-            Self::Plan(r) => Some(r),
-            _ => None,
-        }))
-    }
-    #[must_use]
-    pub fn sequence(children: Vec<Walk>) -> Self {
-        let arena = Self::arena(children.iter());
-        let children = children.into_iter().map(|w| w.root_in(&arena)).collect();
-        Self::Plan(arena.sequence(children))
-    }
-    #[must_use]
-    pub fn switch(discr: Discr, arms: Vec<Option<Walk>>) -> Self {
-        let arena = Self::arena(arms.iter().flatten());
-        let arms = arms
-            .into_iter()
-            .map(|w| w.map(|w| w.root_in(&arena)))
-            .collect();
-        Self::Plan(arena.switch(discr, arms))
-    }
-    #[must_use]
-    pub fn kind(&self) -> WalkKind {
-        match self {
-            Self::Ref(k) => WalkKind::Ref(*k),
-            Self::Known(k) => WalkKind::Known(*k),
-            Self::Glue => WalkKind::Glue,
-            Self::Plan(root) => Self::view_kind(root.view()),
-        }
-    }
-    fn view_kind(view: walk_plan::View) -> WalkKind {
-        match view {
-            walk_plan::View::Ref(k) => WalkKind::Ref(k),
-            walk_plan::View::Known(k) => WalkKind::Known(k),
-            walk_plan::View::Glue => WalkKind::Glue,
-            walk_plan::View::Seq(children) => {
-                WalkKind::Seq(children.into_iter().map(Self::from_root).collect())
+/// The variant tests over a value: each discriminant, the variant it must
+/// say and how many variants its enum has, outermost first.
+pub type Guards = Vec<(Discr, usize, usize)>;
+
+/// The references among a value of `t`'s values, with the variant tests
+/// that hold each. O(the type's nodes) per call; for development views and
+/// a cold frame's local references, each asked once per type.
+#[must_use]
+pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf> {
+    let mut out = Vec::new();
+    // Each pending type: where its values sit among the root's, and the
+    // tests over it.
+    let mut work: Vec<(Ty, Vec<u32>, Guards)> = Vec::new();
+    let width = vals(pool, env, t).map_or(0, |v| v.len());
+    work.push((
+        t,
+        (0..u32::try_from(width).unwrap_or(0)).collect(),
+        Vec::new(),
+    ));
+    while let Some((t, at, guards)) = work.pop() {
+        let t = strip_newtype(pool, env, t);
+        let mut leaf = |k: u32, counted: bool| {
+            if let Some(&value) = at.get(k as usize) {
+                out.push(RefLeaf {
+                    value,
+                    counted,
+                    guards: guards.clone(),
+                });
             }
-            walk_plan::View::Switch(d, arms) => WalkKind::Switch(
-                d,
-                arms.into_iter().map(|a| a.map(Self::from_root)).collect(),
-            ),
-        }
-    }
-
-    #[must_use]
-    pub fn shifted(&self, by: u32) -> Self {
-        match self {
-            Self::Ref(k) => Self::Ref(k + by),
-            Self::Known(k) => Self::Known(k + by),
-            Self::Glue => Self::Glue,
-            Self::Plan(root) => Self::from_root(root.shifted(by)),
-        }
-    }
-    #[must_use]
-    pub fn selected(&self, positions: &[u32]) -> Self {
-        match self {
-            Self::Ref(k) => Self::Ref(positions[*k as usize]),
-            Self::Known(k) => Self::Known(positions[*k as usize]),
-            Self::Glue => Self::Glue,
-            Self::Plan(root) => Self::from_root(root.selected(positions)),
-        }
-    }
-    #[must_use]
-    pub fn has_glue(&self) -> bool {
-        match self {
-            Self::Glue => true,
-            Self::Plan(root) => root.has_glue(),
-            _ => false,
-        }
-    }
-    #[must_use]
-    pub fn indices(&self, addresses_only: bool) -> Vec<u32> {
-        match self {
-            Self::Ref(k) | Self::Known(k) => vec![*k],
-            Self::Glue => Vec::new(),
-            Self::Plan(root) => root.indices(addresses_only),
-        }
-    }
-    /// The walk without copied/replaced addresses. Discriminants remain.
-    #[must_use]
-    pub fn without(&self, skip: &[u32]) -> Option<Self> {
-        match self {
-            Self::Ref(k) => (!skip.contains(k)).then_some(self.clone()),
-            Self::Known(k) => (!skip.contains(k)).then_some(self.clone()),
-            Self::Glue => Some(Self::Glue),
-            Self::Plan(root) => root.without(skip).map(Self::from_root),
-        }
-    }
-    #[must_use]
-    pub fn single(&self) -> Option<u32> {
-        match self {
-            Self::Ref(k) | Self::Known(k) => Some(*k),
-            _ => None,
-        }
-    }
-    #[must_use]
-    pub fn addr(&self) -> Option<Addr> {
-        match self {
-            Self::Ref(_) => Some(Addr::Ref),
-            Self::Known(_) => Some(Addr::Known),
-            _ => None,
-        }
-    }
-    #[must_use]
-    pub fn known(&self) -> bool {
-        matches!(self, Self::Known(_))
-    }
-    fn seq(mut children: Vec<Walk>) -> Option<Walk> {
-        if children.iter().any(|w| !matches!(w, Walk::Glue)) {
-            children.retain(|w| !matches!(w, Walk::Glue));
-        } else {
-            children.truncate(1);
-        }
-        match children.len() {
-            0 => None,
-            1 => children.pop(),
-            _ => Some(Self::sequence(children)),
-        }
-    }
-}
-impl std::fmt::Debug for Walk {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ref(k) => write!(f, "Ref({k})"),
-            Self::Known(k) => write!(f, "Known({k})"),
-            Self::Glue => f.write_str("Glue"),
-            Self::Plan(root) => std::fmt::Debug::fmt(root, f),
-        }
-    }
-}
-impl std::hash::Hash for Walk {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            Self::Ref(k) => walk_plan::hash_scalar(0, Some(*k), state),
-            Self::Known(k) => walk_plan::hash_scalar(1, Some(*k), state),
-            Self::Glue => walk_plan::hash_scalar(2, None, state),
-            Self::Plan(root) => std::hash::Hash::hash(root, state),
-        }
-    }
-}
-impl Ord for Walk {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match (self, other) {
-            (Self::Ref(a), Self::Ref(b)) | (Self::Known(a), Self::Known(b)) => a.cmp(b),
-            (Self::Plan(a), Self::Plan(b)) => a.cmp(b),
-            _ => {
-                let tag = |w: &Self| match w {
-                    Self::Ref(_) => 0,
-                    Self::Known(_) => 1,
-                    Self::Glue => 2,
-                    Self::Plan(_) => 3,
-                };
-                tag(self).cmp(&tag(other))
+        };
+        let fields = |tys: &[Ty], work: &mut Vec<_>| {
+            if let Ok((_, parts)) = payload_mem(pool, env, tys) {
+                for (&f, p) in tys.iter().zip(&parts).rev() {
+                    let ks = at[p.first..p.first + p.count].to_vec();
+                    work.push((f, ks, guards.clone()));
+                }
             }
+        };
+        match pool.get(t) {
+            TyData::Prim(Prim::String) | TyData::TraitValue { .. } => leaf(0, true),
+            TyData::Fn { .. } => leaf(1, true),
+            TyData::Context(_) => leaf(0, true),
+            TyData::Tuple { .. } => fields(&tuple_members(pool, t), &mut work),
+            TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => leaf(0, true),
+            TyData::Ref { counted, .. } => leaf(0, counted),
+            TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => leaf(0, true),
+            TyData::Union(_) | TyData::Adt { .. } => match kind(pool, env, t) {
+                Kind::Boxed => leaf(0, true),
+                Kind::Ref { whole, .. } => leaf(0, whole),
+                Kind::Value => {
+                    if let Some(vs) = variants(pool, env, t) {
+                        let Ok(Some(flat)) = flat(pool, env, t) else {
+                            continue;
+                        };
+                        for (v, (fs, ps)) in vs.iter().zip(&flat.positions).enumerate().rev() {
+                            let mut g = guards.clone();
+                            match flat.disc {
+                                Disc::One(k) if k as usize != v => continue,
+                                Disc::One(_) => {}
+                                Disc::Cell(d) => g.push((
+                                    Discr {
+                                        value: at[d.value as usize],
+                                        ..d
+                                    },
+                                    v,
+                                    vs.len(),
+                                )),
+                            }
+                            for (&f, ks) in fs.iter().zip(ps).rev() {
+                                let ks = ks.iter().map(|&k| at[k as usize]).collect();
+                                work.push((f, ks, g.clone()));
+                            }
+                        }
+                    } else {
+                        fields(&value_parts(pool, env, t), &mut work);
+                    }
+                }
+            },
+            // A scalar, and what holds no value of its own here: no reference.
+            TyData::Prim(_)
+            | TyData::Never
+            | TyData::Poison
+            | TyData::Opaque { .. }
+            | TyData::Param(_)
+            | TyData::Const(_)
+            | TyData::Assoc { .. }
+            | TyData::Infer(_)
+            | TyData::Canon(_)
+            | TyData::Row(_) => {}
         }
     }
+    out
 }
-impl PartialOrd for Walk {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for Walk {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == std::cmp::Ordering::Equal
-    }
-}
-impl Eq for Walk {}
 
-/// The counted references of a concrete type's values, or `None` when it
-/// has none: scalars, and what holds no counted address. A type this
-/// backend does not lay out has none here; its layout refuses it.
-pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
-    memoized(&WALKS, pool, env, t, &|u, part| {
-        walk_one(pool, env, u, part, false)
+/// Whether the ownership passes track a value of `t`: it holds a counted
+/// or local reference, or a `Drop` hook. Memoized per link.
+#[must_use]
+pub fn tracked(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    memoized(&TRACKS, pool, env, t, &|u, part| {
+        holds_one(pool, env, u, part, false)
     })
 }
 
-/// [`walk`] as counting sees it: a local reference, thin or `&dyn`,
-/// (`ref.count.local`) counts nothing, though
-/// the ownership passes track it as a counted value ([`walk`]).
-pub fn count_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
-    memoized(&COUNT_WALKS, pool, env, t, &|u, part| {
-        walk_one(pool, env, u, part, true)
+/// Whether counting a value of `t` does anything: it holds a counted
+/// reference (a local one counts nothing, `ref.count.local`) or a `Drop`
+/// hook. Memoized per link.
+#[must_use]
+pub fn counted(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    memoized(&COUNTS, pool, env, t, &|u, part| {
+        holds_one(pool, env, u, part, true)
     })
 }
 
-/// `t`'s walk from its parts' walks, which `part` reads.
-fn walk_one(
+/// Whether `t` holds a reference (only a counted one when `counting`) or
+/// a `Drop` hook, from its parts' answers, which `part` reads.
+fn holds_one(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     t: Ty,
-    part: &dyn Fn(Ty) -> Option<Walk>,
+    part: &dyn Fn(Ty) -> bool,
     counting: bool,
-) -> Option<Walk> {
+) -> bool {
     let t = strip_newtype(pool, env, t);
+    let held = |whole: bool| whole || !counting;
     match pool.get(t) {
-        TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
-        TyData::Fn { .. } => Some(Walk::Known(1)),
-        TyData::TraitValue { .. } => Some(Walk::Ref(0)),
-        TyData::Context(_) => Some(Walk::Known(0)),
-        TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => Some(Walk::Known(0)),
-        TyData::Union(_) => switch_walk_by(pool, env, t, part),
-        TyData::Ref { inner, counted, .. } => ref_walk(fat(pool, env, inner), counted, counting),
-        TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
-            match kind(pool, env, t) {
-                Kind::Boxed => Some(Walk::Known(0)),
-                Kind::Ref { fat, whole, .. } => ref_walk(fat, whole, counting),
-                Kind::Value => {
-                    let w = match env.enum_variants(def, args) {
-                        Some(_) => switch_walk_by(pool, env, t, part),
-                        None => fields_walk_by(pool, env, &value_parts(pool, env, t), part),
-                    };
-                    w.or_else(|| env.has_drop(def).then_some(Walk::Glue))
-                }
-            }
+        TyData::Prim(Prim::String)
+        | TyData::Fn { .. }
+        | TyData::TraitValue { .. }
+        | TyData::Context(_) => true,
+        TyData::Tuple { .. } => tuple_members(pool, t).into_iter().any(part),
+        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
+        TyData::Union(_) => {
+            variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
         }
-        TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Some(Walk::Ref(0)),
-        _ => None,
-    }
-}
-
-/// A reference's walk: a thin counted one (`whole`) is a payload start, a
-/// fat counted one (`*dyn Tr`) or a local one goes through the page table,
-/// and a local one, thin or fat (`&dyn Tr`), counts nothing
-/// (`ref.count.local`) when `counting`.
-fn ref_walk(fat: bool, whole: bool, counting: bool) -> Option<Walk> {
-    match (fat, whole) {
-        (false, true) => Some(Walk::Known(0)),
-        (_, false) if counting => None,
-        (_, false) | (true, true) => Some(Walk::Ref(0)),
+        TyData::Ref { counted, .. } => held(counted),
+        TyData::Adt { def, args } => match kind(pool, env, t) {
+            Kind::Boxed => true,
+            Kind::Ref { whole, .. } => held(whole),
+            Kind::Value => {
+                let any = match env.enum_variants(def, args) {
+                    Some(_) => variants(pool, env, t)
+                        .is_some_and(|vs| vs.iter().flatten().any(|&f| part(f))),
+                    None => value_parts(pool, env, t).into_iter().any(part),
+                };
+                any || env.has_drop(def)
+            }
+        },
+        TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => true,
+        _ => false,
     }
 }
 
@@ -1259,72 +1024,6 @@ pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     )
 }
 
-/// Physical count walks lowered from TIR's single function-input record.
-/// The record supplies native transfer and the caller/callee count partition;
-/// this structure contains only its concrete layout lowering.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FunctionInputWalks {
-    pub transfer: bool,
-    pub owned: Option<Walk>,
-    pub borrowed: Option<Walk>,
-}
-
-pub fn function_input(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> FunctionInputWalks {
-    let input = env.function_input(t);
-    let t = strip_newtype(pool, env, t);
-    if !input.transfer {
-        return FunctionInputWalks {
-            transfer: false,
-            owned: None,
-            borrowed: count_walk(pool, env, t),
-        };
-    }
-    // Physical fast path: without thin-reference leaves the split plan is
-    // just the ordinary count walk. The TIR convention is unchanged.
-    if !holds_thin_ref(pool, env, t) {
-        return FunctionInputWalks {
-            transfer: true,
-            owned: count_walk(pool, env, t),
-            borrowed: None,
-        };
-    }
-    FunctionInputWalks {
-        transfer: true,
-        owned: memoized(&INPUT_OWNED, pool, env, t, &|t, part| {
-            if matches!(kind(pool, env, t), Kind::Ref { fat: false, .. }) {
-                None
-            } else {
-                walk_one(pool, env, t, part, true)
-            }
-        }),
-        borrowed: memoized(&INPUT_BORROWED, pool, env, t, &|t, part| match pool
-            .get(strip_newtype(pool, env, t))
-        {
-            TyData::Ref { .. } => match kind(pool, env, t) {
-                Kind::Ref {
-                    fat: false,
-                    whole: true,
-                    ..
-                } => count_walk(pool, env, t),
-                _ => None,
-            },
-            TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
-            TyData::Union(_) => switch_walk_by(pool, env, t, part),
-            TyData::Adt { def, args }
-                if env.std_kind(def) == StdKind::Other
-                    && matches!(kind(pool, env, t), Kind::Value) =>
-            {
-                if env.enum_variants(def, args).is_some() {
-                    switch_walk_by(pool, env, t, part)
-                } else {
-                    fields_walk_by(pool, env, &value_parts(pool, env, t), part)
-                }
-            }
-            _ => None,
-        }),
-    }
-}
-
 /// Whether a value of `t` holds a thin reference by value: a `*T` or a
 /// `&T` whose target is no trait value, in itself or in a tuple member,
 /// a struct field or a value enum's payload. Variance turns one kind into
@@ -1341,45 +1040,14 @@ pub fn holds_thin_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     })
 }
 
-/// The walk of fields laid out in order, as a struct, a tuple or a data
-/// payload lays them out.
-pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Option<Walk> {
-    fields_walk_by(pool, env, fields, &|f| count_walk(pool, env, f))
-}
-
-/// [`fields_walk`], with each field's own walk read by `part`.
-pub fn fields_walk_by(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    fields: &[Ty],
-    part: &dyn Fn(Ty) -> Option<Walk>,
-) -> Option<Walk> {
-    // Empty child walks need no physical leaves or field positions.
-    if !fields.iter().any(|&f| part(f).is_some()) {
-        return None;
-    }
-    let (_, parts) = payload_mem(pool, env, fields).ok()?;
-    let first = |p: &Part| u32::try_from(p.first).expect("values");
-    Walk::seq(
-        fields
-            .iter()
-            .zip(&parts)
-            .filter_map(|(f, p)| {
-                let at = first(p);
-                part(*f).map(|w| w.shifted(at))
-            })
-            .collect(),
-    )
-}
-
 /// A closure environment's layout from its captures, each its type's
 /// value or, when shared, a cell's address; with the places of the
-/// captures and their counted references.
+/// captures.
 pub fn env_mem(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     fields: &[(Ty, bool)],
-) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
+) -> StageResult<(Mem, Vec<Part>)> {
     let laid = |of: &dyn Fn(Ty) -> StageResult<Mem>| {
         let ms = fields
             .iter()
@@ -1389,59 +1057,7 @@ pub fn env_mem(
     };
     // The sum fits before any capture's leaves are copied, as in [`mem`].
     laid(&|t| layout(pool, env, t).map(|l| l.part()))?;
-    let (m, parts) = laid(&|t| mem(pool, env, t))?;
-    let walks = fields
-        .iter()
-        .zip(&parts)
-        .filter_map(|((t, shared), p)| {
-            let at = u32::try_from(p.first).expect("values");
-            if *shared {
-                Some(Walk::Known(at))
-            } else {
-                count_walk(pool, env, *t).map(|w| w.shifted(at))
-            }
-        })
-        .collect();
-    Ok((m, parts, Walk::seq(walks)))
-}
-
-/// The walk of enum or optional type `t`: by the tag, each variant's
-/// fields at their values.
-pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
-    switch_walk_by(pool, env, t, &|f| count_walk(pool, env, f))
-}
-
-/// [`switch_walk`], with each field's own walk read by `part`.
-fn switch_walk_by(
-    pool: &InternPool,
-    env: &dyn ProgramEnv,
-    t: Ty,
-    part: &dyn Fn(Ty) -> Option<Walk>,
-) -> Option<Walk> {
-    let variants = variants(pool, env, t)?;
-    if !variants.iter().flatten().any(|&f| part(f).is_some()) {
-        return None;
-    }
-    let flat = flat(pool, env, t).ok()??;
-    let arms: Vec<Option<Walk>> = variants
-        .iter()
-        .zip(&flat.positions)
-        .map(|(fields, at)| {
-            Walk::seq(
-                fields
-                    .iter()
-                    .zip(at)
-                    .filter_map(|(f, ks)| part(*f).map(|w| w.selected(ks)))
-                    .collect(),
-            )
-        })
-        .collect();
-    match flat.disc {
-        // One variant: its walk, with no test.
-        Disc::One(k) => arms.into_iter().nth(k as usize).flatten(),
-        Disc::Cell(_) if arms.iter().all(Option::is_none) => None,
-        Disc::Cell(d) => Some(Walk::switch(d, arms)),
-    }
+    laid(&|t| mem(pool, env, t))
 }
 
 /// The captures of a closure environment in order, each at its alignment:
@@ -2421,74 +2037,13 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn only_a_constant_of_a_payload_free_variant_releases_nothing() {
-        let leaf = Leaf {
-            offset: 0,
-            val: Val::I32,
-            bytes: 4,
-            signed: false,
-        };
-        let niche = Enc::Niche {
-            untagged: 1,
-            first: 0,
-            last: 0,
-            start: 0,
-            bytes: 4,
-        };
-        let option = |enc| {
-            Walk::switch(
-                Discr {
-                    leaf,
-                    value: 0,
-                    enc,
-                },
-                vec![None, Some(Walk::Known(0))],
-            )
-        };
-        assert!(
-            releases_nothing(&option(niche), 0),
-            "`.None` holds no reference"
-        );
-        assert!(
-            !releases_nothing(&option(niche), 8),
-            "an address is `.Some`"
-        );
-        assert!(
-            !releases_nothing(&option(Enc::Direct), 1),
-            "tag 1 has a payload"
-        );
-        assert!(
-            !releases_nothing(&option(Enc::Direct), 7),
-            "no variant is tag 7"
-        );
-        assert!(
-            !releases_nothing(&Walk::Known(0), 0),
-            "only an enum is read"
-        );
-        let second = Walk::switch(
-            Discr {
-                leaf,
-                value: 1,
-                enc: niche,
-            },
-            vec![None, None],
-        );
-        assert!(
-            !releases_nothing(&second, 0),
-            "only a one-value enum is read"
-        );
-    }
-
     fn caches_are_absent() -> bool {
         MEMS.with(|m| m.borrow().is_none())
-            && WALKS.with(|w| w.borrow().is_none())
-            && COUNT_WALKS.with(|w| w.borrow().is_none())
+            && TRACKS.with(|w| w.borrow().is_none())
+            && COUNTS.with(|w| w.borrow().is_none())
             && DROPS.with(|d| d.borrow().is_none())
             && THIN_REFS.with(|r| r.borrow().is_none())
             && LOCAL_REFS.with(|r| r.borrow().is_none())
-            && INPUT_BORROWED.with(|r| r.borrow().is_none())
-            && INPUT_OWNED.with(|r| r.borrow().is_none())
             && FLATS.with(|d| d.borrow().is_none())
             && VARIANTS.with(|d| d.borrow().is_none())
     }
@@ -2604,11 +2159,11 @@ mod tests {
                     .expect("outer layout cache")
                     .insert(Ty::VOID, Ok(Mem::NEVER));
             });
-            WALKS.with(|w| {
+            TRACKS.with(|w| {
                 w.borrow_mut()
                     .as_mut()
-                    .expect("outer walk cache")
-                    .insert(Ty::VOID, Some(Walk::Ref(7)));
+                    .expect("outer tracked cache")
+                    .insert(Ty::VOID, true);
             });
 
             let result = catch_unwind(AssertUnwindSafe(|| {
@@ -2616,7 +2171,7 @@ mod tests {
                     MEMS.with(|m| {
                         assert!(m.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
                     });
-                    WALKS.with(|w| {
+                    TRACKS.with(|w| {
                         assert!(w.borrow().as_ref().is_some_and(hd_base::HashMap::is_empty));
                     });
                     panic!("nested cache scope test");
@@ -2632,12 +2187,9 @@ mod tests {
                     .expect("restored outer layout");
                 assert!(saved.as_ref().is_ok_and(|m| *m == Mem::NEVER));
             });
-            WALKS.with(|w| {
+            TRACKS.with(|w| {
                 let w = w.borrow();
-                assert_eq!(
-                    w.as_ref().and_then(|w| w.get(&Ty::VOID)),
-                    Some(&Some(Walk::Ref(7)))
-                );
+                assert_eq!(w.as_ref().and_then(|w| w.get(&Ty::VOID)), Some(&true));
             });
         });
         assert!(caches_are_absent());
@@ -2950,5 +2502,3 @@ mod tests {
         );
     }
 }
-
-mod walk_plan;

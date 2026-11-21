@@ -3,10 +3,10 @@
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[string]" (func $"impl[T] Iterator[T] for ListIter[T].next[string]" (param i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -95,7 +95,7 @@
       i32.load $heap
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 12 |     out
@@ -186,7 +186,7 @@
         i32.load $heap
         if
           local.get $t1
-          call $rt:release_ref
+          call $rt:release_ref'1
         end
       end
     end
@@ -207,19 +207,21 @@
         i32.load $heap offset=4
         i32.add
     ;; 18 |     match cursor.next():
-        local.set $t1
+        local.set $s.0
         br 1
       end
     ;; 20 |         .None => items.len()
       local.get $values
       i32.load $heap offset=4
     ;; 18 |     match cursor.next():
-      local.set $t1
+      local.set $s.0
     end
     ;; 15 |     let mut items = values
     local.get $s.1
-    local.get $s.0
-    call $rt:release
+    if
+      local.get $s.1
+      call $rt:release_ref'2
+    end
     local.get $values
     if
       local.get $values
@@ -228,10 +230,10 @@
       i32.load $heap
       if
         local.get $values
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
-    local.get $t1
+    local.get $s.0
     local.get $t0
     i32.const 16
     i32.add

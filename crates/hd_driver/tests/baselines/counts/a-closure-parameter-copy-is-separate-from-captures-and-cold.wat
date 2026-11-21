@@ -5,7 +5,7 @@
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string)]" (func $"release_value[(string, string)]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
@@ -240,7 +240,7 @@
         local.get $t5
         local.get $t4
         local.get $t3
-        call $rt:release
+        call $"release_value[(string, string)]"
       end
     end
     local.get $t1

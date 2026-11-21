@@ -32,14 +32,14 @@ pub fn value_part_types(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Vec<
 /// This answers the ownership passes' `OwnCx::counted` query for a concrete type.
 #[must_use]
 pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    crate::holds_drop(pool, env, ty) || crate::walk(pool, env, ty).is_some()
+    crate::holds_drop(pool, env, ty) || crate::tracked(pool, env, ty)
 }
 
 /// Whether the value's representation is one counted address at word zero.
 #[must_use]
 pub fn single_counted_address_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     crate::vals(pool, env, ty).is_ok_and(|vs| vs == [crate::Val::I32])
-        && crate::walk(pool, env, ty).and_then(|w| w.single()) == Some(0)
+        && crate::one_ref_first(pool, env, ty)
 }
 
 /// Whether the concrete type is a thin counted reference to a whole object.
@@ -70,8 +70,8 @@ pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) ->
 #[must_use]
 pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     !crate::holds_drop(pool, env, ty)
-        && crate::walk(pool, env, ty).is_some()
-        && crate::count_walk(pool, env, ty).is_none()
+        && crate::tracked(pool, env, ty)
+        && !crate::counted(pool, env, ty)
 }
 
 /// Concrete layout fact: copying this value runs collection copy glue.
@@ -201,7 +201,7 @@ pub fn in_place_empty_variants(
 /// number, a `bool`, a `char`, or a small struct or tuple of them.
 #[must_use]
 pub fn promotable_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    lent_referent(pool, env, t).filter(|&target| crate::walk(pool, env, target).is_none())
+    lent_referent(pool, env, t).filter(|&target| !crate::tracked(pool, env, target))
 }
 
 /// [`promotable_referent`], counted parts allowed: the referent of a
@@ -350,12 +350,13 @@ impl PlacePart {
             if zeroed.binary_search(&slot).is_err() {
                 continue;
             }
-            // The part needs a drop, so its variant's arm walks it and the
-            // enum's walk is a switch on its cell.
-            let counted = crate::walk(pool, env, ty).is_some_and(|w| {
-                matches!(w.kind(), crate::WalkKind::Switch(_, arms)
-                    if arms.get(v as usize).and_then(Option::as_ref)
-                        .is_some_and(|arm| arm.indices(true).contains(&value)))
+            // The part needs a drop when its variant holds a reference
+            // there, under a test of the enum's cell.
+            let counted = crate::ref_leaves(pool, env, ty).iter().any(|l| {
+                l.value == value
+                    && l.guards
+                        .first()
+                        .is_some_and(|&(_, arm, _)| arm == v as usize)
             });
             repairs.push((slot, (!counted).then_some(last)));
         }

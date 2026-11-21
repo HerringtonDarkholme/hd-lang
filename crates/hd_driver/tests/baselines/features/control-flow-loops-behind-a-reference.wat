@@ -6,7 +6,7 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[Parser]" (func $"release_value[Parser]" (param i32 i32 i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
@@ -299,7 +299,7 @@
       i32.load $heap offset=4
       local.get $p
       i32.load $heap offset=8
-      call $rt:release
+      call $"release_value[Parser]"
     end
     local.get $t1
     i64.extend_i32_u

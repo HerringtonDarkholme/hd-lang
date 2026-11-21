@@ -391,6 +391,62 @@ fn copy_collection_referents() -> void:
     _ := entries.remove(key)
     values.truncate(0)
 
+struct Made:
+    token: Token
+    name: string
+
+impl !Copy for Made
+
+# The box's local moves out as the result: the box outlives it.
+fn made(id: usize) -> *mut Made:
+    box(Made { token: Token { id: id }, name: "made ${id}" })
+
+fn returned_boxes() -> usize:
+    a := made(1)
+    b := made(2)
+    a.name = "renamed"
+    a.token.id + b.token.id
+
+let hook_at: usize = 0
+
+@intrinsic("mem_ref_address")
+fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
+struct Spot:
+    n: usize
+
+impl !Copy for Spot
+
+impl Drop for Spot:
+    fn drop(&mut self) -> void:
+        hook_at = address_of(self)
+
+struct SpotBox:
+    name: string
+    spot: Spot
+
+impl !Copy for SpotBox
+
+# The box goes at the return; its field's hook then records its `self`.
+fn spot_address() -> usize:
+    b := box(SpotBox { name: "spot ${1}", spot: Spot { n: 1 } })
+    address_of(&b.spot)
+
+# A sum kept by address (over sixteen values) whose payload holds a hook.
+enum Heavy:
+    Full(Token, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64)
+    Empty
+
+fn heavy(id: usize) -> Heavy:
+    if id > 0:
+        Heavy.Full(Token { id: id }, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+    else:
+        Heavy.Empty
+
+fn drop_heavy(id: usize) -> void:
+    _ := heavy(id)
+
 tests:
     use std.testing.{assert_equal, it}
 
@@ -408,6 +464,23 @@ tests:
             assert_equal(boxed_room(id), 200)
             assert_equal(container_room(id), 200)
         assert_equal(drops, before + 300)
+
+    it("a sum kept by address runs its payload's Drop once"):
+        before := drops
+        drop_heavy(3)
+        drop_heavy(0)
+        assert_equal(drops, before + 1)
+
+    it("a boxed field's Drop runs on the field where it lives"):
+        hook_at = 0
+        expected := spot_address()
+        assert_equal(hook_at, expected)
+
+    it("a box returned from its maker runs its payload's Drop once"):
+        before := drops
+        for _ in 0..10:
+            assert_equal(returned_boxes(), 3)
+        assert_equal(drops, before + 20)
 
     it("a Drop value under parts without a Drop of their own drops once"):
         before := drops

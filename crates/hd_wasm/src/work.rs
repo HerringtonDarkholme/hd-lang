@@ -103,9 +103,9 @@ pub(crate) fn init_probes(n: usize) {
     add(&INIT_PROBES, n);
 }
 
-/// Counts the work on moves out of locals kept by address on this
-/// thread: each release plan step and flagged path a drop's level
-/// visits ([`crate::emit`]'s `mem_release` and `mem_hooks`).
+/// Counts the work of open drops on this thread: each node a drop opens
+/// under its flags ([`crate::emit`]'s `open_drop`), as a release of a
+/// local with moved fields does.
 pub fn count_moved_paths<R>(run: impl FnOnce() -> R) -> (R, u64) {
     count(&MOVED_PATHS, run)
 }
