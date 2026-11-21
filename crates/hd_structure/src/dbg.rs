@@ -10,7 +10,7 @@ use hd_types::{ParamRef, Ty, TyData};
 
 use super::{Cx, Gen, Handles, Mem, SYN, Shape, Target, Var};
 
-const FORMAT: &str = "std.format";
+use hd_resolve::known::FORMAT_MODULE as FORMAT;
 
 /// A raw declaration's traversal metadata, without any public trait opt-in.
 /// This is used only by the private dbg Structure template.

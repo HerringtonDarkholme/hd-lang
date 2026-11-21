@@ -1089,8 +1089,8 @@ impl ImportIndex {
                     .or_default()
                     .push(e.module.clone());
             }
-            let reexport = if declared == "std.core" {
-                e.module == "std.core"
+            let reexport = if declared == crate::known::CORE_MODULE {
+                e.module == crate::known::CORE_MODULE
             } else {
                 declared != e.module
             };

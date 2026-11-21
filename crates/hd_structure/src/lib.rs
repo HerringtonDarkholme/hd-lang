@@ -885,7 +885,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     fn std(&self, name: &str) -> DefId {
-        self.names.item("std.structure", name)
+        self.names.item(hd_resolve::known::STRUCTURE_MODULE, name)
     }
 
     fn adt(&self, def: DefId, args: &[Ty]) -> Ty {
@@ -1193,7 +1193,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         });
         let source = self.b.call(
             &Callee::Item {
-                def: self.names.item("std.rt.entry", "host_provider"),
+                def: self.names.known.host_provider,
                 targs: pool.list(&[ty]),
             },
             &[value],
@@ -1272,7 +1272,9 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// A categorized panic (`flow.panic.report`), through std's
     /// `panic_with` intrinsic: a `never` value.
     fn panic(&mut self, category: &str, message: &str) -> Ref {
-        let def = self.names.item("std.rt.bytes", "panic_with");
+        let def = self
+            .names
+            .item(hd_resolve::known::BYTES_MODULE, "panic_with");
         let c = self.str_(category);
         let msg = self.str_(message);
         self.b.call(

@@ -9,6 +9,29 @@
 use hd_base::{DefId, PathId};
 use hd_intern::{PathKind, PathTable};
 
+/// Shared module spellings for source seeding, runtime roots and textual import hints.
+pub const CORE_MODULE: &str = "std.core";
+pub const TASK_MODULE: &str = "std.task";
+pub const FUNCTION_MODULE: &str = "std.function";
+pub const INSPECT_MODULE: &str = "std.inspect";
+pub const STRUCTURE_MODULE: &str = "std.structure";
+pub const TESTING_MODULE: &str = "std.testing";
+pub const ENTRY_MODULE: &str = "std.rt.entry";
+pub const CHECKED_MODULE: &str = "std.rt.checked";
+pub const RUNTIME_MODULE: &str = "std.rt";
+pub const FORMAT_MODULE: &str = "std.format";
+pub const BYTES_MODULE: &str = "std.rt.bytes";
+
+/// The modules with compiler-supplied declarations, in seed order.
+pub const SEEDED_MODULES: &[&str] = &[
+    CORE_MODULE,
+    TASK_MODULE,
+    FUNCTION_MODULE,
+    INSPECT_MODULE,
+    STRUCTURE_MODULE,
+    TESTING_MODULE,
+];
+
 /// The std items and modules the compiler gives meaning to.
 #[derive(Clone, Debug)]
 pub struct KnownItems {
@@ -312,49 +335,49 @@ impl KnownItems {
                     .raw(),
             )
         };
-        let any = item("std.core", "Any");
-        let any_val = item("std.core", "AnyVal");
-        let any_ref = item("std.core", "AnyRef");
-        let structure = item("std.structure", "Structure");
-        let union_type = item("std.structure", "UnionType");
-        let static_bound = item("std.core", "'static");
-        let walker = item("std.structure", "Walker");
-        let tuple = item("std.function", "Tuple");
-        let fn_trait = item("std.function", "Fn");
-        let fn_mut_trait = item("std.function", "FnMut");
-        let suspend = item("std.task", "Suspend");
-        let inspectable = item("std.inspect", "Inspectable");
+        let any = item(CORE_MODULE, "Any");
+        let any_val = item(CORE_MODULE, "AnyVal");
+        let any_ref = item(CORE_MODULE, "AnyRef");
+        let structure = item(STRUCTURE_MODULE, "Structure");
+        let union_type = item(STRUCTURE_MODULE, "UnionType");
+        let static_bound = item(CORE_MODULE, "'static");
+        let walker = item(STRUCTURE_MODULE, "Walker");
+        let tuple = item(FUNCTION_MODULE, "Tuple");
+        let fn_trait = item(FUNCTION_MODULE, "Fn");
+        let fn_mut_trait = item(FUNCTION_MODULE, "FnMut");
+        let suspend = item(TASK_MODULE, "Suspend");
+        let inspectable = item(INSPECT_MODULE, "Inspectable");
         let num = item("std.num", "Num");
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
-        let copy = item("std.core", "Copy");
-        let drop_trait = item("std.rt", "Drop");
+        let copy = item(CORE_MODULE, "Copy");
+        let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
             any,
             any_val,
             any_ref,
-            option: item("std.core", "Option"),
-            result: item("std.core", "Result"),
-            list: item("std.core", "List"),
+            option: item(CORE_MODULE, "Option"),
+            result: item(CORE_MODULE, "Result"),
+            list: item(CORE_MODULE, "List"),
             list_is_empty: inherent_method("std.collections", "impl[T] List[T]", "is_empty"),
-            map: item("std.core", "Map"),
+            map: item(CORE_MODULE, "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             room: item("std.rt.memory", "room"),
             alloc: item("std.rt.alloc", "alloc"),
-            checked_allocate: item("std.rt.checked", "allocate"),
+            checked_allocate: item(CHECKED_MODULE, "allocate"),
             free_room: item("std.rt.memory", "free_room"),
             cycle_collect: item("std.rt.cycle", "collect"),
             free_block: item("std.rt.alloc", "free_block"),
-            checked_free_acyclic: item("std.rt.checked", "free_acyclic"),
+            checked_free_acyclic: item(CHECKED_MODULE, "free_acyclic"),
             host_encode: item("std.host", "host_encode"),
             host_decode: item("std.host", "host_decode"),
             package_encode: item("std.host", "package_encode"),
             package_decode: item("std.host", "package_decode"),
-            function_module: module("std.function"),
-            core_module: module("std.core"),
+            function_module: module(FUNCTION_MODULE),
+            core_module: module(CORE_MODULE),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),
             fn_mut_trait,
@@ -363,26 +386,26 @@ impl KnownItems {
             structure,
             union_type,
             static_bound,
-            alias_params: item("std.core", "'alias"),
-            facts: item("std.structure", "Facts"),
-            field: item("std.structure", "FieldRecord"),
+            alias_params: item(CORE_MODULE, "'alias"),
+            facts: item(STRUCTURE_MODULE, "Facts"),
+            field: item(STRUCTURE_MODULE, "FieldRecord"),
             field_get: inherent_method(
-                "std.structure",
+                STRUCTURE_MODULE,
                 "impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]",
                 "get",
             ),
             variant_holds: inherent_method(
-                "std.structure",
+                STRUCTURE_MODULE,
                 "impl[HdS < ?Copy] VariantRecord[HdS]",
                 "holds",
             ),
             walker,
             walker_data_variant: trait_method(walker, "data_variant"),
             walker_data_member: trait_method(walker, "data_member"),
-            describer: item("std.structure", "Describer"),
-            source: item("std.structure", "Source"),
-            fills_defaults: item("std.structure", "fills_defaults"),
-            skips: item("std.structure", "skips"),
+            describer: item(STRUCTURE_MODULE, "Describer"),
+            source: item(STRUCTURE_MODULE, "Source"),
+            fills_defaults: item(STRUCTURE_MODULE, "fills_defaults"),
+            skips: item(STRUCTURE_MODULE, "skips"),
             inspectable,
             num,
             integer,
@@ -418,26 +441,26 @@ impl KnownItems {
             async_disposable: item("std.ops", "AsyncDisposable"),
             auto_closing: item("std.ops", "AutoClosing"),
             copy,
-            eq: item("std.core", "Eq"),
+            eq: item(CORE_MODULE, "Eq"),
             partial_ord: item("std.cmp", "PartialOrd"),
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
-            hash: item("std.core", "Hash"),
+            hash: item(CORE_MODULE, "Hash"),
             map_key_hash: item("std.hash", "hash_key"),
             key_equal: item("std.hash", "key_equal"),
             map_string_hash: item("std.hash", "hash_string"),
             map_integer_hash: item("std.hash", "hash_integer"),
-            display: item("std.format", "Display"),
-            debug: item("std.format", "Debug"),
+            display: item(FORMAT_MODULE, "Display"),
+            debug: item(FORMAT_MODULE, "Debug"),
             site_location: item("std.debug", "site_location"),
             site_args: item("std.debug", "site_args"),
             site_function_text: item("std.debug", "site_function_text"),
-            dbg: item("std.format", "dbg"),
+            dbg: item(FORMAT_MODULE, "dbg"),
             default_marker: item("std.ops", "default"),
-            debug_fn: item("std.format", "debug"),
-            dbg_structural: item("std.format", "DbgStructural"),
-            repl_text: item("std.format", "repl_text"),
-            repl_value: item("std.format", "repl_value"),
+            debug_fn: item(FORMAT_MODULE, "debug"),
+            dbg_structural: item(FORMAT_MODULE, "DbgStructural"),
+            repl_text: item(FORMAT_MODULE, "repl_text"),
+            repl_value: item(FORMAT_MODULE, "repl_value"),
             string_builder: item("std.text", "StringBuilder"),
             serialize: item("std.serde", "Serialize"),
             deserialize: item("std.serde", "Deserialize"),
@@ -451,7 +474,7 @@ impl KnownItems {
             rename_all: item("std.serde", "rename_all"),
             rename_case: item("std.serde", "RenameCase"),
             termination: item("std.process", "Termination"),
-            host_provider: item("std.rt.entry", "host_provider"),
+            host_provider: item(ENTRY_MODULE, "host_provider"),
             duration_suffix: [
                 item("std.time", "ms"),
                 item("std.time", "s"),
@@ -463,23 +486,23 @@ impl KnownItems {
             from: item("std.convert", "From"),
             error: item("std.error", "Error"),
             suspend,
-            block_on: item("std.task", "block_on"),
-            race: item("std.task", "race"),
-            all_list: item("std.task", "all_list"),
+            block_on: item(TASK_MODULE, "block_on"),
+            race: item(TASK_MODULE, "race"),
+            all_list: item(TASK_MODULE, "all_list"),
             annotate: item("std.annotation", "annotate"),
             inline: item("std.annotation", "inline"),
             cold: item("std.annotation", "cold"),
-            testing_module: module("std.testing"),
-            hd_run: item("std.testing", "hd_run"),
-            case_timeout: item("std.testing", "case_timeout"),
-            it_each: item("std.testing", "it_each"),
-            it_prop: item("std.testing", "it_prop"),
-            it_prop_with: item("std.testing", "it_prop_with"),
-            each_case: item("std.testing", "each_case"),
-            prop_case: item("std.testing", "prop_case"),
-            prop_with_case: item("std.testing", "prop_with_case"),
-            test_runner: item("std.testing", "TestRunner"),
-            property_runner: item("std.testing", "PropertyRunner"),
+            testing_module: module(TESTING_MODULE),
+            hd_run: item(TESTING_MODULE, "hd_run"),
+            case_timeout: item(TESTING_MODULE, "case_timeout"),
+            it_each: item(TESTING_MODULE, "it_each"),
+            it_prop: item(TESTING_MODULE, "it_prop"),
+            it_prop_with: item(TESTING_MODULE, "it_prop_with"),
+            each_case: item(TESTING_MODULE, "each_case"),
+            prop_case: item(TESTING_MODULE, "prop_case"),
+            prop_with_case: item(TESTING_MODULE, "prop_with_case"),
+            test_runner: item(TESTING_MODULE, "TestRunner"),
+            property_runner: item(TESTING_MODULE, "PropertyRunner"),
             sealed: [
                 any,
                 any_val,
@@ -527,33 +550,33 @@ impl KnownItems {
 /// checks the two agree. The `std.testing` row is test code only.
 pub const PRELUDE: &[(&str, &[&str])] = &[
     (
-        "std.core",
+        CORE_MODULE,
         &[
             "never", "bool", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "usize", "f32",
             "f64", "char", "string", "void", "List", "Map", "Any", "AnyVal", "AnyRef", "Option",
             "Result", "panic", "box",
         ],
     ),
-    ("std.format", &["Display", "Debug", "debug", "dbg"]),
+    (FORMAT_MODULE, &["Display", "Debug", "debug", "dbg"]),
     ("std.cmp", &["Eq", "PartialOrd", "Ord", "Ordering"]),
     ("std.hash", &["Hash"]),
     ("std.iter", &["Iterator", "Iterable"]),
     ("std.console", &["Console", "ConsoleError", "println"]),
-    ("std.task", &["Suspend"]),
+    (TASK_MODULE, &["Suspend"]),
     ("std.ops", &["Copy"]),
 ];
 
 /// The prelude names of test code (`module.prelude.test-assertions`): bound only
 /// in test code, but no declaration of a module may take their place.
 pub(crate) const TEST_PRELUDE: &[(&str, &[&str])] =
-    &[("std.testing", &["it", "assert", "assert_equal"])];
+    &[(TESTING_MODULE, &["it", "assert", "assert_equal"])];
 
 /// Whether `module` is a runtime module, `std.rt` or one under it
 /// (`module.rt.std-only`).
 #[must_use]
 pub fn runtime_module(module: &str) -> bool {
     module
-        .strip_prefix("std.rt")
+        .strip_prefix(RUNTIME_MODULE)
         .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
 }
 
@@ -562,7 +585,7 @@ pub fn runtime_module(module: &str) -> bool {
 /// `module.rt.core-prelude`); every other module sees them all.
 #[must_use]
 pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {
-    if module == "std.core" || runtime_module(module) {
+    if module == CORE_MODULE || runtime_module(module) {
         &PRELUDE[..1]
     } else {
         PRELUDE
