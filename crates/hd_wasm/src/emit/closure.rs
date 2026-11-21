@@ -394,8 +394,7 @@ impl Em<'_, '_, '_> {
         // its Box still controls the slot's lifetime.
         if self.placed.contains_key(&v) && self.written.contains(&v) {
             let at = self.cell_of(l)?;
-            let root = super::drop_flags::Root::Local(l);
-            let init = (!self.tir_flags().contains_key(&root)).then_some(true);
+            let init = (!self.flagged(l)).then_some(true);
             self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(());
         }
@@ -413,9 +412,7 @@ impl Em<'_, '_, '_> {
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
             // A store the TIR flags track sets the slots after it.
-            let flagged = self
-                .tir_flags()
-                .contains_key(&super::drop_flags::Root::Local(l));
+            let flagged = self.flagged(l);
             return self.fill_cell(l, c, &src, (v == NONE || !flagged).then_some(v != NONE));
         }
         self.cell_put(l, &src)

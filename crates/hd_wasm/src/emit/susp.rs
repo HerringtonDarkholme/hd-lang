@@ -1557,13 +1557,11 @@ pub(super) fn finish(
     // What a cold frame holds of the exit set: its parameters and a
     // closure's captures. The body's other locals are set only once it
     // runs, and a started frame is never freed (pinned below).
-    let owned: Vec<usize> = em
-        .exit_owners()
-        .iter()
-        .copied()
-        .filter(|local| em.parameter_positions.contains_key(local) || em.captured_local(*local))
-        .collect();
-    em.select_frame_drop_flags(&owned, &mut selected);
+    // and the flags its drop before the first poll tests.
+    let (cold_flags, owned) = em.cold_reads();
+    for v in cold_flags.iter().filter_map(|f| em.locals.get(f)).flatten() {
+        selected[*v as usize] = true;
+    }
     for &local in em.exit_owners().iter().chain(plocals) {
         if (em.parameter_positions.contains_key(&local) || em.captured_local(local))
             && let Some(values) = em.locals.get(&local)
@@ -1623,9 +1621,8 @@ pub(super) fn finish(
         em.f.op(I::End);
         em.f.op(I::End);
     }
-    let body_flags = em.reload_drop_flags(&positions);
     let mut places: Vec<(usize, Vec<u32>)> = Vec::new();
-    for l in owned {
+    for l in owned.into_iter().chain(cold_flags.iter().copied()) {
         if !em.loan_locals.contains_key(&l)
             && !em.borrowed.contains(&l)
             && let Some(ls) = em.locals.get(&l)
@@ -1736,7 +1733,6 @@ pub(super) fn finish(
         });
     }
     let drop = std::mem::take(&mut em.f);
-    em.locals.extend(body_flags);
 
     // The cold constructor: a frame in state 0 holding the arguments and
     // the providers, with a count of each counted argument. Built once as the instance's own function, and once more, when the
@@ -1890,7 +1886,14 @@ pub(super) fn finish(
                 }
             }
         }
-        em.save_initial_drop_flags(plocals, fr, &positions);
+        // A cold frame's owners are whole: the flags its drop tests start set.
+        for &v in cold_flags.iter().filter_map(|f| em.locals.get(f)).flatten() {
+            if let Some((at, val)) = at_of(v) {
+                em.f.get(fr);
+                em.f.i32(1);
+                em.f.op(store_op(val, at));
+            }
+        }
         em.retain_row(CountAt::Cold, 1);
         // A closure's code reads its captures from its environment, its first
         // parameter, into the frame, with a count of each.

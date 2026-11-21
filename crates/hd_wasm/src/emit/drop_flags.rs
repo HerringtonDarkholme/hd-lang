@@ -18,15 +18,10 @@ use hd_types::Ty;
 use super::Em;
 use crate::layout::Kind;
 use crate::layout::Mem;
+use crate::module::Sym;
 use crate::module::{HEAP, mem};
-use crate::module::{Sym, Val};
 use crate::op::Op as I;
 use crate::rt::Helper;
-
-/// Per value root, each flagged move path with its TIR flag local, read
-/// from one sub-body's flag statements and sorted by [`path_order`], so the
-/// paths under one path are one range.
-pub(super) type TirFlags = hd_base::HashMap<Root, Vec<(Vec<Proj>, u32)>>;
 
 /// A cell's flag slots after its value: their offset, and one node
 /// path per slot.
@@ -92,33 +87,22 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// This sub-body's TIR flags, read on first use: one walk of its rows,
-    /// then one sort per root, O(S log S) for S flag statements.
-    pub(super) fn tir_flags(&mut self) -> std::rc::Rc<TirFlags> {
-        if let Some(flags) = &self.tir_flags {
-            return std::rc::Rc::clone(flags);
-        }
-        let mut out = TirFlags::default();
-        for &i in self.rows.iter() {
-            if !matches!(self.b.tags[i], Tag::FlagSet | Tag::FlagClear) {
-                continue;
-            }
-            let [word, flag] = self.b.data[i];
-            if let Some(p) = self.b.decode_place(word)
-                && let Some((root, _)) = self.drop_root(&p)
-            {
-                out.entry(root).or_default().push((p.proj, flag));
-            }
-        }
-        // The flag pass (`hd_tir::own::drop_flags`) gives each flag local
-        // one path: equal paths are one flag's statements.
-        for paths in out.values_mut() {
-            paths.sort_stable_by(|a, b| path_order(&a.0, &b.0));
-            paths.dedup_by(|a, b| a.0 == b.0);
-        }
-        let out = std::rc::Rc::new(out);
-        self.tir_flags = Some(std::rc::Rc::clone(&out));
-        out
+    /// Whether this sub-body's flag statements name a path of local `l`,
+    /// so they, not its store, set its cell's slots. One walk of its rows,
+    /// on first use.
+    pub(super) fn flagged(&mut self, l: usize) -> bool {
+        let (b, rows) = (self.b, &self.rows);
+        let flagged = self.flagged.get_or_insert_with(|| {
+            (rows
+                .iter()
+                .filter(|&&i| matches!(b.tags[i], Tag::FlagSet | Tag::FlagClear)))
+            .filter_map(|&i| match b.view(b.data[i][0]).root {
+                hd_tir::ir::Root::Local(l) => Some(l as usize),
+                _ => None,
+            })
+            .collect()
+        });
+        flagged.contains(&l)
     }
 
     /// Local `root`'s cell address local and slots, when it is a cell.
@@ -327,70 +311,35 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Store(mem(HEAP, u64::from(offset), 2)));
     }
 
-    /// Scalar storage the frame destructor reads, selected before compact
-    /// offsets: the TIR flags of `cold`, what a cold frame holds; the
-    /// collector traces a started frame through it.
-    pub(super) fn select_frame_drop_flags(&mut self, cold: &[usize], selected: &mut [bool]) {
-        let flags = self.tir_flags();
-        for paths in cold.iter().filter_map(|&l| flags.get(&Root::Local(l))) {
-            for (_, flag) in paths {
-                for &local in self.locals.get(&(*flag as usize)).into_iter().flatten() {
-                    selected[local as usize] = true;
-                }
-            }
-        }
-    }
-
-    /// The task's destructor is a separate function. Rebind the body's
-    /// initialization locals to their saved values before releasing it;
-    /// returns the TIR flag locals' body bindings, to restore after.
-    pub(super) fn reload_drop_flags(
-        &mut self,
-        positions: &[Option<(u32, Val)>],
-    ) -> Vec<(usize, Vec<u32>)> {
-        let load = |em: &mut Self, old: u32| {
-            let local = em.f.local(Val::I32);
-            if let Some((offset, _)) = positions.get(old as usize).copied().flatten() {
-                em.f.get(super::susp::FRAME);
-                em.f.op(I::I32Load(mem(HEAP, u64::from(offset), 2)));
-                em.f.set(local);
-            }
-            local
-        };
-        let mut flags: Vec<usize> = (self.tir_flags().values().flatten())
-            .map(|&(_, f)| f as usize)
-            .collect();
-        flags.sort_stable();
-        let mut body = Vec::new();
-        for flag in flags {
-            if let Some(old) = self.locals.get(&flag).cloned() {
-                let new = old.iter().map(|&l| load(self, l)).collect();
-                self.locals.insert(flag, new);
-                body.push((flag, old));
-            }
-        }
-        body
-    }
-
-    /// A cold frame's parameters are whole: their TIR flags start set.
-    pub(super) fn save_initial_drop_flags(
-        &mut self,
-        roots: &[usize],
-        frame: u32,
-        positions: &[Option<(u32, Val)>],
-    ) {
-        let flags = self.tir_flags();
-        for &l in roots {
-            for &(_, flag) in flags.get(&Root::Local(l)).into_iter().flatten() {
-                for &local in self.locals.get(&(flag as usize)).into_iter().flatten() {
-                    if let Some((offset, _)) = positions.get(local as usize).copied().flatten() {
-                        self.f.get(frame);
-                        self.f.u32(1);
-                        self.f.op(I::I32Store(mem(HEAP, u64::from(offset), 2)));
+    /// The locals a frame's drop before its first poll reads, its root's
+    /// cancel block (`hd_tir::own::elaborate`): the flag locals it tests,
+    /// then the owners it releases. One walk of the block.
+    pub(super) fn cold_reads(&self) -> (Vec<usize>, Vec<usize>) {
+        let (mut flags, mut owners) = (Vec::new(), Vec::new());
+        let root = self.b.sub_root[usize::from(self.sub_id)];
+        let mut stack: Vec<u32> = self.b.cancel_block(root).into_iter().collect();
+        while let Some(blk) = stack.pop() {
+            for &m in self.b.record(self.b.data[blk as usize][0]) {
+                let [a, w] = self.b.data[m as usize];
+                let local = |p: Option<Place>| match p.map(|p| p.root) {
+                    Some(PlaceRoot::Local(l)) => Some(l.idx()),
+                    _ => None,
+                };
+                match self.b.tags[m as usize] {
+                    Tag::Read => flags.extend(local(self.b.decode_place(a))),
+                    Tag::Drop => owners.extend(local(self.b.decode_place(a))),
+                    Tag::If => {
+                        stack.extend(self.rec(w).into_iter().filter(|&x| x != hd_tir::ir::NONE));
                     }
+                    _ => {}
                 }
             }
         }
+        for v in [&mut flags, &mut owners] {
+            v.sort_stable();
+            v.dedup();
+        }
+        (flags, owners)
     }
 
     pub(super) fn local_place(local: usize) -> Place {

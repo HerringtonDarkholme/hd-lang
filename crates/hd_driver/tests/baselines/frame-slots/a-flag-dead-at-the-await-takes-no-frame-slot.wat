@@ -1328,8 +1328,6 @@
     i32.eqz
     if
       local.get $t0
-      i32.load $heap offset=68
-      local.get $t0
       i32.load $heap offset=24
       local.set $t1
       local.get $t0
@@ -1338,6 +1336,8 @@
       local.get $t0
       i32.load $heap offset=32
       local.set $t3
+      local.get $t0
+      i32.load $heap offset=68
       if
         local.get $t1
         local.get $t2

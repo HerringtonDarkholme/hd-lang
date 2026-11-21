@@ -1424,8 +1424,8 @@ struct Em<'i, 'a, 'm> {
     moving: Vec<(u32, u32)>,
     /// Each cell type's flag slots (`drop_flags.rs`), built on first use.
     cell_layouts: std::cell::RefCell<HashMap<Ty, Option<std::rc::Rc<drop_flags::CellLayout>>>>,
-    /// This sub-body's TIR drop flags (`drop_flags.rs`), read on first use.
-    tir_flags: Option<std::rc::Rc<drop_flags::TirFlags>>,
+    /// The locals this sub-body's flag statements name (`Em::flagged`).
+    flagged: Option<hd_base::HashSet<usize>>,
     /// The state machine of a suspending body (`susp.rs`).
     susp: Option<susp::Susp>,
     /// How many `using` dispose suites that wait the instruction being
@@ -1629,7 +1629,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             emitting: Vec::new(),
             moving: Vec::new(),
             cell_layouts: std::cell::RefCell::default(),
-            tir_flags: None,
+            flagged: None,
             susp: None,
             shield: 0,
             cells: shared,
