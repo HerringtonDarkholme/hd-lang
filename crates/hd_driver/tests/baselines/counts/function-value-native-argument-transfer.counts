@@ -150,6 +150,7 @@ fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args
     callback(value...)
 > std/rt_tests.stage_case/read_spread
 >   release counted reference (last use)
+>   release counted reference (last use)
 >   release fn(std.rt_tests.stage_case.EmptyResource, std.rt_tests.stage_case.Resource, (), string, std.rt_tests.stage_case.EmptyResource) -> usize (last use)
 
 fn mixed_size(

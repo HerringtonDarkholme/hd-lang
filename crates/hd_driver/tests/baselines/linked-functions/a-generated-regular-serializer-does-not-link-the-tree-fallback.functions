@@ -117,7 +117,6 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:release
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

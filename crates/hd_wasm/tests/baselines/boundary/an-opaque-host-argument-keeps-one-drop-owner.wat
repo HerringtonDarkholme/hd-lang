@@ -5,7 +5,7 @@
   (import "fixture" "rt:memory_copy/0/1" (func $rt:memory_copy/0/1 (param i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "package_encode[&Payload]" (func $"package_encode[&Payload]" (param i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -82,8 +82,7 @@
     local.get $t2
     call $rt:enc'1
     local.get $t3
-    local.get $t2
-    call $rt:release
+    call $rt:release_ref
     local.get $t0
     i32.const 24
     i32.add

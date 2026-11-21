@@ -110,10 +110,9 @@ fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
 pub struct RefLayout {
     pub size: u32,
     pub leaves: Vec<Leaf>,
-    pub walk: Option<Walk>,
-    /// The `std.rt.Drop` implementations a release of an inline value
-    /// runs before its fields (`module.rt.drop.glue`).
-    pub drops: Box<[DropCall]>,
+    /// How the value counts: its type's shims, which run its `Drop` hooks
+    /// first (`hd_layout::shims`).
+    pub counted: Counted,
     /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
     pub colls: Box<[u32]>,
 }
@@ -459,11 +458,11 @@ pub enum Helper {
     /// it after the call, including its Drop hooks.
     DynSlot {
         target: Hash128,
-        retained_result: Option<Walk>,
+        retained_result: Counted,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
-        own: Vec<(u32, Option<Walk>)>,
+        own: Vec<(u32, Counted)>,
         given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
@@ -472,11 +471,11 @@ pub enum Helper {
     /// that address, calls `target`, then releases the value read.
     DynRead {
         target: Hash128,
-        retained_result: Option<Walk>,
+        retained_result: Counted,
         read: RefRead,
         params: Vec<Val>,
         results: Vec<Val>,
-        own: Vec<(u32, Option<Walk>)>,
+        own: Vec<(u32, Counted)>,
         given: Vec<(u32, RefLayout)>,
         ctx: Option<SlotCtx>,
     },
@@ -860,17 +859,27 @@ impl Counted {
 /// them (`Module::shim_key`): both kinds, since the glue that calls them
 /// is built at link, after the drain; one no glue reaches is not linked.
 pub(crate) fn counted_of(input: &Input<'_>, m: &mut Module, t: Ty) -> StageResult<Counted> {
-    use hd_layout::shims::{Count, Shim};
-    let (count, shape, _) = (input.shim)(t, Shim::Release)?;
+    counted_of_portion(input, m, t, hd_layout::shims::Portion::All)
+}
+
+/// [`counted_of`] of `portion` of the value's counted parts.
+pub(crate) fn counted_of_portion(
+    input: &Input<'_>,
+    m: &mut Module,
+    t: Ty,
+    portion: hd_layout::shims::Portion,
+) -> StageResult<Counted> {
+    use hd_layout::shims::{Count, Portion, Shim};
+    let (count, shape, _) = (input.shim)(t, Shim::Release, portion)?;
     Ok(match count {
         Count::None => Counted::None,
         Count::Address { index, known } => Counted::Address { index, known },
         Count::Parts | Count::Call => Counted::Shims(Box::new(ShimSyms {
-            retain: m.shim_key(t, shape, Shim::Retain),
-            release: m.shim_key(t, shape, Shim::Release),
+            retain: m.shim_key(t, shape, Shim::Retain, portion),
+            release: m.shim_key(t, shape, Shim::Release, portion),
             width: u32::try_from(crate::layout::vals(input.pool, input.env, t)?.len())
                 .unwrap_or(u32::MAX),
-            hooked: crate::layout::holds_drop(input.pool, input.env, t),
+            hooked: portion != Portion::Thin && crate::layout::holds_drop(input.pool, input.env, t),
         })),
     })
 }
@@ -2057,11 +2066,11 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 #[allow(clippy::too_many_arguments)]
 fn dyn_read(
     target: Hash128,
-    retained_result: Option<&Walk>,
+    retained_result: &Counted,
     read: &RefRead,
     params: &[Val],
     results: &[Val],
-    own: &[(u32, Option<Walk>)],
+    own: &[(u32, Counted)],
     given: &[(u32, RefLayout)],
     ctx: Option<&SlotCtx>,
     m: &Module,
@@ -2069,7 +2078,7 @@ fn dyn_read(
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
     let mut f = m.func("rt:dyn_read", all, results.to_vec());
-    let held = ref_load(&mut f, 0, &read.value);
+    let held = ref_load(&mut f, m, 0, &read.value);
     let rvals: Vec<Val> = ref_vals(&read.value);
     let recv = |f: &mut Func| {
         for l in &held {
@@ -2080,35 +2089,33 @@ fn dyn_read(
     // the receiver takes it over, and it is released after one that
     // borrows it. Other arguments follow the slot's handoff rules.
     let mut owned = own.to_vec();
-    let recv_owned = owned.first_mut().is_some_and(|r| r.1.take().is_some());
-    own_lent(&mut f, &rvals, &recv, params, &owned);
+    let recv_owned = owned
+        .first_mut()
+        .is_some_and(|r| std::mem::take(&mut r.1).counts());
+    own_lent(&mut f, m, &rvals, &recv, params, &owned);
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
-    retain_slot_result(&mut f, results, retained_result);
+    retain_slot_result(&mut f, m, results, retained_result);
     if !recv_owned {
-        ref_count(&mut f, &held, &read.value, false);
+        ref_count(&mut f, m, &held, &read.value, false);
     }
-    release_given(&mut f, own, given);
+    release_given(&mut f, m, own, given);
     f
 }
 
 /// Dynamic slots preserve their owned-result ABI even when the concrete
 /// function forwards a guaranteed argument. Take the count before ending
 /// any argument or receiver owner.
-pub(crate) fn retain_slot_result(f: &mut Func, results: &[Val], walk: Option<&Walk>) {
-    let Some(walk) = walk else { return };
+pub(crate) fn retain_slot_result(f: &mut Func, m: &Module, results: &[Val], counted: &Counted) {
+    if !counted.counts() {
+        return;
+    }
     let locals: Vec<_> = results.iter().map(|&v| f.local(v)).collect();
     for &local in locals.iter().rev() {
         f.set(local);
     }
-    for &local in &locals {
-        f.get(local);
-    }
-    f.helper(Helper::Retain {
-        vals: results.to_vec(),
-        walk: walk.clone(),
-    });
+    counted.emit(f, m, &|f, k| f.get(locals[k as usize]), true);
     for &local in &locals {
         f.get(local);
     }
@@ -2757,7 +2764,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             let rvals = leaves
                 .as_ref()
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
-            own_lent(&mut f, &rvals, &recv, params, own);
+            own_lent(&mut f, m, &rvals, &recv, params, own);
             recv(&mut f);
             push_slot_params(
                 &mut f,
@@ -2765,8 +2772,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 ctx.as_ref(),
             );
             f.call(Sym::Inst(*target));
-            retain_slot_result(&mut f, results, retained_result.as_ref());
-            release_given(&mut f, own, given);
+            retain_slot_result(&mut f, m, results, retained_result);
+            release_given(&mut f, m, own, given);
             f
         }
         Helper::DynRead {
@@ -2780,7 +2787,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             ctx,
         } => dyn_read(
             *target,
-            retained_result.as_ref(),
+            retained_result,
             read,
             params,
             results,
@@ -3167,18 +3174,19 @@ fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> F
 /// owns it; each of those takes a count of its own here.
 fn own_lent(
     f: &mut Func,
+    m: &Module,
     rvals: &[Val],
     recv: &dyn Fn(&mut Func),
     params: &[Val],
-    own: &[(u32, Option<Walk>)],
+    own: &[(u32, Counted)],
 ) {
     let ((_, r), rest) = own.split_first().unwrap();
-    own_arg(f, rvals, r.as_ref(), recv);
+    own_arg(f, m, rvals, r, recv);
     let mut at = 1u32;
     for (n, w) in rest {
         let first = at;
         let vals = &params[(first - 1) as usize..(first - 1 + n) as usize];
-        own_arg(f, vals, w.as_ref(), &|f| {
+        own_arg(f, m, vals, w, &|f| {
             for k in first..first + n {
                 f.get(k);
             }
@@ -3191,12 +3199,12 @@ fn own_lent(
 /// (an index in `own`, whose entries give each parameter's value count,
 /// and its layout), whose ownership the dynamic call handed in and the target
 /// only borrowed. The target's results stay on the stack.
-fn release_given(f: &mut Func, own: &[(u32, Option<Walk>)], given: &[(u32, RefLayout)]) {
+fn release_given(f: &mut Func, m: &Module, own: &[(u32, Counted)], given: &[(u32, RefLayout)]) {
     for (k, value) in given {
         let first: u32 = 1 + own[1..*k as usize].iter().map(|o| o.0).sum::<u32>();
         let n = own[*k as usize].0;
         let locals: Vec<u32> = (first..first + n).collect();
-        ref_count(f, &locals, value, false);
+        ref_count(f, m, &locals, value, false);
     }
 }
 
@@ -3204,14 +3212,22 @@ fn release_given(f: &mut Func, own: &[(u32, Option<Walk>)], given: &[(u32, RefLa
 /// owns its parameter (`layout::Pass::Owned`, `crates/hd_wasm/DESIGN.md`
 /// §23.25): `get` pushes the value, of layout `vals`; `walk` is the
 /// parameter's when the callee owns it.
-pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn Fn(&mut Func)) {
-    if let Some(w) = walk {
-        get(f);
-        f.helper(Helper::Retain {
-            vals: vals.to_vec(),
-            walk: w.clone(),
-        });
+pub(crate) fn own_arg(
+    f: &mut Func,
+    m: &Module,
+    vals: &[Val],
+    counted: &Counted,
+    get: &dyn Fn(&mut Func),
+) {
+    if !counted.counts() {
+        return;
     }
+    get(f);
+    let ls: Vec<u32> = vals.iter().map(|&v| f.local(v)).collect();
+    for &l in ls.iter().rev() {
+        f.set(l);
+    }
+    counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
 }
 
 /// What retains the address on the stack, given whether it is a known
@@ -4723,54 +4739,10 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
     value.leaves.iter().map(|l| l.val).collect()
 }
 
-fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if !retain && !value.drops.is_empty() {
-        drop_value(f, ls, value, &value.drops);
-        return;
-    }
-    if let Some((k, addr)) = value
-        .walk
-        .as_ref()
-        .filter(|w| w.known())
-        .and_then(|w| Some((w.single()?, w.addr()?)))
-    {
-        f.get(ls[k as usize]);
-        if retain {
-            f.helper(Helper::RetainKnown);
-        } else {
-            release_call(f, addr);
-        }
-    } else if let Some(walk) = &value.walk {
-        for l in ls {
-            f.get(*l);
-        }
-        let vals = ref_vals(value);
-        f.helper(if retain {
-            Helper::Retain {
-                vals,
-                walk: walk.clone(),
-            }
-        } else {
-            Helper::Release {
-                vals,
-                walk: walk.clone(),
-            }
-        });
-    }
-}
-
-/// Releases an inline value through the same local-stack helper as
-/// `Em::drop_inline`.
-fn drop_value(f: &mut Func, ls: &[u32], value: &RefLayout, drops: &[DropCall]) {
-    for &l in ls {
-        f.get(l);
-    }
-    f.helper(Helper::DropValue {
-        size: value.size,
-        leaves: value.leaves.clone(),
-        walk: value.walk.clone().unwrap_or(Walk::Glue),
-        drops: drops.to_vec(),
-    });
+fn ref_count(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout, retain: bool) {
+    value
+        .counted
+        .emit(f, m, &|f, k| f.get(ls[k as usize]), retain);
 }
 
 /// Each invocation has its own frame, so nested Drop calls cannot
@@ -4814,26 +4786,27 @@ fn drop_value_glue(
 /// loads no count keeps: a collection's is the copy glue's result, which
 /// replaces it with the same buffer carrying one more count. The reserved
 /// collection word stays 0.
-fn ref_copy(f: &mut Func, ls: &[u32], value: &RefLayout) {
+fn ref_copy(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout) {
+    // A shim retains every counted part, collections too; a value that is
+    // one collection is copied through the copy glue.
+    if matches!(value.counted, Counted::Shims(_)) || value.colls.is_empty() {
+        ref_count(f, m, ls, value, true);
+        return;
+    }
     for &c in &value.colls {
         f.get(ls[c as usize]);
         f.helper(Helper::CollCopy);
         f.set(ls[c as usize]);
     }
-    let rest = RefLayout {
-        walk: value.walk.as_ref().and_then(|w| w.without(&value.colls)),
-        ..value.clone()
-    };
-    ref_count(f, ls, &rest, true);
 }
 
 /// The value that the reference in local `at` names, in new locals with
 /// counts of their own: the leaves at the address. Emitted inline, so a
 /// value of any width stays in locals and never crosses a function's
 /// parameters or results.
-pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> Vec<u32> {
     let ls = ref_lend(f, at, value);
-    ref_copy(f, &ls, value);
+    ref_copy(f, m, &ls, value);
     ls
 }
 
@@ -4873,6 +4846,7 @@ pub(crate) fn ref_take(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
 /// takes a count of its own. Emitted inline, as [`ref_load`] is.
 pub(crate) fn ref_store(
     f: &mut Func,
+    m: &Module,
     at: u32,
     ls: &[u32],
     value: &RefLayout,
@@ -4883,13 +4857,13 @@ pub(crate) fn ref_store(
         return;
     }
     if !owned {
-        ref_count(f, ls, value, true);
+        ref_count(f, m, ls, value, true);
     }
     let old = f.load_locals(at, &value.leaves);
     f.store_locals(at, &value.leaves, ls.iter().copied());
     if release {
         let was = f.reason.replace(hd_tir::own::Reason::Overwritten);
-        ref_count(f, &old, value, false);
+        ref_count(f, m, &old, value, false);
         f.reason = was;
     }
 }

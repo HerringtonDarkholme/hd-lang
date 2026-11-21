@@ -2,10 +2,9 @@
 (module
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:map_unique" (func $rt:map_unique (param i32) (result i32)))
@@ -43,14 +42,16 @@
     local.get $t
     i32.load $heap
     local.get $t
-    i32.load $heap offset=4
-    local.get $t
     local.get $t3
     i32.store $heap
     local.get $t
     local.get $t2
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t
+    if
+      local.get $t
+      call $rt:release_ref
+    end
   )
   (func $list_append (param $xs i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 14 |     xs[i] += "!"

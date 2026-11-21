@@ -10,7 +10,6 @@
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
   (func $list_write (param $xs i32) (param $i i32) (param $s.0 i32) (param $s.1 i32) (local $t0 i32)
@@ -202,14 +201,16 @@
         local.get $xs
         i32.load $heap
         local.get $xs
-        i32.load $heap offset=4
-        local.get $xs
         local.get $s.0
         i32.store $heap
         local.get $xs
         local.get $s.1
         i32.store $heap offset=4
-        call $rt:release
+        local.tee $xs
+        if
+          local.get $xs
+          call $rt:release_ref
+        end
     ;; 33 |     match xs.get_mut(i):
         return
       end

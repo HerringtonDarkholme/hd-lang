@@ -37,6 +37,48 @@ pub enum Shim {
     Release,
 }
 
+/// Which of a value's counted parts a shim counts. A function value's
+/// input whose `Drop` ownership the callee takes (`OwnCx::function_input`,
+/// `transfer`) splits them: the thin counted references, lent (`Thin`),
+/// and every other part, hooks included, transferred (`Rest`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Portion {
+    #[default]
+    All,
+    Thin,
+    Rest,
+}
+
+impl Portion {
+    /// The portion a count statement of a shim body states in its reason
+    /// word (`Info::reason`).
+    #[must_use]
+    pub fn from_reason(w: u32) -> Self {
+        match w {
+            1 => Portion::Thin,
+            2 => Portion::Rest,
+            _ => Portion::All,
+        }
+    }
+}
+
+/// The portions of a function value's input `t`: the one its caller keeps
+/// counting (lent) and the one the callee takes, `None` for nothing.
+#[must_use]
+pub fn input_portions(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+) -> (Option<Portion>, Option<Portion>) {
+    if !env.function_input(t).transfer {
+        (Some(Portion::All), None)
+    } else if !crate::holds_thin_ref(pool, env, strip_newtype(pool, env, t)) {
+        (None, Some(Portion::All))
+    } else {
+        (Some(Portion::Thin), Some(Portion::Rest))
+    }
+}
+
 /// What counting a value of a type takes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Count {
@@ -51,26 +93,46 @@ pub enum Count {
     Call,
 }
 
-/// Per run, each type's [`Count`] and shape, so classifying a type reads
-/// each of its parts' answers once: O(own parts) per type.
+/// Per run and [`Portion`], each type's [`Count`] and shape, so
+/// classifying a type reads each of its parts' answers once: O(own parts)
+/// per type.
 #[derive(Default)]
 pub struct Counts {
-    counts: HashMap<Ty, Count>,
+    portion: Portion,
+    of: HashMap<Ty, Count>,
     shapes: HashMap<Ty, Hash128>,
 }
 
 impl Counts {
+    /// Counts of `portion` of each type's counted parts.
+    #[must_use]
+    pub fn new(portion: Portion) -> Self {
+        Counts {
+            portion,
+            ..Counts::default()
+        }
+    }
+
+    /// One address leaf as this portion sees it: `thin` when a thin
+    /// counted reference.
+    fn leaf(&self, c: Count, thin: bool) -> Count {
+        match (self.portion, thin) {
+            (Portion::All, _) | (Portion::Thin, true) | (Portion::Rest, false) => c,
+            _ => Count::None,
+        }
+    }
+
     /// What counting a value of `t` takes. A local reference counts
     /// nothing (`ref.count.local`).
     ///
     /// # Errors
     /// A type whose layout cannot be made.
     pub fn of(&mut self, pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Count> {
-        if let Some(&c) = self.counts.get(&t) {
+        if let Some(&c) = self.of.get(&t) {
             return Ok(c);
         }
         let s = strip_newtype(pool, env, t);
-        let at = |index, known| Count::Address { index, known };
+        let at = |index, known| self.leaf(Count::Address { index, known }, false);
         let c = match pool.get(s) {
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => at(0, false),
             // A function value's environment, after its code.
@@ -79,11 +141,14 @@ impl Counts {
             TyData::Canon(_) if hd_mono::is_class_ref(pool, s) => at(0, false),
             TyData::Tuple { .. } => self.product(pool, env, s, &tuple_members(pool, s))?,
             TyData::Union(_) => self.sum(pool, env, s)?,
-            TyData::Ref { inner, counted, .. } => reference(fat(pool, env, inner), counted),
+            TyData::Ref { inner, counted, .. } => {
+                let fat = fat(pool, env, inner);
+                self.leaf(reference(fat, counted), !fat && counted)
+            }
             TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => at(0, true),
             TyData::Adt { def, args } => match kind(pool, env, s) {
                 Kind::Boxed => at(0, true),
-                Kind::Ref { fat, whole, .. } => reference(fat, whole),
+                Kind::Ref { fat, whole, .. } => self.leaf(reference(fat, whole), !fat && whole),
                 Kind::Value if env.enum_variants(def, args).is_some() => self.sum(pool, env, s)?,
                 Kind::Value => self.product(pool, env, s, &value_parts(pool, env, s))?,
             },
@@ -92,12 +157,15 @@ impl Counts {
         // A value that holds a `Drop` hook has its own release shim, which
         // calls the hook before its fields' counts (`module.rt.drop.glue`).
         // A newtype's layers are values whatever its base is.
-        let c = if (s != t || value_kind(pool, env, s)) && crate::holds_drop(pool, env, t) {
+        let c = if self.portion != Portion::Thin
+            && (s != t || value_kind(pool, env, s))
+            && crate::holds_drop(pool, env, t)
+        {
             Count::Call
         } else {
             c
         };
-        self.counts.insert(t, c);
+        self.of.insert(t, c);
         Ok(c)
     }
 
@@ -125,6 +193,7 @@ impl Counts {
         };
         let vals = crate::vals(pool, env, t)?;
         let mut h = StableHasher::new("count-shape");
+        h.u32(self.portion as u32);
         // A type with a hook has its own: its hook is its type's.
         if crate::holds_drop(pool, env, t) {
             h.u32(t.0);
@@ -352,7 +421,10 @@ pub fn shim(
     let root = b.open_block();
     // The hooks take the parameter's address, in heap form: it moves into
     // a slot of the frame, a value kept in memory copied from where it is.
-    if kind == Shim::Release && hook_calls(pool, env, hooks, &mut b, x, t) {
+    if kind == Shim::Release
+        && counts.portion != Portion::Thin
+        && hook_calls(pool, env, hooks, &mut b, x, t)
+    {
         b.body_mut()
             .storage
             .push((SubId::from_raw(0), x, Storage::Slot));
@@ -488,7 +560,9 @@ impl Writer<'_> {
             Count::Parts => self.parts(strip_newtype(self.pool, self.env, t), v)?,
             Count::Address { .. } | Count::Call => {
                 let n = NodeIdx::from_raw(0);
-                let info = Info::new(At::Value, Part::Result, 0).write(self.b.body_mut());
+                // The part's own shim counts the same portion.
+                let portion = self.counts.portion as u32;
+                let info = Info::new(At::Value, Part::Result, portion).write(self.b.body_mut());
                 let tag = match self.kind {
                     Shim::Retain => Tag::Retain,
                     Shim::Release => Tag::Release,

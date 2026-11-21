@@ -3,10 +3,10 @@
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 3 funcref))
   (func $run_plain (param $f.0 i32) (param $f.1 i32)
@@ -16,7 +16,7 @@
     local.get $f.0
     call_indirect $table0 (param i32 i32)
   )
-  (func $probe (result i32 i32 i32 i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32)
+  (func $probe (result i32 i32 i32 i32) (local $t1 i32) (local $t0 i32) (local $r i32) (local $t3 i32) (local $t2 i32)
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
     i32.const 16
     i32.const 1
@@ -40,29 +40,28 @@
     local.get $t0
     i32.const 8
     i32.add
-    local.set $t1
-    local.tee $t2
+    local.set $r
+    local.tee $t1
     i32.load $heap
-    local.tee $t3
+    local.tee $t2
     i32.const 2031616
     i32.and
     i32.const 2031616
     i32.eq
     if
-      local.get $t2
+      local.get $t1
       call $rt:loan_share
     else
+      local.get $t1
       local.get $t2
-      local.get $t3
       i32.const 65536
       i32.add
       i32.store $heap
     end
-    local.get $t4
+    local.get $t3
     i32.const 65536
     i32.add
-    local.set $t4
-    local.get $t1
+    local.set $t3
     ;; 15 |     run_plain(fn() -> void: p.value = "b")
     local.get $t0
     i32.const 4
@@ -70,7 +69,7 @@
     i32.load $heap
     i32.const 4128768
     i32.and
-    local.get $t4
+    local.get $t3
     i32.ne
     if
       call $rt:panic
@@ -79,41 +78,42 @@
     local.get $t0
     i32.load $heap
     local.get $t0
-    i32.load $heap offset=4
-    local.get $t0
     i32.const 67 ;; &"b"
     i32.store $heap
     local.get $t0
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
-    ;; 16 |     (*r, p.value)
-    i32.load $heap
-    ;; 14 |     r := &p.other
-    local.get $t1
-    ;; 16 |     (*r, p.value)
-    i32.load $heap offset=4
-    local.set $t4
-    local.tee $t1
+    local.tee $t3
     if
-      local.get $t1
+      local.get $t3
+      call $rt:release_ref'1
+    end
+    ;; 16 |     (*r, p.value)
+    local.get $r
+    i32.load $heap
+    local.get $r
+    i32.load $heap offset=4
+    local.set $t3
+    local.tee $r
+    if
+      local.get $r
       call $retain
     end
-    local.get $t2
+    local.get $t1
     if
-      local.get $t2
+      local.get $t1
       i32.load $heap
-      local.tee $t3
+      local.tee $t2
       i32.const 2031616
       i32.and
       i32.const 2031616
       i32.eq
       if
-        local.get $t2
+        local.get $t1
         call $rt:loan_unshare
       else
+        local.get $t1
         local.get $t2
-        local.get $t3
         i32.const 65536
         i32.sub
         i32.store $heap
@@ -123,10 +123,10 @@
     i32.load $heap
     local.get $t0
     i32.load $heap offset=4
-    local.set $t2
-    local.tee $t3
+    local.set $t1
+    local.tee $t2
     if
-      local.get $t3
+      local.get $t2
       call $retain
     end
     ;; 13 |     p := box(Cell { value: "a", other: "o" })
@@ -138,13 +138,13 @@
       i32.load $heap
       if
         local.get $t0
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     ;; 16 |     (*r, p.value)
-    local.get $t1
-    local.get $t4
+    local.get $r
     local.get $t3
     local.get $t2
+    local.get $t1
   )
 )

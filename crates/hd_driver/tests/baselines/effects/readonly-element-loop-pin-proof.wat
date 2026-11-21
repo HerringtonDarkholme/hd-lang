@@ -3,7 +3,7 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $not_a_loop (param $values i32) (result i32)
     ;; 16 |     item := &values[0]
@@ -131,14 +131,16 @@
         local.get $item
         i32.load $heap
         local.get $item
-        i32.load $heap offset=4
-        local.get $item
         i32.const 65 ;; &"changed"
         i32.store $heap
         local.get $item
         i32.const 7
         i32.store $heap offset=4
-        call $rt:release
+        local.tee $item
+        if
+          local.get $item
+          call $rt:release_ref
+        end
     ;; 12 |     for item in &mut values:
         br 0
       end

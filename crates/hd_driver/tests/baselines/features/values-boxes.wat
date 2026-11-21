@@ -5,7 +5,6 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $copy_box (param $s.0 i32) (param $s.1 i32) (param $t.0 i32) (param $t.1 i32) (result i32) (local $t0 i32)
     ;; 15 |     let mut p = Point { name: s }
@@ -111,14 +110,16 @@
     local.get $t0
     i32.load $heap
     local.get $t0
-    i32.load $heap offset=4
-    local.get $t0
     local.get $t.0
     i32.store $heap
     local.get $t0
     local.get $t.1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $s.1
+    if
+      local.get $s.1
+      call $rt:release_ref'1
+    end
     local.get $t0
     if
       local.get $t0

@@ -18,7 +18,6 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -765,7 +764,7 @@
     end
     local.get $t0
   )
-  (func $change'2 (param $frame i32) (param $n i32) (result i32 i32) (local $self.1 i32) (local $t0 i32)
+  (func $change'2 (param $frame i32) (param $n i32) (result i32 i32) (local $t0 i32) (local $self.1 i32)
     ;; 13 |     n.text = "m"
     local.get $frame
     if
@@ -790,14 +789,16 @@
     local.get $n
     i32.load $heap
     local.get $n
-    i32.load $heap offset=4
-    local.get $n
     i32.const 114 ;; &"m"
     i32.store $heap
     local.get $n
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $self.1
+    if
+      local.get $self.1
+      call $rt:release_ref'2
+    end
     ;; 14 |     n.text.len()
     local.get $n
     i32.load $heap

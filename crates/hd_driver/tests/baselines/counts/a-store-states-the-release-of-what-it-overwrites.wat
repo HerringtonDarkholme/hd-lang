@@ -3,7 +3,6 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
@@ -103,14 +102,16 @@
     local.get $r
     i32.load $heap
     local.get $r
-    i32.load $heap offset=4
-    local.get $r
     local.get $t0
     i32.store $heap
     local.get $r
     local.get $k
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $r
+    if
+      local.get $r
+      call $rt:release_ref
+    end
   )
   (func $fresh (result i32 i32 i32)
     ;; 36 |     UniqList::[i32].new()

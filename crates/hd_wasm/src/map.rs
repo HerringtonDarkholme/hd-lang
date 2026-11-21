@@ -17,7 +17,7 @@ use hd_mono::{CallTarget, Target};
 use hd_types::Ty;
 
 use crate::Input;
-use crate::layout::{Leaf, Pass, Walk};
+use crate::layout::{Leaf, Pass};
 use crate::module::{Func, Global, HEADER, HEAP, Import, Module, Sym, Val, mem};
 use crate::rt::{Helper, own_arg};
 
@@ -54,16 +54,16 @@ pub enum KeyOps {
     I32(Hash128),
     /// A 64-bit integer; equal by `i64.eq`.
     I64(Hash128),
-    /// A string, hashed over its bytes; equal by its bytes. With the walk
-    /// of the hash's parameter when the hash owns it (`layout::Pass`).
-    Str(Hash128, Option<Walk>),
-    /// The key type's `hash_key` and `Eq.eq`. With the walk of
-    /// each of their parameters that the callee owns: the hash's key, then
+    /// A string, hashed over its bytes; equal by its bytes. With how the
+    /// hash's parameter counts when the hash owns it (`layout::Pass`).
+    Str(Hash128, crate::rt::Counted),
+    /// The key type's `hash_key` and `Eq.eq`. With how each of their
+    /// parameters counts that the callee owns: the hash's key, then
     /// `eq`'s two.
     Call {
         hash: Hash128,
         eq: Hash128,
-        own: [Option<Walk>; 3],
+        own: [crate::rt::Counted; 3],
     },
 }
 
@@ -156,33 +156,38 @@ impl KeyOps {
     /// `hash_integer(u64, u64)` or `hash_string(string, u64)` by the key's
     /// primitive type, else `hash_key[K](K, u64) -> u32` and
     /// `key_equal[K](K, K) -> bool`, so each takes the key's values.
-    pub(crate) fn of(input: &Input<'_>, m: &Module, target: &Target, key: &[Val]) -> Self {
-        // The walk of parameter `k` of a key operation's instance when
-        // the instance owns it (`layout::Pass`): the map glue that lends
-        // it the key then counts a copy for it.
-        let own = |t: &CallTarget, k: usize| -> Option<Walk> {
+    pub(crate) fn of(
+        input: &Input<'_>,
+        m: &mut Module,
+        target: &Target,
+        key: &[Val],
+    ) -> StageResult<Self> {
+        // How parameter `k` of a key operation's instance counts when the
+        // instance owns it (`layout::Pass`): the map glue that lends it
+        // the key then counts a copy for it.
+        let mut own = |t: &CallTarget, k: usize| -> StageResult<crate::rt::Counted> {
             let p = crate::emit::callee_params(input, m, t.key, t.item, t.args)[k];
             let lent = k < 64 && input.env.lends(t.item, t.args) & (1 << k) != 0;
             match crate::layout::pass(input.pool, input.env, true, p) {
-                Pass::Owned(w) if !lent => Some(w),
-                _ => None,
+                Pass::Owned(_) if !lent => crate::rt::counted_of(input, m, p),
+                _ => Ok(crate::rt::Counted::None),
             }
         };
-        match target {
+        Ok(match target {
             Target::MapInline(hash) => match key {
                 [Val::I32] => KeyOps::I32(hash.key),
                 [Val::I64] => KeyOps::I64(hash.key),
-                _ => KeyOps::Str(hash.key, own(hash, 0)),
+                _ => KeyOps::Str(hash.key, own(hash, 0)?),
             },
             Target::MapKey { hash, eq } => KeyOps::Call {
                 hash: hash.key,
                 eq: eq.key,
-                own: [own(hash, 0), own(eq, 0), own(eq, 1)],
+                own: [own(hash, 0)?, own(eq, 0)?, own(eq, 1)?],
             },
             // ruled out: map_key and note_boundary_value collect only these
             // two target forms before the map emitters call this accessor.
             _ => crate::emit::required(None, "collection must select map key operations"),
-        }
+        })
     }
 }
 
@@ -477,7 +482,7 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
             ..
         } => {
             // The map lends the key; a hash that owns it takes a count.
-            own_arg(&mut f, key, own.as_ref(), &|f| {
+            own_arg(&mut f, m, key, own, &|f| {
                 for k in 0..key.len() {
                     f.get(n32(k));
                 }
@@ -503,11 +508,11 @@ pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
 pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
     let mut f = m.func("rt:map_find", params, vec![Val::I32]);
-    find_body(&mut f, entry, ops, false);
+    find_body(&mut f, m, entry, ops, false);
     f
 }
 
-fn find_body(f: &mut Func, entry: &Entry, ops: &KeyOps, probe: bool) {
+fn find_body(f: &mut Func, m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) {
     let (cap, gmask, g, at, e) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -583,7 +588,7 @@ fn find_body(f: &mut Func, entry: &Entry, ops: &KeyOps, probe: bool) {
     f.op(I::I32Eq);
     f.op(I::If(BlockType::Empty));
     entry_at(f, 0, cap, e, entry.size);
-    key_equal(f, entry, ops);
+    key_equal(f, m, entry, ops);
     f.op(I::If(BlockType::Empty));
     f.get(e);
     if probe {
@@ -767,7 +772,7 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
             f.op(I::End);
             f.op(I::End);
         } else {
-            key_equal(&mut f, entry, ops);
+            key_equal(&mut f, m, entry, ops);
             f.op(I::If(BlockType::Empty));
             // Inline integer bits remain initialized in a tombstone.
             // Only a matching key needs the liveness metadata read.
@@ -800,7 +805,7 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
             f.u32(entry.size);
             f.op(I::I32Mul);
             f.op(I::I32Add);
-            key_equal(&mut f, entry, ops);
+            key_equal(&mut f, m, entry, ops);
             f.op(I::If(BlockType::Empty));
             f.get(candidate);
             f.op(I::Return);
@@ -822,13 +827,13 @@ pub fn lookup(m: &Module, entry: &Entry, ops: &KeyOps, probe: bool) -> Func {
         ops: ops.clone(),
     });
     f.set(1);
-    find_body(&mut f, entry, ops, probe);
+    find_body(&mut f, m, entry, ops, probe);
     f
 }
 
 /// Consume the stored entry address and push equality with the lookup
 /// key, using the same ABI and ownership convention on both probe paths.
-fn key_equal(f: &mut Func, entry: &Entry, ops: &KeyOps) {
+fn key_equal(f: &mut Func, m: &Module, entry: &Entry, ops: &KeyOps) {
     let stored = load_entry(f, entry, 0, entry.keys);
     match ops {
         KeyOps::I32(_) => {
@@ -855,12 +860,12 @@ fn key_equal(f: &mut Func, entry: &Entry, ops: &KeyOps) {
         } => {
             // Both keys are lent; an `eq` that owns them takes counts.
             let kv: Vec<Val> = entry.leaves[..entry.keys].iter().map(|l| l.val).collect();
-            own_arg(f, &kv, own_self.as_ref(), &|f| {
+            own_arg(f, m, &kv, own_self, &|f| {
                 for s in &stored[..entry.keys] {
                     f.get(*s);
                 }
             });
-            own_arg(f, &kv, own_other.as_ref(), &|f| {
+            own_arg(f, m, &kv, own_other, &|f| {
                 for k in 0..entry.keys {
                     f.get(2 + n32(k));
                 }

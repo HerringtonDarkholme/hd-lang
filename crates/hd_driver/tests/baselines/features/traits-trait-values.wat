@@ -5,7 +5,6 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -140,13 +139,15 @@
     local.get $self
     i32.load $heap
     local.get $self
-    i32.load $heap offset=4
-    local.get $self
     local.get $n.0
     i32.store $heap
     local.get $self
     local.get $n.1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $self
+    if
+      local.get $self
+      call $rt:release_ref
+    end
   )
 )

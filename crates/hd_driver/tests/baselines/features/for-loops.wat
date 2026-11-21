@@ -4,7 +4,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:str_append" (func $rt:str_append (param i32 i32 i32 i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 6 funcref))
@@ -200,14 +200,16 @@
         local.get $x
         i32.load $heap
         local.get $x
-        i32.load $heap offset=4
-        local.get $x
         local.get $t3
         i32.store $heap
         local.get $x
         local.get $t2
         i32.store $heap offset=4
-        call $rt:release
+        local.tee $x
+        if
+          local.get $x
+          call $rt:release_ref
+        end
     ;; 20 |     for x in &mut *xs:
         br 0
       end

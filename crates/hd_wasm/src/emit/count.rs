@@ -120,42 +120,29 @@ impl Em<'_, '_, '_> {
     /// helpers counted: an address by the runtime's own count call, which
     /// tests null itself, and a part with its own shim by that shim. Inline
     /// fast paths belong at an ordinary body's count sites, not in glue.
-    pub(super) fn lowered_count(&mut self, value: u32, retain: bool) -> StageResult<()> {
+    pub(super) fn lowered_count(&mut self, i: u32, value: u32, retain: bool) -> StageResult<()> {
         let Some(ls) = self.vals.get(&value).cloned() else {
             return Ok(());
         };
         let t = self.ty(value);
-        let kind = if retain {
-            hd_layout::shims::Shim::Retain
-        } else {
-            hd_layout::shims::Shim::Release
-        };
-        let (count, shape, _) = (self.input.shim)(t, kind)?;
-        match count {
-            Count::None => {}
-            Count::Address { index, known } => {
-                self.f.get(ls[index as usize]);
-                let addr = if known {
-                    crate::layout::Addr::Known
-                } else {
-                    crate::layout::Addr::Ref
-                };
-                if retain {
-                    crate::rt::retain_call(self.m)(&mut self.f, addr);
-                } else {
-                    crate::rt::release_call(&mut self.f, addr);
-                }
-            }
-            Count::Parts | Count::Call => {
-                for l in &ls {
-                    self.f.get(*l);
-                }
-                let key = self.m.shim_key(t, shape, kind);
-                let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
-                let hooked = !retain && hd_layout::holds_drop(self.pool(), self.env(), t);
-                self.f.call(crate::Sym::Shim(key, retain, width, hooked));
-            }
-        }
+        // The statement's reason word states the portion it counts.
+        let portion = hd_layout::shims::Portion::from_reason(
+            Info::read(self.b, i as usize).map_or(0, |c| c.reason),
+        );
+        self.count_portion(&ls, t, retain, portion)
+    }
+
+    /// One count more (`retain`) or less on `portion` of the value of `t`
+    /// in locals `ls`: an address's count call, or its shim.
+    pub(super) fn count_portion(
+        &mut self,
+        ls: &[u32],
+        t: Ty,
+        retain: bool,
+        portion: hd_layout::shims::Portion,
+    ) -> StageResult<()> {
+        let counted = crate::rt::counted_of_portion(self.input, self.m, t, portion)?;
+        counted.emit(&mut self.f, self.m, &|f, k| f.get(ls[k as usize]), retain);
         Ok(())
     }
 
@@ -250,7 +237,7 @@ impl Em<'_, '_, '_> {
     /// Borrowed portions of each physical source argument. A tuple spread
     /// follows its concrete flattened parameters, so Copy fields stay with
     /// the caller while adjacent unique fields transfer to their callees.
-    fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, Option<Walk>)>> {
+    fn input_carriers(&self, callee: u32, args: &[u32]) -> StageResult<Vec<(u32, super::Carried)>> {
         let TyData::Fn { params, .. } = self.pool().get(crate::layout::strip_newtype(
             self.pool(),
             self.env(),
@@ -267,11 +254,9 @@ impl Em<'_, '_, '_> {
             return Ok(args
                 .iter()
                 .map(|&arg| {
-                    (
-                        arg,
-                        crate::layout::function_input(self.pool(), self.env(), self.ty_of(arg))
-                            .borrowed,
-                    )
+                    let t = self.ty_of(arg);
+                    let lent = hd_layout::shims::input_portions(self.pool(), self.env(), t).0;
+                    (arg, lent.map(|p| vec![(0, t, p)]).unwrap_or_default())
                 })
                 .collect());
         }
@@ -295,10 +280,8 @@ impl Em<'_, '_, '_> {
                 if len > width - offset {
                     break;
                 }
-                if let Some(walk) =
-                    crate::layout::function_input(self.pool(), self.env(), t).borrowed
-                {
-                    borrowed.push(walk.shifted(offset));
+                if let Some(p) = hd_layout::shims::input_portions(self.pool(), self.env(), t).0 {
+                    borrowed.push((offset, t, p));
                 }
                 offset += len;
                 parameter += 1;
@@ -309,10 +292,7 @@ impl Em<'_, '_, '_> {
                     "spread argument does not partition into whole parameter ABIs",
                 ));
             }
-            out.push((
-                arg,
-                (!borrowed.is_empty()).then_some(Walk::sequence(borrowed)),
-            ));
+            out.push((arg, borrowed));
         }
         if parameter != params.len() {
             return Err(hd_base::NotImplemented::bug(
@@ -510,7 +490,7 @@ impl Em<'_, '_, '_> {
         } else {
             hd_layout::shims::Shim::Release
         };
-        let (count, shape, _) = (self.input.shim)(t, kind)?;
+        let (count, shape, _) = (self.input.shim)(t, kind, hd_layout::shims::Portion::All)?;
         let (index, known) = match count {
             Count::None => return Ok(()),
             Count::Address { index, known } => (index, known),
@@ -518,7 +498,9 @@ impl Em<'_, '_, '_> {
                 for l in ls {
                     self.f.get(*l);
                 }
-                let key = self.m.shim_key(t, shape, kind);
+                let key = self
+                    .m
+                    .shim_key(t, shape, kind, hd_layout::shims::Portion::All);
                 let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
                 let hooked = !retain && hd_layout::holds_drop(self.pool(), self.env(), t);
                 self.f.call(crate::Sym::Shim(key, retain, width, hooked));
@@ -729,14 +711,10 @@ impl Em<'_, '_, '_> {
             let flag = *flag;
             self.f.get(flag);
             self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
-            if let Some(walk) = borrowed.clone() {
-                for &local in &ls {
-                    self.f.get(local);
-                }
-                self.f.helper(Helper::Release {
-                    vals: self.vals(t)?,
-                    walk,
-                });
+            for &(off, pt, portion) in borrowed {
+                let n = self.vals(pt)?.len();
+                let at = off as usize;
+                self.count_portion(&ls[at..at + n], pt, false, portion)?;
             }
             self.f.op(crate::op::Op::Else);
         }

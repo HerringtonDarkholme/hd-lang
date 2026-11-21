@@ -1609,6 +1609,9 @@ impl Drop for Owed<'_> {
 
 /// A lifted generic local function's template, or `None` where its copy
 /// failed (`hd_tir::ir::function_template`).
+/// Each count shim's body made this run, by type, kind and portion.
+type ShimBodies =
+    HashMap<(Ty, hd_layout::shims::Shim, hd_layout::shims::Portion), Option<Arc<Body>>>;
 type LiftedTemplate = Option<Arc<Body>>;
 
 struct Run<'a> {
@@ -11565,17 +11568,20 @@ impl Run<'_> {
             let hooks = |t: Ty| hook_of.get(&t).copied();
             // Each type's count shims, made once per run (`hd_layout::shims`).
             let shims = std::sync::Mutex::new((
-                hd_layout::shims::Counts::default(),
-                HashMap::<(Ty, hd_layout::shims::Shim), Option<Arc<Body>>>::default(),
+                HashMap::<hd_layout::shims::Portion, hd_layout::shims::Counts>::default(),
+                ShimBodies::default(),
             ));
-            let shim = |t: Ty, kind: hd_layout::shims::Shim| {
+            let shim = |t: Ty, kind: hd_layout::shims::Shim, portion: hd_layout::shims::Portion| {
                 let mut memo = shims
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                let (counts, made) = &mut *memo;
+                let (all, made) = &mut *memo;
+                let counts = all
+                    .entry(portion)
+                    .or_insert_with(|| hd_layout::shims::Counts::new(portion));
                 let count = counts.of(&self.pool, env, t)?;
                 let shape = counts.shape(&self.pool, env, t)?;
-                if let Some(b) = made.get(&(t, kind)) {
+                if let Some(b) = made.get(&(t, kind, portion)) {
                     return Ok((count, shape, b.clone()));
                 }
                 let item = match kind {
@@ -11584,7 +11590,7 @@ impl Run<'_> {
                 };
                 let b = hd_layout::shims::shim(&self.pool, env, counts, &hooks, item, t, kind)?
                     .map(Arc::new);
-                made.insert((t, kind), b.clone());
+                made.insert((t, kind, portion), b.clone());
                 Ok((count, shape, b))
             };
             let input = hd_wasm::Input {

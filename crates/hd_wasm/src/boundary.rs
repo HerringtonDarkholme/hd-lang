@@ -482,6 +482,7 @@ fn of_at(
                 let ops = (collected.get(&t).or_else(|| collected.get(&s)))
                     .and_then(|c| c.map_key.as_ref())
                     .map(|o| crate::map::KeyOps::of(input, m, o, &entry.key_vals()))
+                    .transpose()?
                     .expect("ruled out: a boundary map without its key operations");
                 let key = of_at(input, m, k, path, at)?;
                 let val = of_at(input, m, v, path, at)?;
@@ -2054,16 +2055,17 @@ fn dec_into(f: &mut Func, off: u32, b: &LTy) -> Vec<u32> {
     ls
 }
 
+/// A value whose one counted address is its first, found through its
+/// block (a string's buffer, a box).
+const ADDRESS: crate::rt::Counted = crate::rt::Counted::Address {
+    index: 0,
+    known: false,
+};
+
 /// One count less on the values in locals `ls`, laid out with counted
 /// references at `walk`, when the program counts.
-fn release(f: &mut Func, _m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Walk>) {
-    let Some(walk) = walk else {
-        return;
-    };
-    for l in ls {
-        f.get(*l);
-    }
-    f.helper(Helper::Release { vals, walk });
+fn release(f: &mut Func, m: &Module, ls: &[u32], counted: &crate::rt::Counted) {
+    counted.emit(f, m, &|f, k| f.get(ls[k as usize]), false);
 }
 
 /// [`Helper::Enc`]: the encoder of `b`, `(off, values...) -> off'`.
@@ -2278,7 +2280,7 @@ fn enc_body(f: &mut Func, b: &LTy, m: &Module) {
                 f.get(text[0]);
                 f.get(text[1]);
             });
-            release(f, m, &text, vec![Val::I32, Val::I32], Some(Walk::Ref(0)));
+            release(f, m, &text, &ADDRESS);
             crate::wide::locals_frame(
                 f,
                 base,
@@ -2649,10 +2651,10 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
                 // first goes. `wrap` owns its argument (`layout::Pass`),
                 // so it takes a count of the box of its own.
                 {
-                    own_arg(f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
+                    own_arg(f, m, &[Val::I32], &ADDRESS, &|f| f.get(data));
                 }
                 f.call(Sym::Inst(wrap));
-                release(f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
+                release(f, m, &[data], &ADDRESS);
             }
         }
         LTy::Codec(c) => {

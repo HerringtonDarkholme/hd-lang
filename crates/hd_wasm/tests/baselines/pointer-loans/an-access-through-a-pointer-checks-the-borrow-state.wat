@@ -2,8 +2,8 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:panic'4" (func $rt:panic'4))
@@ -67,7 +67,7 @@
       i32.load $heap
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     ;; 30 |     held := &mut t.lead
@@ -97,7 +97,7 @@
       i32.load $heap
       if
         local.get $t1
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $t0
@@ -118,7 +118,7 @@
       i32.load $heap
       if
         local.get $t
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $other
@@ -129,23 +129,25 @@
       i32.load $heap
       if
         local.get $other
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
   )
-  (func $plain (param $p i32)
+  (func $plain (param $p i32) (local $t0 i32)
     ;; 47 |     p.name = "b"
     local.get $p
     i32.load $heap
-    local.get $p
-    i32.load $heap offset=4
     local.get $p
     i32.const 18 ;; &"b"
     i32.store $heap
     local.get $p
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t0
+    if
+      local.get $t0
+      call $rt:release_ref'2
+    end
     local.get $p
     if
       local.get $p
@@ -154,7 +156,7 @@
       i32.load $heap
       if
         local.get $p
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
   )
@@ -181,7 +183,7 @@
       i32.load $heap
       if
         local.get $u
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
   )
@@ -209,7 +211,7 @@
       i32.load $heap
       if
         local.get $u
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
   )
@@ -248,7 +250,7 @@
       i32.load $heap
       if
         local.get $t
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $t0
@@ -311,14 +313,16 @@
     local.get $other
     i32.load $heap
     local.get $other
-    i32.load $heap offset=4
-    local.get $other
     i32.const 18 ;; &"b"
     i32.store $heap
     local.get $other
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t2
+    if
+      local.get $t2
+      call $rt:release_ref'2
+    end
     ;; 20 |     held := &t.lead.name
     local.get $t1
     ;; 22 |     *held
@@ -362,7 +366,7 @@
       i32.load $heap
       if
         local.get $t
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $other
@@ -373,7 +377,7 @@
       i32.load $heap
       if
         local.get $other
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $t2
@@ -448,7 +452,7 @@
       i32.load $heap
       if
         local.get $t
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
     local.get $other
@@ -459,7 +463,7 @@
       i32.load $heap
       if
         local.get $other
-        call $rt:release_ref
+        call $rt:release_ref'1
       end
     end
   )

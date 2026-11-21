@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -33,14 +32,16 @@
     local.tee $t0
     i32.load $heap
     local.get $t0
-    i32.load $heap offset=4
-    local.get $t0
     local.get $s.0
     i32.store $heap
     local.get $t0
     local.get $s.1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $s.0
+    if
+      local.get $s.0
+      call $rt:release_ref'1
+    end
     local.get $xs
     if
       local.get $xs
@@ -49,7 +50,7 @@
       i32.load $heap
       if
         local.get $xs
-        call $rt:release_ref'1
+        call $rt:release_ref'2
       end
     end
   )
@@ -87,14 +88,16 @@
     local.get $r
     i32.load $heap
     local.get $r
-    i32.load $heap offset=4
-    local.get $r
     local.get $s.0
     i32.store $heap
     local.get $r
     local.get $s.1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $r
+    if
+      local.get $r
+      call $rt:release_ref'1
+    end
   )
   (func $tuple_slot (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32 i32)
     ;; 11 |     let mut p = (a, b)
@@ -102,7 +105,7 @@
     ;; 12 |     p._0 = s
     if
       local.get $a.0
-      call $rt:release_ref'2
+      call $rt:release_ref'1
     end
     local.get $s.0
     local.get $s.1

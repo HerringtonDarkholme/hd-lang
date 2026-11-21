@@ -2,10 +2,10 @@
 (module
   (import "fixture" "rt:loan_share" (func $rt:loan_share (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $in_struct (param $t i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 13 |     held := Held { name: &t.lead.name }
@@ -48,14 +48,16 @@
     local.get $alias
     i32.load $heap
     local.get $alias
-    i32.load $heap offset=4
-    local.get $alias
     i32.const 65 ;; &"b"
     i32.store $heap
     local.get $alias
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 15 |     *held.name
     i32.load $heap
     ;; 13 |     held := Held { name: &t.lead.name }
@@ -97,7 +99,7 @@
       i32.load $heap
       if
         local.get $alias
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     local.get $t1
@@ -143,14 +145,16 @@
     local.get $alias
     i32.load $heap
     local.get $alias
-    i32.load $heap offset=4
-    local.get $alias
     i32.const 65 ;; &"b"
     i32.store $heap
     local.get $alias
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 25 |     match held:
     block
       block
@@ -277,7 +281,7 @@
       i32.load $heap
       if
         local.get $alias
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     local.get $t
@@ -324,14 +328,16 @@
     local.get $alias
     i32.load $heap
     local.get $alias
-    i32.load $heap offset=4
-    local.get $alias
     i32.const 65 ;; &"b"
     i32.store $heap
     local.get $alias
     i32.const 1
     i32.store $heap offset=4
-    call $rt:release
+    local.tee $t1
+    if
+      local.get $t1
+      call $rt:release_ref'1
+    end
     ;; 20 |     *held._0
     i32.load $heap
     ;; 18 |     held := (&t.lead.name, +1)
@@ -373,7 +379,7 @@
       i32.load $heap
       if
         local.get $alias
-        call $rt:release_ref
+        call $rt:release_ref'2
       end
     end
     local.get $t1

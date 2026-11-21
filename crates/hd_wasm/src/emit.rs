@@ -30,6 +30,7 @@ use crate::Input;
 use crate::layout::{Enc, Is, IsOps as _, Pass, Test, num, vals};
 use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
+use hd_layout::shims::Portion;
 
 mod body_facts;
 mod borrow;
@@ -152,8 +153,8 @@ struct Own {
 /// statements are its only counts. A shim may ask for its parts' shims.
 pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     use hd_layout::shims::Shim;
-    while let Some((t, kind, key)) = m.shim_queue.pop() {
-        let (_, _, Some(b)) = (input.shim)(t, kind)? else {
+    while let Some((t, kind, portion, key)) = m.shim_queue.pop() {
+        let (_, _, Some(b)) = (input.shim)(t, kind, portion)? else {
             return Err(hd_base::NotImplemented::bug(
                 hd_base::Stage::Emit,
                 "a count shim asked for a type that counts one address or none",
@@ -191,7 +192,9 @@ pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             .collect();
         let f = body_func(input, m, &own, 0, &calls, &b)?;
         let width = u32::try_from(f.params.len()).unwrap_or(u32::MAX);
-        let hooked = kind == Shim::Release && hd_layout::holds_drop(input.pool, input.env, t);
+        let hooked = kind == Shim::Release
+            && portion != hd_layout::shims::Portion::Thin
+            && hd_layout::holds_drop(input.pool, input.env, t);
         m.define(Sym::Shim(key, kind == Shim::Retain, width, hooked), f);
     }
     Ok(())
@@ -532,15 +535,10 @@ fn body_func<'i>(
                     // reference-count portion of the common ABI was lent, so
                     // acquire exactly that portion for the body.
                     Some(&Entry::Transfer(reason)) => {
-                        let input = crate::layout::function_input(em.pool(), em.env(), t);
-                        if let Some(walk) = input.borrowed {
-                            let vals = em.vals(t)?;
-                            em.because(reason, |em| {
-                                for &local in ls {
-                                    em.f.get(local);
-                                }
-                                em.f.helper(Helper::Retain { vals, walk });
-                            });
+                        let (borrowed, _) =
+                            hd_layout::shims::input_portions(em.pool(), em.env(), t);
+                        if let Some(portion) = borrowed {
+                            em.because(reason, |em| em.count_portion(ls, t, true, portion))?;
                         }
                     }
                     None => {}
@@ -1019,7 +1017,7 @@ fn call_func(
 /// (`ProgramEnv::lends`), which the adapter releases after the call.
 fn forward(
     input: &Input<'_>,
-    m: &Module,
+    m: &mut Module,
     item: DefId,
     (callee, cargs): (DefId, TyList),
     ret: Ty,
@@ -1041,18 +1039,18 @@ fn forward(
         let target_lends = hd_tir::own::ParameterMode::Owned.with_lends(lends, k)
             == hd_tir::own::ParameterMode::Lent;
         if let Pass::Owned(_) = crate::layout::pass(pool, env, true, t) {
-            let input = crate::layout::function_input(pool, env, t);
+            let (borrowed, owned) = hd_layout::shims::input_portions(pool, env, t);
             // ruled out: collected function signatures use Wasm's u32
             // parameter indices, as the existing signature encoding does.
             let at = u32::try_from(params.len()).expect("params");
             if !target_lends {
-                if let Some(walk) = input.borrowed {
-                    copied.push((at, vs.clone(), walk));
+                if let Some(portion) = borrowed {
+                    copied.push((at, crate::rt::counted_of_portion(input, m, t, portion)?));
                 }
-            } else if input.transfer
-                && let Some(walk) = input.owned
+            } else if env.function_input(t).transfer
+                && let Some(portion) = owned
             {
-                lent.push((at, vs.clone(), walk));
+                lent.push((at, crate::rt::counted_of_portion(input, m, t, portion)?));
             }
         }
         params.extend(vs);
@@ -1078,11 +1076,8 @@ fn forward(
     }
     // The common function-value ABI lends Copy values and references. A declaration
     // adapter creates the owner only when its target consumes one.
-    for (at, vals, walk) in copied {
-        for (offset, _) in (0_u32..).zip(&vals) {
-            f.get(at + offset);
-        }
-        f.helper(Helper::Retain { vals, walk });
+    for (at, counted) in copied {
+        counted.emit(&mut f, m, &|f, k| f.get(at + k), true);
     }
     for k in 1..c {
         f.get(k);
@@ -1100,20 +1095,17 @@ fn forward(
     if borrowed_result {
         // Local references carry lifetime dependencies but no reference count.
         // Bridge only the counts the ordinary result ABI actually owns.
-        let walk = crate::layout::count_walk(pool, env, ret);
+        let counted = crate::rt::counted_of(input, m, ret)?;
         let results = f.results.clone();
-        crate::rt::retain_slot_result(&mut f, &results, walk.as_ref());
+        crate::rt::retain_slot_result(&mut f, m, &results, &counted);
     }
     if !lent.is_empty() {
         let out: Vec<u32> = f.results.clone().into_iter().map(|v| f.local(v)).collect();
         for &l in out.iter().rev() {
             f.set(l);
         }
-        for (at, vals, walk) in lent {
-            for k in at..at + u32::try_from(vals.len()).expect("values") {
-                f.get(k);
-            }
-            f.helper(Helper::Release { vals, walk });
+        for (at, counted) in lent {
+            counted.emit(&mut f, m, &|f, k| f.get(at + k), false);
         }
         for l in out {
             f.get(l);
@@ -1244,6 +1236,12 @@ impl FrameRefs {
     }
 }
 
+/// The lent portions of a function-value argument that transfers its
+/// `Drop` ownership: each parameter it carries, at its first value, with
+/// its type and the portion its caller keeps counting
+/// (`hd_layout::shims::input_portions`).
+type Carried = Vec<(u32, Ty, hd_layout::shims::Portion)>;
+
 struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
@@ -1273,7 +1271,7 @@ struct Em<'i, 'a, 'm> {
     vals: HashMap<u32, Vec<u32>>,
     /// Per owned argument value: whether a callback has taken its native
     /// components, leaving only the lent thin-reference counts to release.
-    input_transferred: HashMap<u32, (u32, Option<crate::layout::Walk>)>,
+    input_transferred: HashMap<u32, (u32, Carried)>,
     /// A map read's hash and entry locals, for a following store that the
     /// TIR proves reaches the same map and key without an intervening change.
     map_probes: HashMap<u32, MapProbe>,
@@ -2489,7 +2487,7 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements (`count.rs`).
             // A lowered body's counts are its own (`Phase::Lowered`).
             Tag::Retain | Tag::Release if self.b.phase == hd_tir::ir::Phase::Lowered => {
-                self.lowered_count(a, self.b.tags[i as usize] == Tag::Retain)?;
+                self.lowered_count(i, a, self.b.tags[i as usize] == Tag::Retain)?;
             }
             Tag::Retain => {
                 if CountInfo::read(self.b, i as usize).is_some_and(|c| c.at == CountAt::Value) {
@@ -3164,7 +3162,7 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned(walk) = self.argument_pass(lends, k, *t)
+            if let Pass::Owned(_) = self.argument_pass(lends, k, *t)
                 && self
                     .operation_count(i, Tag::Release, CountPart::Arguments)
                     .is_none()
@@ -3172,17 +3170,16 @@ impl Em<'_, '_, '_> {
                 for &(r, k) in part {
                     self.comp(r, k)?;
                 }
+                let ls: Vec<u32> = vs.iter().map(|&v| self.f.local(v)).collect();
+                for &l in ls.iter().rev() {
+                    self.f.set(l);
+                }
                 // ruled out: own::arguments states CallValue's argument
                 // retain; call_value reads it into copy. Direct calls use
                 // inst's call reason. Use the supplied actual reason.
                 assert!(copy.is_some());
                 let copy = copy.as_slice()[0];
-                self.because(copy, |em| {
-                    em.f.helper(Helper::Retain {
-                        vals: vs.clone(),
-                        walk,
-                    });
-                });
+                self.because(copy, |em| em.count_portion(&ls, *t, true, Portion::All))?;
             }
             at += vs.len();
         }
@@ -4333,7 +4330,7 @@ impl Em<'_, '_, '_> {
             let addr = self.f.local(Val::I32);
             self.comp(a, 0)?;
             self.f.set(addr);
-            let loaded = crate::rt::ref_load(&mut self.f, addr, &layout);
+            let loaded = crate::rt::ref_load(&mut self.f, self.m, addr, &layout);
             let old = self.vals.insert(a, loaded);
             let ty = self.ty(a);
             self.retyped.insert(a, target);

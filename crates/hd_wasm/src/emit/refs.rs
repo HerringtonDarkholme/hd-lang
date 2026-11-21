@@ -121,18 +121,12 @@ fn project_reference(function: &mut crate::module::Func, at: u32, value: &RefLay
 }
 
 impl Em<'_, '_, '_> {
-    pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
+    pub(super) fn ref_layout(&mut self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
-        let walk = self.counted(ty);
         Ok(RefLayout {
             size: m.size,
             leaves: m.leaves,
-            walk,
-            drops: if matches!(self.kind(ty), Kind::Value) {
-                self.drop_calls(ty).into()
-            } else {
-                Box::default()
-            },
+            counted: crate::rt::counted_of(self.input, self.m, ty)?,
             colls: self.copied(ty).into(),
         })
     }
@@ -1142,7 +1136,7 @@ impl Em<'_, '_, '_> {
         let moved = self.take(v);
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let release = self.releases_old();
-        rt::ref_store(&mut self.f, at, &ls, &value, moved, release);
+        rt::ref_store(&mut self.f, self.m, at, &ls, &value, moved, release);
         Ok(())
     }
 
@@ -1163,7 +1157,7 @@ impl Em<'_, '_, '_> {
         self.write_new(Dst::Locals(&ls), &Src::Ref(v))?;
         let dst = self.offset_local(at, part.offset);
         let release = self.releases_old();
-        rt::ref_store(&mut self.f, dst, &ls, &field, moved, release);
+        rt::ref_store(&mut self.f, self.m, dst, &ls, &field, moved, release);
         Ok(())
     }
 
@@ -1571,7 +1565,7 @@ mod tests {
 
     #[test]
     fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
-        use crate::layout::{Leaf, Walk};
+        use crate::layout::Leaf;
         use crate::module::{Func, Ins, Val};
         use crate::op::Op;
         use crate::rt::RefLayout;
@@ -1590,8 +1584,10 @@ mod tests {
                     signed: false,
                 })
                 .into(),
-            walk: Some(Walk::Ref(0)),
-            drops: Box::default(),
+            counted: crate::rt::Counted::Address {
+                index: 0,
+                known: false,
+            },
             colls: Box::default(),
         };
         for fat in [false, true] {

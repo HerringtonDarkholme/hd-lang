@@ -150,17 +150,17 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
-std/rt.alloc/release_value#0 [std.serde.EnumTagging]
-std/rt.alloc/release_value#0 [std.json.TextWriter]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]
-std/rt.alloc/release_value#0 [std.json.JsonObject]
 std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]
-std/rt.alloc/release_value#0 [std.json.JsonWriter]
 std/rt.alloc/release_value#0 [std.json.OpenFrame]
 std/rt.alloc/retain_value#0 [std.json.OpenFrame]
 std/rt.alloc/release_value#0 [std.json.Json?]
+std/rt.alloc/release_value#0 [std.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.serde.EnumTagging]
 std/rt.alloc/retain_value#0 [std.serde.EnumTagging]
+std/rt.alloc/release_value#0 [std.json.TextWriter]
 std/rt.alloc/release_value#0 [std.json.Json]
+std/rt.alloc/release_value#0 [std.json.JsonObject]
 std/rt.alloc/release_value#0 [std.json.ObjectEntry]
 std/rt.alloc/retain_value#0 [std.json.ObjectEntry]
 std/rt.alloc/release_value#0 [std.json.ObjectEntry?]
@@ -196,8 +196,6 @@ rt:alloc_class/1
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:release#0
-rt:release#1
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

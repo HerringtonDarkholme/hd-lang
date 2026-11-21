@@ -1630,19 +1630,13 @@ pub(super) fn finish(
                 )
             })?;
             if em.sub_id != 0 && transferred(em, l) {
-                if let Some(walk) = crate::layout::function_input(em.pool(), em.env(), t).borrowed {
+                if let Some(portion) = hd_layout::shims::input_portions(em.pool(), em.env(), t).0 {
                     let reason = em.required_stated_count(
                         Tag::Retain,
                         CountAt::Cold,
                         CountPart::Local(local),
                     );
-                    let vals = em.vals(t)?;
-                    em.because(reason, |em| {
-                        for &local in &ls {
-                            em.f.get(local);
-                        }
-                        em.f.helper(Helper::Retain { vals, walk });
-                    });
+                    em.because(reason, |em| em.count_portion(&ls, t, true, portion))?;
                 }
                 continue;
             }

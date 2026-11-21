@@ -169,7 +169,7 @@ impl Em<'_, '_, '_> {
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             hd_mono::work::dyn_emit(1);
-            let env = self.env();
+            let env = self.input.env;
             let mut params = Vec::new();
             // Counts the target needs from the slot's lent receiver
             // and borrowed arguments. Owned cold parameters and inline
@@ -184,7 +184,7 @@ impl Em<'_, '_, '_> {
                     // The receiver: a reference, or the value the slot
                     // passes, the payload or what its reference reads.
                     if matches!(self.kind(pt), crate::layout::Kind::Ref { .. }) {
-                        own.push((0, None));
+                        own.push((0, crate::rt::Counted::None));
                         continue;
                     }
                     pt = match (recv, self.kind(from)) {
@@ -199,14 +199,14 @@ impl Em<'_, '_, '_> {
                     self.pass_at(env.lends(t.item, t.args), k, pt)
                 };
                 let w = match target_pass {
-                    crate::layout::Pass::Owned(w)
+                    crate::layout::Pass::Owned(_)
                         if !env.suspends(t.item)
                             || cold
                             || crate::layout::holds_drop(self.pool(), env, pt) =>
                     {
-                        Some(w)
+                        crate::rt::counted_of(self.input, self.m, pt)?
                     }
-                    _ => None,
+                    _ => crate::rt::Counted::None,
                 };
                 if k == 0 {
                     own.push((0, w));
@@ -218,10 +218,10 @@ impl Em<'_, '_, '_> {
                     && (env.cold_transfers(*m, pt)
                         || crate::layout::holds_drop(self.pool(), env, pt))
                 {
-                    if w.is_none() {
+                    if !w.counts() {
                         given.push((u32::try_from(k).expect("params"), self.ref_layout(pt)?));
                     }
-                    own.push((n, None));
+                    own.push((n, crate::rt::Counted::None));
                 } else {
                     own.push((n, w));
                 }
@@ -264,9 +264,9 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             let retained_result = if env.return_loan_parameter(t.item, t.args).is_some() {
-                crate::layout::count_walk(self.pool(), env, t.ret)
+                crate::rt::counted_of(self.input, self.m, t.ret)?
             } else {
-                None
+                crate::rt::Counted::None
             };
             slots.push(if traps {
                 let mut all = vec![Val::I32];

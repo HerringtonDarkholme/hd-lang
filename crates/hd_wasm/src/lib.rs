@@ -197,6 +197,7 @@ impl Entry {
 pub type ShimFn<'a> = dyn Fn(
         Ty,
         hd_layout::shims::Shim,
+        hd_layout::shims::Portion,
     ) -> StageResult<(
         hd_layout::shims::Count,
         Hash128,

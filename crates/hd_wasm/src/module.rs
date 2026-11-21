@@ -1240,7 +1240,12 @@ pub struct Module {
     /// kind: its key. Types of one shape share it; each is queued once, the
     /// first type of its shape, so the drain ends.
     pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim), Hash128>,
-    pub shim_queue: Vec<(hd_types::Ty, hd_layout::shims::Shim, Hash128)>,
+    pub shim_queue: Vec<(
+        hd_types::Ty,
+        hd_layout::shims::Shim,
+        hd_layout::shims::Portion,
+        Hash128,
+    )>,
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
@@ -1417,6 +1422,7 @@ impl Module {
         t: hd_types::Ty,
         shape: Hash128,
         kind: hd_layout::shims::Shim,
+        portion: hd_layout::shims::Portion,
     ) -> Hash128 {
         if let Some(&key) = self.shims.get(&(shape, kind)) {
             return key;
@@ -1426,7 +1432,7 @@ impl Module {
         h.u32(u32::from(kind == hd_layout::shims::Shim::Retain));
         let key = h.finish();
         self.shims.insert((shape, kind), key);
-        self.shim_queue.push((t, kind, key));
+        self.shim_queue.push((t, kind, portion, key));
         key
     }
 
