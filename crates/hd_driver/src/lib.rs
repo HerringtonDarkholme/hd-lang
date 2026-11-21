@@ -14550,7 +14550,8 @@ try {
     }
 }
 
-#[cfg(all(test, feature = "host-artifacts"))]
+#[cfg(test)]
+#[cfg(feature = "host-artifacts")]
 fn run_package_host_javascript(out: &Output, body: &str) {
     use std::io::Write as _;
     use std::process::Stdio;
