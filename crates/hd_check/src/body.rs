@@ -15,7 +15,7 @@ use std::fmt::Write as _;
 use crate::dep_results::RunLoans;
 use hd_base::{DefId, Fuel, LocalId, ModuleId, NotImplemented, Span, Stage, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
-use hd_resolve::{Item, ItemData, Lookup, ModuleScope, Names, Src};
+use hd_resolve::{FnSig, Item, ItemData, Lookup, ModuleScope, Names, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
 use hd_tir::ir::{
@@ -1436,6 +1436,28 @@ fn check_fn_body_as(
     }
 }
 
+/// The input of source-function checking, after body selection. The driver
+/// and derivation checker select a resolved callable with a source block;
+/// keep those facts together instead of asserting them at each use.
+struct SourceFunction<'i, 't> {
+    item: &'i Item,
+    sig: &'i FnSig,
+    body: NodeRef<'t>,
+}
+
+impl<'i, 't> SourceFunction<'i, 't> {
+    fn new(item: Option<&'i Item>, node: NodeRef<'t>) -> StageResult<Self> {
+        let callable = item.and_then(|item| item.sig().map(|sig| (item, sig)));
+        match (callable, Src::child(node, SyntaxKind::Block)) {
+            (Some((item, sig)), Some(body)) => Ok(Self { item, sig, body }),
+            _ => Err(NotImplemented::bug(
+                Stage::Body,
+                "selected source function: a resolved callable header and a block are required",
+            )),
+        }
+    }
+}
+
 fn fn_body_steps(
     cx: &BodyCx<'_>,
     def: DefId,
@@ -1448,10 +1470,8 @@ fn fn_body_steps(
     infer: Infer,
     inferred: Option<(Option<Ty>, Option<RowId>)>,
 ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
-    // The driver selects resolved `body_nodes` with a source block;
-    // `check_opt_in` selects checked template methods the same way.
-    let item = cx.lookup.item(def).expect("body_nodes header");
-    let mut sig = item.sig().expect("body_nodes function signature").clone();
+    let SourceFunction { item, sig, body } = SourceFunction::new(cx.lookup.item(def), node)?;
+    let mut sig = sig.clone();
     if let Some((ret, row)) = inferred {
         if let Some(ret) = ret {
             sig.ret = ret;
@@ -1532,7 +1552,6 @@ fn fn_body_steps(
         ck.scopes.base_mut().insert(name, l);
     }
     ck.mark_mut_params(node);
-    let body = Src::child(node, SyntaxKind::Block).expect("selected source body");
     ck.fn_body = Some(body.index());
     ck.result_omitted = Src::type_child(node).is_none();
     ck.written_row = Src::child(node, SyntaxKind::RequirementRow).map(NodeRef::index);
@@ -5796,5 +5815,101 @@ mod representation_conversion_tests {
             .unwrap()
             .join()
             .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod source_function_tests {
+    use super::{SourceFunction, Stage, SyntaxKind};
+    use hd_base::{DefId, Symbol};
+    use hd_resolve::{CallAttrs, FnAttrs, FnSig, Item, ItemData, Src};
+    use hd_types::Ty;
+
+    fn callable() -> Item {
+        Item::new(
+            DefId::from_raw(1),
+            Symbol::from_raw(1),
+            false,
+            ItemData::Fn(FnSig::simple(vec![], vec![], Ty::I32), FnAttrs::default()),
+        )
+    }
+
+    #[test]
+    fn selected_input_borrows_its_resolved_header_signature_and_block() {
+        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
+        let node = parsed
+            .tree
+            .root()
+            .children()
+            .find(|n| n.kind() == SyntaxKind::FnDecl)
+            .expect("function node");
+        let item = callable();
+        let selected = SourceFunction::new(Some(&item), node).expect("selected source function");
+        assert!(std::ptr::eq(selected.item, &raw const item));
+        assert_eq!(selected.sig.ret, Ty::I32);
+        assert_eq!(selected.body.kind(), SyntaxKind::Block);
+        assert_eq!(
+            Some(selected.body.index()),
+            Src::child(node, SyntaxKind::Block).map(hd_syntax::NodeRef::index)
+        );
+    }
+
+    #[test]
+    fn missing_or_non_callable_headers_report_the_selection_invariant() {
+        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
+        let node = parsed
+            .tree
+            .root()
+            .children()
+            .find(|n| n.kind() == SyntaxKind::FnDecl)
+            .expect("function node");
+        let non_callable = Item::new(
+            DefId::from_raw(1),
+            Symbol::from_raw(1),
+            false,
+            ItemData::Builtin,
+        );
+        for header in [None, Some(&non_callable)] {
+            let error = SourceFunction::new(header, node)
+                .err()
+                .expect("invalid selection");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert!(error.what.starts_with("selected source function:"));
+        }
+    }
+
+    #[test]
+    fn a_bodyless_trait_method_cannot_be_selected_as_a_source_body() {
+        let parsed = hd_syntax::parse(b"trait Work:\n    fn act() -> void\n");
+        let declaration = parsed
+            .tree
+            .root()
+            .children()
+            .find(|n| n.kind() == SyntaxKind::TraitDecl)
+            .expect("trait");
+        let block = Src::child(declaration, SyntaxKind::Block).expect("trait body");
+        let method = block
+            .children()
+            .find(|n| n.kind() == SyntaxKind::FnDecl)
+            .expect("method");
+        assert!(Src::child(method, SyntaxKind::Block).is_none());
+        let item = Item::new(
+            DefId::from_raw(1),
+            Symbol::from_raw(1),
+            false,
+            ItemData::Method {
+                owner: DefId::from_raw(2),
+                sig: FnSig::simple(vec![], vec![], Ty::VOID),
+                has_body: false,
+                call: CallAttrs::default(),
+            },
+        );
+        let error = SourceFunction::new(Some(&item), method)
+            .err()
+            .expect("bodyless selection");
+        assert_eq!(error.stage, Stage::Body);
+        assert!(error.bug);
     }
 }
