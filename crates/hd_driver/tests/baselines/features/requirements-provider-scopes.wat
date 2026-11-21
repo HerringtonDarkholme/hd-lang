@@ -91,14 +91,13 @@
     local.get $self.label.0
     local.get $self.label.1
   )
-  (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
-    ;; 42 |     f := fn() -> usize: s.len()
+  (func $unrelated_provider (param $s.0 i32) (param $s.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
+    ;; 43 |     $.with(Tag=Named { label: s }):
     local.get $s.0
     if
       local.get $s.0
       call $retain
     end
-    ;; 43 |     $.with(Tag=Named { label: s }):
     i32.const 8
     i32.const 1
     call $rt:new/class-1
@@ -113,29 +112,24 @@
     ;; 44 |         read_tag() + f()
     i32.load $heap
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $t1
-    local.tee $t2
+    local.set $s.0
+    local.tee $t1
     if
-      local.get $t2
+      local.get $t1
       call $rt:release_ref
     end
-    local.get $t1
+    local.get $s.0
     local.get $s.1
     ;; 43 |     $.with(Tag=Named { label: s }):
     i32.add
     ;; (no span)
-    local.set $s.1
+    local.set $s.0
     local.get $t0
     if
       local.get $t0
       call $rt:release_ref
     end
     local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
-    local.get $s.1
   )
   (func $nested (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t0 i32)
     ;; 27 |     $.with(Tag=Named { label: a }):

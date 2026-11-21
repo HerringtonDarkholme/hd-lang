@@ -42,12 +42,14 @@ impl Measure for Reader:
 >   %18 = Await std/time/sleep[] (%17) : ()
 >   %19 = Release %18 Operation child #2 : ()
 >   %23 = Block %21 : usize
+>   %24 = Return - #2 : never
         values.len()
 >   %20 = Read move [$1] : List[string]
 >   %21 = Intrinsic ListLen [%20] : usize
 >   %22 = Drop [%20] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
+>   cancel %18 releases [%4294967295]
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known
@@ -73,9 +75,10 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >   %14 = Release %13 Operation child #2 : ()
 >   %15 = Drop [%11] : ()
 >   %16 = Block %13 : usize
+>   %18 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %13 releases [%11]
+>   cancel %13 releases [%11 %4294967295]
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic
@@ -100,8 +103,10 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   %13 = Release %10 Operation child #2 : ()
 >   %14 = Drop [$0] : ()
 >   %15 = Block %10 : usize
+>   %16 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
+>   cancel %10 releases [%4294967295]
 
 pub fn main() -> void $ Clock:
     reader := Reader { padding: 0 }

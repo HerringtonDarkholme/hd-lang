@@ -63,6 +63,7 @@ fn local!() -> i64:
 >   %9 = Await app/main/bump[] (%8) : ()
 >   %10 = Release %9 Operation child #2 : ()
 >   %11 = LoanEnd [%8] : ()
+>   %30 = Return - #2 : never
         tally.n
 >   %12 = Read copy [$1 .n] : i64
 >   %13 = Drop [$1] : ()
@@ -78,8 +79,8 @@ fn local!() -> i64:
 >   storage sub 0: $1 cell
 >   storage sub 1: $1 cell
 >   summary none
->   cancel %9 releases [%8]
->   cancel %19 releases [%17 %18]
+>   cancel %9 releases [%8 %4294967295]
+>   cancel %19 releases [%17 %18 %4294967295]
 
 fn shared!() -> i64:
     let mut tally = Tally { n: 0 }
@@ -108,6 +109,7 @@ fn shared!() -> i64:
 >   %16 = Closure #1 : fn!() -> ()
 >   %17 = Retain %16 Operation captures #0 : ()
 >   %18 = Store [$1] %16 : ()
+>   %34 = Return - #2 : never
     run!()
 >   %19 = Read move [$1] : fn!() -> ()
 >   %20 = CallValue %19 [] : Suspend[()]
@@ -124,8 +126,8 @@ fn shared!() -> i64:
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary none
->   cancel %11 releases [%10]
->   cancel %21 releases [%19 %20]
+>   cancel %11 releases [%10 %4294967295]
+>   cancel %21 releases [%19 %20 %4294967295]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -152,6 +154,7 @@ fn copied!() -> i64:
 >   %14 = Closure #1 : fn!() -> i64
 >   %15 = Drop [$0] : ()
 >   %16 = Store [$1] %14 : ()
+>   %30 = Return - #2 : never
     run!()
 >   %17 = Read move [$1] : fn!() -> i64
 >   %18 = CallValue %17 [] : Suspend[i64]
@@ -164,5 +167,5 @@ fn copied!() -> i64:
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   summary none
->   cancel %9 releases [%8]
->   cancel %19 releases [%17 %18]
+>   cancel %9 releases [%8 %4294967295]
+>   cancel %19 releases [%17 %18 %4294967295]

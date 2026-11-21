@@ -18,14 +18,15 @@ app/main/borrowed
   %11 = Call std/text/impl string.len[] (%10) : usize
   %12 = LoanClose %5 : ()
   %13 = LoanClose %8 : ()
-  %14 = Read borrow [$1] : List[string]
-  %15 = Block - : ()
-  %16 = Drop [%10] : ()
-  %17 = Break L0 %11 : never
-  %18 = Block - : usize
-  %19 = Scope %18 [%15] : usize
-  %20 = Drop [$1] : ()
-  %21 = Block %19 : usize
-  exit sub 0 drops [$0 $1]
+  %14 = Drop [%10] : ()
+  %15 = Read borrow [$1] : List[string]
+  %16 = Block - : ()
+  %17 = Scope %16 [] : ()
+  %18 = Break L0 %11 : never
+  %19 = Block - : usize
+  %20 = Scope %19 [] : usize
+  %21 = Drop [$1] : ()
+  %22 = Block %20 : usize
+  exit sub 0 drops [$0]
   storage sub 0: $1 slot
   summary kept [$0]

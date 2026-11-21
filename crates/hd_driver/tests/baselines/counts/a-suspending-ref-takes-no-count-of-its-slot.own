@@ -38,10 +38,11 @@ fn direct!() -> i64:
 >   %5 = Await app/main/bump[] (%4) : ()
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = LoanEnd [%4] : ()
+>   %12 = Return - #2 : never
     tally.n
 >   %8 = Read copy [$0 .n] : i64
 >   %9 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary none
->   cancel %5 releases [%4]
+>   cancel %5 releases [%4 %4294967295]

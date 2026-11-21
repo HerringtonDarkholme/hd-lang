@@ -19,7 +19,12 @@
 //! - no `borrow` value is live across a write to an overlapping place (a
 //!   `Store`, a `Drop`, a `move` read, an `IsUnique` or a mutable `Ref`)
 //!   or a suspension point, where a borrow is live while anything that
-//!   lives on it is ([`borrow_spans`]); nor one of a place behind a
+//!   lives on it is ([`borrow_spans`]). A borrow whose referent is no
+//!   frame slot may cross a suspension point, as a `fn!`'s local
+//!   references live in its frame (`ref.dep.suspension`,
+//!   `req.lowering.frame`): one through a reference a local holds, that
+//!   reference itself, and a field path of a parameter the body never
+//!   stores. Nor one of a place behind a
 //!   parameter's reference across a call that may write, unless the body
 //!   is exclusive (`sub_flags::EXCLUSIVE`), the parameter is declared `&T`
 //!   or `&mut T` and the call does not receive the reference itself;
@@ -1262,6 +1267,14 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     // frame holds across every suspension point. A store through the
     // parameter's reference (`[*$0 .text]`) writes what it refers to, not
     // the parameter, as the borrow pass counts (`own::borrow`'s stores).
+    let by_ref: Vec<bool> = b
+        .local_ty
+        .iter()
+        .map(|&t| {
+            own.pool()
+                .is_some_and(|p| matches!(p.get(t), TyData::Ref { .. }))
+        })
+        .collect();
     let mut frame: Vec<bool> = b
         .local_flags
         .iter()
@@ -1309,6 +1322,7 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         may,
         excl,
         frame,
+        by_ref,
         bit,
         at,
         holds,
@@ -1465,6 +1479,10 @@ struct Live<'a> {
     /// Per local: a parameter the body never stores, which a borrow of all
     /// or a field path of may live across a suspension point.
     frame: Vec<bool>,
+    /// Per local: one that holds a reference. A borrow of it whole is that
+    /// reference, and one through it is of what it refers to: neither is
+    /// of a frame slot.
+    by_ref: Vec<bool>,
     /// Each borrow's bit, or `NONE`, and each bit's borrow.
     bit: Vec<u32>,
     at: Vec<u32>,
@@ -1656,12 +1674,20 @@ impl Backward for Live<'_> {
         if is_suspension(b.tags[i]) {
             let frame = std::mem::take(&mut self.frame);
             let words = std::mem::take(&mut self.words);
+            let by_ref = std::mem::take(&mut self.by_ref);
             self.check(x, s, live, |r, p| {
-                !matches!(p.root, PlaceRoot::Local(l) if frame[l.idx()])
-                    || !(words[r as usize] || p.proj.iter().all(|s| matches!(s, Proj::Field(_))))
+                let PlaceRoot::Local(l) = p.root else {
+                    return true;
+                };
+                let l = l.idx();
+                let fields = p.proj.iter().all(|s| matches!(s, Proj::Field(_)));
+                // Through a reference, or the reference a binding holds.
+                let referent = by_ref[l] && matches!(p.proj.first(), None | Some(Proj::Deref));
+                !(referent || frame[l] && (words[r as usize] || fields))
             });
             self.frame = frame;
             self.words = words;
+            self.by_ref = by_ref;
         }
     }
 
@@ -2291,6 +2317,30 @@ impl Forward for Balance<'_> {
 
     fn stmt(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
         self.uses(x, s.row_mut(st));
+    }
+
+    /// A point's value is not made on its cancel exit, which starts by
+    /// releasing what the point holds (`own::known`'s `Release`s).
+    fn cancel(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize) {
+        let row = s.row_mut(st);
+        let k = self.num[x as usize];
+        if k != NONE {
+            self.put(row, 0, k, false);
+        }
+        let Some(blk) = b
+            .cancel_block(x)
+            .filter(|&c| b.tags.get(c as usize) == Some(&Tag::Block))
+        else {
+            return;
+        };
+        for &r in b.record(b.data[blk as usize][0]) {
+            if b.tags[r as usize] == Tag::Release
+                && let Some(&k) = self.num.get(b.data[r as usize][0] as usize)
+                && k != NONE
+            {
+                self.put(row, 0, k, false);
+            }
+        }
     }
 
     /// The operand uses of a control instruction, before the blocks it

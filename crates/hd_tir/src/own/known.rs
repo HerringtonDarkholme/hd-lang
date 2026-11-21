@@ -59,12 +59,13 @@ use super::parts::{Slots, takes};
 use super::splice;
 use super::{
     Loc, Operand, OwnCx, Role, consumes_counts as consumes, fill, lending_coercion, lending_read,
-    operands, owned_value, suite_touches, tracked,
+    operands, owned_value, tracked,
 };
 use hd_base::SliceSort as _;
 use std::ops::Range;
 
 use crate::ir::count::{At, Info, Part};
+
 use crate::ir::{
     Body, NONE, ReadMode, Ref, Root, Storage, Tag, Topology, is_suspension, local_flags, ref_word,
     u32_of,
@@ -139,12 +140,8 @@ pub(crate) struct Tables {
     points: Vec<u32>,
     /// Per exit row: whether it stays.
     keep: Vec<bool>,
-    stack: Vec<u32>,
     ops: Vec<Operand>,
     empty_variants: std::cell::OnceCell<super::parts::EmptyVariants>,
-    /// How many cleanup suites the walk is inside: no arm is observed
-    /// there.
-    suites: u32,
     /// Each local a `Ref` of its own storage or a shared capture puts in
     /// a cell: an arm never takes its drop.
     addressed: Vec<bool>,
@@ -162,7 +159,9 @@ pub(crate) fn run(
 ) {
     let n = b.len();
     t.empty_variants.take();
-    t.suites = 0;
+    fill(&mut t.susp_at, n, NONE);
+    t.susp.clear();
+    t.points.clear();
     t.pending.build(n, edits);
     t.arm_drops.clear();
     t.arm_cleanup.clear();
@@ -172,10 +171,7 @@ pub(crate) fn run(
     t.prepare_arm_drops(b, topo, cx);
     fill(&mut t.seen, n, false);
     fill(&mut t.needed, n, false);
-    fill(&mut t.susp_at, n, NONE);
     fill(&mut t.keep, b.exit_drops.len(), true);
-    t.susp.clear();
-    t.points.clear();
     let mut flow = std::mem::take(&mut t.flow);
     flow.arena.free(0);
     let mut walk = Walk {
@@ -234,9 +230,9 @@ pub(crate) fn run(
         keep[k - 1]
     });
     // Each point's cancel block: a `Release` of each value that may hold
-    // a count there, in value order, all sharing one count record.
-    // Rows and points both ascend, and `cancel_blocks` gave every point
-    // its row: one merge, no lookup.
+    // a count there, in value order, all sharing one count record, before
+    // the suites and the cancelled `Return` (`scopes`, which gives every
+    // point its row). Rows and points both ascend: one merge, no lookup.
     let (mut record, mut row) = (NONE, 0);
     t.points.sort_stable();
     for &x in &t.points {
@@ -254,30 +250,6 @@ pub(crate) fn run(
                 let v = t.vals[bit - t.nl as usize];
                 edits.insert(blk, 0, Tag::Release, [v, record], Ty::VOID, NodeIdx::NONE);
             }
-        }
-    }
-}
-
-/// Gives each suspension point an empty cancel block ([`Body::cancel`]),
-/// as rustc's MIR builder names each `yield`'s `drop` target; [`run`]
-/// fills it. One pass, one shared empty list, no source position.
-pub(crate) fn cancel_blocks(b: &mut Body) {
-    b.cancel.clear();
-    let mut empty = NONE;
-    for i in 0..b.len() {
-        if !is_suspension(b.tags[i]) {
-            continue;
-        }
-        if empty == NONE {
-            empty = b.push_record(&[]);
-        }
-        b.cancel.push((u32_of(i), u32_of(b.len())));
-        b.tags.push(Tag::Block);
-        b.data.push([empty, NONE]);
-        b.ty.push(Ty::VOID);
-        b.syn.push(NodeIdx::NONE);
-        if !b.anchors.is_empty() {
-            b.anchors.push(NONE);
         }
     }
 }
@@ -440,12 +412,8 @@ fn number(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     t.vals.clear();
     t.sticky.clear();
     for i in 0..n {
-        let [a, w] = b.data[i];
-        match b.tags[i] {
-            Tag::Scope if w != NONE => pin_suites(b, t, b.record(w)),
-            Tag::Defer => pin_suites(b, t, &[a]),
-            Tag::Drop if !t.pending.dead[i] => mark_dropped(b, t, a),
-            _ => {}
+        if b.tags[i] == Tag::Drop && !t.pending.dead[i] {
+            mark_dropped(b, t, b.data[i][0]);
         }
     }
     for (l, flags) in b.local_flags.iter().enumerate() {
@@ -531,17 +499,6 @@ fn mark_dropped(b: &Body, t: &mut Tables, word: u32) {
     if let Some(v) = p.value().filter(|_| p.whole()) {
         t.dropped[v as usize] = true;
     }
-}
-
-/// Pins every local and value the cleanup suites `roots` touch, and each
-/// value they compute ([`suite_touches`]).
-fn pin_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
-    let (pin_l, pin_v) = (&mut t.pin_l, &mut t.pin_v);
-    let (local, value) = (
-        |l: u32| pin_l[l as usize] = true,
-        |v: u32| pin_v[v as usize] = true,
-    );
-    suite_touches(b, roots, &mut t.stack, &mut t.ops, true, local, value);
 }
 
 impl Tables {
@@ -733,11 +690,20 @@ struct Walk<'a> {
 }
 
 impl Forward for Walk<'_> {
+    // An owned body has no cleanup suites (`scopes`).
     const SUITES: Suites = Suites::FromEnd { union: true };
     const ALL_ROUNDS: bool = true;
 
     fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, st: usize) {
         self.t.uses(b, self.cx, x, s, st);
+    }
+
+    /// A point's value is not made on its cancel exit.
+    fn cancel(&mut self, _: &Body, x: u32, s: &mut BitArena, st: usize) {
+        let bit = self.t.vbit[x as usize];
+        if bit != NONE {
+            self.t.clear(s, st, bit);
+        }
     }
 
     /// The operands' uses.
@@ -786,7 +752,7 @@ impl Forward for Walk<'_> {
         };
         // An ordinary call with result type never has no normal edge,
         // even though the shared walk visits its block's tail.
-        if self.t.suites == 0 && b.ty[blk as usize] != hd_types::Ty::NEVER {
+        if b.ty[blk as usize] != hd_types::Ty::NEVER {
             self.t.observe_arm(owner, blk, s, st);
         }
         let w = b.data[blk as usize][1];
@@ -810,13 +776,5 @@ impl Forward for Walk<'_> {
 
     fn skip(&self, x: u32) -> bool {
         self.t.pending.dead[x as usize]
-    }
-
-    fn suites(&mut self, inside: bool) {
-        if inside {
-            self.t.suites += 1;
-        } else {
-            self.t.suites -= 1;
-        }
     }
 }

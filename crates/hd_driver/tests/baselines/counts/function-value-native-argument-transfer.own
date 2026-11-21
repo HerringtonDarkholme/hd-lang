@@ -992,6 +992,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %13 = Scope %12 [] : Duration
 >   %14 = Await std/time/sleep[] (%13) : ()
 >   %15 = Release %14 Operation child #2 : ()
+>   %21 = Return - #2 : never
     value.owned.len()
 >   %16 = Ref local [$0 .owned] : &UniqList[usize]
 >   %17 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%16) : usize
@@ -999,6 +1000,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %19 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
+>   cancel %14 releases [%4294967295]
 
 @inline(.Never)
 > std/rt_tests.stage_case/prepared_native
@@ -1057,6 +1059,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %19 = Scope %18 [] : Duration
 >   %20 = Await std/time/sleep[] (%19) : ()
 >   %21 = Release %20 Operation child #2 : ()
+>   %100 = Return - #2 : never
             value.owned.len()
 >   %22 = Ref local [$3 .owned] : &UniqList[usize]
 >   %23 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%22) : usize
@@ -1135,6 +1138,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   exit sub 1 drops [$3]
 >   storage sub 0: $3 cell, $4 slot
 >   storage sub 1: $3 cell, $4 cell
+>   cancel %20 releases [%4294967295]
 
 pub fn main!() -> void $ Clock:
     plain_controls()
@@ -1302,6 +1306,7 @@ pub fn main!() -> void $ Clock:
 >   %67 = Release %66 Operation child #2 : ()
 >   %68 = Retain %66 Operation child #0 : ()
 >   %69 = Drop [%65] : ()
+>   %161 = Return - #2 : never
             1,
             reason="the suspended callback reads its unique input after awaiting",
         )
@@ -1383,4 +1388,4 @@ pub fn main!() -> void $ Clock:
 >   %158 = Drop [$1] : ()
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $0 cell
->   cancel %66 releases [%65]
+>   cancel %66 releases [%65 %4294967295]

@@ -29,17 +29,17 @@ impl Disposable for Res:
 fn two(log: *mut List[string], a: string, b: string) -> usize:
 > app/main/two
 >   local $0 log: *mut List[string] [param read] value
->     uses $0: entry -> %4 consume, %15 consume last
+>     uses $0: entry -> %4 consume, %10 consume last
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %14 consume last
+>     uses $2: entry -> %9 consume last
 >   local $3 first: Res [:= read assigned captured captured-assigned] place
 >   local $4 second: Res [:= read assigned captured captured-assigned] place
 >   local $5 self: string [read] value
->     uses $5: %32 -> %33 lend last
+>     uses $5: %22 -> %23 lend last
 >   local $6 self: string [read] value
->     uses $6: %25 -> %26 lend last
+>     uses $6: %15 -> %16 lend last
 >   %0 = Retain %43 Entry local $0 #0 : ()
 >   %1 = Retain %43 Entry local $1 #0 : ()
 >   %2 = Retain %43 Entry local $2 #0 : ()
@@ -50,44 +50,44 @@ fn two(log: *mut List[string], a: string, b: string) -> usize:
 >   %6 = NewStruct [%3 %4] : Res
 >   %7 = Box #3 #0 : ()
 >   %8 = Store [$3] %6 : ()
->   %9 = Ref mut local frame [$3] : &mut Res
->   %10 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%9) : ()
->   %11 = LoanEnd [%9] : ()
->   %12 = Block - : ()
->   %13 = Defer #12 : ()
->   %17 = Box #4 #0 : ()
->   %39 = Block %38 : usize
->   %40 = Scope %39 [%12 %22] : usize
->   %41 = Drop [$4] : ()
->   %42 = Drop [$3] : ()
->   %43 = Block %40 : usize
+>   %12 = Box #4 #0 : ()
+>   %35 = Ref mut local frame [$3] : &mut Res
+>   %36 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%35) : ()
+>   %37 = LoanEnd [%35] : ()
+>   %38 = Block - : ()
+>   %39 = Scope %38 [] : ()
+>   %40 = Drop [$3] : ()
+>   %41 = Block %28 : usize
+>   %42 = Scope %41 [] : usize
+>   %43 = Block %42 : usize
     using second = Res { name: b, log: log }
->   %14 = Read move [$2] : string
->   %15 = Read move [$0] : *mut List[string]
->   %16 = NewStruct [%14 %15] : Res
->   %18 = Store [$4] %16 : ()
->   %19 = Ref mut local frame [$4] : &mut Res
->   %20 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%19) : ()
->   %21 = LoanEnd [%19] : ()
->   %22 = Block - : ()
->   %23 = Defer #22 : ()
+>   %9 = Read move [$2] : string
+>   %10 = Read move [$0] : *mut List[string]
+>   %11 = NewStruct [%9 %10] : Res
+>   %13 = Store [$4] %11 : ()
+>   %29 = Ref mut local frame [$4] : &mut Res
+>   %30 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%29) : ()
+>   %31 = LoanEnd [%29] : ()
+>   %32 = Block - : ()
+>   %33 = Scope %32 [] : ()
+>   %34 = Drop [$4] : ()
     first.name.len() + second.name.len()
->   %24 = Read borrow [$3 .name] : string
->   %25 = Store [$6] %24 : ()
->   %26 = Read borrow [$6] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
->   %28 = Break L1 %27 : never
->   %29 = Block - : usize
->   %30 = Scope %29 [] : usize
->   %31 = Read borrow [$4 .name] : string
->   %32 = Store [$5] %31 : ()
->   %33 = Read borrow [$5] : string
->   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
->   %35 = Break L0 %34 : never
->   %36 = Block - : usize
->   %37 = Scope %36 [] : usize
->   %38 = Prim Add [%30 %37] : usize
->   exit sub 0 drops [$0 $1 $2 $3 $4]
+>   %14 = Read borrow [$3 .name] : string
+>   %15 = Store [$6] %14 : ()
+>   %16 = Read borrow [$6] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L1 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Read borrow [$4 .name] : string
+>   %22 = Store [$5] %21 : ()
+>   %23 = Read borrow [$5] : string
+>   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
+>   %25 = Break L0 %24 : never
+>   %26 = Block - : usize
+>   %27 = Scope %26 [] : usize
+>   %28 = Prim Add [%20 %27] : usize
+>   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $3 slot, $4 slot
 >   summary kept [$0 $1 $2] writes
 
@@ -103,8 +103,8 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   local $6 x: string [read assigned] value
 >     uses $6: %31 -> %14 consume last
 >   local $7 r: Res [:= read assigned captured captured-assigned] place
->   %0 = Release %42 Exit local $1 #2 : ()
->   %1 = Retain %42 Entry local $0 #0 : ()
+>   %0 = Release %41 Exit local $0 #2 : ()
+>   %1 = Release %41 Exit local $1 #2 : ()
     for x in xs:
 >   %2 = Read borrow [$1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -129,8 +129,7 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %38 = If %8 [%35 %37] : ()
 >   %39 = Block - : ()
 >   %40 = Loop %39 - : ()
->   %41 = Drop [$0] : ()
->   %42 = Block - : ()
+>   %41 = Block - : ()
         using r = Res { name: x, log: log }
 >   %14 = Read copy [$6] : string
 >   %15 = Retain %14 Value #0 : ()
@@ -143,13 +142,12 @@ fn per_round(log: *mut List[string], xs: List[string]) -> void:
 >   %22 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%21) : ()
 >   %23 = LoanEnd [%21] : ()
 >   %24 = Block - : ()
->   %25 = Defer #24 : ()
->   %26 = Block - : ()
->   %27 = Scope %26 [%24] : ()
->   %28 = Drop [$7] : ()
->   exit sub 0 drops [$0 $7]
+>   %25 = Scope %24 [] : ()
+>   %26 = Drop [$7] : ()
+>   %27 = Block - : ()
+>   %28 = Scope %27 [] : ()
 >   storage sub 0: $7 slot
->   summary kept [$0] borrows [$1] writes
+>   summary kept [] borrows [$0 $1] writes
 >   loop %40 keeps len [$1] (-..-)
         pass
 
@@ -158,26 +156,27 @@ fn by_ref(r: &mut Res) -> usize:
 > app/main/by_ref
 >   local $0 r: &mut Res [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 held: &mut Res [:= read assigned] place
+>   local $1 held: &mut Res [:= read assigned] value
+>     uses $1: %1 -> %2 lend, %11 lend last
 >   local $2 self: string [read] value
->     uses $2: %8 -> %9 lend last
+>     uses $2: %4 -> %5 lend last
 >   %0 = Read borrow [$0] : &mut Res
 >   %1 = Store [$1] %0 : ()
->   %2 = Read borrow [$1] : &mut Res
->   %3 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%2) : ()
->   %4 = Block - : ()
->   %5 = Defer #4 : ()
->   %15 = Block %13 : usize
->   %16 = Scope %15 [%4] : usize
+>   %11 = Read borrow [$1] : &mut Res
+>   %12 = Call std/ops/Disposable.dispose for Res [$()] via Impl (%11) : ()
+>   %13 = Block - : ()
+>   %14 = Scope %13 [] : ()
+>   %15 = Block %9 : usize
+>   %16 = Scope %15 [] : usize
 >   %17 = Block %16 : usize
     held.name.len()
->   %6 = Read borrow [*$1 .name] : string
->   %7 = LoanBegin %6 #0 : ()
->   %8 = Store [$2] %6 : ()
->   %9 = Read borrow [$2] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L0 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = LoanClose %7 : ()
+>   %2 = Read borrow [*$1 .name] : string
+>   %3 = LoanBegin %2 #0 : ()
+>   %4 = Store [$2] %2 : ()
+>   %5 = Read borrow [$2] : string
+>   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : usize
+>   %9 = Scope %8 [] : usize
+>   %10 = LoanClose %3 : ()
 >   summary kept [] writes

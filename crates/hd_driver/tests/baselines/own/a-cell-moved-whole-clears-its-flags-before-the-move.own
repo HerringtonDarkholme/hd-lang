@@ -33,5 +33,7 @@ std/rt_tests.stage_case/moved_cell
   %25 = Drop [$2] : ()
   %26 = FlagClear [$2] #4 : ()
   %27 = Block %24 : usize
+  %28 = Return - #2 : never
   exit sub 0 drops [$1 $2]
   storage sub 0: $1 cell
+  cancel %9 releases [%4294967295]

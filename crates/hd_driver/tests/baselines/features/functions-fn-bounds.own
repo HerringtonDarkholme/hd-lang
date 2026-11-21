@@ -137,12 +137,12 @@ fn fn_mut(xs: List[string]) -> usize:
 >   local $8 $end: usize [assigned] value
 >     uses $8: %9 -> %12 lend
 >   local $9 x: string [read assigned] value
->     uses $9: %35 -> %20 lend last
->   %0 = Release %50 Exit local $0 #2 : ()
+>     uses $9: %36 -> %20 lend last
+>   %0 = Release %51 Exit local $0 #2 : ()
     let n: usize = 0
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] 0:usize : ()
->   %50 = Block %48 : usize
+>   %51 = Block %49 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %3 = Retain %6 Entry local $2 #0 : ()
 >   %4 = Drop [$2] : ()
@@ -168,32 +168,33 @@ fn fn_mut(xs: List[string]) -> usize:
 >   %24 = Scope %23 [] : usize
 >   %25 = Prim Add [%19 %24] : usize
 >   %26 = Store [$1] %25 : ()
->   %27 = Read borrow [$1] : usize
->   %28 = Block - : ()
->   %29 = Release %26 Operation #3 : ()
->   %30 = Break L3 - : never
->   %31 = Block - : ()
->   %32 = Scope %31 [%28] : ()
->   %33 = Block - : ()
->   %34 = Read borrow [%15] : string
->   %35 = Store [$9] %34 : ()
->   %37 = Block - : never
->   %38 = Match %15 [%37 %33] : ()
->   %39 = Block - : ()
->   %40 = Break L0 - : never
->   %41 = Block - : ()
->   %42 = If %13 [%39 %41] : ()
->   %43 = Block - : ()
->   %44 = Loop %43 - : ()
->   %45 = Break L1 - : never
->   %46 = Block - : ()
->   %47 = Scope %46 [] : ()
+>   %27 = Release %26 Operation #3 : ()
+>   %28 = Read borrow [$1] : usize
+>   %29 = Block - : ()
+>   %30 = Scope %29 [] : ()
+>   %31 = Break L3 - : never
+>   %32 = Block - : ()
+>   %33 = Scope %32 [] : ()
+>   %34 = Block - : ()
+>   %35 = Read borrow [%15] : string
+>   %36 = Store [$9] %35 : ()
+>   %38 = Block - : never
+>   %39 = Match %15 [%38 %34] : ()
+>   %40 = Block - : ()
+>   %41 = Break L0 - : never
+>   %42 = Block - : ()
+>   %43 = If %13 [%40 %42] : ()
+>   %44 = Block - : ()
+>   %45 = Loop %44 - : ()
+>   %46 = Break L1 - : never
+>   %47 = Block - : ()
+>   %48 = Scope %47 [] : ()
     n
->   %48 = Read copy [$1] : usize
->   %49 = Drop [$1] : ()
+>   %49 = Read copy [$1] : usize
+>   %50 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$2]
 >   storage sub 0: $1 slot
 >   storage sub 1: $1 cell
 >   summary kept [] borrows [$0]
->   loop %44 keeps [$0] (-..-)
+>   loop %45 keeps [$0] (-..-)

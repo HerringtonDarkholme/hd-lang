@@ -388,6 +388,11 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
     for row in &mut b.cancel {
         *row = (word(row.0), word(row.1));
     }
+    for x in &mut b.suites {
+        *x = word(*x);
+    }
+    b.suites.retain(|&x| x != NONE);
+    hd_base::SliceSort::sort_stable(&mut b.suites[..]);
     // A loop is never deleted; the place is rooted at a local. A region
     // bound the edits delete closes the region at the loop.
     for row in &mut b.stable_lists {

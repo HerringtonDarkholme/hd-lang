@@ -26,8 +26,9 @@ fn run!(f: fn!() -> void) -> void:
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
 >   %10 = Block - : ()
+>   %13 = Return - #2 : never
 >   exit sub 0 drops [$0]
->   cancel %5 releases [%3 %4]
+>   cancel %5 releases [%3 %4 %4294967295]
 
 fn run_plain(f: fn() -> void) -> void:
 > app/main/run_plain
@@ -91,6 +92,7 @@ pub fn main!() -> void $ Console:
 >   %40 = Retain %39 Operation captures #0 : ()
 >   %41 = Await app/main/run[] (%39) : ()
 >   %42 = Release %41 Operation child #2 : ()
+>   %64 = Return - #2 : never
         p.value = "c"
 >   %33 = Store [*$1 .value] "c" : ()
 >   %34 = Release %33 Operation #3 : ()
@@ -127,6 +129,7 @@ pub fn main!() -> void $ Console:
 >   storage sub 0: $0 cell, $3 cell
 >   storage sub 1: $0 cell, $3 cell
 >   storage sub 2: $0 cell, $3 cell
+>   cancel %41 releases [%4294967295]
 == @build: release
 # @dump: stdout own
 # @build: dev | release
@@ -154,9 +157,10 @@ fn run!(f: fn!() -> void) -> void:
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
 >   %10 = Block - : ()
+>   %13 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %5 releases [%3 %4]
+>   cancel %5 releases [%3 %4 %4294967295]
 
 fn run_plain(f: fn() -> void) -> void:
 > app/main/run_plain
@@ -174,15 +178,16 @@ pub fn main!() -> void $ Console:
 > app/main/main
 >   local $0 $ref: Cell [read assigned mutated] place
 >   local $1 p: *mut Cell [:= read assigned captured] value
->     uses $1: %12 -> %13 lend, %20 consume, %38 lend, %44 consume, %56 lend last
+>     uses $1: %12 -> %13 lend, %20 consume, %39 lend, %45 consume, %57 lend last
 >   local $2 r: &string [:= read assigned] value
->     uses $2: %17 -> %48 lend last
->   local $4 p: *mut Cell [read assigned] place
+>     uses $2: %17 -> %49 lend last
+>   local $4 p: *mut Cell [read assigned] value
+>     uses $4: %21 -> %22 lend, %25 lend last
 >   local $6 $temporary_owner: i32 [read assigned captured captured-assigned] place
->   %0 = Retain %68 Cold row #0 : ()
->   %1 = Retain %68 Materialize row #0 : ()
->   %2 = Release %68 FrameDrop row #2 : ()
->   %3 = Release %68 FrameDrop child #2 : ()
+>   %0 = Retain %69 Cold row #0 : ()
+>   %1 = Retain %69 Materialize row #0 : ()
+>   %2 = Release %69 FrameDrop row #2 : ()
+>   %3 = Release %69 FrameDrop child #2 : ()
 >   %4 = Box #6 #1 : ()
 >   %5 = Store [$6] 0:i32 : ()
 >   %6 = NewStruct ["a" "o"] : Cell
@@ -192,7 +197,7 @@ pub fn main!() -> void $ Console:
 >   %10 = Retain %9 Value #0 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Store [$1] %9 : ()
->   %68 = Block - : ()
+>   %69 = Block - : ()
     r := &p.other
 >   %13 = Ref local [*$1 .other] : &string
 >   %14 = OwnLoans [$6] : ()
@@ -205,60 +210,63 @@ pub fn main!() -> void $ Console:
 >   %20 = Read borrow [$1] : *mut Cell
 >   %21 = Store [$4] %20 : ()
 >   %22 = Store [*$4 .value] "b" : ()
->   %23 = Read borrow [$4] : *mut Cell
->   %24 = Block - : ()
->   %25 = Release %22 Operation #3 : ()
->   %26 = OwnLoans [$6] : ()
->   %27 = Break L1 - : never
->   %28 = Block - : ()
->   %29 = Scope %28 [%24] : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = Scope %31 [] : ()
+>   %23 = Release %22 Operation #3 : ()
+>   %24 = OwnLoans [$6] : ()
+>   %25 = Read borrow [$4] : *mut Cell
+>   %26 = Block - : ()
+>   %27 = Scope %26 [] : ()
+>   %28 = Break L1 - : never
+>   %29 = Block - : ()
+>   %30 = Scope %29 [] : ()
+>   %31 = Break L0 - : never
+>   %32 = Block - : ()
+>   %33 = Scope %32 [] : ()
     run!(fn!() -> void:
->   %33 = Retain %43 Cold row #0 : ()
->   %34 = Retain %43 Materialize row #0 : ()
->   %35 = Release %43 FrameDrop row #2 : ()
->   %36 = Retain %43 Cold captures #0 : ()
->   %37 = Retain %43 Entry captures #0 : ()
->   %43 = Block - : ()
->   %44 = Closure #2 : fn!() -> ()
->   %45 = Retain %44 Operation captures #0 : ()
->   %46 = Await app/main/run[] (%44) : ()
->   %47 = Release %46 Operation child #2 : ()
+>   %34 = Retain %44 Cold row #0 : ()
+>   %35 = Retain %44 Materialize row #0 : ()
+>   %36 = Release %44 FrameDrop row #2 : ()
+>   %37 = Retain %44 Cold captures #0 : ()
+>   %38 = Retain %44 Entry captures #0 : ()
+>   %44 = Block - : ()
+>   %45 = Closure #2 : fn!() -> ()
+>   %46 = Retain %45 Operation captures #0 : ()
+>   %47 = Await app/main/run[] (%45) : ()
+>   %48 = Release %47 Operation child #2 : ()
+>   %70 = Return - #2 : never
         p.value = "c"
->   %38 = Store [*$1 .value] "c" : ()
->   %39 = Release %38 Operation #3 : ()
->   %40 = OwnLoans [$6] : ()
->   %41 = Drop [$1] : ()
->   %42 = Drop [$6] : ()
+>   %39 = Store [*$1 .value] "c" : ()
+>   %40 = Release %39 Operation #3 : ()
+>   %41 = OwnLoans [$6] : ()
+>   %42 = Drop [$1] : ()
+>   %43 = Drop [$6] : ()
     )
     if *r != "o" || p.value != "c":
->   %48 = Read copy [*$2] : string
->   %49 = Retain %48 Value #0 : ()
->   %50 = LoanClose %15 : ()
->   %51 = OwnLoans [$6] : ()
->   %52 = Drop [$2] : ()
->   %53 = Intrinsic StrEq [%48 "o"] : bool
->   %54 = Drop [%48] : ()
->   %55 = Prim Not [%53] : bool
->   %56 = Read borrow [*$1 .value] : string
->   %57 = OwnLoans [$6] : ()
->   %58 = Intrinsic StrEq [%56 "c"] : bool
->   %59 = Prim Not [%58] : bool
->   %60 = Block %59 : bool
->   %61 = Or %55 %60 : bool
->   %62 = Drop [$1] : ()
->   %63 = Drop [$6] : ()
->   %66 = If %61 [%65 -] : ()
+>   %49 = Read copy [*$2] : string
+>   %50 = Retain %49 Value #0 : ()
+>   %51 = LoanClose %15 : ()
+>   %52 = OwnLoans [$6] : ()
+>   %53 = Drop [$2] : ()
+>   %54 = Intrinsic StrEq [%49 "o"] : bool
+>   %55 = Drop [%49] : ()
+>   %56 = Prim Not [%54] : bool
+>   %57 = Read borrow [*$1 .value] : string
+>   %58 = OwnLoans [$6] : ()
+>   %59 = Intrinsic StrEq [%57 "c"] : bool
+>   %60 = Prim Not [%59] : bool
+>   %61 = Block %60 : bool
+>   %62 = Or %56 %61 : bool
+>   %63 = Drop [$1] : ()
+>   %64 = Drop [$6] : ()
+>   %67 = If %62 [%66 -] : ()
         panic("the writes disagree")
->   %64 = Call std/core/panic[] ("the writes disagree") : never
->   %65 = Block - : never
+>   %65 = Call std/core/panic[] ("the writes disagree") : never
+>   %66 = Block - : never
     println("ok")
->   %67 = Call std/console/println[string] ("ok") : ()
+>   %68 = Call std/console/println[string] ("ok") : ()
 >   exit sub 0 drops [$1 $2 $6]
 >   exit sub 2 drops [$1 $6]
 >   storage sub 0: $0 cell, $6 cell
 >   storage sub 1: $0 cell, $6 cell
 >   storage sub 2: $0 cell, $6 cell
 >   summary none
+>   cancel %47 releases [%4294967295]

@@ -35,6 +35,7 @@ fn size!(text: &string) -> usize $ Clock:
 >   %15 = Await std/time/sleep[] (%14) : ()
 >   %16 = Release %15 Operation child #2 : ()
 >   %24 = Block %22 : usize
+>   %25 = Return - #2 : never
     text.len()
 >   %17 = Read borrow [$0] : &string
 >   %18 = Read borrow [*%17] : string
@@ -45,6 +46,7 @@ fn size!(text: &string) -> usize $ Clock:
 >   %23 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %15 releases [%4294967295]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)
@@ -75,10 +77,11 @@ fn later!(n: usize) -> usize $ Clock:
 >   %15 = Retain %13 Operation child #0 : ()
 >   %16 = Drop [%12] : ()
 >   %17 = Drop [$1] : ()
+>   %20 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
 >   summary none
->   cancel %13 releases [%12]
+>   cancel %13 releases [%12 %4294967295]
 
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -124,6 +127,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   %27 = Store [$4] %25 : ()
 >   %29 = Block - : never
 >   %30 = Match %15 [%29 %23] : ()
+>   %39 = Return - #2 : never
     x + y
 >   %31 = Read copy [$3] : usize
 >   %32 = Read copy [$4] : usize
@@ -131,7 +135,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   cancel %15 releases [%11 %12 %13 %14]
+>   cancel %15 releases [%11 %12 %13 %14 %4294967295]
 
 fn first!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -166,5 +170,7 @@ fn first!(n: usize) -> usize $ Clock:
 >   %20 = NewList - [%13 %17] : List[Suspend[usize]]
 >   %21 = Await std/task/race[usize] (%20) : usize
 >   %22 = Release %21 Operation child #2 : ()
+>   %24 = Return - #2 : never
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
+>   cancel %21 releases [%4294967295]

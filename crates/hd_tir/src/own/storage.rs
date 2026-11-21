@@ -433,7 +433,7 @@ pub fn declarations(b: &Body, subs: &[u32]) -> Vec<u32> {
 /// sub-body's root. A capture's cell arrives in the environment and gets
 /// none. `box_word::ZERO` is set when a return, break, continue or await
 /// may run between the box and the declaration, or a conditional block
-/// between them can be skipped (including a cleanup suite). Unconditional
+/// between them can be skipped. Unconditional
 /// scope/provider/reference wrappers do not require clearing. One [`Nest`]
 /// and preorder prefixes give O(N + rows) work,
 /// O(1) a row; two walks of the uses, a raise only climbs.
@@ -451,7 +451,6 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
     let nest = Nest::new(b, topo);
     let mut leaves = vec![0u32];
     let mut conditional = vec![0u32; b.len()];
-    let mut cleanup = vec![NONE; b.len()];
     for &x in nest.preorder() {
         let i = x as usize;
         if !topo.is_root[i] {
@@ -461,16 +460,13 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
                 topo.blk[i]
             };
             let p = parent as usize;
-            // Only these edges enter their block on every normal path. A
-            // scope's deferred suites are conditional, unlike its body.
+            // Only these edges enter their block on every normal path.
             let always = match b.tags[p] {
                 Tag::Scope | Tag::RefDyn => b.data[p][0] == x,
                 Tag::With => b.data[p][1] == x,
                 _ => false,
             };
             conditional[i] = conditional[p] + u32::from(b.tags[i] == Tag::Block && !always);
-            let suite = b.tags[i] == Tag::Block && b.tags[p] == Tag::Scope && b.data[p][0] != x;
-            cleanup[i] = if suite { x } else { cleanup[p] };
         }
         let leaves_block = matches!(
             b.tags[x as usize],
@@ -514,14 +510,8 @@ pub(crate) fn boxes(b: &Body, topo: &Topology, edits: &mut splice::Tables) {
             }
         }
     };
-    // A registered cleanup runs only after the binding was initialized.
-    // Its references extend the value's lifetime, not the allocation scope:
-    // hoisting to its (possibly outer) suite owner would merge loop rounds.
-    let ours = |at: &[u32], i: usize, l: usize| {
-        at[l] != NONE
-            && topo.sub[i] == topo.sub[decl[l] as usize]
-            && cleanup[i] == cleanup[decl[l] as usize]
-    };
+    let ours =
+        |at: &[u32], i: usize, l: usize| at[l] != NONE && topo.sub[i] == topo.sub[decl[l] as usize];
     uses(&mut |i, l| {
         while ours(&at, i, l)
             && !topo.is_root[at[l] as usize]

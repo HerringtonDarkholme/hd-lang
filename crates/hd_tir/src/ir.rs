@@ -981,6 +981,9 @@ pub mod sub_flags {
 /// owned result convention; only ownership planning writes this mode.
 pub mod return_word {
     pub const BORROWED: u32 = 1;
+    /// Out of a suspending body by its cancellation: no value (a point's
+    /// cancel block ends with it, `own::scopes`).
+    pub const CANCELLED: u32 = 2;
 }
 
 /// A suspension point's side record (16 bytes).
@@ -1116,6 +1119,10 @@ pub struct Body {
     /// one row per point. A pass output: empty in the checker's TIR
     /// (invariant 22); the wire's owned section.
     pub cancel: Vec<(u32, u32)>,
+    /// The cleanup suites' copies (`own::scopes`): each a wrapper `Scope`
+    /// that runs one suite on one way out of its cleanup scope. A pass
+    /// output, like [`Body::cancel`].
+    pub suites: Vec<u32>,
     /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
     /// "Hoisting"): per row, a `Loop` and a place word of a list whose
     /// header and buffer nothing in the loop replaces, so `hd_opt::prove`
@@ -1201,6 +1208,7 @@ impl Body {
             exit_drops: vec![],
             storage: vec![],
             cancel: vec![],
+            suites: vec![],
             stable_lists: vec![],
             forwarded_reads: vec![],
             anchors: vec![],
@@ -1708,6 +1716,12 @@ impl Body {
     pub fn record(&self, at: u32) -> &[u32] {
         let n = self.extra[at as usize] as usize;
         &self.extra[at as usize + 1..at as usize + 1 + n]
+    }
+
+    /// Whether wrapper `Scope` `i` runs a cleanup suite ([`Body::suites`]).
+    #[must_use]
+    pub fn is_suite(&self, i: u32) -> bool {
+        self.suites.binary_search(&i).is_ok()
     }
 
     /// Suspension point `at`'s cancel block ([`Body::cancel`]): one probe.
@@ -2748,6 +2762,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.cancel.is_empty()
+        || !b.suites.is_empty()
         || !b.stable_lists.is_empty()
         || !b.anchors.is_empty()
     {

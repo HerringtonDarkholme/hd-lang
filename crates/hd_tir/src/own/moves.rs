@@ -65,9 +65,7 @@
 use hd_base::SliceSort as _;
 
 use super::flow::{Backward, BitArena, Flow, backward};
-use super::{
-    Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, suite_touches, tracked,
-};
+use super::{Operand, OwnCx, Role, Tri, fill, operands, owned_value, splice, tracked};
 use crate::ir::{
     Body, NONE, PlaceView, Proj, ReadMode, Root, Tag, Topology, is_suspension, place, u32_of,
 };
@@ -509,8 +507,6 @@ fn candidates(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> bool
                     t.holds[l as usize] = b.loan_read(w).unwrap_or(w);
                 }
             }
-            Tag::Scope if w != NONE => keep_suites(b, t, b.record(w)),
-            Tag::Defer => keep_suites(b, t, &[a]),
             _ => {}
         }
     }
@@ -689,17 +685,6 @@ fn suspending_subs(b: &Body, topo: &Topology, t: &mut Tables) {
             t.susp_sub[topo.sub[x] as usize] = true;
         }
     }
-}
-
-/// Keeps out every local and value the cleanup suites `roots` touch
-/// ([`suite_touches`]).
-fn keep_suites(b: &Body, t: &mut Tables, roots: &[u32]) {
-    let (keep_l, keep_v) = (&mut t.keep_l, &mut t.keep_v);
-    let (local, value) = (
-        |l: u32| keep_l[l as usize] = true,
-        |v: u32| keep_v[v as usize] = true,
-    );
-    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// The instructions that touch each candidate, by bit, in index order.

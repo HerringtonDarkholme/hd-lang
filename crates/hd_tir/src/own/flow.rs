@@ -7,7 +7,7 @@
 use super::{Operand, Role, operands};
 
 mod backward;
-use crate::ir::{Body, NONE, Tag, Topology, u32_of};
+use crate::ir::{Body, NONE, Tag, Topology, is_suspension, u32_of};
 
 /// Scalar fact visits and copied/cleared flow words in counted verifier tests.
 #[inline]
@@ -297,6 +297,9 @@ pub trait Forward {
     fn back(&mut self, _: &Body, _x: u32, _lp: u32, _s: &mut BitArena, _st: usize) {}
     /// `Return` `x` leaves the sub-body.
     fn exit(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
+    /// Suspension point `x`'s cancel exit, from `st`: the point's value
+    /// is never made on it.
+    fn cancel(&mut self, _: &Body, _x: u32, _s: &mut BitArena, _st: usize) {}
     /// Whether member `x` of a block is gone and the walk skips it.
     fn skip(&self, _x: u32) -> bool {
         false
@@ -410,8 +413,19 @@ impl<A: Forward> Ahead<'_, A> {
     /// Statement `x` over `st`, and where it goes; false when it never
     /// completes.
     fn stmt(&mut self, x: u32, st: usize) -> bool {
-        let (b, s) = (self.b, &mut *self.s);
-        self.a.stmt(b, x, &mut s.arena, st);
+        let b = self.b;
+        self.a.stmt(b, x, &mut self.s.arena, st);
+        // A suspension point's cancel exit leaves from here, before its
+        // value is made (`own::scopes`).
+        if is_suspension(b.tags[x as usize])
+            && let Some(blk) = b.cancel_block(x)
+        {
+            let at = self.s.arena.alloc(Some(st));
+            self.a.cancel(b, x, &mut self.s.arena, at);
+            self.block(blk, at);
+            self.s.arena.free(at);
+        }
+        let s = &mut *self.s;
         let p = b.data[x as usize][0] as usize;
         let tag = b.tags[x as usize];
         match tag {

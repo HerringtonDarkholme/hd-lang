@@ -71,6 +71,7 @@ fn sequential!(left: string, right: string) -> string:
 >   %35 = Store [$5] %33 : ()
 >   %37 = Block - : never
 >   %38 = Match %26 [%37 %31] : ()
+>   %55 = Return - #2 : never
     a + c + d
 >   %39 = Read move [$2] : string
 >   %40 = Read move [$4] : string
@@ -83,5 +84,5 @@ fn sequential!(left: string, right: string) -> string:
 >   %47 = Drop [%41] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   summary none
->   cancel %8 releases [%5 %7]
->   cancel %26 releases [%23 %25]
+>   cancel %8 releases [%5 %7 %4294967295]
+>   cancel %26 releases [%23 %25 %4294967295]
