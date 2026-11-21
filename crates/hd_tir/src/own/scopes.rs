@@ -531,7 +531,7 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
                     let suites = src.record(src.data[i][1]).to_vec();
                     let registered = suites
                         .iter()
-                        .take_while(|s| !cx.deferred.contains(s))
+                        .take_while(|s| !cx.deferred.contains(*s))
                         .count();
                     open.push(Open {
                         body: blk,
